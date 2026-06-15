@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from "react";
-import { RefreshCw, Calendar, Clock } from "lucide-react";
+import { RefreshCw, Calendar, Clock, GraduationCap } from "lucide-react";
 import Hero from "./components/Hero.jsx";
 import Timeline from "./components/Timeline.jsx";
 import WeekAgenda from "./components/WeekAgenda.jsx";
-import CoursePicker from "./components/CoursePicker.jsx";
+import SubjectFilter from "./components/SubjectFilter.jsx";
 import { fetchSchedule } from "./lib/sheet.js";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
@@ -17,7 +17,6 @@ export default function App() {
   const [section, setSection] = useState("A");
   const [view, setView] = useState("today");
   const [weekOffset, setWeekOffset] = useState(0);
-  const [picker, setPicker] = useState(false);
   const [mine, setMine] = useState(null);
   const [syncedAt, setSyncedAt] = useState(new Date());
 
@@ -85,7 +84,7 @@ export default function App() {
     <div className="app">
       <header className="bar">
         <div className="brand">
-          <div className="logo">αβ</div>
+          <div className="logo"><GraduationCap size={20} /></div>
           <div>
             <div className="brand-name">Term Timetable</div>
             <div className="brand-sub">IIM Sambalpur · {termLabel}</div>
@@ -107,8 +106,9 @@ export default function App() {
         <span className="live">
           <span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}
         </span>
-        <CoursePicker legend={LEGEND} mine={mine} setMine={setMine} open={picker} setOpen={setPicker} />
       </div>
+
+      <SubjectFilter legend={LEGEND} mine={mine} setMine={setMine} />
 
       <nav className="tabs">
         <button className={`tab ${view === "today" ? "on" : ""}`} onClick={() => setView("today")}>
