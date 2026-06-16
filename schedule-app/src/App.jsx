@@ -1,17 +1,20 @@
 import { useState, useEffect, useMemo } from "react";
-import { RefreshCw, Calendar, Clock, GraduationCap } from "lucide-react";
+import { RefreshCw, Calendar, Clock, Sunrise, GraduationCap, LogOut } from "lucide-react";
+import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
 import Timeline from "./components/Timeline.jsx";
 import WeekAgenda from "./components/WeekAgenda.jsx";
 import SubjectFilter from "./components/SubjectFilter.jsx";
+import Login from "./components/Login.jsx";
 import { fetchSchedule } from "./lib/sheet.js";
+import RecentChanges from "./components/RecentChanges.jsx";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
 function clsDate(c, which) { const [Y, Mo, D] = c.date.split("-").map(Number); const [h, m] = c[which].split(":").map(Number); return new Date(Y, Mo - 1, D, h, m); }
 function prettyDate(iso) { const [Y, M, D] = iso.split("-").map(Number); return new Date(Y, M - 1, D).toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" }); }
 
-export default function App() {
+function AppCore({ isSignedIn, isLoaded, signOut }) {
   const [scheduleData, setScheduleData] = useState(null);
   const [now, setNow] = useState(new Date());
   const [section, setSection] = useState("A");
@@ -21,18 +24,26 @@ export default function App() {
   const [syncedAt, setSyncedAt] = useState(new Date());
 
   useEffect(() => {
-    fetchSchedule().then((data) => {
-      setScheduleData(data);
-      setMine(new Set(Object.keys(data.LEGEND)));
-    });
-  }, []);
+    if (!isSignedIn) return;
+    let alive = true;
+    const load = (first) =>
+      fetchSchedule().then((data) => {
+        if (!alive) return;
+        setScheduleData(data);
+        setSyncedAt(new Date());
+        if (first) setMine(new Set(Object.keys(data.LEGEND)));
+      });
+    load(true);
+    const id = setInterval(() => load(false), 10 * 60 * 1000);
+    return () => { alive = false; clearInterval(id); };
+  }, [isSignedIn]);
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 20000);
     return () => clearInterval(t);
   }, []);
 
-  const { TERM, LEGEND, CLASSES } = scheduleData || { TERM: null, LEGEND: {}, CLASSES: [] };
+  const { TERM, LEGEND, CLASSES, CHANGES } = scheduleData || { TERM: null, LEGEND: {}, CLASSES: [], CHANGES: [] };
 
   const visible = useMemo(() => {
     if (!mine) return [];
@@ -47,10 +58,16 @@ export default function App() {
   }, [CLASSES, section, mine]);
 
   const todayISO = ymd(now);
+  const tomorrowISO = ymd(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
 
   const todayList = useMemo(
     () => visible.filter((c) => c.date === todayISO).sort((a, b) => toMin(a.start) - toMin(b.start)),
     [visible, todayISO]
+  );
+
+  const tomorrowList = useMemo(
+    () => visible.filter((c) => c.date === tomorrowISO).sort((a, b) => toMin(a.start) - toMin(b.start)),
+    [visible, tomorrowISO]
   );
 
   const { current, next } = useMemo(() => {
@@ -74,9 +91,9 @@ export default function App() {
     });
   }
 
-  if (!scheduleData || !mine) {
-    return <div className="app" style={{ display: "grid", placeItems: "center", minHeight: "100vh" }}><span style={{ color: "var(--muted)", fontFamily: "var(--mono)", fontSize: 13 }}>Loading…</span></div>;
-  }
+  if (!isLoaded) return <div className="loading-screen"><div className="spinner" /></div>;
+  if (!isSignedIn) return <Login />;
+  if (!scheduleData || !mine) return <div className="loading-screen"><div className="spinner" /></div>;
 
   const termLabel = TERM ? `${new Date(TERM.start + "T00:00").toLocaleDateString([], { day: "numeric", month: "short" })} – ${new Date(TERM.end + "T00:00").toLocaleDateString([], { day: "numeric", month: "short" })}` : "";
 
@@ -99,6 +116,7 @@ export default function App() {
             ))}
           </div>
           <button className="sync" onClick={handleSync} aria-label="Sync now"><RefreshCw size={15} /></button>
+          <button className="sync" onClick={() => signOut()} aria-label="Sign out"><LogOut size={15} /></button>
         </div>
       </header>
 
@@ -114,6 +132,9 @@ export default function App() {
         <button className={`tab ${view === "today" ? "on" : ""}`} onClick={() => setView("today")}>
           <Clock size={15} /> Today
         </button>
+        <button className={`tab ${view === "tomorrow" ? "on" : ""}`} onClick={() => setView("tomorrow")}>
+          <Sunrise size={15} /> Tomorrow
+        </button>
         <button className={`tab ${view === "week" ? "on" : ""}`} onClick={() => setView("week")}>
           <Calendar size={15} /> Week
         </button>
@@ -124,9 +145,23 @@ export default function App() {
 
       {view === "today"
         ? <Timeline list={todayList} current={current} now={now} />
+        : view === "tomorrow"
+        ? <Timeline list={tomorrowList} current={null} now={now} showNowLine={false} label="Tomorrow" />
         : <WeekAgenda visible={visible} now={now} offset={weekOffset} setOffset={setWeekOffset} todayISO={todayISO} />}
 
-      <footer className="foot">Snapshot · connect live to enable change alerts</footer>
+      <RecentChanges changes={CHANGES} />
+
+      <footer className="foot">Auto-syncs from the live timetable sheet every few minutes</footer>
     </div>
   );
+}
+
+export default function App() {
+  const { isSignedIn, isLoaded } = useUser();
+  const { signOut } = useClerk();
+  return <AppCore isSignedIn={isSignedIn} isLoaded={isLoaded} signOut={signOut} />;
+}
+
+export function DevApp() {
+  return <AppCore isSignedIn={true} isLoaded={true} signOut={() => {}} />;
 }

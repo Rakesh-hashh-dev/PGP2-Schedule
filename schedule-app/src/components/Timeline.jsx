@@ -11,12 +11,12 @@ function TypeBadge({ type }) {
   return null;
 }
 
-export default function Timeline({ list, current, now }) {
+export default function Timeline({ list, current, now, showNowLine = true, label = "Today" }) {
   if (!list.length)
     return (
       <section className="panel">
-        <div className="panel-head"><h2>Today</h2></div>
-        <div className="empty">No sessions today for your courses. Check the week view.</div>
+        <div className="panel-head"><h2>{label}</h2></div>
+        <div className="empty">No sessions {label.toLowerCase()} for your courses. Check the week view.</div>
       </section>
     );
 
@@ -25,13 +25,13 @@ export default function Timeline({ list, current, now }) {
   return (
     <section className="panel">
       <div className="panel-head">
-        <h2>Today</h2>
+        <h2>{label}</h2>
         <span className="count">{list.filter((c) => c.type === "class").length} classes</span>
       </div>
       <ol className="rail">
         {list.map((c, i) => {
           const isCur = current && current.date === c.date && current.start === c.start && current.name === c.name;
-          const showNow = !isCur && nowMin < toMin(c.start) && (i === 0 || nowMin >= toMin(list[i - 1].end));
+          const showNow = showNowLine && !isCur && nowMin < toMin(c.start) && (i === 0 || nowMin >= toMin(list[i - 1].end));
           return (
             <React.Fragment key={i}>
               {showNow && (
