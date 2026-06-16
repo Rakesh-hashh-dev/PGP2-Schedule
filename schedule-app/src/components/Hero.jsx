@@ -1,4 +1,5 @@
-import { MapPin } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { MapPin, CheckCircle2 } from "lucide-react";
 
 function clsDate(c, which) {
   const [Y, Mo, D] = c.date.split("-").map(Number);
@@ -22,7 +23,35 @@ function UpNext({ c }) {
   );
 }
 
-export default function Hero({ current, next, now, todayISO }) {
+export default function Hero({ current, next, now, todayISO, tomorrowISO }) {
+  const prevRef = useRef(current);
+  const [justDone, setJustDone] = useState(null);
+
+  useEffect(() => {
+    const prev = prevRef.current;
+    prevRef.current = current;
+    if (prev && !current) {
+      setJustDone(prev.name);
+    }
+  }, [current]);
+
+  useEffect(() => {
+    if (!justDone) return;
+    const t = setTimeout(() => setJustDone(null), 2800);
+    return () => clearTimeout(t);
+  }, [justDone]);
+
+  if (justDone) {
+    return (
+      <section className="hero hero-complete">
+        <div className="done-ring" />
+        <div className="done-icon"><CheckCircle2 size={40} strokeWidth={1.8} /></div>
+        <h1 className="hero-course done-course">{justDone}</h1>
+        <div className="done-label">Class wrapped ✓</div>
+      </section>
+    );
+  }
+
   if (current) {
     const s = clsDate(current, "start"), e = clsDate(current, "end");
     const done = Math.min(1, Math.max(0, (now - s) / (e - s)));
@@ -42,6 +71,7 @@ export default function Hero({ current, next, now, todayISO }) {
       </section>
     );
   }
+
   if (next) {
     const s = clsDate(next, "start");
     const sameDay = next.date === todayISO;
@@ -55,10 +85,11 @@ export default function Hero({ current, next, now, todayISO }) {
           {next.room && <><span className="sep">·</span><span className="r"><MapPin size={14} /> {next.room}</span></>}
           {next.faculty && <><span className="sep">·</span><span className="f">{next.faculty}</span></>}
         </div>
-        <div className="hero-when">{sameDay ? (mins <= 90 ? `Starts in ${mins} min` : "Later today") : prettyDate(next.date)}</div>
+        <div className="hero-when">{sameDay ? (mins <= 90 ? `Starts in ${mins} min` : "Later today") : next.date === tomorrowISO ? `Tomorrow · ${prettyDate(next.date)}` : prettyDate(next.date)}</div>
       </section>
     );
   }
+
   return (
     <section className="hero">
       <div className="hero-tag done"><span className="dot" /> All clear</div>

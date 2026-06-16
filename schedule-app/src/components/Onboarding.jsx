@@ -1,0 +1,111 @@
+import { useState, useMemo } from "react";
+import { GraduationCap, ArrowRight, Info, X } from "lucide-react";
+
+const AREA_LABEL = { "F&A": "Finance & Accounting", MKTG: "Marketing", ISM: "Information Systems", STM: "Strategy", OPS: "Operations", "OB&HR": "OB & HR", Other: "Other" };
+const AREA_ORDER = ["F&A", "MKTG", "ISM", "STM", "OPS", "OB&HR", "Other"];
+
+export default function Onboarding({ legend, sectionsByCode, onDone, initialPicked, onCancel }) {
+  const isEditing = !!initialPicked;
+  const [picked, setPicked] = useState(() => initialPicked || {});
+
+  const offered = (code) => {
+    const s = (sectionsByCode && sectionsByCode[code]) || ["Single"];
+    return s.length ? s : ["Single"];
+  };
+
+  const groups = useMemo(() => {
+    const byArea = {};
+    Object.entries(legend || {}).forEach(([code, info]) => {
+      const a = info.area || "Other";
+      (byArea[a] = byArea[a] || []).push([code, info.name]);
+    });
+    Object.values(byArea).forEach((l) => l.sort((x, y) => x[1].localeCompare(y[1])));
+    return AREA_ORDER.map((a) => [a, byArea[a] || []]).filter(([, l]) => l.length);
+  }, [legend]);
+
+  const allCodes = useMemo(() => Object.keys(legend || {}), [legend]);
+  const count = Object.keys(picked).length;
+  const allOn = count === allCodes.length && allCodes.length > 0;
+
+  const toggle = (code) => setPicked((p) => {
+    const n = { ...p };
+    if (n[code]) delete n[code]; else n[code] = offered(code)[0];
+    return n;
+  });
+  const setSec = (code, s) => setPicked((p) => ({ ...p, [code]: s }));
+  const selectAll = () => setPicked(allOn ? {} : Object.fromEntries(allCodes.map((c) => [c, offered(c)[0]])));
+
+  return (
+    <div className="ob">
+      {/* Reuse the same header structure as the main app */}
+      <header className="bar">
+        <div className="brand">
+          <div className="logo"><GraduationCap size={20} /></div>
+          <div>
+            <div className="brand-name">Term Timetable</div>
+            <div className="brand-sub">IIM Sambalpur · PGP2</div>
+          </div>
+        </div>
+        <div className="bar-right">
+          <span className="ob-step">{isEditing ? "Edit setup" : "Setup"}</span>
+          {isEditing && onCancel && (
+            <button className="sync" onClick={onCancel} aria-label="Cancel"><X size={15} /></button>
+          )}
+        </div>
+      </header>
+
+      <div className="ob-body">
+        <h1 className="ob-title">{isEditing ? "Edit your courses." : "Set up your timetable."}</h1>
+        <p className="ob-sub">Pick your courses — and your section for each. We'll show only your classes, with no clashes.</p>
+        <div className="ob-hint"><Info size={14} /> Your section can differ per course — choose A or B on each.</div>
+
+        <div className="ob-label-row">
+          <span className="ob-label">Your courses &amp; sections</span>
+          <button className="ob-all" onClick={selectAll}>{allOn ? "Clear all" : "Select all"}</button>
+        </div>
+
+        {groups.map(([area, list]) => (
+          <div key={area} className="ob-grp">
+            <div className="ob-grp-h">{AREA_LABEL[area] || area}</div>
+            <div className="oc-list">
+              {list.map(([code, name]) => {
+                const on = !!picked[code];
+                const opts = offered(code);
+                const split = opts.length > 1;
+                return (
+                  <div key={code} className={`oc ${on ? "on" : ""}`}>
+                    <button className="oc-main" onClick={() => toggle(code)} aria-pressed={on}>
+                      <span className="oc-k">{code}</span>
+                      <span className="oc-n">{name}</span>
+                    </button>
+                    <div className="oc-right">
+                      {on && split && (
+                        <div className="oc-seg" role="group" aria-label={`${code} section`}>
+                          {opts.map((s) => (
+                            <button key={s} className={picked[code] === s ? "on" : ""} onClick={() => setSec(code, s)}>
+                              {s === "Single" ? "All" : s}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {on && !split && <span className="oc-single">All</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="ob-foot">
+        <div className="ob-foot-inner">
+          <span className="ob-count">{count} {count === 1 ? "subject" : "subjects"} selected</span>
+          <button className="ob-cta" disabled={count === 0} onClick={() => onDone({ ...picked })}>
+            {isEditing ? "Save changes" : "Show my schedule"} <ArrowRight size={18} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

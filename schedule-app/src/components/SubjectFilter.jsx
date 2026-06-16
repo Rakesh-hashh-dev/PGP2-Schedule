@@ -10,10 +10,19 @@ const AREA_LABELS = {
   "STM":   "Strategy",
 };
 
-export default function SubjectFilter({ legend, mine, setMine }) {
+export default function SubjectFilter({ legend, mine, setMine, sections = {}, setSection, classes = [] }) {
   const [open, setOpen] = useState(false);
 
   const allCodes = useMemo(() => Object.keys(legend), [legend]);
+
+  const splitCodes = useMemo(() => {
+    const s = new Set();
+    for (const c of classes) {
+      if (c.type !== "class") continue;
+      if (c.section === "A" || c.section === "B") s.add(c.code);
+    }
+    return s;
+  }, [classes]);
 
   const byArea = useMemo(() => {
     const map = {};
@@ -126,6 +135,18 @@ export default function SubjectFilter({ legend, mine, setMine }) {
                       >
                         <span className="sf-code">{code}</span>
                         <span className="sf-name">{legend[code].name}</span>
+                        {mine.has(code) && splitCodes.has(code) && setSection && (
+                          <span className="sf-chip-seg" onClick={e => e.stopPropagation()}>
+                            <button
+                              className={`sf-chip-seg-btn ${(sections[code] || "A") === "A" ? "on" : ""}`}
+                              onClick={e => { e.stopPropagation(); setSection(code, "A"); }}
+                            >A</button>
+                            <button
+                              className={`sf-chip-seg-btn ${sections[code] === "B" ? "on" : ""}`}
+                              onClick={e => { e.stopPropagation(); setSection(code, "B"); }}
+                            >B</button>
+                          </span>
+                        )}
                       </button>
                     ))}
                   </div>
