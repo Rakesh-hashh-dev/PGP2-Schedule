@@ -10,7 +10,8 @@ import Onboarding from "./components/Onboarding.jsx";
 import AttendancePanel from "./components/AttendancePanel.jsx";
 import { getSnapshot, fetchSchedule } from "./lib/sheet.js";
 import RecentChanges from "./components/RecentChanges.jsx";
-import { loadAttendance, saveAttendance, sessionKey } from "./lib/attendance.js";
+import { loadAttendance, saveAttendance, sessionKey, syncAttendanceFromCloud, pushMark } from "./lib/attendance.js";
+import { syncProfileFromCloud, pushProfile } from "./lib/profile.js";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
@@ -41,7 +42,7 @@ function saveSetup(s) { try { localStorage.setItem(SETUP_KEY, JSON.stringify(s))
 const NOTIF_KEY = "pgp2-notif-seen";
 function loadLastSeen() { try { return parseInt(localStorage.getItem(NOTIF_KEY) || "0", 10); } catch { return 0; } }
 
-function AppCore({ isSignedIn, isLoaded, signOut }) {
+function AppCore({ isSignedIn, isLoaded, signOut, userId }) {
   const [scheduleData, setScheduleData] = useState(() => isSignedIn ? getSnapshot() : null);
   const [now, setNow] = useState(new Date());
   const [view, setView] = useState("today");
@@ -57,6 +58,20 @@ function AppCore({ isSignedIn, isLoaded, signOut }) {
   const [syncing, setSyncing] = useState(false);
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [weather, setWeather] = useState(null);
+  const [cloudChecked, setCloudChecked] = useState(false);
+
+  useEffect(() => {
+    if (!userId) return;
+    let alive = true;
+    (async () => {
+      const p = await syncProfileFromCloud(userId);
+      if (alive && p?.courses) { setEnrolled(p.courses); setMine(new Set(Object.keys(p.courses))); setSetup(p); }
+      const a = await syncAttendanceFromCloud(userId);
+      if (alive) setAttendance(a);
+      if (alive) setCloudChecked(true);
+    })();
+    return () => { alive = false; };
+  }, [userId]);
 
   useEffect(() => {
     fetch("https://api.open-meteo.com/v1/forecast?latitude=21.4669&longitude=83.9812&current=temperature_2m,weather_code&temperature_unit=celsius&timezone=Asia%2FKolkata")
@@ -155,6 +170,7 @@ function AppCore({ isSignedIn, isLoaded, signOut }) {
   function handleOnboardingDone(courses) {
     const s = { courses };
     saveSetup(s);
+    pushProfile(userId, courses);
     setEnrolled(courses);
     setMine(new Set(Object.keys(courses)));
     setSetup(s);
@@ -180,6 +196,7 @@ function AppCore({ isSignedIn, isLoaded, signOut }) {
       saveAttendance(next);
       return next;
     });
+    pushMark(userId, key, status);
   }
 
   function handleSync() {
@@ -194,6 +211,7 @@ function AppCore({ isSignedIn, isLoaded, signOut }) {
   if (!isLoaded) return <div className="loading-screen"><div className="spinner" /></div>;
   if (!isSignedIn) return <Login />;
   if (!scheduleData) return <div className="loading-screen"><div className="spinner" /></div>;
+  if (userId && !setup && !cloudChecked) return <div className="loading-screen"><div className="spinner" /></div>;
   if (!setup) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} />;
   if (showSetupEdit) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} initialPicked={enrolled} onCancel={() => setShowSetupEdit(false)} />;
 
@@ -351,11 +369,11 @@ function AppCore({ isSignedIn, isLoaded, signOut }) {
 }
 
 export default function App() {
-  const { isSignedIn, isLoaded } = useUser();
+  const { isSignedIn, isLoaded, user } = useUser();
   const { signOut } = useClerk();
-  return <AppCore isSignedIn={isSignedIn} isLoaded={isLoaded} signOut={signOut} />;
+  return <AppCore isSignedIn={isSignedIn} isLoaded={isLoaded} signOut={signOut} userId={user?.id} />;
 }
 
 export function DevApp() {
-  return <AppCore isSignedIn={true} isLoaded={true} signOut={() => {}} />;
+  return <AppCore isSignedIn={true} isLoaded={true} signOut={() => {}} userId={null} />;
 }
