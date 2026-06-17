@@ -42,7 +42,7 @@ function saveSetup(s) { try { localStorage.setItem(SETUP_KEY, JSON.stringify(s))
 const NOTIF_KEY = "pgp2-notif-seen";
 function loadLastSeen() { try { return parseInt(localStorage.getItem(NOTIF_KEY) || "0", 10); } catch { return 0; } }
 
-function AppCore({ isSignedIn, isLoaded, signOut, userId }) {
+function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [scheduleData, setScheduleData] = useState(() => isSignedIn ? getSnapshot() : null);
   const [now, setNow] = useState(new Date());
   const [view, setView] = useState("today");
@@ -57,6 +57,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId }) {
   const [attendance, setAttendance] = useState(() => loadAttendance());
   const [syncing, setSyncing] = useState(false);
   const [overflowOpen, setOverflowOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [weather, setWeather] = useState(null);
   const [cloudChecked, setCloudChecked] = useState(false);
 
@@ -263,10 +264,32 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId }) {
               </>
             )}
           </div>
-          {/* Desktop-only: logout */}
-          <div className="tb-wrap desktop-only">
-            <button className="sync" onClick={() => signOut()} aria-label="Sign out"><LogOut size={15} /></button>
-            <span className="tooltip" role="tooltip">Sign out</span>
+          {/* Desktop-only: profile avatar */}
+          <div className="tb-wrap over-wrap desktop-only">
+            <button className="sync profile-avatar-btn" onClick={() => setProfileOpen(o => !o)} aria-label="Profile" aria-expanded={profileOpen}>
+              {user?.firstName?.[0]}{user?.lastName?.[0]}
+            </button>
+            {profileOpen && (
+              <>
+                <div className="notif-backdrop" onClick={() => setProfileOpen(false)} />
+                <div className="over-menu">
+                  <div className="over-profile">
+                    <div className="over-avatar">
+                      {user?.firstName?.[0]}{user?.lastName?.[0]}
+                    </div>
+                    <div className="over-profile-info">
+                      <span className="over-profile-name">{user?.fullName || "—"}</span>
+                      <span className="over-profile-email">{user?.primaryEmailAddress?.emailAddress || "—"}</span>
+                      <span className="over-profile-batch">PGP2 · 2025–27</span>
+                    </div>
+                  </div>
+                  <div className="over-sep" />
+                  <button className="over-danger" onClick={() => { signOut(); setProfileOpen(false); }}>
+                    <LogOut size={14} /> Sign out
+                  </button>
+                </div>
+              </>
+            )}
           </div>
           {/* Mobile-only: overflow ⋯ */}
           <div className="tb-wrap over-wrap mobile-only">
@@ -277,6 +300,17 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId }) {
               <>
                 <div className="notif-backdrop" onClick={() => setOverflowOpen(false)} />
                 <div className="over-menu">
+                  <div className="over-profile">
+                    <div className="over-avatar">
+                      {user?.firstName?.[0]}{user?.lastName?.[0]}
+                    </div>
+                    <div className="over-profile-info">
+                      <span className="over-profile-name">{user?.fullName || "—"}</span>
+                      <span className="over-profile-email">{user?.primaryEmailAddress?.emailAddress || "—"}</span>
+                      <span className="over-profile-batch">PGP2 · 2025–27</span>
+                    </div>
+                  </div>
+                  <div className="over-sep" />
                   <button onClick={() => { setShowSetupEdit(true); setOverflowOpen(false); }}>
                     <Settings2 size={14} /> Edit setup
                   </button>
@@ -371,7 +405,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId }) {
 export default function App() {
   const { isSignedIn, isLoaded, user } = useUser();
   const { signOut } = useClerk();
-  return <AppCore isSignedIn={isSignedIn} isLoaded={isLoaded} signOut={signOut} userId={user?.id} />;
+  return <AppCore isSignedIn={isSignedIn} isLoaded={isLoaded} signOut={signOut} userId={user?.id} user={user} />;
 }
 
 export function DevApp() {
