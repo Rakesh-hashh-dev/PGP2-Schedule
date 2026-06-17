@@ -18,11 +18,16 @@ function clsStart(c) {
   return new Date(Y, Mo - 1, D, h, m);
 }
 
-export default function Timeline({ list, current, now, showNowLine = true, label = "Today", attendance = {}, markAttendance }) {
+export default function Timeline({ list, current, now, showNowLine = true, label = "Today", dateLabel, attendance = {}, markAttendance }) {
   if (!list.length)
     return (
       <section className="panel">
-        <div className="panel-head"><h2>{label}</h2></div>
+        <div className="panel-head">
+          <div className="panel-head-left">
+            <h2>{label}</h2>
+            {dateLabel && <span className="panel-date">{dateLabel}</span>}
+          </div>
+        </div>
         <div className="empty">No sessions {label.toLowerCase()} for your courses. Check the week view.</div>
       </section>
     );
@@ -32,7 +37,10 @@ export default function Timeline({ list, current, now, showNowLine = true, label
   return (
     <section className="panel">
       <div className="panel-head">
-        <h2>{label}</h2>
+        <div className="panel-head-left">
+          <h2>{label}</h2>
+          {dateLabel && <span className="panel-date">{dateLabel}</span>}
+        </div>
         <span className="count">{list.filter((c) => c.type === "class").length} classes</span>
       </div>
       <ol className="rail">

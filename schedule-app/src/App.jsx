@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { RefreshCw, Calendar, Clock, Sunrise, GraduationCap, LogOut, Settings2, Bell, ClipboardList } from "lucide-react";
+import { RefreshCw, Calendar, Clock, Sunrise, GraduationCap, LogOut, Settings2, Bell, ClipboardList, MoreHorizontal, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog } from "lucide-react";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
 import Timeline from "./components/Timeline.jsx";
@@ -16,6 +16,17 @@ function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; 
 function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
 function clsDate(c, which) { const [Y, Mo, D] = c.date.split("-").map(Number); const [h, m] = c[which].split(":").map(Number); return new Date(Y, Mo - 1, D, h, m); }
 function prettyDate(iso) { const [Y, M, D] = iso.split("-").map(Number); return new Date(Y, M - 1, D).toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" }); }
+
+function weatherIcon(code) {
+  if (code === 0) return Sun;
+  if (code <= 3) return Cloud;
+  if (code <= 48) return CloudFog;
+  if (code <= 55) return CloudDrizzle;
+  if (code <= 67) return CloudRain;
+  if (code <= 77) return CloudSnow;
+  if (code <= 82) return CloudRain;
+  return CloudLightning;
+}
 
 const SETUP_KEY = "pgp2.setup";
 function readSetup() {
@@ -43,6 +54,16 @@ function AppCore({ isSignedIn, isLoaded, signOut }) {
   const [notifOpen, setNotifOpen] = useState(false);
   const [lastSeenTs, setLastSeenTs] = useState(() => loadLastSeen());
   const [attendance, setAttendance] = useState(() => loadAttendance());
+  const [syncing, setSyncing] = useState(false);
+  const [overflowOpen, setOverflowOpen] = useState(false);
+  const [weather, setWeather] = useState(null);
+
+  useEffect(() => {
+    fetch("https://api.open-meteo.com/v1/forecast?latitude=21.4669&longitude=83.9812&current=temperature_2m,weather_code&temperature_unit=celsius&timezone=Asia%2FKolkata")
+      .then(r => r.json())
+      .then(d => setWeather({ temp: Math.round(d.current.temperature_2m), code: d.current.weather_code }))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!isSignedIn) return;
@@ -162,11 +183,12 @@ function AppCore({ isSignedIn, isLoaded, signOut }) {
   }
 
   function handleSync() {
+    setSyncing(true);
     fetchSchedule().then((data) => {
       setScheduleData(data);
       setSyncedAt(new Date());
       setNow(new Date());
-    });
+    }).finally(() => setSyncing(false));
   }
 
   if (!isLoaded) return <div className="loading-screen"><div className="spinner" /></div>;
@@ -187,17 +209,31 @@ function AppCore({ isSignedIn, isLoaded, signOut }) {
             <div className="brand-sub">IIM Sambalpur · {termLabel}</div>
           </div>
         </div>
-        <div className="bar-right">
-          <button className="sync" onClick={() => setShowSetupEdit(true)} aria-label="Edit setup" title="Edit setup"><Settings2 size={15} /></button>
-          <button className="sync" onClick={handleSync} aria-label="Sync now" title="Sync now"><RefreshCw size={15} /></button>
-          <button className={`sync${view === "attendance" ? " sync-on" : ""}`} onClick={() => setView("attendance")} aria-label="Attendance" title="Attendance">
-            <ClipboardList size={15} />
-          </button>
-          <div className="notif-wrap">
-            <button className="sync" onClick={handleOpenNotif} aria-label="Notifications" title="Notifications">
+        <div className="bar-right" role="toolbar" aria-label="App actions">
+          {/* Desktop-only: full button set */}
+          <div className="tb-wrap desktop-only">
+            <button className="sync" onClick={() => setShowSetupEdit(true)} aria-label="Edit setup"><Settings2 size={15} /></button>
+            <span className="tooltip" role="tooltip">Edit setup</span>
+          </div>
+          <div className="tb-wrap desktop-only">
+            <button className="sync" onClick={handleSync} aria-label={syncing ? "Syncing…" : "Refresh"}>
+              <RefreshCw size={15} className={syncing ? "spin-icon" : ""} />
+            </button>
+            <span className="tooltip" role="tooltip">{syncing ? "Syncing…" : "Refresh"}</span>
+          </div>
+          <div className="tb-wrap desktop-only">
+            <button className={`sync${view === "attendance" ? " sync-on" : ""}`} onClick={() => setView("attendance")} aria-label="Attendance" aria-pressed={view === "attendance"}>
+              <ClipboardList size={15} />
+            </button>
+            <span className="tooltip" role="tooltip">Attendance</span>
+          </div>
+          {/* Bell — always visible */}
+          <div className="tb-wrap notif-wrap">
+            <button className="sync" onClick={handleOpenNotif} aria-label="Notifications" aria-expanded={notifOpen}>
               <Bell size={15} />
               {hasUnread && <span className="notif-dot" />}
             </button>
+            <span className="tooltip" role="tooltip">Notifications</span>
             {notifOpen && (
               <>
                 <div className="notif-backdrop" onClick={() => setNotifOpen(false)} />
@@ -209,7 +245,35 @@ function AppCore({ isSignedIn, isLoaded, signOut }) {
               </>
             )}
           </div>
-          <button className="sync" onClick={() => signOut()} aria-label="Sign out" title="Sign out"><LogOut size={15} /></button>
+          {/* Desktop-only: logout */}
+          <div className="tb-wrap desktop-only">
+            <button className="sync" onClick={() => signOut()} aria-label="Sign out"><LogOut size={15} /></button>
+            <span className="tooltip" role="tooltip">Sign out</span>
+          </div>
+          {/* Mobile-only: overflow ⋯ */}
+          <div className="tb-wrap over-wrap mobile-only">
+            <button className="sync" onClick={() => setOverflowOpen(o => !o)} aria-label="More options" aria-expanded={overflowOpen}>
+              <MoreHorizontal size={15} />
+            </button>
+            {overflowOpen && (
+              <>
+                <div className="notif-backdrop" onClick={() => setOverflowOpen(false)} />
+                <div className="over-menu">
+                  <button onClick={() => { setShowSetupEdit(true); setOverflowOpen(false); }}>
+                    <Settings2 size={14} /> Edit setup
+                  </button>
+                  <button onClick={() => { handleSync(); setOverflowOpen(false); }}>
+                    <RefreshCw size={14} className={syncing ? "spin-icon" : ""} />
+                    {syncing ? "Syncing…" : "Refresh"}
+                  </button>
+                  <div className="over-sep" />
+                  <button className="over-danger" onClick={() => { signOut(); setOverflowOpen(false); }}>
+                    <LogOut size={14} /> Sign out
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
@@ -234,9 +298,13 @@ function AppCore({ isSignedIn, isLoaded, signOut }) {
               <Calendar size={15} /> Week
             </button>
             <button className={`tab ${view === "attendance" ? "on" : ""}`} onClick={() => setView("attendance")}>
-              <ClipboardList size={15} /> Attend
+              <ClipboardList size={15} /> Attendance
             </button>
-            <div className="today-date">{view === "week" ? weekRangeLabel : view === "attendance" ? "Attendance" : prettyDate(view === "tomorrow" ? tomorrowISO : todayISO)}</div>
+            <div className="today-date">
+              {view === "attendance" && weather
+                ? (() => { const Icon = weatherIcon(weather.code); return <span className="weather-chip"><Icon size={13} />{weather.temp}°C</span>; })()
+                : view === "week" ? weekRangeLabel : prettyDate(view === "tomorrow" ? tomorrowISO : todayISO)}
+            </div>
           </nav>
           {view !== "attendance" && <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} />}
           <div className={view === "week" ? "pane-today hide-mobile" : "pane-today"}>
@@ -248,10 +316,11 @@ function AppCore({ isSignedIn, isLoaded, signOut }) {
                   enrolled={enrolled}
                   legend={enrolledLegend}
                   markAttendance={markAttendance}
+                  weather={weather}
                 />
               : view === "tomorrow"
-                ? <Timeline list={tomorrowList} current={null} now={now} showNowLine={false} label="Tomorrow" attendance={attendance} markAttendance={markAttendance} />
-                : <Timeline list={todayList} current={current} now={now} attendance={attendance} markAttendance={markAttendance} />}
+                ? <Timeline list={tomorrowList} current={null} now={now} showNowLine={false} label="Tomorrow" dateLabel={prettyDate(tomorrowISO)} attendance={attendance} markAttendance={markAttendance} />
+                : <Timeline list={todayList} current={current} now={now} dateLabel={prettyDate(todayISO)} attendance={attendance} markAttendance={markAttendance} />}
           </div>
         </div>
         <aside className={view !== "week" ? "side-col hide-mobile" : "side-col"}>
@@ -260,6 +329,23 @@ function AppCore({ isSignedIn, isLoaded, signOut }) {
       </div>
 
       <footer className="foot">Auto-syncs from the live timetable sheet every few minutes</footer>
+
+      {/* Bottom nav — commented out, restore when needed
+      <nav className="bnav" aria-label="Main navigation">
+        <button className={`bnav-btn${view === "today" ? " on" : ""}`} onClick={() => setView("today")}>
+          <Clock size={20} /><span>Today</span>
+        </button>
+        <button className={`bnav-btn${view === "tomorrow" ? " on" : ""}`} onClick={() => setView("tomorrow")}>
+          <Sunrise size={20} /><span>Tomorrow</span>
+        </button>
+        <button className={`bnav-btn${view === "week" ? " on" : ""}`} onClick={() => setView("week")}>
+          <Calendar size={20} /><span>Week</span>
+        </button>
+        <button className={`bnav-btn${view === "attendance" ? " on" : ""}`} onClick={() => setView("attendance")}>
+          <ClipboardList size={20} /><span>Attendance</span>
+        </button>
+      </nav>
+      */}
     </div>
   );
 }

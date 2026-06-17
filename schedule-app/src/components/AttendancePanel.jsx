@@ -1,5 +1,16 @@
 import { useMemo, useState } from "react";
-import { Check, X, Clock, MapPin, AlertTriangle, ChevronDown } from "lucide-react";
+import { Check, X, Clock, MapPin, AlertTriangle, ChevronDown, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog } from "lucide-react";
+
+function wIcon(code) {
+  if (code === 0) return Sun;
+  if (code <= 3) return Cloud;
+  if (code <= 48) return CloudFog;
+  if (code <= 55) return CloudDrizzle;
+  if (code <= 67) return CloudRain;
+  if (code <= 77) return CloudSnow;
+  if (code <= 82) return CloudRain;
+  return CloudLightning;
+}
 import { sessionKey } from "../lib/attendance.js";
 
 const THRESHOLD = 75;
@@ -45,7 +56,18 @@ function StatusDot({ status }) {
   return <span className={`att-sdot${status === "present" ? " att-sdot-p" : status === "absent" ? " att-sdot-a" : ""}`} />;
 }
 
-export default function AttendancePanel({ allClasses, now, attendance, enrolled, legend, markAttendance }) {
+function AttWeather({ now, weather }) {
+  const time = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+  const WIcon = weather ? wIcon(weather.code) : null;
+  return (
+    <div className="att-weather">
+      <span className="att-weather-time"><Clock size={12} />{time}</span>
+      {WIcon && weather && <span className="att-weather-wx"><WIcon size={12} />{weather.temp}°C</span>}
+    </div>
+  );
+}
+
+export default function AttendancePanel({ allClasses, now, attendance, enrolled, legend, markAttendance, weather }) {
   const [expandedCode, setExpandedCode] = useState(null);
   const codes = Object.keys(enrolled || {});
 
@@ -87,7 +109,7 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
   if (!codes.length)
     return (
       <div className="att-page">
-        <div className="att-head"><h1>Attendance</h1></div>
+        <div className="att-head"><h1>Attendance</h1><AttWeather now={now} weather={weather} /></div>
         <div className="empty">No courses enrolled. Complete setup first.</div>
       </div>
     );
@@ -100,6 +122,7 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
     <div className="att-page">
       <div className="att-head">
         <h1>Attendance</h1>
+        <AttWeather now={now} weather={weather} />
         <span className="att-sub">Term so far</span>
       </div>
 
@@ -171,14 +194,17 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
                   <div className="att-spark">
                     {c.sessions.map((s, i) => {
                       const st = attendance[s.key] || null;
+                      const label = st === "present" ? "Present" : st === "absent" ? "Absent" : "Unmarked";
                       return (
-                        <span
-                          key={s.key}
-                          className={`att-sp${st === "present" ? " att-sp-p" : st === "absent" ? " att-sp-a" : ""}`}
-                          title={`Session ${s.session || i + 1}: ${st || "unmarked"}`}
-                        />
+                        <span key={s.key} className="tb-wrap">
+                          <span className={`att-sp${st === "present" ? " att-sp-p" : st === "absent" ? " att-sp-a" : ""}`} />
+                          <span className="tooltip att-sp-tip" role="tooltip">{`Session ${s.session || i + 1} · ${label}\n${fmtDate(s.date)} · ${s.start}–${s.end}`}</span>
+                        </span>
                       );
                     })}
+                    <span className={`att-spark-pct att-pct tone-${t}`}>
+                      {c.pct != null ? `${c.pct}%` : "—"}
+                    </span>
                   </div>
                   {c.sessions.map((s, i) => {
                     const status = attendance[s.key] || null;
