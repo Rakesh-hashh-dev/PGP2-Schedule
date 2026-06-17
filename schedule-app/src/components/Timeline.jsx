@@ -1,5 +1,6 @@
 import React from "react";
-import { MapPin } from "lucide-react";
+import { MapPin, CheckCircle2, XCircle } from "lucide-react";
+import { sessionKey } from "../lib/attendance.js";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function fmtClock(d) { return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }); }
@@ -11,7 +12,13 @@ function TypeBadge({ type }) {
   return null;
 }
 
-export default function Timeline({ list, current, now, showNowLine = true, label = "Today" }) {
+function clsStart(c) {
+  const [Y, Mo, D] = c.date.split("-").map(Number);
+  const [h, m] = c.start.split(":").map(Number);
+  return new Date(Y, Mo - 1, D, h, m);
+}
+
+export default function Timeline({ list, current, now, showNowLine = true, label = "Today", attendance = {}, markAttendance }) {
   if (!list.length)
     return (
       <section className="panel">
@@ -32,6 +39,9 @@ export default function Timeline({ list, current, now, showNowLine = true, label
         {list.map((c, i) => {
           const isCur = current && current.date === c.date && current.start === c.start && current.name === c.name;
           const showNow = showNowLine && !isCur && nowMin < toMin(c.start) && (i === 0 || nowMin >= toMin(list[i - 1].end));
+          const canMark = c.type === "class" && !!markAttendance && clsStart(c) <= now;
+          const attKey = c.type === "class" ? sessionKey(c) : null;
+          const attStatus = attKey ? attendance[attKey] : null;
           return (
             <React.Fragment key={i}>
               {showNow && (
@@ -60,6 +70,24 @@ export default function Timeline({ list, current, now, showNowLine = true, label
                       : <TypeBadge type={c.type} />}
                   </div>
                 </div>
+                {canMark && (
+                  <div className="att-tog">
+                    <button
+                      className={`att-btn att-p${attStatus === "present" ? " on" : ""}`}
+                      onClick={() => markAttendance(c, attStatus === "present" ? null : "present")}
+                      title="Mark present"
+                    >
+                      <CheckCircle2 size={14} />
+                    </button>
+                    <button
+                      className={`att-btn att-a${attStatus === "absent" ? " on" : ""}`}
+                      onClick={() => markAttendance(c, attStatus === "absent" ? null : "absent")}
+                      title="Mark absent"
+                    >
+                      <XCircle size={14} />
+                    </button>
+                  </div>
+                )}
                 {isCur && <span className="row-flag">now</span>}
               </li>
             </React.Fragment>

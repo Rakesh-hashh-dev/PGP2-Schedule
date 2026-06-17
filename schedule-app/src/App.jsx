@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { RefreshCw, Calendar, Clock, Sunrise, GraduationCap, LogOut, Settings2, Bell } from "lucide-react";
+import { RefreshCw, Calendar, Clock, Sunrise, GraduationCap, LogOut, Settings2, Bell, ClipboardList } from "lucide-react";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
 import Timeline from "./components/Timeline.jsx";
@@ -7,8 +7,10 @@ import WeekAgenda from "./components/WeekAgenda.jsx";
 import SubjectFilter from "./components/SubjectFilter.jsx";
 import Login from "./components/Login.jsx";
 import Onboarding from "./components/Onboarding.jsx";
-import { fetchSchedule } from "./lib/sheet.js";
+import AttendancePanel from "./components/AttendancePanel.jsx";
+import { getSnapshot, fetchSchedule } from "./lib/sheet.js";
 import RecentChanges from "./components/RecentChanges.jsx";
+import { loadAttendance, saveAttendance, sessionKey } from "./lib/attendance.js";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
@@ -29,37 +31,31 @@ const NOTIF_KEY = "pgp2-notif-seen";
 function loadLastSeen() { try { return parseInt(localStorage.getItem(NOTIF_KEY) || "0", 10); } catch { return 0; } }
 
 function AppCore({ isSignedIn, isLoaded, signOut }) {
-  const [scheduleData, setScheduleData] = useState(null);
+  const [scheduleData, setScheduleData] = useState(() => isSignedIn ? getSnapshot() : null);
   const [now, setNow] = useState(new Date());
   const [view, setView] = useState("today");
   const [weekOffset, setWeekOffset] = useState(0);
-  const [mine, setMine] = useState(null);
-  const [enrolled, setEnrolled] = useState(null); // { code: section }
-  const [setup, setSetup] = useState(null);
+  const [mine, setMine] = useState(() => { const s = readSetup(); return s?.courses ? new Set(Object.keys(s.courses)) : null; });
+  const [enrolled, setEnrolled] = useState(() => { const s = readSetup(); return s?.courses ?? null; });
+  const [setup, setSetup] = useState(() => readSetup());
   const [showSetupEdit, setShowSetupEdit] = useState(false);
   const [syncedAt, setSyncedAt] = useState(new Date());
   const [notifOpen, setNotifOpen] = useState(false);
   const [lastSeenTs, setLastSeenTs] = useState(() => loadLastSeen());
+  const [attendance, setAttendance] = useState(() => loadAttendance());
 
   useEffect(() => {
     if (!isSignedIn) return;
     let alive = true;
-    const load = (first) =>
+    // State is already pre-populated synchronously; just background-fetch live data
+    const load = () =>
       fetchSchedule().then((data) => {
         if (!alive) return;
         setScheduleData(data);
         setSyncedAt(new Date());
-        if (first) {
-          const saved = readSetup();
-          if (saved && saved.courses) {
-            setEnrolled(saved.courses);
-            setMine(new Set(Object.keys(saved.courses)));
-            setSetup(saved);
-          }
-        }
       });
-    load(true);
-    const id = setInterval(() => load(false), 10 * 60 * 1000);
+    load();
+    const id = setInterval(load, 10 * 60 * 1000);
     return () => { alive = false; clearInterval(id); };
   }, [isSignedIn]);
 
@@ -155,6 +151,16 @@ function AppCore({ isSignedIn, isLoaded, signOut }) {
     setNotifOpen(o => !o);
   }
 
+  function markAttendance(c, status) {
+    const key = sessionKey(c);
+    setAttendance(prev => {
+      const next = { ...prev };
+      if (status === null) delete next[key]; else next[key] = status;
+      saveAttendance(next);
+      return next;
+    });
+  }
+
   function handleSync() {
     fetchSchedule().then((data) => {
       setScheduleData(data);
@@ -182,10 +188,13 @@ function AppCore({ isSignedIn, isLoaded, signOut }) {
           </div>
         </div>
         <div className="bar-right">
-          <button className="sync" onClick={() => setShowSetupEdit(true)} aria-label="Edit setup"><Settings2 size={15} /></button>
-          <button className="sync" onClick={handleSync} aria-label="Sync now"><RefreshCw size={15} /></button>
+          <button className="sync" onClick={() => setShowSetupEdit(true)} aria-label="Edit setup" title="Edit setup"><Settings2 size={15} /></button>
+          <button className="sync" onClick={handleSync} aria-label="Sync now" title="Sync now"><RefreshCw size={15} /></button>
+          <button className={`sync${view === "attendance" ? " sync-on" : ""}`} onClick={() => setView("attendance")} aria-label="Attendance" title="Attendance">
+            <ClipboardList size={15} />
+          </button>
           <div className="notif-wrap">
-            <button className="sync" onClick={handleOpenNotif} aria-label="Notifications">
+            <button className="sync" onClick={handleOpenNotif} aria-label="Notifications" title="Notifications">
               <Bell size={15} />
               {hasUnread && <span className="notif-dot" />}
             </button>
@@ -200,7 +209,7 @@ function AppCore({ isSignedIn, isLoaded, signOut }) {
               </>
             )}
           </div>
-          <button className="sync" onClick={() => signOut()} aria-label="Sign out"><LogOut size={15} /></button>
+          <button className="sync" onClick={() => signOut()} aria-label="Sign out" title="Sign out"><LogOut size={15} /></button>
         </div>
       </header>
 
@@ -224,13 +233,25 @@ function AppCore({ isSignedIn, isLoaded, signOut }) {
             <button className={`tab tab-week ${view === "week" ? "on" : ""}`} onClick={() => setView("week")}>
               <Calendar size={15} /> Week
             </button>
-            <div className="today-date">{view === "week" ? weekRangeLabel : prettyDate(view === "tomorrow" ? tomorrowISO : todayISO)}</div>
+            <button className={`tab ${view === "attendance" ? "on" : ""}`} onClick={() => setView("attendance")}>
+              <ClipboardList size={15} /> Attend
+            </button>
+            <div className="today-date">{view === "week" ? weekRangeLabel : view === "attendance" ? "Attendance" : prettyDate(view === "tomorrow" ? tomorrowISO : todayISO)}</div>
           </nav>
-          <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} />
+          {view !== "attendance" && <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} />}
           <div className={view === "week" ? "pane-today hide-mobile" : "pane-today"}>
-            {view === "tomorrow"
-              ? <Timeline list={tomorrowList} current={null} now={now} showNowLine={false} label="Tomorrow" />
-              : <Timeline list={todayList} current={current} now={now} />}
+            {view === "attendance"
+              ? <AttendancePanel
+                  allClasses={CLASSES}
+                  now={now}
+                  attendance={attendance}
+                  enrolled={enrolled}
+                  legend={enrolledLegend}
+                  markAttendance={markAttendance}
+                />
+              : view === "tomorrow"
+                ? <Timeline list={tomorrowList} current={null} now={now} showNowLine={false} label="Tomorrow" attendance={attendance} markAttendance={markAttendance} />
+                : <Timeline list={todayList} current={current} now={now} attendance={attendance} markAttendance={markAttendance} />}
           </div>
         </div>
         <aside className={view !== "week" ? "side-col hide-mobile" : "side-col"}>

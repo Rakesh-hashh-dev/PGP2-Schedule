@@ -1,19 +1,11 @@
 import { AREA } from "../data/areas.js";
+// Eager import — snapshot is bundled, no network round-trip needed for fallback
+import { TERM, LEGEND, CLASSES } from "../data/schedule.js";
 
 const FEED_URL = "https://script.google.com/macros/s/AKfycbwOCmpZAbzN7hRkb-xx6-SDejt3c45E5NBZ0NHuJW8CBRYO4ROJfwE_MI_g4aODwo08Gg/exec";
 
 const CACHE_KEY = "pgp2-feed-cache";
-const CACHE_TTL = 2 * 60 * 1000; // 2 minutes
-
-// Lazy snapshot: loaded only when the live feed fails or rooms need backfill
-let snapshotCache = null;
-async function getSnapshot() {
-  if (!snapshotCache) {
-    const { TERM, LEGEND, CLASSES } = await import("../data/schedule.js");
-    snapshotCache = { TERM, LEGEND, CLASSES, CHANGES: [] };
-  }
-  return snapshotCache;
-}
+const CACHE_TTL = 15 * 60 * 1000; // 15 minutes
 
 function withAreas(data) {
   const legend = {};
@@ -27,31 +19,35 @@ function withAreas(data) {
   return { ...data, LEGEND: legend, CLASSES: classes };
 }
 
-export async function fetchSchedule() {
-  // Serve from sessionStorage cache if fresh enough
+const STATIC_SNAPSHOT = withAreas({ TERM, LEGEND, CLASSES, CHANGES: [] });
+
+// Synchronous — returns localStorage cache if present, otherwise the static snapshot.
+// Called before any async work so the UI renders immediately.
+export function getSnapshot() {
   try {
-    const cached = JSON.parse(sessionStorage.getItem(CACHE_KEY) || "null");
-    if (cached && Date.now() - cached.ts < CACHE_TTL) return cached.data;
+    const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
+    if (cached?.data) return cached.data;
   } catch {}
+  return STATIC_SNAPSHOT;
+}
 
-  if (!FEED_URL || FEED_URL.startsWith("PASTE_")) {
-    return withAreas(await getSnapshot());
-  }
+// Async — always hits the live feed and updates localStorage.
+// Used for background refresh; falls back to snapshot on error.
+export async function fetchSchedule() {
+  if (!FEED_URL || FEED_URL.startsWith("PASTE_")) return STATIC_SNAPSHOT;
 
   try {
-    const res = await fetch(FEED_URL, { redirect: "follow" }); // plain GET → no CORS preflight
+    const res = await fetch(FEED_URL, { redirect: "follow" });
     if (!res.ok) throw new Error("HTTP " + res.status);
     const data = await res.json();
-    if (data && data.error) throw new Error(data.error);
-    if (!data || !Array.isArray(data.CLASSES) || data.CLASSES.length === 0) throw new Error("empty feed");
+    if (data?.error) throw new Error(data.error);
+    if (!data?.CLASSES?.length) throw new Error("empty feed");
 
-    // Backfill room from snapshot only when the live feed omits it
-    const needsBackfill = data.CLASSES.some((c) => !c.room);
+    // Backfill room from snapshot when the live feed omits it
     let classes = data.CLASSES;
-    if (needsBackfill) {
-      const snap = await getSnapshot();
+    if (classes.some((c) => !c.room)) {
       const snapIdx = new Map();
-      for (const c of snap.CLASSES) {
+      for (const c of STATIC_SNAPSHOT.CLASSES) {
         if (c.room) snapIdx.set(`${c.date}|${c.code}|${c.section}|${c.slot}`, c.room);
       }
       classes = data.CLASSES.map((c) => {
@@ -62,10 +58,10 @@ export async function fetchSchedule() {
     }
 
     const result = withAreas({ CHANGES: [], ...data, CLASSES: classes });
-    try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data: result })); } catch {}
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data: result })); } catch {}
     return result;
   } catch (err) {
     console.warn("[sheet] live feed failed, using snapshot:", err.message);
-    return withAreas(await getSnapshot());
+    return STATIC_SNAPSHOT;
   }
 }
