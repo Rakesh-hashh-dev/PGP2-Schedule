@@ -394,7 +394,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         </aside>
       </div>
 
-      <footer className="foot">Auto-syncs from the live timetable sheet every few minutes</footer>
+      <footer className="foot">
+        <span>Auto-syncs from the live timetable sheet every few minutes</span>
+        <span className="foot-credit">Built with ♥ by Rakesh</span>
+      </footer>
 
       {/* Bottom nav — commented out, restore when needed
       <nav className="bnav" aria-label="Main navigation">
