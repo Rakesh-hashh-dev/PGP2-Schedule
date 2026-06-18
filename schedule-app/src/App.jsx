@@ -18,6 +18,14 @@ function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart
 function clsDate(c, which) { const [Y, Mo, D] = c.date.split("-").map(Number); const [h, m] = c[which].split(":").map(Number); return new Date(Y, Mo - 1, D, h, m); }
 function prettyDate(iso) { const [Y, M, D] = iso.split("-").map(Number); return new Date(Y, M - 1, D).toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" }); }
 
+function UserAvatar({ user, size = 30, className = "" }) {
+  const initials = `${user?.firstName?.[0] ?? ""}${user?.lastName?.[0] ?? ""}` || "?";
+  if (user?.imageUrl) {
+    return <img src={user.imageUrl} alt={user.fullName ?? "Profile"} className={`user-avatar ${className}`} style={{ width: size, height: size }} onError={e => { e.currentTarget.style.display = "none"; e.currentTarget.nextSibling.style.display = "grid"; }} />;
+  }
+  return <span className={`user-avatar user-avatar-initials ${className}`} style={{ width: size, height: size }}>{initials}</span>;
+}
+
 function weatherIcon(code) {
   if (code === 0) return Sun;
   if (code <= 3) return Cloud;
@@ -42,7 +50,7 @@ function saveSetup(s) { try { localStorage.setItem(SETUP_KEY, JSON.stringify(s))
 const NOTIF_KEY = "pgp2-notif-seen";
 function loadLastSeen() { try { return parseInt(localStorage.getItem(NOTIF_KEY) || "0", 10); } catch { return 0; } }
 
-function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
+function AppCore({ isSignedIn, isLoaded, signOut, openUserProfile, userId, user }) {
   const [scheduleData, setScheduleData] = useState(() => isSignedIn ? getSnapshot() : null);
   const [now, setNow] = useState(new Date());
   const [view, setView] = useState("today");
@@ -267,16 +275,17 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           {/* Desktop-only: profile avatar */}
           <div className="tb-wrap over-wrap desktop-only">
             <button className="sync profile-avatar-btn" onClick={() => setProfileOpen(o => !o)} aria-label="Profile" aria-expanded={profileOpen}>
-              {user?.firstName?.[0]}{user?.lastName?.[0]}
+              <UserAvatar user={user} size={30} />
             </button>
             {profileOpen && (
               <>
                 <div className="notif-backdrop" onClick={() => setProfileOpen(false)} />
                 <div className="over-menu">
                   <div className="over-profile">
-                    <div className="over-avatar">
-                      {user?.firstName?.[0]}{user?.lastName?.[0]}
-                    </div>
+                    <button className="over-avatar-btn" onClick={() => { openUserProfile(); setProfileOpen(false); }} aria-label="Edit profile photo">
+                      <UserAvatar user={user} size={36} />
+                      <span className="over-avatar-edit">Edit</span>
+                    </button>
                     <div className="over-profile-info">
                       <span className="over-profile-name">{user?.fullName || "—"}</span>
                       <span className="over-profile-email">{user?.primaryEmailAddress?.emailAddress || "—"}</span>
@@ -301,9 +310,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 <div className="notif-backdrop" onClick={() => setOverflowOpen(false)} />
                 <div className="over-menu">
                   <div className="over-profile">
-                    <div className="over-avatar">
-                      {user?.firstName?.[0]}{user?.lastName?.[0]}
-                    </div>
+                    <button className="over-avatar-btn" onClick={() => { openUserProfile(); setOverflowOpen(false); }} aria-label="Edit profile photo">
+                      <UserAvatar user={user} size={36} />
+                      <span className="over-avatar-edit">Edit</span>
+                    </button>
                     <div className="over-profile-info">
                       <span className="over-profile-name">{user?.fullName || "—"}</span>
                       <span className="over-profile-email">{user?.primaryEmailAddress?.emailAddress || "—"}</span>
@@ -404,10 +414,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
 export default function App() {
   const { isSignedIn, isLoaded, user } = useUser();
-  const { signOut } = useClerk();
-  return <AppCore isSignedIn={isSignedIn} isLoaded={isLoaded} signOut={signOut} userId={user?.id} user={user} />;
+  const { signOut, openUserProfile } = useClerk();
+  return <AppCore isSignedIn={isSignedIn} isLoaded={isLoaded} signOut={signOut} openUserProfile={openUserProfile} userId={user?.id} user={user} />;
 }
 
 export function DevApp() {
-  return <AppCore isSignedIn={true} isLoaded={true} signOut={() => {}} userId={null} />;
+  return <AppCore isSignedIn={true} isLoaded={true} signOut={() => {}} openUserProfile={() => {}} userId={null} />;
 }
