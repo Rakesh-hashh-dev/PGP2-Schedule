@@ -1,10 +1,10 @@
 import { useState, useMemo } from "react";
-import { GraduationCap, ArrowRight, Info, X } from "lucide-react";
+import { ArrowRight, Info, X, Settings2 } from "lucide-react";
 
 const AREA_LABEL = { "F&A": "Finance & Accounting", MKTG: "Marketing", ISM: "Information Systems", STM: "Strategy", OPS: "Operations", "OB&HR": "OB & HR", Other: "Other" };
 const AREA_ORDER = ["F&A", "MKTG", "ISM", "STM", "OPS", "OB&HR", "Other"];
 
-export default function Onboarding({ legend, sectionsByCode, onDone, initialPicked, onCancel }) {
+export default function Onboarding({ legend, sectionsByCode, onDone, initialPicked, onCancel, termLabel }) {
   const isEditing = !!initialPicked;
   const [picked, setPicked] = useState(() => initialPicked || {});
 
@@ -37,17 +37,21 @@ export default function Onboarding({ legend, sectionsByCode, onDone, initialPick
 
   return (
     <div className="ob">
-      {/* Reuse the same header structure as the main app */}
       <header className="bar">
         <div className="brand">
-          <div className="logo"><GraduationCap size={20} /></div>
+          <div className="logo"><img src="/termflow-icon.svg" alt="TermFlow" width={22} height={22} /></div>
           <div>
-            <div className="brand-name">Term Timetable</div>
-            <div className="brand-sub">IIM Sambalpur · PGP2</div>
+            <div className="brand-name">TermFlow</div>
+            <div className="brand-sub">IIM Sambalpur · {termLabel || "PGP2"}</div>
           </div>
         </div>
         <div className="bar-right">
-          <span className="ob-step">{isEditing ? "Edit setup" : "Setup"}</span>
+          {isEditing && (
+            <span className="ob-step"><Settings2 size={12} /> Edit setup</span>
+          )}
+          {!isEditing && (
+            <span className="ob-step">Setup</span>
+          )}
           {isEditing && onCancel && (
             <button className="sync" onClick={onCancel} aria-label="Cancel"><X size={15} /></button>
           )}
@@ -75,7 +79,9 @@ export default function Onboarding({ legend, sectionsByCode, onDone, initialPick
                 return (
                   <div key={code} className={`oc ${on ? "on" : ""}`}>
                     <button className="oc-main" onClick={() => toggle(code)} aria-pressed={on}>
-                      <span className="oc-k">{code}</span>
+                      <span className={`ses ses-${(Array.from(code).reduce((h, char) => h + char.charCodeAt(0), 0)) % 6}`}>
+                        {code}
+                      </span>
                       <span className="oc-n">{name}</span>
                     </button>
                     <div className="oc-right">

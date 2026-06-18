@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, MoreHorizontal, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog } from "lucide-react";
+import { RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog } from "lucide-react";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
 import Timeline from "./components/Timeline.jsx";
@@ -8,8 +8,10 @@ import SubjectFilter from "./components/SubjectFilter.jsx";
 import Login from "./components/Login.jsx";
 import Onboarding from "./components/Onboarding.jsx";
 import AttendancePanel from "./components/AttendancePanel.jsx";
+import WeatherWidget from "./components/WeatherWidget.jsx";
 import { getSnapshot, fetchSchedule } from "./lib/sheet.js";
 import RecentChanges from "./components/RecentChanges.jsx";
+import ExamsPanel from "./components/ExamsPanel.jsx";
 import NotificationsPage from "./components/NotificationsPage.jsx";
 import TermFlowLoader from "./components/TermFlowLoader.jsx";
 import { loadAttendance, saveAttendance, sessionKey, syncAttendanceFromCloud, pushMark } from "./lib/attendance.js";
@@ -45,7 +47,7 @@ function readSetup() {
     return null;
   } catch { return null; }
 }
-function saveSetup(s) { try { localStorage.setItem(SETUP_KEY, JSON.stringify(s)); } catch (e) {} }
+function saveSetup(s) { try { localStorage.setItem(SETUP_KEY, JSON.stringify(s)); } catch (e) { } }
 
 const NOTIF_KEY = "pgp2-notif-seen";
 function loadLastSeen() { try { return parseInt(localStorage.getItem(NOTIF_KEY) || "0", 10); } catch { return 0; } }
@@ -86,7 +88,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     fetch("https://api.open-meteo.com/v1/forecast?latitude=21.4669&longitude=83.9812&current=temperature_2m,weather_code&temperature_unit=celsius&timezone=Asia%2FKolkata")
       .then(r => r.json())
       .then(d => setWeather({ temp: Math.round(d.current.temperature_2m), code: d.current.weather_code }))
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   useEffect(() => {
@@ -192,7 +194,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     if (!notifOpen && CHANGES.length > 0) {
       const latest = Math.max(...CHANGES.map(c => new Date(c.ts).getTime()));
       setLastSeenTs(latest);
-      try { localStorage.setItem(NOTIF_KEY, String(latest)); } catch {}
+      try { localStorage.setItem(NOTIF_KEY, String(latest)); } catch { }
     }
     setNotifOpen(o => !o);
   }
@@ -222,15 +224,15 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     }).finally(() => setSyncing(false));
   }
 
+  const termDateRange = TERM ? `${new Date(TERM.start + "T00:00").toLocaleDateString([], { day: "numeric", month: "short" })} – ${new Date(TERM.end + "T00:00").toLocaleDateString([], { day: "numeric", month: "short" })}` : "";
+  const termLabel = TERM?.number ? `Term ${TERM.number} · ${termDateRange}` : termDateRange;
+
   if (!isLoaded) return <div className="loading-screen"><TermFlowLoader variant="splash" size={96} /></div>;
   if (!isSignedIn) return <Login />;
   if (!scheduleData) return <div className="loading-screen"><TermFlowLoader size={72} /></div>;
   if (userId && !setup && !cloudChecked) return <div className="loading-screen"><TermFlowLoader size={72} /></div>;
-  if (!setup) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} />;
-  if (showSetupEdit) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} initialPicked={enrolled} onCancel={() => setShowSetupEdit(false)} />;
-
-  const termDateRange = TERM ? `${new Date(TERM.start + "T00:00").toLocaleDateString([], { day: "numeric", month: "short" })} – ${new Date(TERM.end + "T00:00").toLocaleDateString([], { day: "numeric", month: "short" })}` : "";
-  const termLabel = TERM?.number ? `Term ${TERM.number} · ${termDateRange}` : termDateRange;
+  if (!setup) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} termLabel={termLabel} />;
+  if (showSetupEdit) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} initialPicked={enrolled} onCancel={() => setShowSetupEdit(false)} termLabel={termLabel} />;
 
   return (
     <div className="app">
@@ -345,34 +347,70 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         </span>
       </div>
 
-      <SubjectFilter legend={enrolledLegend} mine={mine} setMine={setMine} />
+      <SubjectFilter legend={enrolledLegend} mine={mine} setMine={setMine} onEditSetup={() => setShowSetupEdit(true)} />
 
       <div className="desk-layout">
         <div className="main-col">
-          <nav className="tabs">
-            <button className={`tab ${view === "today" ? "on" : ""}`} onClick={() => setView("today")}>
-              <Clock size={15} /> Today
-            </button>
-            <button className={`tab ${view === "tomorrow" ? "on" : ""}`} onClick={() => setView("tomorrow")}>
-              <Sunrise size={15} /> Tomorrow
-            </button>
-            <button className={`tab tab-week ${view === "week" ? "on" : ""}`} onClick={() => setView("week")}>
-              <Calendar size={15} /> Week
-            </button>
-            <button className={`tab ${view === "attendance" ? "on" : ""}`} onClick={() => setView("attendance")}>
-              <ClipboardList size={15} /> Attendance
-            </button>
-            <div className="today-date">
-              {view === "attendance" && weather
-                ? (() => { const Icon = weatherIcon(weather.code); return <span className="weather-chip"><Icon size={13} />{weather.temp}°C</span>; })()
-                : view === "notifications" ? `${CHANGES.length} update${CHANGES.length !== 1 ? "s" : ""}`
-                : view === "week" ? weekRangeLabel : prettyDate(view === "tomorrow" ? tomorrowISO : todayISO)}
+          <div className="tabs-wrapper">
+            <nav className="tabs">
+              <button className={`tab ${view === "today" ? "on" : ""}`} onClick={() => setView("today")}>
+                <Clock size={15} /> Today
+              </button>
+              <button className={`tab ${view === "tomorrow" ? "on" : ""}`} onClick={() => setView("tomorrow")}>
+                <Sunrise size={15} /> Tomorrow
+              </button>
+              <button className={`tab tab-week ${view === "week" ? "on" : ""}`} onClick={() => setView("week")}>
+                <Calendar size={15} /> Week
+              </button>
+              <button className={`tab ${view === "attendance" ? "on" : ""}`} onClick={() => setView("attendance")}>
+                <ClipboardList size={15} /> Attendance
+              </button>
+              <button className={`tab ${view === "exams" ? "on" : ""}`} onClick={() => setView("exams")}>
+                <GraduationCap size={15} /> Exams
+              </button>
+            </nav>
+          </div>
+          
+          {view !== "attendance" && view !== "exams" && (
+            <div className="view-date-header">
+              <span className="vdh-label">
+                {view === "notifications" ? `${CHANGES.length} update${CHANGES.length !== 1 ? "s" : ""}`
+                  : view === "week" ? weekRangeLabel : prettyDate(view === "tomorrow" ? tomorrowISO : todayISO)}
+              </span>
+              <WeatherWidget now={now} weather={weather} />
             </div>
-          </nav>
-          {view !== "attendance" && view !== "notifications" && <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} />}
+          )}
+          {view !== "attendance" && view !== "notifications" && view !== "exams" && view !== "tomorrow" && <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} />}
+          {/* Compact "now" banner on Tomorrow tab so user knows what's happening today */}
+          {view === "tomorrow" && (current || next) && (
+            <div className="now-banner" onClick={() => setView("today")}>
+              <span className="now-banner-dot" />
+              <span className="now-banner-label">{current ? "NOW" : "UP NEXT"}</span>
+              <span className="now-banner-name">
+                <span className="now-banner-text">{(current || next).name}</span>
+                {(current || next).session && (
+                  <span className={`ses ses-${(Array.from((current || next).code).reduce((h, char) => h + char.charCodeAt(0), 0)) % 6}`}>
+                    {(current || next).code} {(current || next).session}
+                  </span>
+                )}
+              </span>
+              <span className="now-banner-time">{(current || next).start}{current ? `–${current.end}` : ""}</span>
+              <span className="now-banner-go">Today →</span>
+            </div>
+          )}
           <div className={view === "week" ? "pane-today hide-mobile" : "pane-today"}>
-            {view === "attendance"
-              ? <AttendancePanel
+            {view === "exams"
+              ? <ExamsPanel
+                allClasses={CLASSES}
+                enrolled={enrolled}
+                legend={enrolledLegend}
+                now={now}
+                termNumber={TERM?.number}
+                termStart={TERM?.start}
+                termEnd={TERM?.end}
+              />
+              : view === "attendance"
+                ? <AttendancePanel
                   allClasses={CLASSES}
                   now={now}
                   attendance={attendance}
@@ -382,11 +420,11 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                   weather={weather}
                   termNumber={TERM?.number}
                 />
-              : view === "notifications"
-                ? <NotificationsPage changes={CHANGES} />
-                : view === "tomorrow"
-                  ? <Timeline list={tomorrowList} current={null} now={now} showNowLine={false} label="Tomorrow" dateLabel={prettyDate(tomorrowISO)} attendance={attendance} markAttendance={markAttendance} />
-                  : <Timeline list={todayList} current={current} now={now} dateLabel={prettyDate(todayISO)} attendance={attendance} markAttendance={markAttendance} />}
+                : view === "notifications"
+                  ? <NotificationsPage changes={CHANGES} />
+                  : view === "tomorrow"
+                    ? <Timeline list={tomorrowList} current={null} now={now} showNowLine={false} label="Tomorrow" dateLabel={prettyDate(tomorrowISO)} attendance={attendance} markAttendance={markAttendance} />
+                    : <Timeline list={todayList} current={current} now={now} dateLabel={prettyDate(todayISO)} attendance={attendance} markAttendance={markAttendance} />}
           </div>
         </div>
         <aside className={view !== "week" ? "side-col hide-mobile" : "side-col"}>
@@ -426,5 +464,5 @@ export default function App() {
 }
 
 export function DevApp() {
-  return <AppCore isSignedIn={true} isLoaded={true} signOut={() => {}} userId={null} />;
+  return <AppCore isSignedIn={true} isLoaded={true} signOut={() => { }} userId={null} />;
 }

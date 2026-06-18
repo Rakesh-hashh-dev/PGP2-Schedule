@@ -46,7 +46,11 @@ export default function WeekAgenda({ visible, now, offset, setOffset, todayISO }
                       <span className="ag-t">{c.start}</span>
                       <span className="ag-c">
                         {c.name}
-                        {c.session && <span className="ses">{c.code} {c.session}</span>}
+                        {c.session && (
+                          <span className={`ses ses-${(Array.from(c.code).reduce((h, char) => h + char.charCodeAt(0), 0)) % 6}`}>
+                            {c.code} {c.session}
+                          </span>
+                        )}
                       </span>
                       {c.type === "class" && c.room && <span className="ag-r">{c.room}</span>}
                     </div>

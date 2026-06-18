@@ -7,15 +7,28 @@ const FEED_URL = "https://script.google.com/macros/s/AKfycbwOCmpZAbzN7hRkb-xx6-S
 const CACHE_KEY = "pgp2-feed-cache";
 const CACHE_TTL = 15 * 60 * 1000; // 15 minutes
 
+// These courses have only one combined section; rename stray "B" feed entries to "Single".
+const SINGLE_SECTION_B = new Set(["AMR", "BAMD", "BBM"]);
+function normalizeSingleSection(c) {
+  if (c.type !== "class") return c;
+  if (SINGLE_SECTION_B.has(c.code) && c.section === "B") {
+    return { ...c, section: "Single" };
+  }
+  return c;
+}
+
 function withAreas(data) {
   const legend = {};
   for (const code in data.LEGEND) {
     legend[code] = { ...data.LEGEND[code], area: AREA[code] || "Other" };
   }
-  const classes = (data.CLASSES || []).map((c) => ({
-    ...c,
-    area: c.code ? (AREA[c.code] || "Other") : "",
-  }));
+  const classes = (data.CLASSES || [])
+    .map(normalizeSingleSection)
+    .filter(Boolean)
+    .map((c) => ({
+      ...c,
+      area: c.code ? (AREA[c.code] || "Other") : "",
+    }));
   // Preserve static fields (like number) that the live feed may omit
   const term = data.TERM ? { number: TERM.number, ...data.TERM } : data.TERM;
   return { ...data, TERM: term, LEGEND: legend, CLASSES: classes };

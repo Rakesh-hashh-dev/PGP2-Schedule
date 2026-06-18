@@ -33,6 +33,12 @@ export default function Timeline({ list, current, now, showNowLine = true, label
     );
 
   const nowMin = now.getHours() * 60 + now.getMinutes();
+  const allDone = showNowLine && list.every(c => nowMin >= toMin(c.end));
+  // Find the first upcoming class (not break/holiday) for the "next" badge
+  // If we're not showing the now line (e.g. Tomorrow view), just highlight the very first class
+  const nextUpIdx = showNowLine 
+    ? list.findIndex(c => c.type === "class" && toMin(c.start) > nowMin) 
+    : list.findIndex(c => c.type === "class");
 
   return (
     <section className="panel">
@@ -46,7 +52,16 @@ export default function Timeline({ list, current, now, showNowLine = true, label
       <ol className="rail">
         {list.map((c, i) => {
           const isCur = current && current.date === c.date && current.start === c.start && current.name === c.name;
-          const showNow = showNowLine && !isCur && nowMin < toMin(c.start) && (i === 0 || nowMin >= toMin(list[i - 1].end));
+          // For non-class items (breaks/holidays), use start time as "done" since they aren't attended
+          const prevDone = i === 0 || (() => {
+            const prev = list[i - 1];
+            const threshold = prev.type !== "class" ? toMin(prev.start) : toMin(prev.end);
+            return nowMin >= threshold;
+          })();
+          const showNow = showNowLine && !isCur && nowMin < toMin(c.start) && prevDone;
+          const isPast = showNowLine && !isCur && nowMin >= (c.type !== "class" ? toMin(c.start) : toMin(c.end));
+          const isNext = showNowLine && i === nextUpIdx;
+          const isFirst = !showNowLine && i === nextUpIdx;
           const canMark = c.type === "class" && !!markAttendance && clsStart(c) <= now;
           const attKey = c.type === "class" ? sessionKey(c) : null;
           const attStatus = attKey ? attendance[attKey] : null;
@@ -59,14 +74,18 @@ export default function Timeline({ list, current, now, showNowLine = true, label
                   <span className="nowrule" />
                 </li>
               )}
-              <li className={`row ${isCur ? "cur" : ""} ${c.type !== "class" ? "soft" : ""}`}>
+              <li className={`row${isCur ? " cur" : ""}${c.type !== "class" ? " soft" : ""}${isPast ? " past" : ""}${isNext ? " next-up" : ""}${isFirst ? " first-up" : ""}`}>
                 <div className="row-time">
                   <span className="rt-start">{c.start}</span>
                   <span className="rt-end">{c.end}</span>
                 </div>
                 <div className="row-body">
                   <div className="row-course">
-                    {c.name} {c.session && <span className="ses">{c.code} {c.session}</span>}
+                    {c.name} {c.session && (
+                      <span className={`ses ses-${(Array.from(c.code).reduce((h, char) => h + char.charCodeAt(0), 0)) % 6}`}>
+                        {c.code} {c.session}
+                      </span>
+                    )}
                   </div>
                   <div className="row-meta">
                     {c.type === "class"
@@ -97,10 +116,20 @@ export default function Timeline({ list, current, now, showNowLine = true, label
                   </div>
                 )}
                 {isCur && <span className="row-flag">now</span>}
+                {isNext && !isCur && <span className="row-flag row-flag-next">next</span>}
+                {isFirst && !isCur && <span className="row-flag row-flag-first">1st class</span>}
               </li>
             </React.Fragment>
           );
         })}
+        {allDone && (
+          <li className="nowline nowline-end">
+            <span className="nowdot" />
+            <span className="nowtime">{fmtClock(now)}</span>
+            <span className="nowrule" />
+            <span className="nowlabel">All done</span>
+          </li>
+        )}
       </ol>
     </section>
   );

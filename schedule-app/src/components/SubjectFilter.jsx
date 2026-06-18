@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { SlidersHorizontal, ChevronDown, ChevronUp } from "lucide-react";
+import { SlidersHorizontal, ChevronDown, ChevronUp, Settings2 } from "lucide-react";
 
 const AREA_LABELS = {
   "F&A":   "Finance",
@@ -10,7 +10,7 @@ const AREA_LABELS = {
   "STM":   "Strategy",
 };
 
-export default function SubjectFilter({ legend, mine, setMine, sections = {}, setSection, classes = [] }) {
+export default function SubjectFilter({ legend, mine, setMine, sections = {}, setSection, classes = [], onEditSetup }) {
   const [open, setOpen] = useState(false);
 
   const allCodes = useMemo(() => Object.keys(legend), [legend]);
@@ -86,6 +86,15 @@ export default function SubjectFilter({ legend, mine, setMine, sections = {}, se
           {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </button>
 
+        {/* Edit setup shortcut */}
+        {open && onEditSetup && (
+          <div className="sf-footer">
+            <button className="sf-edit-setup" onClick={onEditSetup}>
+              <Settings2 size={13} /> Edit courses &amp; sections
+            </button>
+          </div>
+        )}
+
         {/* Area pills — visible when drawer is open */}
         {open && <div className="sf-areas">
           <button className={`sf-apill ${isAll ? "on" : ""}`} onClick={() => setMine(new Set(allCodes))}>
@@ -133,7 +142,9 @@ export default function SubjectFilter({ legend, mine, setMine, sections = {}, se
                         className={`sf-chip ${mine.has(code) ? "on" : ""}`}
                         onClick={() => toggleChip(code)}
                       >
-                        <span className="sf-code">{code}</span>
+                        <span className={`ses ses-${(Array.from(code).reduce((h, char) => h + char.charCodeAt(0), 0)) % 6}`}>
+                          {code}
+                        </span>
                         <span className="sf-name">{legend[code].name}</span>
                         {mine.has(code) && splitCodes.has(code) && setSection && (
                           <span className="sf-chip-seg" onClick={e => e.stopPropagation()}>

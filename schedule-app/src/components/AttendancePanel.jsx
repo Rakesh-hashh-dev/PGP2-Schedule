@@ -1,17 +1,7 @@
 import { useMemo, useState } from "react";
-import { Check, X, Clock, MapPin, AlertTriangle, ChevronDown, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog } from "lucide-react";
-
-function wIcon(code) {
-  if (code === 0) return Sun;
-  if (code <= 3) return Cloud;
-  if (code <= 48) return CloudFog;
-  if (code <= 55) return CloudDrizzle;
-  if (code <= 67) return CloudRain;
-  if (code <= 77) return CloudSnow;
-  if (code <= 82) return CloudRain;
-  return CloudLightning;
-}
+import { Check, X, Clock, MapPin, AlertTriangle, ChevronDown } from "lucide-react";
 import { sessionKey } from "../lib/attendance.js";
+import WeatherWidget from "./WeatherWidget.jsx";
 
 const THRESHOLD = 75;
 
@@ -56,17 +46,6 @@ function StatusDot({ status }) {
   return <span className={`att-sdot${status === "present" ? " att-sdot-p" : status === "absent" ? " att-sdot-a" : ""}`} />;
 }
 
-function AttWeather({ now, weather }) {
-  const time = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
-  const WIcon = weather ? wIcon(weather.code) : null;
-  return (
-    <div className="att-weather">
-      <span className="att-weather-time"><Clock size={12} />{time}</span>
-      {WIcon && weather && <span className="att-weather-wx"><WIcon size={12} />{weather.temp}°C</span>}
-    </div>
-  );
-}
-
 export default function AttendancePanel({ allClasses, now, attendance, enrolled, legend, markAttendance, weather, termNumber }) {
   const [expandedCode, setExpandedCode] = useState(null);
   const codes = Object.keys(enrolled || {});
@@ -109,7 +88,7 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
   if (!codes.length)
     return (
       <div className="att-page">
-        <div className="att-head"><h1>Attendance</h1><AttWeather now={now} weather={weather} /></div>
+        <div className="att-head"><h1>Attendance</h1></div>
         <div className="empty">No courses enrolled. Complete setup first.</div>
       </div>
     );
@@ -121,9 +100,11 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
   return (
     <div className="att-page">
       <div className="att-head">
-        <h1>Attendance</h1>
-        <AttWeather now={now} weather={weather} />
-        <span className="att-sub">{termNumber ? `Term ${termNumber}` : "Term so far"}</span>
+        <div className="att-head-left">
+          <h1>Attendance</h1>
+          <span className="att-sub">{termNumber ? `Term ${termNumber}` : "Term so far"}</span>
+        </div>
+        <WeatherWidget now={now} weather={weather} />
       </div>
 
       {/* ── Overall hero ── */}
@@ -157,40 +138,47 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
         </div>
         {noData ? (
           <div className="att-empty-msg">No past classes yet — check back once sessions end.</div>
-        ) : byCourse.map(c => {
-          const t = tone(c.pct);
-          const open = expandedCode === c.code;
-          const canExpand = c.sessions.length > 0 && !!markAttendance;
-          return (
-            <div key={c.code} className={`att-row${open ? " att-row-open" : ""}`}>
+        ) : (
+          <div className="att-grid">
+            {byCourse.map(c => {
+              const t = tone(c.pct);
+              const open = expandedCode === c.code;
+              const canExpand = c.sessions.length > 0 && !!markAttendance;
+              return (
+            <div key={c.code} className={`att-row ar-${(Array.from(c.code).reduce((h, char) => h + char.charCodeAt(0), 0)) % 6}${open ? " att-row-open" : ""}`}>
               <button
                 className="att-row-hd"
                 onClick={() => canExpand && toggle(c.code)}
                 disabled={!canExpand}
                 aria-expanded={open}
+                style={{ display: "flex", width: "100%", alignItems: "stretch", textAlign: "left" }}
               >
-                <div className="att-row-top">
-                  <span className="att-k">{c.code}</span>
-                  <span className="att-name">{c.name}</span>
-                  {c.unmarked > 0 && (
-                    <span className="att-unmarked-badge">{c.unmarked}</span>
-                  )}
-                  <span className={`att-pct tone-${t}`}>{c.pct == null ? "—" : c.pct + "%"}</span>
-                  {canExpand && <ChevronDown size={14} className={`att-chev${open ? " open" : ""}`} />}
+                <div className="ar-left">
+                  <div className={`ar-pct tone-${t}`}>{c.pct == null ? "—" : c.pct + "%"}</div>
+                  <div className="ar-code">{c.code}</div>
                 </div>
-                <div className="att-bar">
-                  {c.present > 0 && <div className="att-bar-p" style={{ width: `${(c.present / c.total * 100).toFixed(1)}%` }} />}
-                  {c.absent  > 0 && <div className="att-bar-a" style={{ width: `${(c.absent  / c.total * 100).toFixed(1)}%` }} />}
-                </div>
-                <div className="att-row-sub">
-                  {c.present}/{c.present + c.absent} attended
-                  {c.unmarked > 0 ? <span className="att-sub-warn"> · {c.unmarked} to mark</span> : ""}
-                  {` · ${c.total} total`}
+                <div className="ar-body">
+                  <div className="att-row-top">
+                    <span className="att-name" style={{ fontSize: 14.5 }}>{c.name}</span>
+                    {c.unmarked > 0 && (
+                      <span className="att-unmarked-badge">{c.unmarked}</span>
+                    )}
+                    {canExpand && <ChevronDown size={14} className={`att-chev${open ? " open" : ""}`} />}
+                  </div>
+                  <div className="att-row-sub" style={{ marginTop: 2 }}>
+                    {c.present}/{c.present + c.absent} attended
+                    {c.unmarked > 0 ? <span className="att-sub-warn"> · {c.unmarked} to mark</span> : ""}
+                    {` · ${c.total} total`}
+                  </div>
+                  <div className="att-bar" style={{ marginTop: 8, marginBottom: 0 }}>
+                    {c.present > 0 && <div className="att-bar-p" style={{ width: `${(c.present / c.total * 100).toFixed(1)}%` }} />}
+                    {c.absent  > 0 && <div className="att-bar-a" style={{ width: `${(c.absent  / c.total * 100).toFixed(1)}%` }} />}
+                  </div>
                 </div>
               </button>
 
               {open && (
-                <div className="att-edit-list">
+                <div className="att-edit-list" style={{ padding: "0 14px 12px", borderTop: "none" }}>
                   <div className="att-spark">
                     {c.sessions.map((s, i) => {
                       const st = attendance[s.key] || null;
@@ -242,35 +230,44 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
               )}
             </div>
           );
-        })}
+            })}
+          </div>
+        )}
       </section>
 
       {/* ── To mark ── */}
       {toMark.length > 0 && (
-        <section className="att-card att-card-urgent">
+        <section className="att-card">
           <div className="att-card-h">
             <h2>To mark</h2>
             <span className="att-count att-count-urgent">{toMark.length} pending</span>
           </div>
-          {toMark.map(s => (
-            <div key={s.key} className="att-mark">
-              <div className="att-mark-info">
-                <span className="att-k sm">{s.code}{s.session ? ` ${s.session}` : ""}</span>
-                <span className="att-mark-name">{s.name}</span>
-                <span className="att-mark-meta">
-                  <Clock size={11} /> {fmtDate(s.date)} · {s.start}
-                </span>
+          <div className="att-grid">
+            {toMark.map(s => (
+              <div key={s.key} className={`att-mark ar-${(Array.from(s.code).reduce((h, char) => h + char.charCodeAt(0), 0)) % 6}`}>
+                <div className="ar-left">
+                  <div className="ar-pct" style={{ fontSize: 13, lineHeight: 1.2 }}>{s.code}</div>
+                  {s.session && <div className="ar-code" style={{ marginTop: 4 }}>S{s.session}</div>}
+                </div>
+                <div className="ar-body" style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                  <div className="att-mark-info" style={{ paddingRight: 8 }}>
+                    <span className="att-mark-name">{s.name}</span>
+                    <span className="att-mark-meta" style={{ marginTop: 2 }}>
+                      <Clock size={11} /> {fmtDate(s.date)} · {s.start}
+                    </span>
+                  </div>
+                  <div className="att-btns">
+                    <button className="att-b present" onClick={() => markAttendance(s, "present")} aria-label="Present">
+                      <Check size={16} />
+                    </button>
+                    <button className="att-b absent" onClick={() => markAttendance(s, "absent")} aria-label="Absent">
+                      <X size={16} />
+                    </button>
+                  </div>
+                </div>
               </div>
-              <div className="att-btns">
-                <button className="att-b present" onClick={() => markAttendance(s, "present")} aria-label="Present">
-                  <Check size={16} />
-                </button>
-                <button className="att-b absent" onClick={() => markAttendance(s, "absent")} aria-label="Absent">
-                  <X size={16} />
-                </button>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </section>
       )}
 
@@ -285,16 +282,22 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
         ) : missed.map(s => (
           <div key={s.key} className="att-missed">
             <span className="att-mdot" />
-            <span className="att-k sm">{s.code}{s.session ? ` ${s.session}` : ""}</span>
-            <span className="att-missed-name">{s.name}</span>
-            <span className="att-missed-meta">
-              {fmtDate(s.date)} · {s.start}
-              {s.room && <><MapPin size={11} /> {s.room}</>}
+            <span className="att-missed-label">MISSED</span>
+            <span className="att-missed-name">
+              <span className="att-missed-text">{s.name}</span>
+              {s.session && (
+                <span className={`ses ses-${(Array.from(s.code).reduce((h, char) => h + char.charCodeAt(0), 0)) % 6}`}>
+                  {s.code} {s.session}
+                </span>
+              )}
             </span>
-            <button className="att-b present att-b-sm" onClick={() => markAttendance(s, "present")} title="Mark as present" aria-label="Mark as present">
-              <Check size={13} />
-            </button>
-            <button className="att-undo" onClick={() => markAttendance(s, null)}>unmark</button>
+            <span className="att-missed-time">
+              <span>{s.start}</span>
+              <button className="att-b present att-b-sm" onClick={() => markAttendance(s, "present")} title="Mark as present" aria-label="Mark as present">
+                <Check size={13} />
+              </button>
+              <button className="att-undo" onClick={() => markAttendance(s, null)}>unmark</button>
+            </span>
           </div>
         ))}
       </section>

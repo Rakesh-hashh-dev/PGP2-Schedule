@@ -58,7 +58,14 @@ export default function Hero({ current, next, now, todayISO, tomorrowISO }) {
     const left = Math.max(0, Math.round((e - now) / 60000));
     return (
       <section className="hero">
-        <div className="hero-tag in"><span className="dot" /> In session{current.session ? ` · ${current.code} ${current.session}` : ""}</div>
+        <div className="hero-tag in">
+          <span className="dot" /> In session
+          {current.session && (
+            <span className={`ses ses-${(Array.from(current.code).reduce((h, char) => h + char.charCodeAt(0), 0)) % 6}`}>
+              {current.code} {current.session}
+            </span>
+          )}
+        </div>
         <h1 className="hero-course">{current.name}</h1>
         <div className="hero-meta">
           <span className="t">{current.start}<span className="dash">–</span>{current.end}</span>
@@ -76,16 +83,41 @@ export default function Hero({ current, next, now, todayISO, tomorrowISO }) {
     const s = clsDate(next, "start");
     const sameDay = next.date === todayISO;
     const mins = Math.round((s - now) / 60000);
+
+    if (!sameDay) {
+      // Today's classes are done — show relaxed "done for today" with subtle hint
+      const nextLabel = next.date === tomorrowISO ? "Tomorrow" : prettyDate(next.date);
+      return (
+        <section className="hero hero-done-today">
+          <div className="hero-tag done"><span className="dot" /> Done for today</div>
+          <h1 className="hero-course">All clear 🎉</h1>
+          <div className="hero-when">No more classes left today. Enjoy your evening!</div>
+          <div className="hero-next-hint">
+            <span className="hero-hint-label">Next up</span>
+            <span className="hero-hint-name">{next.name}</span>
+            <span className="hero-hint-when">{nextLabel} · {next.start}</span>
+          </div>
+        </section>
+      );
+    }
+
     return (
       <section className="hero">
-        <div className="hero-tag next"><span className="dot amber" /> Up next{next.session ? ` · ${next.code} ${next.session}` : ""}</div>
+        <div className="hero-tag next">
+          <span className="dot amber" /> Up next
+          {next.session && (
+            <span className={`ses ses-${(Array.from(next.code).reduce((h, char) => h + char.charCodeAt(0), 0)) % 6}`}>
+              {next.code} {next.session}
+            </span>
+          )}
+        </div>
         <h1 className="hero-course">{next.name}</h1>
         <div className="hero-meta">
           <span className="t">{next.start}</span>
           {next.room && <><span className="sep">·</span><span className="r"><MapPin size={14} /> {next.room}</span></>}
           {next.faculty && <><span className="sep">·</span><span className="f">{next.faculty}</span></>}
         </div>
-        <div className="hero-when">{sameDay ? (mins <= 90 ? `Starts in ${mins} min` : "Later today") : next.date === tomorrowISO ? `Tomorrow · ${prettyDate(next.date)}` : prettyDate(next.date)}</div>
+        <div className="hero-when">{mins <= 90 ? `Starts in ${mins} min` : "Later today"}</div>
       </section>
     );
   }
