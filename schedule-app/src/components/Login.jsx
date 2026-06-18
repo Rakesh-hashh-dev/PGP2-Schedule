@@ -19,8 +19,8 @@ export default function Login() {
   return (
     <div className="login-screen">
       <div className="login-card">
-        <div className="login-logo"><GraduationCap size={28} /></div>
-        <h1 className="login-title">Term Timetable</h1>
+        <div className="login-logo"><img src="/termflow-icon.svg" alt="TermFlow Logo" /></div>
+        <h1 className="login-title">TermFlow</h1>
         <p className="login-sub">IIM Sambalpur · Sign in with your institute account</p>
 
         <button className="login-btn" onClick={handleSignIn} disabled={!isLoaded || loading}>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog } from "lucide-react";
+import { RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog } from "lucide-react";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
 import Timeline from "./components/Timeline.jsx";
@@ -9,6 +9,8 @@ import Login from "./components/Login.jsx";
 import Onboarding from "./components/Onboarding.jsx";
 import AttendancePanel from "./components/AttendancePanel.jsx";
 import WeatherWidget from "./components/WeatherWidget.jsx";
+import FriendsPanel from "./components/FriendsPanel.jsx";
+import CompareView from "./components/CompareView.jsx";
 import { getSnapshot, fetchSchedule } from "./lib/sheet.js";
 import RecentChanges from "./components/RecentChanges.jsx";
 import ExamsPanel from "./components/ExamsPanel.jsx";
@@ -16,6 +18,7 @@ import NotificationsPage from "./components/NotificationsPage.jsx";
 import TermFlowLoader from "./components/TermFlowLoader.jsx";
 import { loadAttendance, saveAttendance, sessionKey, syncAttendanceFromCloud, pushMark } from "./lib/attendance.js";
 import { syncProfileFromCloud, pushProfile } from "./lib/profile.js";
+import { decodeSchedule, saveFriend, loadFriends, loadGroups, friendVisibleClasses } from "./lib/friends.js";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
@@ -70,6 +73,26 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [profileOpen, setProfileOpen] = useState(false);
   const [weather, setWeather] = useState(null);
   const [cloudChecked, setCloudChecked] = useState(false);
+  const [friends, setFriends] = useState(() => loadFriends());
+  const [groups, setGroups] = useState(() => loadGroups());
+  const [compareTarget, setCompareTarget] = useState(null); // { mode, friendData?, groupData? }
+  const [friendToast, setFriendToast] = useState(null);
+
+  // URL param interception for friend codes
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("f");
+    if (code) {
+      const decoded = decodeSchedule(code);
+      if (decoded) {
+        const updated = saveFriend(decoded.name, decoded.courses);
+        setFriends(updated);
+        setFriendToast(`Added ${decoded.name} as a friend!`);
+        setTimeout(() => setFriendToast(null), 3000);
+      }
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
 
   useEffect(() => {
     if (!userId) return;
@@ -368,10 +391,13 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               <button className={`tab ${view === "exams" ? "on" : ""}`} onClick={() => setView("exams")}>
                 <GraduationCap size={15} /> Exams
               </button>
+              <button className={`tab ${view === "friends" ? "on" : ""}`} onClick={() => { setView("friends"); setCompareTarget(null); }}>
+                <Users size={15} /> Friends
+              </button>
             </nav>
           </div>
           
-          {view !== "attendance" && view !== "exams" && (
+          {view !== "attendance" && view !== "exams" && view !== "friends" && !compareTarget && (
             <div className="view-date-header">
               <span className="vdh-label">
                 {view === "notifications" ? `${CHANGES.length} update${CHANGES.length !== 1 ? "s" : ""}`
@@ -380,7 +406,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               <WeatherWidget now={now} weather={weather} />
             </div>
           )}
-          {view !== "attendance" && view !== "notifications" && view !== "exams" && view !== "tomorrow" && <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} />}
+          {view !== "attendance" && view !== "notifications" && view !== "exams" && view !== "friends" && !compareTarget && view !== "tomorrow" && <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} />}
           {/* Compact "now" banner on Tomorrow tab so user knows what's happening today */}
           {view === "tomorrow" && (current || next) && (
             <div className="now-banner" onClick={() => setView("today")}>
@@ -399,32 +425,59 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             </div>
           )}
           <div className={view === "week" ? "pane-today hide-mobile" : "pane-today"}>
-            {view === "exams"
-              ? <ExamsPanel
-                allClasses={CLASSES}
-                enrolled={enrolled}
-                legend={enrolledLegend}
-                now={now}
-                termNumber={TERM?.number}
-                termStart={TERM?.start}
-                termEnd={TERM?.end}
-              />
-              : view === "attendance"
-                ? <AttendancePanel
+            {compareTarget
+              ? <CompareView
+                  mode={compareTarget.mode}
+                  friendData={compareTarget.friendData}
+                  groupData={compareTarget.groupData}
+                  myClasses={visible}
                   allClasses={CLASSES}
-                  now={now}
-                  attendance={attendance}
                   enrolled={enrolled}
                   legend={enrolledLegend}
-                  markAttendance={markAttendance}
-                  weather={weather}
-                  termNumber={TERM?.number}
+                  now={now}
+                  onExit={() => setCompareTarget(null)}
                 />
-                : view === "notifications"
-                  ? <NotificationsPage changes={CHANGES} />
-                  : view === "tomorrow"
-                    ? <Timeline list={tomorrowList} current={null} now={now} showNowLine={false} label="Tomorrow" dateLabel={prettyDate(tomorrowISO)} attendance={attendance} markAttendance={markAttendance} />
-                    : <Timeline list={todayList} current={current} now={now} dateLabel={prettyDate(todayISO)} attendance={attendance} markAttendance={markAttendance} />}
+              : view === "friends"
+                ? <FriendsPanel
+                    userName={user?.firstName || user?.fullName || "User"}
+                    enrolled={enrolled}
+                    legend={enrolledLegend}
+                    friends={friends}
+                    setFriends={setFriends}
+                    groups={groups}
+                    setGroups={setGroups}
+                    onCompare={(f) => { setCompareTarget({ mode: "friend", friendData: f }); }}
+                    onGroupCompare={(g) => {
+                      const members = (g.memberIds || []).map(id => friends.find(f => f.id === id)).filter(Boolean).map(f => ({ name: f.name, courses: f.courses }));
+                      setCompareTarget({ mode: "group", groupData: { name: g.name, members } });
+                    }}
+                  />
+                : view === "exams"
+                  ? <ExamsPanel
+                      allClasses={CLASSES}
+                      enrolled={enrolled}
+                      legend={enrolledLegend}
+                      now={now}
+                      termNumber={TERM?.number}
+                      termStart={TERM?.start}
+                      termEnd={TERM?.end}
+                    />
+                  : view === "attendance"
+                    ? <AttendancePanel
+                        allClasses={CLASSES}
+                        now={now}
+                        attendance={attendance}
+                        enrolled={enrolled}
+                        legend={enrolledLegend}
+                        markAttendance={markAttendance}
+                        weather={weather}
+                        termNumber={TERM?.number}
+                      />
+                    : view === "notifications"
+                      ? <NotificationsPage changes={CHANGES} />
+                      : view === "tomorrow"
+                        ? <Timeline list={tomorrowList} current={null} now={now} showNowLine={false} label="Tomorrow" dateLabel={prettyDate(tomorrowISO)} attendance={attendance} markAttendance={markAttendance} />
+                        : <Timeline list={todayList} current={current} now={now} dateLabel={prettyDate(todayISO)} attendance={attendance} markAttendance={markAttendance} />}
           </div>
         </div>
         <aside className={view !== "week" ? "side-col hide-mobile" : "side-col"}>
