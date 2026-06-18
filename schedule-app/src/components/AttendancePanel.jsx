@@ -67,7 +67,7 @@ function AttWeather({ now, weather }) {
   );
 }
 
-export default function AttendancePanel({ allClasses, now, attendance, enrolled, legend, markAttendance, weather }) {
+export default function AttendancePanel({ allClasses, now, attendance, enrolled, legend, markAttendance, weather, termNumber }) {
   const [expandedCode, setExpandedCode] = useState(null);
   const codes = Object.keys(enrolled || {});
 
@@ -123,7 +123,7 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
       <div className="att-head">
         <h1>Attendance</h1>
         <AttWeather now={now} weather={weather} />
-        <span className="att-sub">Term so far</span>
+        <span className="att-sub">{termNumber ? `Term ${termNumber}` : "Term so far"}</span>
       </div>
 
       {/* ── Overall hero ── */}

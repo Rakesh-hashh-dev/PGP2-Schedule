@@ -826,8 +826,94 @@ button:focus-visible {
   font-size: 13px; color: var(--muted); text-align: center;
 }
 
-@media (max-width: 400px) {
-  .notif-panel { width: calc(100vw - 24px); right: -4px; }
+.rc-view-all {
+  display: block; width: 100%;
+  padding: 10px 16px;
+  margin-top: 4px;
+  border: none; border-top: 1px solid var(--line);
+  background: transparent;
+  font-family: var(--body); font-size: 13px; font-weight: 600;
+  color: var(--accent, var(--ink));
+  cursor: pointer; text-align: center;
+  transition: background .12s, color .12s;
+}
+.rc-view-all:hover { background: var(--surface); }
+
+/* Mobile: fix as a sheet anchored just below the bar */
+@media (max-width: 600px) {
+  .notif-panel {
+    position: fixed;
+    top: 64px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+}
+
+/* ── Notifications tab dot ── */
+.tab-notif-dot {
+  display: inline-block;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #E84545;
+  margin-left: 5px;
+  vertical-align: middle;
+  flex: none;
+}
+
+/* ── Notifications full page ── */
+.notif-pg {
+  padding: 4px 0 24px;
+}
+.notif-pg-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 2px 0 14px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 4px;
+}
+.notif-pg-head h2 {
+  font-family: var(--display); font-weight: 700; font-size: 17px;
+  margin: 0; flex: 1;
+}
+.notif-pg-count {
+  font-size: 12px; color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.notif-pg-empty {
+  padding: 40px 0; text-align: center;
+  font-size: 14px; color: var(--muted);
+}
+.notif-pg-list {
+  list-style: none; margin: 0; padding: 0;
+}
+.notif-pg-item {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.notif-pg-item:last-child { border-bottom: none; }
+.notif-pg-item .rc-dot { margin-top: 5px; }
+.notif-pg-body {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.notif-pg-text {
+  font-size: 14px; line-height: 1.45;
+}
+.notif-pg-kind {
+  display: inline-block; width: fit-content;
+  font-size: 11px; font-weight: 600; letter-spacing: .03em;
+  padding: 2px 7px; border-radius: 20px;
+  background: var(--surface); color: var(--muted);
+}
+.kind-added   { background: color-mix(in srgb, var(--live) 15%, transparent); color: var(--live); }
+.kind-removed { background: rgba(192,57,43,.12); color: #C0392B; }
+.kind-moved   { background: color-mix(in srgb, var(--amber) 15%, transparent); color: var(--amber); }
+.kind-course  { background: color-mix(in srgb, var(--violet) 15%, transparent); color: var(--violet); }
+.notif-pg-time {
+  font-family: var(--mono); font-size: 11px; color: var(--muted);
+  white-space: nowrap; flex: none; padding-top: 3px;
 }
 
 /* ── Overflow menu (⋯) ── */
