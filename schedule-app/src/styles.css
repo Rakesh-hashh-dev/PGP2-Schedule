@@ -836,13 +836,14 @@ button:focus-visible {
 .over-menu {
   position: absolute;
   right: 0; top: calc(100% + 8px);
-  min-width: 176px;
+  width: 224px;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 14px;
   box-shadow: 0 8px 32px -8px rgba(21,24,43,.18);
   z-index: 100;
   padding: 6px;
+  overflow: hidden;
 }
 
 /* ── Shared user avatar ── */
@@ -886,7 +887,7 @@ button:focus-visible {
 
 .over-profile {
   display: flex; align-items: center; gap: 10px;
-  padding: 10px 12px 8px;
+  padding: 10px 12px 8px; overflow: hidden;
 }
 .over-profile-info { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .over-profile-name { font-size: 13px; font-weight: 700; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
