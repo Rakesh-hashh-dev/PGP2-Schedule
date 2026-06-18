@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { RefreshCw, Calendar, Clock, Sunrise, GraduationCap, LogOut, Settings2, Bell, ClipboardList, MoreHorizontal, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog } from "lucide-react";
+import { RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, MoreHorizontal, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog } from "lucide-react";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
 import Timeline from "./components/Timeline.jsx";
@@ -10,6 +10,8 @@ import Onboarding from "./components/Onboarding.jsx";
 import AttendancePanel from "./components/AttendancePanel.jsx";
 import { getSnapshot, fetchSchedule } from "./lib/sheet.js";
 import RecentChanges from "./components/RecentChanges.jsx";
+import NotificationsPage from "./components/NotificationsPage.jsx";
+import TermFlowLoader from "./components/TermFlowLoader.jsx";
 import { loadAttendance, saveAttendance, sessionKey, syncAttendanceFromCloud, pushMark } from "./lib/attendance.js";
 import { syncProfileFromCloud, pushProfile } from "./lib/profile.js";
 
@@ -195,6 +197,11 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     setNotifOpen(o => !o);
   }
 
+  function handleViewAllNotifs() {
+    setNotifOpen(false);
+    setView("notifications");
+  }
+
   function markAttendance(c, status) {
     const key = sessionKey(c);
     setAttendance(prev => {
@@ -215,22 +222,23 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     }).finally(() => setSyncing(false));
   }
 
-  if (!isLoaded) return <div className="loading-screen"><div className="spinner" /></div>;
+  if (!isLoaded) return <div className="loading-screen"><TermFlowLoader variant="splash" size={96} /></div>;
   if (!isSignedIn) return <Login />;
-  if (!scheduleData) return <div className="loading-screen"><div className="spinner" /></div>;
-  if (userId && !setup && !cloudChecked) return <div className="loading-screen"><div className="spinner" /></div>;
+  if (!scheduleData) return <div className="loading-screen"><TermFlowLoader size={72} /></div>;
+  if (userId && !setup && !cloudChecked) return <div className="loading-screen"><TermFlowLoader size={72} /></div>;
   if (!setup) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} />;
   if (showSetupEdit) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} initialPicked={enrolled} onCancel={() => setShowSetupEdit(false)} />;
 
-  const termLabel = TERM ? `${new Date(TERM.start + "T00:00").toLocaleDateString([], { day: "numeric", month: "short" })} – ${new Date(TERM.end + "T00:00").toLocaleDateString([], { day: "numeric", month: "short" })}` : "";
+  const termDateRange = TERM ? `${new Date(TERM.start + "T00:00").toLocaleDateString([], { day: "numeric", month: "short" })} – ${new Date(TERM.end + "T00:00").toLocaleDateString([], { day: "numeric", month: "short" })}` : "";
+  const termLabel = TERM?.number ? `Term ${TERM.number} · ${termDateRange}` : termDateRange;
 
   return (
     <div className="app">
       <header className="bar">
         <div className="brand">
-          <div className="logo"><GraduationCap size={20} /></div>
+          <div className="logo"><img src="/termflow-icon.svg" alt="TermFlow" width={22} height={22} /></div>
           <div>
-            <div className="brand-name">Term Timetable</div>
+            <div className="brand-name">TermFlow</div>
             <div className="brand-sub">IIM Sambalpur · {termLabel}</div>
           </div>
         </div>
@@ -265,7 +273,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 <div className="notif-panel">
                   {CHANGES.length === 0
                     ? <p className="notif-empty">No recent changes</p>
-                    : <RecentChanges changes={CHANGES} />}
+                    : <RecentChanges changes={CHANGES} onViewAll={handleViewAllNotifs} />}
                 </div>
               </>
             )}
@@ -357,10 +365,11 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             <div className="today-date">
               {view === "attendance" && weather
                 ? (() => { const Icon = weatherIcon(weather.code); return <span className="weather-chip"><Icon size={13} />{weather.temp}°C</span>; })()
+                : view === "notifications" ? `${CHANGES.length} update${CHANGES.length !== 1 ? "s" : ""}`
                 : view === "week" ? weekRangeLabel : prettyDate(view === "tomorrow" ? tomorrowISO : todayISO)}
             </div>
           </nav>
-          {view !== "attendance" && <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} />}
+          {view !== "attendance" && view !== "notifications" && <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} />}
           <div className={view === "week" ? "pane-today hide-mobile" : "pane-today"}>
             {view === "attendance"
               ? <AttendancePanel
@@ -371,10 +380,13 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                   legend={enrolledLegend}
                   markAttendance={markAttendance}
                   weather={weather}
+                  termNumber={TERM?.number}
                 />
-              : view === "tomorrow"
-                ? <Timeline list={tomorrowList} current={null} now={now} showNowLine={false} label="Tomorrow" dateLabel={prettyDate(tomorrowISO)} attendance={attendance} markAttendance={markAttendance} />
-                : <Timeline list={todayList} current={current} now={now} dateLabel={prettyDate(todayISO)} attendance={attendance} markAttendance={markAttendance} />}
+              : view === "notifications"
+                ? <NotificationsPage changes={CHANGES} />
+                : view === "tomorrow"
+                  ? <Timeline list={tomorrowList} current={null} now={now} showNowLine={false} label="Tomorrow" dateLabel={prettyDate(tomorrowISO)} attendance={attendance} markAttendance={markAttendance} />
+                  : <Timeline list={todayList} current={current} now={now} dateLabel={prettyDate(todayISO)} attendance={attendance} markAttendance={markAttendance} />}
           </div>
         </div>
         <aside className={view !== "week" ? "side-col hide-mobile" : "side-col"}>

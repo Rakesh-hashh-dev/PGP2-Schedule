@@ -16,7 +16,9 @@ function withAreas(data) {
     ...c,
     area: c.code ? (AREA[c.code] || "Other") : "",
   }));
-  return { ...data, LEGEND: legend, CLASSES: classes };
+  // Preserve static fields (like number) that the live feed may omit
+  const term = data.TERM ? { number: TERM.number, ...data.TERM } : data.TERM;
+  return { ...data, TERM: term, LEGEND: legend, CLASSES: classes };
 }
 
 const STATIC_SNAPSHOT = withAreas({ TERM, LEGEND, CLASSES, CHANGES: [] });
