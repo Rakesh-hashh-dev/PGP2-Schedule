@@ -98,11 +98,19 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     if (!userId) return;
     let alive = true;
     (async () => {
-      const p = await syncProfileFromCloud(userId);
-      if (alive && p?.courses) { setEnrolled(p.courses); setMine(new Set(Object.keys(p.courses))); setSetup(p); }
-      const a = await syncAttendanceFromCloud(userId);
-      if (alive) setAttendance(a);
-      if (alive) setCloudChecked(true);
+      const [p, a] = await Promise.all([
+        syncProfileFromCloud(userId),
+        syncAttendanceFromCloud(userId)
+      ]);
+      if (alive) {
+        if (p?.courses) {
+          setEnrolled(p.courses);
+          setMine(new Set(Object.keys(p.courses)));
+          setSetup(p);
+        }
+        setAttendance(a);
+        setCloudChecked(true);
+      }
     })();
     return () => { alive = false; };
   }, [userId]);
@@ -117,7 +125,11 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   useEffect(() => {
     if (!isSignedIn) return;
     let alive = true;
-    // State is already pre-populated synchronously; just background-fetch live data
+    
+    // UI unblocks instantly: use local snapshot while live data fetches in background
+    setScheduleData(getSnapshot());
+    
+    // Background-fetch live data
     const load = () =>
       fetchSchedule().then((data) => {
         if (!alive) return;
