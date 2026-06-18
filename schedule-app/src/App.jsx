@@ -395,8 +395,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       </div>
 
       <footer className="foot">
-        <span>Auto-syncs from the live timetable sheet every few minutes</span>
-        <span className="foot-credit">Built with ♥ by Rakesh</span>
+        <span className="foot-credit">Auto-syncs from the live timetable sheet every few minutes</span>
+        <span className="foot-credit">Built with <span className="foot-heart">♥</span> by <a href="https://www.linkedin.com/" target="_blank" rel="noopener noreferrer" className="foot-credit-name">Rakesh</a></span>
       </footer>
 
       {/* Bottom nav — commented out, restore when needed
