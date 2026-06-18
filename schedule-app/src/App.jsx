@@ -392,7 +392,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 <GraduationCap size={15} /> Exams
               </button>
               <button className={`tab ${view === "friends" ? "on" : ""}`} onClick={() => { setView("friends"); setCompareTarget(null); }}>
-                <Users size={15} /> Friends
+                <Users size={15} /> Friends <span className="beta-badge">Beta</span>
               </button>
             </nav>
           </div>

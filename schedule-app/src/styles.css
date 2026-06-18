@@ -1927,10 +1927,69 @@ button:focus-visible {
 
 .cv-empty { font-size: 13px; color: var(--muted); margin: 0; }
 
+/* ── Friends & Compare Responsive ── */
+@media (max-width: 600px) {
+  .fr-page { gap: 16px; padding-top: 12px; }
+  .fr-share-card { padding: 18px; border-radius: 16px; }
+  .fr-share-head h2 { font-size: 18px; }
+  .fr-code-display { padding: 12px; margin-bottom: 12px; }
+  .fr-code-text { font-size: 16px; }
+  .fr-btn { padding: 8px 12px; font-size: 13px; }
+  .fr-btn-add { padding-left: 14px; padding-right: 14px; }
+  .fr-add-section, .fr-groups-section, .fr-friends-section { padding: 18px 16px; border-radius: 16px; }
+  .fr-group-head { padding: 12px; gap: 8px; }
+  .fr-group-actions { gap: 8px; }
+  .fr-friend-card { padding: 12px; gap: 10px; border-radius: 14px; }
+  .fr-friend-avatar { width: 36px; height: 36px; font-size: 14px; }
+  .cv-header { flex-direction: column; align-items: stretch; gap: 12px; padding: 14px; }
+  .cv-view-toggle { align-self: flex-end; }
+  .cv-back { align-self: flex-start; }
+  .cv-timeline { min-height: 400px; border-radius: 12px; }
+  .cv-track-area, .cv-side-body { min-height: 400px; }
+  .cv-time-labels { width: 42px; }
+  .cv-time-label { right: 6px; font-size: 10px; }
+  .cv-block { padding: 4px 6px; border-radius: 8px; }
+  .cv-block-label { font-size: 10.5px; }
+  .cv-side .cv-side-headers { padding-left: 42px; }
+  .cv-side-header { font-size: 10px; }
+  .cv-insight-card { flex-direction: column; padding: 12px; }
+}
+
+@media (max-width: 400px) {
+  .fr-share-actions { flex-direction: column; }
+  .fr-add-row { flex-direction: column; }
+  .fr-group-actions { flex-direction: column; align-items: flex-end; }
+}
+
+/* Enable horizontal scrolling for side-by-side view on small screens if many targets */
+@media (max-width: 800px) {
+  .cv-side { overflow-x: auto; }
+  .cv-side-headers, .cv-side-body { min-width: 600px; } /* forces scroll if container is smaller */
+}
+
 @media (prefers-reduced-motion: reduce) {
   .pulse, .dot { animation: none !important; }
   .spinner     { animation: none !important; }
   .prog-fill   { transition: none !important; }
   .spin-icon   { animation: none !important; }
   *            { transition-duration: .01ms !important; }
+}
+
+/* Beta badge */
+.beta-badge {
+  background: var(--violet);
+  color: #fff;
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 9px;
+  text-transform: uppercase;
+  padding: 3px 5px;
+  border-radius: 6px;
+  letter-spacing: .05em;
+  margin-left: 2px;
+  line-height: 1;
+}
+.tab.on .beta-badge {
+  background: #fff;
+  color: var(--ink);
 }
