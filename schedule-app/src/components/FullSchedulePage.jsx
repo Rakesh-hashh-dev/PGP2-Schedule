@@ -10,28 +10,34 @@ function fmtDate(iso) {
 
 export default function FullSchedulePage({ allClasses, enrolled, legend, termLabel, onBack }) {
   const [filterCode, setFilterCode] = useState(null); // null = show all
+  const [showAllClasses, setShowAllClasses] = useState(false);
 
-  // Get only the user's enrolled classes, sorted chronologically
-  const myClasses = useMemo(() => {
+  // Get base classes (either user's enrolled classes or the entire master schedule)
+  const baseClasses = useMemo(() => {
+    const classOnly = allClasses.filter(c => c.type === "class");
+    
+    if (showAllClasses) {
+      return classOnly.sort((a, b) => a.date.localeCompare(b.date) || toMin(a.start) - toMin(b.start));
+    }
+
     if (!enrolled) return [];
-    return allClasses
+    return classOnly
       .filter(c => {
-        if (c.type !== "class") return false;
         const sec = enrolled[c.code];
         return sec !== undefined && c.section === sec;
       })
       .sort((a, b) => a.date.localeCompare(b.date) || toMin(a.start) - toMin(b.start));
-  }, [allClasses, enrolled]);
+  }, [allClasses, enrolled, showAllClasses]);
 
   // Group by subject code for filter chips
   const subjectCodes = useMemo(() => {
-    const codes = [...new Set(myClasses.map(c => c.code))];
+    const codes = [...new Set(baseClasses.map(c => c.code))];
     codes.sort((a, b) => (legend[a]?.name || a).localeCompare(legend[b]?.name || b));
     return codes;
-  }, [myClasses, legend]);
+  }, [baseClasses, legend]);
 
   // Apply filter
-  const filtered = filterCode ? myClasses.filter(c => c.code === filterCode) : myClasses;
+  const filtered = filterCode ? baseClasses.filter(c => c.code === filterCode) : baseClasses;
 
   // Group by date
   const grouped = useMemo(() => {
@@ -64,20 +70,44 @@ export default function FullSchedulePage({ allClasses, enrolled, legend, termLab
       {/* Subject filter chips */}
       <div className="fs-filters">
         <button
-          className={`fs-chip ${!filterCode ? "fs-chip-on" : ""}`}
-          onClick={() => setFilterCode(null)}
+          className={`fs-chip ${!filterCode && !showAllClasses ? "fs-chip-on" : ""}`}
+          onClick={() => { setFilterCode(null); setShowAllClasses(false); }}
         >
-          All Subjects
+          My Schedule
         </button>
-        {subjectCodes.map(code => (
-          <button
-            key={code}
-            className={`fs-chip ${filterCode === code ? "fs-chip-on" : ""}`}
-            onClick={() => setFilterCode(filterCode === code ? null : code)}
-          >
-            {code}
-          </button>
-        ))}
+        <button
+          className={`fs-chip ${!filterCode && showAllClasses ? "fs-chip-on" : ""}`}
+          onClick={() => { setFilterCode(null); setShowAllClasses(true); }}
+        >
+          Whole Timetable
+        </button>
+        <div style={{ width: '1px', height: '24px', background: 'var(--border)', margin: '0 4px', flexShrink: 0 }} />
+        {subjectCodes.map(code => {
+          const section = enrolled ? enrolled[code] : null;
+          const showSection = section && section !== "Single";
+          return (
+            <button
+              key={code}
+              className={`fs-chip ${filterCode === code ? "fs-chip-on" : ""}`}
+              onClick={() => setFilterCode(filterCode === code ? null : code)}
+              style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+            >
+              {code}
+              {showSection && !showAllClasses && (
+                <span style={{ 
+                  background: filterCode === code ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.06)", 
+                  padding: "1px 5px", 
+                  borderRadius: "10px", 
+                  fontSize: "10.5px",
+                  fontWeight: "700",
+                  letterSpacing: "0.2px"
+                }}>
+                  {section}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* Schedule grouped by date */}
@@ -94,13 +124,25 @@ export default function FullSchedulePage({ allClasses, enrolled, legend, termLab
               <div className="fs-day-items">
                 {items.map((c, i) => {
                   const colorIdx = (Array.from(c.code).reduce((h, ch) => h + ch.charCodeAt(0), 0)) % 6;
+                  const showSection = c.section && c.section !== "Single";
                   return (
                     <div key={i} className="fs-card">
                       <div className={`fs-card-accent accent-${colorIdx}`} />
                       <div className="fs-card-body">
                         <div className="fs-card-top">
                           <span className="fs-card-name">{c.name}</span>
-                          <span className={`ses ses-${colorIdx}`}>{c.code} {c.session}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            {showSection && (
+                              <span style={{ 
+                                fontSize: '10px', fontWeight: '700', padding: '2px 6px', 
+                                background: 'var(--surface)', borderRadius: '6px', 
+                                color: 'var(--muted)', letterSpacing: '0.5px', textTransform: 'uppercase'
+                              }}>
+                                Sec {c.section}
+                              </span>
+                            )}
+                            <span className={`ses ses-${colorIdx}`}>{c.code} {c.session}</span>
+                          </div>
                         </div>
                         <div className="fs-card-meta">
                           <span className="fs-meta-item"><Clock size={13} /> {c.start} – {c.end}</span>

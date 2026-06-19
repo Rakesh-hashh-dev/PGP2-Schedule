@@ -169,7 +169,7 @@ button:focus-visible {
 
 /* â”€â”€ Subject filter â”€â”€ */
 /* â”€â”€ Subject Filter wrapper â”€â”€ */
-.sf-wrap { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+.sf-wrap { margin-top: 14px; margin-bottom: 24px; display: flex; flex-direction: column; gap: 10px; }
 
 .sf {
   background: var(--card); border: 1px solid var(--border);
