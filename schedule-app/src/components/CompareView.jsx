@@ -198,7 +198,7 @@ export default function CompareView({
 
       {/* Free time blocks detail */}
       <section className="cv-free-section">
-        <h3 className="cv-section-title"><Clock size={15} /> Free Time Together</h3>
+        <h3 className="cv-section-title"><Clock size={15} /> Matching Free Time</h3>
         {freeSlots.length === 0 ? (
           <p className="cv-empty">No common free time on this day.</p>
         ) : (
@@ -289,7 +289,7 @@ function MergedTimeline({ myClasses, targetClasses, targets, freeSlots }) {
           </div>
           <div className="cva-card">
             <div className="cva-title">
-              {e.type === "free" ? "Free Time Together" : e.data.name}
+              {e.type === "free" ? "Matching Free Time" : e.data.name}
             </div>
             <div className="cva-sub">
               {e.type === "free" ? fmtDuration(e.data.durationMin) : e.type === "mine" ? "You" : e.owner}
