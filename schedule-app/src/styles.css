@@ -2293,8 +2293,17 @@ button:focus-visible {
 .cva-theirs .cva-card { background: rgba(59,130,246,.08); border: 1px solid rgba(59,130,246,.2); }
 
 /* Side by Side Agenda */
-.cv-side-agenda { display: flex; gap: 16px; padding: 10px 0; }
-.cva-col { flex: 1; display: flex; flex-direction: column; min-width: 140px; }
+.cv-side-agenda {
+  display: flex; gap: 16px; padding: 10px 4px 20px;
+  overflow-x: auto; scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+}
+.cv-side-agenda::-webkit-scrollbar { height: 6px; }
+.cv-side-agenda::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 6px; }
+.cva-col {
+  flex: 1 0 160px; display: flex; flex-direction: column;
+  scroll-snap-align: start;
+}
 .cva-col-head {
   text-align: center; font-size: 12px; font-weight: 700;
   color: var(--muted); text-transform: uppercase; letter-spacing: .04em;
