@@ -144,6 +144,15 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           setEnrolled(p.courses);
           setMine(new Set(Object.keys(p.courses)));
           setSetup(p);
+          
+          // Auto-sync notification read state from cloud
+          if (p.lastSeenNotif) {
+             const localSeen = loadLastSeen();
+             if (p.lastSeenNotif > localSeen) {
+                setLastSeenTs(p.lastSeenNotif);
+                try { localStorage.setItem(NOTIF_KEY, String(p.lastSeenNotif)); } catch { }
+             }
+          }
         }
         setAttendance(a);
         if (fg) {
@@ -208,7 +217,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           setMine(new Set(Object.keys(nextEnrolled)));
           const newSetup = { ...setup, courses: nextEnrolled };
           setSetup(newSetup);
-          pushProfile(userId, newSetup);
+          pushProfile(userId, nextEnrolled);
         }
       }
     }
@@ -314,6 +323,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       const latest = Math.max(...filteredChanges.map(c => new Date(c.ts).getTime()));
       setLastSeenTs(latest);
       try { localStorage.setItem(NOTIF_KEY, String(latest)); } catch { }
+      if (userId && enrolled) {
+         pushProfile(userId, enrolled, user?.firstName || user?.username || "Student", latest);
+      }
     }
     setNotifOpen(o => !o);
   }

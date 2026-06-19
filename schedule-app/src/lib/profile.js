@@ -17,9 +17,11 @@ export async function syncProfileFromCloud(userId) {
   if (error) return local;
   if (data && data.courses && Object.keys(data.courses).length) {
     const cleanCourses = { ...data.courses };
+    const remoteSeen = cleanCourses._lastSeenNotif;
     delete cleanCourses._name;
-    const s = { courses: cleanCourses };
-    writeLocal(s);
+    delete cleanCourses._lastSeenNotif;
+    const s = { courses: cleanCourses, lastSeenNotif: remoteSeen };
+    writeLocal({ courses: cleanCourses });
     return s;
   }
   if (local) {
@@ -32,13 +34,19 @@ export async function syncProfileFromCloud(userId) {
   return null;
 }
 
-export async function pushProfile(userId, courses, userName) {
+export async function pushProfile(userId, courses, userName, optionalLastSeenNotif) {
   const s = { courses };
   writeLocal(s);
   if (!userId) return s;
   
   const dbCourses = { ...courses };
   if (userName) dbCourses._name = userName;
+  
+  let lastSeenNotif = optionalLastSeenNotif;
+  if (lastSeenNotif === undefined) {
+    try { lastSeenNotif = parseInt(localStorage.getItem("pgp2-notif-seen") || "0", 10); } catch { }
+  }
+  if (lastSeenNotif) dbCourses._lastSeenNotif = lastSeenNotif;
   
   try {
     await supabase.from("profiles").upsert(
