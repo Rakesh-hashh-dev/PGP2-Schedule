@@ -4,7 +4,7 @@ import {
   decodeSchedule, codeDisplayPart, buildShareUrl,
   saveFriend, removeFriend as removeFriendFromStore,
   loadGroups, createGroup, removeGroup as removeGroupFromStore, updateGroup,
-  getOrCreateShareCode
+  getOrCreateShareCode, pushFriendsToCloud, pushGroupsToCloud
 } from "../lib/friends.js";
 
 function Toast({ message, onDone }) {
@@ -80,6 +80,7 @@ export default function FriendsPanel({
     }
     const updated = saveFriend(decoded.name, decoded.courses, decoded.id);
     setFriends(updated);
+    pushFriendsToCloud(userId, updated);
     setAddCode("");
     setToast(`Added ${decoded.name}!`);
   }
@@ -87,12 +88,14 @@ export default function FriendsPanel({
   function handleRemoveFriend(id) {
     const updated = removeFriendFromStore(id);
     setFriends(updated);
+    pushFriendsToCloud(userId, updated);
   }
 
   function handleCreateGroup() {
     if (!newGroupName.trim()) return;
     const updated = createGroup(newGroupName.trim());
     setGroups(updated);
+    pushGroupsToCloud(userId, updated);
     setNewGroupName("");
     setShowNewGroup(false);
     setToast("Group created!");
@@ -101,6 +104,7 @@ export default function FriendsPanel({
   function handleRemoveGroup(id) {
     const updated = removeGroupFromStore(id);
     setGroups(updated);
+    pushGroupsToCloud(userId, updated);
   }
 
   function handleToggleFriendInGroup(groupId, friendId) {
@@ -112,6 +116,7 @@ export default function FriendsPanel({
       : [...members, friendId];
     const updated = updateGroup(groupId, { memberIds: next });
     setGroups(updated);
+    pushGroupsToCloud(userId, updated);
   }
 
   const courseCount = enrolled ? Object.keys(enrolled).length : 0;

@@ -413,4 +413,65 @@ export function friendVisibleClasses(allClasses, friendCourses) {
     }
     return false; // don't include non-class items for friends
   });
+// --- CLOUD SYNC FOR FRIENDS AND GROUPS ---
+
+/**
+ * Pulls friends and groups from the cloud (profiles table) and merges them with local state.
+ * Returns the merged arrays or null if failed.
+ */
+export async function syncFriendsAndGroupsFromCloud(userId) {
+  if (!userId) return null;
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("friends, groups")
+    .eq("user_id", userId)
+    .single();
+
+  if (error && error.code !== "PGRST116") {
+    console.error("Error fetching friends/groups:", error);
+    return null;
+  }
+
+  // Merge friends
+  const cloudFriends = (data?.friends || []);
+  const localFriends = loadFriends();
+  const mergedFriends = [...cloudFriends];
+  for (const lf of localFriends) {
+    if (!mergedFriends.find(cf => cf.id === lf.id)) {
+      mergedFriends.push(lf);
+    }
+  }
+  localStorage.setItem(FRIENDS_KEY, JSON.stringify(mergedFriends));
+
+  // Merge groups
+  const cloudGroups = (data?.groups || []);
+  const localGroups = loadGroups();
+  const mergedGroups = [...cloudGroups];
+  for (const lg of localGroups) {
+    if (!mergedGroups.find(cg => cg.id === lg.id)) {
+      mergedGroups.push(lg);
+    }
+  }
+  localStorage.setItem(GROUPS_KEY, JSON.stringify(mergedGroups));
+
+  // Push back the merged result so the cloud has the local stuff too
+  if (mergedFriends.length > cloudFriends.length || mergedGroups.length > cloudGroups.length) {
+    await supabase.from("profiles").upsert({ 
+      user_id: userId, 
+      friends: mergedFriends, 
+      groups: mergedGroups 
+    }, { onConflict: "user_id" });
+  }
+
+  return { friends: mergedFriends, groups: mergedGroups };
+}
+
+export async function pushFriendsToCloud(userId, friends) {
+  if (!userId) return;
+  await supabase.from("profiles").upsert({ user_id: userId, friends }, { onConflict: "user_id" });
+}
+
+export async function pushGroupsToCloud(userId, groups) {
+  if (!userId) return;
+  await supabase.from("profiles").upsert({ user_id: userId, groups }, { onConflict: "user_id" });
 }

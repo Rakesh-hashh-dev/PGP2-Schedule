@@ -19,7 +19,7 @@ import TermFlowLoader from "./components/TermFlowLoader.jsx";
 import FullSchedulePage from "./components/FullSchedulePage.jsx";
 import { loadAttendance, saveAttendance, sessionKey, syncAttendanceFromCloud, pushMark } from "./lib/attendance.js";
 import { syncProfileFromCloud, pushProfile } from "./lib/profile.js";
-import { decodeSchedule, saveFriend, loadFriends, loadGroups, friendVisibleClasses } from "./lib/friends.js";
+import { decodeSchedule, saveFriend, loadFriends, loadGroups, friendVisibleClasses, syncFriendsAndGroupsFromCloud } from "./lib/friends.js";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
@@ -134,9 +134,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     if (!userId) return;
     let alive = true;
     (async () => {
-      const [p, a] = await Promise.all([
+      const [p, a, fg] = await Promise.all([
         syncProfileFromCloud(userId),
-        syncAttendanceFromCloud(userId)
+        syncAttendanceFromCloud(userId),
+        syncFriendsAndGroupsFromCloud(userId)
       ]);
       if (alive) {
         if (p?.courses) {
@@ -145,6 +146,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           setSetup(p);
         }
         setAttendance(a);
+        if (fg) {
+          setFriends(fg.friends);
+          setGroups(fg.groups);
+        }
         setCloudChecked(true);
       }
     })();
