@@ -413,6 +413,8 @@ export function friendVisibleClasses(allClasses, friendCourses) {
     }
     return false; // don't include non-class items for friends
   });
+}
+
 // --- CLOUD SYNC FOR FRIENDS AND GROUPS ---
 
 /**
