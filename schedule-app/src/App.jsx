@@ -187,6 +187,33 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     return () => clearInterval(t);
   }, []);
 
+  // Auto-sync section overrides from live sheet
+  useEffect(() => {
+    const students = scheduleData?.STUDENTS;
+    const email = user?.primaryEmailAddress?.emailAddress?.toLowerCase();
+    
+    if (students && email && enrolled && setup && userId) {
+      const overrides = students[email];
+      if (overrides) {
+        let changed = false;
+        const nextEnrolled = { ...enrolled };
+        for (const [code, section] of Object.entries(overrides)) {
+          if (nextEnrolled[code] !== section) {
+            nextEnrolled[code] = section;
+            changed = true;
+          }
+        }
+        if (changed) {
+          setEnrolled(nextEnrolled);
+          setMine(new Set(Object.keys(nextEnrolled)));
+          const newSetup = { ...setup, courses: nextEnrolled };
+          setSetup(newSetup);
+          pushProfile(userId, newSetup);
+        }
+      }
+    }
+  }, [scheduleData?.STUDENTS, user, enrolled, setup, userId]);
+
   const { TERM, LEGEND, CLASSES, CHANGES } = scheduleData || { TERM: null, LEGEND: {}, CLASSES: [], CHANGES: [] };
 
   const sectionsByCode = useMemo(() => {
