@@ -16,7 +16,9 @@ export async function syncProfileFromCloud(userId) {
   const { data, error } = await supabase.from("profiles").select("courses").maybeSingle();
   if (error) return local;
   if (data && data.courses && Object.keys(data.courses).length) {
-    const s = { courses: data.courses };
+    const cleanCourses = { ...data.courses };
+    delete cleanCourses._name;
+    const s = { courses: cleanCourses };
     writeLocal(s);
     return s;
   }
@@ -30,13 +32,17 @@ export async function syncProfileFromCloud(userId) {
   return null;
 }
 
-export async function pushProfile(userId, courses) {
+export async function pushProfile(userId, courses, userName) {
   const s = { courses };
   writeLocal(s);
   if (!userId) return s;
+  
+  const dbCourses = { ...courses };
+  if (userName) dbCourses._name = userName;
+  
   try {
     await supabase.from("profiles").upsert(
-      { user_id: userId, courses, updated_at: new Date().toISOString() },
+      { user_id: userId, courses: dbCourses, updated_at: new Date().toISOString() },
       { onConflict: "user_id" }
     );
   } catch (e) { /* cached; re-syncs next load */ }

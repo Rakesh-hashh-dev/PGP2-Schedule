@@ -259,107 +259,71 @@ export default function CompareView({
   );
 }
 
-/* ── Merged Timeline ── */
-function MergedTimeline({ myClasses, targetClasses, targets, freeSlots, blockStyle, TOTAL_MIN, DAY_START, DAY_END, legend }) {
-  const hours = [];
-  for (let h = Math.floor(DAY_START / 60); h <= Math.floor(DAY_END / 60); h++) {
-    hours.push(h);
+/* ── Merged Agenda Timeline ── */
+function MergedTimeline({ myClasses, targetClasses, targets, freeSlots }) {
+  const events = [];
+  freeSlots.forEach(s => events.push({ type: "free", start: toMin(s.start), end: toMin(s.end), data: s }));
+  myClasses.forEach(c => events.push({ type: "mine", start: toMin(c.start), end: toMin(c.end), data: c }));
+  
+  targetClasses.forEach((classes, i) => {
+    classes.forEach(c => events.push({ type: "theirs", start: toMin(c.start), end: toMin(c.end), data: c, owner: targets[i]?.name }));
+  });
+
+  events.sort((a, b) => a.start - b.start);
+
+  if (events.length === 0) {
+    return <div className="cv-empty">No events scheduled for this day.</div>;
   }
 
   return (
-    <div className="cv-timeline cv-merged">
-      <div className="cv-time-labels">
-        {hours.map(h => (
-          <div key={h} className="cv-time-label" style={{ top: `${((h * 60 - DAY_START) / TOTAL_MIN) * 100}%` }}>
-            {h}:00
+    <div className="cv-agenda">
+      {events.map((e, i) => (
+        <div key={i} className={`cva-item cva-${e.type}`}>
+          <div className="cva-time">
+            <span>{fmtTime(e.data.start)}</span>
+            <span className="cva-time-end">{fmtTime(e.data.end)}</span>
           </div>
-        ))}
-      </div>
-      <div className="cv-track-area">
-        {/* Hour grid lines */}
-        {hours.map(h => (
-          <div key={h} className="cv-grid-line" style={{ top: `${((h * 60 - DAY_START) / TOTAL_MIN) * 100}%` }} />
-        ))}
-        {/* Free blocks */}
-        {freeSlots.map((slot, i) => (
-          <div key={`free-${i}`} className="cv-block cv-block-free" style={blockStyle(slot.start, slot.end)}>
-            <span className="cv-block-label">Free · {fmtDuration(slot.durationMin)}</span>
+          <div className="cva-node">
+            <div className="cva-dot" />
+            <div className="cva-line" />
           </div>
-        ))}
-        {/* My classes */}
-        {myClasses.map((c, i) => (
-          <div key={`my-${i}`} className="cv-block cv-block-mine" style={blockStyle(c.start, c.end)}>
-            <span className="cv-block-label">{c.name}</span>
-            <span className="cv-block-time">{c.start}–{c.end}</span>
-            <span className="cv-block-owner">You</span>
-          </div>
-        ))}
-        {/* Their classes */}
-        {targetClasses.flatMap((classes, ti) =>
-          classes.map((c, ci) => (
-            <div key={`t-${ti}-${ci}`} className="cv-block cv-block-theirs" style={{
-              ...blockStyle(c.start, c.end),
-              left: `${50 + ti * 4}%`,
-              width: `${48 - ti * 4}%`,
-            }}>
-              <span className="cv-block-label">{c.name}</span>
-              <span className="cv-block-time">{c.start}–{c.end}</span>
-              <span className="cv-block-owner">{targets[ti]?.name}</span>
+          <div className="cva-card">
+            <div className="cva-title">
+              {e.type === "free" ? "Free Time Together" : e.data.name}
             </div>
-          ))
-        )}
-      </div>
+            <div className="cva-sub">
+              {e.type === "free" ? fmtDuration(e.data.durationMin) : e.type === "mine" ? "You" : e.owner}
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
 
-/* ── Side by Side ── */
-function SideBySide({ myClasses, targetClasses, targets, freeSlots, blockStyle, TOTAL_MIN, DAY_START, DAY_END, legend, userName }) {
-  const hours = [];
-  for (let h = Math.floor(DAY_START / 60); h <= Math.floor(DAY_END / 60); h++) {
-    hours.push(h);
-  }
-
+/* ── Side by Side Agenda ── */
+function SideBySide({ myClasses, targetClasses, targets }) {
   const columns = [
-    { label: "You", classes: myClasses, colorClass: "cv-block-mine" },
-    ...targets.map((t, i) => ({ label: t.name, classes: targetClasses[i] || [], colorClass: "cv-block-theirs" })),
+    { label: "You", classes: myClasses, colorClass: "cva-mine" },
+    ...targets.map((t, i) => ({ label: t.name, classes: targetClasses[i] || [], colorClass: "cva-theirs" })),
   ];
 
   return (
-    <div className="cv-timeline cv-side">
-      <div className="cv-side-headers">
-        {columns.map((col, i) => (
-          <div key={i} className="cv-side-header">{col.label}</div>
-        ))}
-      </div>
-      <div className="cv-side-body">
-        <div className="cv-time-labels">
-          {hours.map(h => (
-            <div key={h} className="cv-time-label" style={{ top: `${((h * 60 - DAY_START) / TOTAL_MIN) * 100}%` }}>
-              {h}:00
-            </div>
-          ))}
-        </div>
-        {columns.map((col, ci) => (
-          <div key={ci} className="cv-side-col">
-            {hours.map(h => (
-              <div key={h} className="cv-grid-line" style={{ top: `${((h * 60 - DAY_START) / TOTAL_MIN) * 100}%` }} />
-            ))}
-            {/* Free blocks in each column */}
-            {freeSlots.map((slot, i) => (
-              <div key={`free-${i}`} className="cv-block cv-block-free cv-block-side-free" style={blockStyle(slot.start, slot.end)}>
-                {ci === 0 && <span className="cv-block-label-sm">Free</span>}
-              </div>
-            ))}
-            {col.classes.map((c, i) => (
-              <div key={i} className={`cv-block ${col.colorClass}`} style={blockStyle(c.start, c.end)}>
-                <span className="cv-block-label">{c.name}</span>
-                <span className="cv-block-time">{c.start}</span>
+    <div className="cv-side-agenda">
+      {columns.map((col, i) => (
+        <div key={i} className="cva-col">
+          <div className="cva-col-head">{col.label}</div>
+          <div className="cva-col-list">
+            {col.classes.length === 0 && <div className="cv-empty" style={{ padding: "20px 0" }}>No classes</div>}
+            {col.classes.map((c, ci) => (
+              <div key={ci} className={`cva-card ${col.colorClass}`}>
+                <div className="cva-time-sm">{fmtTime(c.start)} – {fmtTime(c.end)}</div>
+                <div className="cva-title">{c.name}</div>
               </div>
             ))}
           </div>
-        ))}
-      </div>
+        </div>
+      ))}
     </div>
   );
 }

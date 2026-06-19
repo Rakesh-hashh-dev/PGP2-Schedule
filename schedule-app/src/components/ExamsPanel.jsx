@@ -20,11 +20,12 @@ function cdTone(days) {
   return "good";
 }
 
-function examCategory(name) {
+function examCategory(name, session) {
   const n = (name || "").toLowerCase();
-  if (n.includes("end") && n.includes("term")) return "End Term";
-  if (n.includes("mid") && n.includes("term")) return "Mid Term";
-  if (n.includes("quiz")) return "Quiz";
+  const s = (session || "").toLowerCase();
+  if ((n.includes("end") && n.includes("term")) || (s.includes("end") && s.includes("term"))) return "End Term";
+  if ((n.includes("mid") && n.includes("term")) || (s.includes("mid") && s.includes("term"))) return "Mid Term";
+  if (n.includes("quiz") || s.includes("quiz")) return "Quiz";
   return "Exam / Admin";
 }
 
@@ -93,11 +94,25 @@ function ExamCalendar({ exams, now, termStart, termEnd }) {
               <>
                 <span className="ecal-d">{cell.d}</span>
                 {cell.exams.length > 0 && (
-                  <div className="ecal-dots">
-                    {cell.exams.map((e, j) => (
-                      <span key={j} className={`ecal-dot tone-${e.tone}`} title={e.name} />
-                    ))}
-                  </div>
+                  <>
+                    <div className="ecal-dots">
+                      {cell.exams.map((e, j) => (
+                        <span key={j} className={`ecal-dot tone-${e.tone}`} />
+                      ))}
+                    </div>
+                    <div className="ecal-tooltip">
+                      <div className="ecal-tooltip-date">{fmtDate(cell.iso)}</div>
+                      {cell.exams.map((e, j) => (
+                        <div key={`tt-${j}`} className="ecal-tooltip-item">
+                          <span className={`ecal-tooltip-dot ecal-dot tone-${e.tone}`} />
+                          <div className="ecal-tooltip-content">
+                            <span className="ecal-tooltip-title">{e.code || "General"} {e.category}</span>
+                            <span className="ecal-tooltip-time">{e.start || "All Day"} - {e.end || ""}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
                 )}
               </>
             )}
@@ -122,7 +137,7 @@ function CourseCountdown({ courses, allClasses, enrolled, now }) {
 
     return courses.map(c => {
       const sessions = allClasses
-        .filter(cl => cl.type === "class" && cl.code === c.code && cl.section === (enrolled[c.code] || ""))
+        .filter(cl => cl.type === "class" && cl.code === c.code && (cl.section === "Single" || cl.section === (enrolled[c.code] || "")))
         .sort((a, b) => a.date.localeCompare(b.date));
 
       const total = sessions.length;
@@ -206,15 +221,28 @@ export default function ExamsPanel({ allClasses, enrolled, legend, now, termNumb
   const exams = useMemo(() => {
     if (!allClasses) return [];
     return allClasses
-      .filter(c => c.type === "exam")
+      .filter(c => {
+        // Is it an exam?
+        let isExam = false;
+        if (c.type === "exam") isExam = true;
+        else if (c.type === "class") {
+          const s = (c.session || "").toLowerCase();
+          if (s.includes("mid term") || s.includes("end term") || s.includes("quiz")) isExam = true;
+        }
+        if (!isExam) return false;
+        
+        // Does it apply to me?
+        if (c.code && !codes.includes(c.code)) return false;
+        return true;
+      })
       .map(c => {
         const [Y, M, D] = c.date.split("-").map(Number);
         const dt = new Date(Y, M - 1, D);
         const days = daysBetween(now, dt);
-        return { ...c, dt, days, category: examCategory(c.name), tone: cdTone(days) };
+        return { ...c, dt, days, category: examCategory(c.name, c.session), tone: cdTone(days) };
       })
       .sort((a, b) => a.dt - b.dt);
-  }, [allClasses, now]);
+  }, [allClasses, now, codes]);
 
   const upcoming = exams.filter(e => e.days >= 0);
   const past = exams.filter(e => e.days < 0);

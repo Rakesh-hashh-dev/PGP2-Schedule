@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Copy, Link2, UserPlus, Users, Trash2, ArrowRight, Plus, X, ChevronDown, ChevronUp } from "lucide-react";
 import {
-  encodeSchedule, decodeSchedule, codeDisplayPart, buildShareUrl,
+  decodeSchedule, codeDisplayPart, buildShareUrl,
   saveFriend, removeFriend as removeFriendFromStore,
   loadGroups, createGroup, removeGroup as removeGroupFromStore, updateGroup,
+  getOrCreateShareCode
 } from "../lib/friends.js";
 
 function Toast({ message, onDone }) {
@@ -15,7 +16,7 @@ function Toast({ message, onDone }) {
 }
 
 export default function FriendsPanel({
-  userName, enrolled, legend, friends, setFriends,
+  userId, userName, enrolled, legend, friends, setFriends,
   groups, setGroups, onCompare, onGroupCompare,
 }) {
   const [addCode, setAddCode] = useState("");
@@ -26,8 +27,20 @@ export default function FriendsPanel({
   const [expandedGroup, setExpandedGroup] = useState(null);
   const [addToGroupId, setAddToGroupId] = useState(null);
 
-  // Generate the user's shareable code
-  const myCode = encodeSchedule(userName || "User", enrolled);
+  const [myCode, setMyCode] = useState(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
+
+  // Generate the user's shareable code asynchronously
+  useEffect(() => {
+    if (!userId) return;
+    setIsGenerating(true);
+    getOrCreateShareCode(userId, userName || "User").then(code => {
+      setMyCode(code);
+      setIsGenerating(false);
+    });
+  }, [userId, userName]);
+
   const myCodeDisplay = codeDisplayPart(myCode);
 
   function copyCode() {
@@ -44,15 +57,28 @@ export default function FriendsPanel({
     }).catch(() => setToast("Failed to copy"));
   }
 
-  function handleAddFriend() {
+  async function handleAddFriend() {
     setAddError("");
-    if (!addCode.trim()) return;
-    const decoded = decodeSchedule(addCode.trim());
+    let input = addCode.trim();
+    if (!input) return;
+
+    if (input.startsWith("http")) {
+      try {
+        const url = new URL(input);
+        const fParam = url.searchParams.get("f");
+        if (fParam) input = fParam;
+      } catch (e) { }
+    }
+
+    setIsAdding(true);
+    const decoded = await decodeSchedule(input);
+    setIsAdding(false);
+
     if (!decoded) {
-      setAddError("Invalid code. Ask your friend to share their code again.");
+      setAddError("Invalid link or code. Ask your friend to share their invite link again.");
       return;
     }
-    const updated = saveFriend(decoded.name, decoded.courses);
+    const updated = saveFriend(decoded.name, decoded.courses, decoded.id);
     setFriends(updated);
     setAddCode("");
     setToast(`Added ${decoded.name}!`);
@@ -100,19 +126,24 @@ export default function FriendsPanel({
           <h2>Share Your Schedule</h2>
           <span className="fr-share-sub">{courseCount} courses enrolled</span>
         </div>
-        {myCode ? (
+        {isGenerating ? (
+          <p className="fr-share-empty">Generating secure share code...</p>
+        ) : myCode ? (
           <>
             <div className="fr-code-display">
               <span className="fr-code-text">{myCodeDisplay}</span>
             </div>
-            <div className="fr-share-actions">
-              <button className="fr-btn fr-btn-primary" onClick={copyCode}>
-                <Copy size={14} /> Copy Code
+            <div className="fr-share-actions" style={{ marginTop: 12 }}>
+              <button className="fr-btn fr-btn-primary" onClick={copyCode} style={{ flex: 1, justifyContent: "center", padding: "10px", fontSize: "14px" }}>
+                <Copy size={16} /> Copy Code
               </button>
-              <button className="fr-btn fr-btn-secondary" onClick={copyLink}>
-                <Link2 size={14} /> Copy Link
+              <button className="fr-btn fr-btn-secondary" onClick={copyLink} style={{ flex: 1, justifyContent: "center", padding: "10px", fontSize: "14px" }}>
+                <Link2 size={16} /> Copy Link
               </button>
             </div>
+            <p className="fr-share-note" style={{ fontSize: "12px", color: "var(--muted)", marginTop: "12px", textAlign: "center" }}>
+              Your friend can enter this code manually or open your invite link.
+            </p>
           </>
         ) : (
           <p className="fr-share-empty">Complete your course setup first to share your schedule.</p>
@@ -126,13 +157,13 @@ export default function FriendsPanel({
           <input
             className="fr-add-input"
             type="text"
-            placeholder="Paste your friend's code here"
+            placeholder="Paste friend's invite link here..."
             value={addCode}
             onChange={e => { setAddCode(e.target.value); setAddError(""); }}
             onKeyDown={e => e.key === "Enter" && handleAddFriend()}
           />
-          <button className="fr-btn fr-btn-primary fr-btn-add" onClick={handleAddFriend} disabled={!addCode.trim()}>
-            Add
+          <button className="fr-btn fr-btn-primary fr-btn-add" onClick={handleAddFriend} disabled={!addCode.trim() || isAdding}>
+            {isAdding ? "Searching..." : "Add"}
           </button>
         </div>
         {addError && <p className="fr-add-error">{addError}</p>}
@@ -210,9 +241,11 @@ export default function FriendsPanel({
                           })}
                         </div>
                       )}
-                      <button className="fr-btn fr-btn-danger fr-btn-small" onClick={() => handleRemoveGroup(group.id)}>
-                        <Trash2 size={12} /> Delete group
-                      </button>
+                      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
+                        <button className="fr-btn fr-btn-danger fr-btn-small" onClick={() => handleRemoveGroup(group.id)}>
+                          <Trash2 size={14} /> Delete group
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>

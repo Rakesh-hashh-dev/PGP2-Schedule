@@ -49,14 +49,13 @@ function StatusDot({ status }) {
 export default function AttendancePanel({ allClasses, now, attendance, enrolled, legend, markAttendance, weather, termNumber }) {
   const [expandedCode, setExpandedCode] = useState(null);
   const codes = Object.keys(enrolled || {});
-
   const allPast = useMemo(() => {
     if (!enrolled) return [];
     const out = [];
     for (const [code, section] of Object.entries(enrolled)) {
       const name = legend[code]?.name || code;
       allClasses
-        .filter(c => c.type === "class" && c.code === code && c.section === section && clsEnd(c) <= now)
+        .filter(c => c.type === "class" && c.code === code && (c.section === "Single" || c.section === section) && clsEnd(c) <= now)
         .sort((a, b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start))
         .forEach(c => out.push({ ...c, name, key: sessionKey(c) }));
     }

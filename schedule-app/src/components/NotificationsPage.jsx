@@ -1,4 +1,5 @@
-import { Bell } from "lucide-react";
+import { useState } from "react";
+import { Megaphone } from "lucide-react";
 
 function relTime(iso) {
   const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
@@ -11,37 +12,74 @@ function relTime(iso) {
 
 const KIND_LABEL = { added: "Added", removed: "Removed", moved: "Moved", course: "Course", update: "Update" };
 
-export default function NotificationsPage({ changes }) {
-  if (!changes || changes.length === 0)
+export default function NotificationsPage({ allChanges, myChanges }) {
+  const [showAll, setShowAll] = useState(false);
+  const changes = showAll ? (allChanges || []) : (myChanges || []);
+
+  const hasAnyChanges = allChanges && allChanges.length > 0;
+
+  if (!hasAnyChanges) {
     return (
       <div className="notif-pg">
         <div className="notif-pg-head">
-          <Bell size={16} />
-          <h2>Notifications</h2>
+          <Megaphone size={16} />
+          <h2>Announcements</h2>
         </div>
-        <p className="notif-pg-empty">You're all caught up — no recent changes.</p>
+        <p className="notif-pg-empty">You're all caught up — no recent announcements.</p>
       </div>
     );
+  }
 
   return (
     <div className="notif-pg">
-      <div className="notif-pg-head">
-        <Bell size={16} />
-        <h2>Notifications</h2>
-        <span className="notif-pg-count">{changes.length}</span>
+      <div className="notif-pg-head" style={{ flexWrap: "wrap", gap: "12px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <Megaphone size={16} />
+          <h2>Announcements</h2>
+          <span className="notif-pg-count">{changes.length}</span>
+        </div>
+        <div className="notif-toggles" style={{ marginLeft: "auto", display: "flex", gap: "6px", background: "var(--surface)", padding: "4px", borderRadius: "8px" }}>
+          <button 
+            onClick={() => setShowAll(false)}
+            style={{ 
+              padding: "4px 12px", fontSize: "12px", fontWeight: 600, border: "none", borderRadius: "6px", cursor: "pointer",
+              background: !showAll ? "var(--ink)" : "transparent",
+              color: !showAll ? "#fff" : "var(--muted)",
+              transition: "all 0.15s"
+            }}
+          >
+            My Subjects
+          </button>
+          <button 
+            onClick={() => setShowAll(true)}
+            style={{ 
+              padding: "4px 12px", fontSize: "12px", fontWeight: 600, border: "none", borderRadius: "6px", cursor: "pointer",
+              background: showAll ? "var(--ink)" : "transparent",
+              color: showAll ? "#fff" : "var(--muted)",
+              transition: "all 0.15s"
+            }}
+          >
+            All
+          </button>
+        </div>
       </div>
-      <ul className="notif-pg-list">
-        {changes.map((c) => (
-          <li key={c.id} className="notif-pg-item">
-            <span className={`rc-dot rc-${c.kind}`} />
-            <div className="notif-pg-body">
-              <span className="notif-pg-text">{c.text}</span>
-              {c.kind && <span className={`notif-pg-kind kind-${c.kind}`}>{KIND_LABEL[c.kind] ?? c.kind}</span>}
-            </div>
-            <span className="notif-pg-time">{relTime(c.ts)}</span>
-          </li>
-        ))}
-      </ul>
+      
+      {changes.length === 0 ? (
+        <p className="notif-pg-empty">No announcements for your subjects.</p>
+      ) : (
+        <ul className="notif-pg-list">
+          {changes.map((c) => (
+            <li key={c.id} className="notif-pg-item">
+              <span className={`rc-dot rc-${c.kind}`} />
+              <div className="notif-pg-body">
+                <span className="notif-pg-text">{c.text}</span>
+                {c.kind && <span className={`notif-pg-kind kind-${c.kind}`}>{KIND_LABEL[c.kind] ?? c.kind}</span>}
+              </div>
+              <span className="notif-pg-time">{relTime(c.ts)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

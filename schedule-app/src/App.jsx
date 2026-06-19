@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
-import { RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog } from "lucide-react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, ChevronsLeft, ChevronsRight, ChevronRight, ChevronLeft, Megaphone } from "lucide-react";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
 import Timeline from "./components/Timeline.jsx";
@@ -16,6 +16,7 @@ import RecentChanges from "./components/RecentChanges.jsx";
 import ExamsPanel from "./components/ExamsPanel.jsx";
 import NotificationsPage from "./components/NotificationsPage.jsx";
 import TermFlowLoader from "./components/TermFlowLoader.jsx";
+import FullSchedulePage from "./components/FullSchedulePage.jsx";
 import { loadAttendance, saveAttendance, sessionKey, syncAttendanceFromCloud, pushMark } from "./lib/attendance.js";
 import { syncProfileFromCloud, pushProfile } from "./lib/profile.js";
 import { decodeSchedule, saveFriend, loadFriends, loadGroups, friendVisibleClasses } from "./lib/friends.js";
@@ -60,6 +61,13 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [now, setNow] = useState(new Date());
   const [view, setView] = useState("today");
   const [weekOffset, setWeekOffset] = useState(0);
+  const [format12, setFormat12] = useState(() => {
+    try { return localStorage.getItem("pgp2.format12") !== "false"; } catch { return true; }
+  });
+  const toggleFormat12 = () => setFormat12(p => {
+    try { localStorage.setItem("pgp2.format12", !p ? "true" : "false"); } catch { }
+    return !p;
+  });
   const [mine, setMine] = useState(() => { const s = readSetup(); return s?.courses ? new Set(Object.keys(s.courses)) : null; });
   const [enrolled, setEnrolled] = useState(() => { const s = readSetup(); return s?.courses ?? null; });
   const [setup, setSetup] = useState(() => readSetup());
@@ -77,20 +85,48 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [groups, setGroups] = useState(() => loadGroups());
   const [compareTarget, setCompareTarget] = useState(null); // { mode, friendData?, groupData? }
   const [friendToast, setFriendToast] = useState(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem("pgp2.sidebar") === "collapsed"; } catch { return false; }
+  });
+  function toggleSidebar() {
+    setSidebarCollapsed(prev => {
+      const next = !prev;
+      try { localStorage.setItem("pgp2.sidebar", next ? "collapsed" : "expanded"); } catch { }
+      return next;
+    });
+  }
+
+  const tabsRef = useRef(null);
+  const [showRightScroll, setShowRightScroll] = useState(true);
+  const [showLeftScroll, setShowLeftScroll] = useState(false);
+  const handleTabsScroll = () => {
+    if (!tabsRef.current) return;
+    const { scrollLeft, scrollWidth, clientWidth } = tabsRef.current;
+    setShowRightScroll(scrollLeft + clientWidth < scrollWidth - 10);
+    setShowLeftScroll(scrollLeft > 10);
+  };
+
+  useEffect(() => {
+    handleTabsScroll();
+    window.addEventListener("resize", handleTabsScroll);
+    return () => window.removeEventListener("resize", handleTabsScroll);
+  }, []);
 
   // URL param interception for friend codes
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get("f");
     if (code) {
-      const decoded = decodeSchedule(code);
-      if (decoded) {
-        const updated = saveFriend(decoded.name, decoded.courses);
-        setFriends(updated);
-        setFriendToast(`Added ${decoded.name} as a friend!`);
-        setTimeout(() => setFriendToast(null), 3000);
-      }
-      window.history.replaceState({}, "", window.location.pathname);
+      (async () => {
+        const decoded = await decodeSchedule(code);
+        if (decoded) {
+          const updated = saveFriend(decoded.name, decoded.courses, decoded.id);
+          setFriends(updated);
+          setFriendToast(`Added ${decoded.name} as a friend!`);
+          setTimeout(() => setFriendToast(null), 3000);
+        }
+        window.history.replaceState({}, "", window.location.pathname);
+      })();
     }
   }, []);
 
@@ -125,10 +161,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   useEffect(() => {
     if (!isSignedIn) return;
     let alive = true;
-    
+
     // UI unblocks instantly: use local snapshot while live data fetches in background
     setScheduleData(getSnapshot());
-    
+
     // Background-fetch live data
     const load = () =>
       fetchSchedule().then((data) => {
@@ -164,7 +200,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     return CLASSES.filter((c) => {
       if (c.type === "class") {
         const sec = enrolled[c.code];
-        return sec !== undefined && c.section === sec && mine.has(c.code);
+        return sec !== undefined && (c.section === sec || c.section === "Single") && mine.has(c.code);
       }
       const key = c.date + c.slot + c.name;
       if (seen.has(key)) return false; seen.add(key); return true;
@@ -216,18 +252,34 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   function handleOnboardingDone(courses) {
     const s = { courses };
     saveSetup(s);
-    pushProfile(userId, courses);
+    pushProfile(userId, courses, user?.firstName || user?.username || "Student");
     setEnrolled(courses);
     setMine(new Set(Object.keys(courses)));
     setSetup(s);
     setShowSetupEdit(false);
   }
 
-  const hasUnread = CHANGES.length > 0 && CHANGES.some(c => new Date(c.ts).getTime() > lastSeenTs);
+  const filteredChanges = useMemo(() => {
+    if (!CHANGES || !CHANGES.length) return [];
+    if (!mine || mine.size === 0) return CHANGES;
+
+    const myCourseNames = [...mine].map(code => LEGEND[code]?.name).filter(Boolean);
+    const allCourseNames = Object.values(LEGEND).map(l => l.name).filter(Boolean);
+
+    return CHANGES.filter(c => {
+      if (c.code) return mine.has(c.code);
+      const text = c.text || "";
+      if (myCourseNames.some(name => text.includes(name))) return true;
+      if (allCourseNames.some(name => text.includes(name))) return false;
+      return true;
+    });
+  }, [CHANGES, mine, LEGEND]);
+
+  const hasUnread = filteredChanges.length > 0 && filteredChanges.some(c => new Date(c.ts).getTime() > lastSeenTs);
 
   function handleOpenNotif() {
-    if (!notifOpen && CHANGES.length > 0) {
-      const latest = Math.max(...CHANGES.map(c => new Date(c.ts).getTime()));
+    if (!notifOpen && filteredChanges.length > 0) {
+      const latest = Math.max(...filteredChanges.map(c => new Date(c.ts).getTime()));
       setLastSeenTs(latest);
       try { localStorage.setItem(NOTIF_KEY, String(latest)); } catch { }
     }
@@ -270,175 +322,268 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   if (showSetupEdit) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} initialPicked={enrolled} onCancel={() => setShowSetupEdit(false)} termLabel={termLabel} />;
 
   return (
-    <div className="app">
-      <header className="bar">
-        <div className="brand">
-          <div className="logo"><img src="/termflow-icon.svg" alt="TermFlow" width={22} height={22} /></div>
-          <div>
-            <div className="brand-name">TermFlow</div>
-            <div className="brand-sub">IIM Sambalpur · {termLabel}</div>
+    <div className="app-shell">
+      {/* ── Desktop Sidebar ── */}
+      <aside className={`sidebar${sidebarCollapsed ? " collapsed" : ""}`}>
+        <div className="sb-brand">
+          <div className="logo"><img src="/termflow-icon.svg" alt="TermFlow" width={20} height={20} /></div>
+          <div className="sb-brand-text">
+            <div className="sb-brand-name">TermFlow</div>
+            <div className="sb-brand-sub">
+              <div>IIM Sambalpur</div>
+              <div className="sb-brand-date">{termLabel}</div>
+            </div>
           </div>
         </div>
-        <div className="bar-right" role="toolbar" aria-label="App actions">
-          {/* Desktop-only: full button set */}
-          <div className="tb-wrap desktop-only">
-            <button className="sync" onClick={() => setShowSetupEdit(true)} aria-label="Edit setup"><Settings2 size={15} /></button>
-            <span className="tooltip" role="tooltip">Edit setup</span>
+
+        <nav className="sb-nav">
+          <button className={`sb-link${view === "today" ? " on" : ""}`} onClick={() => { setView("today"); setCompareTarget(null); }}>
+            <Clock size={18} /><span className="sb-link-label">Today</span>
+          </button>
+          <button className={`sb-link${view === "tomorrow" ? " on" : ""}`} onClick={() => { setView("tomorrow"); setCompareTarget(null); }}>
+            <Sunrise size={18} /><span className="sb-link-label">Tomorrow</span>
+          </button>
+          <button className={`sb-link${view === "attendance" ? " on" : ""}`} onClick={() => { setView("attendance"); setCompareTarget(null); }}>
+            <ClipboardList size={18} /><span className="sb-link-label">Attendance</span>
+          </button>
+          <button className={`sb-link${view === "exams" ? " on" : ""}`} onClick={() => { setView("exams"); setCompareTarget(null); }}>
+            <GraduationCap size={18} /><span className="sb-link-label">Exams</span>
+          </button>
+          <button className={`sb-link${view === "notifications" ? " on" : ""}`} onClick={() => { setView("notifications"); setCompareTarget(null); }}>
+            <Megaphone size={18} /><span className="sb-link-label">Announcements</span>
+          </button>
+          <button className={`sb-link${view === "friends" ? " on" : ""}`} onClick={() => { setView("friends"); setCompareTarget(null); }}>
+            <Users size={18} /><span className="sb-link-label">Friends</span> <span className="beta-badge">Beta</span>
+          </button>
+        </nav>
+
+        <div className="sb-bottom">
+          <div className="sb-icon-row">
+            <button className="sb-icon-btn" onClick={() => setShowSetupEdit(true)} aria-label="Edit setup"><Settings2 size={16} /></button>
+            <button className="sb-icon-btn" onClick={handleSync} aria-label="Refresh"><RefreshCw size={16} className={syncing ? "spin-icon" : ""} /></button>
           </div>
-          <div className="tb-wrap desktop-only">
-            <button className="sync" onClick={handleSync} aria-label={syncing ? "Syncing…" : "Refresh"}>
-              <RefreshCw size={15} className={syncing ? "spin-icon" : ""} />
+          <button className="sb-toggle" onClick={toggleSidebar}>
+            {sidebarCollapsed ? <ChevronsRight size={16} /> : <ChevronsLeft size={16} />}
+            <span className="sb-toggle-label">Collapse</span>
+          </button>
+          <div className="sb-avatar-wrap">
+            <button className="sb-avatar-btn">
+              <div className="sb-avatar-img">
+                {user?.imageUrl ? <img src={user.imageUrl} alt="" /> : (user?.firstName?.[0] || "?")}
+              </div>
+              <div className="sb-avatar-info">
+                <span className="sb-avatar-name">{user?.fullName || "Student"}</span>
+                <span className="sb-avatar-email">{user?.primaryEmailAddress?.emailAddress || ""}</span>
+                <span className="sb-avatar-batch">PGP2 · 2025–27</span>
+              </div>
             </button>
-            <span className="tooltip" role="tooltip">{syncing ? "Syncing…" : "Refresh"}</span>
-          </div>
-          <div className="tb-wrap desktop-only">
-            <button className={`sync${view === "attendance" ? " sync-on" : ""}`} onClick={() => setView("attendance")} aria-label="Attendance" aria-pressed={view === "attendance"}>
-              <ClipboardList size={15} />
-            </button>
-            <span className="tooltip" role="tooltip">Attendance</span>
-          </div>
-          {/* Bell — always visible */}
-          <div className="tb-wrap notif-wrap">
-            <button className="sync" onClick={handleOpenNotif} aria-label="Notifications" aria-expanded={notifOpen}>
-              <Bell size={15} />
-              {hasUnread && <span className="notif-dot" />}
-            </button>
-            <span className="tooltip" role="tooltip">Notifications</span>
-            {notifOpen && (
-              <>
-                <div className="notif-backdrop" onClick={() => setNotifOpen(false)} />
-                <div className="notif-panel">
-                  {CHANGES.length === 0
-                    ? <p className="notif-empty">No recent changes</p>
-                    : <RecentChanges changes={CHANGES} onViewAll={handleViewAllNotifs} />}
-                </div>
-              </>
-            )}
-          </div>
-          {/* Desktop-only: profile avatar */}
-          <div className="tb-wrap over-wrap desktop-only">
-            <button className="sync profile-avatar-btn" onClick={() => setProfileOpen(o => !o)} aria-label="Profile" aria-expanded={profileOpen}>
-              <UserAvatar user={user} size={30} />
-            </button>
-            {profileOpen && (
-              <>
-                <div className="notif-backdrop" onClick={() => setProfileOpen(false)} />
-                <div className="over-menu">
-                  <div className="over-profile">
-                    <UserAvatar user={user} size={36} />
-                    <div className="over-profile-info">
-                      <span className="over-profile-name">{user?.fullName || "—"}</span>
-                      <span className="over-profile-email">{user?.primaryEmailAddress?.emailAddress || "—"}</span>
-                      <span className="over-profile-batch">PGP2 · 2025–27</span>
-                    </div>
-                  </div>
-                  <div className="over-sep" />
-                  <button className="over-danger" onClick={() => { signOut(); setProfileOpen(false); }}>
-                    <LogOut size={14} /> Sign out
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-          {/* Mobile-only: overflow ⋯ */}
-          <div className="tb-wrap over-wrap mobile-only">
-            <button className="sync" onClick={() => setOverflowOpen(o => !o)} aria-label="More options" aria-expanded={overflowOpen}>
-              <MoreHorizontal size={15} />
-            </button>
-            {overflowOpen && (
-              <>
-                <div className="notif-backdrop" onClick={() => setOverflowOpen(false)} />
-                <div className="over-menu">
-                  <div className="over-profile">
-                    <UserAvatar user={user} size={36} />
-                    <div className="over-profile-info">
-                      <span className="over-profile-name">{user?.fullName || "—"}</span>
-                      <span className="over-profile-email">{user?.primaryEmailAddress?.emailAddress || "—"}</span>
-                      <span className="over-profile-batch">PGP2 · 2025–27</span>
-                    </div>
-                  </div>
-                  <div className="over-sep" />
-                  <button onClick={() => { setShowSetupEdit(true); setOverflowOpen(false); }}>
-                    <Settings2 size={14} /> Edit setup
-                  </button>
-                  <button onClick={() => { handleSync(); setOverflowOpen(false); }}>
-                    <RefreshCw size={14} className={syncing ? "spin-icon" : ""} />
-                    {syncing ? "Syncing…" : "Refresh"}
-                  </button>
-                  <div className="over-sep" />
-                  <button className="over-danger" onClick={() => { signOut(); setOverflowOpen(false); }}>
-                    <LogOut size={14} /> Sign out
-                  </button>
-                </div>
-              </>
-            )}
+            <div className="sb-profile-pop">
+              <div className="sb-pop-name">{user?.fullName || "Student"}</div>
+              <div className="sb-pop-email">{user?.primaryEmailAddress?.emailAddress || ""}</div>
+              <span className="sb-pop-batch">PGP2 · 2025–27</span>
+              <div className="sb-pop-sep" />
+              <button className="sb-pop-signout" onClick={() => signOut()}>
+                <LogOut size={14} /> Sign out
+              </button>
+            </div>
           </div>
         </div>
-      </header>
+      </aside>
 
-      <div className="livebar">
-        <span className="live">
-          <span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}
-        </span>
-      </div>
-
-      <SubjectFilter legend={enrolledLegend} mine={mine} setMine={setMine} onEditSetup={() => setShowSetupEdit(true)} />
-
-      <div className="desk-layout">
-        <div className="main-col">
-          <div className="tabs-wrapper">
-            <nav className="tabs">
-              <button className={`tab ${view === "today" ? "on" : ""}`} onClick={() => setView("today")}>
-                <Clock size={15} /> Today
-              </button>
-              <button className={`tab ${view === "tomorrow" ? "on" : ""}`} onClick={() => setView("tomorrow")}>
-                <Sunrise size={15} /> Tomorrow
-              </button>
-              <button className={`tab tab-week ${view === "week" ? "on" : ""}`} onClick={() => setView("week")}>
-                <Calendar size={15} /> Week
-              </button>
-              <button className={`tab ${view === "attendance" ? "on" : ""}`} onClick={() => setView("attendance")}>
-                <ClipboardList size={15} /> Attendance
-              </button>
-              <button className={`tab ${view === "exams" ? "on" : ""}`} onClick={() => setView("exams")}>
-                <GraduationCap size={15} /> Exams
-              </button>
-              <button className={`tab ${view === "friends" ? "on" : ""}`} onClick={() => { setView("friends"); setCompareTarget(null); }}>
-                <Users size={15} /> Friends <span className="beta-badge">Beta</span>
-              </button>
-            </nav>
+      <div className="app">
+        <header className="bar">
+          <div className="brand">
+            <div className="logo"><img src="/termflow-icon.svg" alt="TermFlow" width={22} height={22} /></div>
+            <div>
+              <div className="brand-name">TermFlow</div>
+              <div className="brand-sub">IIM Sambalpur · {termLabel}</div>
+            </div>
           </div>
-          
-          {view !== "attendance" && view !== "exams" && view !== "friends" && !compareTarget && (
-            <div className="view-date-header">
-              <span className="vdh-label">
-                {view === "notifications" ? `${CHANGES.length} update${CHANGES.length !== 1 ? "s" : ""}`
-                  : view === "week" ? weekRangeLabel : prettyDate(view === "tomorrow" ? tomorrowISO : todayISO)}
-              </span>
-              <WeatherWidget now={now} weather={weather} />
+          <div className="bar-right" role="toolbar" aria-label="App actions">
+            {/* Desktop-only: full button set */}
+            <div className="tb-wrap desktop-only">
+              <button className="sync" onClick={() => setShowSetupEdit(true)} aria-label="Edit setup"><Settings2 size={15} /></button>
+              <span className="tooltip" role="tooltip">Edit setup</span>
             </div>
-          )}
-          {view !== "attendance" && view !== "notifications" && view !== "exams" && view !== "friends" && !compareTarget && view !== "tomorrow" && <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} />}
-          {/* Compact "now" banner on Tomorrow tab so user knows what's happening today */}
-          {view === "tomorrow" && (current || next) && (
-            <div className="now-banner" onClick={() => setView("today")}>
-              <span className="now-banner-dot" />
-              <span className="now-banner-label">{current ? "NOW" : "UP NEXT"}</span>
-              <span className="now-banner-name">
-                <span className="now-banner-text">{(current || next).name}</span>
-                {(current || next).session && (
-                  <span className={`ses ses-${(Array.from((current || next).code).reduce((h, char) => h + char.charCodeAt(0), 0)) % 6}`}>
-                    {(current || next).code} {(current || next).session}
-                  </span>
-                )}
-              </span>
-              <span className="now-banner-time">{(current || next).start}{current ? `–${current.end}` : ""}</span>
-              <span className="now-banner-go">Today →</span>
+            <div className="tb-wrap desktop-only">
+              <button className="sync" onClick={handleSync} aria-label={syncing ? "Syncing…" : "Refresh"}>
+                <RefreshCw size={15} className={syncing ? "spin-icon" : ""} />
+              </button>
+              <span className="tooltip" role="tooltip">{syncing ? "Syncing…" : "Refresh"}</span>
             </div>
-          )}
-          <div className={view === "week" ? "pane-today hide-mobile" : "pane-today"}>
-            {compareTarget
-              ? <CompareView
+            <div className="tb-wrap desktop-only">
+              <button className={`sync${view === "attendance" ? " sync-on" : ""}`} onClick={() => setView("attendance")} aria-label="Attendance" aria-pressed={view === "attendance"}>
+                <ClipboardList size={15} />
+              </button>
+              <span className="tooltip" role="tooltip">Attendance</span>
+            </div>
+            {/* Bell — always visible */}
+            <div className="tb-wrap notif-wrap">
+              <button className="sync" onClick={handleOpenNotif} aria-label="Notifications" aria-expanded={notifOpen}>
+                <Bell size={15} />
+                {hasUnread && <span className="notif-dot" />}
+              </button>
+              <span className="tooltip" role="tooltip">Notifications</span>
+              {notifOpen && (
+                <>
+                  <div className="notif-backdrop" onClick={() => setNotifOpen(false)} />
+                  <div className="notif-panel">
+                    {filteredChanges.length === 0
+                      ? <p className="notif-empty">No recent changes</p>
+                      : <RecentChanges changes={filteredChanges} onViewAll={handleViewAllNotifs} />}
+                  </div>
+                </>
+              )}
+            </div>
+            {/* Desktop-only: profile avatar */}
+            <div className="tb-wrap over-wrap desktop-only">
+              <button className="sync profile-avatar-btn" onClick={() => setProfileOpen(o => !o)} aria-label="Profile" aria-expanded={profileOpen}>
+                <UserAvatar user={user} size={30} />
+              </button>
+              {profileOpen && (
+                <>
+                  <div className="notif-backdrop" onClick={() => setProfileOpen(false)} />
+                  <div className="over-menu">
+                    <div className="over-profile">
+                      <UserAvatar user={user} size={36} />
+                      <div className="over-profile-info">
+                        <span className="over-profile-name">{user?.fullName || "—"}</span>
+                        <span className="over-profile-email">{user?.primaryEmailAddress?.emailAddress || "—"}</span>
+                        <span className="over-profile-batch">PGP2 · 2025–27</span>
+                      </div>
+                    </div>
+                    <div className="over-sep" />
+                    <button className="over-danger" onClick={() => { signOut(); setProfileOpen(false); }}>
+                      <LogOut size={14} /> Sign out
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+            {/* Mobile-only: overflow ⋯ */}
+            <div className="tb-wrap over-wrap mobile-only">
+              <button className="sync" onClick={() => setOverflowOpen(o => !o)} aria-label="More options" aria-expanded={overflowOpen}>
+                <MoreHorizontal size={15} />
+              </button>
+              {overflowOpen && (
+                <>
+                  <div className="notif-backdrop" onClick={() => setOverflowOpen(false)} />
+                  <div className="over-menu">
+                    <div className="over-profile">
+                      <UserAvatar user={user} size={36} />
+                      <div className="over-profile-info">
+                        <span className="over-profile-name">{user?.fullName || "—"}</span>
+                        <span className="over-profile-email">{user?.primaryEmailAddress?.emailAddress || "—"}</span>
+                        <span className="over-profile-batch">PGP2 · 2025–27</span>
+                      </div>
+                    </div>
+                    <div className="over-sep" />
+                    <button onClick={() => { setShowSetupEdit(true); setOverflowOpen(false); }}>
+                      <Settings2 size={14} /> Edit setup
+                    </button>
+                    <button onClick={() => { handleSync(); setOverflowOpen(false); }}>
+                      <RefreshCw size={14} className={syncing ? "spin-icon" : ""} />
+                      {syncing ? "Syncing…" : "Refresh"}
+                    </button>
+                    <div className="over-sep" />
+                    <button className="over-danger" onClick={() => { signOut(); setOverflowOpen(false); }}>
+                      <LogOut size={14} /> Sign out
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </header>
+
+        <div className="livebar mobile-only">
+          <span className="live">
+            <span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}
+          </span>
+        </div>
+
+        <SubjectFilter legend={enrolledLegend} mine={mine} setMine={setMine} onEditSetup={() => setShowSetupEdit(true)} />
+
+        <div className="desk-layout">
+          <div className="main-col">
+            <div className="tabs-wrapper">
+              <nav className="tabs" ref={tabsRef} onScroll={handleTabsScroll}>
+                <button className={`tab ${view === "today" ? "on" : ""}`} onClick={() => { setView("today"); setCompareTarget(null); }}>
+                  <Clock size={15} /> Today
+                </button>
+                <button className={`tab ${view === "tomorrow" ? "on" : ""}`} onClick={() => { setView("tomorrow"); setCompareTarget(null); }}>
+                  <Sunrise size={15} /> Tomorrow
+                </button>
+                <button className={`tab tab-week ${view === "week" ? "on" : ""}`} onClick={() => { setView("week"); setCompareTarget(null); }}>
+                  <Calendar size={15} /> Week
+                </button>
+                <button className={`tab ${view === "attendance" ? "on" : ""}`} onClick={() => { setView("attendance"); setCompareTarget(null); }}>
+                  <ClipboardList size={15} /> Attendance
+                </button>
+                <button className={`tab ${view === "exams" ? "on" : ""}`} onClick={() => { setView("exams"); setCompareTarget(null); }}>
+                  <GraduationCap size={15} /> Exams
+                </button>
+                <button className={`tab ${view === "notifications" ? "on" : ""}`} onClick={() => { setView("notifications"); setCompareTarget(null); }}>
+                  <Megaphone size={15} /> Announcements
+                </button>
+                <button className={`tab ${view === "friends" ? "on" : ""}`} onClick={() => { setView("friends"); setCompareTarget(null); }}>
+                  <Users size={15} /> Friends <span className="beta-badge">Beta</span>
+                </button>
+              </nav>
+              {showLeftScroll && (
+                <button
+                  className="tabs-scroll-btn left mobile-only"
+                  onClick={() => tabsRef.current?.scrollBy({ left: -180, behavior: "smooth" })}
+                  aria-label="Scroll left"
+                >
+                  <div className="tsb-icon-wrap">
+                    <ChevronLeft size={14} />
+                  </div>
+                </button>
+              )}
+              {showRightScroll && (
+                <button
+                  className="tabs-scroll-btn right mobile-only"
+                  onClick={() => tabsRef.current?.scrollBy({ left: 180, behavior: "smooth" })}
+                  aria-label="Scroll right"
+                >
+                  <div className="tsb-icon-wrap">
+                    <ChevronRight size={14} />
+                  </div>
+                </button>
+              )}
+            </div>
+
+            {view !== "attendance" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && !compareTarget && (
+              <div className="view-date-header">
+                <span className="vdh-label">
+                  {view === "notifications" ? `${filteredChanges.length} update${filteredChanges.length !== 1 ? "s" : ""}`
+                    : view === "week" ? weekRangeLabel : prettyDate(view === "tomorrow" ? tomorrowISO : todayISO)}
+                </span>
+                <WeatherWidget now={now} weather={weather} />
+              </div>
+            )}
+            {view !== "attendance" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && !compareTarget && view !== "tomorrow" && <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} />}
+            {/* Compact "now" banner on Tomorrow tab so user knows what's happening today */}
+            {view === "tomorrow" && (current || next) && (
+              <div className="now-banner" onClick={() => setView("today")}>
+                <span className="now-banner-dot" />
+                <span className="now-banner-label">{current ? "NOW" : "UP NEXT"}</span>
+                <span className="now-banner-name">
+                  <span className="now-banner-text">{(current || next).name}</span>
+                  {(current || next).session && (
+                    <span className={`ses ses-${(Array.from((current || next).code).reduce((h, char) => h + char.charCodeAt(0), 0)) % 6}`}>
+                      {(current || next).code} {(current || next).session}
+                    </span>
+                  )}
+                </span>
+                <span className="now-banner-time">{(current || next).start}{current ? `–${current.end}` : ""}</span>
+                <span className="now-banner-go">Today →</span>
+              </div>
+            )}
+            <div className={view === "week" ? "pane-today hide-mobile" : "pane-today"}>
+              {compareTarget
+                ? <CompareView
                   mode={compareTarget.mode}
                   friendData={compareTarget.friendData}
                   groupData={compareTarget.groupData}
@@ -449,23 +594,24 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                   now={now}
                   onExit={() => setCompareTarget(null)}
                 />
-              : view === "friends"
-                ? <FriendsPanel
-                    userName={user?.firstName || user?.fullName || "User"}
+                : view === "friends"
+                  ? <FriendsPanel
+                    userId={user?.id}
+                    userName={user?.firstName || user?.username || "Student"}
                     enrolled={enrolled}
-                    legend={enrolledLegend}
+                    legend={LEGEND}
                     friends={friends}
                     setFriends={setFriends}
                     groups={groups}
                     setGroups={setGroups}
-                    onCompare={(f) => { setCompareTarget({ mode: "friend", friendData: f }); }}
+                    onCompare={(f) => setCompareTarget({ mode: "friend", friendData: f })}
                     onGroupCompare={(g) => {
                       const members = (g.memberIds || []).map(id => friends.find(f => f.id === id)).filter(Boolean).map(f => ({ name: f.name, courses: f.courses }));
                       setCompareTarget({ mode: "group", groupData: { name: g.name, members } });
                     }}
                   />
-                : view === "exams"
-                  ? <ExamsPanel
+                  : view === "exams"
+                    ? <ExamsPanel
                       allClasses={CLASSES}
                       enrolled={enrolled}
                       legend={enrolledLegend}
@@ -474,8 +620,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       termStart={TERM?.start}
                       termEnd={TERM?.end}
                     />
-                  : view === "attendance"
-                    ? <AttendancePanel
+                    : view === "attendance"
+                      ? <AttendancePanel
                         allClasses={CLASSES}
                         now={now}
                         attendance={attendance}
@@ -485,24 +631,26 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                         weather={weather}
                         termNumber={TERM?.number}
                       />
-                    : view === "notifications"
-                      ? <NotificationsPage changes={CHANGES} />
-                      : view === "tomorrow"
-                        ? <Timeline list={tomorrowList} current={null} now={now} showNowLine={false} label="Tomorrow" dateLabel={prettyDate(tomorrowISO)} attendance={attendance} markAttendance={markAttendance} />
-                        : <Timeline list={todayList} current={current} now={now} dateLabel={prettyDate(todayISO)} attendance={attendance} markAttendance={markAttendance} />}
+                      : view === "notifications"
+                        ? <NotificationsPage allChanges={CHANGES} myChanges={filteredChanges} />
+                        : view === "fullSchedule"
+                          ? <FullSchedulePage allClasses={CLASSES} enrolled={enrolled} legend={enrolledLegend} termLabel={termLabel} onBack={() => setView("today")} />
+                          : view === "tomorrow"
+                            ? <Timeline list={tomorrowList} current={null} now={now} showNowLine={false} label="Tomorrow" dateLabel={prettyDate(tomorrowISO)} attendance={attendance} markAttendance={markAttendance} syncStatus={<span className="live"><span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}</span>} />
+                            : <Timeline list={todayList} current={current} now={now} dateLabel={prettyDate(todayISO)} attendance={attendance} markAttendance={markAttendance} syncStatus={<span className="live"><span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}</span>} />}
+            </div>
           </div>
+          <aside className={view !== "week" ? "side-col hide-mobile" : "side-col"}>
+            <WeekAgenda visible={visible} now={now} offset={weekOffset} setOffset={setWeekOffset} todayISO={todayISO} onViewFullSchedule={() => setView("fullSchedule")} />
+          </aside>
         </div>
-        <aside className={view !== "week" ? "side-col hide-mobile" : "side-col"}>
-          <WeekAgenda visible={visible} now={now} offset={weekOffset} setOffset={setWeekOffset} todayISO={todayISO} />
-        </aside>
-      </div>
 
-      <footer className="foot">
-        <span className="foot-credit">Auto-syncs from the live timetable sheet every few minutes</span>
-        <span className="foot-credit">Built with <span className="foot-heart">♥</span> by <a href="https://www.linkedin.com/" target="_blank" rel="noopener noreferrer" className="foot-credit-name">Rakesh</a></span>
-      </footer>
+        <footer className="foot">
+          <span className="foot-credit">Auto-syncs from the live timetable sheet every few minutes</span>
+          <span className="foot-credit">Built with <span className="foot-heart">♥</span> by <a href="https://www.linkedin.com/" target="_blank" rel="noopener noreferrer" className="foot-credit-name">Rakesh</a></span>
+        </footer>
 
-      {/* Bottom nav — commented out, restore when needed
+        {/* Bottom nav — commented out, restore when needed
       <nav className="bnav" aria-label="Main navigation">
         <button className={`bnav-btn${view === "today" ? " on" : ""}`} onClick={() => setView("today")}>
           <Clock size={20} /><span>Today</span>
@@ -518,6 +666,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         </button>
       </nav>
       */}
+      </div>
     </div>
   );
 }

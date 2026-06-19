@@ -3,7 +3,7 @@ import { MapPin, CheckCircle2, XCircle } from "lucide-react";
 import { sessionKey } from "../lib/attendance.js";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
-function fmtClock(d) { return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }); }
+function fmtClock(d) { return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }); }
 
 function TypeBadge({ type }) {
   if (type === "holiday") return <span className="tb holiday">Holiday</span>;
@@ -18,13 +18,16 @@ function clsStart(c) {
   return new Date(Y, Mo - 1, D, h, m);
 }
 
-export default function Timeline({ list, current, now, showNowLine = true, label = "Today", dateLabel, attendance = {}, markAttendance }) {
+export default function Timeline({ list, current, now, showNowLine = true, label = "Today", dateLabel, attendance = {}, markAttendance, syncStatus }) {
   if (!list.length)
     return (
       <section className="panel">
         <div className="panel-head">
           <div className="panel-head-left">
-            <h2>{label}</h2>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <h2>{label}</h2>
+              {syncStatus && <div className="desk-only desk-live-pill">{syncStatus}</div>}
+            </div>
             {dateLabel && <span className="panel-date">{dateLabel}</span>}
           </div>
         </div>
@@ -44,7 +47,10 @@ export default function Timeline({ list, current, now, showNowLine = true, label
     <section className="panel">
       <div className="panel-head">
         <div className="panel-head-left">
-          <h2>{label}</h2>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <h2>{label}</h2>
+            {syncStatus && <div className="desk-only desk-live-pill">{syncStatus}</div>}
+          </div>
           {dateLabel && <span className="panel-date">{dateLabel}</span>}
         </div>
         <span className="count">{list.filter((c) => c.type === "class").length} classes</span>

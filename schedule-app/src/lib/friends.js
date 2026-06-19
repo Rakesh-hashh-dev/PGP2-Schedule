@@ -7,43 +7,150 @@
  */
 
 const FRIENDS_KEY = "pgp2.friends";
-const GROUPS_KEY  = "pgp2.groups";
+const GROUPS_KEY = "pgp2.groups";
+const MY_CODE_KEY = "pgp2.my_share_code";
 
 // ── Encode / Decode ─────────────────────────────────────────────
 
-/**
- * Encode a user's name + enrolled courses into a compact shareable code.
- * Format: NAME-XXXX where XXXX is a 4-char hash derived from the payload.
- */
-export function encodeSchedule(name, courses) {
-  if (!name || !courses || !Object.keys(courses).length) return null;
-  const payload = JSON.stringify({ n: name.trim(), c: courses });
-  const b64 = btoa(unescape(encodeURIComponent(payload)));
-  // 4-char suffix from a simple hash of the base64
-  const hash = Array.from(b64).reduce((h, ch) => ((h << 5) - h + ch.charCodeAt(0)) | 0, 0);
-  const suffix = Math.abs(hash).toString(36).toUpperCase().slice(0, 4).padEnd(4, "0");
-  const shortName = name.trim().split(/\s+/)[0].toUpperCase().slice(0, 8);
-  // The full code embeds the base64 after a separator so it can be decoded
-  return `${shortName}-${suffix}:${b64}`;
+import { LEGEND } from "../data/schedule.js";
+import { supabase } from "./supabase.js";
+
+function generateRandomCode(len = 4) {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let result = "";
+  for (let i = 0; i < len; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+export async function getOrCreateShareCode(userId, name) {
+  if (!userId) return null;
+  const cached = localStorage.getItem(MY_CODE_KEY);
+  if (cached) return cached;
+  const code = await encodeSchedule(userId, name);
+  if (code) {
+    localStorage.setItem(MY_CODE_KEY, code);
+  }
+  return code;
 }
 
 /**
- * Decode a schedule code back into { name, courses }.
- * Returns null if the code is invalid.
+ * Generate and save a cloud-sync schedule code.
+ * Example: RAK-X8M2
  */
-export function decodeSchedule(code) {
+export async function encodeSchedule(userId, name) {
+  if (!userId) return null;
+  
+  const namePart = (name || "FRND").trim().split(/\s+/)[0].toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3);
+  const randomStr = generateRandomCode(4);
+  const codeStr = `${namePart}-${randomStr}`;
+  
   try {
-    if (!code || typeof code !== "string") return null;
-    const colonIdx = code.indexOf(":");
-    if (colonIdx === -1) return null;
-    const b64 = code.slice(colonIdx + 1);
-    const json = decodeURIComponent(escape(atob(b64)));
-    const { n, c } = JSON.parse(json);
-    if (!n || !c || typeof c !== "object") return null;
-    return { name: n, courses: c };
-  } catch {
+    const { error } = await supabase.from("share_codes").upsert(
+      { code: codeStr, user_id: userId },
+      { onConflict: "code" }
+    );
+    if (error) {
+      console.error("Failed to save share code:", error);
+      return null;
+    }
+    return codeStr;
+  } catch (e) {
+    console.error("Supabase error:", e);
     return null;
   }
+}
+
+/**
+ * Decode a schedule code back into { id, name, courses }.
+ * Returns null if the code is invalid or lookup fails.
+ */
+export async function decodeSchedule(code) {
+  try {
+    if (!code || typeof code !== "string") return null;
+    
+    // 1. Legacy base64 support
+    if (code.includes(":") && !code.includes("-")) {
+      const colonIdx = code.indexOf(":");
+      const b64 = code.slice(colonIdx + 1);
+      const json = decodeURIComponent(escape(atob(b64)));
+      const { n, c } = JSON.parse(json);
+      if (!n || !c || typeof c !== "object") return null;
+      return { id: null, name: n, courses: c };
+    }
+
+    const parts = code.split("-");
+    if (parts.length < 2) return null;
+    const namePart = parts[0];
+    
+    // 2. Ultra-Compact Local format (e.g. RAK-7T3X9K2) or Readable format
+    // A cloud code will have a short random part (e.g. 4 chars). Local codes are longer (7+ chars) or have multiple dashes.
+    if (parts.length > 2 || parts[1].length > 5) {
+      const courses = {};
+      
+      if (parts.length > 2) { // RAK-CSA-BBMS
+        for (let i = 1; i < parts.length; i++) {
+          const p = parts[i];
+          if (p.includes(".")) {
+            const [c, s] = p.split(".");
+            courses[c] = s;
+          } else {
+            courses[p] = "Single";
+          }
+        }
+        return { id: null, name: namePart, courses };
+      }
+
+      // Base36 bitmask
+      const codeStr = parts[1];
+      let n = parseInt(codeStr, 36);
+      if (isNaN(n)) return null;
+
+      const COURSE_KEYS = Object.keys(LEGEND).sort();
+      for (let i = COURSE_KEYS.length - 1; i >= 0; i--) {
+        const val = n % 4;
+        n = Math.floor(n / 4);
+        const code = COURSE_KEYS[i];
+        if (val === 1) courses[code] = "A";
+        else if (val === 2) courses[code] = "B";
+        else if (val === 3) courses[code] = "Single";
+      }
+      return { id: null, name: namePart, courses };
+    }
+
+    // 3. Cloud Code Lookup (e.g. RAK-X8M2)
+    const { data: codeData, error: codeErr } = await supabase
+      .from("share_codes")
+      .select("user_id")
+      .eq("code", code.toUpperCase())
+      .single();
+      
+    if (codeErr || !codeData) return null;
+    
+    const userId = codeData.user_id;
+    const { data: profileData, error: profileErr } = await supabase
+      .from("profiles")
+      .select("courses")
+      .eq("user_id", userId)
+      .single();
+      
+    if (profileErr || !profileData) return null;
+    
+    const fullName = profileData.courses?._name || namePart;
+    const cleanCourses = { ...profileData.courses };
+    delete cleanCourses._name;
+    
+    return { id: userId, name: fullName, courses: cleanCourses };
+  } catch (e) {
+    console.error("Decode error:", e);
+    return null;
+  }
+}
+
+export function codeDisplayPart(code) {
+  if (!code) return "";
+  return code; // Just show the whole readable code!
 }
 
 /**
@@ -54,15 +161,6 @@ export function buildShareUrl(code) {
   return `${base}?f=${encodeURIComponent(code)}`;
 }
 
-/**
- * Get the display portion of the code (NAME-XXXX) without the base64 payload.
- */
-export function codeDisplayPart(code) {
-  if (!code) return "";
-  const colonIdx = code.indexOf(":");
-  return colonIdx === -1 ? code : code.slice(0, colonIdx);
-}
-
 // ── Friends CRUD ────────────────────────────────────────────────
 
 function readFriends() {
@@ -71,7 +169,7 @@ function readFriends() {
 }
 
 function writeFriends(list) {
-  try { localStorage.setItem(FRIENDS_KEY, JSON.stringify(list)); } catch {}
+  try { localStorage.setItem(FRIENDS_KEY, JSON.stringify(list)); } catch { }
 }
 
 export function loadFriends() {
@@ -79,14 +177,18 @@ export function loadFriends() {
 }
 
 /**
- * Save a friend. Deduplicates by name (case-insensitive).
+ * Save a friend. Deduplicates by cloudId if available, otherwise by name.
  * Returns the updated friends list.
  */
-export function saveFriend(name, courses) {
+export function saveFriend(name, courses, cloudId = null) {
   const friends = readFriends();
-  const existing = friends.findIndex(f => f.name.toLowerCase() === name.toLowerCase());
+  const existing = friends.findIndex(f => 
+    (cloudId && f.cloudId === cloudId) || (!cloudId && f.name.toLowerCase() === name.toLowerCase())
+  );
+  
   const entry = {
     id: existing >= 0 ? friends[existing].id : crypto.randomUUID?.() || Date.now().toString(36),
+    cloudId: cloudId || (existing >= 0 ? friends[existing].cloudId : null),
     name,
     courses,
     addedAt: existing >= 0 ? friends[existing].addedAt : new Date().toISOString(),
@@ -112,7 +214,7 @@ function readGroups() {
 }
 
 function writeGroups(list) {
-  try { localStorage.setItem(GROUPS_KEY, JSON.stringify(list)); } catch {}
+  try { localStorage.setItem(GROUPS_KEY, JSON.stringify(list)); } catch { }
 }
 
 export function loadGroups() {

@@ -1,9 +1,9 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
 
-export default function WeekAgenda({ visible, now, offset, setOffset, todayISO }) {
+export default function WeekAgenda({ visible, now, offset, setOffset, todayISO, onViewFullSchedule }) {
   const monday = new Date(now);
   const dow = (monday.getDay() + 6) % 7;
   monday.setDate(monday.getDate() - dow + offset * 7);
@@ -59,6 +59,14 @@ export default function WeekAgenda({ visible, now, offset, setOffset, todayISO }
           </div>
         );
       })}
+
+      {onViewFullSchedule && (
+        <div style={{ marginTop: "16px", paddingTop: "14px", borderTop: "1px solid var(--border)", display: "flex" }}>
+          <button className="fr-btn fr-btn-secondary" style={{ flex: 1, justifyContent: "center" }} onClick={onViewFullSchedule}>
+            <Calendar size={15} /> View full schedule
+          </button>
+        </div>
+      )}
     </section>
   );
 }
