@@ -307,7 +307,7 @@ button:focus-visible {
 /* ── Tab navigation ── */
 .tabs-wrapper { 
   position: relative; 
-  margin: 16px -16px 0; 
+  margin: 16px -16px 16px; 
 }
 @media (max-width: 600px) {
   .tabs-wrapper { margin-left: -12px; margin-right: -12px; }
@@ -372,9 +372,9 @@ button:focus-visible {
 .tsb-text { margin-bottom: 1px; }
 .tab {
   display: inline-flex; align-items: center; gap: 7px;
-  border: none; background: transparent;
+  border: 1px solid transparent; background: transparent;
   color: var(--muted); font-family: var(--body); font-weight: 600; font-size: 14px;
-  padding: 10px 14px; border-radius: 10px; cursor: pointer; min-height: 44px;
+  padding: 9px 13px; border-radius: 10px; cursor: pointer; min-height: 44px;
   transition: color .15s ease, background .15s ease, transform .1s ease;
   touch-action: manipulation;
 }
