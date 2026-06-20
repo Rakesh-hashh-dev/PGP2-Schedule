@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { GraduationCap, Clock, AlertTriangle, BookOpen, Trophy, CalendarDays, List, ChevronLeft, ChevronRight } from "lucide-react";
 
 function daysBetween(a, b) {
@@ -193,7 +193,7 @@ function CourseCountdown({ courses, allClasses, enrolled, now }) {
   );
 }
 
-export default function ExamsPanel({ allClasses, enrolled, legend, now, termNumber, termStart, termEnd }) {
+export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, now, termNumber, termStart, termEnd }) {
   const codes = Object.keys(enrolled || {});
   const [cdView, setCdView] = useState("list"); // "list" | "calendar"
 

@@ -18,7 +18,7 @@ function clsStart(c) {
   return new Date(Y, Mo - 1, D, h, m);
 }
 
-export default function Timeline({ list, current, now, showNowLine = true, label = "Today", dateLabel, attendance = {}, markAttendance, syncStatus }) {
+export default React.memo(function Timeline({ list, current, now, showNowLine = true, label = "Today", dateLabel, attendance = {}, markAttendance, syncStatus }) {
   if (!list.length)
     return (
       <section className="panel">

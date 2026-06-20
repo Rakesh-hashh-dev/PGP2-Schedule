@@ -202,24 +202,28 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     const email = user?.primaryEmailAddress?.emailAddress?.toLowerCase();
     
     if (students && email && enrolled && setup && userId) {
-      const overrides = students[email];
-      if (overrides) {
-        let changed = false;
-        const nextEnrolled = { ...enrolled };
-        for (const [code, section] of Object.entries(overrides)) {
-          if (nextEnrolled[code] !== section) {
-            nextEnrolled[code] = section;
-            changed = true;
+      (async () => {
+        const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(email));
+        const hash = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+        const overrides = students[hash];
+        if (overrides) {
+          let changed = false;
+          const nextEnrolled = { ...enrolled };
+          for (const [code, section] of Object.entries(overrides)) {
+            if (nextEnrolled[code] !== section) {
+              nextEnrolled[code] = section;
+              changed = true;
+            }
+          }
+          if (changed) {
+            setEnrolled(nextEnrolled);
+            setMine(new Set(Object.keys(nextEnrolled)));
+            const newSetup = { ...setup, courses: nextEnrolled };
+            setSetup(newSetup);
+            pushProfile(userId, nextEnrolled);
           }
         }
-        if (changed) {
-          setEnrolled(nextEnrolled);
-          setMine(new Set(Object.keys(nextEnrolled)));
-          const newSetup = { ...setup, courses: nextEnrolled };
-          setSetup(newSetup);
-          pushProfile(userId, nextEnrolled);
-        }
-      }
+      })();
     }
   }, [scheduleData?.STUDENTS, user, enrolled, setup, userId]);
 

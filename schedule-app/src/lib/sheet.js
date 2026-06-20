@@ -52,11 +52,20 @@ export async function fetchSchedule(force = false) {
   if (!FEED_URL || FEED_URL.startsWith("PASTE_")) return STATIC_SNAPSHOT;
 
   try {
-    const url = force ? `${FEED_URL}?force=1` : FEED_URL;
+    const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
+    let url = FEED_URL;
+    if (force) {
+      url += "?force=admin_force_123";
+    } else if (cached?.data?.buildTs) {
+      url += `?since=${cached.data.buildTs}`;
+    }
+
     const res = await fetch(url, { redirect: "follow" });
     if (!res.ok) throw new Error("HTTP " + res.status);
     const data = await res.json();
     if (data?.error) throw new Error(data.error);
+    if (data?.unchanged && cached?.data) return cached.data;
+
     if (!data?.CLASSES?.length) throw new Error("empty feed");
 
     // Backfill room from snapshot when the live feed omits it

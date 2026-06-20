@@ -35,17 +35,28 @@ const SLOTS = [
 const SECTION_MAP = { 'section a':'A', 'section b':'B', 'single section':'Single' };
 const MONTHS = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
 
+const FORCE_TOKEN = "admin_force_123";
+
 function doGet(e) {
-  let json = null;
-  if (e && e.parameter && e.parameter.force) {
+  const lastTs = PropertiesService.getScriptProperties().getProperty('last_build_ts');
+
+  if (e && e.parameter && e.parameter.force === FORCE_TOKEN) {
+    try { 
+      const json = refresh(); 
+      return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
+    } catch (err) { 
+      return ContentService.createTextOutput(JSON.stringify({ error: String(err) })).setMimeType(ContentService.MimeType.JSON); 
+    }
+  } 
+
+  if (e && e.parameter && e.parameter.since && lastTs && parseInt(e.parameter.since) >= parseInt(lastTs)) {
+    return ContentService.createTextOutput(JSON.stringify({ unchanged: true })).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  let json = getCache();
+  if (!json) {
     try { json = refresh(); }
     catch (err) { json = JSON.stringify({ error: String(err) }); }
-  } else {
-    json = getCache();
-    if (!json) {
-      try { json = refresh(); }
-      catch (err) { json = JSON.stringify({ error: String(err) }); }
-    }
   }
   return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
 }
@@ -70,6 +81,10 @@ function refresh() {
     saveChunked('baseline', current);             // becomes next run's baseline
     data.CHANGES = loadChanges();                 // recent log → into the feed
   }
+  
+  data.buildTs = Date.now();
+  PropertiesService.getScriptProperties().setProperty('last_build_ts', data.buildTs.toString());
+  
   const json = JSON.stringify(data);
   putCache(json);   // gzipped — the raw payload is larger than CacheService allows per entry
   return json;
@@ -377,13 +392,19 @@ function parseStudentEnrollments(ss) {
       
       // Only record valid sections
       if (section) {
-        if (!students[email]) students[email] = {};
-        students[email][sheetName] = section;
+        const hash = sha256(email);
+        if (!students[hash]) students[hash] = {};
+        students[hash][sheetName] = section;
       }
     }
   }
   
   return students;
+}
+
+function sha256(str) {
+  const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, str, Utilities.Charset.UTF_8);
+  return digest.map(b => (b < 0 ? b + 256 : b).toString(16).padStart(2, '0')).join('');
 }
 
 /* ---------- helpers ---------- */

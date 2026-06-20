@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { ArrowLeft, BookOpen, Clock, MapPin, User } from "lucide-react";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
@@ -8,7 +8,7 @@ function fmtDate(iso) {
   return new Date(Y, M - 1, D).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
 }
 
-export default function FullSchedulePage({ allClasses, enrolled, legend, termLabel, onBack }) {
+export default React.memo(function FullSchedulePage({ allClasses, enrolled, legend, termLabel, onBack }) {
   const [filterCode, setFilterCode] = useState(null); // null = show all
   const [showAllClasses, setShowAllClasses] = useState(false);
 
