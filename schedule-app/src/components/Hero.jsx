@@ -18,7 +18,7 @@ function UpNext({ c }) {
       <span className="up-label">Then</span>
       <span className="up-t">{c.start}</span>
       <span className="up-c">{c.name}</span>
-      {c.room && <span className="up-r">{c.room}</span>}
+      <span className="up-r">{c.room || "TBA"}</span>
     </div>
   );
 }
@@ -69,7 +69,7 @@ export default function Hero({ current, next, now, todayISO, tomorrowISO }) {
         <h1 className="hero-course">{current.name}</h1>
         <div className="hero-meta">
           <span className="t">{current.start}<span className="dash">–</span>{current.end}</span>
-          {current.room && <><span className="sep">·</span><span className="r"><MapPin size={14} /> {current.room}</span></>}
+          <><span className="sep">·</span><span className="r"><MapPin size={14} /> {current.room || "TBA"}</span></>
           {current.faculty && <><span className="sep">·</span><span className="f">{current.faculty}</span></>}
         </div>
         <div className="prog"><div className="prog-fill" style={{ width: `${done * 100}%` }} /></div>
@@ -114,7 +114,7 @@ export default function Hero({ current, next, now, todayISO, tomorrowISO }) {
         <h1 className="hero-course">{next.name}</h1>
         <div className="hero-meta">
           <span className="t">{next.start}</span>
-          {next.room && <><span className="sep">·</span><span className="r"><MapPin size={14} /> {next.room}</span></>}
+          <><span className="sep">·</span><span className="r"><MapPin size={14} /> {next.room || "TBA"}</span></>
           {next.faculty && <><span className="sep">·</span><span className="f">{next.faculty}</span></>}
         </div>
         <div className="hero-when">{mins <= 90 ? `Starts in ${mins} min` : "Later today"}</div>

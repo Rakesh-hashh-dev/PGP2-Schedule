@@ -348,7 +348,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
   function handleSync() {
     setSyncing(true);
-    fetchSchedule().then((data) => {
+    fetchSchedule(true).then((data) => {
       setScheduleData(data);
       setSyncedAt(new Date());
       setNow(new Date());

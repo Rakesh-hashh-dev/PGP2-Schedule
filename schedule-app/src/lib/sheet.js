@@ -48,11 +48,12 @@ export function getSnapshot() {
 
 // Async — always hits the live feed and updates localStorage.
 // Used for background refresh; falls back to snapshot on error.
-export async function fetchSchedule() {
+export async function fetchSchedule(force = false) {
   if (!FEED_URL || FEED_URL.startsWith("PASTE_")) return STATIC_SNAPSHOT;
 
   try {
-    const res = await fetch(FEED_URL, { redirect: "follow" });
+    const url = force ? `${FEED_URL}?force=1` : FEED_URL;
+    const res = await fetch(url, { redirect: "follow" });
     if (!res.ok) throw new Error("HTTP " + res.status);
     const data = await res.json();
     if (data?.error) throw new Error(data.error);

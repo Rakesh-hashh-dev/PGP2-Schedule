@@ -146,7 +146,7 @@ export default function FullSchedulePage({ allClasses, enrolled, legend, termLab
                         </div>
                         <div className="fs-card-meta">
                           <span className="fs-meta-item"><Clock size={13} /> {c.start} – {c.end}</span>
-                          {c.room && <span className="fs-meta-item"><MapPin size={13} /> {c.room}</span>}
+                          <span className="fs-meta-item"><MapPin size={13} /> {c.room || "TBA"}</span>
                           {c.faculty && <span className="fs-meta-item"><User size={13} /> {c.faculty}</span>}
                         </div>
                       </div>

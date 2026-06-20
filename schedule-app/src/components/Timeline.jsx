@@ -96,7 +96,7 @@ export default function Timeline({ list, current, now, showNowLine = true, label
                   <div className="row-meta">
                     {c.type === "class"
                       ? <>
-                          {c.room && <><MapPin size={13} /> {c.room}</>}
+                          <><MapPin size={13} /> {c.room || "TBA"}</>
                           {c.faculty && <> · {c.faculty}</>}
                           {c.section === "Single" && <span className="single-tag">all</span>}
                         </>

@@ -35,11 +35,17 @@ const SLOTS = [
 const SECTION_MAP = { 'section a':'A', 'section b':'B', 'single section':'Single' };
 const MONTHS = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
 
-function doGet() {
-  let json = getCache();
-  if (!json) {
+function doGet(e) {
+  let json = null;
+  if (e && e.parameter && e.parameter.force) {
     try { json = refresh(); }
     catch (err) { json = JSON.stringify({ error: String(err) }); }
+  } else {
+    json = getCache();
+    if (!json) {
+      try { json = refresh(); }
+      catch (err) { json = JSON.stringify({ error: String(err) }); }
+    }
   }
   return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
 }
@@ -158,7 +164,12 @@ function getCache() {
   }
 }
 
+/* ---------- persistence (Google Drive file) ---------- */
+// This eliminates the 500KB limit by storing the system data in a tiny JSON file in Google Drive.
+// Check drive_app_migration_plan.md in your project folder to implement this.
+
 /* ---------- persistence (ScriptProperties, chunked) ---------- */
+
 
 function loadChanges() {
   const s = PropertiesService.getScriptProperties().getProperty('changes');
@@ -281,13 +292,19 @@ function parseLegend(ss) {
       if (codeCol === -1) continue;
       const nameCol = header.findIndex(h => ['elective details','course name','course','elective'].indexOf(h) > -1);
       const facCol  = header.findIndex(h => ['professor','faculty','professor name','faculty name'].indexOf(h) > -1);
-      const roomCol = header.findIndex(h => ['classroom','class room','room'].indexOf(h) > -1);
-      const credCol = header.findIndex(h => h === 'credits' || h === 'credit');
+      const roomCol = header.findIndex(h => ['classroom','class room','room','venue'].some(x => h.includes(x)));
+      const credCol = header.findIndex(h => h.includes('credit'));
       // read rows under this header until the code cell goes blank
+      let consecutiveBlanks = 0;
       for (let j = i + 1; j < rows.length; j++) {
         const r = rows[j];
         const code = String(r[codeCol] || '').trim();
-        if (!code) break;
+        if (!code) {
+          consecutiveBlanks++;
+          if (consecutiveBlanks > 15) break; // End of table
+          continue;
+        }
+        consecutiveBlanks = 0;
         if (!/^[A-Za-z]{1,8}$/.test(code)) continue;
         const e = legend[code] || { name: '', faculty: '', room: '', credits: '' };
         if (nameCol > -1 && r[nameCol] && !e.name)  e.name = String(r[nameCol]).trim();
