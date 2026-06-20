@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, ChevronsLeft, ChevronsRight, ChevronRight, ChevronLeft, Megaphone } from "lucide-react";
+import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, ChevronsLeft, ChevronsRight, ChevronRight, ChevronLeft, Megaphone, BarChart2 } from "lucide-react";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
 import Timeline from "./components/Timeline.jsx";
@@ -17,6 +17,7 @@ import ExamsPanel from "./components/ExamsPanel.jsx";
 import NotificationsPage from "./components/NotificationsPage.jsx";
 import TermFlowLoader from "./components/TermFlowLoader.jsx";
 import FullSchedulePage from "./components/FullSchedulePage.jsx";
+import CommandPalette from "./components/CommandPalette.jsx";
 import { loadAttendance, saveAttendance, sessionKey, syncAttendanceFromCloud, pushMark } from "./lib/attendance.js";
 import { syncProfileFromCloud, pushProfile } from "./lib/profile.js";
 import { decodeSchedule, saveFriend, loadFriends, loadGroups, friendVisibleClasses, syncFriendsAndGroupsFromCloud } from "./lib/friends.js";
@@ -105,6 +106,19 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     setShowRightScroll(scrollLeft + clientWidth < scrollWidth - 10);
     setShowLeftScroll(scrollLeft > 10);
   };
+
+  const [cmdOpen, setCmdOpen] = useState(false);
+  const premiumMode = true;
+
+  useEffect(() => {
+    document.body.classList.add("premium-mode");
+  }, []);
+
+  useEffect(() => {
+    const handleOpenCmd = () => setCmdOpen(true);
+    document.addEventListener("open-command-palette", handleOpenCmd);
+    return () => document.removeEventListener("open-command-palette", handleOpenCmd);
+  }, []);
 
   useEffect(() => {
     handleTabsScroll();
@@ -195,6 +209,18 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     const t = setInterval(() => setNow(new Date()), 20000);
     return () => clearInterval(t);
   }, []);
+
+  useEffect(() => {
+    const hour = now.getHours();
+    let timeTheme = "theme-afternoon";
+    if (hour >= 5 && hour < 11) timeTheme = "theme-morning";
+    else if (hour >= 11 && hour < 17) timeTheme = "theme-afternoon";
+    else if (hour >= 17 && hour < 20) timeTheme = "theme-evening";
+    else timeTheme = "theme-night";
+    
+    document.body.classList.remove("theme-morning", "theme-afternoon", "theme-evening", "theme-night");
+    document.body.classList.add(timeTheme);
+  }, [now]);
 
   // Auto-sync section overrides from live sheet
   useEffect(() => {
@@ -339,7 +365,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     setView("notifications");
   }
 
-  function markAttendance(c, status) {
+  const markAttendance = async (c, status) => {
+    if (premiumMode && navigator.vibrate) navigator.vibrate([10]);
     const key = sessionKey(c);
     setAttendance(prev => {
       const next = { ...prev };
@@ -350,14 +377,21 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     pushMark(userId, key, status);
   }
 
-  function handleSync() {
+  const handleSync = async () => {
+    if (premiumMode && navigator.vibrate) navigator.vibrate([10]);
     setSyncing(true);
-    fetchSchedule(true).then((data) => {
+    try {
+      const data = await fetchSchedule(true);
       setScheduleData(data);
       setSyncedAt(new Date());
       setNow(new Date());
-    }).finally(() => setSyncing(false));
-  }
+      if (premiumMode && navigator.vibrate) navigator.vibrate([10, 40, 10]);
+    } catch (e) {
+      if (premiumMode && navigator.vibrate) navigator.vibrate([50, 100, 50]);
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const termDateRange = TERM ? `${new Date(TERM.start + "T00:00").toLocaleDateString([], { day: "numeric", month: "short" })} – ${new Date(TERM.end + "T00:00").toLocaleDateString([], { day: "numeric", month: "short" })}` : "";
   const termLabel = TERM?.number ? `Term ${TERM.number} · ${termDateRange}` : termDateRange;
@@ -464,6 +498,12 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 <ClipboardList size={15} />
               </button>
               <span className="tooltip" role="tooltip">Attendance</span>
+            </div>
+            <div className="tb-wrap notif-wrap">
+              <button className="sync" onClick={() => setCmdOpen(true)} aria-label="Search" title="Search (Cmd+K)">
+                <Search size={15} />
+              </button>
+              <span className="tooltip" role="tooltip">Search (Cmd+K)</span>
             </div>
             {/* Bell — always visible */}
             <div className="tb-wrap notif-wrap">
@@ -602,7 +642,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               )}
             </div>
 
-            {view !== "attendance" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && !compareTarget && (
+            {view !== "attendance" && view !== "insights" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && !compareTarget && (
               <div className="view-date-header">
                 <span className="vdh-label">
                   {view === "notifications" ? `${filteredChanges.length} update${filteredChanges.length !== 1 ? "s" : ""}`
@@ -611,7 +651,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 <WeatherWidget now={now} weather={weather} />
               </div>
             )}
-            {view !== "attendance" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && !compareTarget && view !== "tomorrow" && <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} />}
+            {view !== "attendance" && view !== "insights" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && !compareTarget && view !== "tomorrow" && <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} />}
             {/* Compact "now" banner on Tomorrow tab so user knows what's happening today */}
             {view === "tomorrow" && (current || next) && (
               <div className="now-banner" onClick={() => setView("today")}>
@@ -684,9 +724,19 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                         ? <NotificationsPage allChanges={CHANGES} myChanges={filteredChanges} />
                         : view === "fullSchedule"
                           ? <FullSchedulePage allClasses={CLASSES} enrolled={enrolled} legend={enrolledLegend} termLabel={termLabel} onBack={() => setView("today")} />
-                          : view === "tomorrow"
-                            ? <Timeline list={tomorrowList} current={null} now={now} showNowLine={false} label="Tomorrow" dateLabel={prettyDate(tomorrowISO)} attendance={attendance} markAttendance={markAttendance} syncStatus={<span className="live"><span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}</span>} />
-                            : <Timeline list={todayList} current={current} now={now} dateLabel={prettyDate(todayISO)} attendance={attendance} markAttendance={markAttendance} syncStatus={<span className="live"><span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}</span>} />}
+                          : todayList.length === 0 && tomorrowList.length === 0
+                            ? premiumMode && syncing 
+                              ? (
+                                <ul className="rail">
+                                  <li className="row premium-skeleton" style={{ height: "80px", marginBottom: "12px", border: "none" }} />
+                                  <li className="row premium-skeleton" style={{ height: "80px", marginBottom: "12px", border: "none", opacity: 0.7 }} />
+                                  <li className="row premium-skeleton" style={{ height: "80px", marginBottom: "12px", border: "none", opacity: 0.4 }} />
+                                </ul>
+                              )
+                              : <div className="cva-card soft"><div className="cva-content"><strong>No classes!</strong><div className="cva-sub">Enjoy your free time.</div></div></div>
+                            : view === "tomorrow"
+                              ? <Timeline list={tomorrowList} current={null} now={now} showNowLine={false} label="Tomorrow" dateLabel={prettyDate(tomorrowISO)} attendance={attendance} markAttendance={markAttendance} syncStatus={<span className="live"><span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} />
+                              : <Timeline list={todayList} current={current} now={now} dateLabel={prettyDate(todayISO)} attendance={attendance} markAttendance={markAttendance} syncStatus={<span className="live"><span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} />}
             </div>
           </div>
           <aside className={view !== "week" ? "side-col hide-mobile" : "side-col"}>
@@ -698,6 +748,15 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           <span className="foot-credit">Auto-syncs from the live timetable sheet every few minutes</span>
           <span className="foot-credit">Built with <span className="foot-heart">♥</span> by <a href="https://www.linkedin.com/" target="_blank" rel="noopener noreferrer" className="foot-credit-name">Rakesh</a></span>
         </footer>
+
+        <CommandPalette 
+          isOpen={cmdOpen} 
+          onClose={() => setCmdOpen(false)} 
+          onViewChange={(v) => setView(v)} 
+          allClasses={CLASSES}
+          friends={friends}
+        />
+
 
         {/* Bottom nav — commented out, restore when needed
       <nav className="bnav" aria-label="Main navigation">

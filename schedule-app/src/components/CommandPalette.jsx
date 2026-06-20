@@ -1,0 +1,116 @@
+import React, { useState, useEffect, useRef } from "react";
+import { Search, Clock, Calendar, ClipboardList, GraduationCap, Users, Megaphone, MapPin, X } from "lucide-react";
+
+export default function CommandPalette({ isOpen, onClose, onViewChange, allClasses = [], friends = [] }) {
+  const [query, setQuery] = useState("");
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setQuery("");
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        isOpen ? onClose() : document.dispatchEvent(new CustomEvent("open-command-palette"));
+      }
+      if (e.key === "Escape" && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
+  const q = query.toLowerCase();
+
+  // Navigation Links
+  const navItems = [
+    { id: "today", label: "Today", icon: <Clock size={16} /> },
+    { id: "week", label: "Week", icon: <Calendar size={16} /> },
+    { id: "attendance", label: "Attendance", icon: <ClipboardList size={16} /> },
+    { id: "exams", label: "Exams", icon: <GraduationCap size={16} /> },
+    { id: "notifications", label: "Announcements", icon: <Megaphone size={16} /> },
+    { id: "friends", label: "Friends", icon: <Users size={16} /> }
+  ].filter(i => i.label.toLowerCase().includes(q));
+
+  // Search classes
+  const uniqueClasses = Array.from(new Map(allClasses.filter(c => c.type === "class" && c.name).map(c => [c.code, c])).values());
+  const classMatches = uniqueClasses.filter(c => 
+    c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q) || (c.room && c.room.toLowerCase().includes(q))
+  ).slice(0, 5);
+
+  // Search friends
+  const friendMatches = friends.filter(f => f.name.toLowerCase().includes(q)).slice(0, 3);
+
+  const hasResults = navItems.length > 0 || classMatches.length > 0 || friendMatches.length > 0;
+
+  return (
+    <div className="cmd-backdrop" onClick={onClose}>
+      <div className="cmd-modal" onClick={e => e.stopPropagation()}>
+        <div className="cmd-header">
+          <Search size={18} className="cmd-icon" />
+          <input 
+            ref={inputRef}
+            className="cmd-input" 
+            placeholder="Search classes, friends, or jump to..." 
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+          />
+          <button className="cmd-close" onClick={onClose}><X size={18} /></button>
+        </div>
+        
+        <div className="cmd-body">
+          {!hasResults && <div className="cmd-empty">No results found for "{query}"</div>}
+
+          {navItems.length > 0 && (
+            <div className="cmd-section">
+              <div className="cmd-section-title">Navigation</div>
+              {navItems.map(item => (
+                <button key={item.id} className="cmd-item" onClick={() => { onViewChange(item.id); onClose(); }}>
+                  {item.icon} <span>{item.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {classMatches.length > 0 && (
+            <div className="cmd-section">
+              <div className="cmd-section-title">Classes</div>
+              {classMatches.map(c => (
+                <button key={c.code} className="cmd-item" onClick={() => { onViewChange("fullSchedule"); onClose(); }}>
+                  <div className="cmd-class-info">
+                    <span className="cmd-class-name">{c.name} ({c.code})</span>
+                    {c.room && <span className="cmd-class-room"><MapPin size={12} /> {c.room}</span>}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {friendMatches.length > 0 && (
+            <div className="cmd-section">
+              <div className="cmd-section-title">Friends</div>
+              {friendMatches.map(f => (
+                <button key={f.id} className="cmd-item" onClick={() => { onViewChange("friends"); onClose(); }}>
+                  <Users size={16} /> <span>{f.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="cmd-footer">
+          <span><kbd>↑</kbd> <kbd>↓</kbd> to navigate</span>
+          <span><kbd>Enter</kbd> to select</span>
+          <span><kbd>Esc</kbd> to close</span>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -17,8 +17,9 @@ function clsStart(c) {
   const [h, m] = c.start.split(":").map(Number);
   return new Date(Y, Mo - 1, D, h, m);
 }
+import { RefreshCw } from "lucide-react";
 
-export default React.memo(function Timeline({ list, current, now, showNowLine = true, label = "Today", dateLabel, attendance = {}, markAttendance, syncStatus }) {
+export default React.memo(function Timeline({ list, current, now, showNowLine = true, label = "Today", dateLabel, attendance = {}, markAttendance, syncStatus, onRefresh, isSyncing }) {
   if (!list.length)
     return (
       <section className="panel">
@@ -27,6 +28,11 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
               <h2>{label}</h2>
               {syncStatus && <div className="desk-only desk-live-pill">{syncStatus}</div>}
+              {onRefresh && (
+                <button onClick={onRefresh} className="sync" aria-label="Refresh" style={{ padding: "4px", margin: 0, background: "transparent", border: "none", cursor: "pointer", color: "var(--muted)" }}>
+                  <RefreshCw size={16} className={isSyncing ? "spin-icon" : ""} />
+                </button>
+              )}
             </div>
             {dateLabel && <span className="panel-date">{dateLabel}</span>}
           </div>
@@ -50,6 +56,11 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <h2>{label}</h2>
             {syncStatus && <div className="desk-only desk-live-pill">{syncStatus}</div>}
+            {onRefresh && (
+              <button onClick={onRefresh} className="sync" aria-label="Refresh" style={{ padding: "4px", margin: 0, background: "transparent", border: "none", cursor: "pointer", color: "var(--muted)" }}>
+                <RefreshCw size={16} className={isSyncing ? "spin-icon" : ""} />
+              </button>
+            )}
           </div>
           {dateLabel && <span className="panel-date">{dateLabel}</span>}
         </div>
@@ -71,6 +82,14 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
           const canMark = c.type === "class" && !!markAttendance && clsStart(c) <= now;
           const attKey = c.type === "class" ? sessionKey(c) : null;
           const attStatus = attKey ? attendance[attKey] : null;
+
+          let progress = 0;
+          if (isCur) {
+            const startMin = toMin(c.start);
+            const endMin = c.type !== "class" ? toMin(c.start) + 15 : toMin(c.end); // fallback for breaks
+            progress = Math.max(0, Math.min(100, ((nowMin - startMin) / (endMin - startMin)) * 100));
+          }
+
           return (
             <React.Fragment key={i}>
               {showNow && (
@@ -85,7 +104,12 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
                   <span className="rt-start">{c.start}</span>
                   <span className="rt-end">{c.end}</span>
                 </div>
-                <div className="row-body">
+                <div className="row-body" style={{ position: "relative" }}>
+                  {isCur && (
+                    <div className="cur-progress-track">
+                      <div className="cur-progress-fill" style={{ width: `${progress}%` }} />
+                    </div>
+                  )}
                   <div className="row-course">
                     {c.name} {c.session && (
                       <span className={`ses ses-${(Array.from(c.code).reduce((h, char) => h + char.charCodeAt(0), 0)) % 6}`}>

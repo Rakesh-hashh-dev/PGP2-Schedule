@@ -3,6 +3,9 @@ import ReactDOM from "react-dom/client";
 import { ClerkProvider, AuthenticateWithRedirectCallback } from "@clerk/clerk-react";
 import App from "./App.jsx";
 import "./styles.css";
+import { registerSW } from "virtual:pwa-register";
+
+registerSW({ immediate: true });
 
 const pk = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 if (!pk) console.error("Missing VITE_CLERK_PUBLISHABLE_KEY in .env.local");

@@ -23,7 +23,7 @@ function UpNext({ c }) {
   );
 }
 
-export default function Hero({ current, next, now, todayISO, tomorrowISO }) {
+export default function Hero({ current, next, now, todayISO, tomorrowISO, premiumMode }) {
   const prevRef = useRef(current);
   const [justDone, setJustDone] = useState(null);
 
@@ -56,6 +56,7 @@ export default function Hero({ current, next, now, todayISO, tomorrowISO }) {
     const s = clsDate(current, "start"), e = clsDate(current, "end");
     const done = Math.min(1, Math.max(0, (now - s) / (e - s)));
     const left = Math.max(0, Math.round((e - now) / 60000));
+    
     return (
       <section className="hero">
         <div className="hero-tag in">

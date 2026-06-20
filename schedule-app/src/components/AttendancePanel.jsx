@@ -23,19 +23,20 @@ function tone(p) {
   return "bad";
 }
 
-function Ring({ pct, t, noData }) {
-  const r = 34, C = 2 * Math.PI * r;
+function Ring({ pct, t, noData, size = 92 }) {
+  const r = size * 0.38, C = 2 * Math.PI * r;
   const off = C * (1 - Math.max(0, Math.min(100, pct)) / 100);
   const col = t === "good" ? "var(--live)" : t === "warn" ? "var(--amber)" : t === "bad" ? "#C0392B" : "rgba(255,255,255,.25)";
+  const strokeW = size * 0.08;
   return (
-    <svg className="att-ring" width="92" height="92" viewBox="0 0 92 92">
-      <circle cx="46" cy="46" r={r} fill="none" stroke="rgba(255,255,255,.12)" strokeWidth="9" />
+    <svg className="att-ring" width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth={strokeW} />
       {!noData && (
-        <circle cx="46" cy="46" r={r} fill="none" stroke={col} strokeWidth="9" strokeLinecap="round"
-          strokeDasharray={C} strokeDashoffset={off} transform="rotate(-90 46 46)"
-          style={{ transition: "stroke-dashoffset .6s ease" }} />
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={col} strokeWidth={strokeW} strokeLinecap="round"
+          strokeDasharray={C} strokeDashoffset={off} transform={`rotate(-90 ${size/2} ${size/2})`}
+          style={{ transition: "stroke-dashoffset 1s cubic-bezier(0.175, 0.885, 0.32, 1.275)" }} />
       )}
-      <text x="46" y="46" textAnchor="middle" dominantBaseline="central" className="att-ring-t">
+      <text x={size/2} y={size/2} textAnchor="middle" dominantBaseline="central" style={{ fill: "#ffffff", fontSize: size * 0.22, fontWeight: 800, letterSpacing: "-0.5px" }}>
         {noData ? "—" : `${pct}%`}
       </text>
     </svg>
@@ -108,18 +109,32 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
 
       {/* ── Overall hero ── */}
       <section className={`att-hero tone-${overall_tone}`}>
-        <Ring pct={overall.pct ?? 0} t={overall_tone} noData={noData} />
+        <div className="att-hero-ring">
+          <Ring pct={overall.pct ?? 0} t={overall_tone} noData={noData} size={110} />
+        </div>
         <div className="att-hero-r">
-          <div className="att-hero-label">Overall attendance</div>
+          <div className="att-hero-label">Overall Attendance</div>
           {noData ? (
             <div className="att-hero-line" style={{ opacity: .6 }}>No sessions logged yet</div>
           ) : (
-            <div className="att-hero-line">
-              <b>{overall.present}</b> attended
-              <span className="att-d">·</span>
-              <b>{overall.absent}</b> missed
+            <div className="att-hero-stats">
+              <div className="att-stat">
+                <span className="att-stat-val">{overall.present}</span>
+                <span className="att-stat-lbl">Attended</span>
+              </div>
+              <div className="att-stat-div" />
+              <div className="att-stat">
+                <span className="att-stat-val">{overall.absent}</span>
+                <span className="att-stat-lbl">Missed</span>
+              </div>
               {overall.unmarked > 0 && (
-                <><span className="att-d">·</span><b>{overall.unmarked}</b> to mark</>
+                <>
+                  <div className="att-stat-div" />
+                  <div className="att-stat att-stat-unmarked">
+                    <span className="att-stat-val">{overall.unmarked}</span>
+                    <span className="att-stat-lbl">To mark</span>
+                  </div>
+                </>
               )}
             </div>
           )}
