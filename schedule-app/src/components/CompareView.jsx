@@ -36,22 +36,54 @@ function fmtTime(t) {
  */
 export default function CompareView({
   mode, friendData, groupData,
-  myClasses, allClasses, enrolled, legend, now, onExit,
+  myClasses, mine, allClasses, enrolled, legend, now, onExit,
 }) {
   const [viewMode, setViewMode] = useState("merged"); // "merged" | "side"
-  const [dayOffset, setDayOffset] = useState(0); // 0 = today, 1 = tomorrow
+  const [dayFilter, setDayFilter] = useState("today"); // "today", "tomorrow", "week"
+  const [customRange, setCustomRange] = useState({ start: ymd(now), end: ymd(now) });
 
-  const selectedDate = useMemo(() => {
-    const d = new Date(now);
-    d.setDate(d.getDate() + dayOffset);
-    return ymd(d);
-  }, [now, dayOffset]);
+  const selectedDates = useMemo(() => {
+    if (dayFilter === "today") return [ymd(now)];
+    if (dayFilter === "tomorrow") {
+      const d = new Date(now); d.setDate(d.getDate() + 1); return [ymd(d)];
+    }
+    if (dayFilter === "custom") {
+      const dates = [];
+      let current = new Date(customRange.start);
+      const end = new Date(customRange.end);
+      if (isNaN(current) || isNaN(end) || current > end) return [];
+      let count = 0;
+      while(current <= end && count < 60) {
+        dates.push(ymd(current));
+        const next = new Date(current);
+        next.setDate(next.getDate() + 1);
+        current = next;
+        count++;
+      }
+      return dates;
+    }
+    const days = parseInt(dayFilter, 10);
+    if (!isNaN(days)) {
+      const dates = [];
+      for(let i=0; i<days; i++) {
+        const d = new Date(now); d.setDate(d.getDate() + i); dates.push(ymd(d));
+      }
+      return dates;
+    }
+    return [ymd(now)];
+  }, [now, dayFilter]);
 
   const prettyDateLabel = useMemo(() => {
-    const d = new Date(now);
-    d.setDate(d.getDate() + dayOffset);
-    return d.toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" });
-  }, [now, dayOffset]);
+    if (dayFilter === "custom") return "";
+    if (dayFilter === "today") return new Date(now).toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" });
+    if (dayFilter === "tomorrow") {
+      const d = new Date(now); d.setDate(d.getDate() + 1);
+      return d.toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" });
+    }
+    const days = parseInt(dayFilter, 10);
+    if (!isNaN(days)) return `Next ${days} Days`;
+    return "";
+  }, [now, dayFilter]);
 
   // Determine comparison targets
   const targets = useMemo(() => {
@@ -66,33 +98,54 @@ export default function CompareView({
 
   const label = mode === "friend" ? friendData?.name : groupData?.name;
 
-  // My classes for the selected date
+  // My classes for the selected dates
   const myDayClasses = useMemo(
-    () => myClasses.filter(c => c.date === selectedDate).sort((a, b) => toMin(a.start) - toMin(b.start)),
-    [myClasses, selectedDate]
+    () => myClasses.filter(c => selectedDates.includes(c.date)).sort((a, b) => a.date.localeCompare(b.date) || toMin(a.start) - toMin(b.start)),
+    [myClasses, selectedDates]
   );
 
-  // Each target's classes for the selected date
+  // Each target's classes for the selected dates
   const targetDayClasses = useMemo(() => {
     return targets.map(t => {
-      const vis = friendVisibleClasses(allClasses, t.courses);
-      return vis.filter(c => c.date === selectedDate).sort((a, b) => toMin(a.start) - toMin(b.start));
+      let vis = friendVisibleClasses(allClasses, t.courses);
+      if (mine && enrolled) {
+        vis = vis.filter(c => !(enrolled[c.code] && !mine.has(c.code)));
+      }
+      return vis.filter(c => selectedDates.includes(c.date)).sort((a, b) => a.date.localeCompare(b.date) || toMin(a.start) - toMin(b.start));
     });
-  }, [targets, allClasses, selectedDate]);
+  }, [targets, allClasses, selectedDates, mine, enrolled]);
 
   // Free slots
   const freeSlots = useMemo(() => {
+    let slots = [];
     if (targets.length === 1) {
-      const theirClasses = friendVisibleClasses(allClasses, targets[0].courses);
-      return findFreeSlots(myClasses, theirClasses, selectedDate);
+      let theirClasses = friendVisibleClasses(allClasses, targets[0].courses);
+      if (mine && enrolled) {
+        theirClasses = theirClasses.filter(c => !(enrolled[c.code] && !mine.has(c.code)));
+      }
+      for (const d of selectedDates) {
+        const daySlots = findFreeSlots(myClasses, theirClasses, d);
+        slots.push(...daySlots.map(s => ({ ...s, date: d })));
+      }
+    } else {
+      // Group mode
+      const allLists = [
+        myClasses,
+        ...targets.map(t => {
+          let vis = friendVisibleClasses(allClasses, t.courses);
+          if (mine && enrolled) {
+            vis = vis.filter(c => !(enrolled[c.code] && !mine.has(c.code)));
+          }
+          return vis;
+        }),
+      ];
+      for (const d of selectedDates) {
+        const daySlots = findGroupFreeSlots(allLists, d);
+        slots.push(...daySlots.map(s => ({ ...s, date: d })));
+      }
     }
-    // Group mode
-    const allLists = [
-      myClasses,
-      ...targets.map(t => friendVisibleClasses(allClasses, t.courses)),
-    ];
-    return findGroupFreeSlots(allLists, selectedDate);
-  }, [myClasses, allClasses, targets, selectedDate]);
+    return slots;
+  }, [myClasses, allClasses, targets, selectedDates, mine, enrolled]);
 
   // Insights (for friend mode — 1:1)
   const insights = useMemo(() => {
@@ -154,10 +207,41 @@ export default function CompareView({
       </div>
 
       {/* Day selector */}
-      <div className="cv-day-selector">
-        <button className={`cv-day-btn ${dayOffset === 0 ? "on" : ""}`} onClick={() => setDayOffset(0)}>Today</button>
-        <button className={`cv-day-btn ${dayOffset === 1 ? "on" : ""}`} onClick={() => setDayOffset(1)}>Tomorrow</button>
-        <span className="cv-day-label">{prettyDateLabel}</span>
+      <div className="cv-day-selector" style={{ flexWrap: "wrap", rowGap: "10px" }}>
+        <button className={`cv-day-btn ${dayFilter === "today" ? "on" : ""}`} onClick={() => setDayFilter("today")}>Today</button>
+        <button className={`cv-day-btn ${dayFilter === "tomorrow" ? "on" : ""}`} onClick={() => setDayFilter("tomorrow")}>Tomorrow</button>
+        <select 
+          className={`cv-day-btn ${["3", "7", "14", "30", "custom"].includes(dayFilter) ? "on" : ""}`}
+          value={["today", "tomorrow"].includes(dayFilter) ? "default" : dayFilter}
+          onChange={(e) => { if(e.target.value !== "default") setDayFilter(e.target.value); }}
+          style={{ cursor: "pointer", outline: "none" }}
+        >
+          <option value="default" disabled hidden>Select Range...</option>
+          <option value="3">Next 3 Days</option>
+          <option value="7">Next 1 Week</option>
+          <option value="14">Next 2 Weeks</option>
+          <option value="30">Next 1 Month</option>
+          <option value="custom">Custom Range</option>
+        </select>
+        
+        {dayFilter === "custom" && (
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", background: "var(--surface)", padding: "2px 6px", borderRadius: "8px", border: "1px solid var(--border)" }}>
+            <input 
+              type="date" 
+              style={{ background: "transparent", border: "none", color: "var(--fg)", outline: "none", fontSize: "13px" }}
+              value={customRange.start} 
+              onChange={e => setCustomRange(p => ({ ...p, start: e.target.value }))} 
+            />
+            <span style={{ fontSize: "13px", color: "var(--muted)" }}>to</span>
+            <input 
+              type="date" 
+              style={{ background: "transparent", border: "none", color: "var(--fg)", outline: "none", fontSize: "13px" }}
+              value={customRange.end} 
+              onChange={e => setCustomRange(p => ({ ...p, end: e.target.value }))} 
+            />
+          </div>
+        )}
+        {dayFilter !== "custom" && <span className="cv-day-label">{prettyDateLabel}</span>}
       </div>
 
       {/* Free time summary */}
@@ -180,6 +264,7 @@ export default function CompareView({
           DAY_START={DAY_START}
           DAY_END={DAY_END}
           legend={legend}
+          dayFilter={dayFilter}
         />
       ) : (
         <SideBySide
@@ -193,6 +278,7 @@ export default function CompareView({
           DAY_END={DAY_END}
           legend={legend}
           userName={/* current user name */ "You"}
+          dayFilter={dayFilter}
         />
       )}
 
@@ -206,7 +292,10 @@ export default function CompareView({
             {freeSlots.map((slot, i) => (
               <div key={i} className="cv-free-block">
                 <div className="cv-free-time">
-                  <span className="cv-free-range">{fmtTime(slot.start)} – {fmtTime(slot.end)}</span>
+                  <span className="cv-free-range">
+                    {["3", "7", "14", "30", "custom"].includes(dayFilter) && <span style={{opacity: 0.7, marginRight: "8px"}}>{new Date(slot.date).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</span>}
+                    {fmtTime(slot.start)} – {fmtTime(slot.end)}
+                  </span>
                   <span className="cv-free-dur">{fmtDuration(slot.durationMin)} free</span>
                 </div>
                 <div className="cv-free-bar">
@@ -260,41 +349,96 @@ export default function CompareView({
 }
 
 /* ── Merged Agenda Timeline ── */
-function MergedTimeline({ myClasses, targetClasses, targets, freeSlots }) {
+function MergedTimeline({ myClasses, targetClasses, targets, freeSlots, dayFilter }) {
   const events = [];
-  freeSlots.forEach(s => events.push({ type: "free", start: toMin(s.start), end: toMin(s.end), data: s }));
-  myClasses.forEach(c => events.push({ type: "mine", start: toMin(c.start), end: toMin(c.end), data: c }));
+  freeSlots.forEach(s => events.push({ type: "free", start: toMin(s.start), end: toMin(s.end), data: s, date: s.date }));
+  myClasses.forEach(c => {
+    events.push({ 
+      type: (c.type === "holiday" || c.type === "break") ? "shared" : "mine", 
+      start: toMin(c.start), 
+      end: toMin(c.end), 
+      data: c, 
+      date: c.date,
+      owner: (c.type === "holiday" || c.type === "break") ? "All" : "You"
+    });
+  });
   
   targetClasses.forEach((classes, i) => {
-    classes.forEach(c => events.push({ type: "theirs", start: toMin(c.start), end: toMin(c.end), data: c, owner: targets[i]?.name }));
+    classes.forEach(c => {
+      if (c.type === "holiday" || c.type === "break") {
+        const exists = events.find(e => e.date === c.date && e.data.name === c.name && e.start === toMin(c.start));
+        if (!exists) {
+          events.push({ type: "shared", start: toMin(c.start), end: toMin(c.end), data: c, owner: "All", date: c.date });
+        }
+      } else {
+        events.push({ type: "theirs", start: toMin(c.start), end: toMin(c.end), data: c, owner: targets[i]?.name, date: c.date });
+      }
+    });
   });
 
-  events.sort((a, b) => a.start - b.start);
+  events.sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start);
 
   if (events.length === 0) {
-    return <div className="cv-empty">No events scheduled for this day.</div>;
+    return <div className="cv-empty">No events scheduled.</div>;
+  }
+
+  // Group by date, then by start time
+  const grouped = [];
+  let curDate = null;
+  let curGroup = null;
+  for (const e of events) {
+    if (e.date !== curDate) {
+      curDate = e.date;
+      curGroup = { date: curDate, timeGroups: [] };
+      grouped.push(curGroup);
+    }
+    
+    let curTimeGroup = curGroup.timeGroups[curGroup.timeGroups.length - 1];
+    if (!curTimeGroup || curTimeGroup.start !== e.start) {
+      curTimeGroup = { start: e.start, end: e.end, events: [] };
+      curGroup.timeGroups.push(curTimeGroup);
+    }
+    curTimeGroup.events.push(e);
   }
 
   return (
     <div className="cv-agenda">
-      {events.map((e, i) => (
-        <div key={i} className={`cva-item cva-${e.type}`}>
-          <div className="cva-time">
-            <span>{fmtTime(e.data.start)}</span>
-            <span className="cva-time-end">{fmtTime(e.data.end)}</span>
-          </div>
-          <div className="cva-node">
-            <div className="cva-dot" />
-            <div className="cva-line" />
-          </div>
-          <div className="cva-card">
-            <div className="cva-title">
-              {e.type === "free" ? "Matching Free Time" : e.data.name}
+      {grouped.map((g, gi) => (
+        <div key={gi} className="cv-agenda-day-group">
+          {["3", "7", "14", "30", "custom"].includes(dayFilter) && (
+            <div style={{ padding: "12px 10px 4px 10px", fontSize: "12px", fontWeight: "600", color: "var(--primary)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              {new Date(g.date).toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })}
             </div>
-            <div className="cva-sub">
-              {e.type === "free" ? fmtDuration(e.data.durationMin) : e.type === "mine" ? "You" : e.owner}
-            </div>
-          </div>
+          )}
+          {g.timeGroups.map((tg, ti) => {
+            let groupType = tg.events[0].type;
+            if (tg.events.some(e => e.type !== groupType)) groupType = "shared";
+
+            return (
+              <div key={ti} className={`cva-item cva-${groupType}`}>
+                <div className="cva-time">
+                  <span>{fmtTime(tg.events[0].data.start)}</span>
+                  <span className="cva-time-end">{fmtTime(tg.events[0].data.end)}</span>
+                </div>
+                <div className="cva-node">
+                  <div className="cva-dot" />
+                  <div className="cva-line" />
+                </div>
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "8px", paddingBottom: "16px" }}>
+                  {tg.events.map((e, ei) => (
+                    <div key={ei} className={`cva-card cva-${e.type}`} style={{ margin: 0 }}>
+                      <div className="cva-title">
+                        {e.type === "free" ? "Matching Free Time" : e.data.name}
+                      </div>
+                      <div className="cva-sub">
+                        {e.type === "free" ? fmtDuration(e.data.durationMin) : e.type === "mine" ? "You" : e.owner}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
       ))}
     </div>
@@ -302,28 +446,103 @@ function MergedTimeline({ myClasses, targetClasses, targets, freeSlots }) {
 }
 
 /* ── Side by Side Agenda ── */
-function SideBySide({ myClasses, targetClasses, targets }) {
-  const columns = [
-    { label: "You", classes: myClasses, colorClass: "cva-mine" },
-    ...targets.map((t, i) => ({ label: t.name, classes: targetClasses[i] || [], colorClass: "cva-theirs" })),
+function SideBySide({ myClasses, targetClasses, targets, dayFilter, freeSlots = [] }) {
+  const columnsDef = [
+    { label: "You", colorClass: "cva-mine" },
+    ...targets.map((t, i) => ({ label: t.name, colorClass: "cva-theirs" }))
   ];
 
+  const allItems = [];
+  myClasses.forEach(c => allItems.push({ ...c, ownerIndex: 0 }));
+  targetClasses.forEach((classes, i) => {
+    classes.forEach(c => allItems.push({ ...c, ownerIndex: i + 1 }));
+  });
+  freeSlots.forEach(fs => allItems.push({ ...fs, isFreeSlot: true, ownerIndex: -1 }));
+
+  const dates = Array.from(new Set(allItems.map(x => x.date))).sort();
+
+  const dateGroups = dates.map(date => {
+    const dayItems = allItems.filter(x => x.date === date);
+    
+    // Group by start time
+    const timeMap = {};
+    dayItems.forEach(item => {
+      const t = toMin(item.start);
+      if (!timeMap[t]) timeMap[t] = { freeSlots: [], columns: Array(columnsDef.length).fill().map(() => []) };
+      
+      if (item.isFreeSlot) {
+        timeMap[t].freeSlots.push(item);
+      } else {
+        timeMap[t].columns[item.ownerIndex].push(item);
+      }
+    });
+
+    const startTimes = Object.keys(timeMap).map(Number).sort((a, b) => a - b);
+    const rows = startTimes.map(t => timeMap[t]);
+
+    return { date, rows };
+  });
+
   return (
-    <div className="cv-side-agenda">
-      {columns.map((col, i) => (
-        <div key={i} className="cva-col">
-          <div className="cva-col-head">{col.label}</div>
-          <div className="cva-col-list">
-            {col.classes.length === 0 && <div className="cv-empty" style={{ padding: "20px 0" }}>No classes</div>}
-            {col.classes.map((c, ci) => (
-              <div key={ci} className={`cva-card ${col.colorClass}`}>
-                <div className="cva-time-sm">{fmtTime(c.start)} – {fmtTime(c.end)}</div>
-                <div className="cva-title">{c.name}</div>
-              </div>
-            ))}
-          </div>
+    <div className="cv-side-agenda" style={{ display: "block" }}>
+      <div style={{ minWidth: Math.max(100, columnsDef.length * 150) + "px" }}>
+        {/* Header Row */}
+        <div style={{ display: "flex", borderBottom: "1px solid var(--border)", paddingBottom: "12px", marginBottom: "16px" }}>
+          {columnsDef.map((col, i) => (
+            <div key={i} className="cva-col-head" style={{ flex: 1, borderBottom: "none", paddingBottom: 0, marginBottom: 0 }}>
+              {col.label}
+            </div>
+          ))}
         </div>
-      ))}
+
+        {/* Body */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          {dateGroups.length === 0 && <div className="cv-empty" style={{ padding: "20px 0", textAlign: "center" }}>No classes</div>}
+          
+          {dateGroups.map((dg, dgi) => (
+            <div key={dgi} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              {["3", "7", "14", "30", "custom"].includes(dayFilter) && (
+                <div style={{ padding: "4px 8px", fontSize: "12px", fontWeight: "700", color: "var(--primary)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                  {new Date(dg.date).toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })}
+                </div>
+              )}
+              
+              {dg.rows.map((row, ri) => (
+                <div key={ri} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  {row.freeSlots.map((fs, fsi) => (
+                    <div key={fsi} className="cva-free-pill" style={{ background: "rgba(31,169,113,.15)", border: "1px dashed rgba(31,169,113,.4)", color: "var(--live)", padding: "8px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: "700", textAlign: "center", display: "flex", justifyContent: "center", gap: "8px", alignItems: "center", margin: "0 4px" }}>
+                      <span>{fmtTime(fs.start)} – {fmtTime(fs.end)}</span>
+                      <span style={{fontSize: "10px", opacity: 0.85}}>Free</span>
+                    </div>
+                  ))}
+                  
+                  {row.columns.some(col => col.length > 0) && (
+                    <div style={{ display: "flex" }}>
+                      {row.columns.map((colItems, ci) => (
+                        <div key={ci} style={{ flex: 1, padding: "0 6px", display: "flex", flexDirection: "column", gap: "8px", minWidth: 0 }}>
+                          {colItems.length === 0 ? (
+                            <div className="cva-card" style={{ margin: 0, height: "100%", background: "transparent", border: "1px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60px" }}>
+                              <span style={{ fontSize: "12px", color: "var(--muted)", fontWeight: "500" }}>No class</span>
+                            </div>
+                          ) : colItems.map((c, cii) => {
+                            const isShared = c.type === "holiday" || c.type === "break";
+                            return (
+                              <div key={cii} className={`cva-card ${isShared ? "cva-shared" : columnsDef[ci].colorClass}`} style={{ margin: 0, height: "100%" }}>
+                                <div className="cva-time-sm">{fmtTime(c.start)} – {fmtTime(c.end)}</div>
+                                <div className="cva-title">{c.name}</div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

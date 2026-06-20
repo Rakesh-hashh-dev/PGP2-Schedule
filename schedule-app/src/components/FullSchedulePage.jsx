@@ -160,4 +160,4 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
       </div>
     </div>
   );
-}
+});

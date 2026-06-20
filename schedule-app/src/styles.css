@@ -15,6 +15,7 @@
   --amber-dim: rgba(201,136,43,.13);
   --violet:    #6D5BD0;
   --violet-dim:rgba(109,91,208,.08);
+  --blue:      #3B82F6;
 
   /* keep legacy names used in hero/logo */
   --ink:  #15182B;
@@ -2287,10 +2288,14 @@ button:focus-visible {
 .cva-free .cva-title { color: var(--live); }
 
 .cva-mine .cva-dot { background: var(--violet); }
-.cva-mine .cva-card { background: rgba(105,56,239,.08); border: 1px solid rgba(105,56,239,.2); }
+.cva-mine .cva-card, .cva-card.cva-mine { background: rgba(105,56,239,.08); border: 1px solid rgba(105,56,239,.2); }
 
 .cva-theirs .cva-dot { background: var(--blue); }
-.cva-theirs .cva-card { background: rgba(59,130,246,.08); border: 1px solid rgba(59,130,246,.2); }
+.cva-theirs .cva-card, .cva-card.cva-theirs { background: rgba(59,130,246,.08); border: 1px solid rgba(59,130,246,.2); }
+
+.cva-shared .cva-dot { background: #EAB308; }
+.cva-shared .cva-card, .cva-card.cva-shared { background: rgba(234,179,8,.08); border: 1px dashed rgba(234,179,8,.4); }
+.cva-shared .cva-title, .cva-card.cva-shared .cva-title { color: #CA8A04; }
 
 /* Side by Side Agenda */
 .cv-side-agenda {

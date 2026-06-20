@@ -407,11 +407,15 @@ export function scheduleInsights(myCourses, theirCourses) {
 export function friendVisibleClasses(allClasses, friendCourses) {
   if (!friendCourses) return [];
   return allClasses.filter(c => {
-    if (c.type === "class") {
+    if (c.type === "class" || c.type === "exam") {
+      if (!c.code) return c.type === "exam"; // general exams or events with no code
       const sec = friendCourses[c.code];
-      return sec !== undefined && c.section === sec;
+      return sec !== undefined && (c.section === "Single" || c.section === sec);
     }
-    return false; // don't include non-class items for friends
+    if (c.type === "holiday" || c.type === "break") {
+      return true;
+    }
+    return false;
   });
 }
 

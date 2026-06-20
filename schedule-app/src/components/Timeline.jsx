@@ -139,4 +139,4 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
       </ol>
     </section>
   );
-}
+});

@@ -636,6 +636,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                   friendData={compareTarget.friendData}
                   groupData={compareTarget.groupData}
                   myClasses={visible}
+                  mine={mine}
                   allClasses={CLASSES}
                   enrolled={enrolled}
                   legend={enrolledLegend}

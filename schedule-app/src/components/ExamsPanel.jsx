@@ -376,4 +376,4 @@ export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, no
       </section>
     </div>
   );
-}
+});
