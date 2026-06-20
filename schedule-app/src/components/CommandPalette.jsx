@@ -41,13 +41,22 @@ export default function CommandPalette({ isOpen, onClose, onViewChange, allClass
   ].filter(i => i.label.toLowerCase().includes(q));
 
   // Search classes
-  const uniqueClasses = Array.from(new Map(allClasses.filter(c => c.type === "class" && c.name).map(c => [c.code, c])).values());
-  const classMatches = uniqueClasses.filter(c => 
-    c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q) || (c.room && c.room.toLowerCase().includes(q))
-  ).slice(0, 5);
+  const uniqueClasses = React.useMemo(() => {
+    return Array.from(new Map(allClasses.filter(c => c.type === "class" && c.name).map(c => [c.code, c])).values());
+  }, [allClasses]);
+
+  const classMatches = React.useMemo(() => {
+    if (!q) return [];
+    return uniqueClasses.filter(c => 
+      c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q) || (c.room && c.room.toLowerCase().includes(q))
+    ).slice(0, 5);
+  }, [uniqueClasses, q]);
 
   // Search friends
-  const friendMatches = friends.filter(f => f.name.toLowerCase().includes(q)).slice(0, 3);
+  const friendMatches = React.useMemo(() => {
+    if (!q) return [];
+    return friends.filter(f => f.name.toLowerCase().includes(q)).slice(0, 3);
+  }, [friends, q]);
 
   const hasResults = navItems.length > 0 || classMatches.length > 0 || friendMatches.length > 0;
 

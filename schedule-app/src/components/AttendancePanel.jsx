@@ -110,36 +110,33 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
       {/* ── Overall hero ── */}
       <section className={`att-hero tone-${overall_tone}`}>
         <div className="att-hero-ring">
-          <Ring pct={overall.pct ?? 0} t={overall_tone} noData={noData} size={110} />
+          <Ring pct={overall.pct ?? 0} t={overall_tone} noData={noData} size={64} />
         </div>
         <div className="att-hero-r">
           <div className="att-hero-label">Overall Attendance</div>
           {noData ? (
             <div className="att-hero-line" style={{ opacity: .6 }}>No sessions logged yet</div>
           ) : (
-            <div className="att-hero-stats">
-              <div className="att-stat">
-                <span className="att-stat-val">{overall.present}</span>
-                <span className="att-stat-lbl">Attended</span>
+            <>
+              <div className="att-hero-big">
+                <b>{overall.present}</b> attended
+                <span className="att-d">·</span>
+                <b>{overall.absent}</b> missed
               </div>
-              <div className="att-stat-div" />
-              <div className="att-stat">
-                <span className="att-stat-val">{overall.absent}</span>
-                <span className="att-stat-lbl">Missed</span>
+              <div className="att-hero-areas">
+                {overall.unmarked > 0 && (
+                  <span className="att-area-chip">
+                    To mark: {overall.unmarked}
+                  </span>
+                )}
+                {overall.pct != null && overall.pct < THRESHOLD && (
+                  <span className="att-area-chip att-area-chip-warn">
+                    <AlertTriangle size={11} style={{ marginRight: 4, display: "inline-block", verticalAlign: "-1px" }} />
+                    Below {THRESHOLD}% mark
+                  </span>
+                )}
               </div>
-              {overall.unmarked > 0 && (
-                <>
-                  <div className="att-stat-div" />
-                  <div className="att-stat att-stat-unmarked">
-                    <span className="att-stat-val">{overall.unmarked}</span>
-                    <span className="att-stat-lbl">To mark</span>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-          {overall.pct != null && overall.pct < THRESHOLD && (
-            <div className="att-flag"><AlertTriangle size={13} /> Below the {THRESHOLD}% mark</div>
+            </>
           )}
         </div>
       </section>

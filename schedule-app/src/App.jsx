@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, Suspense, lazy } from "react";
 import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, ChevronsLeft, ChevronsRight, ChevronRight, ChevronLeft, Megaphone, BarChart2 } from "lucide-react";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
@@ -7,17 +7,18 @@ import WeekAgenda from "./components/WeekAgenda.jsx";
 import SubjectFilter from "./components/SubjectFilter.jsx";
 import Login from "./components/Login.jsx";
 import Onboarding from "./components/Onboarding.jsx";
-import AttendancePanel from "./components/AttendancePanel.jsx";
 import WeatherWidget from "./components/WeatherWidget.jsx";
-import FriendsPanel from "./components/FriendsPanel.jsx";
-import CompareView from "./components/CompareView.jsx";
 import { getSnapshot, fetchSchedule } from "./lib/sheet.js";
-import RecentChanges from "./components/RecentChanges.jsx";
-import ExamsPanel from "./components/ExamsPanel.jsx";
-import NotificationsPage from "./components/NotificationsPage.jsx";
 import TermFlowLoader from "./components/TermFlowLoader.jsx";
-import FullSchedulePage from "./components/FullSchedulePage.jsx";
-import CommandPalette from "./components/CommandPalette.jsx";
+
+const AttendancePanel = lazy(() => import("./components/AttendancePanel.jsx"));
+const FriendsPanel = lazy(() => import("./components/FriendsPanel.jsx"));
+const CompareView = lazy(() => import("./components/CompareView.jsx"));
+const RecentChanges = lazy(() => import("./components/RecentChanges.jsx"));
+const ExamsPanel = lazy(() => import("./components/ExamsPanel.jsx"));
+const NotificationsPage = lazy(() => import("./components/NotificationsPage.jsx"));
+const FullSchedulePage = lazy(() => import("./components/FullSchedulePage.jsx"));
+const CommandPalette = lazy(() => import("./components/CommandPalette.jsx"));
 import { loadAttendance, saveAttendance, sessionKey, syncAttendanceFromCloud, pushMark } from "./lib/attendance.js";
 import { syncProfileFromCloud, pushProfile } from "./lib/profile.js";
 import { decodeSchedule, saveFriend, loadFriends, loadGroups, friendVisibleClasses, syncFriendsAndGroupsFromCloud } from "./lib/friends.js";
@@ -419,6 +420,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         </div>
 
         <nav className="sb-nav">
+          <button className="sb-link" onClick={() => setCmdOpen(true)}>
+            <Search size={18} /><span className="sb-link-label">Search</span>
+          </button>
           <button className={`sb-link${view === "today" ? " on" : ""}`} onClick={() => { setView("today"); setCompareTarget(null); }}>
             <Clock size={18} /><span className="sb-link-label">Today</span>
           </button>
@@ -499,7 +503,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               </button>
               <span className="tooltip" role="tooltip">Attendance</span>
             </div>
-            <div className="tb-wrap notif-wrap">
+            <div className="tb-wrap notif-wrap mobile-only">
               <button className="sync" onClick={() => setCmdOpen(true)} aria-label="Search" title="Search (Cmd+K)">
                 <Search size={15} />
               </button>
@@ -670,61 +674,62 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               </div>
             )}
             <div className={view === "week" ? "pane-today hide-mobile" : "pane-today"}>
-              {compareTarget
-                ? <CompareView
-                  mode={compareTarget.mode}
-                  friendData={compareTarget.friendData}
-                  groupData={compareTarget.groupData}
-                  myClasses={visible}
-                  mine={mine}
-                  allClasses={CLASSES}
-                  enrolled={enrolled}
-                  legend={enrolledLegend}
-                  now={now}
-                  onExit={() => setCompareTarget(null)}
-                />
-                : view === "friends"
-                  ? <FriendsPanel
-                    userId={user?.id}
-                    userName={user?.firstName || user?.username || "Student"}
+              <Suspense fallback={<div className="loading-screen" style={{ minHeight: "300px" }}><TermFlowLoader size={48} /></div>}>
+                {compareTarget
+                  ? <CompareView
+                    mode={compareTarget.mode}
+                    friendData={compareTarget.friendData}
+                    groupData={compareTarget.groupData}
+                    myClasses={visible}
+                    mine={mine}
+                    allClasses={CLASSES}
                     enrolled={enrolled}
-                    legend={LEGEND}
-                    friends={friends}
-                    setFriends={setFriends}
-                    groups={groups}
-                    setGroups={setGroups}
-                    onCompare={(f) => setCompareTarget({ mode: "friend", friendData: f })}
-                    onGroupCompare={(g) => {
-                      const members = (g.memberIds || []).map(id => friends.find(f => f.id === id)).filter(Boolean).map(f => ({ name: f.name, courses: f.courses }));
-                      setCompareTarget({ mode: "group", groupData: { name: g.name, members } });
-                    }}
+                    legend={enrolledLegend}
+                    now={now}
+                    onExit={() => setCompareTarget(null)}
                   />
-                  : view === "exams"
-                    ? <ExamsPanel
-                      allClasses={CLASSES}
+                  : view === "friends"
+                    ? <FriendsPanel
+                      userId={user?.id}
+                      userName={user?.firstName || user?.username || "Student"}
                       enrolled={enrolled}
-                      legend={enrolledLegend}
-                      now={now}
-                      termNumber={TERM?.number}
-                      termStart={TERM?.start}
-                      termEnd={TERM?.end}
+                      legend={LEGEND}
+                      friends={friends}
+                      setFriends={setFriends}
+                      groups={groups}
+                      setGroups={setGroups}
+                      onCompare={(f) => setCompareTarget({ mode: "friend", friendData: f })}
+                      onGroupCompare={(g) => {
+                        const members = (g.memberIds || []).map(id => friends.find(f => f.id === id)).filter(Boolean).map(f => ({ name: f.name, courses: f.courses }));
+                        setCompareTarget({ mode: "group", groupData: { name: g.name, members } });
+                      }}
                     />
-                    : view === "attendance"
-                      ? <AttendancePanel
+                    : view === "exams"
+                      ? <ExamsPanel
                         allClasses={CLASSES}
-                        now={now}
-                        attendance={attendance}
                         enrolled={enrolled}
                         legend={enrolledLegend}
-                        markAttendance={markAttendance}
-                        weather={weather}
+                        now={now}
                         termNumber={TERM?.number}
+                        termStart={TERM?.start}
+                        termEnd={TERM?.end}
                       />
-                      : view === "notifications"
-                        ? <NotificationsPage allChanges={CHANGES} myChanges={filteredChanges} />
-                        : view === "fullSchedule"
-                          ? <FullSchedulePage allClasses={CLASSES} enrolled={enrolled} legend={enrolledLegend} termLabel={termLabel} onBack={() => setView("today")} />
-                          : todayList.length === 0 && tomorrowList.length === 0
+                      : view === "attendance"
+                        ? <AttendancePanel
+                          allClasses={CLASSES}
+                          now={now}
+                          attendance={attendance}
+                          enrolled={enrolled}
+                          legend={enrolledLegend}
+                          markAttendance={markAttendance}
+                          weather={weather}
+                          termNumber={TERM?.number}
+                        />
+                        : view === "notifications"
+                          ? <NotificationsPage allChanges={CHANGES} myChanges={filteredChanges} />
+                          : view === "fullSchedule"
+                            ? <FullSchedulePage allClasses={CLASSES} enrolled={enrolled} legend={enrolledLegend} termLabel={termLabel} onBack={() => setView("today")} />
+                            : todayList.length === 0 && tomorrowList.length === 0
                             ? premiumMode && syncing 
                               ? (
                                 <ul className="rail">
@@ -737,6 +742,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                             : view === "tomorrow"
                               ? <Timeline list={tomorrowList} current={null} now={now} showNowLine={false} label="Tomorrow" dateLabel={prettyDate(tomorrowISO)} attendance={attendance} markAttendance={markAttendance} syncStatus={<span className="live"><span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} />
                               : <Timeline list={todayList} current={current} now={now} dateLabel={prettyDate(todayISO)} attendance={attendance} markAttendance={markAttendance} syncStatus={<span className="live"><span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} />}
+              </Suspense>
             </div>
           </div>
           <aside className={view !== "week" ? "side-col hide-mobile" : "side-col"}>
@@ -749,13 +755,15 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           <span className="foot-credit">Built with <span className="foot-heart">♥</span> by <a href="https://www.linkedin.com/" target="_blank" rel="noopener noreferrer" className="foot-credit-name">Rakesh</a></span>
         </footer>
 
-        <CommandPalette 
-          isOpen={cmdOpen} 
-          onClose={() => setCmdOpen(false)} 
-          onViewChange={(v) => setView(v)} 
-          allClasses={CLASSES}
-          friends={friends}
-        />
+        <Suspense fallback={null}>
+          <CommandPalette 
+            isOpen={cmdOpen} 
+            onClose={() => setCmdOpen(false)} 
+            onViewChange={(v) => setView(v)} 
+            allClasses={CLASSES}
+            friends={friends}
+          />
+        </Suspense>
 
 
         {/* Bottom nav — commented out, restore when needed
