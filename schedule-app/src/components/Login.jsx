@@ -5,7 +5,7 @@ import { useSignIn } from "@clerk/clerk-react";
 export default function Login() {
   const { signIn, isLoaded } = useSignIn();
   const [loading, setLoading] = useState(false);
-  const [theme, setTheme] = useState("premium"); // 'light', 'dark', 'premium'
+  const [theme, setTheme] = useState("light"); // 'light', 'dark', 'premium'
 
   const themes = ["light", "dark", "premium"];
   const handleThemeToggle = () => {
