@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { MapPin, CheckCircle2 } from "lucide-react";
+import { MapPin, CheckCircle2, Timer } from "lucide-react";
 
 function clsDate(c, which) {
   const [Y, Mo, D] = c.date.split("-").map(Number);
@@ -10,6 +10,43 @@ function clsDate(c, which) {
 function prettyDate(iso) {
   const [Y, M, D] = iso.split("-").map(Number);
   return new Date(Y, M - 1, D).toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" });
+}
+
+function pad2(n) { return String(n).padStart(2, "0"); }
+
+// Live ticking countdown to the next class start.
+function HeroCountdown({ target }) {
+  const [ms, setMs] = useState(() => target.getTime() - Date.now());
+
+  useEffect(() => {
+    setMs(target.getTime() - Date.now());
+    const id = setInterval(() => setMs(target.getTime() - Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [target]);
+
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  const urgent = totalSec <= 300; // ≤ 5 min
+
+  return (
+    <div className={`hero-countdown${urgent ? " urgent" : ""}`} role="timer" aria-live="off">
+      <Timer size={15} className="hero-cd-icon" />
+      <span className="hero-cd-clock">
+        {h > 0 && (
+          <>
+            <span className="hero-cd-seg">{pad2(h)}</span>
+            <span className="hero-cd-colon">:</span>
+          </>
+        )}
+        <span className="hero-cd-seg">{pad2(m)}</span>
+        <span className="hero-cd-colon">:</span>
+        <span className="hero-cd-seg">{pad2(s)}</span>
+      </span>
+      <span className="hero-cd-label">until start</span>
+    </div>
+  );
 }
 
 function UpNext({ c }) {
@@ -118,7 +155,9 @@ export default function Hero({ current, next, now, todayISO, tomorrowISO, premiu
           <><span className="sep">·</span><span className="r"><MapPin size={14} /> {next.room || "TBA"}</span></>
           {next.faculty && <><span className="sep">·</span><span className="f">{next.faculty}</span></>}
         </div>
-        <div className="hero-when">{mins <= 90 ? `Starts in ${mins} min` : "Later today"}</div>
+        {mins > 17
+          ? <div className="hero-when">Later today</div>
+          : <HeroCountdown target={s} />}
       </section>
     );
   }

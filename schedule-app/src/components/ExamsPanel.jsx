@@ -196,6 +196,7 @@ function CourseCountdown({ courses, allClasses, enrolled, now }) {
 export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, now, termNumber, termStart, termEnd }) {
   const codes = Object.keys(enrolled || {});
   const [cdView, setCdView] = useState("list"); // "list" | "calendar"
+  const [examFilter, setExamFilter] = useState("mine"); // "mine" | "all"
 
   // ── Credit calculations ──
   const creditData = useMemo(() => {
@@ -232,7 +233,7 @@ export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, no
         if (!isExam) return false;
         
         // Does it apply to me?
-        if (c.code && !codes.includes(c.code)) return false;
+        if (examFilter === "mine" && c.code && !codes.includes(c.code)) return false;
         return true;
       })
       .map(c => {
@@ -242,7 +243,7 @@ export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, no
         return { ...c, dt, days, category: examCategory(c.name, c.session), tone: cdTone(days) };
       })
       .sort((a, b) => a.dt - b.dt);
-  }, [allClasses, now, codes]);
+  }, [allClasses, now, codes, examFilter]);
 
   const upcoming = exams.filter(e => e.days >= 0);
   const past = exams.filter(e => e.days < 0);
@@ -287,13 +288,23 @@ export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, no
       <section className="exam-card">
         <div className="exam-card-h">
           <h2><Clock size={15} /> Exam Countdown</h2>
-          <div className="exam-view-toggle">
-            <button className={`exam-vt-btn${cdView === "list" ? " on" : ""}`} onClick={() => setCdView("list")} aria-label="List view">
-              <List size={14} />
-            </button>
-            <button className={`exam-vt-btn${cdView === "calendar" ? " on" : ""}`} onClick={() => setCdView("calendar")} aria-label="Calendar view">
-              <CalendarDays size={14} />
-            </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <div style={{ display: "flex", background: "var(--surface)", padding: 4, borderRadius: 12, gap: 4, border: "1px solid var(--border)" }}>
+              <button onClick={() => setExamFilter("mine")} style={{ background: examFilter === "mine" ? "var(--card)" : "transparent", color: examFilter === "mine" ? "var(--text)" : "var(--muted)", border: "none", borderRadius: 8, padding: "6px 16px", fontSize: 13, fontWeight: 600, boxShadow: examFilter === "mine" ? "0 2px 8px rgba(0,0,0,0.08)" : "none", cursor: "pointer", transition: "all 0.2s" }}>
+                My Subjects
+              </button>
+              <button onClick={() => setExamFilter("all")} style={{ background: examFilter === "all" ? "var(--card)" : "transparent", color: examFilter === "all" ? "var(--text)" : "var(--muted)", border: "none", borderRadius: 8, padding: "6px 16px", fontSize: 13, fontWeight: 600, boxShadow: examFilter === "all" ? "0 2px 8px rgba(0,0,0,0.08)" : "none", cursor: "pointer", transition: "all 0.2s" }}>
+                All Subjects
+              </button>
+            </div>
+            <div className="exam-view-toggle">
+              <button className={`exam-vt-btn${cdView === "list" ? " on" : ""}`} onClick={() => setCdView("list")} aria-label="List view">
+                <List size={14} />
+              </button>
+              <button className={`exam-vt-btn${cdView === "calendar" ? " on" : ""}`} onClick={() => setCdView("calendar")} aria-label="Calendar view">
+                <CalendarDays size={14} />
+              </button>
+            </div>
           </div>
         </div>
 

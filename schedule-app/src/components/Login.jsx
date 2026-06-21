@@ -1,11 +1,16 @@
 import { useState } from "react";
-import { GraduationCap, Sun, Moon } from "lucide-react";
+import { GraduationCap, Sun, Moon, Sparkles } from "lucide-react";
 import { useSignIn } from "@clerk/clerk-react";
 
 export default function Login() {
   const { signIn, isLoaded } = useSignIn();
   const [loading, setLoading] = useState(false);
-  const [theme, setTheme] = useState("light"); // 'light' or 'dark'
+  const [theme, setTheme] = useState("premium"); // 'light', 'dark', 'premium'
+
+  const themes = ["light", "dark", "premium"];
+  const handleThemeToggle = () => {
+    setTheme(t => themes[(themes.indexOf(t) + 1) % themes.length]);
+  };
 
   async function handleSignIn() {
     if (!isLoaded) return;
@@ -27,10 +32,12 @@ export default function Login() {
       
       <button 
         className="login-theme-toggle" 
-        onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+        onClick={handleThemeToggle}
         aria-label="Toggle Theme"
       >
-        {theme === "light" ? <Moon size={20} /> : <Sun size={20} />}
+        {theme === "light" && <Moon size={20} />}
+        {theme === "dark" && <Sparkles size={20} />}
+        {theme === "premium" && <Sun size={20} />}
       </button>
 
       <div className="login-card">

@@ -4,6 +4,17 @@ import { TERM, LEGEND, CLASSES } from "../data/schedule.js";
 
 const FEED_URL = "https://script.google.com/macros/s/AKfycbwOCmpZAbzN7hRkb-xx6-SDejt3c45E5NBZ0NHuJW8CBRYO4ROJfwE_MI_g4aODwo08Gg/exec";
 
+// SHA-256 hash of a string, returns lowercase hex (matches Code.gs)
+export async function sha256hex(str) {
+  const buf = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(str)
+  );
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 const CACHE_KEY = "pgp2-feed-cache";
 const CACHE_TTL = 15 * 60 * 1000; // 15 minutes
 
@@ -64,7 +75,9 @@ export async function fetchSchedule(force = false) {
     if (!res.ok) throw new Error("HTTP " + res.status);
     const data = await res.json();
     if (data?.error) throw new Error(data.error);
-    if (data?.unchanged && cached?.data) return cached.data;
+    if (data?.unchanged && cached?.data) {
+      return { ...cached.data, _meta: { status: "success", message: "No changes from live sheet (using cache)", ts: new Date().toISOString() } };
+    }
 
     if (!data?.CLASSES?.length) throw new Error("empty feed");
 
@@ -84,9 +97,10 @@ export async function fetchSchedule(force = false) {
 
     const result = withAreas({ CHANGES: [], ...data, CLASSES: classes });
     try { localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data: result })); } catch {}
+    result._meta = { status: "success", message: `Successfully fetched ${classes.length} classes from live sheet.`, ts: new Date().toISOString() };
     return result;
   } catch (err) {
     console.warn("[sheet] live feed failed, using snapshot:", err.message);
-    return STATIC_SNAPSHOT;
+    return { ...STATIC_SNAPSHOT, _meta: { status: "error", message: err.message, ts: new Date().toISOString() } };
   }
 }
