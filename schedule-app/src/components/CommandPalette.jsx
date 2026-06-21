@@ -26,19 +26,7 @@ export default function CommandPalette({ isOpen, onClose, onViewChange, allClass
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
-
   const q = query.toLowerCase();
-
-  // Navigation Links
-  const navItems = [
-    { id: "today", label: "Today", icon: <Clock size={16} /> },
-    { id: "week", label: "Week", icon: <Calendar size={16} /> },
-    { id: "attendance", label: "Attendance", icon: <ClipboardList size={16} /> },
-    { id: "exams", label: "Exams", icon: <GraduationCap size={16} /> },
-    { id: "notifications", label: "Announcements", icon: <Megaphone size={16} /> },
-    { id: "friends", label: "Friends", icon: <Users size={16} /> }
-  ].filter(i => i.label.toLowerCase().includes(q));
 
   // Search classes
   const uniqueClasses = React.useMemo(() => {
@@ -57,6 +45,18 @@ export default function CommandPalette({ isOpen, onClose, onViewChange, allClass
     if (!q) return [];
     return friends.filter(f => f.name.toLowerCase().includes(q)).slice(0, 3);
   }, [friends, q]);
+
+  if (!isOpen) return null;
+
+  // Navigation Links
+  const navItems = [
+    { id: "today", label: "Today", icon: <Clock size={16} /> },
+    { id: "week", label: "Week", icon: <Calendar size={16} /> },
+    { id: "attendance", label: "Attendance", icon: <ClipboardList size={16} /> },
+    { id: "exams", label: "Exams", icon: <GraduationCap size={16} /> },
+    { id: "notifications", label: "Announcements", icon: <Megaphone size={16} /> },
+    { id: "friends", label: "Friends", icon: <Users size={16} /> }
+  ].filter(i => i.label.toLowerCase().includes(q));
 
   const hasResults = navItems.length > 0 || classMatches.length > 0 || friendMatches.length > 0;
 

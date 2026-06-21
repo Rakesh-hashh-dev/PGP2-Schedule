@@ -181,12 +181,33 @@ button:focus-visible {
   position: absolute; top: -5px; left: 50%; transform: translateX(-50%);
   border: 5px solid transparent; border-top: none; border-bottom-color: #1f2430;
 }
+
 .tb-wrap:hover .tooltip,
 .tb-wrap:has(button:focus-visible) .tooltip { opacity: 1; transform: translateX(-50%) translateY(0); }
 .tb-wrap:has(button[aria-expanded="true"]) .tooltip { opacity: 0 !important; }
 
 .att-sp-tip { white-space: pre; text-align: center; line-height: 1.6; }
 
+.att-spark { display: flex; gap: 3px; padding: 8px 4px 10px; flex-wrap: wrap; align-items: center; }
+
+/* Prevent tooltip overflow on mobile by using safe left/right constraints */
+.att-spark .tb-wrap { position: relative; }
+.att-spark .tooltip {
+  /* User requested: show it to the right instead of left */
+  left: -8px; /* Slight offset so the arrow points correctly to the center of the 10px dot */
+  top: calc(100% + 6px);
+  transform: translateY(4px);
+  max-width: calc(100vw - 40px);
+  width: max-content;
+}
+.att-spark .tb-wrap:hover .tooltip,
+.att-spark .tb-wrap:has(button:focus-visible) .tooltip {
+  transform: translateY(0);
+}
+.att-spark .tooltip::before {
+  left: 12px;
+  transform: none;
+}
 @keyframes icon-spin { to { transform: rotate(360deg); } }
 .spin-icon { animation: icon-spin 700ms linear infinite; }
 
@@ -1375,7 +1396,7 @@ button:focus-visible {
 .att-chev.open { transform: rotate(180deg); }
 
 /* Sparkline */
-.att-spark { display: flex; gap: 3px; padding: 8px 4px 10px; flex-wrap: wrap; align-items: center; }
+/* att-spark already defined at the top for tooltip positioning */
 .att-sp { width: 10px; height: 10px; border-radius: 3px; background: #DDD9CE; flex: none; transition: background .15s, transform .12s; cursor: default; }
 .att-sp:hover { transform: scale(1.55); }
 .att-sp.att-sp-p { background: var(--live); }
