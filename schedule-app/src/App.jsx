@@ -447,6 +447,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           <div className="sb-icon-row">
             <button className="sb-icon-btn" onClick={() => setShowSetupEdit(true)} aria-label="Edit setup"><Settings2 size={16} /></button>
             <button className="sb-icon-btn" onClick={handleSync} aria-label="Refresh"><RefreshCw size={16} className={syncing ? "spin-icon" : ""} /></button>
+            <button className="sb-icon-btn" onClick={() => signOut()} aria-label="Log out"><LogOut size={16} /></button>
           </div>
           <button className="sb-toggle" onClick={toggleSidebar}>
             {sidebarCollapsed ? <ChevronsRight size={16} /> : <ChevronsLeft size={16} />}

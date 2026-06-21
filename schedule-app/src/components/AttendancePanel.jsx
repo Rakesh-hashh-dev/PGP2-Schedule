@@ -3,7 +3,7 @@ import { Check, X, Clock, MapPin, AlertTriangle, ChevronDown } from "lucide-reac
 import { sessionKey } from "../lib/attendance.js";
 import WeatherWidget from "./WeatherWidget.jsx";
 
-const THRESHOLD = 75;
+const THRESHOLD = 80;
 
 function clsEnd(c) {
   const [Y, Mo, D] = c.date.split("-").map(Number);
@@ -76,9 +76,42 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
   const byCourse = useMemo(() => {
     return codes.map(code => {
       const list = allPast.filter(s => s.code === code);
-      return { code, name: legend[code]?.name || code, sessions: list, ...stat(list) };
-    }).sort((a, b) => (a.pct ?? 101) - (b.pct ?? 101));
-  }, [allPast, attendance, codes]);
+      const section = enrolled[code];
+      const allCourseSessions = allClasses.filter(c => c.type === "class" && c.code === code && (c.section === "Single" || c.section === section));
+      const totalScheduled = allCourseSessions.length;
+      
+      const rawCredit = legend[code]?.credits;
+      const isZeroCredit = rawCredit === "0" || rawCredit === 0;
+      const minPct = isZeroCredit ? 0.90 : 0.80;
+      const minAttend = Math.ceil(totalScheduled * minPct);
+      const totalAllowedSkips = Math.max(0, totalScheduled - minAttend);
+      
+      const st = stat(list);
+      const skipsRemaining = Math.max(0, totalAllowedSkips - st.absent);
+      const penaltyHit = st.absent > totalAllowedSkips;
+      
+      return { code, name: legend[code]?.name || code, sessions: list, totalScheduled, totalAllowedSkips, skipsRemaining, penaltyHit, ...st };
+    }).sort((a, b) => {
+      // Sort by penalty hit first, then skips remaining, then percentage
+      if (a.penaltyHit !== b.penaltyHit) return a.penaltyHit ? -1 : 1;
+      if (a.skipsRemaining !== b.skipsRemaining) return a.skipsRemaining - b.skipsRemaining;
+      return (a.pct ?? 101) - (b.pct ?? 101);
+    });
+  }, [allPast, attendance, codes, allClasses, enrolled]);
+
+  const overallSkipBudget = useMemo(() => {
+    let allowed = 0;
+    let absent = 0;
+    let hasPenalty = false;
+    byCourse.forEach(c => {
+      if (c.totalAllowedSkips > 0) {
+        allowed += c.totalAllowedSkips;
+        absent += c.absent;
+      }
+      if (c.penaltyHit) hasPenalty = true;
+    });
+    return { allowed, absent, remaining: Math.max(0, allowed - absent), hasPenalty };
+  }, [byCourse]);
 
   const toMark = allPast.filter(s => !attendance[s.key]);
   const missed  = allPast.filter(s => attendance[s.key] === "absent");
@@ -129,12 +162,16 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
                     To mark: {overall.unmarked}
                   </span>
                 )}
-                {overall.pct != null && overall.pct < THRESHOLD && (
-                  <span className="att-area-chip att-area-chip-warn">
+                {overallSkipBudget.hasPenalty ? (
+                  <span className="att-area-chip att-area-chip-warn" style={{ background: 'rgba(192, 57, 43, 0.2)', color: '#ff6b6b' }}>
                     <AlertTriangle size={11} style={{ marginRight: 4, display: "inline-block", verticalAlign: "-1px" }} />
-                    Below {THRESHOLD}% mark
+                    Grade Penalty Hit
                   </span>
-                )}
+                ) : overallSkipBudget.allowed > 0 ? (
+                  <span className="att-area-chip" style={{ background: 'rgba(255, 255, 255, 0.12)' }}>
+                    🔥 {overallSkipBudget.remaining} / {overallSkipBudget.allowed} skips left
+                  </span>
+                ) : null}
               </div>
             </>
           )}
@@ -174,12 +211,16 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
                     {c.unmarked > 0 && (
                       <span className="att-unmarked-badge">{c.unmarked}</span>
                     )}
+                    {c.totalScheduled > 0 && (
+                      <span className={`att-skip-chip ${c.penaltyHit ? 'skip-critical' : c.skipsRemaining <= 1 ? 'skip-warn' : 'skip-safe'}`}>
+                        {c.penaltyHit ? "🚨 Penalty Hit" : c.skipsRemaining <= 1 ? `🔥 ${c.skipsRemaining} skip left` : `${c.skipsRemaining} skips left`}
+                      </span>
+                    )}
                     {canExpand && <ChevronDown size={14} className={`att-chev${open ? " open" : ""}`} />}
                   </div>
-                  <div className="att-row-sub" style={{ marginTop: 2 }}>
-                    {c.present}/{c.present + c.absent} attended
-                    {c.unmarked > 0 ? <span className="att-sub-warn"> · {c.unmarked} to mark</span> : ""}
-                    {` · ${c.total} total`}
+                  <div className="att-row-sub" style={{ marginTop: 4, display: 'flex', gap: 12 }}>
+                    <span>{c.present}/{c.present + c.absent} attended</span>
+                    <span style={{ opacity: 0.6 }}>{c.totalScheduled} total classes</span>
                   </div>
                   <div className="att-bar" style={{ marginTop: 8, marginBottom: 0 }}>
                     {c.present > 0 && <div className="att-bar-p" style={{ width: `${(c.present / c.total * 100).toFixed(1)}%` }} />}

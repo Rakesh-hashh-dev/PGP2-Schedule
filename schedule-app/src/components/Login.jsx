@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { GraduationCap } from "lucide-react";
+import { GraduationCap, Sun, Moon } from "lucide-react";
 import { useSignIn } from "@clerk/clerk-react";
 
 export default function Login() {
   const { signIn, isLoaded } = useSignIn();
   const [loading, setLoading] = useState(false);
+  const [theme, setTheme] = useState("light"); // 'light' or 'dark'
 
   async function handleSignIn() {
     if (!isLoaded) return;
@@ -17,7 +18,21 @@ export default function Login() {
   }
 
   return (
-    <div className="login-screen">
+    <div className={`login-screen theme-${theme}`}>
+      <div className="login-bg-mesh">
+        <div className="login-blob blob-1"></div>
+        <div className="login-blob blob-2"></div>
+        <div className="login-blob blob-3"></div>
+      </div>
+      
+      <button 
+        className="login-theme-toggle" 
+        onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+        aria-label="Toggle Theme"
+      >
+        {theme === "light" ? <Moon size={20} /> : <Sun size={20} />}
+      </button>
+
       <div className="login-card">
         <div className="login-logo"><img src="/termflow-icon.svg" alt="TermFlow Logo" /></div>
         <h1 className="login-title">TermFlow</h1>
