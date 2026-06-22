@@ -1,12 +1,14 @@
 import { useState, useMemo } from "react";
-import { ArrowRight, Info, X, Settings2 } from "lucide-react";
+import { ArrowRight, Info, X, Settings2, Download } from "lucide-react";
 
 const AREA_LABEL = { "F&A": "Finance & Accounting", MKTG: "Marketing", ISM: "Information Systems", STM: "Strategy", OPS: "Operations", "OB&HR": "OB & HR", Other: "Other" };
 const AREA_ORDER = ["F&A", "MKTG", "ISM", "STM", "OPS", "OB&HR", "Other"];
 
-export default function Onboarding({ legend, sectionsByCode, onDone, initialPicked, onCancel, termLabel }) {
+export default function Onboarding({ legend, sectionsByCode, onDone, initialPicked, onCancel, termLabel, onPullFromSheet }) {
   const isEditing = !!initialPicked;
   const [picked, setPicked] = useState(() => initialPicked || {});
+  const [pulling, setPulling] = useState(false);
+  const [pullMsg, setPullMsg] = useState(null);
 
   const offered = (code) => {
     const s = (sectionsByCode && sectionsByCode[code]) || ["Single"];
@@ -26,6 +28,20 @@ export default function Onboarding({ legend, sectionsByCode, onDone, initialPick
   const allCodes = useMemo(() => Object.keys(legend || {}), [legend]);
   const count = Object.keys(picked).length;
   const allOn = count === allCodes.length && allCodes.length > 0;
+
+  async function handlePullFromSheet() {
+    if (!onPullFromSheet) return;
+    setPulling(true);
+    setPullMsg(null);
+    const allocation = await onPullFromSheet();
+    setPulling(false);
+    if (!allocation || Object.keys(allocation).length === 0) {
+      setPullMsg({ ok: false, text: "No allocation found for your account." });
+      return;
+    }
+    setPicked(allocation);
+    setPullMsg({ ok: true, text: `Filled ${Object.keys(allocation).length} subjects from timetable.` });
+  }
 
   const toggle = (code) => setPicked((p) => {
     const n = { ...p };
@@ -62,6 +78,16 @@ export default function Onboarding({ legend, sectionsByCode, onDone, initialPick
         <h1 className="ob-title">{isEditing ? "Edit your courses." : "Set up your timetable."}</h1>
         <p className="ob-sub">Pick your courses — and your section for each. We'll show only your classes, with no clashes.</p>
         <div className="ob-hint"><Info size={14} /> Your section can differ per course — choose A or B on each.</div>
+
+        {onPullFromSheet && (
+          <div className="ob-pull-row">
+            <button className="ob-pull-btn" onClick={handlePullFromSheet} disabled={pulling}>
+              <Download size={14} />
+              {pulling ? "Pulling…" : "Pull from timetable"}
+            </button>
+            {pullMsg && <span className={`ob-pull-msg${pullMsg.ok ? "" : " ob-pull-msg-err"}`}>{pullMsg.text}</span>}
+          </div>
+        )}
 
         <div className="ob-label-row">
           <span className="ob-label">Your courses &amp; sections</span>

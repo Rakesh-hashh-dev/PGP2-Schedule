@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, Suspense, lazy } from "react";
-import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, ChevronsLeft, ChevronsRight, ChevronRight, ChevronLeft, Megaphone, BarChart2 } from "lucide-react";
+import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, ChevronsLeft, ChevronsRight, ChevronRight, ChevronLeft, Megaphone, BarChart2, Shield, User, CloudOff } from "lucide-react";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
 import Timeline from "./components/Timeline.jsx";
@@ -8,7 +8,7 @@ import SubjectFilter from "./components/SubjectFilter.jsx";
 import Login from "./components/Login.jsx";
 import Onboarding from "./components/Onboarding.jsx";
 import WeatherWidget from "./components/WeatherWidget.jsx";
-import { getSnapshot, fetchSchedule } from "./lib/sheet.js";
+import { getSnapshot, fetchSchedule, sha256hex } from "./lib/sheet.js";
 import TermFlowLoader from "./components/TermFlowLoader.jsx";
 
 const AttendancePanel = lazy(() => import("./components/AttendancePanel.jsx"));
@@ -18,10 +18,12 @@ const RecentChanges = lazy(() => import("./components/RecentChanges.jsx"));
 const ExamsPanel = lazy(() => import("./components/ExamsPanel.jsx"));
 const NotificationsPage = lazy(() => import("./components/NotificationsPage.jsx"));
 const FullSchedulePage = lazy(() => import("./components/FullSchedulePage.jsx"));
+const AdminDashboard = lazy(() => import("./components/AdminDashboard.jsx"));
 const CommandPalette = lazy(() => import("./components/CommandPalette.jsx"));
 import { loadAttendance, saveAttendance, sessionKey, syncAttendanceFromCloud, pushMark } from "./lib/attendance.js";
 import { syncProfileFromCloud, pushProfile } from "./lib/profile.js";
 import { decodeSchedule, saveFriend, loadFriends, loadGroups, friendVisibleClasses, syncFriendsAndGroupsFromCloud } from "./lib/friends.js";
+import { supabase } from "./lib/supabase.js";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
@@ -57,11 +59,63 @@ function saveSetup(s) { try { localStorage.setItem(SETUP_KEY, JSON.stringify(s))
 
 const NOTIF_KEY = "pgp2-notif-seen";
 function loadLastSeen() { try { return parseInt(localStorage.getItem(NOTIF_KEY) || "0", 10); } catch { return 0; } }
+const ADMIN_EMAILS = [
+  "mba25rakeshb@iimsambalpur.ac.in",
+  "test@iimsambalpur.ac.in"
+];
 
 function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
+  const userEmail = user?.primaryEmailAddress?.emailAddress?.toLowerCase();
+  const isAdmin = userEmail && ADMIN_EMAILS.includes(userEmail);
+  const [adminMode, setAdminMode] = useState(false);
+  useEffect(() => { if (isAdmin) setAdminMode(true); }, [isAdmin]);
+  const showAdminUI = isAdmin && adminMode;
+  const [sysConfig, setSysConfig] = useState(null);
+
+  // --- Admin Advanced Features ---
+  const [impersonatedUser, setImpersonatedUser] = useState(null);
+  const originalStateRef = useRef(null);
+
+  const startImpersonation = async (targetUser) => {
+    // Save real state
+    originalStateRef.current = { enrolled, mine, setup, attendance };
+    setImpersonatedUser(targetUser);
+    
+    // Apply mocked profile data
+    if (targetUser.courses) {
+       setEnrolled(targetUser.courses);
+       setMine(new Set(Object.keys(targetUser.courses)));
+       setSetup({ courses: targetUser.courses });
+    }
+    
+    // Fetch and mock attendance
+    const { data } = await supabase.from("attendance").select("record").eq("user_id", targetUser.user_id).maybeSingle();
+    setAttendance(data?.record || {});
+  };
+
+  const stopImpersonation = () => {
+    if (originalStateRef.current) {
+      setEnrolled(originalStateRef.current.enrolled);
+      setMine(originalStateRef.current.mine);
+      setSetup(originalStateRef.current.setup);
+      setAttendance(originalStateRef.current.attendance);
+    }
+    setImpersonatedUser(null);
+  };
+  // -------------------------------
+
   const [scheduleData, setScheduleData] = useState(() => isSignedIn ? getSnapshot() : null);
-  const [now, setNow] = useState(new Date());
+  const [syncLogs, setSyncLogs] = useState([]);
+  const [realNow, setRealNow] = useState(new Date());
+  const [timeOverride, setTimeOverride] = useState(null);
+  const now = timeOverride ? new Date(timeOverride) : realNow;
   const [view, setView] = useState("today");
+  useEffect(() => {
+    if (!showAdminUI) {
+      if (view === "admin") setView("today");
+      setTimeOverride(null);
+    }
+  }, [view, showAdminUI]);
   const [weekOffset, setWeekOffset] = useState(0);
   const [format12, setFormat12] = useState(() => {
     try { return localStorage.getItem("pgp2.format12") !== "false"; } catch { return true; }
@@ -73,6 +127,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [mine, setMine] = useState(() => { const s = readSetup(); return s?.courses ? new Set(Object.keys(s.courses)) : null; });
   const [enrolled, setEnrolled] = useState(() => { const s = readSetup(); return s?.courses ?? null; });
   const [setup, setSetup] = useState(() => readSetup());
+  const [allocationApplied, setAllocationApplied] = useState(false);
   const [showSetupEdit, setShowSetupEdit] = useState(false);
   const [syncedAt, setSyncedAt] = useState(new Date());
   const [notifOpen, setNotifOpen] = useState(false);
@@ -149,12 +204,16 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     if (!userId) return;
     let alive = true;
     (async () => {
-      const [p, a, fg] = await Promise.all([
+      const [p, a, fg, sysConfigRes] = await Promise.all([
         syncProfileFromCloud(userId),
         syncAttendanceFromCloud(userId),
-        syncFriendsAndGroupsFromCloud(userId)
+        syncFriendsAndGroupsFromCloud(userId),
+        supabase.from("system_config").select("*").eq("id", "global").maybeSingle()
       ]);
       if (alive) {
+        if (sysConfigRes?.data) {
+          setSysConfig(sysConfigRes.data);
+        }
         if (p?.courses) {
           setEnrolled(p.courses);
           setMine(new Set(Object.keys(p.courses)));
@@ -200,6 +259,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         if (!alive) return;
         setScheduleData(data);
         setSyncedAt(new Date());
+        if (data._meta) setSyncLogs(prev => [data._meta, ...prev].slice(0, 1000));
       });
     load();
     const id = setInterval(load, 10 * 60 * 1000);
@@ -207,7 +267,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   }, [isSignedIn]);
 
   useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 20000);
+    const t = setInterval(() => setRealNow(new Date()), 20000);
     return () => clearInterval(t);
   }, []);
 
@@ -254,17 +314,79 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     }
   }, [scheduleData?.STUDENTS, user, enrolled, setup, userId]);
 
-  const { TERM, LEGEND, CLASSES, CHANGES } = scheduleData || { TERM: null, LEGEND: {}, CLASSES: [], CHANGES: [] };
+  // Auto-fill onboarding from the feed's STUDENTS map for brand-new users.
+  // Returning users keep their saved setup (localStorage or cloud) — the guards
+  // below bail out the moment any existing setup is detected.
+  useEffect(() => {
+    if (!scheduleData || !isSignedIn || allocationApplied) return;
+    // Wait for the cloud profile lookup so we don't race a cloud-restored setup.
+    if (userId && !cloudChecked) return;
+    if (setup || readSetup()) {
+      setAllocationApplied(true);
+      return;
+    }
+    const email = user?.primaryEmailAddress?.emailAddress;
+    if (!email) return;
+
+    let cancelled = false;
+    sha256hex(email.trim().toLowerCase()).then((hash) => {
+      if (cancelled) return;
+      const allocation = scheduleData.STUDENTS?.[hash];
+      if (!allocation || Object.keys(allocation).length === 0) {
+        setAllocationApplied(true);
+        return;
+      }
+      // Build the same shape handleOnboardingDone expects: { code: "A" | "B" | "Single" }
+      // Drop anything that isn't a real, joinable section (e.g. "Audit").
+      const courses = {};
+      Object.entries(allocation).forEach(([code, section]) => {
+        const s = String(section).trim();
+        if (s === "A" || s === "B" || s === "Single") courses[code] = s;
+      });
+      if (Object.keys(courses).length > 0) {
+        const s = { courses };
+        saveSetup(s);
+        setSetup(s);
+        setEnrolled(courses);
+        setMine(new Set(Object.keys(courses)));
+        if (userId) pushProfile(userId, courses, user?.firstName || user?.username || "Student");
+      }
+      setAllocationApplied(true);
+    });
+    return () => { cancelled = true; };
+  }, [scheduleData, isSignedIn, allocationApplied, cloudChecked, setup, userId, user]);
+
+  // Apply Admin Overrides (Term data & Cancellations)
+  const sd = useMemo(() => {
+    if (!scheduleData) return null;
+    let data = { ...scheduleData };
+    if (sysConfig?.flags) {
+      if (sysConfig.flags.termData) {
+        data.TERM = { ...data.TERM, ...sysConfig.flags.termData };
+      }
+      if (sysConfig.flags.classOverrides) {
+        const overrides = sysConfig.flags.classOverrides;
+        data.CLASSES = data.CLASSES.map(c => {
+          const classOverride = overrides[c.date]?.[c.code];
+          return classOverride ? { ...c, ...classOverride } : c;
+        });
+      }
+    }
+    return data;
+  }, [scheduleData, sysConfig]);
+
+  const { TERM, LEGEND, CLASSES, CHANGES } = sd || { TERM: null, LEGEND: {}, CLASSES: [], CHANGES: [] };
 
   const sectionsByCode = useMemo(() => {
+    if (!sd) return {};
     const m = {};
-    CLASSES.forEach((c) => {
+    sd.CLASSES.forEach((c) => {
       if (c.type === "class" && c.code) (m[c.code] = m[c.code] || new Set()).add(c.section);
     });
     const out = {};
     Object.keys(m).forEach((k) => { out[k] = [...m[k]].sort(); });
     return out;
-  }, [CLASSES]);
+  }, [sd]);
 
   const visible = useMemo(() => {
     if (!enrolled || !mine) return [];
@@ -320,6 +442,21 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   }, [visible, now]);
 
   const syncedAgo = Math.max(0, Math.round((now - syncedAt) / 60000));
+
+  async function buildAllocationFromSheet() {
+    const students = scheduleData?.STUDENTS;
+    const email = user?.primaryEmailAddress?.emailAddress;
+    if (!students || !email) return null;
+    const hash = await sha256hex(email.trim().toLowerCase());
+    const allocation = students[hash];
+    if (!allocation || Object.keys(allocation).length === 0) return null;
+    const courses = {};
+    Object.entries(allocation).forEach(([code, section]) => {
+      const s = String(section).trim();
+      if (s === "A" || s === "B" || s === "Single") courses[code] = s;
+    });
+    return Object.keys(courses).length > 0 ? courses : null;
+  }
 
   function handleOnboardingDone(courses) {
     const s = { courses };
@@ -385,7 +522,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       const data = await fetchSchedule(true);
       setScheduleData(data);
       setSyncedAt(new Date());
-      setNow(new Date());
+      setRealNow(new Date());
+      if (data._meta) setSyncLogs(prev => [data._meta, ...prev].slice(0, 1000));
       if (premiumMode && navigator.vibrate) navigator.vibrate([10, 40, 10]);
     } catch (e) {
       if (premiumMode && navigator.vibrate) navigator.vibrate([50, 100, 50]);
@@ -401,11 +539,47 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   if (!isSignedIn) return <Login />;
   if (!scheduleData) return <div className="loading-screen"><TermFlowLoader size={72} /></div>;
   if (userId && !setup && !cloudChecked) return <div className="loading-screen"><TermFlowLoader size={72} /></div>;
-  if (!setup) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} termLabel={termLabel} />;
-  if (showSetupEdit) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} initialPicked={enrolled} onCancel={() => setShowSetupEdit(false)} termLabel={termLabel} />;
+  if (!setup) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} termLabel={termLabel} onPullFromSheet={buildAllocationFromSheet} />;
+  if (showSetupEdit) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} initialPicked={enrolled} onCancel={() => setShowSetupEdit(false)} termLabel={termLabel} onPullFromSheet={buildAllocationFromSheet} />;
+
+  // Banned User Lockout
+  if (sysConfig?.flags?.bannedUsers?.includes(userId) && !isAdmin) {
+    return (
+      <div className="login-screen" style={{ flexDirection: "column", gap: 20 }}>
+        <ShieldAlert size={64} color="var(--danger, #e74c3c)" style={{ filter: "drop-shadow(0 4px 12px rgba(231,76,60,0.3))" }} />
+        <h1 style={{ fontSize: 24, fontWeight: 800, color: "var(--text)", margin: 0 }}>Account Suspended</h1>
+        <p style={{ color: "var(--muted)", maxWidth: 300, textAlign: "center", lineHeight: 1.5, margin: 0 }}>
+          Your access to TermFlow has been revoked. Please contact administration.
+        </p>
+      </div>
+    );
+  }
+
+  if (sysConfig?.flags?.maintenanceMode && !isAdmin) {
+    return (
+      <div className="login-screen" style={{ flexDirection: "column", gap: 20 }}>
+        <CloudOff size={64} color="var(--danger, #e74c3c)" style={{ filter: "drop-shadow(0 4px 12px rgba(231,76,60,0.3))" }} />
+        <h1 style={{ fontSize: 24, fontWeight: 800, color: "var(--text)", margin: 0 }}>Under Maintenance</h1>
+        <p style={{ color: "var(--muted)", maxWidth: 300, textAlign: "center", lineHeight: 1.5, margin: 0 }}>
+          TermFlow is currently undergoing scheduled maintenance. Please check back later.
+        </p>
+        <button className="cva-btn primary" onClick={() => window.location.reload()} style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 8 }}>
+          <RefreshCw size={16} /> Refresh Page
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="app-shell">
+      {/* ── Impersonation Banner ── */}
+      {impersonatedUser && (
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, background: "var(--amber)", color: "#000", padding: "8px 16px", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "space-between", fontWeight: 700, fontSize: 13, borderBottom: "1px solid rgba(0,0,0,0.1)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}><ShieldAlert size={16} /> Impersonating: {impersonatedUser.name || impersonatedUser.user_id}</div>
+          <button onClick={stopImpersonation} style={{ background: "rgba(0,0,0,0.15)", border: "none", padding: "4px 10px", borderRadius: 4, cursor: "pointer", fontWeight: 700, color: "#000", fontSize: 12 }}>Exit</button>
+        </div>
+      )}
+
       {/* ── Desktop Sidebar ── */}
       <aside className={`sidebar${sidebarCollapsed ? " collapsed" : ""}`}>
         <div className="sb-brand">
@@ -441,6 +615,11 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           <button className={`sb-link${view === "friends" ? " on" : ""}`} onClick={() => { setView("friends"); setCompareTarget(null); }}>
             <Users size={18} /><span className="sb-link-label">Friends</span> <span className="beta-badge">Beta</span>
           </button>
+          {showAdminUI && (
+            <button className={`sb-link${view === "admin" ? " on" : ""}`} onClick={() => { setView("admin"); setCompareTarget(null); }}>
+              <Shield size={18} /><span className="sb-link-label" style={{ color: "var(--live)" }}>Admin Tools</span>
+            </button>
+          )}
         </nav>
 
         <div className="sb-bottom">
@@ -448,6 +627,16 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             <button className="sb-icon-btn" onClick={() => setShowSetupEdit(true)} aria-label="Edit setup"><Settings2 size={16} /></button>
             <button className="sb-icon-btn" onClick={handleSync} aria-label="Refresh"><RefreshCw size={16} className={syncing ? "spin-icon" : ""} /></button>
             <button className="sb-icon-btn" onClick={() => signOut()} aria-label="Log out"><LogOut size={16} /></button>
+            {isAdmin && (
+              <button 
+                className="sb-icon-btn" 
+                onClick={() => setAdminMode(!adminMode)} 
+                aria-label="Toggle Admin Mode"
+                style={adminMode ? { color: "var(--live)", borderColor: "var(--live)" } : {}}
+              >
+                {adminMode ? <Shield size={16} /> : <User size={16} />}
+              </button>
+            )}
           </div>
           <button className="sb-toggle" onClick={toggleSidebar}>
             {sidebarCollapsed ? <ChevronsRight size={16} /> : <ChevronsLeft size={16} />}
@@ -459,13 +648,19 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 {user?.imageUrl ? <img src={user.imageUrl} alt="" /> : (user?.firstName?.[0] || "?")}
               </div>
               <div className="sb-avatar-info">
-                <span className="sb-avatar-name">{user?.fullName || "Student"}</span>
+                <span className="sb-avatar-name">
+                  {user?.fullName || "Student"}
+                  {showAdminUI && <span className="admin-badge">Admin</span>}
+                </span>
                 <span className="sb-avatar-email">{user?.primaryEmailAddress?.emailAddress || ""}</span>
                 <span className="sb-avatar-batch">PGP2 · 2025–27</span>
               </div>
             </button>
             <div className="sb-profile-pop">
-              <div className="sb-pop-name">{user?.fullName || "Student"}</div>
+              <div className="sb-pop-name">
+                {user?.fullName || "Student"}
+                {showAdminUI && <span className="admin-badge">Admin</span>}
+              </div>
               <div className="sb-pop-email">{user?.primaryEmailAddress?.emailAddress || ""}</div>
               <span className="sb-pop-batch">PGP2 · 2025–27</span>
               <div className="sb-pop-sep" />
@@ -546,6 +741,12 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       </div>
                     </div>
                     <div className="over-sep" />
+                    {isAdmin && (
+                      <button onClick={() => { setAdminMode(!adminMode); setProfileOpen(false); }}>
+                        {adminMode ? <User size={14} /> : <Shield size={14} />}
+                        {adminMode ? "Exit Admin Mode" : "Enter Admin Mode"}
+                      </button>
+                    )}
                     <button className="over-danger" onClick={() => { signOut(); setProfileOpen(false); }}>
                       <LogOut size={14} /> Sign out
                     </button>
@@ -579,6 +780,12 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       {syncing ? "Syncing…" : "Refresh"}
                     </button>
                     <div className="over-sep" />
+                    {isAdmin && (
+                      <button onClick={() => { setAdminMode(!adminMode); setOverflowOpen(false); }}>
+                        {adminMode ? <User size={14} /> : <Shield size={14} />}
+                        {adminMode ? "Exit Admin Mode" : "Enter Admin Mode"}
+                      </button>
+                    )}
                     <button className="over-danger" onClick={() => { signOut(); setOverflowOpen(false); }}>
                       <LogOut size={14} /> Sign out
                     </button>
@@ -728,7 +935,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                         />
                         : view === "notifications"
                           ? <NotificationsPage allChanges={CHANGES} myChanges={filteredChanges} />
-                          : view === "fullSchedule"
+                          : view === "admin" && isAdmin
+                            ? <AdminDashboard user={user} startImpersonation={startImpersonation} syncLogs={syncLogs} timeOverride={timeOverride} setTimeOverride={setTimeOverride} />
+                            : view === "fullSchedule"
                             ? <FullSchedulePage allClasses={CLASSES} enrolled={enrolled} legend={enrolledLegend} termLabel={termLabel} onBack={() => setView("today")} />
                             : todayList.length === 0 && tomorrowList.length === 0
                             ? premiumMode && syncing 
