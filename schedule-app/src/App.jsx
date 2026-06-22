@@ -781,6 +781,11 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       {syncing ? "Syncing…" : "Refresh"}
                     </button>
                     <div className="over-sep" />
+                    {showAdminUI && (
+                      <button onClick={() => { setView("admin"); setCompareTarget(null); setOverflowOpen(false); }} style={{ color: "var(--live)" }}>
+                        <Shield size={14} color="var(--live)" /> Admin Dashboard
+                      </button>
+                    )}
                     {isAdmin && (
                       <button onClick={() => { setAdminMode(!adminMode); setOverflowOpen(false); }}>
                         {adminMode ? <User size={14} /> : <Shield size={14} />}
@@ -830,11 +835,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 <button className={`tab ${view === "friends" ? "on" : ""}`} onClick={() => { setView("friends"); setCompareTarget(null); }}>
                   <Users size={15} /> Friends <span className="beta-badge">Beta</span>
                 </button>
-                {showAdminUI && (
-                  <button className={`tab ${view === "admin" ? "on" : ""}`} onClick={() => { setView("admin"); setCompareTarget(null); }}>
-                    <Shield size={15} color="var(--live)" /> <span style={{ color: "var(--live)" }}>Admin</span>
-                  </button>
-                )}
               </nav>
               {showLeftScroll && (
                 <button
