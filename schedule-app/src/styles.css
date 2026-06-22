@@ -1818,6 +1818,20 @@ button:focus-visible {
 .att-sp.att-sp-p { background: var(--live); }
 .att-sp.att-sp-a { background: #C0392B; }
 .att-spark-pct { margin-left: 8px; font-size: 12px; }
+.att-spark-wrap { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; }
+.att-trend-svg { width: 100%; height: 30px; display: block; border-radius: 4px; overflow: hidden; }
+/* Exam course progress dot trail */
+.exam-dot-trail { display: flex; flex-wrap: wrap; gap: 3px; padding: 4px 0 2px; }
+.exam-sp { width: 7px; height: 7px; border-radius: 2px; flex: none; }
+.exam-sp-present { background: var(--live); opacity: .85; }
+.exam-sp-absent  { background: #C0392B; opacity: .85; }
+.exam-sp-unmarked { background: rgba(255,255,255,.22); }
+.exam-sp-future   { background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.15); }
+.exam-cc-att { font-weight: 600; }
+.exam-cc-att.att-good { color: var(--live); }
+.exam-cc-att.att-warn { color: var(--amber); }
+.exam-cc-att.att-bad  { color: #C0392B; }
+.exam-cc-next { color: var(--muted); font-style: italic; }
 
 /* Session edit list (expanded) */
 @keyframes att-slide-in { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
