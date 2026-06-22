@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { ArrowLeft, Columns, Layers, Clock, BookOpen, UserCheck, Sparkles, ChevronDown } from "lucide-react";
+import { ArrowLeft, Columns, Layers, Clock, BookOpen, UserCheck, Sparkles, ChevronDown, Copy, Check } from "lucide-react";
 import { findFreeSlots, findGroupFreeSlots, scheduleInsights, friendVisibleClasses } from "../lib/friends.js";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
@@ -86,6 +86,7 @@ export default function CompareView({
   const [viewMode, setViewMode] = useState("merged"); // "merged" | "side"
   const [dayFilter, setDayFilter] = useState("today"); // "today", "tomorrow", "week"
   const [customRange, setCustomRange] = useState({ start: ymd(now), end: ymd(now) });
+  const [slotsCopied, setSlotsCopied] = useState(false);
 
   const selectedDates = useMemo(() => {
     if (dayFilter === "today") return [ymd(now)];
@@ -147,6 +148,21 @@ export default function CompareView({
   }, [mode, friendData, groupData]);
 
   const label = mode === "friend" ? friendData?.name : groupData?.name;
+
+  function copyFreeSlots() {
+    if (!freeSlots.length) return;
+    const header = `Free time with ${label}:`;
+    const lines = freeSlots.map(s => {
+      const datePart = ["3","7","14","30","custom"].includes(dayFilter)
+        ? `${new Date(s.date).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })} · `
+        : "";
+      return `• ${datePart}${fmtTime(s.start)} – ${fmtTime(s.end)} (${fmtDuration(s.durationMin)})`;
+    });
+    navigator.clipboard.writeText(`${header}\n${lines.join("\n")}`).then(() => {
+      setSlotsCopied(true);
+      setTimeout(() => setSlotsCopied(false), 2000);
+    });
+  }
 
   // My classes for the selected dates
   const myDayClasses = useMemo(
@@ -295,106 +311,121 @@ export default function CompareView({
         )}
       </div>
 
-      {/* Free time summary */}
-      {freeSlots.length > 0 && (
-        <div className="cv-free-summary">
-          <Sparkles size={15} />
-          <span>{freeSlots.length} free slot{freeSlots.length !== 1 ? "s" : ""} found</span>
-        </div>
-      )}
-
-      {/* Timeline */}
-      {viewMode === "merged" ? (
-        <MergedTimeline
-          myClasses={myDayClasses}
-          targetClasses={targetDayClasses}
-          targets={targets}
-          freeSlots={freeSlots}
-          blockStyle={blockStyle}
-          TOTAL_MIN={TOTAL_MIN}
-          DAY_START={DAY_START}
-          DAY_END={DAY_END}
-          legend={legend}
-          dayFilter={dayFilter}
-        />
-      ) : (
-        <SideBySide
-          myClasses={myDayClasses}
-          targetClasses={targetDayClasses}
-          targets={targets}
-          freeSlots={freeSlots}
-          blockStyle={blockStyle}
-          TOTAL_MIN={TOTAL_MIN}
-          DAY_START={DAY_START}
-          DAY_END={DAY_END}
-          legend={legend}
-          userName={/* current user name */ "You"}
-          dayFilter={dayFilter}
-        />
-      )}
-
-      {/* Free time blocks detail */}
-      <section className="cv-free-section">
-        <h3 className="cv-section-title"><Clock size={15} /> Matching Free Time</h3>
-        {freeSlots.length === 0 ? (
-          <p className="cv-empty">No common free time on this day.</p>
-        ) : (
-          <div className="cv-free-list">
-            {freeSlots.map((slot, i) => (
-              <div key={i} className="cv-free-block">
-                <div className="cv-free-time">
-                  <span className="cv-free-range">
-                    {["3", "7", "14", "30", "custom"].includes(dayFilter) && <span style={{opacity: 0.7, marginRight: "8px"}}>{new Date(slot.date).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</span>}
-                    {fmtTime(slot.start)} – {fmtTime(slot.end)}
-                  </span>
-                  <span className="cv-free-dur">{fmtDuration(slot.durationMin)} free</span>
-                </div>
-                <div className="cv-free-bar">
-                  <div className="cv-free-bar-fill" style={{ width: `${Math.min(100, (slot.durationMin / 120) * 100)}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* Insights */}
-      <section className="cv-insights">
-        <h3 className="cv-section-title"><BookOpen size={15} /> Schedule Insights</h3>
-        <div className="cv-insight-grid">
-          {insights.sameClass.length > 0 && (
-            <div className="cv-insight-card cv-insight-same">
-              <UserCheck size={18} />
-              <div>
-                <span className="cv-insight-num">{insights.sameClass.length}</span>
-                <span className="cv-insight-label">Same class{insights.sameClass.length !== 1 ? "es" : ""}</span>
-              </div>
-              <div className="cv-insight-detail">
-                {insights.sameClass.map(sc => (
-                  <span key={sc.code} className="cv-insight-tag">{legend[sc.code]?.name || sc.code} ({sc.section})</span>
-                ))}
-              </div>
+      <div className="cv-body-grid">
+        {/* Left / main column: free summary + timeline */}
+        <div className="cv-body-main">
+          {/* Free time summary */}
+          {freeSlots.length > 0 && (
+            <div className="cv-free-summary">
+              <Sparkles size={15} />
+              <span>{freeSlots.length} free slot{freeSlots.length !== 1 ? "s" : ""} found</span>
             </div>
           )}
-          {insights.matching.length > 0 && (
-            <div className="cv-insight-card cv-insight-match">
-              <BookOpen size={18} />
-              <div>
-                <span className="cv-insight-num">{insights.matching.length}</span>
-                <span className="cv-insight-label">Matching subject{insights.matching.length !== 1 ? "s" : ""}</span>
-              </div>
-              <div className="cv-insight-detail">
-                {insights.matching.map(code => (
-                  <span key={code} className="cv-insight-tag">{legend[code]?.name || code}</span>
-                ))}
-              </div>
-            </div>
-          )}
-          {insights.matching.length === 0 && insights.sameClass.length === 0 && (
-            <p className="cv-empty">No matching courses found.</p>
+
+          {/* Timeline */}
+          {viewMode === "merged" ? (
+            <MergedTimeline
+              myClasses={myDayClasses}
+              targetClasses={targetDayClasses}
+              targets={targets}
+              freeSlots={freeSlots}
+              blockStyle={blockStyle}
+              TOTAL_MIN={TOTAL_MIN}
+              DAY_START={DAY_START}
+              DAY_END={DAY_END}
+              legend={legend}
+              dayFilter={dayFilter}
+            />
+          ) : (
+            <SideBySide
+              myClasses={myDayClasses}
+              targetClasses={targetDayClasses}
+              targets={targets}
+              freeSlots={freeSlots}
+              blockStyle={blockStyle}
+              TOTAL_MIN={TOTAL_MIN}
+              DAY_START={DAY_START}
+              DAY_END={DAY_END}
+              legend={legend}
+              userName={/* current user name */ "You"}
+              dayFilter={dayFilter}
+            />
           )}
         </div>
-      </section>
+
+        {/* Right / side column: free slots detail + insights */}
+        <div className="cv-body-side">
+          {/* Free time blocks detail */}
+          <section className="cv-free-section">
+            <div className="cv-free-section-head">
+              <h3 className="cv-section-title"><Clock size={15} /> Matching Free Time</h3>
+              {freeSlots.length > 0 && (
+                <button className="cv-copy-btn" onClick={copyFreeSlots}>
+                  {slotsCopied ? <><Check size={13} /> Copied!</> : <><Copy size={13} /> Copy</>}
+                </button>
+              )}
+            </div>
+            {freeSlots.length === 0 ? (
+              <p className="cv-empty">No common free time on this day.</p>
+            ) : (
+              <div className="cv-free-list">
+                {freeSlots.map((slot, i) => (
+                  <div key={i} className="cv-free-block">
+                    <div className="cv-free-time">
+                      <span className="cv-free-range">
+                        {["3", "7", "14", "30", "custom"].includes(dayFilter) && <span style={{opacity: 0.7, marginRight: "8px"}}>{new Date(slot.date).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</span>}
+                        {fmtTime(slot.start)} – {fmtTime(slot.end)}
+                      </span>
+                      <span className="cv-free-dur">{fmtDuration(slot.durationMin)} free</span>
+                    </div>
+                    <div className="cv-free-bar">
+                      <div className="cv-free-bar-fill" style={{ width: `${Math.min(100, (slot.durationMin / 120) * 100)}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* Insights */}
+          <section className="cv-insights">
+            <h3 className="cv-section-title"><BookOpen size={15} /> Schedule Insights</h3>
+            <div className="cv-insight-grid">
+              {insights.sameClass.length > 0 && (
+                <div className="cv-insight-card cv-insight-same">
+                  <UserCheck size={18} />
+                  <div>
+                    <span className="cv-insight-num">{insights.sameClass.length}</span>
+                    <span className="cv-insight-label">Same class{insights.sameClass.length !== 1 ? "es" : ""}</span>
+                  </div>
+                  <div className="cv-insight-detail">
+                    {insights.sameClass.map(sc => (
+                      <span key={sc.code} className="cv-insight-tag">{legend[sc.code]?.name || sc.code} ({sc.section})</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {insights.matching.length > 0 && (
+                <div className="cv-insight-card cv-insight-match">
+                  <BookOpen size={18} />
+                  <div>
+                    <span className="cv-insight-num">{insights.matching.length}</span>
+                    <span className="cv-insight-label">Matching subject{insights.matching.length !== 1 ? "s" : ""}</span>
+                  </div>
+                  <div className="cv-insight-detail">
+                    {insights.matching.map(code => (
+                      <span key={code} className="cv-insight-tag">{legend[code]?.name || code}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {insights.matching.length === 0 && insights.sameClass.length === 0 && (
+                <p className="cv-empty">No matching courses found.</p>
+              )}
+            </div>
+          </section>
+        </div>{/* /cv-body-side */}
+      </div>{/* /cv-body-grid */}
     </div>
   );
 }

@@ -923,9 +923,21 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       setFriends={setFriends}
                       groups={groups}
                       setGroups={setGroups}
+                      myClasses={visible}
+                      allClasses={CLASSES}
+                      now={now}
                       onCompare={(f) => setCompareTarget({ mode: "friend", friendData: f })}
                       onGroupCompare={(g) => {
-                        const members = (g.memberIds || []).map(id => friends.find(f => f.id === id)).filter(Boolean).map(f => ({ name: f.name, courses: f.courses }));
+                        let members;
+                        if (g.isReceived && g.cloudMemberIds) {
+                          members = g.cloudMemberIds
+                            .filter(cid => cid !== userId)
+                            .map(cid => friends.find(f => f.cloudId === cid))
+                            .filter(Boolean)
+                            .map(f => ({ name: f.name, courses: f.courses }));
+                        } else {
+                          members = (g.memberIds || []).map(id => friends.find(f => f.id === id)).filter(Boolean).map(f => ({ name: f.name, courses: f.courses }));
+                        }
                         setCompareTarget({ mode: "group", groupData: { name: g.name, members } });
                       }}
                     />

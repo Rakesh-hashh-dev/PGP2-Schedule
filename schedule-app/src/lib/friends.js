@@ -26,8 +26,26 @@ function generateRandomCode(len = 4) {
 
 export async function getOrCreateShareCode(userId, name) {
   if (!userId) return null;
+
+  // Fast path: already cached on this device
   const cached = localStorage.getItem(MY_CODE_KEY);
   if (cached) return cached;
+
+  // Check Supabase — same account on another device may have already created a code
+  try {
+    const { data } = await supabase
+      .from("share_codes")
+      .select("code")
+      .eq("user_id", userId)
+      .limit(1)
+      .maybeSingle();
+    if (data?.code) {
+      localStorage.setItem(MY_CODE_KEY, data.code);
+      return data.code;
+    }
+  } catch { /* fall through to generate */ }
+
+  // No existing code anywhere — generate a new one
   const code = await encodeSchedule(userId, name);
   if (code) {
     localStorage.setItem(MY_CODE_KEY, code);
@@ -481,6 +499,105 @@ export async function pushFriendsToCloud(userId, friends) {
 export async function pushGroupsToCloud(userId, groups) {
   if (!userId) return;
   await supabase.from("profiles").upsert({ user_id: userId, groups }, { onConflict: "user_id" });
+}
+
+// ── Friend Pings (who added you) ────────────────────────────────
+
+export async function sendFriendPing(targetUserId, fromUserId, fromName) {
+  if (!targetUserId || !fromUserId || targetUserId === fromUserId) return;
+  try {
+    await supabase.from("friend_pings").insert({
+      target_id: targetUserId,
+      from_id: fromUserId,
+      from_name: fromName || "Someone",
+    });
+  } catch { /* silent */ }
+}
+
+export async function fetchAndClearFriendPings(userId) {
+  if (!userId) return [];
+  try {
+    const { data } = await supabase
+      .from("friend_pings")
+      .select("*")
+      .eq("target_id", userId)
+      .order("created_at", { ascending: false });
+    if (data?.length) {
+      await supabase.from("friend_pings").delete().eq("target_id", userId);
+    }
+    return data || [];
+  } catch { return []; }
+}
+
+/**
+ * Push this group (as a read-only "received" copy) to every cloud-linked friend in the group.
+ * Returns { cloudMemberIds } — the full list including the owner's own userId.
+ */
+/**
+ * @param targetFriends — the pre-filtered list of friends to push to.
+ *   Pass only group members for "shared", pass all friends for "global".
+ */
+export async function shareGroupWithMembers(userId, userName, group, targetFriends) {
+  const cloudFriendsInGroup = (targetFriends || []).filter(f => f.cloudId);
+  if (!cloudFriendsInGroup.length) return { cloudMemberIds: [userId] };
+
+  const memberCloudIds = cloudFriendsInGroup.map(f => f.cloudId);
+  const allCloudIds = [userId, ...memberCloudIds];
+
+  const receivedGroup = {
+    id: group.id,
+    name: group.name,
+    memberIds: [],
+    cloudMemberIds: allCloudIds,
+    visibility: "shared",
+    isReceived: true,
+    ownerId: userId,
+    ownerName: userName,
+    createdAt: group.createdAt || new Date().toISOString(),
+  };
+
+  for (const memberId of memberCloudIds) {
+    try {
+      const { data } = await supabase
+        .from("profiles")
+        .select("groups")
+        .eq("user_id", memberId)
+        .maybeSingle();
+
+      const existing = (data?.groups || []).filter(g => !(g.id === group.id && g.isReceived));
+      existing.push(receivedGroup);
+
+      await supabase.from("profiles").upsert(
+        { user_id: memberId, groups: existing },
+        { onConflict: "user_id" }
+      );
+    } catch { /* silent */ }
+  }
+
+  return { cloudMemberIds: allCloudIds };
+}
+
+/**
+ * Remove the shared group copy from all cloud members' profiles.
+ * Skips ownerId so the owner's own copy is untouched.
+ */
+export async function unshareGroupFromMembers(groupId, cloudMemberIds, ownerId) {
+  for (const memberId of (cloudMemberIds || [])) {
+    if (memberId === ownerId) continue;
+    try {
+      const { data } = await supabase
+        .from("profiles")
+        .select("groups")
+        .eq("user_id", memberId)
+        .maybeSingle();
+
+      const updated = (data?.groups || []).filter(g => g.id !== groupId);
+      await supabase.from("profiles").upsert(
+        { user_id: memberId, groups: updated },
+        { onConflict: "user_id" }
+      );
+    } catch { /* silent */ }
+  }
 }
 
 /**

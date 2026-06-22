@@ -2782,6 +2782,53 @@ button:focus-visible {
 }
 .fr-member-chip.in .fr-member-initial { background: rgba(255,255,255,0.25); color: #fff; }
 
+/* Shared group badge (received groups) */
+.fr-group-shared-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 12px; font-weight: 600;
+  color: #818cf8;
+  background: rgba(129,140,248,0.12);
+  padding: 2px 8px; border-radius: 20px;
+}
+
+/* Received group card — subtle left accent */
+.fr-group-received { border-color: rgba(129,140,248,0.25); }
+.fr-group-received::before { background: linear-gradient(90deg, #818cf8, #a78bfa) !important; }
+
+/* Privacy status badge shown in group card header */
+.fr-privacy-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 600; font-family: var(--body);
+  padding: 3px 9px; border-radius: 20px; flex: none;
+}
+.fr-privacy-badge-private { color: rgba(255,255,255,0.38); background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08); }
+.fr-privacy-badge-shared  { color: #93c5fd; background: rgba(96,165,250,0.12); border: 1px solid rgba(96,165,250,0.25); }
+.fr-privacy-badge-global  { color: #6ee7b7; background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.25); }
+
+/* Privacy picker row inside expanded group body */
+.fr-privacy-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 0 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  margin-bottom: 16px;
+}
+.fr-privacy-label { font-family: var(--body); font-size: 13px; color: rgba(255,255,255,0.4); font-weight: 500; flex: none; }
+.fr-privacy-picker { display: flex; gap: 6px; flex-wrap: wrap; }
+.fr-privacy-opt {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;
+  font-family: var(--body);
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.40);
+  cursor: pointer; transition: all .2s ease;
+}
+.fr-privacy-opt:hover:not(:disabled) { border-color: rgba(255,255,255,0.20); color: rgba(255,255,255,0.7); background: rgba(255,255,255,0.08); }
+.fr-privacy-opt:disabled { opacity: 0.5; cursor: default; }
+.fr-privacy-opt-private.on { background: rgba(255,255,255,0.09); color: #fff; border-color: rgba(255,255,255,0.22); }
+.fr-privacy-opt-shared.on  { background: rgba(96,165,250,0.15); color: #93c5fd; border-color: rgba(96,165,250,0.40); }
+.fr-privacy-opt-global.on  { background: rgba(16,185,129,0.15); color: #6ee7b7; border-color: rgba(16,185,129,0.40); }
+
 /* Friends list */
 .fr-friend-list { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
 .fr-friend-card {
@@ -2826,6 +2873,66 @@ button:focus-visible {
 }
 @keyframes toast-in { from { opacity: 0; transform: translateX(-50%) translateY(16px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
 @keyframes toast-out { from { opacity: 1; } to { opacity: 0; transform: translateX(-50%) translateY(-8px); } }
+
+/* ── Friend Pings (incoming notifications) ── */
+.fr-pings-section {
+  background: linear-gradient(135deg, rgba(251,191,36,.07) 0%, rgba(245,158,11,.09) 100%);
+  border: 1px solid rgba(245,158,11,.28); border-radius: 18px; padding: 18px 20px;
+  display: flex; flex-direction: column; gap: 10px;
+  box-shadow: 0 4px 18px rgba(245,158,11,.06);
+}
+.fr-pings-header {
+  display: flex; align-items: center; justify-content: space-between;
+}
+.fr-pings-title {
+  display: flex; align-items: center; gap: 7px;
+  font-family: var(--display); font-weight: 700; font-size: 13px;
+  color: #92400e; text-transform: uppercase; letter-spacing: .04em;
+}
+.fr-ping-card {
+  display: flex; align-items: center; gap: 12px;
+  background: rgba(255,255,255,.55); border: 1px solid rgba(245,158,11,.18);
+  border-radius: 12px; padding: 10px 14px;
+}
+.fr-ping-avatar {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: linear-gradient(135deg, #F59E0B 0%, #EF4444 100%);
+  color: #fff; font-size: 14px; font-weight: 800;
+  display: grid; place-items: center; flex: none;
+  font-family: var(--display);
+}
+.fr-ping-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.fr-ping-name { font-weight: 700; font-size: 14px; color: #1c1917; }
+.fr-ping-sub { font-size: 12px; color: #78716c; font-weight: 500; }
+.fr-ping-time { font-size: 11.5px; color: #a8a29e; font-weight: 600; white-space: nowrap; flex: none; }
+
+/* ── Friend free/busy status ── */
+.fr-friend-meta-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.fr-friend-status {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 12px; font-weight: 600; padding: 2px 8px;
+  border-radius: 20px; white-space: nowrap;
+}
+.fr-friend-status-free {
+  background: rgba(31,169,113,.10); color: var(--live);
+  border: 1px solid rgba(31,169,113,.22);
+}
+.fr-friend-status-busy {
+  background: rgba(100,116,139,.08); color: var(--muted);
+  border: 1px solid var(--border);
+}
+.fr-friend-status-dot {
+  width: 6px; height: 6px; border-radius: 50%; flex: none;
+}
+.fr-friend-status-free .fr-friend-status-dot {
+  background: var(--live);
+  box-shadow: 0 0 0 2px rgba(31,169,113,.25);
+  animation: pulse-dot 2s infinite;
+}
+.fr-friend-status-busy .fr-friend-status-dot { background: var(--muted); }
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; } 50% { opacity: .4; }
+}
 
 /* ── Compare View ── */
 .cv-page { display: flex; flex-direction: column; gap: 16px; }
@@ -2901,6 +3008,21 @@ button:focus-visible {
 }
 .cv-range-input:focus { border-color: var(--violet); }
 .cv-range-arrow { font-size: 16px; color: var(--muted); margin-top: 14px; }
+
+/* Free section header + copy button */
+.cv-free-section-head {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;
+}
+.cv-free-section-head .cv-section-title { margin: 0; }
+.cv-copy-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1.5px solid var(--border); background: var(--card); color: var(--muted);
+  border-radius: 10px; padding: 6px 14px;
+  font-family: var(--body); font-weight: 600; font-size: 12.5px;
+  cursor: pointer; transition: all .15s; white-space: nowrap;
+}
+.cv-copy-btn:hover { border-color: var(--violet); color: var(--violet); background: rgba(105,56,239,.05); }
+.cv-copy-btn:active { transform: scale(.95); }
 
 /* Free summary */
 .cv-free-summary {
@@ -3174,44 +3296,97 @@ button:focus-visible {
   .fs-meta-item { font-size: 11.5px; }
 }
 
-/* ── Friends & Compare Responsive ── */
-@media (max-width: 600px) {
+/* ── Friends & Compare — Layout wrappers ── */
+
+/* Mobile-first: single column */
+.fr-layout { display: flex; flex-direction: column; gap: 20px; }
+.fr-left-col, .fr-right-col { display: flex; flex-direction: column; gap: 20px; }
+
+/* cv-body-grid: single column on mobile, 2-col on desktop */
+.cv-body-grid { display: flex; flex-direction: column; gap: 16px; }
+.cv-body-main { display: flex; flex-direction: column; gap: 16px; }
+.cv-body-side { display: flex; flex-direction: column; gap: 16px; }
+
+/* ── Small mobile (< 480px) ── */
+@media (max-width: 480px) {
+  .fr-page { gap: 14px; padding-top: 10px; }
+  .fr-share-card { padding: 16px; border-radius: 14px; }
+  .fr-share-head h2 { font-size: 17px; }
+  .fr-code-display { padding: 10px; margin-bottom: 10px; }
+  .fr-code-text { font-size: 15px; letter-spacing: 2px; }
+  .fr-share-actions { flex-direction: column; gap: 8px; }
+  .fr-add-row { flex-direction: column; gap: 8px; }
+  .fr-add-section, .fr-groups-section, .fr-friends-section { padding: 14px; border-radius: 14px; }
+  .fr-btn { padding: 8px 11px; font-size: 13px; }
+  .fr-btn-add { padding-left: 14px; padding-right: 14px; }
+
+  /* group head: info row + actions row */
+  .fr-group-head { padding: 12px; gap: 6px; flex-wrap: wrap; }
+  .fr-group-info { flex: 1 1 100%; }
+  .fr-group-member-preview { display: none; }
+  .fr-group-actions { flex: 0 0 100%; justify-content: flex-end; gap: 8px; }
+  .fr-group-name { font-size: 16px; }
+
+  /* friend card: keep row but shrink */
+  .fr-friend-card { padding: 10px 12px; gap: 10px; border-radius: 14px; }
+  .fr-friend-avatar { width: 34px; height: 34px; font-size: 13px; border-radius: 10px; }
+  .fr-friend-name { font-size: 14px; }
+  .fr-friend-actions { gap: 4px; }
+  .fr-btn-compare { padding: 6px 8px; font-size: 12px; gap: 3px; }
+  .fr-btn-icon { padding: 6px; }
+
+  /* privacy picker: stack label above buttons */
+  .fr-privacy-row { flex-direction: column; align-items: flex-start; gap: 8px; padding: 10px 0 14px; }
+  .fr-privacy-picker { gap: 5px; }
+  .fr-privacy-opt { padding: 5px 10px; font-size: 11.5px; }
+
+  /* CompareView */
+  .cv-page { gap: 12px; }
+  .cv-header { flex-direction: column; align-items: stretch; gap: 10px; padding: 12px; }
+  .cv-view-toggle { align-self: flex-end; }
+  .cv-back { align-self: flex-start; }
+  .cv-header-title { font-size: 15px; }
+  .cv-insight-card { flex-direction: column; padding: 12px; }
+  .cv-free-section, .cv-insights { padding: 14px; border-radius: 14px; }
+}
+
+/* ── Standard mobile (480px – 599px) ── */
+@media (min-width: 480px) and (max-width: 599px) {
   .fr-page { gap: 16px; padding-top: 12px; }
   .fr-share-card { padding: 18px; border-radius: 16px; }
   .fr-share-head h2 { font-size: 18px; }
-  .fr-code-display { padding: 12px; margin-bottom: 12px; }
   .fr-code-text { font-size: 16px; }
-  .fr-btn { padding: 8px 12px; font-size: 13px; }
-  .fr-btn-add { padding-left: 14px; padding-right: 14px; }
   .fr-add-section, .fr-groups-section, .fr-friends-section { padding: 18px 16px; border-radius: 16px; }
+  .fr-btn { padding: 8px 12px; font-size: 13px; }
+
   .fr-group-head { padding: 12px; gap: 8px; }
+  .fr-group-member-preview { display: none; }
   .fr-group-actions { gap: 8px; }
+  .fr-group-name { font-size: 17px; }
+
   .fr-friend-card { padding: 12px; gap: 10px; border-radius: 14px; }
   .fr-friend-avatar { width: 36px; height: 36px; font-size: 14px; }
+
   .cv-header { flex-direction: column; align-items: stretch; gap: 12px; padding: 14px; }
   .cv-view-toggle { align-self: flex-end; }
   .cv-back { align-self: flex-start; }
-  .cv-timeline { min-height: 400px; border-radius: 12px; }
-  .cv-track-area, .cv-side-body { min-height: 400px; }
-  .cv-time-labels { width: 42px; }
-  .cv-time-label { right: 6px; font-size: 10px; }
-  .cv-block { padding: 4px 6px; border-radius: 8px; }
-  .cv-block-label { font-size: 10.5px; }
-  .cv-side .cv-side-headers { padding-left: 42px; }
-  .cv-side-header { font-size: 10px; }
   .cv-insight-card { flex-direction: column; padding: 12px; }
 }
 
-@media (max-width: 400px) {
-  .fr-share-actions { flex-direction: column; }
-  .fr-add-row { flex-direction: column; }
-  .fr-group-actions { flex-direction: column; align-items: flex-end; }
+/* ── Tablet (600px – 899px) ── */
+@media (min-width: 600px) and (max-width: 899px) {
+  .fr-page { gap: 20px; }
+  .fr-layout { gap: 20px; }
+  .fr-group-name { font-size: 17px; }
+  .cv-body-grid { gap: 16px; }
+  .cv-insight-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 }
 
-/* Enable horizontal scrolling for side-by-side view on small screens if many targets */
+
+/* Side-by-side view always scrollable on narrow screens */
 @media (max-width: 800px) {
   .cv-side { overflow-x: auto; }
-  .cv-side-headers, .cv-side-body { min-width: 600px; } /* forces scroll if container is smaller */
+  .cv-side-agenda { overflow-x: auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {

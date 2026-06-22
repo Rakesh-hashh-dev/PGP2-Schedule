@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Copy, Link2, UserPlus, Users, Trash2, ArrowRight, Plus, X, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
+import { Copy, Link2, UserPlus, Users, Trash2, ArrowRight, Plus, X, ChevronDown, ChevronUp, RefreshCw, Bell, Globe, Lock } from "lucide-react";
 
 const AVATAR_PALETTE = [
   ["#7C3AED", "#A855F7"],
@@ -18,7 +18,8 @@ import {
   saveFriend, removeFriend as removeFriendFromStore,
   loadGroups, createGroup, removeGroup as removeGroupFromStore, updateGroup,
   getOrCreateShareCode, pushFriendsToCloud, pushGroupsToCloud,
-  refreshFriendCoursesFromCloud,
+  refreshFriendCoursesFromCloud, sendFriendPing, fetchAndClearFriendPings,
+  shareGroupWithMembers, unshareGroupFromMembers,
 } from "../lib/friends.js";
 
 function Toast({ message, onDone }) {
@@ -29,9 +30,21 @@ function Toast({ message, onDone }) {
   );
 }
 
+function toMinFP(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
+function ymdFP(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
+function timeAgo(iso) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
 export default function FriendsPanel({
   userId, userName, enrolled, legend, friends, setFriends,
-  groups, setGroups, onCompare, onGroupCompare,
+  groups, setGroups, myClasses, allClasses, now, onCompare, onGroupCompare,
 }) {
   const [addCode, setAddCode] = useState("");
   const [addError, setAddError] = useState("");
@@ -45,6 +58,8 @@ export default function FriendsPanel({
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [syncingFriendId, setSyncingFriendId] = useState(null);
+  const [sharingGroupId, setSharingGroupId] = useState(null);
+  const [pings, setPings] = useState([]);
 
   // Generate the user's shareable code asynchronously
   useEffect(() => {
@@ -55,6 +70,14 @@ export default function FriendsPanel({
       setIsGenerating(false);
     });
   }, [userId, userName]);
+
+  // Fetch pings (who added you) on panel open
+  useEffect(() => {
+    if (!userId) return;
+    fetchAndClearFriendPings(userId).then(data => {
+      if (data.length) setPings(data);
+    });
+  }, [userId]);
 
   // Silently refresh all cloud-linked friends' courses on panel open
   useEffect(() => {
@@ -110,6 +133,7 @@ export default function FriendsPanel({
     pushFriendsToCloud(userId, updated);
     setAddCode("");
     setToast(`Added ${decoded.name}!`);
+    if (decoded.id) sendFriendPing(decoded.id, userId, userName);
   }
 
   function handleRemoveFriend(id) {
@@ -141,30 +165,128 @@ export default function FriendsPanel({
     setToast("Group created!");
   }
 
-  function handleRemoveGroup(id) {
+  async function handleRemoveGroup(id, isReceived = false) {
+    if (!isReceived) {
+      const group = groups.find(g => g.id === id);
+      if ((group?.visibility === "shared" || group?.visibility === "global") && group.cloudMemberIds?.length) {
+        await unshareGroupFromMembers(id, group.cloudMemberIds, userId);
+      }
+    }
     const updated = removeGroupFromStore(id);
     setGroups(updated);
     pushGroupsToCloud(userId, updated);
+    setToast(isReceived ? "Left group" : "Group deleted");
   }
 
-  function handleToggleFriendInGroup(groupId, friendId) {
+  async function handleToggleFriendInGroup(groupId, friendId) {
     const group = groups.find(g => g.id === groupId);
     if (!group) return;
     const members = group.memberIds || [];
     const next = members.includes(friendId)
       ? members.filter(m => m !== friendId)
       : [...members, friendId];
-    const updated = updateGroup(groupId, { memberIds: next });
+    let updated = updateGroup(groupId, { memberIds: next });
     setGroups(updated);
+
+    if (group.visibility === "shared" || group.visibility === "global") {
+      await unshareGroupFromMembers(groupId, group.cloudMemberIds, userId);
+      const updatedGroup = updated.find(g => g.id === groupId);
+      const targetFriends = group.visibility === "global"
+        ? friends
+        : friends.filter(f => (updatedGroup.memberIds || []).includes(f.id));
+      const { cloudMemberIds } = await shareGroupWithMembers(userId, userName, updatedGroup, targetFriends);
+      updated = updateGroup(groupId, { cloudMemberIds });
+      setGroups(updated);
+    }
     pushGroupsToCloud(userId, updated);
   }
 
+  async function handleSetGroupPrivacy(group, newPrivacy) {
+    const oldPrivacy = group.visibility || "private";
+    if (oldPrivacy === newPrivacy) return;
+    setSharingGroupId(group.id);
+
+    if ((oldPrivacy === "shared" || oldPrivacy === "global") && group.cloudMemberIds?.length) {
+      await unshareGroupFromMembers(group.id, group.cloudMemberIds, userId);
+    }
+
+    if (newPrivacy === "private") {
+      const updated = updateGroup(group.id, { visibility: "private", cloudMemberIds: [] });
+      setGroups(updated);
+      pushGroupsToCloud(userId, updated);
+      setToast("Group is now private");
+    } else if (newPrivacy === "shared") {
+      const targetFriends = friends.filter(f => (group.memberIds || []).includes(f.id));
+      const cloudCount = targetFriends.filter(f => f.cloudId).length;
+      if (!cloudCount) {
+        setToast("No group members have accounts yet");
+        setSharingGroupId(null);
+        return;
+      }
+      const { cloudMemberIds } = await shareGroupWithMembers(userId, userName, group, targetFriends);
+      const updated = updateGroup(group.id, { visibility: "shared", cloudMemberIds });
+      setGroups(updated);
+      pushGroupsToCloud(userId, updated);
+      setToast(`Visible to ${cloudCount} group member${cloudCount !== 1 ? "s" : ""}`);
+    } else if (newPrivacy === "global") {
+      const cloudCount = friends.filter(f => f.cloudId).length;
+      if (!cloudCount) {
+        setToast("None of your friends have accounts yet");
+        setSharingGroupId(null);
+        return;
+      }
+      const { cloudMemberIds } = await shareGroupWithMembers(userId, userName, group, friends);
+      const updated = updateGroup(group.id, { visibility: "global", cloudMemberIds });
+      setGroups(updated);
+      pushGroupsToCloud(userId, updated);
+      setToast(`Visible to all ${cloudCount} friend${cloudCount !== 1 ? "s" : ""}`);
+    }
+    setSharingGroupId(null);
+  }
+
   const courseCount = enrolled ? Object.keys(enrolled).length : 0;
+
+  function getFriendStatusNow(friend) {
+    if (!allClasses || !now) return null;
+    const todayISO = ymdFP(now);
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    const inClass = allClasses.some(c => {
+      if (c.date !== todayISO || (c.type !== "class" && c.type !== "exam") || !c.code) return false;
+      const sec = friend.courses?.[c.code];
+      return sec !== undefined && (c.section === "Single" || c.section === sec) &&
+        toMinFP(c.start) <= nowMin && nowMin < toMinFP(c.end);
+    });
+    return inClass ? "busy" : "free";
+  }
 
   return (
     <div className="fr-page">
       {toast && <Toast message={toast} onDone={() => setToast(null)} />}
 
+      {/* ── Incoming Pings ── */}
+      {pings.length > 0 && (
+        <section className="fr-pings-section">
+          <div className="fr-pings-header">
+            <span className="fr-pings-title"><Bell size={14} /> {pings.length} added you</span>
+            <button className="fr-btn-icon" onClick={() => setPings([])} aria-label="Dismiss">
+              <X size={14} />
+            </button>
+          </div>
+          {pings.map((p, i) => (
+            <div key={i} className="fr-ping-card">
+              <div className="fr-ping-avatar">{(p.from_name || "?")[0].toUpperCase()}</div>
+              <div className="fr-ping-text">
+                <span className="fr-ping-name">{p.from_name}</span>
+                <span className="fr-ping-sub">added you as a friend</span>
+              </div>
+              <span className="fr-ping-time">{timeAgo(p.created_at)}</span>
+            </div>
+          ))}
+        </section>
+      )}
+
+      <div className="fr-layout">
+      <div className="fr-left-col">
       {/* ── Share Your Schedule ── */}
       <section className="fr-share-card">
         <div className="fr-share-head">
@@ -248,16 +370,32 @@ export default function FriendsPanel({
             {groups.map(group => {
               const memberCount = (group.memberIds || []).length;
               const isExpanded = expandedGroup === group.id;
+
+              // For received groups: resolve members from the user's friends list by cloudId
+              const displayMembers = group.isReceived
+                ? (group.cloudMemberIds || [])
+                    .filter(cid => cid !== userId)
+                    .map(cid => friends.find(f => f.cloudId === cid))
+                    .filter(Boolean)
+                : friends.filter(f => (group.memberIds || []).includes(f.id));
+
+              const displayCount = group.isReceived ? displayMembers.length : memberCount;
+
               return (
-                <div key={group.id} className="fr-group-card">
+                <div key={group.id} className={`fr-group-card ${group.isReceived ? "fr-group-received" : ""}`}>
                   <div className="fr-group-head" onClick={() => setExpandedGroup(isExpanded ? null : group.id)}>
                     <div className="fr-group-info">
                       <span className="fr-group-name">{group.name}</span>
-                      <span className="fr-group-meta">{memberCount} member{memberCount !== 1 ? "s" : ""}</span>
+                      <span className="fr-group-meta">
+                        {group.isReceived
+                          ? <span className="fr-group-shared-badge"><Globe size={11} /> Shared by {group.ownerName}</span>
+                          : `${memberCount} member${memberCount !== 1 ? "s" : ""}`
+                        }
+                      </span>
                     </div>
-                    {memberCount > 0 && (
+                    {displayCount > 0 && (
                       <div className="fr-group-member-preview">
-                        {friends.filter(f => (group.memberIds || []).includes(f.id)).slice(0, 4).map((f, fi) => {
+                        {displayMembers.slice(0, 4).map((f, fi) => {
                           const [c1] = avatarGradient(f.name);
                           return (
                             <div key={f.id} className="fr-group-avatar-dot" style={{ background: c1, zIndex: 10 - fi }}>
@@ -265,47 +403,102 @@ export default function FriendsPanel({
                             </div>
                           );
                         })}
-                        {memberCount > 4 && (
-                          <div className="fr-group-avatar-dot fr-group-avatar-more">+{memberCount - 4}</div>
+                        {displayCount > 4 && (
+                          <div className="fr-group-avatar-dot fr-group-avatar-more">+{displayCount - 4}</div>
                         )}
                       </div>
                     )}
                     <div className="fr-group-actions">
-                      {memberCount >= 1 && (
+                      {(memberCount >= 1 || group.isReceived) && (
                         <button className="fr-btn fr-btn-compare" onClick={e => { e.stopPropagation(); onGroupCompare(group); }}>
                           Compare <ArrowRight size={13} />
                         </button>
+                      )}
+                      {!group.isReceived && (
+                        <span className={`fr-privacy-badge fr-privacy-badge-${group.visibility || "private"}`}>
+                          {group.visibility === "global" ? <Globe size={11} /> : group.visibility === "shared" ? <Users size={11} /> : <Lock size={11} />}
+                          {group.visibility === "global" ? "Global" : group.visibility === "shared" ? "Members" : "Private"}
+                        </span>
                       )}
                       {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                     </div>
                   </div>
                   {isExpanded && (
                     <div className="fr-group-body">
-                      <p className="fr-group-body-label">Tap friends to add/remove from this group:</p>
-                      {friends.length === 0 ? (
-                        <p className="fr-empty">Add friends first, then add them to this group.</p>
+                      {group.isReceived ? (
+                        <>
+                          <p className="fr-group-body-label">Members in this group:</p>
+                          {displayMembers.length === 0 ? (
+                            <p className="fr-empty">Add the group members as friends to see them here.</p>
+                          ) : (
+                            <div className="fr-group-members">
+                              {displayMembers.map(f => (
+                                <div key={f.id} className="fr-member-chip in" style={{ cursor: "default" }}>
+                                  <span className="fr-member-initial">{f.name[0]}</span>
+                                  {f.name}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
+                            <button className="fr-btn fr-btn-danger fr-btn-small" onClick={() => handleRemoveGroup(group.id, true)}>
+                              <X size={14} /> Leave group
+                            </button>
+                          </div>
+                        </>
                       ) : (
-                        <div className="fr-group-members">
-                          {friends.map(f => {
-                            const inGroup = (group.memberIds || []).includes(f.id);
-                            return (
-                              <button
-                                key={f.id}
-                                className={`fr-member-chip ${inGroup ? "in" : ""}`}
-                                onClick={() => handleToggleFriendInGroup(group.id, f.id)}
-                              >
-                                <span className="fr-member-initial">{f.name[0]}</span>
-                                {f.name}
-                              </button>
-                            );
-                          })}
-                        </div>
+                        <>
+                          <div className="fr-privacy-row">
+                            <span className="fr-privacy-label">Privacy</span>
+                            <div className="fr-privacy-picker">
+                              {[
+                                { key: "private", Icon: Lock,  label: "Private",  desc: "Only you" },
+                                { key: "shared",  Icon: Users, label: "Members",  desc: "Group members" },
+                                { key: "global",  Icon: Globe, label: "Global",   desc: "All friends" },
+                              ].map(({ key, Icon, label, desc }) => (
+                                <button
+                                  key={key}
+                                  className={`fr-privacy-opt fr-privacy-opt-${key} ${(group.visibility || "private") === key ? "on" : ""}`}
+                                  onClick={() => handleSetGroupPrivacy(group, key)}
+                                  disabled={sharingGroupId === group.id}
+                                  title={desc}
+                                >
+                                  {sharingGroupId === group.id && (group.visibility || "private") !== key
+                                    ? <RefreshCw size={12} className="spin-icon" />
+                                    : <Icon size={12} />
+                                  }
+                                  {label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <p className="fr-group-body-label">Tap friends to add/remove from this group:</p>
+                          {friends.length === 0 ? (
+                            <p className="fr-empty">Add friends first, then add them to this group.</p>
+                          ) : (
+                            <div className="fr-group-members">
+                              {friends.map(f => {
+                                const inGroup = (group.memberIds || []).includes(f.id);
+                                return (
+                                  <button
+                                    key={f.id}
+                                    className={`fr-member-chip ${inGroup ? "in" : ""}`}
+                                    onClick={() => handleToggleFriendInGroup(group.id, f.id)}
+                                  >
+                                    <span className="fr-member-initial">{f.name[0]}</span>
+                                    {f.name}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
+                            <button className="fr-btn fr-btn-danger fr-btn-small" onClick={() => handleRemoveGroup(group.id)}>
+                              <Trash2 size={14} /> Delete group
+                            </button>
+                          </div>
+                        </>
                       )}
-                      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
-                        <button className="fr-btn fr-btn-danger fr-btn-small" onClick={() => handleRemoveGroup(group.id)}>
-                          <Trash2 size={14} /> Delete group
-                        </button>
-                      </div>
                     </div>
                   )}
                 </div>
@@ -315,6 +508,8 @@ export default function FriendsPanel({
         )}
       </section>
 
+      </div>{/* /fr-left-col */}
+      <div className="fr-right-col">
       {/* ── Saved Friends ── */}
       <section className="fr-friends-section">
         <h3 className="fr-section-title">Saved Friends</h3>
@@ -329,6 +524,7 @@ export default function FriendsPanel({
             {friends.map(f => {
               const fCourseCount = Object.keys(f.courses || {}).length;
               const [c1, c2] = avatarGradient(f.name);
+              const status = getFriendStatusNow(f);
               return (
                 <div key={f.id} className="fr-friend-card" style={{ '--accent': c1 }}>
                   <div className="fr-friend-avatar" style={{ background: `linear-gradient(135deg, ${c1} 0%, ${c2} 100%)`, boxShadow: `0 4px 10px ${c1}40` }}>
@@ -336,7 +532,15 @@ export default function FriendsPanel({
                   </div>
                   <div className="fr-friend-info">
                     <span className="fr-friend-name">{f.name}</span>
-                    <span className="fr-friend-meta">{fCourseCount} course{fCourseCount !== 1 ? "s" : ""}</span>
+                    <div className="fr-friend-meta-row">
+                      <span className="fr-friend-meta">{fCourseCount} course{fCourseCount !== 1 ? "s" : ""}</span>
+                      {status && (
+                        <span className={`fr-friend-status fr-friend-status-${status}`}>
+                          <span className="fr-friend-status-dot" />
+                          {status === "free" ? "Free now" : "In class"}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="fr-friend-actions">
                     <button className="fr-btn fr-btn-compare" onClick={() => onCompare(f)}>
@@ -363,6 +567,8 @@ export default function FriendsPanel({
           </div>
         )}
       </section>
+      </div>{/* /fr-right-col */}
+      </div>{/* /fr-layout */}
     </div>
   );
 }
