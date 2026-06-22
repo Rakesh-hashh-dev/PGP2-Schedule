@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef, Suspense, lazy } from "react";
+import { createPortal } from "react-dom";
 import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, ChevronsLeft, ChevronsRight, ChevronRight, ChevronLeft, Megaphone, BarChart2, Shield, User, CloudOff } from "lucide-react";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
@@ -157,7 +158,16 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       try { localStorage.setItem("pgp2.sidebar", next ? "collapsed" : "expanded"); } catch { }
       return next;
     });
+    setSbTip(null);
   }
+
+  const [sbTip, setSbTip] = useState(null);
+  function showSbTip(e, label) {
+    if (!sidebarCollapsed) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    setSbTip({ label, top: r.top + r.height / 2, left: r.right + 10 });
+  }
+  function hideSbTip() { setSbTip(null); }
 
   const tabsRef = useRef(null);
   const [showRightScroll, setShowRightScroll] = useState(true);
@@ -649,66 +659,73 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         </div>
 
         <nav className="sb-nav">
-          <button className="sb-link" onClick={() => setCmdOpen(true)}>
+          <button className="sb-link" onMouseEnter={e => showSbTip(e, "Search")} onMouseLeave={hideSbTip} onClick={() => { setCmdOpen(true); hideSbTip(); }}>
             <Search size={18} /><span className="sb-link-label">Search</span>
           </button>
-          <button className={`sb-link${view === "today" ? " on" : ""}`} onClick={() => { setView("today"); setCompareTarget(null); }}>
+          <button className={`sb-link${view === "today" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Today")} onMouseLeave={hideSbTip} onClick={() => { setView("today"); setCompareTarget(null); hideSbTip(); }}>
             <Clock size={18} /><span className="sb-link-label">Today</span>
           </button>
-          <button className={`sb-link${view === "tomorrow" ? " on" : ""}`} onClick={() => { setView("tomorrow"); setCompareTarget(null); }}>
+          <button className={`sb-link${view === "tomorrow" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Tomorrow")} onMouseLeave={hideSbTip} onClick={() => { setView("tomorrow"); setCompareTarget(null); hideSbTip(); }}>
             <Sunrise size={18} /><span className="sb-link-label">Tomorrow</span>
           </button>
-          <button className={`sb-link${view === "attendance" ? " on" : ""}`} onClick={() => { setView("attendance"); setCompareTarget(null); }}>
+          <button className={`sb-link${view === "attendance" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Attendance")} onMouseLeave={hideSbTip} onClick={() => { setView("attendance"); setCompareTarget(null); hideSbTip(); }}>
             <ClipboardList size={18} /><span className="sb-link-label">Attendance</span>
           </button>
-          <button className={`sb-link${view === "exams" ? " on" : ""}`} onClick={() => { setView("exams"); setCompareTarget(null); }}>
+          <button className={`sb-link${view === "exams" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Exams")} onMouseLeave={hideSbTip} onClick={() => { setView("exams"); setCompareTarget(null); hideSbTip(); }}>
             <GraduationCap size={18} /><span className="sb-link-label">Exams</span>
           </button>
-          <button className={`sb-link${view === "notifications" ? " on" : ""}`} onClick={() => { setView("notifications"); setCompareTarget(null); }}>
+          <button className={`sb-link${view === "notifications" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Announcements")} onMouseLeave={hideSbTip} onClick={() => { setView("notifications"); setCompareTarget(null); hideSbTip(); }}>
             <Megaphone size={18} /><span className="sb-link-label">Announcements</span>
           </button>
-          <button className={`sb-link${view === "friends" ? " on" : ""}`} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); }}>
+          <button className={`sb-link${view === "friends" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Friends")} onMouseLeave={hideSbTip} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); hideSbTip(); }}>
             <Users size={18} /><span className="sb-link-label">Friends</span> <span className="beta-badge">Beta</span>
             {hasNewGroups && <span className="nav-badge">{receivedGroupCount - seenRecvCount}</span>}
           </button>
           {showAdminUI && (
-            <button className={`sb-link${view === "admin" ? " on" : ""}`} onClick={() => { setView("admin"); setCompareTarget(null); }}>
+            <button className={`sb-link${view === "admin" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Admin Tools")} onMouseLeave={hideSbTip} onClick={() => { setView("admin"); setCompareTarget(null); hideSbTip(); }}>
               <Shield size={18} /><span className="sb-link-label" style={{ color: "var(--live)" }}>Admin Tools</span>
             </button>
           )}
         </nav>
 
         <div className="sb-bottom">
-          <div className="sb-icon-row">
-            <button className="sb-icon-btn" onClick={() => setShowSetupEdit(true)} aria-label="Edit setup"><Settings2 size={16} /></button>
-            <button className="sb-icon-btn" onClick={handleSync} aria-label="Refresh"><RefreshCw size={16} className={syncing ? "spin-icon" : ""} /></button>
-            <button className="sb-icon-btn" onClick={() => signOut()} aria-label="Log out"><LogOut size={16} /></button>
+          <div className="sb-sep-line" />
+          <div className="sb-action-group">
+            <button className="sb-action-btn" onMouseEnter={e => showSbTip(e, "Edit setup")} onMouseLeave={hideSbTip} onClick={() => { setShowSetupEdit(true); hideSbTip(); }}>
+              <Settings2 size={16} /><span className="sb-action-label">Edit setup</span>
+            </button>
+            <button className="sb-action-btn" onMouseEnter={e => showSbTip(e, syncing ? "Syncing…" : "Refresh")} onMouseLeave={hideSbTip} onClick={handleSync}>
+              <RefreshCw size={16} className={syncing ? "spin-icon" : ""} /><span className="sb-action-label">{syncing ? "Syncing…" : "Refresh"}</span>
+            </button>
+            <button className="sb-action-btn sb-action-danger" onMouseEnter={e => showSbTip(e, "Log out")} onMouseLeave={hideSbTip} onClick={() => signOut()}>
+              <LogOut size={16} /><span className="sb-action-label">Log out</span>
+            </button>
             {isAdmin && (
-              <button 
-                className="sb-icon-btn" 
-                onClick={() => setAdminMode(!adminMode)} 
-                aria-label="Toggle Admin Mode"
-                style={adminMode ? { color: "var(--live)", borderColor: "var(--live)" } : {}}
+              <button
+                className={`sb-action-btn${adminMode ? " sb-action-admin-on" : ""}`}
+                onMouseEnter={e => showSbTip(e, adminMode ? "Exit Admin Mode" : "Admin Mode")}
+                onMouseLeave={hideSbTip}
+                onClick={() => setAdminMode(!adminMode)}
               >
                 {adminMode ? <Shield size={16} /> : <User size={16} />}
+                <span className="sb-action-label">{adminMode ? "Exit Admin" : "Admin Mode"}</span>
               </button>
             )}
           </div>
-          <button className="sb-toggle" onClick={toggleSidebar}>
-            {sidebarCollapsed ? <ChevronsRight size={16} /> : <ChevronsLeft size={16} />}
+          <button className="sb-toggle" onMouseEnter={e => showSbTip(e, sidebarCollapsed ? "Expand" : "Collapse")} onMouseLeave={hideSbTip} onClick={toggleSidebar}>
+            <span className="sb-toggle-icon">{sidebarCollapsed ? <ChevronsRight size={15} /> : <ChevronsLeft size={15} />}</span>
             <span className="sb-toggle-label">Collapse</span>
           </button>
-          <div className="sb-avatar-wrap">
+          <div className="sb-avatar-wrap" onMouseEnter={hideSbTip}>
             <button className="sb-avatar-btn">
               <div className="sb-avatar-img">
                 {user?.imageUrl ? <img src={user.imageUrl} alt="" /> : (user?.firstName?.[0] || "?")}
               </div>
               <div className="sb-avatar-info">
                 <span className="sb-avatar-name">
-                  {user?.fullName || "Student"}
+                  {user?.firstName || user?.fullName || "Student"}
                   {showAdminUI && <span className="admin-badge">Admin</span>}
                 </span>
-                <span className="sb-avatar-email">{user?.primaryEmailAddress?.emailAddress || ""}</span>
                 <span className="sb-avatar-batch">PGP2 · 2025–27</span>
               </div>
             </button>
@@ -727,6 +744,13 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           </div>
         </div>
       </aside>
+
+      {sbTip && createPortal(
+        <div className="sb-float-tip" style={{ top: sbTip.top, left: sbTip.left }}>
+          {sbTip.label}
+        </div>,
+        document.body
+      )}
 
       <div className="app">
         <header className="bar">
