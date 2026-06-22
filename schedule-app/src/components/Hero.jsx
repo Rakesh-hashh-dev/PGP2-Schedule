@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { MapPin, CheckCircle2, Timer } from "lucide-react";
+import { MapPin, CheckCircle2, Timer, ThumbsUp, ThumbsDown } from "lucide-react";
+import { sessionKey } from "../lib/attendance.js";
 
 function clsDate(c, which) {
   const [Y, Mo, D] = c.date.split("-").map(Number);
@@ -88,29 +89,46 @@ function UpNext({ c }) {
   );
 }
 
-export default function Hero({ current, next, now, todayISO, tomorrowISO }) {
+export default function Hero({ current, next, now, todayISO, tomorrowISO, onMarkAttendance, attendance }) {
   const prevRef = useRef(current);
-  const [justDone, setJustDone] = useState(null);
+  const [justDone, setJustDone] = useState(null); // full class object
 
   useEffect(() => {
     const prev = prevRef.current;
     prevRef.current = current;
-    if (prev && !current) setJustDone(prev.name);
+    if (prev && !current) setJustDone(prev);
   }, [current]);
 
   useEffect(() => {
     if (!justDone) return;
-    const t = setTimeout(() => setJustDone(null), 2800);
+    const t = setTimeout(() => setJustDone(null), 5000);
     return () => clearTimeout(t);
   }, [justDone]);
 
   if (justDone) {
+    const key = sessionKey(justDone);
+    const marked = attendance?.[key];
     return (
       <section className="hero hero-complete">
         <div className="done-ring" />
         <div className="done-icon"><CheckCircle2 size={38} strokeWidth={1.6} /></div>
-        <h1 className="hero-course done-course">{justDone}</h1>
+        <h1 className="hero-course done-course">{justDone.name}</h1>
         <div className="done-label">Class wrapped ✓</div>
+        {marked ? (
+          <div className={`done-marked-badge ${marked}`}>
+            {marked === "present" ? <ThumbsUp size={12} /> : <ThumbsDown size={12} />}
+            Marked {marked}
+          </div>
+        ) : onMarkAttendance ? (
+          <div className="done-mark-row">
+            <button className="done-mark-btn present" onClick={() => { onMarkAttendance(justDone, "present"); setJustDone(null); }}>
+              <ThumbsUp size={13} /> Present
+            </button>
+            <button className="done-mark-btn absent" onClick={() => { onMarkAttendance(justDone, "absent"); setJustDone(null); }}>
+              <ThumbsDown size={13} /> Absent
+            </button>
+          </div>
+        ) : null}
       </section>
     );
   }

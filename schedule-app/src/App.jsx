@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef, Suspense, lazy } from "react";
 import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, ChevronsLeft, ChevronsRight, ChevronRight, ChevronLeft, Megaphone, BarChart2, Shield, User, CloudOff } from "lucide-react";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
+import SemSummary from "./components/SemSummary.jsx";
 import Timeline from "./components/Timeline.jsx";
 import WeekAgenda from "./components/WeekAgenda.jsx";
 import SubjectFilter from "./components/SubjectFilter.jsx";
@@ -863,7 +864,18 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 <WeatherWidget now={now} weather={weather} />
               </div>
             )}
-            {view !== "attendance" && view !== "insights" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && !compareTarget && view !== "tomorrow" && <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} />}
+            {view !== "attendance" && view !== "insights" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && !compareTarget && view !== "tomorrow" && <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} onMarkAttendance={markAttendance} attendance={attendance} />}
+            {(view === "today" || view === "week") && !compareTarget && (
+              <SemSummary
+                enrolled={enrolled}
+                legend={LEGEND}
+                attendance={attendance}
+                visible={visible}
+                todayISO={todayISO}
+                now={now}
+                classes={CLASSES}
+              />
+            )}
             {/* Compact "now" banner on Tomorrow tab so user knows what's happening today */}
             {view === "tomorrow" && (current || next) && (
               <div className="now-banner" onClick={() => setView("today")}>
