@@ -301,7 +301,7 @@ function mergeIntervals(intervals) {
  * @param {number} dayStart - Start of day in minutes (default 8:00 = 480)
  * @param {number} dayEnd - End of day in minutes (default 18:00 = 1080)
  */
-export function findFreeSlots(myClasses, theirClasses, date, dayStart = 480, dayEnd = 1080) {
+export function findFreeSlots(myClasses, theirClasses, date, dayStart = 480, dayEnd = 1320) {
   const myBusy = busyIntervals(myClasses, date);
   const theirBusy = busyIntervals(theirClasses, date);
   const allBusy = mergeIntervals([...myBusy, ...theirBusy]);
@@ -336,7 +336,7 @@ export function findFreeSlots(myClasses, theirClasses, date, dayStart = 480, day
  * @param {Array<Array>} allClassLists - Array of class arrays, one per person
  * @param {string} date
  */
-export function findGroupFreeSlots(allClassLists, date, dayStart = 480, dayEnd = 1080) {
+export function findGroupFreeSlots(allClassLists, date, dayStart = 480, dayEnd = 1320) {
   const allBusy = [];
   for (const classes of allClassLists) {
     allBusy.push(...busyIntervals(classes, date));

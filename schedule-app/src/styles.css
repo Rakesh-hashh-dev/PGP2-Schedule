@@ -2927,6 +2927,25 @@ button:focus-visible {
 .cva-shared .cva-card, .cva-card.cva-shared { background: rgba(234,179,8,.08); border: 1px dashed rgba(234,179,8,.4); }
 .cva-shared .cva-title, .cva-card.cva-shared .cva-title { color: #CA8A04; }
 
+/* Sticky name bar for side-by-side compare */
+.cv-sbs-sticky-header {
+  position: sticky; top: 0; z-index: 15;
+  background: var(--bg);
+  display: flex; gap: 6px;
+  padding: 8px 4px 10px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
+}
+.cv-sbs-name-pill {
+  flex: 1; text-align: center;
+  font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  padding: 5px 10px; border-radius: 20px;
+  color: var(--muted);
+}
+.cv-sbs-name-pill.you { color: var(--primary); background: rgba(21,24,43,0.06); }
+.cv-sbs-name-pill.them { color: var(--live); background: rgba(31,169,113,0.08); }
+
 /* Side by Side Agenda */
 .cv-side-agenda {
   display: flex; gap: 16px; padding: 10px 4px 20px;

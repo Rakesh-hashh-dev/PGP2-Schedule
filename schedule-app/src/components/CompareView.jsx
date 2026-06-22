@@ -219,7 +219,7 @@ export default function CompareView({
 
   // Timeline rendering helpers
   const DAY_START = 480; // 8:00
-  const DAY_END = 1080;  // 18:00
+  const DAY_END = 1320;  // 22:00
   const TOTAL_MIN = DAY_END - DAY_START;
 
   function blockStyle(start, end) {
@@ -535,17 +535,18 @@ function SideBySide({ myClasses, targetClasses, targets, dayFilter, freeSlots = 
   });
 
   return (
-    <div className="cv-side-agenda" style={{ display: "block" }}>
-      <div style={{ minWidth: Math.max(100, columnsDef.length * 150) + "px" }}>
-        {/* Header Row */}
-        <div style={{ display: "flex", borderBottom: "1px solid var(--border)", paddingBottom: "12px", marginBottom: "16px" }}>
-          {columnsDef.map((col, i) => (
-            <div key={i} className="cva-col-head" style={{ flex: 1, borderBottom: "none", paddingBottom: 0, marginBottom: 0 }}>
-              {col.label}
-            </div>
-          ))}
-        </div>
+    <div>
+      {/* Sticky column name bar — lives outside overflow-x container so it actually sticks */}
+      <div className="cv-sbs-sticky-header">
+        {columnsDef.map((col, i) => (
+          <div key={i} className={`cv-sbs-name-pill ${i === 0 ? "you" : "them"}`}>
+            {col.label}
+          </div>
+        ))}
+      </div>
 
+      <div className="cv-side-agenda" style={{ display: "block" }}>
+        <div style={{ minWidth: Math.max(100, columnsDef.length * 150) + "px" }}>
         {/* Body */}
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           {dateGroups.length === 0 && <div className="cv-empty" style={{ padding: "20px 0", textAlign: "center" }}>No classes</div>}
@@ -592,6 +593,7 @@ function SideBySide({ myClasses, targetClasses, targets, dayFilter, freeSlots = 
               ))}
             </div>
           ))}
+        </div>
         </div>
       </div>
     </div>
