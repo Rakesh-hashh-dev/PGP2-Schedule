@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, BarChart3, Terminal, Clock } from "lucide-react";
+import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, BarChart3, Terminal, Clock, Database } from "lucide-react";
 import { supabase } from "../lib/supabase";
 
 function Avatar({ name, email }) {
@@ -11,6 +11,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [totalUsers, setTotalUsers] = useState(null);
   const [activeUsers, setActiveUsers] = useState(0);
   const [statsLoading, setStatsLoading] = useState(true);
+  const [dbSize, setDbSize] = useState("...");
   
   const [announcement, setAnnouncement] = useState("");
   const [activeAnnouncement, setActiveAnnouncement] = useState(null);
@@ -99,6 +100,20 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       }
     }
     fetchConfig();
+
+    async function fetchDbSize() {
+      try {
+        const { data, error } = await supabase.rpc("get_db_size");
+        if (error) {
+          setDbSize("Error");
+        } else {
+          setDbSize(data || "N/A");
+        }
+      } catch (e) {
+        setDbSize("Error");
+      }
+    }
+    fetchDbSize();
   }, []);
 
   async function saveConfig() {
@@ -180,6 +195,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           <div style={{ background: "var(--card)", padding: "16px 32px", borderRadius: 16, border: "1px solid var(--border)", minWidth: 180 }}>
             <div style={{ fontSize: 12, textTransform: "uppercase", fontWeight: 700, color: "var(--muted)", marginBottom: 8, letterSpacing: "1px" }}>Active Today</div>
             <div style={{ fontSize: 36, fontWeight: 800, fontFamily: "var(--display)", color: "var(--text)" }}>{statsLoading ? "..." : activeUsers}</div>
+          </div>
+          <div style={{ background: "var(--card)", padding: "16px 32px", borderRadius: 16, border: "1px solid var(--border)", minWidth: 180 }}>
+            <div style={{ fontSize: 12, textTransform: "uppercase", fontWeight: 700, color: "var(--muted)", marginBottom: 8, letterSpacing: "1px", display: "flex", alignItems: "center", gap: 6 }}><Database size={14}/> DB Storage Used</div>
+            <div style={{ fontSize: 36, fontWeight: 800, fontFamily: "var(--display)", color: "var(--text)" }}>{dbSize}</div>
           </div>
           <div style={{ background: "var(--card)", padding: "16px 32px", borderRadius: 16, border: "1px solid var(--border)", minWidth: 200, display: "flex", flexDirection: "column", justifyContent: "center" }}>
             <div style={{ fontSize: 12, textTransform: "uppercase", fontWeight: 700, color: "var(--muted)", marginBottom: 8, letterSpacing: "1px", display: "flex", alignItems: "center", gap: 6 }}><BarChart3 size={14}/> Top Electives</div>
