@@ -830,6 +830,11 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 <button className={`tab ${view === "friends" ? "on" : ""}`} onClick={() => { setView("friends"); setCompareTarget(null); }}>
                   <Users size={15} /> Friends <span className="beta-badge">Beta</span>
                 </button>
+                {showAdminUI && (
+                  <button className={`tab ${view === "admin" ? "on" : ""}`} onClick={() => { setView("admin"); setCompareTarget(null); }}>
+                    <Shield size={15} color="var(--live)" /> <span style={{ color: "var(--live)" }}>Admin</span>
+                  </button>
+                )}
               </nav>
               {showLeftScroll && (
                 <button
@@ -933,6 +938,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                         termNumber={TERM?.number}
                         termStart={TERM?.start}
                         termEnd={TERM?.end}
+                        attendance={attendance}
                       />
                       : view === "attendance"
                         ? <AttendancePanel

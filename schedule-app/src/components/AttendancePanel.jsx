@@ -47,6 +47,62 @@ function StatusDot({ status }) {
   return <span className={`att-sdot${status === "present" ? " att-sdot-p" : status === "absent" ? " att-sdot-a" : ""}`} />;
 }
 
+function SparkTrend({ sessions, attendance }) {
+  if (!sessions.length) return null;
+
+  // Build running cumulative % after each session
+  const points = [];
+  let present = 0, marked = 0;
+  sessions.forEach(s => {
+    const st = attendance[s.key];
+    if (st === "present") { present++; marked++; }
+    else if (st === "absent") { marked++; }
+    points.push(marked > 0 ? (present / marked) * 100 : null);
+  });
+
+  const W = 200, H = 30;
+  const n = points.length;
+  const validPts = points.map((p, i) => ({ p, i })).filter(v => v.p !== null);
+  const svgPoints = validPts.map(({ p, i }) => {
+    const x = n <= 1 ? W / 2 : (i / (n - 1)) * W;
+    const y = H - 3 - (p / 100) * (H - 10);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+
+  const last = validPts.length ? validPts[validPts.length - 1].p : null;
+  const lineColor = last == null ? "rgba(255,255,255,.2)" : last >= 80 ? "var(--live)" : last >= 75 ? "var(--amber)" : "#C0392B";
+  const t = last == null ? "none" : last >= 80 ? "good" : last >= 75 ? "warn" : "bad";
+  const threshold80Y = H - 3 - (80 / 100) * (H - 10);
+
+  return (
+    <div className="att-spark-wrap">
+      <div className="att-spark">
+        {sessions.map((s, i) => {
+          const st = attendance[s.key] || null;
+          const label = st === "present" ? "Present" : st === "absent" ? "Absent" : "Unmarked";
+          return (
+            <span key={s.key} className="tb-wrap">
+              <span className={`att-sp${st === "present" ? " att-sp-p" : st === "absent" ? " att-sp-a" : ""}`} />
+              <span className="tooltip att-sp-tip" role="tooltip">{`Session ${s.session || i + 1} · ${label}\n${fmtDate(s.date)} · ${s.start}–${s.end}`}</span>
+            </span>
+          );
+        })}
+        <span className={`att-spark-pct att-pct tone-${t}`}>
+          {last != null ? `${Math.round(last)}%` : "—"}
+        </span>
+      </div>
+      {n >= 3 && svgPoints && (
+        <svg className="att-trend-svg" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
+          <line x1="0" y1={threshold80Y.toFixed(1)} x2={W} y2={threshold80Y.toFixed(1)}
+            stroke="rgba(255,255,255,0.1)" strokeWidth="1" strokeDasharray="3,4" />
+          <polyline points={svgPoints} fill="none" stroke={lineColor}
+            strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.75" />
+        </svg>
+      )}
+    </div>
+  );
+}
+
 export default function AttendancePanel({ allClasses, now, attendance, enrolled, legend, markAttendance, weather, termNumber }) {
   const [expandedCode, setExpandedCode] = useState(null);
   const codes = Object.keys(enrolled || {});
@@ -231,21 +287,7 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
 
               {open && (
                 <div className="att-edit-list" style={{ padding: "0 14px 12px", borderTop: "none" }}>
-                  <div className="att-spark">
-                    {c.sessions.map((s, i) => {
-                      const st = attendance[s.key] || null;
-                      const label = st === "present" ? "Present" : st === "absent" ? "Absent" : "Unmarked";
-                      return (
-                        <span key={s.key} className="tb-wrap">
-                          <span className={`att-sp${st === "present" ? " att-sp-p" : st === "absent" ? " att-sp-a" : ""}`} />
-                          <span className="tooltip att-sp-tip" role="tooltip">{`Session ${s.session || i + 1} · ${label}\n${fmtDate(s.date)} · ${s.start}–${s.end}`}</span>
-                        </span>
-                      );
-                    })}
-                    <span className={`att-spark-pct att-pct tone-${t}`}>
-                      {c.pct != null ? `${c.pct}%` : "—"}
-                    </span>
-                  </div>
+                  <SparkTrend sessions={c.sessions} attendance={attendance} />
                   {c.sessions.map((s, i) => {
                     const status = attendance[s.key] || null;
                     return (

@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { GraduationCap, Clock, AlertTriangle, BookOpen, Trophy, CalendarDays, List, ChevronLeft, ChevronRight } from "lucide-react";
+import { sessionKey } from "../lib/attendance.js";
 
 function daysBetween(a, b) {
   const msDay = 86400000;
@@ -129,9 +130,30 @@ function ExamCalendar({ exams, now, termStart, termEnd }) {
   );
 }
 
+// ── Session dot trail (progress + attendance combined) ──
+function CourseDotTrail({ sessions, attendance, now }) {
+  if (!sessions.length) return null;
+  return (
+    <div className="exam-dot-trail">
+      {sessions.map((s, i) => {
+        const [Y, M, D] = s.date.split("-").map(Number);
+        const isPast = new Date(Y, M - 1, D) < now;
+        const key = sessionKey(s);
+        const status = isPast ? (attendance?.[key] || "unmarked") : "future";
+        return (
+          <span
+            key={i}
+            className={`exam-sp exam-sp-${status}`}
+            title={`S${s.session || i + 1} · ${isPast ? status : "upcoming"} · ${s.date}`}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Per-course countdown ──
-function CourseCountdown({ courses, allClasses, enrolled, now }) {
-  // Find the last session date for each course to estimate exam proximity
+function CourseCountdown({ courses, allClasses, enrolled, attendance, now }) {
   const courseTimeline = useMemo(() => {
     if (!enrolled || !allClasses) return [];
 
@@ -141,13 +163,19 @@ function CourseCountdown({ courses, allClasses, enrolled, now }) {
         .sort((a, b) => a.date.localeCompare(b.date));
 
       const total = sessions.length;
-      const past = sessions.filter(s => {
+      const pastSessions = sessions.filter(s => {
         const [Y, M, D] = s.date.split("-").map(Number);
         return new Date(Y, M - 1, D) < now;
-      }).length;
+      });
+      const past = pastSessions.length;
       const pct = total > 0 ? Math.round((past / total) * 100) : 0;
 
-      // Next upcoming session
+      // Attendance % over marked past sessions
+      const presentCount = pastSessions.filter(s => attendance?.[sessionKey(s)] === "present").length;
+      const absentCount = pastSessions.filter(s => attendance?.[sessionKey(s)] === "absent").length;
+      const markedCount = presentCount + absentCount;
+      const attPct = markedCount > 0 ? Math.round((presentCount / markedCount) * 100) : null;
+
       const nextSession = sessions.find(s => {
         const [Y, M, D] = s.date.split("-").map(Number);
         return new Date(Y, M - 1, D) >= now;
@@ -159,41 +187,53 @@ function CourseCountdown({ courses, allClasses, enrolled, now }) {
       })() : null;
       const daysToLast = lastDate ? daysBetween(now, lastDate) : null;
 
-      return { ...c, total, past, remaining: total - past, pct, daysToLast, nextSession };
+      return { ...c, total, past, remaining: total - past, pct, daysToLast, nextSession, sessions, attPct };
     }).sort((a, b) => (a.daysToLast ?? 999) - (b.daysToLast ?? 999));
-  }, [courses, allClasses, enrolled, now]);
+  }, [courses, allClasses, enrolled, attendance, now]);
 
   return (
     <div className="exam-cc-grid">
-      {courseTimeline.map((c, i) => (
-        <div key={c.code} className="exam-cc" style={{ animationDelay: `${i * 60}ms` }}>
-          <div className="exam-cc-top">
-            <span className={`ses ses-${(Array.from(c.code).reduce((h, char) => h + char.charCodeAt(0), 0)) % 6}`}>
-              {c.code}
-            </span>
-            <span className="exam-cc-name">{c.name}</span>
-            <span className="exam-cc-cr">{c.credits}cr</span>
-          </div>
-          <div className="exam-cc-bar-wrap">
-            <div className="exam-cc-bar">
-              <div className="exam-cc-bar-fill" style={{ width: `${c.pct}%` }} />
+      {courseTimeline.map((c, i) => {
+        const attTone = c.attPct == null ? "" : c.attPct >= 80 ? " att-good" : c.attPct >= 75 ? " att-warn" : " att-bad";
+        return (
+          <div key={c.code} className="exam-cc" style={{ animationDelay: `${i * 60}ms` }}>
+            <div className="exam-cc-top">
+              <span className={`ses ses-${(Array.from(c.code).reduce((h, char) => h + char.charCodeAt(0), 0)) % 6}`}>
+                {c.code}
+              </span>
+              <span className="exam-cc-name">{c.name}</span>
+              <span className="exam-cc-cr">{c.credits}cr</span>
             </div>
-            <span className="exam-cc-pct">{c.pct}%</span>
+
+            <CourseDotTrail sessions={c.sessions} attendance={attendance} now={now} />
+
+            <div className="exam-cc-bar-wrap">
+              <div className="exam-cc-bar">
+                <div className="exam-cc-bar-fill" style={{ width: `${c.pct}%` }} />
+              </div>
+              <span className="exam-cc-pct">{c.pct}%</span>
+            </div>
+
+            <div className="exam-cc-meta">
+              <span>{c.past}/{c.total} done</span>
+              {c.attPct !== null && (
+                <span className={`exam-cc-att${attTone}`}>{c.attPct}% att.</span>
+              )}
+              {c.nextSession && c.remaining > 0 && (
+                <span className="exam-cc-next">Next: {fmtDate(c.nextSession.date)}</span>
+              )}
+              {c.daysToLast != null && c.daysToLast >= 0 && c.remaining === 0 && (
+                <span className="exam-cc-end">ended</span>
+              )}
+            </div>
           </div>
-          <div className="exam-cc-meta">
-            <span>{c.past}/{c.total} sessions done</span>
-            {c.remaining > 0 && <span className="exam-cc-rem">{c.remaining} left</span>}
-            {c.daysToLast != null && c.daysToLast >= 0 && (
-              <span className="exam-cc-end">ends in {c.daysToLast}d</span>
-            )}
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
 
-export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, now, termNumber, termStart, termEnd }) {
+export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, now, termNumber, termStart, termEnd, attendance }) {
   const codes = Object.keys(enrolled || {});
   const [cdView, setCdView] = useState("list"); // "list" | "calendar"
   const [examFilter, setExamFilter] = useState("mine"); // "mine" | "all"
@@ -362,6 +402,7 @@ export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, no
           courses={creditData.courses}
           allClasses={allClasses}
           enrolled={enrolled}
+          attendance={attendance}
           now={now}
         />
       </section>
