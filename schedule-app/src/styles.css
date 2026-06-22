@@ -1,4 +1,4 @@
-﻿@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600&family=JetBrains+Mono:wght@500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600&family=JetBrains+Mono:wght@500;700&display=swap');
 
 :root {
   --bg:        #F3F1EA;
@@ -2157,6 +2157,7 @@ button:focus-visible {
   display:flex;align-items:center;gap:8px;
   background:var(--card);border:1.5px solid var(--border);border-radius:14px;
   padding:9px 12px 9px 9px;
+  min-width:0;
   transition:border-color .2s,background .2s,box-shadow .2s,transform .15s;
 }
 .oc:not(.on):hover{
@@ -2547,11 +2548,13 @@ button:focus-visible {
 
   .main-col, .side-col { min-width: 0; }
 
-  /* Week sidebar is always visible and sticks while scrolling */
+  /* Week sidebar: sticky, height-capped, internal scroll */
   .side-col {
-    display: block;
+    display: flex;
+    flex-direction: column;
     position: sticky;
     top: 24px;
+    max-height: calc(100vh - 48px);
   }
 
   /* Week is always in the sidebar — hide the tab */
@@ -2568,6 +2571,31 @@ button:focus-visible {
 
   /* Restore room column in week agenda */
   .ag-r { display: block; }
+}
+
+/* ── WeekAgenda sidebar scroll ── */
+.wa-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.wa-days-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.wa-days-scroll::-webkit-scrollbar { width: 4px; }
+.wa-days-scroll::-webkit-scrollbar-track { background: transparent; }
+.wa-days-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+.wa-days-scroll::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+.wa-footer {
+  flex-shrink: 0;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  display: flex;
 }
 
 /* ── Friends Panel ── */
@@ -2797,15 +2825,50 @@ button:focus-visible {
 .cv-toggle-btn.on { background: var(--ink); color: #fff; }
 
 /* Day selector */
-.cv-day-selector { display: flex; align-items: center; gap: 8px; }
+.cv-filters { display: flex; flex-direction: column; gap: 10px; }
+.cv-day-selector { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .cv-day-btn {
   border: 1.5px solid var(--border); background: var(--card); color: var(--muted);
-  padding: 8px 16px; border-radius: 10px; font-family: var(--body); font-weight: 600;
-  font-size: 13px; cursor: pointer; transition: all .15s;
+  padding: 7px 14px; border-radius: 10px; font-family: var(--body); font-weight: 600;
+  font-size: 13px; cursor: pointer; transition: all .15s; white-space: nowrap;
 }
-.cv-day-btn:hover { border-color: var(--border-hi); }
+.cv-day-btn:hover { border-color: var(--border-hi); color: var(--text); }
 .cv-day-btn.on { background: var(--ink); color: #fff; border-color: var(--ink); }
-.cv-day-label { margin-left: auto; font-size: 13px; color: var(--muted); font-weight: 500; }
+.cv-day-label { margin-left: 4px; font-size: 12.5px; color: var(--muted); font-weight: 500; }
+.cv-range-drop { position: relative; }
+.cv-range-btn { display: flex; align-items: center; gap: 5px; }
+.cv-range-caret { transition: transform .15s; flex-shrink: 0; }
+.cv-range-caret.open { transform: rotate(180deg); }
+.cv-range-menu {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 50;
+  background: var(--card); border: 1.5px solid var(--border);
+  border-radius: 12px; padding: 6px; min-width: 140px;
+  display: flex; flex-direction: column; gap: 2px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.10);
+}
+.cv-range-opt {
+  background: none; border: none; padding: 8px 12px; border-radius: 8px;
+  font-family: var(--body); font-size: 13px; font-weight: 600;
+  color: var(--muted); cursor: pointer; text-align: left; transition: all .12s;
+}
+.cv-range-opt:hover { background: var(--surface); color: var(--text); }
+.cv-range-opt.on { background: var(--ink); color: #fff; }
+
+.cv-custom-range {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--surface); border: 1.5px solid var(--border);
+  border-radius: 12px; padding: 12px 16px;
+}
+.cv-range-field { display: flex; flex-direction: column; gap: 3px; }
+.cv-range-label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.cv-range-input {
+  background: var(--card); border: 1.5px solid var(--border);
+  border-radius: 8px; padding: 6px 10px;
+  font-family: var(--mono); font-size: 13px; color: var(--text);
+  cursor: pointer; outline: none; transition: border-color .15s;
+}
+.cv-range-input:focus { border-color: var(--violet); }
+.cv-range-arrow { font-size: 16px; color: var(--muted); margin-top: 14px; }
 
 /* Free summary */
 .cv-free-summary {
@@ -2955,6 +3018,32 @@ button:focus-visible {
 .fs-list { display: flex; flex-direction: column; gap: 24px; }
 
 .fs-day { }
+.fs-free-day {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 4px;
+  border-bottom: 1px dashed var(--border);
+  opacity: 0.55;
+}
+.fs-free-date { font-size: 13px; font-weight: 600; color: var(--text); }
+.fs-free-label { font-size: 12px; color: var(--muted); font-style: italic; }
+
+.fs-gap-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 6px 4px;
+  margin: 2px 0;
+  opacity: 0.4;
+}
+.fs-gap-row::before {
+  content: ''; flex: 1; height: 1px; background: var(--border);
+  border-top: 1px dashed var(--border); background: none;
+}
+.fs-gap-row::after {
+  content: ''; flex: 1; height: 1px;
+  border-top: 1px dashed var(--border);
+}
+.fs-gap-range { font-size: 11px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.fs-gap-label { font-size: 11px; color: var(--muted); white-space: nowrap; }
+
 .fs-day-header {
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border);

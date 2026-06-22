@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { ArrowLeft, Columns, Layers, Clock, BookOpen, UserCheck, Sparkles } from "lucide-react";
+import { useState, useMemo, useRef, useEffect } from "react";
+import { ArrowLeft, Columns, Layers, Clock, BookOpen, UserCheck, Sparkles, ChevronDown } from "lucide-react";
 import { findFreeSlots, findGroupFreeSlots, scheduleInsights, friendVisibleClasses } from "../lib/friends.js";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
@@ -18,6 +18,51 @@ function fmtTime(t) {
   const ampm = hr >= 12 ? "PM" : "AM";
   const hr12 = hr % 12 || 12;
   return `${hr12}:${m} ${ampm}`;
+}
+
+const RANGE_OPTIONS = [
+  { key: "3",      label: "3 Days" },
+  { key: "7",      label: "1 Week" },
+  { key: "14",     label: "2 Weeks" },
+  { key: "30",     label: "1 Month" },
+  { key: "custom", label: "Custom" },
+];
+
+function RangeDropdown({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const selected = RANGE_OPTIONS.find(o => o.key === value);
+
+  useEffect(() => {
+    function onDown(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, []);
+
+  return (
+    <div className="cv-range-drop" ref={ref}>
+      <button
+        className={`cv-day-btn cv-range-btn ${selected ? "on" : ""}`}
+        onClick={() => setOpen(o => !o)}
+      >
+        {selected ? selected.label : "Select Range"}
+        <ChevronDown size={12} className={`cv-range-caret ${open ? "open" : ""}`} />
+      </button>
+      {open && (
+        <div className="cv-range-menu">
+          {RANGE_OPTIONS.map(opt => (
+            <button
+              key={opt.key}
+              className={`cv-range-opt ${value === opt.key ? "on" : ""}`}
+              onClick={() => { onChange(opt.key); setOpen(false); }}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -81,7 +126,12 @@ export default function CompareView({
       return d.toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" });
     }
     const days = parseInt(dayFilter, 10);
-    if (!isNaN(days)) return `Next ${days} Days`;
+    if (!isNaN(days)) {
+      const start = new Date(now);
+      const end = new Date(now); end.setDate(end.getDate() + days - 1);
+      const fmt = d => d.toLocaleDateString([], { day: "numeric", month: "short" });
+      return `${fmt(start)} – ${fmt(end)}`;
+    }
     return "";
   }, [now, dayFilter]);
 
@@ -207,41 +257,42 @@ export default function CompareView({
       </div>
 
       {/* Day selector */}
-      <div className="cv-day-selector" style={{ flexWrap: "wrap", rowGap: "10px" }}>
-        <button className={`cv-day-btn ${dayFilter === "today" ? "on" : ""}`} onClick={() => setDayFilter("today")}>Today</button>
-        <button className={`cv-day-btn ${dayFilter === "tomorrow" ? "on" : ""}`} onClick={() => setDayFilter("tomorrow")}>Tomorrow</button>
-        <select 
-          className={`cv-day-btn ${["3", "7", "14", "30", "custom"].includes(dayFilter) ? "on" : ""}`}
-          value={["today", "tomorrow"].includes(dayFilter) ? "default" : dayFilter}
-          onChange={(e) => { if(e.target.value !== "default") setDayFilter(e.target.value); }}
-          style={{ cursor: "pointer", outline: "none" }}
-        >
-          <option value="default" disabled hidden>Select Range...</option>
-          <option value="3">Next 3 Days</option>
-          <option value="7">Next 1 Week</option>
-          <option value="14">Next 2 Weeks</option>
-          <option value="30">Next 1 Month</option>
-          <option value="custom">Custom Range</option>
-        </select>
-        
+      <div className="cv-filters">
+        <div className="cv-day-selector">
+          <button className={`cv-day-btn ${dayFilter === "today" ? "on" : ""}`} onClick={() => setDayFilter("today")}>Today</button>
+          <button className={`cv-day-btn ${dayFilter === "tomorrow" ? "on" : ""}`} onClick={() => setDayFilter("tomorrow")}>Tomorrow</button>
+          <RangeDropdown
+            value={RANGE_OPTIONS.some(o => o.key === dayFilter) ? dayFilter : null}
+            onChange={setDayFilter}
+          />
+          {dayFilter !== "custom" && prettyDateLabel && (
+            <span className="cv-day-label">{prettyDateLabel}</span>
+          )}
+        </div>
+
         {dayFilter === "custom" && (
-          <div style={{ display: "flex", alignItems: "center", gap: "6px", background: "var(--surface)", padding: "2px 6px", borderRadius: "8px", border: "1px solid var(--border)" }}>
-            <input 
-              type="date" 
-              style={{ background: "transparent", border: "none", color: "var(--fg)", outline: "none", fontSize: "13px" }}
-              value={customRange.start} 
-              onChange={e => setCustomRange(p => ({ ...p, start: e.target.value }))} 
-            />
-            <span style={{ fontSize: "13px", color: "var(--muted)" }}>to</span>
-            <input 
-              type="date" 
-              style={{ background: "transparent", border: "none", color: "var(--fg)", outline: "none", fontSize: "13px" }}
-              value={customRange.end} 
-              onChange={e => setCustomRange(p => ({ ...p, end: e.target.value }))} 
-            />
+          <div className="cv-custom-range">
+            <div className="cv-range-field">
+              <label className="cv-range-label">From</label>
+              <input
+                type="date"
+                className="cv-range-input"
+                value={customRange.start}
+                onChange={e => setCustomRange(p => ({ ...p, start: e.target.value }))}
+              />
+            </div>
+            <span className="cv-range-arrow">→</span>
+            <div className="cv-range-field">
+              <label className="cv-range-label">To</label>
+              <input
+                type="date"
+                className="cv-range-input"
+                value={customRange.end}
+                onChange={e => setCustomRange(p => ({ ...p, end: e.target.value }))}
+              />
+            </div>
           </div>
         )}
-        {dayFilter !== "custom" && <span className="cv-day-label">{prettyDateLabel}</span>}
       </div>
 
       {/* Free time summary */}

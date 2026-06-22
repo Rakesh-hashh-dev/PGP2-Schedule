@@ -1,11 +1,20 @@
 import React, { useMemo, useState } from "react";
-import { ArrowLeft, BookOpen, Clock, MapPin, User } from "lucide-react";
+import { ArrowLeft, Clock, MapPin, User } from "lucide-react";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
+
+function isoOf(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 function fmtDate(iso) {
   const [Y, M, D] = iso.split("-").map(Number);
   return new Date(Y, M - 1, D).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
+}
+
+function fmtShort(iso) {
+  const [Y, M, D] = iso.split("-").map(Number);
+  return new Date(Y, M - 1, D).toLocaleDateString([], { day: "numeric", month: "short" });
 }
 
 export default React.memo(function FullSchedulePage({ allClasses, enrolled, legend, termLabel, onBack }) {
@@ -39,14 +48,39 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
   // Apply filter
   const filtered = filterCode ? baseClasses.filter(c => c.code === filterCode) : baseClasses;
 
-  // Group by date
+  // Group by date, filling gaps between class days
   const grouped = useMemo(() => {
-    const map = new Map();
+    if (filtered.length === 0) return [];
+
+    const classMap = new Map();
     for (const c of filtered) {
-      if (!map.has(c.date)) map.set(c.date, []);
-      map.get(c.date).push(c);
+      if (!classMap.has(c.date)) classMap.set(c.date, []);
+      classMap.get(c.date).push(c);
     }
-    return [...map.entries()];
+
+    const classDates = [...classMap.keys()].sort();
+    const result = [];
+
+    for (let i = 0; i < classDates.length; i++) {
+      result.push({ type: "day", date: classDates[i], items: classMap.get(classDates[i]) });
+
+      if (i < classDates.length - 1) {
+        const cur = new Date(classDates[i]);
+        const next = new Date(classDates[i + 1]);
+        const gapDays = Math.round((next - cur) / 86400000) - 1;
+
+        if (gapDays === 1) {
+          const fd = new Date(cur); fd.setDate(fd.getDate() + 1);
+          result.push({ type: "free", date: isoOf(fd) });
+        } else if (gapDays >= 2) {
+          const fd = new Date(cur); fd.setDate(fd.getDate() + 1);
+          const td = new Date(next); td.setDate(td.getDate() - 1);
+          result.push({ type: "gap", from: isoOf(fd), to: isoOf(td), count: gapDays });
+        }
+      }
+    }
+
+    return result;
   }, [filtered]);
 
   const totalSessions = filtered.length;
@@ -180,47 +214,68 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
         {grouped.length === 0 ? (
           <p className="fr-empty" style={{ textAlign: "center", padding: "40px 0" }}>No sessions found.</p>
         ) : (
-          grouped.map(([date, items]) => (
-            <div key={date} id={`day-${date}`} className="fs-day">
-              <div className="fs-day-header">
-                <span className="fs-day-label">{fmtDate(date)}</span>
-                <span className="fs-day-count">{items.length} session{items.length > 1 ? "s" : ""}</span>
-              </div>
-              <div className="fs-day-items">
-                {items.map((c, i) => {
-                  const colorIdx = (Array.from(c.code).reduce((h, ch) => h + ch.charCodeAt(0), 0)) % 6;
-                  const showSection = c.section && c.section !== "Single";
-                  return (
-                    <div key={i} className="fs-card">
-                      <div className={`fs-card-accent accent-${colorIdx}`} />
-                      <div className="fs-card-body">
-                        <div className="fs-card-top">
-                          <span className="fs-card-name">{c.name}</span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            {showSection && (
-                              <span style={{ 
-                                fontSize: '10px', fontWeight: '700', padding: '2px 6px', 
-                                background: 'var(--surface)', borderRadius: '6px', 
-                                color: 'var(--muted)', letterSpacing: '0.5px', textTransform: 'uppercase'
-                              }}>
-                                Sec {c.section}
-                              </span>
-                            )}
-                            <span className={`ses ses-${colorIdx}`}>{c.code} {c.session}</span>
+          grouped.map((entry, idx) => {
+            if (entry.type === "free") {
+              return (
+                <div key={entry.date} id={`day-${entry.date}`} className="fs-free-day">
+                  <span className="fs-free-date">{fmtDate(entry.date)}</span>
+                  <span className="fs-free-label">No classes</span>
+                </div>
+              );
+            }
+
+            if (entry.type === "gap") {
+              return (
+                <div key={`gap-${idx}`} className="fs-gap-row">
+                  <span className="fs-gap-range">{fmtShort(entry.from)} – {fmtShort(entry.to)}</span>
+                  <span className="fs-gap-label">No classes · {entry.count} days</span>
+                </div>
+              );
+            }
+
+            const { date, items } = entry;
+            return (
+              <div key={date} id={`day-${date}`} className="fs-day">
+                <div className="fs-day-header">
+                  <span className="fs-day-label">{fmtDate(date)}</span>
+                  <span className="fs-day-count">{items.length} session{items.length > 1 ? "s" : ""}</span>
+                </div>
+                <div className="fs-day-items">
+                  {items.map((c, i) => {
+                    const colorIdx = (Array.from(c.code).reduce((h, ch) => h + ch.charCodeAt(0), 0)) % 6;
+                    const showSection = c.section && c.section !== "Single";
+                    return (
+                      <div key={i} className="fs-card">
+                        <div className={`fs-card-accent accent-${colorIdx}`} />
+                        <div className="fs-card-body">
+                          <div className="fs-card-top">
+                            <span className="fs-card-name">{c.name}</span>
+                            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                              {showSection && (
+                                <span style={{
+                                  fontSize: "10px", fontWeight: "700", padding: "2px 6px",
+                                  background: "var(--surface)", borderRadius: "6px",
+                                  color: "var(--muted)", letterSpacing: "0.5px", textTransform: "uppercase"
+                                }}>
+                                  Sec {c.section}
+                                </span>
+                              )}
+                              <span className={`ses ses-${colorIdx}`}>{c.code} {c.session}</span>
+                            </div>
+                          </div>
+                          <div className="fs-card-meta">
+                            <span className="fs-meta-item"><Clock size={13} /> {c.start} – {c.end}</span>
+                            <span className="fs-meta-item"><MapPin size={13} /> {c.room || "TBA"}</span>
+                            {c.faculty && <span className="fs-meta-item"><User size={13} /> {c.faculty}</span>}
                           </div>
                         </div>
-                        <div className="fs-card-meta">
-                          <span className="fs-meta-item"><Clock size={13} /> {c.start} – {c.end}</span>
-                          <span className="fs-meta-item"><MapPin size={13} /> {c.room || "TBA"}</span>
-                          {c.faculty && <span className="fs-meta-item"><User size={13} /> {c.faculty}</span>}
-                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>
