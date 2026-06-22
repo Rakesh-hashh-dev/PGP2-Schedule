@@ -498,9 +498,10 @@ function MergedTimeline({ myClasses, targetClasses, targets, freeSlots, dayFilte
 
 /* ── Side by Side Agenda ── */
 function SideBySide({ myClasses, targetClasses, targets, dayFilter, freeSlots = [] }) {
+  const FRIEND_COLORS = ["cva-theirs", "cva-friend2", "cva-friend3"];
   const columnsDef = [
     { label: "You", colorClass: "cva-mine" },
-    ...targets.map((t, i) => ({ label: t.name, colorClass: "cva-theirs" }))
+    ...targets.map((t, i) => ({ label: t.name, colorClass: FRIEND_COLORS[i % FRIEND_COLORS.length] }))
   ];
 
   const allItems = [];
@@ -538,11 +539,14 @@ function SideBySide({ myClasses, targetClasses, targets, dayFilter, freeSlots = 
     <div>
       {/* Sticky column name bar — lives outside overflow-x container so it actually sticks */}
       <div className="cv-sbs-sticky-header">
-        {columnsDef.map((col, i) => (
-          <div key={i} className={`cv-sbs-name-pill ${i === 0 ? "you" : "them"}`}>
-            {col.label}
-          </div>
-        ))}
+        {columnsDef.map((col, i) => {
+          const pillClass = i === 0 ? "you" : i === 1 ? "them" : i === 2 ? "them2" : "them3";
+          return (
+            <div key={i} className={`cv-sbs-name-pill ${pillClass}`}>
+              {col.label}
+            </div>
+          );
+        })}
       </div>
 
       <div className="cv-side-agenda" style={{ display: "block" }}>
@@ -562,9 +566,9 @@ function SideBySide({ myClasses, targetClasses, targets, dayFilter, freeSlots = 
               {dg.rows.map((row, ri) => (
                 <div key={ri} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                   {row.freeSlots.map((fs, fsi) => (
-                    <div key={fsi} className="cva-free-pill" style={{ background: "rgba(31,169,113,.15)", border: "1px dashed rgba(31,169,113,.4)", color: "var(--live)", padding: "8px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: "700", textAlign: "center", display: "flex", justifyContent: "center", gap: "8px", alignItems: "center", margin: "0 4px" }}>
+                    <div key={fsi} className="cva-free-pill" style={{ background: "rgba(31,169,113,.18)", border: "1px solid rgba(31,169,113,.35)", color: "var(--live)", padding: "9px 12px", borderRadius: "12px", fontSize: "12px", fontWeight: "700", textAlign: "center", display: "flex", justifyContent: "center", gap: "8px", alignItems: "center", margin: "0 4px" }}>
                       <span>{fmtTime(fs.start)} – {fmtTime(fs.end)}</span>
-                      <span style={{fontSize: "10px", opacity: 0.85}}>Free</span>
+                      <span style={{ fontSize: "10px", fontWeight: "600", background: "rgba(31,169,113,.20)", padding: "2px 7px", borderRadius: "10px" }}>Free</span>
                     </div>
                   ))}
                   
@@ -573,8 +577,8 @@ function SideBySide({ myClasses, targetClasses, targets, dayFilter, freeSlots = 
                       {row.columns.map((colItems, ci) => (
                         <div key={ci} style={{ flex: 1, padding: "0 6px", display: "flex", flexDirection: "column", gap: "8px", minWidth: 0 }}>
                           {colItems.length === 0 ? (
-                            <div className="cva-card" style={{ margin: 0, height: "100%", background: "transparent", border: "1px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60px" }}>
-                              <span style={{ fontSize: "12px", color: "var(--muted)", fontWeight: "500" }}>No class</span>
+                            <div className="cva-card" style={{ margin: 0, height: "100%", background: "var(--surface)", border: "1px dashed var(--border-hi)", display: "flex", alignItems: "center", justifyContent: "center", minHeight: "64px" }}>
+                              <span style={{ fontSize: "11px", color: "var(--muted)", fontWeight: "600", letterSpacing: "0.03em", textTransform: "uppercase" }}>Free</span>
                             </div>
                           ) : colItems.map((c, cii) => {
                             const isShared = c.type === "holiday" || c.type === "break";

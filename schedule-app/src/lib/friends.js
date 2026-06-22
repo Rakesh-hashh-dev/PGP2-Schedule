@@ -140,7 +140,8 @@ export async function decodeSchedule(code) {
     const fullName = profileData.courses?._name || namePart;
     const cleanCourses = { ...profileData.courses };
     delete cleanCourses._name;
-    
+    delete cleanCourses._lastSeenNotif;
+
     return { id: userId, name: fullName, courses: cleanCourses };
   } catch (e) {
     console.error("Decode error:", e);
@@ -506,6 +507,7 @@ export async function refreshFriendCoursesFromCloud(friends) {
     const raw = { ...profileMap[f.cloudId] };
     const freshName = raw._name || f.name;
     delete raw._name;
+    delete raw._lastSeenNotif;
 
     const coursesChanged =
       JSON.stringify(raw) !== JSON.stringify(f.courses) || freshName !== f.name;

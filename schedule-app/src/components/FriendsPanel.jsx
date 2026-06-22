@@ -1,5 +1,18 @@
 import { useState, useEffect } from "react";
 import { Copy, Link2, UserPlus, Users, Trash2, ArrowRight, Plus, X, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
+
+const AVATAR_PALETTE = [
+  ["#7C3AED", "#A855F7"],
+  ["#2563EB", "#60A5FA"],
+  ["#0D9488", "#2DD4BF"],
+  ["#DC2626", "#FB7185"],
+  ["#D97706", "#FBBF24"],
+  ["#4338CA", "#818CF8"],
+];
+function avatarGradient(name) {
+  const idx = [...(name || "?")].reduce((h, c) => h + c.charCodeAt(0), 0) % AVATAR_PALETTE.length;
+  return AVATAR_PALETTE[idx];
+}
 import {
   decodeSchedule, codeDisplayPart, buildShareUrl,
   saveFriend, removeFriend as removeFriendFromStore,
@@ -242,6 +255,21 @@ export default function FriendsPanel({
                       <span className="fr-group-name">{group.name}</span>
                       <span className="fr-group-meta">{memberCount} member{memberCount !== 1 ? "s" : ""}</span>
                     </div>
+                    {memberCount > 0 && (
+                      <div className="fr-group-member-preview">
+                        {friends.filter(f => (group.memberIds || []).includes(f.id)).slice(0, 4).map((f, fi) => {
+                          const [c1] = avatarGradient(f.name);
+                          return (
+                            <div key={f.id} className="fr-group-avatar-dot" style={{ background: c1, zIndex: 10 - fi }}>
+                              {f.name[0]?.toUpperCase()}
+                            </div>
+                          );
+                        })}
+                        {memberCount > 4 && (
+                          <div className="fr-group-avatar-dot fr-group-avatar-more">+{memberCount - 4}</div>
+                        )}
+                      </div>
+                    )}
                     <div className="fr-group-actions">
                       {memberCount >= 1 && (
                         <button className="fr-btn fr-btn-compare" onClick={e => { e.stopPropagation(); onGroupCompare(group); }}>
@@ -300,12 +328,15 @@ export default function FriendsPanel({
           <div className="fr-friend-list">
             {friends.map(f => {
               const fCourseCount = Object.keys(f.courses || {}).length;
+              const [c1, c2] = avatarGradient(f.name);
               return (
-                <div key={f.id} className="fr-friend-card">
-                  <div className="fr-friend-avatar">{f.name[0]?.toUpperCase()}</div>
+                <div key={f.id} className="fr-friend-card" style={{ '--accent': c1 }}>
+                  <div className="fr-friend-avatar" style={{ background: `linear-gradient(135deg, ${c1} 0%, ${c2} 100%)`, boxShadow: `0 4px 10px ${c1}40` }}>
+                    {f.name[0]?.toUpperCase()}
+                  </div>
                   <div className="fr-friend-info">
                     <span className="fr-friend-name">{f.name}</span>
-                    <span className="fr-friend-meta">{fCourseCount} courses</span>
+                    <span className="fr-friend-meta">{fCourseCount} course{fCourseCount !== 1 ? "s" : ""}</span>
                   </div>
                   <div className="fr-friend-actions">
                     <button className="fr-btn fr-btn-compare" onClick={() => onCompare(f)}>
@@ -322,7 +353,7 @@ export default function FriendsPanel({
                         <RefreshCw size={14} className={syncingFriendId === f.id ? "spin-icon" : ""} />
                       </button>
                     )}
-                    <button className="fr-btn fr-btn-icon" onClick={() => handleRemoveFriend(f.id)} aria-label="Remove friend">
+                    <button className="fr-btn fr-btn-icon fr-btn-delete" onClick={() => handleRemoveFriend(f.id)} aria-label="Remove friend">
                       <Trash2 size={14} />
                     </button>
                   </div>
