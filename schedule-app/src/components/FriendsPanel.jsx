@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Copy, Link2, UserPlus, Users, Trash2, ArrowRight, Plus, X, ChevronDown, ChevronUp, RefreshCw, Bell, Globe, Lock } from "lucide-react";
+import { Copy, Link2, UserPlus, Users, Trash2, ArrowRight, Plus, X, ChevronDown, ChevronUp, RefreshCw, Bell, Globe, Lock, CheckCircle, AlertCircle, Info, AlertTriangle } from "lucide-react";
 
 const AVATAR_PALETTE = [
   ["#7C3AED", "#A855F7"],
@@ -22,10 +22,34 @@ import {
   shareGroupWithMembers, unshareGroupFromMembers,
 } from "../lib/friends.js";
 
-function Toast({ message, onDone }) {
+const TOAST_META = {
+  success: { Icon: CheckCircle, color: "#1FA971" },
+  error:   { Icon: AlertCircle, color: "#e74c3c" },
+  info:    { Icon: Info,        color: "#6D5BD0" },
+  warning: { Icon: AlertTriangle, color: "#C9882B" },
+};
+
+function Toast({ message, type = "info", onDone }) {
+  const { Icon, color } = TOAST_META[type] || TOAST_META.info;
   return (
-    <div className="fr-toast" onAnimationEnd={onDone}>
+    <div className={`fr-toast fr-toast-${type}`} onAnimationEnd={onDone}>
+      <Icon size={15} style={{ color, flex: "none" }} />
       <span className="fr-toast-text">{message}</span>
+    </div>
+  );
+}
+
+function FriendSkeleton() {
+  return (
+    <div className="fr-friend-card fr-sk-card">
+      <div className="fr-sk-avatar sk-shimmer" />
+      <div className="fr-sk-info">
+        <div className="sk-shimmer" style={{ height: 14, width: "55%", borderRadius: 6 }} />
+        <div className="sk-shimmer" style={{ height: 11, width: "35%", borderRadius: 5, marginTop: 6 }} />
+      </div>
+      <div className="fr-sk-actions">
+        <div className="sk-shimmer" style={{ height: 32, width: 84, borderRadius: 10 }} />
+      </div>
     </div>
   );
 }
@@ -48,7 +72,7 @@ export default function FriendsPanel({
 }) {
   const [addCode, setAddCode] = useState("");
   const [addError, setAddError] = useState("");
-  const [toast, setToast] = useState(null);
+  const [toast, setToast] = useState(null); // { message, type }
   const [newGroupName, setNewGroupName] = useState("");
   const [showNewGroup, setShowNewGroup] = useState(false);
   const [expandedGroup, setExpandedGroup] = useState(null);
@@ -61,7 +85,16 @@ export default function FriendsPanel({
   const [sharingGroupId, setSharingGroupId] = useState(null);
   const [pings, setPings] = useState([]);
 
-  // Generate the user's shareable code asynchronously
+  // Show skeleton only when no local friends and still might be syncing from cloud
+  const [initialLoading, setInitialLoading] = useState(friends.length === 0);
+  useEffect(() => {
+    if (friends.length > 0) { setInitialLoading(false); return; }
+    const t = setTimeout(() => setInitialLoading(false), 1400);
+    return () => clearTimeout(t);
+  }, [friends.length]);
+
+  const showToast = (message, type = "success") => setToast({ message, type });
+
   useEffect(() => {
     if (!userId) return;
     setIsGenerating(true);
@@ -71,7 +104,6 @@ export default function FriendsPanel({
     });
   }, [userId, userName]);
 
-  // Fetch pings (who added you) on panel open
   useEffect(() => {
     if (!userId) return;
     fetchAndClearFriendPings(userId).then(data => {
@@ -79,7 +111,6 @@ export default function FriendsPanel({
     });
   }, [userId]);
 
-  // Silently refresh all cloud-linked friends' courses on panel open
   useEffect(() => {
     if (!friends.length) return;
     refreshFriendCoursesFromCloud(friends).then(updated => {
@@ -96,15 +127,15 @@ export default function FriendsPanel({
   function copyCode() {
     if (!myCode) return;
     navigator.clipboard.writeText(myCode).then(() => {
-      setToast("Code copied!");
-    }).catch(() => setToast("Failed to copy"));
+      showToast("Code copied!", "success");
+    }).catch(() => showToast("Failed to copy", "error"));
   }
 
   function copyLink() {
     if (!myCode) return;
     navigator.clipboard.writeText(buildShareUrl(myCode)).then(() => {
-      setToast("Link copied!");
-    }).catch(() => setToast("Failed to copy"));
+      showToast("Link copied!", "success");
+    }).catch(() => showToast("Failed to copy", "error"));
   }
 
   async function handleAddFriend() {
@@ -132,7 +163,7 @@ export default function FriendsPanel({
     setFriends(updated);
     pushFriendsToCloud(userId, updated);
     setAddCode("");
-    setToast(`Added ${decoded.name}!`);
+    showToast(`Added ${decoded.name}!`, "success");
     if (decoded.id) sendFriendPing(decoded.id, userId, userName);
   }
 
@@ -149,9 +180,9 @@ export default function FriendsPanel({
     if (updated) {
       setFriends(updated);
       pushFriendsToCloud(userId, updated);
-      setToast("Schedule refreshed!");
+      showToast("Schedule refreshed!", "success");
     } else {
-      setToast("Already up to date");
+      showToast("Already up to date", "info");
     }
   }
 
@@ -162,7 +193,7 @@ export default function FriendsPanel({
     pushGroupsToCloud(userId, updated);
     setNewGroupName("");
     setShowNewGroup(false);
-    setToast("Group created!");
+    showToast("Group created!", "success");
   }
 
   async function handleRemoveGroup(id, isReceived = false) {
@@ -175,7 +206,7 @@ export default function FriendsPanel({
     const updated = removeGroupFromStore(id);
     setGroups(updated);
     pushGroupsToCloud(userId, updated);
-    setToast(isReceived ? "Left group" : "Group deleted");
+    showToast(isReceived ? "Left group" : "Group deleted", "info");
   }
 
   async function handleToggleFriendInGroup(groupId, friendId) {
@@ -204,6 +235,10 @@ export default function FriendsPanel({
   async function handleSetGroupPrivacy(group, newPrivacy) {
     const oldPrivacy = group.visibility || "private";
     if (oldPrivacy === newPrivacy) return;
+
+    // Optimistic: update local state immediately so the UI feels instant
+    const optimistic = updateGroup(group.id, { visibility: newPrivacy });
+    setGroups(optimistic);
     setSharingGroupId(group.id);
 
     if ((oldPrivacy === "shared" || oldPrivacy === "global") && group.cloudMemberIds?.length) {
@@ -214,12 +249,15 @@ export default function FriendsPanel({
       const updated = updateGroup(group.id, { visibility: "private", cloudMemberIds: [] });
       setGroups(updated);
       pushGroupsToCloud(userId, updated);
-      setToast("Group is now private");
+      showToast("Group is now private", "info");
     } else if (newPrivacy === "shared") {
       const targetFriends = friends.filter(f => (group.memberIds || []).includes(f.id));
       const cloudCount = targetFriends.filter(f => f.cloudId).length;
       if (!cloudCount) {
-        setToast("No group members have accounts yet");
+        showToast("No group members have accounts yet", "warning");
+        // Revert optimistic since we can't actually share
+        const reverted = updateGroup(group.id, { visibility: oldPrivacy });
+        setGroups(reverted);
         setSharingGroupId(null);
         return;
       }
@@ -227,11 +265,13 @@ export default function FriendsPanel({
       const updated = updateGroup(group.id, { visibility: "shared", cloudMemberIds });
       setGroups(updated);
       pushGroupsToCloud(userId, updated);
-      setToast(`Visible to ${cloudCount} group member${cloudCount !== 1 ? "s" : ""}`);
+      showToast(`Visible to ${cloudCount} member${cloudCount !== 1 ? "s" : ""}`, "success");
     } else if (newPrivacy === "global") {
       const cloudCount = friends.filter(f => f.cloudId).length;
       if (!cloudCount) {
-        setToast("None of your friends have accounts yet");
+        showToast("None of your friends have accounts yet", "warning");
+        const reverted = updateGroup(group.id, { visibility: oldPrivacy });
+        setGroups(reverted);
         setSharingGroupId(null);
         return;
       }
@@ -239,7 +279,7 @@ export default function FriendsPanel({
       const updated = updateGroup(group.id, { visibility: "global", cloudMemberIds });
       setGroups(updated);
       pushGroupsToCloud(userId, updated);
-      setToast(`Visible to all ${cloudCount} friend${cloudCount !== 1 ? "s" : ""}`);
+      showToast(`Shared with all ${cloudCount} friend${cloudCount !== 1 ? "s" : ""}`, "success");
     }
     setSharingGroupId(null);
   }
@@ -261,7 +301,7 @@ export default function FriendsPanel({
 
   return (
     <div className="fr-page">
-      {toast && <Toast message={toast} onDone={() => setToast(null)} />}
+      {toast && <Toast message={toast.message} type={toast.type} onDone={() => setToast(null)} />}
 
       {/* ── Incoming Pings ── */}
       {pings.length > 0 && (
@@ -364,14 +404,20 @@ export default function FriendsPanel({
         )}
 
         {groups.length === 0 && !showNewGroup ? (
-          <p className="fr-empty">Create a group to compare schedules with multiple friends at once.</p>
+          <div className="fr-empty-state fr-empty-state-sm">
+            <Users size={36} strokeWidth={1.2} />
+            <p>No groups yet</p>
+            <span>Compare schedules with multiple friends at once.</span>
+            <button className="fr-btn fr-btn-primary fr-empty-cta" onClick={() => setShowNewGroup(true)}>
+              <Plus size={14} /> Create your first group
+            </button>
+          </div>
         ) : (
           <div className="fr-group-list">
             {groups.map(group => {
               const memberCount = (group.memberIds || []).length;
               const isExpanded = expandedGroup === group.id;
 
-              // For received groups: resolve members from the user's friends list by cloudId
               const displayMembers = group.isReceived
                 ? (group.cloudMemberIds || [])
                     .filter(cid => cid !== userId)
@@ -474,7 +520,10 @@ export default function FriendsPanel({
                           </div>
                           <p className="fr-group-body-label">Tap friends to add/remove from this group:</p>
                           {friends.length === 0 ? (
-                            <p className="fr-empty">Add friends first, then add them to this group.</p>
+                            <div className="fr-empty-inline">
+                              <UserPlus size={18} strokeWidth={1.5} />
+                              <span>Add friends first, then build your group.</span>
+                            </div>
                           ) : (
                             <div className="fr-group-members">
                               {friends.map(f => {
@@ -513,11 +562,23 @@ export default function FriendsPanel({
       {/* ── Saved Friends ── */}
       <section className="fr-friends-section">
         <h3 className="fr-section-title">Saved Friends</h3>
-        {friends.length === 0 ? (
+        {initialLoading && friends.length === 0 ? (
+          <div className="fr-friend-list">
+            <FriendSkeleton />
+            <FriendSkeleton />
+            <FriendSkeleton />
+          </div>
+        ) : friends.length === 0 ? (
           <div className="fr-empty-state">
             <Users size={40} strokeWidth={1.2} />
             <p>No friends added yet</p>
-            <span>Share your code with classmates or paste their code above to compare schedules.</span>
+            <span>Share your code with classmates and paste theirs above to compare schedules.</span>
+            <button
+              className="fr-btn fr-btn-primary fr-empty-cta"
+              onClick={() => document.querySelector(".fr-add-input")?.focus()}
+            >
+              <UserPlus size={14} /> Add your first friend
+            </button>
           </div>
         ) : (
           <div className="fr-friend-list">

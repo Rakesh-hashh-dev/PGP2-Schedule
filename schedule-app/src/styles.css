@@ -2866,13 +2866,57 @@ button:focus-visible {
 /* Toast */
 .fr-toast {
   position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
-  background: var(--ink); color: #fff; padding: 11px 22px; border-radius: 12px;
+  display: flex; align-items: center; gap: 9px;
+  background: var(--ink); color: #fff; padding: 11px 20px; border-radius: 12px;
   font-family: var(--body); font-weight: 600; font-size: 13.5px;
   box-shadow: 0 8px 24px rgba(21,24,43,.25);
+  border-left: 3px solid transparent;
   z-index: 200; animation: toast-in .3s ease, toast-out .3s ease 2.2s forwards;
+  white-space: nowrap;
 }
+.fr-toast-success { border-left-color: #1FA971; }
+.fr-toast-error   { border-left-color: #e74c3c; }
+.fr-toast-info    { border-left-color: #6D5BD0; }
+.fr-toast-warning { border-left-color: #C9882B; }
 @keyframes toast-in { from { opacity: 0; transform: translateX(-50%) translateY(16px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
 @keyframes toast-out { from { opacity: 1; } to { opacity: 0; transform: translateX(-50%) translateY(-8px); } }
+
+/* Skeleton shimmer */
+@keyframes sk-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+.sk-shimmer {
+  background: linear-gradient(90deg, var(--border) 25%, var(--surface) 50%, var(--border) 75%);
+  background-size: 200% 100%;
+  animation: sk-shimmer 1.4s ease-in-out infinite;
+}
+.fr-sk-card { pointer-events: none; opacity: 0.7; }
+.fr-sk-avatar { width: 40px; height: 40px; border-radius: 50%; flex: none; }
+.fr-sk-info { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+.fr-sk-actions { display: flex; gap: 8px; }
+
+/* Nav badge (received groups indicator) */
+.nav-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #e74c3c; color: #fff;
+  font-size: 10px; font-weight: 800; font-family: var(--body);
+  min-width: 17px; height: 17px; border-radius: 9px; padding: 0 4px;
+  line-height: 1; flex: none;
+}
+.tab .nav-badge { margin-left: 2px; }
+.sb-link .nav-badge { margin-left: auto; }
+
+/* Empty state CTA button */
+.fr-empty-cta { margin-top: 4px; padding: 9px 18px; font-size: 13px; }
+.fr-empty-state-sm { padding: 20px 16px; }
+.fr-empty-state-sm p { font-size: 14px; }
+
+/* Inline empty (inside expanded group body) */
+.fr-empty-inline {
+  display: flex; align-items: center; gap: 8px;
+  color: var(--muted); font-size: 13px; padding: 10px 0;
+}
 
 /* ── Friend Pings (incoming notifications) ── */
 .fr-pings-section {

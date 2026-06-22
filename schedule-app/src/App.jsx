@@ -143,6 +143,11 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [groups, setGroups] = useState(() => loadGroups());
   const [compareTarget, setCompareTarget] = useState(null); // { mode, friendData?, groupData? }
   const [friendToast, setFriendToast] = useState(null);
+
+  // Received groups badge: track how many received groups were seen when Friends tab was last opened
+  const [seenRecvCount, setSeenRecvCount] = useState(() => {
+    try { return parseInt(localStorage.getItem("pgp2.recv-groups-count") || "0", 10); } catch { return 0; }
+  });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try { return localStorage.getItem("pgp2.sidebar") === "collapsed"; } catch { return false; }
   });
@@ -271,6 +276,48 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     const t = setInterval(() => setRealNow(new Date()), 20000);
     return () => clearInterval(t);
   }, []);
+
+  // Supabase Realtime: stream groups/friends changes pushed by others (e.g. shared groups)
+  useEffect(() => {
+    if (!userId) return;
+    const channel = supabase
+      .channel(`profile-realtime-${userId}`)
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "profiles",
+        filter: `user_id=eq.${userId}`,
+      }, (payload) => {
+        if (!payload.new) return;
+        if (Array.isArray(payload.new.groups)) {
+          setGroups(payload.new.groups);
+          try { localStorage.setItem("pgp2.groups", JSON.stringify(payload.new.groups)); } catch {}
+        }
+        if (Array.isArray(payload.new.friends)) {
+          setFriends(payload.new.friends);
+          try { localStorage.setItem("pgp2.friends", JSON.stringify(payload.new.friends)); } catch {}
+        }
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [userId]);
+
+  // Page visibility: re-fetch schedule when user returns to tab after 5+ minutes away
+  useEffect(() => {
+    if (!isSignedIn) return;
+    const syncedAtRef = { current: syncedAt };
+    const updateRef = () => { syncedAtRef.current = syncedAt; };
+    updateRef();
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        const elapsed = Date.now() - syncedAtRef.current.getTime();
+        if (elapsed > 5 * 60 * 1000) handleSync();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSignedIn, syncedAt]);
 
   useEffect(() => {
     const hour = now.getHours();
@@ -486,6 +533,13 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   }, [CHANGES, mine, LEGEND]);
 
   const hasUnread = filteredChanges.length > 0 && filteredChanges.some(c => new Date(c.ts).getTime() > lastSeenTs);
+  const receivedGroupCount = groups.filter(g => g.isReceived).length;
+  const hasNewGroups = receivedGroupCount > seenRecvCount;
+
+  function markGroupsSeen() {
+    setSeenRecvCount(receivedGroupCount);
+    try { localStorage.setItem("pgp2.recv-groups-count", String(receivedGroupCount)); } catch {}
+  }
 
   function handleOpenNotif() {
     if (!notifOpen && filteredChanges.length > 0) {
@@ -613,8 +667,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           <button className={`sb-link${view === "notifications" ? " on" : ""}`} onClick={() => { setView("notifications"); setCompareTarget(null); }}>
             <Megaphone size={18} /><span className="sb-link-label">Announcements</span>
           </button>
-          <button className={`sb-link${view === "friends" ? " on" : ""}`} onClick={() => { setView("friends"); setCompareTarget(null); }}>
+          <button className={`sb-link${view === "friends" ? " on" : ""}`} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); }}>
             <Users size={18} /><span className="sb-link-label">Friends</span> <span className="beta-badge">Beta</span>
+            {hasNewGroups && <span className="nav-badge">{receivedGroupCount - seenRecvCount}</span>}
           </button>
           {showAdminUI && (
             <button className={`sb-link${view === "admin" ? " on" : ""}`} onClick={() => { setView("admin"); setCompareTarget(null); }}>
@@ -832,8 +887,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 <button className={`tab ${view === "notifications" ? "on" : ""}`} onClick={() => { setView("notifications"); setCompareTarget(null); }}>
                   <Megaphone size={15} /> Announcements
                 </button>
-                <button className={`tab ${view === "friends" ? "on" : ""}`} onClick={() => { setView("friends"); setCompareTarget(null); }}>
+                <button className={`tab ${view === "friends" ? "on" : ""}`} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); }}>
                   <Users size={15} /> Friends <span className="beta-badge">Beta</span>
+                  {hasNewGroups && <span className="nav-badge">{receivedGroupCount - seenRecvCount}</span>}
                 </button>
               </nav>
               {showLeftScroll && (
