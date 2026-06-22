@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
-import { Copy, Link2, UserPlus, Users, Trash2, ArrowRight, Plus, X, ChevronDown, ChevronUp } from "lucide-react";
+import { Copy, Link2, UserPlus, Users, Trash2, ArrowRight, Plus, X, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
 import {
   decodeSchedule, codeDisplayPart, buildShareUrl,
   saveFriend, removeFriend as removeFriendFromStore,
   loadGroups, createGroup, removeGroup as removeGroupFromStore, updateGroup,
-  getOrCreateShareCode, pushFriendsToCloud, pushGroupsToCloud
+  getOrCreateShareCode, pushFriendsToCloud, pushGroupsToCloud,
+  refreshFriendCoursesFromCloud,
 } from "../lib/friends.js";
 
 function Toast({ message, onDone }) {
@@ -30,6 +31,7 @@ export default function FriendsPanel({
   const [myCode, setMyCode] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
+  const [syncingFriendId, setSyncingFriendId] = useState(null);
 
   // Generate the user's shareable code asynchronously
   useEffect(() => {
@@ -40,6 +42,18 @@ export default function FriendsPanel({
       setIsGenerating(false);
     });
   }, [userId, userName]);
+
+  // Silently refresh all cloud-linked friends' courses on panel open
+  useEffect(() => {
+    if (!friends.length) return;
+    refreshFriendCoursesFromCloud(friends).then(updated => {
+      if (updated) {
+        setFriends(updated);
+        pushFriendsToCloud(userId, updated);
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const myCodeDisplay = codeDisplayPart(myCode);
 
@@ -89,6 +103,19 @@ export default function FriendsPanel({
     const updated = removeFriendFromStore(id);
     setFriends(updated);
     pushFriendsToCloud(userId, updated);
+  }
+
+  async function handleRefreshFriend(id) {
+    setSyncingFriendId(id);
+    const updated = await refreshFriendCoursesFromCloud(friends);
+    setSyncingFriendId(null);
+    if (updated) {
+      setFriends(updated);
+      pushFriendsToCloud(userId, updated);
+      setToast("Schedule refreshed!");
+    } else {
+      setToast("Already up to date");
+    }
   }
 
   function handleCreateGroup() {
@@ -284,6 +311,17 @@ export default function FriendsPanel({
                     <button className="fr-btn fr-btn-compare" onClick={() => onCompare(f)}>
                       Compare <ArrowRight size={13} />
                     </button>
+                    {f.cloudId && (
+                      <button
+                        className="fr-btn fr-btn-icon"
+                        onClick={() => handleRefreshFriend(f.id)}
+                        disabled={syncingFriendId === f.id}
+                        aria-label="Sync friend's schedule"
+                        title="Sync latest schedule"
+                      >
+                        <RefreshCw size={14} className={syncingFriendId === f.id ? "spin-icon" : ""} />
+                      </button>
+                    )}
                     <button className="fr-btn fr-btn-icon" onClick={() => handleRemoveFriend(f.id)} aria-label="Remove friend">
                       <Trash2 size={14} />
                     </button>

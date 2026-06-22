@@ -481,3 +481,41 @@ export async function pushGroupsToCloud(userId, groups) {
   if (!userId) return;
   await supabase.from("profiles").upsert({ user_id: userId, groups }, { onConflict: "user_id" });
 }
+
+/**
+ * Re-fetch the latest courses for all cloud-linked friends (those with a cloudId).
+ * Returns the updated friends array if anything changed, or null if nothing changed.
+ */
+export async function refreshFriendCoursesFromCloud(friends) {
+  const cloudFriends = friends.filter(f => f.cloudId);
+  if (!cloudFriends.length) return null;
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("user_id, courses")
+    .in("user_id", cloudFriends.map(f => f.cloudId));
+
+  if (error || !data) return null;
+
+  const profileMap = {};
+  data.forEach(p => { profileMap[p.user_id] = p.courses; });
+
+  let changed = false;
+  const updated = friends.map(f => {
+    if (!f.cloudId || !profileMap[f.cloudId]) return f;
+    const raw = { ...profileMap[f.cloudId] };
+    const freshName = raw._name || f.name;
+    delete raw._name;
+
+    const coursesChanged =
+      JSON.stringify(raw) !== JSON.stringify(f.courses) || freshName !== f.name;
+    if (!coursesChanged) return f;
+
+    changed = true;
+    return { ...f, name: freshName, courses: raw, updatedAt: new Date().toISOString() };
+  });
+
+  if (!changed) return null;
+  writeFriends(updated);
+  return updated;
+}
