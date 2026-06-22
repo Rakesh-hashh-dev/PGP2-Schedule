@@ -65,6 +65,40 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
             {termLabel && <> · {termLabel}</>}
           </span>
         </div>
+        <button 
+          onClick={() => {
+            const d = new Date();
+            const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+            const el = document.getElementById(`day-${today}`);
+            if (el) {
+              const headerOffset = 100;
+              const elementPosition = el.getBoundingClientRect().top;
+              const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+              window.scrollTo({
+                top: offsetPosition,
+                behavior: "smooth"
+              });
+            } else {
+              alert("There are no classes scheduled for today.");
+            }
+          }}
+          style={{ 
+            marginLeft: "auto", 
+            padding: "8px 16px", 
+            background: "var(--live)", 
+            color: "#fff", 
+            borderRadius: "16px", 
+            fontSize: "13px", 
+            fontWeight: "700", 
+            border: "none", 
+            cursor: "pointer", 
+            display: "flex", 
+            alignItems: "center", 
+            gap: "6px" 
+          }}
+        >
+          <Clock size={16} /> Go to Today
+        </button>
       </div>
 
       {/* Subject filter chips */}
@@ -116,7 +150,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
           <p className="fr-empty" style={{ textAlign: "center", padding: "40px 0" }}>No sessions found.</p>
         ) : (
           grouped.map(([date, items]) => (
-            <div key={date} className="fs-day">
+            <div key={date} id={`day-${date}`} className="fs-day">
               <div className="fs-day-header">
                 <span className="fs-day-label">{fmtDate(date)}</span>
                 <span className="fs-day-count">{items.length} session{items.length > 1 ? "s" : ""}</span>
