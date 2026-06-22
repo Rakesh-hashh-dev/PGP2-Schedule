@@ -18,7 +18,7 @@ export default function WeekAgenda({ visible, now, offset, setOffset, todayISO, 
   const label = `${monday.toLocaleDateString([], { day: "numeric", month: "short" })} – ${days[6].toLocaleDateString([], { day: "numeric", month: "short" })}`;
 
   return (
-    <section className="panel">
+    <section className="panel wa-panel">
       <div className="weeknav">
         <button onClick={() => setOffset(offset - 1)} aria-label="Previous week"><ChevronLeft size={18} /></button>
         <div className="weeknav-mid">
@@ -28,40 +28,42 @@ export default function WeekAgenda({ visible, now, offset, setOffset, todayISO, 
         <button onClick={() => setOffset(offset + 1)} aria-label="Next week"><ChevronRight size={18} /></button>
       </div>
 
-      {days.map((d) => {
-        const iso = ymd(d);
-        const items = visible.filter((c) => c.date === iso).sort((a, b) => toMin(a.start) - toMin(b.start));
-        return (
-          <div key={iso} className={`agday ${iso === todayISO ? "agtoday" : ""}`}>
-            <div className="agday-h">
-              <span className="agday-dow">{d.toLocaleDateString([], { weekday: "short" })}</span>
-              <span className="agday-num">{d.getDate()}</span>
-              {iso === todayISO && <span className="agday-today">Today</span>}
+      <div className="wa-days-scroll">
+        {days.map((d) => {
+          const iso = ymd(d);
+          const items = visible.filter((c) => c.date === iso).sort((a, b) => toMin(a.start) - toMin(b.start));
+          return (
+            <div key={iso} className={`agday ${iso === todayISO ? "agtoday" : ""}`}>
+              <div className="agday-h">
+                <span className="agday-dow">{d.toLocaleDateString([], { weekday: "short" })}</span>
+                <span className="agday-num">{d.getDate()}</span>
+                {iso === todayISO && <span className="agday-today">Today</span>}
+              </div>
+              <div className="agday-body">
+                {items.length === 0
+                  ? <span className="agday-free">–</span>
+                  : items.map((c, i) => (
+                      <div key={i} className={`ag ${c.type !== "class" ? "soft" : ""}`}>
+                        <span className="ag-t">{c.start}</span>
+                        <span className="ag-c">
+                          {c.name}
+                          {c.session && (
+                            <span className={`ses ses-${(Array.from(c.code).reduce((h, char) => h + char.charCodeAt(0), 0)) % 6}`}>
+                              {c.code} {c.session}
+                            </span>
+                          )}
+                        </span>
+                        {c.type === "class" && c.room && <span className="ag-r">{c.room}</span>}
+                      </div>
+                    ))}
+              </div>
             </div>
-            <div className="agday-body">
-              {items.length === 0
-                ? <span className="agday-free">–</span>
-                : items.map((c, i) => (
-                    <div key={i} className={`ag ${c.type !== "class" ? "soft" : ""}`}>
-                      <span className="ag-t">{c.start}</span>
-                      <span className="ag-c">
-                        {c.name}
-                        {c.session && (
-                          <span className={`ses ses-${(Array.from(c.code).reduce((h, char) => h + char.charCodeAt(0), 0)) % 6}`}>
-                            {c.code} {c.session}
-                          </span>
-                        )}
-                      </span>
-                      {c.type === "class" && c.room && <span className="ag-r">{c.room}</span>}
-                    </div>
-                  ))}
-            </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
 
       {onViewFullSchedule && (
-        <div style={{ marginTop: "16px", paddingTop: "14px", borderTop: "1px solid var(--border)", display: "flex" }}>
+        <div className="wa-footer">
           <button className="fr-btn fr-btn-secondary" style={{ flex: 1, justifyContent: "center" }} onClick={onViewFullSchedule}>
             <Calendar size={15} /> View full schedule
           </button>

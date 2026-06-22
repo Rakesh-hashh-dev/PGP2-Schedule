@@ -65,40 +65,71 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
             {termLabel && <> · {termLabel}</>}
           </span>
         </div>
-        <button 
-          onClick={() => {
-            const d = new Date();
-            const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-            const el = document.getElementById(`day-${today}`);
-            if (el) {
-              const headerOffset = 100;
-              const elementPosition = el.getBoundingClientRect().top;
-              const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
-              window.scrollTo({
-                top: offsetPosition,
-                behavior: "smooth"
-              });
-            } else {
-              alert("There are no classes scheduled for today.");
-            }
-          }}
-          style={{ 
-            marginLeft: "auto", 
-            padding: "8px 16px", 
-            background: "var(--live)", 
-            color: "#fff", 
-            borderRadius: "16px", 
-            fontSize: "13px", 
-            fontWeight: "700", 
-            border: "none", 
-            cursor: "pointer", 
-            display: "flex", 
-            alignItems: "center", 
-            gap: "6px" 
-          }}
-        >
-          <Clock size={16} /> Go to Today
-        </button>
+        <div style={{ marginLeft: "auto", display: "flex", gap: "8px", alignItems: "center" }}>
+          <input 
+            type="date"
+            onChange={(e) => {
+              const targetDate = e.target.value;
+              if (!targetDate) return;
+              const el = document.getElementById(`day-${targetDate}`);
+              if (el) {
+                const headerOffset = 100;
+                const elementPosition = el.getBoundingClientRect().top;
+                const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+                window.scrollTo({
+                  top: offsetPosition,
+                  behavior: "smooth"
+                });
+              } else {
+                alert("There are no classes scheduled for the selected date.");
+              }
+              e.target.value = ""; // Reset after scrolling
+            }}
+            title="Go to specific date"
+            style={{ 
+              padding: "7px 12px", 
+              background: "var(--surface)", 
+              color: "var(--text)", 
+              borderRadius: "16px", 
+              fontSize: "13px", 
+              border: "1px solid var(--border)",
+              cursor: "pointer",
+            }}
+          />
+          <button 
+            onClick={() => {
+              const d = new Date();
+              const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+              const el = document.getElementById(`day-${today}`);
+              if (el) {
+                const headerOffset = 100;
+                const elementPosition = el.getBoundingClientRect().top;
+                const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+                window.scrollTo({
+                  top: offsetPosition,
+                  behavior: "smooth"
+                });
+              } else {
+                alert("There are no classes scheduled for today.");
+              }
+            }}
+            style={{ 
+              padding: "8px 16px", 
+              background: "var(--live)", 
+              color: "#fff", 
+              borderRadius: "16px", 
+              fontSize: "13px", 
+              fontWeight: "700", 
+              border: "none", 
+              cursor: "pointer", 
+              display: "flex", 
+              alignItems: "center", 
+              gap: "6px" 
+            }}
+          >
+            <Clock size={16} /> Go to Today
+          </button>
+        </div>
       </div>
 
       {/* Subject filter chips */}
