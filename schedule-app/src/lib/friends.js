@@ -503,6 +503,15 @@ export async function removeSelfFromFriendCloud(friendUserId, myUserId) {
   await supabase.from("profiles").upsert({ user_id: friendUserId, friends: updated }, { onConflict: "user_id" });
 }
 
+// Delete all pings between two users so refreshPings can't re-add a removed friend
+export async function deletePingsBetween(myUserId, friendUserId) {
+  if (!myUserId || !friendUserId) return;
+  await Promise.all([
+    supabase.from("friend_pings").delete().eq("target_id", myUserId).eq("from_id", friendUserId),
+    supabase.from("friend_pings").delete().eq("target_id", friendUserId).eq("from_id", myUserId),
+  ]);
+}
+
 // ── Friend Pings (who added you) ────────────────────────────────
 
 // fromMeta: optional { group: "GroupName" } — encoded into from_name as JSON for group invites
@@ -541,6 +550,11 @@ export async function clearFriendPings(_userId) {}
 export async function deleteFriendPing(pingId) {
   if (!pingId) return;
   await supabase.from("friend_pings").delete().eq("id", pingId);
+}
+
+export async function deleteAllFriendPings(userId) {
+  if (!userId) return;
+  await supabase.from("friend_pings").delete().eq("target_id", userId);
 }
 
 /**

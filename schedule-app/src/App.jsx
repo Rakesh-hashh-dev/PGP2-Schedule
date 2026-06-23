@@ -25,7 +25,7 @@ const AdminDashboard = lazy(() => import("./components/AdminDashboard.jsx"));
 const CommandPalette = lazy(() => import("./components/CommandPalette.jsx"));
 import { loadAttendance, saveAttendance, sessionKey, syncAttendanceFromCloud, pushMark } from "./lib/attendance.js";
 import { syncProfileFromCloud, pushProfile } from "./lib/profile.js";
-import { decodeSchedule, saveFriend, loadFriends, loadGroups, friendVisibleClasses, syncFriendsAndGroupsFromCloud, fetchFriendPings, clearFriendPings, pushFriendsToCloud } from "./lib/friends.js";
+import { decodeSchedule, saveFriend, loadFriends, loadGroups, friendVisibleClasses, syncFriendsAndGroupsFromCloud, fetchFriendPings, clearFriendPings, pushFriendsToCloud, deleteAllFriendPings } from "./lib/friends.js";
 import { supabase } from "./lib/supabase.js";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
@@ -1337,6 +1337,13 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       onMarkRead={pingId => markPingRead(pingId)}
                       onMarkAllRead={() => markAllRead()}
                       onRemovePing={pingId => setPings(prev => prev.filter(p => p.id !== pingId))}
+                      onClearAllPings={() => {
+                        deleteAllFriendPings(userId);
+                        setPings([]);
+                        setReadPingIds(new Set());
+                        try { localStorage.removeItem(READ_PINGS_KEY); } catch {}
+                        markGroupsSeen();
+                      }}
                     />
                     : view === "exams"
                       ? <ExamsPanel

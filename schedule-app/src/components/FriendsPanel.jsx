@@ -18,7 +18,7 @@ import {
   saveFriend, removeFriend as removeFriendFromStore,
   loadGroups, createGroup, removeGroup as removeGroupFromStore, updateGroup,
   getOrCreateShareCode, pushFriendsToCloud, pushGroupsToCloud,
-  refreshFriendCoursesFromCloud, sendFriendPing, removeSelfFromFriendCloud, deleteFriendPing,
+  refreshFriendCoursesFromCloud, sendFriendPing, removeSelfFromFriendCloud, deleteFriendPing, deletePingsBetween,
   shareGroupWithMembers, unshareGroupFromMembers,
 } from "../lib/friends.js";
 
@@ -74,7 +74,7 @@ function timeAgo(iso) {
 export default function FriendsPanel({
   userId, userName, enrolled, legend, friends, setFriends,
   groups, setGroups, myClasses, allClasses, now, onCompare, onGroupCompare,
-  notifications = [], onDismissNotifs, onMarkRead, onMarkAllRead, onRemovePing,
+  notifications = [], onDismissNotifs, onMarkRead, onMarkAllRead, onRemovePing, onClearAllPings,
 }) {
   const [addCode, setAddCode] = useState("");
   const [addError, setAddError] = useState("");
@@ -208,8 +208,12 @@ export default function FriendsPanel({
     const updated = removeFriendFromStore(id);
     setFriends(updated);
     pushFriendsToCloud(userId, updated);
-    // Remove self from the other person's cloud list so their UI updates in real-time
-    if (friend?.cloudId) removeSelfFromFriendCloud(friend.cloudId, userId);
+    if (friend?.cloudId) {
+      // Remove self from the other person's cloud list so their UI updates in real-time
+      removeSelfFromFriendCloud(friend.cloudId, userId);
+      // Delete all pings between both users so refreshPings can't re-add the removed friend
+      deletePingsBetween(userId, friend.cloudId);
+    }
   }
 
   async function handleRefreshFriend(id) {
@@ -381,6 +385,9 @@ export default function FriendsPanel({
               <div className="fr-bell-panel-head">
                 <span className="fr-bell-panel-title">Notifications</span>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  {notifications.length > 0 && (
+                    <button className="rc-mark-all" style={{ color: "var(--danger, #e05252)" }} onClick={() => { onClearAllPings?.(); setNotifOpen(false); }}>Clear all</button>
+                  )}
                   {notifications.some(n => !n.isRead)
                     ? <button className="rc-mark-all" onClick={() => { onMarkAllRead?.(); }}>Mark all read</button>
                     : <span className="rc-all-read">All caught up</span>
