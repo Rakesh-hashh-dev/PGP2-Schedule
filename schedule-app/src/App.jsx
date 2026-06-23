@@ -778,7 +778,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     });
   }, [CHANGES, mine, LEGEND]);
 
-  const newRecvGroups = groups.filter(g => g.isReceived && !seenRecvGroupIds.has(g.id));
+  const newRecvGroups = groups.filter(g => g.isReceived && !seenRecvGroupIds.has(g.id)); // used for badge count only
+  const allRecvGroups = groups.filter(g => g.isReceived);
   const TWO_DAYS_AGO = Date.now() - 2 * 24 * 60 * 60 * 1000;
   const changeKey = c => `${c.ts}-${c.code || ""}`;
   const friendNotifItems = [
@@ -800,7 +801,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         const pingId = p.id || p.from_id;
         return { id: `ping-${pingId}`, pingId, text, ts: p.created_at, kind, name, meta, fromId: p.from_id, isRead: readPingIds.has(pingId) };
       }),
-    ...newRecvGroups.map(g => ({ id: `grp-${g.id}`, pingId: `grp-${g.id}`, text: `${g.ownerName} shared "${g.name}" with you`, ts: g.createdAt, kind: "group", name: g.ownerName, isRead: seenRecvGroupIds.has(g.id) })),
+    ...allRecvGroups.map(g => ({ id: `grp-${g.id}`, pingId: `grp-${g.id}`, text: `${g.ownerName} shared "${g.name}" with you`, ts: g.createdAt, kind: "group", name: g.ownerName, isRead: seenRecvGroupIds.has(g.id) })),
   ];
   const unreadFriendCount = friendNotifItems.filter(item => !item.isRead).length;
   const unreadChangeCount = filteredChanges.filter(c => !readChangeKeys.has(changeKey(c))).length;
