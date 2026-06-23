@@ -1,6 +1,12 @@
 import { useMemo } from "react";
 import { sessionKey } from "../lib/attendance.js";
 
+function clsEnd(c) {
+  const [Y, Mo, D] = c.date.split("-").map(Number);
+  const [h, m] = c.end.split(":").map(Number);
+  return new Date(Y, Mo - 1, D, h, m);
+}
+
 function ymd(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
@@ -16,12 +22,12 @@ export default function SemSummary({ enrolled, legend, attendance, visible, toda
   }, [enrolled, legend]);
 
   const { pct, present, total } = useMemo(() => {
-    const past = visible.filter(c => c.type === "class" && c.date < todayISO);
+    const past = visible.filter(c => c.type === "class" && clsEnd(c) <= now);
     const totalSes = past.length;
     if (!totalSes) return { pct: null, present: 0, total: 0 };
     const presentCount = past.filter(c => attendance[sessionKey(c)] === "present").length;
     return { pct: Math.round((presentCount / totalSes) * 100), present: presentCount, total: totalSes };
-  }, [visible, todayISO, attendance]);
+  }, [visible, now, attendance]);
 
   const upcomingExams = useMemo(() => {
     const in7 = ymd(new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000));
@@ -32,8 +38,8 @@ export default function SemSummary({ enrolled, legend, attendance, visible, toda
   }, [classes, todayISO, now, enrolled]);
 
   const sessionsLeft = useMemo(() => {
-    return visible.filter(c => c.type === "class" && c.date > todayISO).length;
-  }, [visible, todayISO]);
+    return visible.filter(c => c.type === "class" && c.date >= todayISO && clsEnd(c) > now).length;
+  }, [visible, todayISO, now]);
 
   const pctColor = pct === null ? "" : pct >= 80 ? "good" : pct >= 75 ? "warn" : "bad";
 

@@ -663,6 +663,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           </div>
         </div>
 
+        <div className="sb-scroll-body">
         <nav className="sb-nav">
           <button className="sb-link" onMouseEnter={e => showSbTip(e, "Search")} onMouseLeave={hideSbTip} onClick={() => { setCmdOpen(true); hideSbTip(); }}>
             <Search size={18} /><span className="sb-link-label">Search</span>
@@ -746,6 +747,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               </button>
             </div>
           </div>
+        </div>
         </div>
       </aside>
 
