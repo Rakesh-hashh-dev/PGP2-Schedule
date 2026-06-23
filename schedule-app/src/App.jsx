@@ -597,8 +597,13 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     }
   };
 
-  const termDateRange = TERM ? `${new Date(TERM.start + "T00:00").toLocaleDateString([], { day: "numeric", month: "short" })} – ${new Date(TERM.end + "T00:00").toLocaleDateString([], { day: "numeric", month: "short" })}` : "";
-  const termLabel = TERM?.number ? `Term ${TERM.number} · ${termDateRange}` : termDateRange;
+  function fmtTermDate(iso) {
+    if (!iso) return "";
+    const d = new Date(iso + "T00:00");
+    return isNaN(d) ? "" : d.toLocaleDateString([], { day: "numeric", month: "short" });
+  }
+  const termDateRange = TERM ? [fmtTermDate(TERM.start), fmtTermDate(TERM.end)].filter(Boolean).join(" – ") : "";
+  const termLabel = TERM?.number ? `Term ${TERM.number}${termDateRange ? ` · ${termDateRange}` : ""}` : termDateRange;
 
   if (!isLoaded) return <div className="loading-screen"><TermFlowLoader variant="splash" size={96} /></div>;
   if (!isSignedIn) return <Login />;

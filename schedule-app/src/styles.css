@@ -2479,7 +2479,7 @@ button:focus-visible {
 /* Action buttons group (settings/refresh/logout/admin) */
 .sb-action-group { display: flex; flex-direction: column; gap: 1px; }
 .sb-action-btn {
-  display: flex; align-items: center; gap: 12px;
+  display: flex; align-items: center; gap: 14px;
   padding: 9px 14px; border-radius: 10px;
   border: none; background: transparent;
   color: rgba(255,255,255,.5); font-family: var(--body); font-weight: 500; font-size: 13px;
@@ -2487,7 +2487,7 @@ button:focus-visible {
   transition: all .18s ease;
   touch-action: manipulation; min-height: 38px; width: 100%; text-align: left;
 }
-.sb-action-btn svg { flex: none; width: 16px; height: 16px; opacity: .7; transition: opacity .18s; }
+.sb-action-btn svg { flex: none; width: 18px; height: 18px; opacity: .7; transition: opacity .18s; }
 .sb-action-btn:hover { color: rgba(255,255,255,.85); background: rgba(255,255,255,.05); }
 .sb-action-btn:hover svg { opacity: 1; }
 .sb-action-btn:active { transform: scale(.97); }
@@ -2505,7 +2505,7 @@ button:focus-visible {
 
 /* Collapse toggle */
 .sb-toggle {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; gap: 14px;
   padding: 9px 14px; border-radius: 10px;
   border: none; background: transparent;
   color: rgba(255,255,255,.35); font-family: var(--body); font-weight: 500; font-size: 12px;
@@ -2514,7 +2514,7 @@ button:focus-visible {
   touch-action: manipulation; width: 100%; text-align: left; margin-top: 2px;
 }
 .sb-toggle:hover { color: rgba(255,255,255,.7); background: rgba(255,255,255,.04); }
-.sb-toggle-icon { flex: none; display: flex; align-items: center; }
+.sb-toggle-icon { flex: none; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; }
 .sb-toggle-label { overflow: hidden; transition: opacity .2s, width .3s cubic-bezier(.4,0,.2,1); }
 .sidebar.collapsed .sb-toggle-label { opacity: 0; width: 0; }
 .sidebar.collapsed .sb-toggle { justify-content: center; padding: 9px; gap: 0; }
