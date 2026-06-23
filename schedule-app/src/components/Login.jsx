@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Sun, Moon, Sparkles, KeyRound, CalendarRange, ClipboardList } from "lucide-react";
+import { Sun, Moon, Sparkles, KeyRound, CalendarRange, ClipboardList, ArrowRight } from "lucide-react";
 import { useSignIn } from "@clerk/clerk-react";
 
 export default function Login() {
@@ -79,16 +79,20 @@ export default function Login() {
           <p className="htw-label">How it works</p>
           <div className="htw-steps">
             {steps.map((s, i) => (
-              <div className="htw-step" key={i}>
-                <div className="htw-step-top">
-                  <span className="htw-num">{s.num}</span>
-                  <span className="htw-icon">{s.icon}</span>
-                </div>
-                <div className="htw-step-content">
+              <div key={i} className="htw-row-item" style={{ display: "contents" }}>
+                <div className="htw-step">
+                  <div className="htw-step-header">
+                    <span className="htw-num">{s.num}</span>
+                    <span className="htw-icon">{s.icon}</span>
+                  </div>
                   <p className="htw-step-title">{s.title}</p>
                   <p className="htw-step-desc">{s.desc}</p>
                 </div>
-                {i < steps.length - 1 && <span className="htw-arrow" aria-hidden="true" />}
+                {i < steps.length - 1 && (
+                  <div className="htw-connector" key={`c${i}`} aria-hidden="true">
+                    <ArrowRight size={15} />
+                  </div>
+                )}
               </div>
             ))}
           </div>

@@ -1676,85 +1676,110 @@ button:focus-visible {
 
 .htw-label {
   text-align: center;
-  font-size: 10.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
-  color: var(--l-sub); opacity: .55; margin: 0 0 14px;
+  font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--l-sub); opacity: .45; margin: 0 0 16px;
 }
 
+/* Flex row: [card] [arrow] [card] [arrow] [card] */
 .htw-steps {
-  display: grid; grid-template-columns: 1fr 1fr 1fr;
-  gap: 10px;
+  display: flex; align-items: stretch; gap: 0;
 }
 
+/* ── Step card ── */
 .htw-step {
-  position: relative;
-  padding: 16px 14px 18px;
-  background: var(--l-card); border: 1px solid var(--l-border);
-  border-radius: 18px; backdrop-filter: blur(14px);
-  display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
-  transition: transform .2s, box-shadow .2s;
+  flex: 1; min-width: 0;
+  padding: 18px 16px 20px;
+  background: rgba(255,255,255,0.72);
+  border: 1px solid rgba(0,0,0,.07);
+  border-radius: 20px;
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 2px 12px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  display: flex; flex-direction: column; gap: 12px;
+  transition: transform .22s cubic-bezier(.4,0,.2,1), box-shadow .22s;
 }
-.htw-step:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(0,0,0,.12); }
-
-.htw-step-top {
-  display: flex; align-items: center; justify-content: space-between; width: 100%;
+.htw-step:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 32px rgba(0,0,0,.10), 0 2px 6px rgba(0,0,0,.06);
 }
 
+/* Header row: num left, icon right */
+.htw-step-header {
+  display: flex; align-items: center; justify-content: space-between;
+}
+
+/* Step number badge */
 .htw-num {
   font-family: var(--mono, monospace); font-size: 10px; font-weight: 700;
-  color: var(--l-sub); opacity: .45; letter-spacing: .06em;
+  letter-spacing: .06em;
+  color: #6D5BD0;
+  background: rgba(109,91,208,.08);
+  border: 1px solid rgba(109,91,208,.15);
+  border-radius: 6px; padding: 2px 7px;
 }
 
+/* Icon chip — gradient, white icon */
 .htw-icon {
-  width: 34px; height: 34px; border-radius: 10px; flex: none;
+  width: 38px; height: 38px; border-radius: 12px; flex: none;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(109,91,208,.12); color: #9b84fc;
-}
-.login-screen.theme-light .htw-icon {
-  background: rgba(109,91,208,.1); color: #6D5BD0;
+  background: linear-gradient(135deg, #6D5BD0, #a855f7);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(109,91,208,.28);
 }
 
 .htw-step-title {
-  font-family: var(--display); font-weight: 700; font-size: 13.5px;
-  color: var(--l-text); margin: 0; line-height: 1.2;
+  font-family: var(--display); font-weight: 700; font-size: 14px;
+  color: #1a1533; margin: 0; line-height: 1.25;
 }
-
-.htw-step-content { display: flex; flex-direction: column; gap: 5px; width: 100%; }
 
 .htw-step-desc {
-  font-size: 12px; color: var(--l-sub); margin: 0; line-height: 1.55; opacity: .8;
+  font-size: 12px; color: rgba(30,20,60,.52); margin: 0; line-height: 1.6;
 }
 
-/* Connector arrow between steps */
-.htw-arrow {
-  position: absolute; right: -8px; top: 50%;
-  width: 13px; height: 13px;
-  border-top: 2px solid var(--l-border); border-right: 2px solid var(--l-border);
-  transform: translateY(-50%) rotate(45deg);
-  z-index: 2; pointer-events: none;
+/* ── Arrow connector between cards ── */
+.htw-connector {
+  flex: none; align-self: center;
+  width: 32px; display: flex; align-items: center; justify-content: center;
+  color: rgba(109,91,208,.3);
 }
 
-/* Premium theme overrides */
+/* ── Dark theme overrides ── */
+.login-screen.theme-dark .htw-step {
+  background: rgba(255,255,255,.04);
+  border-color: rgba(255,255,255,.08);
+  box-shadow: 0 2px 12px rgba(0,0,0,.3);
+}
+.login-screen.theme-dark .htw-step:hover {
+  box-shadow: 0 12px 32px rgba(0,0,0,.4);
+}
+.login-screen.theme-dark .htw-num {
+  color: #c4b5fd; background: rgba(167,139,250,.1); border-color: rgba(167,139,250,.2);
+}
+.login-screen.theme-dark .htw-step-title { color: rgba(255,255,255,.92); }
+.login-screen.theme-dark .htw-step-desc { color: rgba(255,255,255,.42); }
+.login-screen.theme-dark .htw-connector { color: rgba(167,139,250,.3); }
+
+/* ── Premium theme overrides ── */
 .login-screen.theme-premium .htw-step {
   background: rgba(255,255,255,.03);
-  border-color: rgba(255,255,255,.06);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+  border-color: rgba(255,255,255,.07);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 4px 24px rgba(0,0,0,.3);
 }
-.login-screen.theme-premium .htw-icon { background: rgba(167,139,250,.12); color: #c4b5fd; }
+.login-screen.theme-premium .htw-step:hover {
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 16px 40px rgba(109,91,208,.2);
+}
+.login-screen.theme-premium .htw-num {
+  color: #e9d5ff; background: rgba(167,139,250,.1); border-color: rgba(167,139,250,.15);
+}
 .login-screen.theme-premium .htw-step-title { color: rgba(255,255,255,.9); }
-.login-screen.theme-premium .htw-step-desc { color: rgba(255,255,255,.4); }
-.login-screen.theme-premium .htw-arrow { border-color: rgba(255,255,255,.1); }
+.login-screen.theme-premium .htw-step-desc { color: rgba(255,255,255,.38); }
+.login-screen.theme-premium .htw-connector { color: rgba(167,139,250,.25); }
 
-/* Mobile: horizontal row per step (icon left, text right) */
-@media (max-width: 520px) {
+/* ── Mobile: stacked column, connector hidden ── */
+@media (max-width: 540px) {
   .login-wrap { max-width: 100%; }
-  .htw-steps { grid-template-columns: 1fr; gap: 8px; }
-  .htw-step {
-    flex-direction: row; align-items: center;
-    gap: 14px; padding: 14px 16px; border-radius: 14px;
-  }
-  .htw-step-top { flex-direction: column; align-items: center; gap: 6px; flex: none; width: auto; }
-  .htw-step-content { display: flex; flex-direction: column; gap: 3px; flex: 1; }
-  .htw-arrow { display: none; }
+  .htw-steps { flex-direction: column; gap: 8px; }
+  .htw-connector { display: none; }
+  .htw-step { border-radius: 16px; padding: 16px 16px 18px; gap: 10px; }
 }
 
 
