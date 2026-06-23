@@ -2457,15 +2457,12 @@ button:focus-visible {
 .sb-link .beta-badge {
   font-size: 9px; font-weight: 800; letter-spacing: .05em;
   background: linear-gradient(135deg, #6D5BD0, #a855f7);
-  color: #fff; border-radius: 4px; padding: 2px 6px;
-  flex: none;
+  color: #fff; border-radius: 4px; padding: 2px 6px; flex: none;
 }
 .sidebar.collapsed .sb-link .beta-badge { display: none; }
 
 /* Nav section separator */
-.sb-sep {
-  height: 1px; background: rgba(255,255,255,.08); margin: 10px 8px;
-}
+.sb-sep { height: 1px; background: rgba(255,255,255,.08); margin: 10px 8px; }
 
 /* Sidebar bottom section */
 .sb-bottom {
@@ -2478,9 +2475,7 @@ button:focus-visible {
 }
 
 /* Action buttons group (settings/refresh/logout/admin) */
-.sb-action-group {
-  display: flex; flex-direction: column; gap: 1px;
-}
+.sb-action-group { display: flex; flex-direction: column; gap: 1px; }
 .sb-action-btn {
   display: flex; align-items: center; gap: 12px;
   padding: 9px 14px; border-radius: 10px;
@@ -2491,15 +2486,11 @@ button:focus-visible {
   touch-action: manipulation; min-height: 38px; width: 100%; text-align: left;
 }
 .sb-action-btn svg { flex: none; width: 16px; height: 16px; opacity: .7; transition: opacity .18s; }
-.sb-action-btn:hover {
-  color: rgba(255,255,255,.85); background: rgba(255,255,255,.05);
-}
+.sb-action-btn:hover { color: rgba(255,255,255,.85); background: rgba(255,255,255,.05); }
 .sb-action-btn:hover svg { opacity: 1; }
 .sb-action-btn:active { transform: scale(.97); }
 .sb-action-btn.sb-action-danger:hover { color: #fca5a5; }
-.sb-action-btn.sb-action-admin-on {
-  color: var(--live);
-}
+.sb-action-btn.sb-action-admin-on { color: var(--live); }
 .sb-action-btn.sb-action-admin-on svg { opacity: 1; color: var(--live); }
 .sb-action-label {
   overflow: hidden; text-overflow: ellipsis;
@@ -2518,8 +2509,7 @@ button:focus-visible {
   color: rgba(255,255,255,.35); font-family: var(--body); font-weight: 500; font-size: 12px;
   cursor: pointer; white-space: nowrap; overflow: hidden;
   transition: all .2s cubic-bezier(.4,0,.2,1);
-  touch-action: manipulation; width: 100%; text-align: left;
-  margin-top: 2px;
+  touch-action: manipulation; width: 100%; text-align: left; margin-top: 2px;
 }
 .sb-toggle:hover { color: rgba(255,255,255,.7); background: rgba(255,255,255,.04); }
 .sb-toggle-icon { flex: none; display: flex; align-items: center; }
@@ -2528,9 +2518,7 @@ button:focus-visible {
 .sidebar.collapsed .sb-toggle { justify-content: center; padding: 9px; gap: 0; }
 
 /* Sidebar avatar + profile popover */
-.sb-avatar-wrap {
-  position: relative; display: flex; margin-top: 4px;
-}
+.sb-avatar-wrap { position: relative; display: flex; margin-top: 4px; }
 .sb-avatar-btn {
   display: flex; align-items: center; gap: 12px;
   padding: 10px 10px; border-radius: 12px;
@@ -2582,7 +2570,6 @@ button:focus-visible {
 .sb-pop-email { font-size: 12.5px; color: var(--muted); margin-bottom: 3px; }
 .sb-pop-batch {
   font-size: 11px; color: var(--violet); font-weight: 700;
-  margin-bottom: 0; display: block;
   background: var(--violet-dim); padding: 3px 8px; border-radius: 6px;
   display: inline-block; margin-top: 6px;
 }
