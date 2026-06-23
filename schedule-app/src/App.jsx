@@ -130,6 +130,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [enrolled, setEnrolled] = useState(() => { const s = readSetup(); return s?.courses ?? null; });
   const [setup, setSetup] = useState(() => readSetup());
   const [allocationApplied, setAllocationApplied] = useState(false);
+  const [prefillPicked, setPrefillPicked] = useState(null);
   const [showSetupEdit, setShowSetupEdit] = useState(false);
   const [syncedAt, setSyncedAt] = useState(new Date());
   const [notifOpen, setNotifOpen] = useState(false);
@@ -385,6 +386,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     }
     const email = user?.primaryEmailAddress?.emailAddress;
     if (!email) return;
+    // STUDENTS only arrives in the live feed — wait for it rather than marking done early.
+    if (!scheduleData.STUDENTS) return;
 
     let cancelled = false;
     sha256hex(email.trim().toLowerCase()).then((hash) => {
@@ -402,12 +405,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         if (s === "A" || s === "B" || s === "Single") courses[code] = s;
       });
       if (Object.keys(courses).length > 0) {
-        const s = { courses };
-        saveSetup(s);
-        setSetup(s);
-        setEnrolled(courses);
-        setMine(new Set(Object.keys(courses)));
-        if (userId) pushProfile(userId, courses, user?.firstName || user?.username || "Student");
+        setPrefillPicked(courses);
       }
       setAllocationApplied(true);
     });
@@ -609,7 +607,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   if (!isSignedIn) return <Login />;
   if (!scheduleData) return <div className="loading-screen"><TermFlowLoader size={72} /></div>;
   if (userId && !setup && !cloudChecked) return <div className="loading-screen"><TermFlowLoader size={72} /></div>;
-  if (!setup) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} termLabel={termLabel} onPullFromSheet={buildAllocationFromSheet} />;
+  if (!setup) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} termLabel={termLabel} onPullFromSheet={buildAllocationFromSheet} prefill={prefillPicked} />;
   if (showSetupEdit) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} initialPicked={enrolled} onCancel={() => setShowSetupEdit(false)} termLabel={termLabel} onPullFromSheet={buildAllocationFromSheet} />;
 
   // Banned User Lockout

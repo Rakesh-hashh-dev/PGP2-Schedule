@@ -1,14 +1,20 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { ArrowRight, Info, X, Settings2, Download } from "lucide-react";
 
 const AREA_LABEL = { "F&A": "Finance & Accounting", MKTG: "Marketing", ISM: "Information Systems", STM: "Strategy", OPS: "Operations", "OB&HR": "OB & HR", Other: "Other" };
 const AREA_ORDER = ["F&A", "MKTG", "ISM", "STM", "OPS", "OB&HR", "Other"];
 
-export default function Onboarding({ legend, sectionsByCode, onDone, initialPicked, onCancel, termLabel, onPullFromSheet }) {
+export default function Onboarding({ legend, sectionsByCode, onDone, initialPicked, onCancel, termLabel, onPullFromSheet, prefill }) {
   const isEditing = !!initialPicked;
   const [picked, setPicked] = useState(() => initialPicked || {});
   const [pulling, setPulling] = useState(false);
   const [pullMsg, setPullMsg] = useState(null);
+  const prefillApplied = useRef(false);
+  useEffect(() => {
+    if (prefillApplied.current || !prefill || Object.keys(prefill).length === 0) return;
+    setPicked(prefill);
+    prefillApplied.current = true;
+  }, [prefill]);
 
   const offered = (code) => {
     const s = (sectionsByCode && sectionsByCode[code]) || ["Single"];
