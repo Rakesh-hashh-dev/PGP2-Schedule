@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo, useRef, Suspense, lazy } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from "react";
 import { createPortal } from "react-dom";
-import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, ChevronsLeft, ChevronsRight, ChevronRight, ChevronLeft, Megaphone, BarChart2, Shield, User, CloudOff, MessageSquare } from "lucide-react";
+import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, ChevronsLeft, ChevronsRight, ChevronRight, ChevronLeft, Megaphone, BarChart2, Shield, ShieldAlert, User, CloudOff, MessageSquare } from "lucide-react";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
 import SemSummary from "./components/SemSummary.jsx";
@@ -53,7 +53,7 @@ function weatherIcon(code) {
 const LAST_USER_KEY = "pgp2.last-user-id";
 const USER_SCOPED_KEYS = [
   "pgp2.friends", "pgp2.groups", "pgp2.my_share_code",
-  "pgp2.setup", "pgp2-notif-seen", "pgp2.friend-pings-seen-ts",
+  "pgp2.setup", "pgp2-notif-seen", "pgp2.read-ping-ids", "pgp2.read-change-keys",
   "pgp2.seen-recv-groups", "pgp2.recv-groups-count", "pgp2.sidebar",
 ];
 function clearStaleUserData(newUserId) {
@@ -110,7 +110,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       setSeenRecvGroupIds(new Set());
       setSeenRecvCount(0);
       setLastSeenTs(0);
-      setFriendPingSeenTs(0);
+      setReadPingIds(new Set());
+      setReadChangeKeys(new Set());
       setAttendance({});
       setCloudChecked(false);
     }
@@ -311,30 +312,36 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     return () => { alive = false; };
   }, [userId]);
 
-  useEffect(() => {
-    if (!userId) return;
-    fetchFriendPings(userId).then(async data => {
-      if (!data.length) return;
-      setPings(data);
-      // Auto-add friend when we find an acceptance ping (e.g. after offline period)
-      for (const p of data) {
-        try {
-          const meta = JSON.parse(p.from_name);
-          if (meta.type === "friend_accepted" && meta.fromCode) {
-            const decoded = await decodeSchedule(meta.fromCode);
-            if (decoded) {
-              const current = loadFriends();
-              if (!current.some(f => f.cloudId === decoded.id)) {
-                const updated = saveFriend(decoded.name, decoded.courses, decoded.id);
-                setFriends(updated);
-                pushFriendsToCloud(userId, updated);
-              }
+  // Shared pings refresh — used on mount, polling, and tab-focus
+  const refreshPings = useCallback(async (uid) => {
+    const data = await fetchFriendPings(uid);
+    if (!data.length) return;
+    setPings(data);
+    for (const p of data) {
+      try {
+        const meta = JSON.parse(p.from_name);
+        if (meta.type === "friend_accepted" && meta.fromCode) {
+          const decoded = await decodeSchedule(meta.fromCode);
+          if (decoded) {
+            const current = loadFriends();
+            if (!current.some(f => f.cloudId === decoded.id)) {
+              const updated = saveFriend(decoded.name, decoded.courses, decoded.id);
+              setFriends(updated);
+              pushFriendsToCloud(uid, updated);
             }
           }
-        } catch {}
-      }
-    });
-  }, [userId]);
+        }
+      } catch {}
+    }
+  }, []);
+
+  // Initial fetch + 30-second poll (realtime fallback)
+  useEffect(() => {
+    if (!userId) return;
+    refreshPings(userId);
+    const id = setInterval(() => refreshPings(userId), 30_000);
+    return () => clearInterval(id);
+  }, [userId, refreshPings]);
 
   useEffect(() => {
     fetch("https://api.open-meteo.com/v1/forecast?latitude=21.4669&longitude=83.9812&current=temperature_2m,weather_code&temperature_unit=celsius&timezone=Asia%2FKolkata")
@@ -436,7 +443,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     return () => { supabase.removeChannel(channel); };
   }, [userId]);
 
-  // Page visibility: re-fetch schedule when user returns to tab after 5+ minutes away
+  // Page visibility: re-fetch schedule when user returns to tab after 5+ minutes away,
+  // and always re-fetch pings (catches anything missed while tab was hidden)
   useEffect(() => {
     if (!isSignedIn) return;
     const syncedAtRef = { current: syncedAt };
@@ -444,6 +452,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     updateRef();
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
+        if (userId) refreshPings(userId);
         const elapsed = Date.now() - syncedAtRef.current.getTime();
         if (elapsed > 5 * 60 * 1000) handleSync();
       }
@@ -451,7 +460,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     document.addEventListener("visibilitychange", handleVisibility);
     return () => document.removeEventListener("visibilitychange", handleVisibility);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSignedIn, syncedAt]);
+  }, [isSignedIn, syncedAt, userId, refreshPings]);
 
   useEffect(() => {
     const handler = (e) => setSwUpdateFn(() => e.detail.updateSW);
@@ -849,12 +858,20 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
   return (
     <div className="app-shell">
-      {/* ── SW Update Banner ── */}
+      {/* ── SW Update Modal ── */}
       {swUpdateFn && (
-        <div className="sw-update-banner">
-          <span>New version available</span>
-          <button onClick={() => swUpdateFn(true)}>Refresh</button>
-          <button className="sw-update-dismiss" onClick={() => setSwUpdateFn(null)}>✕</button>
+        <div className="sw-update-overlay">
+          <div className="sw-update-modal">
+            <div className="sw-update-icon-wrap">
+              <RefreshCw size={24} color="#6D5BD0" strokeWidth={2.5} />
+            </div>
+            <h3 className="sw-update-title">Update Available</h3>
+            <p className="sw-update-desc">A new version of TermFlow is ready. Refresh to get the latest features and fixes.</p>
+            <div className="sw-update-actions">
+              <button className="sw-update-refresh" onClick={() => swUpdateFn(true)}>Refresh Now</button>
+              <button className="sw-update-later" onClick={() => setSwUpdateFn(null)}>Later</button>
+            </div>
+          </div>
         </div>
       )}
 

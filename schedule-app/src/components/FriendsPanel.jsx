@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Copy, Link2, UserPlus, Users, Trash2, ArrowRight, Plus, X, ChevronDown, ChevronUp, RefreshCw, Bell, Globe, Lock, CheckCircle, AlertCircle, Info, AlertTriangle } from "lucide-react";
+import { Copy, Link2, UserPlus, Users, Trash2, ArrowRight, Plus, X, Check, ChevronDown, ChevronUp, RefreshCw, Bell, Globe, Lock, CheckCircle, AlertCircle, Info, AlertTriangle } from "lucide-react";
 
 const AVATAR_PALETTE = [
   ["#7C3AED", "#A855F7"],
@@ -398,8 +398,8 @@ export default function FriendsPanel({
                       <span className="fr-ping-name">{item.text}</span>
                       {item.kind === "friend_request" && (
                         <div className="fr-ping-actions">
-                          <button className="fr-btn fr-btn-primary fr-btn-small" onClick={e => { e.stopPropagation(); handleAcceptRequest(item); }}>Accept</button>
-                          <button className="fr-btn fr-btn-small" onClick={e => { e.stopPropagation(); handleDeclineRequest(item); }}>Decline</button>
+                          <button className="fr-btn fr-btn-accept" onClick={e => { e.stopPropagation(); handleAcceptRequest(item); }}><Check size={13} strokeWidth={2.8} />Accept</button>
+                          <button className="fr-btn fr-btn-decline" onClick={e => { e.stopPropagation(); handleDeclineRequest(item); }}><X size={13} strokeWidth={2.8} />Decline</button>
                         </div>
                       )}
                     </div>

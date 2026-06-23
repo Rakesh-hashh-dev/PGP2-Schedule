@@ -36,20 +36,20 @@ async function fetchExistingCode(userId) {
 export async function getOrCreateShareCode(userId, name) {
   if (!userId) return null;
 
-  // Fast path: already cached on this device
-  const cached = localStorage.getItem(MY_CODE_KEY);
-  if (cached) return cached;
-
-  // Check Supabase — same account on another device may already have a code
+  // Supabase is the single source of truth — always fetch first so all devices agree
   try {
     const existing = await fetchExistingCode(userId);
     if (existing) {
       localStorage.setItem(MY_CODE_KEY, existing);
       return existing;
     }
-  } catch { /* fall through to generate */ }
+  } catch {
+    // Offline fallback: use whatever this device last saw
+    const cached = localStorage.getItem(MY_CODE_KEY);
+    if (cached) return cached;
+  }
 
-  // No existing code anywhere — generate a new one
+  // No code in Supabase yet — generate one
   const code = await encodeSchedule(userId, name);
   if (code) localStorage.setItem(MY_CODE_KEY, code);
   return code;
