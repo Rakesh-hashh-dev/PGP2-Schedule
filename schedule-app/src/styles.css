@@ -2518,7 +2518,7 @@ button:focus-visible {
 /* Sidebar nav links */
 .sb-nav {
   display: flex; flex-direction: column; gap: 2px; flex: 1;
-  overflow: hidden;
+  overflow-x: hidden; overflow-y: visible;
 }
 .sb-link {
   display: flex; align-items: center; gap: 14px;
