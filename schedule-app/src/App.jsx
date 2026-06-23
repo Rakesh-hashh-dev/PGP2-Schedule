@@ -1336,6 +1336,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       onDismissNotifs={() => markAllRead()}
                       onMarkRead={pingId => markPingRead(pingId)}
                       onMarkAllRead={() => markAllRead()}
+                      onRemovePing={pingId => setPings(prev => prev.filter(p => p.id !== pingId))}
                     />
                     : view === "exams"
                       ? <ExamsPanel

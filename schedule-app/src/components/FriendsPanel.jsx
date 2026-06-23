@@ -18,7 +18,7 @@ import {
   saveFriend, removeFriend as removeFriendFromStore,
   loadGroups, createGroup, removeGroup as removeGroupFromStore, updateGroup,
   getOrCreateShareCode, pushFriendsToCloud, pushGroupsToCloud,
-  refreshFriendCoursesFromCloud, sendFriendPing, removeSelfFromFriendCloud,
+  refreshFriendCoursesFromCloud, sendFriendPing, removeSelfFromFriendCloud, deleteFriendPing,
   shareGroupWithMembers, unshareGroupFromMembers,
 } from "../lib/friends.js";
 
@@ -74,7 +74,7 @@ function timeAgo(iso) {
 export default function FriendsPanel({
   userId, userName, enrolled, legend, friends, setFriends,
   groups, setGroups, myClasses, allClasses, now, onCompare, onGroupCompare,
-  notifications = [], onDismissNotifs, onMarkRead, onMarkAllRead,
+  notifications = [], onDismissNotifs, onMarkRead, onMarkAllRead, onRemovePing,
 }) {
   const [addCode, setAddCode] = useState("");
   const [addError, setAddError] = useState("");
@@ -191,13 +191,15 @@ export default function FriendsPanel({
     if (myCode) {
       await sendFriendPing(item.fromId, userId, userName, { type: "friend_accepted", fromCode: myCode });
     }
+    deleteFriendPing(item.pingId);
+    onRemovePing?.(item.pingId);
     showToast(`You're now friends with ${decoded.name}!`, "success");
-    onDismissNotifs?.();
     setNotifOpen(false);
   }
 
   function handleDeclineRequest(item) {
-    onDismissNotifs?.();
+    deleteFriendPing(item.pingId);
+    onRemovePing?.(item.pingId);
     setNotifOpen(false);
   }
 

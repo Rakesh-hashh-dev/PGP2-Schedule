@@ -536,8 +536,12 @@ export async function fetchFriendPings(userId) {
   } catch { return []; }
 }
 
-// Pings persist for 45 days; seen state is tracked in localStorage — no immediate delete needed.
 export async function clearFriendPings(_userId) {}
+
+export async function deleteFriendPing(pingId) {
+  if (!pingId) return;
+  await supabase.from("friend_pings").delete().eq("id", pingId);
+}
 
 /**
  * Push this group (as a read-only "received" copy) to every cloud-linked friend in the group.
