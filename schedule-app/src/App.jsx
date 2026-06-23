@@ -67,10 +67,11 @@ async function checkAppVersion(onUpdateAvailable) {
 }
 
 const LAST_USER_KEY = "pgp2.last-user-id";
+const VIEW_KEY = "pgp2.last-view";
 const USER_SCOPED_KEYS = [
   "pgp2.friends", "pgp2.groups", "pgp2.my_share_code",
   "pgp2.setup", "pgp2-notif-seen", "pgp2.read-ping-ids", "pgp2.read-change-keys",
-  "pgp2.seen-recv-groups", "pgp2.recv-groups-count", "pgp2.sidebar",
+  "pgp2.seen-recv-groups", "pgp2.recv-groups-count", "pgp2.sidebar", VIEW_KEY,
 ];
 function clearStaleUserData(newUserId) {
   const lastId = localStorage.getItem(LAST_USER_KEY);
@@ -174,7 +175,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [realNow, setRealNow] = useState(new Date());
   const [timeOverride, setTimeOverride] = useState(null);
   const now = timeOverride ? new Date(timeOverride) : realNow;
-  const [view, setView] = useState("today");
+  const [view, setView] = useState(() => { try { return localStorage.getItem(VIEW_KEY) || "today"; } catch { return "today"; } });
+  useEffect(() => { try { localStorage.setItem(VIEW_KEY, view); } catch {} }, [view]);
   useEffect(() => {
     if (!showAdminUI) {
       if (view === "admin") setView("today");
