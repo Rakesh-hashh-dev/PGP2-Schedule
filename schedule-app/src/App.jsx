@@ -419,10 +419,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     if (!scheduleData) return null;
     let data = { ...scheduleData };
     if (sysConfig?.flags) {
-      if (sysConfig.flags.termData) {
-        const staticNumber = data.TERM?.number;
-        data.TERM = { ...data.TERM, ...sysConfig.flags.termData, number: staticNumber };
-      }
+
       if (sysConfig.flags.classOverrides) {
         const overrides = sysConfig.flags.classOverrides;
         data.CLASSES = data.CLASSES.map(c => {
