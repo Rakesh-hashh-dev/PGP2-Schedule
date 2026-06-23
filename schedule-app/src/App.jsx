@@ -420,7 +420,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     let data = { ...scheduleData };
     if (sysConfig?.flags) {
       if (sysConfig.flags.termData) {
-        data.TERM = { ...data.TERM, ...sysConfig.flags.termData };
+        const staticNumber = data.TERM?.number;
+        data.TERM = { ...data.TERM, ...sysConfig.flags.termData, number: staticNumber };
       }
       if (sysConfig.flags.classOverrides) {
         const overrides = sysConfig.flags.classOverrides;
