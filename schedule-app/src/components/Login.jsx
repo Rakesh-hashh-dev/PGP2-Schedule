@@ -34,7 +34,7 @@ export default function Login() {
   }, [showHowItWorks]);
 
   return (
-    <div className={`login-screen theme-${theme}`}>
+    <main className={`login-screen theme-${theme}`}>
       <div className="login-bg-mesh">
         <div className="login-blob blob-1"></div>
         <div className="login-blob blob-2"></div>
@@ -111,7 +111,7 @@ export default function Login() {
           </div>
         </>
       )}
-    </div>
+    </main>
   );
 }
 

@@ -1,10 +1,12 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import ReactDOM from "react-dom/client";
-import { ClerkProvider, AuthenticateWithRedirectCallback } from "@clerk/clerk-react";
-import { SpeedInsights } from "@vercel/speed-insights/react";
-import App from "./App.jsx";
 import "./styles.css";
 import { registerSW } from "virtual:pwa-register";
+import TermFlowLoader from "./components/TermFlowLoader.jsx";
+
+// Start fetching ClerkApp immediately so LCP isn't delayed by the lazy boundary
+const clerkAppPromise = import("./ClerkApp.jsx");
+const ClerkApp = lazy(() => clerkAppPromise);
 
 registerSW({
   immediate: true,
@@ -13,20 +15,17 @@ registerSW({
   },
 });
 
-const pk = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
-if (!pk) console.error("Missing VITE_CLERK_PUBLISHABLE_KEY in .env.local");
-
-// Handle the Google OAuth return without adding a router (Vite SPA).
-const isCallback = window.location.pathname === "/sso-callback";
-
 const root = ReactDOM.createRoot(document.getElementById("root"));
 
 root.render(
   <React.StrictMode>
-    <ClerkProvider publishableKey={pk} afterSignOutUrl="/">
-      {isCallback ? <AuthenticateWithRedirectCallback /> : <App />}
-      <SpeedInsights />
-    </ClerkProvider>
+    <Suspense fallback={
+      <main className="loading-screen">
+        <TermFlowLoader variant="splash" size={96} />
+        <p className="loading-label">Starting up…</p>
+      </main>
+    }>
+      <ClerkApp />
+    </Suspense>
   </React.StrictMode>
 );
-

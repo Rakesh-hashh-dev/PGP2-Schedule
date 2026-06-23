@@ -364,6 +364,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         setScheduleData(data);
         setSyncedAt(new Date());
         if (data._meta) setSyncLogs(prev => [data._meta, ...prev].slice(0, 1000));
+      }).catch(e => {
+        if (!alive) return;
+        setSyncLogs(prev => [{ ts: Date.now(), status: "error", message: `Background sync failed: ${e.message || "Network Error"}` }, ...prev].slice(0, 1000));
       });
     load();
     const id = setInterval(load, 10 * 60 * 1000);
@@ -693,6 +696,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           if (meta.group) { text = `${name} added you to "${meta.group}"`; kind = "group_invite"; }
           else if (meta.type === "friend_request") { text = `${name} wants to be your friend`; kind = "friend_request"; }
           else if (meta.type === "friend_accepted") { text = `${name} accepted your friend request`; kind = "friend_accepted"; }
+          else { text = `${name} added you as a friend`; }
         } catch {}
         const pingId = p.id || p.from_id;
         return { id: `ping-${pingId}`, pingId, text, ts: p.created_at, kind, name, meta, fromId: p.from_id, isRead: readPingIds.has(pingId) };
@@ -782,6 +786,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       if (premiumMode && navigator.vibrate) navigator.vibrate([10, 40, 10]);
     } catch (e) {
       if (premiumMode && navigator.vibrate) navigator.vibrate([50, 100, 50]);
+      setSyncLogs(prev => [{ ts: Date.now(), status: "error", message: `Manual sync failed: ${e.message || "Network Error"}` }, ...prev].slice(0, 1000));
     } finally {
       setSyncing(false);
     }
@@ -798,18 +803,18 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const termLabel = TERM?.number ? `Term ${TERM.number}${termDateRange ? ` · ${termDateRange}` : ""}` : termDateRange;
 
   if (!isLoaded) return (
-    <div className="loading-screen">
+    <main className="loading-screen">
       <TermFlowLoader variant="splash" size={96} />
       <p className="loading-label">Starting up…</p>
-    </div>
+    </main>
   );
   if (!isSignedIn) return <Login />;
   if (!scheduleData) return (
-    <div className="loading-screen">
+    <main className="loading-screen">
       <TermFlowLoader size={72} />
       <p className="loading-label">Loading timetable…</p>
       <p className="loading-sub">Fetching your class schedule</p>
-    </div>
+    </main>
   );
   if (!setup) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} termLabel={termLabel} onPullFromSheet={buildAllocationFromSheet} prefill={prefillPicked} cloudChecked={cloudChecked} />;
   if (showSetupEdit) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} initialPicked={enrolled} onCancel={() => setShowSetupEdit(false)} termLabel={termLabel} onPullFromSheet={buildAllocationFromSheet} />;
@@ -817,19 +822,19 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // Banned User Lockout
   if (sysConfig?.flags?.bannedUsers?.includes(userId) && !isAdmin) {
     return (
-      <div className="login-screen" style={{ flexDirection: "column", gap: 20 }}>
+      <main className="login-screen" style={{ flexDirection: "column", gap: 20 }}>
         <ShieldAlert size={64} color="var(--danger, #e74c3c)" style={{ filter: "drop-shadow(0 4px 12px rgba(231,76,60,0.3))" }} />
         <h1 style={{ fontSize: 24, fontWeight: 800, color: "var(--text)", margin: 0 }}>Account Suspended</h1>
         <p style={{ color: "var(--muted)", maxWidth: 300, textAlign: "center", lineHeight: 1.5, margin: 0 }}>
           Your access to TermFlow has been revoked. Please contact administration.
         </p>
-      </div>
+      </main>
     );
   }
 
   if (sysConfig?.flags?.maintenanceMode && !isAdmin) {
     return (
-      <div className="login-screen" style={{ flexDirection: "column", gap: 20 }}>
+      <main className="login-screen" style={{ flexDirection: "column", gap: 20 }}>
         <CloudOff size={64} color="var(--danger, #e74c3c)" style={{ filter: "drop-shadow(0 4px 12px rgba(231,76,60,0.3))" }} />
         <h1 style={{ fontSize: 24, fontWeight: 800, color: "var(--text)", margin: 0 }}>Under Maintenance</h1>
         <p style={{ color: "var(--muted)", maxWidth: 300, textAlign: "center", lineHeight: 1.5, margin: 0 }}>
@@ -838,7 +843,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         <button className="cva-btn primary" onClick={() => window.location.reload()} style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 8 }}>
           <RefreshCw size={16} /> Refresh Page
         </button>
-      </div>
+      </main>
     );
   }
 
@@ -1180,7 +1185,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         <SubjectFilter legend={enrolledLegend} mine={mine} setMine={setMine} onEditSetup={() => setShowSetupEdit(true)} />
 
         <div className="desk-layout">
-          <div className="main-col">
+          <main className="main-col">
             <div className="tabs-wrapper">
               <nav className="tabs" ref={tabsRef} onScroll={handleTabsScroll}>
                 <button className={`tab ${view === "today" ? "on" : ""}`} onClick={() => { setView("today"); setCompareTarget(null); }}>
@@ -1375,7 +1380,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                               : <Timeline list={todayList} current={current} now={now} dateLabel={prettyDate(todayISO)} attendance={attendance} markAttendance={markAttendance} syncStatus={<span className="live"><span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} />}
               </Suspense>
             </div>
-          </div>
+          </main>
           <aside className={view !== "week" ? "side-col hide-mobile" : "side-col"}>
             <WeekAgenda visible={visible} now={now} offset={weekOffset} setOffset={setWeekOffset} todayISO={todayISO} onViewFullSchedule={() => setView("fullSchedule")} />
           </aside>
