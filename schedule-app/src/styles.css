@@ -1453,8 +1453,9 @@ button:focus-visible {
 /* ── Login screen ── */
 .login-screen {
   position: relative; display: grid; place-items: center; min-height: 100vh;
-  padding: 24px; overflow: hidden;
+  padding: 40px 24px 48px; overflow: hidden;
   transition: background 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  align-items: center;
 }
 
 /* Light Theme Variables */
@@ -1577,7 +1578,7 @@ button:focus-visible {
 }
 
 .login-card {
-  position: relative; z-index: 10;
+  position: relative;
   background: var(--l-card); border: 1px solid var(--l-border);
   backdrop-filter: blur(32px); -webkit-backdrop-filter: blur(32px);
   border-radius: 28px; padding: 48px 36px;
@@ -1662,6 +1663,100 @@ button:focus-visible {
 .login-screen.theme-light .login-theme-toggle:hover {
   background: #ffffff;
 }
+
+/* ── Login wrap (card + how-it-works stacked) ── */
+.login-wrap {
+  position: relative; z-index: 10;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 28px; width: 100%; max-width: 480px;
+}
+
+/* ── How it works section ── */
+.htw-section { width: 100%; }
+
+.htw-label {
+  text-align: center;
+  font-size: 10.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--l-sub); opacity: .55; margin: 0 0 14px;
+}
+
+.htw-steps {
+  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+}
+
+.htw-step {
+  position: relative;
+  padding: 16px 14px 18px;
+  background: var(--l-card); border: 1px solid var(--l-border);
+  border-radius: 18px; backdrop-filter: blur(14px);
+  display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
+  transition: transform .2s, box-shadow .2s;
+}
+.htw-step:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(0,0,0,.12); }
+
+.htw-step-top {
+  display: flex; align-items: center; justify-content: space-between; width: 100%;
+}
+
+.htw-num {
+  font-family: var(--mono, monospace); font-size: 10px; font-weight: 700;
+  color: var(--l-sub); opacity: .45; letter-spacing: .06em;
+}
+
+.htw-icon {
+  width: 34px; height: 34px; border-radius: 10px; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(109,91,208,.12); color: #9b84fc;
+}
+.login-screen.theme-light .htw-icon {
+  background: rgba(109,91,208,.1); color: #6D5BD0;
+}
+
+.htw-step-title {
+  font-family: var(--display); font-weight: 700; font-size: 13.5px;
+  color: var(--l-text); margin: 0; line-height: 1.2;
+}
+
+.htw-step-content { display: flex; flex-direction: column; gap: 5px; width: 100%; }
+
+.htw-step-desc {
+  font-size: 12px; color: var(--l-sub); margin: 0; line-height: 1.55; opacity: .8;
+}
+
+/* Connector arrow between steps */
+.htw-arrow {
+  position: absolute; right: -8px; top: 50%;
+  width: 13px; height: 13px;
+  border-top: 2px solid var(--l-border); border-right: 2px solid var(--l-border);
+  transform: translateY(-50%) rotate(45deg);
+  z-index: 2; pointer-events: none;
+}
+
+/* Premium theme overrides */
+.login-screen.theme-premium .htw-step {
+  background: rgba(255,255,255,.03);
+  border-color: rgba(255,255,255,.06);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+}
+.login-screen.theme-premium .htw-icon { background: rgba(167,139,250,.12); color: #c4b5fd; }
+.login-screen.theme-premium .htw-step-title { color: rgba(255,255,255,.9); }
+.login-screen.theme-premium .htw-step-desc { color: rgba(255,255,255,.4); }
+.login-screen.theme-premium .htw-arrow { border-color: rgba(255,255,255,.1); }
+
+/* Mobile: horizontal row per step (icon left, text right) */
+@media (max-width: 520px) {
+  .login-wrap { max-width: 100%; }
+  .htw-steps { grid-template-columns: 1fr; gap: 8px; }
+  .htw-step {
+    flex-direction: row; align-items: center;
+    gap: 14px; padding: 14px 16px; border-radius: 14px;
+  }
+  .htw-step-top { flex-direction: column; align-items: center; gap: 6px; flex: none; width: auto; }
+  .htw-step-content { display: flex; flex-direction: column; gap: 3px; flex: 1; }
+  .htw-arrow { display: none; }
+}
+
 
 /* â”€â”€ Recent changes â”€â”€ */
 .rc { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; margin-top: 12px; }

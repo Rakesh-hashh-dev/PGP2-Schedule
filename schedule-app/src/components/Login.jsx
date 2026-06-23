@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { GraduationCap, Sun, Moon, Sparkles } from "lucide-react";
+import { Sun, Moon, Sparkles, KeyRound, CalendarRange, ClipboardList } from "lucide-react";
 import { useSignIn } from "@clerk/clerk-react";
 
 export default function Login() {
@@ -22,6 +22,27 @@ export default function Login() {
     });
   }
 
+  const steps = [
+    {
+      icon: <KeyRound size={20} />,
+      num: "01",
+      title: "Sign in",
+      desc: "Use your @iimsambalpur.ac.in Google account — no password needed.",
+    },
+    {
+      icon: <CalendarRange size={20} />,
+      num: "02",
+      title: "View your schedule",
+      desc: "Your PGP2 timetable loads instantly, filtered by term and subject.",
+    },
+    {
+      icon: <ClipboardList size={20} />,
+      num: "03",
+      title: "Track & analyse",
+      desc: "Mark attendance, monitor grades, and stay ahead of the term.",
+    },
+  ];
+
   return (
     <div className={`login-screen theme-${theme}`}>
       <div className="login-bg-mesh">
@@ -29,9 +50,9 @@ export default function Login() {
         <div className="login-blob blob-2"></div>
         <div className="login-blob blob-3"></div>
       </div>
-      
-      <button 
-        className="login-theme-toggle" 
+
+      <button
+        className="login-theme-toggle"
         onClick={handleThemeToggle}
         aria-label="Toggle Theme"
       >
@@ -40,17 +61,38 @@ export default function Login() {
         {theme === "premium" && <Sun size={20} />}
       </button>
 
-      <div className="login-card">
-        <div className="login-logo"><img src="/termflow-icon.svg" alt="TermFlow Logo" /></div>
-        <h1 className="login-title">TermFlow</h1>
-        <p className="login-sub">IIM Sambalpur · Sign in with your institute account</p>
+      <div className="login-wrap">
+        <div className="login-card">
+          <div className="login-logo"><img src="/termflow-icon.svg" alt="TermFlow Logo" /></div>
+          <h1 className="login-title">TermFlow</h1>
+          <p className="login-sub">IIM Sambalpur · Sign in with your institute account</p>
 
-        <button className="login-btn" onClick={handleSignIn} disabled={!isLoaded || loading}>
-          {loading ? <span className="login-spinner" /> : <GoogleIcon />}
-          {loading ? "Redirecting…" : "Continue with Google"}
-        </button>
+          <button className="login-btn" onClick={handleSignIn} disabled={!isLoaded || loading}>
+            {loading ? <span className="login-spinner" /> : <GoogleIcon />}
+            {loading ? "Redirecting…" : "Continue with Google"}
+          </button>
 
-        <p className="login-note">Only @iimsambalpur.ac.in accounts are allowed.</p>
+          <p className="login-note">Only @iimsambalpur.ac.in accounts are allowed.</p>
+        </div>
+
+        <div className="htw-section">
+          <p className="htw-label">How it works</p>
+          <div className="htw-steps">
+            {steps.map((s, i) => (
+              <div className="htw-step" key={i}>
+                <div className="htw-step-top">
+                  <span className="htw-num">{s.num}</span>
+                  <span className="htw-icon">{s.icon}</span>
+                </div>
+                <div className="htw-step-content">
+                  <p className="htw-step-title">{s.title}</p>
+                  <p className="htw-step-desc">{s.desc}</p>
+                </div>
+                {i < steps.length - 1 && <span className="htw-arrow" aria-hidden="true" />}
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
