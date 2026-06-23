@@ -14,7 +14,9 @@ if (!pk) console.error("Missing VITE_CLERK_PUBLISHABLE_KEY in .env.local");
 // Handle the Google OAuth return without adding a router (Vite SPA).
 const isCallback = window.location.pathname === "/sso-callback";
 
-ReactDOM.createRoot(document.getElementById("root")).render(
+const root = ReactDOM.createRoot(document.getElementById("root"));
+
+root.render(
   <React.StrictMode>
     <ClerkProvider publishableKey={pk} afterSignOutUrl="/">
       {isCallback ? <AuthenticateWithRedirectCallback /> : <App />}
@@ -22,3 +24,8 @@ ReactDOM.createRoot(document.getElementById("root")).render(
     </ClerkProvider>
   </React.StrictMode>
 );
+
+// Hide the loading shell after React's first paint
+if (typeof window.__hideShell === "function") {
+  requestAnimationFrame(() => requestAnimationFrame(window.__hideShell));
+}

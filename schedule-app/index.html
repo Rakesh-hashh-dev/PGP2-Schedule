@@ -2,16 +2,110 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Preconnect to external origins to reduce latency -->
+    <link rel="preconnect" href="https://clerk.accounts.dev" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://fzhfbttlbfpnwhempyav.supabase.co" />
+    <link rel="dns-prefetch" href="https://api.open-meteo.com" />
+    <link rel="dns-prefetch" href="https://script.google.com" />
+
+    <!-- Icons -->
     <link rel="icon" type="image/svg+xml" href="/termflow-icon.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Primary meta -->
     <title>TermFlow · IIM Sambalpur</title>
-    <meta name="description" content="PGP2 timetable — IIM Sambalpur 2026" />
+    <meta name="description" content="PGP2 timetable, attendance tracker and class schedule for IIM Sambalpur students." />
     <meta name="theme-color" content="#15182B" />
+    <link rel="canonical" href="https://pgp2-schedule.vercel.app/" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://pgp2-schedule.vercel.app/" />
+    <meta property="og:title" content="TermFlow · IIM Sambalpur" />
+    <meta property="og:description" content="PGP2 timetable, attendance tracker and class schedule for IIM Sambalpur students." />
+    <meta property="og:image" content="https://pgp2-schedule.vercel.app/TermFlow.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- Structured data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "TermFlow",
+      "url": "https://pgp2-schedule.vercel.app/",
+      "description": "PGP2 timetable, attendance tracker and class schedule for IIM Sambalpur students.",
+      "applicationCategory": "EducationApplication",
+      "operatingSystem": "Any",
+      "offers": { "@type": "Offer", "price": "0" }
+    }
+    </script>
+
+    <!-- Inline loading shell — visible before React mounts, improves FCP -->
+    <style>
+      #app-shell {
+        position: fixed; inset: 0;
+        background: #15182B;
+        display: flex; align-items: center; justify-content: center;
+        flex-direction: column; gap: 16px;
+        font-family: system-ui, -apple-system, sans-serif;
+        transition: opacity 0.25s ease;
+        z-index: 9999;
+      }
+      #app-shell.hidden { opacity: 0; pointer-events: none; }
+      .shell-logo {
+        width: 52px; height: 52px; border-radius: 14px;
+        background: linear-gradient(135deg, #6D5BD0, #a855f7);
+        display: flex; align-items: center; justify-content: center;
+      }
+      .shell-logo svg { width: 28px; height: 28px; }
+      .shell-wordmark {
+        font-size: 18px; font-weight: 700; letter-spacing: -0.02em;
+        color: rgba(255,255,255,0.9);
+      }
+      .shell-bar {
+        width: 120px; height: 3px; border-radius: 99px;
+        background: rgba(255,255,255,0.08); overflow: hidden;
+        margin-top: 4px;
+      }
+      .shell-fill {
+        height: 100%; border-radius: 99px;
+        background: linear-gradient(90deg, #6D5BD0, #a855f7);
+        animation: shell-progress 1.4s cubic-bezier(0.4,0,0.2,1) infinite;
+      }
+      @keyframes shell-progress {
+        0%   { width: 0%;   margin-left: 0%; }
+        50%  { width: 60%;  margin-left: 20%; }
+        100% { width: 0%;   margin-left: 100%; }
+      }
+    </style>
   </head>
   <body>
+    <!-- Loading shell: shown immediately, hidden once React mounts -->
+    <div id="app-shell">
+      <div class="shell-logo">
+        <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="4" y="6" width="20" height="3" rx="1.5" fill="white" opacity="0.9"/>
+          <rect x="4" y="12" width="14" height="3" rx="1.5" fill="white" opacity="0.7"/>
+          <rect x="4" y="18" width="17" height="3" rx="1.5" fill="white" opacity="0.5"/>
+        </svg>
+      </div>
+      <span class="shell-wordmark">TermFlow</span>
+      <div class="shell-bar"><div class="shell-fill"></div></div>
+    </div>
+
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    <script>
+      // Hide the shell once React has painted its first frame
+      window.__hideShell = function() {
+        var s = document.getElementById('app-shell');
+        if (s) { s.classList.add('hidden'); setTimeout(function(){ s.remove(); }, 300); }
+      };
+    </script>
   </body>
 </html>
