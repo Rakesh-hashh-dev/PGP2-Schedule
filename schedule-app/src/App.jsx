@@ -1551,27 +1551,42 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   );
 }
 
+const DOMAIN_BLOCKED_KEY = "pgp2.domain-blocked";
+
 export default function App() {
   const { isSignedIn, isLoaded, user } = useUser();
   const { signOut } = useClerk();
-  const [domainBlocked, setDomainBlocked] = useState(false);
+
+  // Read flag set before the signOut redirect, then clear it immediately
+  const [domainBlocked, setDomainBlocked] = useState(() => {
+    const was = sessionStorage.getItem(DOMAIN_BLOCKED_KEY) === "1";
+    if (was) sessionStorage.removeItem(DOMAIN_BLOCKED_KEY);
+    return was;
+  });
 
   useEffect(() => {
     if (!isLoaded || !isSignedIn || !user) return;
     const email = user.primaryEmailAddress?.emailAddress || "";
     if (!email.toLowerCase().endsWith("@iimsambalpur.ac.in")) {
+      // Persist flag before signOut() triggers a redirect that wipes React state
+      sessionStorage.setItem(DOMAIN_BLOCKED_KEY, "1");
       signOut();
-      setDomainBlocked(true);
     }
   }, [isLoaded, isSignedIn, user]);
 
   if (domainBlocked) return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100dvh", gap: 12, padding: 32, textAlign: "center" }}>
-      <ShieldAlert size={44} style={{ color: "#e74c3c" }} />
-      <p style={{ margin: 0, fontWeight: 700, fontSize: 17 }}>Access Restricted</p>
-      <p style={{ margin: 0, color: "var(--muted, #888)", fontSize: 14, maxWidth: 280 }}>
-        Only <strong>@iimsambalpur.ac.in</strong> email addresses can access this app.
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100dvh", gap: 16, padding: 32, textAlign: "center" }}>
+      <ShieldAlert size={48} style={{ color: "#e74c3c" }} />
+      <p style={{ margin: 0, fontWeight: 700, fontSize: 18 }}>Access Restricted</p>
+      <p style={{ margin: 0, color: "var(--muted, #888)", fontSize: 14, maxWidth: 300, lineHeight: 1.6 }}>
+        This app is only available to <strong>@iimsambalpur.ac.in</strong> email addresses.
       </p>
+      <button
+        onClick={() => setDomainBlocked(false)}
+        style={{ marginTop: 8, padding: "9px 20px", borderRadius: 8, border: "1.5px solid var(--border, #ddd)", background: "none", cursor: "pointer", fontSize: 14, fontWeight: 600 }}
+      >
+        Sign in with a different account
+      </button>
     </div>
   );
 
