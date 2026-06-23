@@ -6,7 +6,12 @@ import App from "./App.jsx";
 import "./styles.css";
 import { registerSW } from "virtual:pwa-register";
 
-registerSW({ immediate: true });
+registerSW({
+  immediate: true,
+  onNeedRefresh(updateSW) {
+    window.dispatchEvent(new CustomEvent("sw-update-available", { detail: { updateSW } }));
+  },
+});
 
 const pk = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 if (!pk) console.error("Missing VITE_CLERK_PUBLISHABLE_KEY in .env.local");

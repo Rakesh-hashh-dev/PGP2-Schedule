@@ -183,6 +183,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [lastSeenTs, setLastSeenTs] = useState(() => loadLastSeen());
   const [readPingIds, setReadPingIds] = useState(() => loadReadPingIds());
   const [readChangeKeys, setReadChangeKeys] = useState(() => loadReadChangeKeys());
+  const [swUpdateFn, setSwUpdateFn] = useState(null);
   const [attendance, setAttendance] = useState(() => loadAttendance());
   const [syncing, setSyncing] = useState(false);
   const [overflowOpen, setOverflowOpen] = useState(false);
@@ -451,6 +452,12 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     return () => document.removeEventListener("visibilitychange", handleVisibility);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSignedIn, syncedAt]);
+
+  useEffect(() => {
+    const handler = (e) => setSwUpdateFn(() => e.detail.updateSW);
+    window.addEventListener("sw-update-available", handler);
+    return () => window.removeEventListener("sw-update-available", handler);
+  }, []);
 
   useEffect(() => {
     const hour = now.getHours();
@@ -842,6 +849,15 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
   return (
     <div className="app-shell">
+      {/* ── SW Update Banner ── */}
+      {swUpdateFn && (
+        <div className="sw-update-banner">
+          <span>New version available</span>
+          <button onClick={() => swUpdateFn(true)}>Refresh</button>
+          <button className="sw-update-dismiss" onClick={() => setSwUpdateFn(null)}>✕</button>
+        </div>
+      )}
+
       {/* ── Impersonation Banner ── */}
       {impersonatedUser && (
         <div style={{ position: "absolute", top: 0, left: 0, right: 0, background: "var(--amber)", color: "#000", padding: "8px 16px", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "space-between", fontWeight: 700, fontSize: 13, borderBottom: "1px solid rgba(0,0,0,0.1)" }}>
