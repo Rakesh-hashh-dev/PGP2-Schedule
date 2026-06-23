@@ -11,7 +11,7 @@ function ymd(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-export default function SemSummary({ enrolled, legend, attendance, visible, todayISO, now, classes }) {
+export default function SemSummary({ enrolled, legend, attendance, visible, todayISO, now, classes, onAttendanceClick }) {
   const totalCredits = useMemo(() => {
     if (!enrolled) return null;
     const sum = Object.keys(enrolled).reduce((acc, code) => {
@@ -47,12 +47,12 @@ export default function SemSummary({ enrolled, legend, attendance, visible, toda
 
   return (
     <div className="sem-summary">
-      <div className={`sem-stat ${pctColor}`}>
+      <button className={`sem-stat sem-stat-cta ${pctColor}`} onClick={onAttendanceClick}>
         <span className="sem-val">
           {pct === null ? "—" : `${pct}%`}
         </span>
         <span className="sem-label">Attendance{total > 0 ? ` · ${present}/${total}` : ""}</span>
-      </div>
+      </button>
 
       <div className="sem-divider" />
 

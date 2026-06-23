@@ -938,6 +938,11 @@ button:focus-visible {
 .sem-stat.good .sem-val { color: var(--live); }
 .sem-stat.warn .sem-val { color: var(--amber); }
 .sem-stat.bad  .sem-val { color: var(--danger, #e05); }
+.sem-stat-cta {
+  border: none; background: transparent; cursor: pointer;
+  border-radius: 10px; transition: background .15s;
+}
+.sem-stat-cta:hover { background: rgba(0,0,0,.04); }
 .sem-divider { width: 1px; height: 32px; background: var(--border); flex-shrink: 0; }
 
 /* â”€â”€ Timeline panel â”€â”€ */
