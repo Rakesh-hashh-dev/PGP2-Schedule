@@ -597,9 +597,11 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     }
   };
 
-  function fmtTermDate(iso) {
-    if (!iso) return "";
-    const d = new Date(iso + "T00:00");
+  function fmtTermDate(val) {
+    if (!val) return "";
+    // Try ISO (YYYY-MM-DD) with midnight anchor first, then raw parse
+    let d = new Date(String(val).trim() + "T00:00");
+    if (isNaN(d)) d = new Date(String(val).trim());
     return isNaN(d) ? "" : d.toLocaleDateString([], { day: "numeric", month: "short" });
   }
   const termDateRange = TERM ? [fmtTermDate(TERM.start), fmtTermDate(TERM.end)].filter(Boolean).join(" – ") : "";
