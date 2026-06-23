@@ -162,8 +162,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   }
 
   const [sbTip, setSbTip] = useState(null);
-  function showSbTip(e, label) {
-    if (!sidebarCollapsed) return;
+  function showSbTip(e, label, always = false) {
+    if (!sidebarCollapsed && !always) return;
     const r = e.currentTarget.getBoundingClientRect();
     setSbTip({ label, top: r.top + r.height / 2, left: r.right + 10 });
   }
@@ -697,32 +697,31 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
         <div className="sb-bottom">
           <div className="sb-sep-line" />
-          <div className="sb-action-group">
-            <button className="sb-action-btn" onMouseEnter={e => showSbTip(e, "Edit setup")} onMouseLeave={hideSbTip} onClick={() => { setShowSetupEdit(true); hideSbTip(); }}>
-              <Settings2 size={16} /><span className="sb-action-label">Edit setup</span>
+          <div className="sb-util-strip">
+            <button className="sb-util-btn" onMouseEnter={e => showSbTip(e, "Edit setup", true)} onMouseLeave={hideSbTip} onClick={() => { setShowSetupEdit(true); hideSbTip(); }} aria-label="Edit setup">
+              <Settings2 size={16} />
             </button>
-            <button className="sb-action-btn" onMouseEnter={e => showSbTip(e, syncing ? "Syncing…" : "Refresh")} onMouseLeave={hideSbTip} onClick={handleSync}>
-              <RefreshCw size={16} className={syncing ? "spin-icon" : ""} /><span className="sb-action-label">{syncing ? "Syncing…" : "Refresh"}</span>
+            <button className="sb-util-btn" onMouseEnter={e => showSbTip(e, syncing ? "Syncing…" : "Refresh", true)} onMouseLeave={hideSbTip} onClick={handleSync} aria-label="Refresh">
+              <RefreshCw size={16} className={syncing ? "spin-icon" : ""} />
             </button>
-            <button className="sb-action-btn sb-action-danger" onMouseEnter={e => showSbTip(e, "Log out")} onMouseLeave={hideSbTip} onClick={() => signOut()}>
-              <LogOut size={16} /><span className="sb-action-label">Log out</span>
+            <button className="sb-util-btn sb-util-danger" onMouseEnter={e => showSbTip(e, "Log out", true)} onMouseLeave={hideSbTip} onClick={() => signOut()} aria-label="Log out">
+              <LogOut size={16} />
             </button>
             {isAdmin && (
               <button
-                className={`sb-action-btn${adminMode ? " sb-action-admin-on" : ""}`}
-                onMouseEnter={e => showSbTip(e, adminMode ? "Exit Admin Mode" : "Admin Mode")}
+                className={`sb-util-btn${adminMode ? " sb-util-admin-on" : ""}`}
+                onMouseEnter={e => showSbTip(e, adminMode ? "Exit Admin" : "Admin Mode", true)}
                 onMouseLeave={hideSbTip}
                 onClick={() => setAdminMode(!adminMode)}
+                aria-label={adminMode ? "Exit Admin" : "Admin Mode"}
               >
                 {adminMode ? <Shield size={16} /> : <User size={16} />}
-                <span className="sb-action-label">{adminMode ? "Exit Admin" : "Admin Mode"}</span>
               </button>
             )}
+            <button className="sb-util-btn sb-util-collapse" onMouseEnter={e => showSbTip(e, sidebarCollapsed ? "Expand" : "Collapse", true)} onMouseLeave={hideSbTip} onClick={toggleSidebar} aria-label="Toggle sidebar">
+              {sidebarCollapsed ? <ChevronsRight size={15} /> : <ChevronsLeft size={15} />}
+            </button>
           </div>
-          <button className="sb-toggle" onMouseEnter={e => showSbTip(e, sidebarCollapsed ? "Expand" : "Collapse")} onMouseLeave={hideSbTip} onClick={toggleSidebar}>
-            <span className="sb-toggle-icon">{sidebarCollapsed ? <ChevronsRight size={15} /> : <ChevronsLeft size={15} />}</span>
-            <span className="sb-toggle-label">Collapse</span>
-          </button>
           <div className="sb-avatar-wrap" onMouseEnter={hideSbTip}>
             <button className="sb-avatar-btn">
               <div className="sb-avatar-img">
