@@ -253,18 +253,23 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     setShowRightScroll(scrollLeft + clientWidth < scrollWidth - 10);
     setShowLeftScroll(scrollLeft > 10);
   };
-  // Scroll the active tab into view once the tab bar is rendered (after all loading guards pass)
+  // Scroll the active tab into center once ALL loading guards have passed
   const didScrollInitialTab = useRef(false);
+  const tabsReady = isLoaded && isSignedIn && !!scheduleData && !!setup && !showSetupEdit;
   useEffect(() => {
-    if (!setup || didScrollInitialTab.current) return;
+    if (!tabsReady || didScrollInitialTab.current) return;
     didScrollInitialTab.current = true;
     const id = setTimeout(() => {
-      tabsRef.current?.querySelector(".tab.on")?.scrollIntoView({ behavior: "instant", block: "nearest", inline: "center" });
-      handleTabsScroll();
-    }, 50);
+      const nav = tabsRef.current;
+      const activeTab = nav?.querySelector(".tab.on");
+      if (nav && activeTab) {
+        nav.scrollLeft = activeTab.offsetLeft - nav.offsetWidth / 2 + activeTab.offsetWidth / 2;
+        handleTabsScroll();
+      }
+    }, 100);
     return () => clearTimeout(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setup]);
+  }, [tabsReady]);
 
   const [cmdOpen, setCmdOpen] = useState(false);
   const premiumMode = true;
