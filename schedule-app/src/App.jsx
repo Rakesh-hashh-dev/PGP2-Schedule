@@ -830,7 +830,11 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       if (!target || target === "global") matches = true;
       else if (target === "section_A" && Object.values(setup?.courses || {}).includes("A")) matches = true;
       else if (target === "section_B" && Object.values(setup?.courses || {}).includes("B")) matches = true;
-      else if (target === "BM" || target === "MM") matches = true; // Simplified for demo
+      else if (target === "has_friends" && friends && friends.length > 0) matches = true;
+      else if (target?.startsWith("subject_")) {
+        const subjectCode = target.replace("subject_", "");
+        if (setup?.courses?.[subjectCode]) matches = true;
+      }
       
       if (matches) activeGlobalAnnouncement = message;
     }

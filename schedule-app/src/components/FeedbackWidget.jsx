@@ -26,7 +26,7 @@ export default function FeedbackWidget({ user, onClose }) {
       }, 2000);
     } catch (err) {
       console.error("Feedback error:", err);
-      setError("Failed to submit feedback. Please try again.");
+      setError(err.message || "Failed to submit feedback. Please try again.");
     } finally {
       setSubmitting(false);
     }

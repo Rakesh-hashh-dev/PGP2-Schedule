@@ -1,6 +1,17 @@
 import { useState, useEffect } from "react";
 import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, BarChart3, Terminal, Clock, Database } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import Papa from 'papaparse';
+import { LEGEND } from "../data/schedule.js";
+
+export async function logAdminAction(admin_id, action, details) {
+  try {
+    await supabase.from("admin_audit_logs").insert({ admin_id, action, details });
+  } catch (e) {
+    console.error("Audit log failed", e);
+  }
+}
 
 function Avatar({ name, email }) {
   const init = name ? name[0] : (email ? email[0] : "?");
@@ -19,9 +30,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [flags, setFlags] = useState({
     enableFriends: true,
     enableExams: true,
+    enableAttendance: true,
     maintenanceMode: false,
     bannedUsers: [],
-    termData: { number: "5", start: "", end: "" },
     classOverrides: {}
   });
   
@@ -41,6 +52,14 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [allUsers, setAllUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loadingUsers, setLoadingUsers] = useState(true);
+
+  // New states
+  const [feedbackList, setFeedbackList] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [dailyStats, setDailyStats] = useState([]);
+  const [announcementTarget, setAnnouncementTarget] = useState("global");
+
+  const admin_id = user?.id || user?.user_id || "unknown";
 
   useEffect(() => {
     async function fetchStatsAndUsers() {
@@ -114,6 +133,18 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       }
     }
     fetchDbSize();
+
+    async function fetchFeedbackAndLogs() {
+      const { data: fb } = await supabase.from("feedback").select("*").order("created_at", { ascending: false }).limit(20);
+      if (fb) setFeedbackList(fb);
+
+      const { data: logs } = await supabase.from("admin_audit_logs").select("*").order("created_at", { ascending: false }).limit(20);
+      if (logs) setAuditLogs(logs);
+      
+      const { data: stats } = await supabase.from("daily_stats").select("*").order("date", { ascending: true }).limit(30);
+      if (stats) setDailyStats(stats);
+    }
+    fetchFeedbackAndLogs();
   }, []);
 
   async function saveConfig() {
@@ -129,6 +160,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       if (error) {
         setSaveMsg("Failed: " + error.message);
       } else {
+        await logAdminAction(admin_id, "save_config", { announcement: activeAnnouncement, flags });
         setSaveMsg("Successfully saved to cloud!");
         setTimeout(() => setSaveMsg(""), 3000);
       }
@@ -141,6 +173,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   async function forceRefresh() {
     if (confirm("Are you sure you want to force all active users to refresh their app?")) {
       await saveConfig();
+      await logAdminAction(admin_id, "force_refresh", {});
       alert("Broadcast sent! Users will refresh on their next navigation.");
     }
   }
@@ -159,6 +192,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     if (!nextOverrides[overrideDate]) nextOverrides[overrideDate] = {};
     nextOverrides[overrideDate][overrideClass] = { type: "cancelled", name: `Cancelled: ${overrideClass}` };
     setFlags({...flags, classOverrides: nextOverrides});
+    logAdminAction(admin_id, "cancel_class", { date: overrideDate, class: overrideClass });
     setOverrideClass("");
   };
 
@@ -172,8 +206,62 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     const existing = nextOverrides[roomOverrideDate][roomOverrideClass] || {};
     nextOverrides[roomOverrideDate][roomOverrideClass] = { ...existing, room: roomOverrideRoom };
     setFlags({...flags, classOverrides: nextOverrides});
+    logAdminAction(admin_id, "change_room", { date: roomOverrideDate, class: roomOverrideClass, room: roomOverrideRoom });
     setRoomOverrideClass("");
     setRoomOverrideRoom("");
+  };
+
+  const handleCsvUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    Papa.parse(file, {
+      header: true,
+      complete: (results) => {
+        const nextOverrides = { ...(flags.classOverrides || {}) };
+        let count = 0;
+        results.data.forEach(row => {
+          if (!row.Date || !row.Class) return;
+          if (!nextOverrides[row.Date]) nextOverrides[row.Date] = {};
+          if (row.Action === "cancel") {
+            nextOverrides[row.Date][row.Class] = { type: "cancelled", name: `Cancelled: ${row.Class}` };
+            count++;
+          } else if (row.Action === "room" && row.Room) {
+            nextOverrides[row.Date][row.Class] = { ...(nextOverrides[row.Date][row.Class] || {}), room: row.Room };
+            count++;
+          }
+        });
+        setFlags({...flags, classOverrides: nextOverrides});
+        logAdminAction(admin_id, "csv_import", { rows_imported: count });
+        alert(`Imported ${count} overrides from CSV.`);
+      }
+    });
+  };
+
+  const markFeedbackResolved = async (id) => {
+    await supabase.from("feedback").update({ status: "resolved" }).eq("id", id);
+    setFeedbackList(feedbackList.map(f => f.id === id ? { ...f, status: "resolved" } : f));
+  };
+
+  const exportUsersCSV = () => {
+    const csv = Papa.unparse(allUsers.map(u => ({ id: u.user_id, name: u.name, courses: Object.keys(u.courses || {}).filter(k=>!k.startsWith("_")).join("|") })));
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'users_export.csv';
+    a.click();
+    logAdminAction(admin_id, "export_users", {});
+  };
+
+  const exportConfigJSON = () => {
+    const json = JSON.stringify({ announcement: activeAnnouncement, flags }, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'config_backup.json';
+    a.click();
+    logAdminAction(admin_id, "export_config", {});
   };
 
   return (
@@ -213,8 +301,21 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
 
         <section className="admin-card" style={{ display: "flex", flexDirection: "column" }}>
-          <h2><Megaphone size={20} color="var(--amber)" /> Global Announcement</h2>
-          <p className="admin-subtext">Push an instant banner to all users. Leave blank to clear.</p>
+          <h2><Megaphone size={20} color="var(--amber)" /> Targeted Announcements</h2>
+          <p className="admin-subtext">Push an instant banner to users based on targeting. Leave blank to clear.</p>
+          <div style={{ marginBottom: 12 }}>
+            <select className="admin-input" value={announcementTarget} onChange={e => setAnnouncementTarget(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)" }}>
+              <option value="global">Global (All Users)</option>
+              <option value="section_A">Section A Only</option>
+              <option value="section_B">Section B Only</option>
+              <option value="has_friends">Social Users (Has Friends)</option>
+              <optgroup label="Subject Wise">
+                {Object.entries(LEGEND || {}).map(([code, info]) => (
+                  <option key={code} value={`subject_${code}`}>{code} - {info.name}</option>
+                ))}
+              </optgroup>
+            </select>
+          </div>
           <textarea 
             className="admin-textarea"
             value={announcement}
@@ -222,19 +323,60 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             placeholder="e.g., Welcome to the new TermFlow update! Check out the friends tab."
           />
           <div className="admin-actions">
-            <button className="admin-btn primary" onClick={() => setActiveAnnouncement(announcement)}>
+            <button className="admin-btn primary" onClick={() => setActiveAnnouncement({ message: announcement, target: announcementTarget })}>
               Stage Announcement
             </button>
             <button className="admin-btn outline" onClick={() => { setAnnouncement(""); setActiveAnnouncement(null); }}>
               <Trash2 size={16} /> Clear
             </button>
           </div>
-          {activeAnnouncement && (
+          {activeAnnouncement && activeAnnouncement.message && (
             <div className="admin-staged-preview">
-              <div className="preview-label">Staged Preview</div>
-              {activeAnnouncement}
+              <div className="preview-label">Staged Preview (Target: {activeAnnouncement.target})</div>
+              {activeAnnouncement.message}
             </div>
           )}
+        </section>
+
+        {/* Analytics Section */}
+        <section className="admin-card">
+          <h2><BarChart3 size={20} color="var(--blue)" /> Daily Active Users (DAU)</h2>
+          <div style={{ height: 300, width: "100%", marginTop: 16 }}>
+            {dailyStats.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={dailyStats}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis dataKey="date" stroke="var(--muted)" tick={{fontSize: 12}} />
+                  <YAxis stroke="var(--muted)" tick={{fontSize: 12}} />
+                  <Tooltip contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8 }} />
+                  <Line type="monotone" dataKey="active_users" stroke="var(--violet)" strokeWidth={3} dot={{r: 4}} />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="admin-loading">No daily stats data available.</div>
+            )}
+          </div>
+        </section>
+
+        {/* Feedback Section */}
+        <section className="admin-card">
+          <h2><Terminal size={20} color="var(--green)" /> Feedback & Bug Reports</h2>
+          <div style={{ maxHeight: 300, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, marginTop: 16 }}>
+            {feedbackList.length === 0 ? <div className="admin-empty">No feedback yet.</div> : 
+             feedbackList.map(f => (
+               <div key={f.id} style={{ padding: "12px", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8 }}>
+                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                   <span style={{ fontSize: 12, color: "var(--muted)" }}>{new Date(f.created_at).toLocaleString()}</span>
+                   <span style={{ fontSize: 12, fontWeight: 700, color: f.status === "resolved" ? "var(--green)" : "var(--amber)" }}>{f.status.toUpperCase()}</span>
+                 </div>
+                 <div style={{ fontSize: 14, color: "var(--text)" }}>{f.message}</div>
+                 {f.status === "pending" && (
+                   <button onClick={() => markFeedbackResolved(f.id)} style={{ marginTop: 8, background: "transparent", border: "none", color: "var(--green)", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Mark Resolved</button>
+                 )}
+               </div>
+             ))
+            }
+          </div>
         </section>
 
         <section className="admin-card admin-directory-card">
@@ -247,6 +389,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
             />
+          </div>
+          <div style={{ marginBottom: 12, display: "flex", gap: 12 }}>
+            <button className="admin-btn outline" onClick={exportUsersCSV} style={{ padding: "6px 12px", fontSize: 13 }}>Export Users to CSV</button>
+            <button className="admin-btn outline" onClick={exportConfigJSON} style={{ padding: "6px 12px", fontSize: 13 }}>Backup Config to JSON</button>
           </div>
           <div className="admin-user-list">
             {loadingUsers ? (
@@ -273,6 +419,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                        const isBanned = flags.bannedUsers?.includes(u.user_id);
                        const next = isBanned ? flags.bannedUsers.filter(id => id !== u.user_id) : [...(flags.bannedUsers || []), u.user_id];
                        setFlags({...flags, bannedUsers: next});
+                       logAdminAction(admin_id, isBanned ? "unban_user" : "ban_user", { target_user: u.user_id });
                     }} className="admin-btn-icon" title={flags.bannedUsers?.includes(u.user_id) ? "Unban User" : "Ban User"} style={{ background: "transparent", border: "none", cursor: "pointer", padding: 6 }}>
                       <Ban size={20} color={flags.bannedUsers?.includes(u.user_id) ? "var(--danger)" : "var(--muted)"} />
                     </button>
@@ -287,7 +434,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           <section className="admin-card">
             <h2><Flag size={20} color="var(--violet)" /> Feature Flags</h2>
             <div className="admin-flag-list">
-              {Object.keys(flags).filter(k => k !== "maintenanceMode").map(key => (
+              {Object.keys(flags).filter(k => k !== "maintenanceMode" && k !== "bannedUsers" && k !== "classOverrides").map(key => (
                 <label key={key} className="admin-flag-item">
                   <input 
                     type="checkbox" 
@@ -349,6 +496,12 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                <input type="text" placeholder="Class Code (e.g. BM)" className="admin-input" value={roomOverrideClass} onChange={e => setRoomOverrideClass(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)" }} />
                <input type="text" placeholder="New Classroom" className="admin-input" value={roomOverrideRoom} onChange={e => setRoomOverrideRoom(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)" }} />
                <button className="cva-btn primary" onClick={handleAddRoomOverride} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "var(--blue)", color: "#fff", cursor: "pointer", fontWeight: 600 }}>Change Room</button>
+            </div>
+            
+            <div style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
+               <h3 style={{ fontSize: 14, margin: "0 0 8px 0" }}>Bulk Import (CSV)</h3>
+               <p className="admin-subtext">Upload a CSV with columns: <code>Date</code> (YYYY-MM-DD), <code>Class</code> (Code), <code>Action</code> (cancel/room), and <code>Room</code>.</p>
+               <input type="file" accept=".csv" onChange={handleCsvUpload} style={{ fontSize: 13 }} />
             </div>
           </section>
 
@@ -414,20 +567,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             )}
           </section>
 
-          {/* Term Management */}
-          <section className="admin-card" style={{ gridColumn: "1 / -1" }}>
-            <h2><CalendarDays size={20} color="var(--blue)" /> Global Term Override</h2>
-            <p className="admin-subtext">Optionally override the semester dates provided by the live Google Sheet.</p>
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12 }}>
-              <input type="text" placeholder="Term (e.g. 5)" className="admin-input" style={{ width: 120, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)" }}
-                 value={flags.termData?.number || ""} onChange={e => setFlags({...flags, termData: {...flags.termData, number: e.target.value}})} />
-              <input type="date" className="admin-input" style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)" }}
-                 value={flags.termData?.start || ""} onChange={e => setFlags({...flags, termData: {...flags.termData, start: e.target.value}})} />
-              <input type="date" className="admin-input" style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)" }}
-                 value={flags.termData?.end || ""} onChange={e => setFlags({...flags, termData: {...flags.termData, end: e.target.value}})} />
-              <button className="admin-btn outline" onClick={() => setFlags({...flags, termData: {number: "", start: "", end: ""}})}>Clear Overrides</button>
-            </div>
-          </section>
+
 
           {/* Live Sync Logs */}
           <section className="admin-card" style={{ gridColumn: "1 / -1" }}>
@@ -451,6 +591,25 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     <span style={{ color: "var(--muted)", whiteSpace: "nowrap" }}>{new Date(log.ts).toLocaleTimeString()}</span>
                     <span style={{ color: log.status === "error" ? "var(--danger)" : "var(--green)", fontWeight: 700, width: 60 }}>[{log.status.toUpperCase()}]</span>
                     <span style={{ wordBreak: "break-word", color: log.status === "error" ? "var(--danger)" : "#e2e8f0" }}>{log.message}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+
+          {/* Audit Logs */}
+          <section className="admin-card" style={{ gridColumn: "1 / -1" }}>
+            <h2><Terminal size={20} color="var(--violet)" /> Admin Audit Logs</h2>
+            <p className="admin-subtext">Recent administrative actions performed by all admins.</p>
+            <div style={{ background: "rgba(0,0,0,0.8)", color: "#e2e8f0", borderRadius: 8, padding: 16, marginTop: 16, maxHeight: 300, overflowY: "auto", fontFamily: "monospace", fontSize: 13, border: "1px solid var(--border)" }}>
+              {auditLogs.length === 0 ? (
+                <div style={{ color: "var(--muted)", fontStyle: "italic" }}>No audit logs found.</div>
+              ) : (
+                auditLogs.map((log) => (
+                  <div key={log.id} style={{ display: "flex", gap: 12, marginBottom: 8, paddingBottom: 8, borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                    <span style={{ color: "var(--muted)", whiteSpace: "nowrap" }}>{new Date(log.created_at).toLocaleString()}</span>
+                    <span style={{ color: "var(--live)", fontWeight: 700 }}>[{log.action}]</span>
+                    <span style={{ color: "#e2e8f0" }}>{JSON.stringify(log.details)}</span>
                   </div>
                 ))
               )}
