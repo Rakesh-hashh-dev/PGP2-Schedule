@@ -26,6 +26,7 @@ import { loadAttendance, saveAttendance, sessionKey, syncAttendanceFromCloud, pu
 import { syncProfileFromCloud, pushProfile } from "./lib/profile.js";
 import { decodeSchedule, saveFriend, loadFriends, loadGroups, friendVisibleClasses, syncFriendsAndGroupsFromCloud } from "./lib/friends.js";
 import { supabase } from "./lib/supabase.js";
+import { Analytics } from "@vercel/analytics/react";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
@@ -1102,6 +1103,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         </button>
       </nav>
       */}
+      <Analytics />
       </div>
     </div>
   );
