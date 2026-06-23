@@ -8,10 +8,10 @@ import TermFlowLoader from "./components/TermFlowLoader.jsx";
 const clerkAppPromise = import("./ClerkApp.jsx");
 const ClerkApp = lazy(() => clerkAppPromise);
 
-registerSW({
+// registerSW returns the update fn — onNeedRefresh receives no arguments
+const updateSW = registerSW({
   immediate: true,
-  onNeedRefresh(updateSW) {
-    // Store immediately — onNeedRefresh can fire before React mounts
+  onNeedRefresh() {
     window.__swPendingUpdate = updateSW;
     window.dispatchEvent(new CustomEvent("sw-update-available", { detail: { updateSW } }));
   },
