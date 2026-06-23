@@ -2578,10 +2578,8 @@ button:focus-visible {
 /* Sidebar bottom section */
 .sb-bottom {
   display: flex; flex-direction: column; gap: 4px;
-  padding-top: 12px; margin-top: auto;
+  margin-top: auto; padding-top: 12px;
 }
-/* Collapsed: let everything flow naturally so the avatar scrolls with content */
-.sidebar.collapsed .sb-bottom { margin-top: 16px; }
 .sb-sep-line {
   height: 1px; background: rgba(255,255,255,.07);
   margin-bottom: 8px; flex: none;
