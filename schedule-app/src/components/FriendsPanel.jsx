@@ -87,6 +87,7 @@ export default function FriendsPanel({
   const [addToGroupId, setAddToGroupId] = useState(null);
 
   const [notifOpen, setNotifOpen] = useState(false);
+  const [showAllNotifs, setShowAllNotifs] = useState(false);
   const [myCode, setMyCode] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
@@ -380,47 +381,57 @@ export default function FriendsPanel({
           </button>
           {notifOpen && (
             <>
-            <div className="notif-backdrop" onClick={() => setNotifOpen(false)} />
+            <div className="notif-backdrop" onClick={() => { setNotifOpen(false); setShowAllNotifs(false); }} />
             <div className="fr-bell-panel">
               <div className="fr-bell-panel-head">
                 <span className="fr-bell-panel-title">Notifications</span>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  {notifications.length > 0 && (
-                    <button className="rc-mark-all" style={{ color: "var(--danger, #e05252)" }} onClick={() => { onClearAllPings?.(); setNotifOpen(false); }}>Clear all</button>
-                  )}
                   {notifications.some(n => !n.isRead)
-                    ? <button className="rc-mark-all" onClick={() => { onMarkAllRead?.(); }}>Mark all read</button>
-                    : <span className="rc-all-read">All caught up</span>
+                    ? <button className="rc-mark-all" onClick={() => onMarkAllRead?.()}>Mark all read</button>
+                    : notifications.length > 0 && <span className="rc-all-read">All caught up</span>
                   }
                   <button className="fr-btn-icon" onClick={() => setNotifOpen(false)} aria-label="Close"><X size={13} /></button>
                 </div>
               </div>
+
               {notifications.length === 0 ? (
                 <p className="fr-bell-empty">No new notifications</p>
               ) : (
-                notifications.map(item => (
-                  <div
-                    key={item.id}
-                    className={`fr-ping-card${item.isRead ? " fr-ping-read" : ""}`}
-                    onClick={() => item.kind !== "friend_request" && onMarkRead?.(item.pingId)}
-                    style={{ cursor: item.kind !== "friend_request" ? "pointer" : "default" }}
-                  >
-                    <div className="fr-ping-avatar">{(item.name || "?")[0].toUpperCase()}</div>
-                    <div className="fr-ping-text">
-                      <span className="fr-ping-name">{item.text}</span>
-                      {item.kind === "friend_request" && (
-                        <div className="fr-ping-actions">
-                          <button className="fr-btn fr-btn-accept" onClick={e => { e.stopPropagation(); handleAcceptRequest(item); }}><Check size={13} strokeWidth={2.8} />Accept</button>
-                          <button className="fr-btn fr-btn-decline" onClick={e => { e.stopPropagation(); handleDeclineRequest(item); }}><X size={13} strokeWidth={2.8} />Decline</button>
-                        </div>
-                      )}
+                <>
+                  {(showAllNotifs ? notifications : notifications.slice(0, 3)).map(item => (
+                    <div
+                      key={item.id}
+                      className={`fr-ping-card${item.isRead ? " fr-ping-read" : ""}`}
+                      onClick={() => item.kind !== "friend_request" && onMarkRead?.(item.pingId)}
+                      style={{ cursor: item.kind !== "friend_request" ? "pointer" : "default" }}
+                    >
+                      <div className="fr-ping-avatar">{(item.name || "?")[0].toUpperCase()}</div>
+                      <div className="fr-ping-text">
+                        <span className="fr-ping-name">{item.text}</span>
+                        {item.kind === "friend_request" && (
+                          <div className="fr-ping-actions">
+                            <button className="fr-btn fr-btn-accept" onClick={e => { e.stopPropagation(); handleAcceptRequest(item); }}><Check size={13} strokeWidth={2.8} />Accept</button>
+                            <button className="fr-btn fr-btn-decline" onClick={e => { e.stopPropagation(); handleDeclineRequest(item); }}><X size={13} strokeWidth={2.8} />Decline</button>
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flex: "none" }}>
+                        <span className="fr-ping-time">{timeAgo(item.ts)}</span>
+                        {item.isRead && <span className="rc-read-check">✓</span>}
+                      </div>
                     </div>
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flex: "none" }}>
-                      <span className="fr-ping-time">{timeAgo(item.ts)}</span>
-                      {item.isRead && <span className="rc-read-check">✓</span>}
-                    </div>
-                  </div>
-                ))
+                  ))}
+
+                  {notifications.length > 3 && (
+                    <button className="fr-notif-view-more" onClick={() => setShowAllNotifs(v => !v)}>
+                      {showAllNotifs ? "Show less" : `View ${notifications.length - 3} more`}
+                    </button>
+                  )}
+
+                  <button className="fr-notif-clear-all" onClick={() => { onClearAllPings?.(); setNotifOpen(false); setShowAllNotifs(false); }}>
+                    Clear all notifications
+                  </button>
+                </>
               )}
             </div>
             </>
