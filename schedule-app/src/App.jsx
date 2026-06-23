@@ -966,6 +966,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 now={now}
                 classes={CLASSES}
                 onAttendanceClick={() => setView("attendance")}
+                onExamsClick={() => setView("exams")}
+                onSessionsClick={() => setView("fullSchedule")}
               />
             )}
             {/* Compact "now" banner on Tomorrow tab so user knows what's happening today */}

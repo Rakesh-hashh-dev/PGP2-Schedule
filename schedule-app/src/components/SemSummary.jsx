@@ -11,7 +11,7 @@ function ymd(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-export default function SemSummary({ enrolled, legend, attendance, visible, todayISO, now, classes, onAttendanceClick }) {
+export default function SemSummary({ enrolled, legend, attendance, visible, todayISO, now, classes, onAttendanceClick, onExamsClick, onSessionsClick }) {
   const totalCredits = useMemo(() => {
     if (!enrolled) return null;
     const sum = Object.keys(enrolled).reduce((acc, code) => {
@@ -63,17 +63,17 @@ export default function SemSummary({ enrolled, legend, attendance, visible, toda
 
       <div className="sem-divider" />
 
-      <div className={`sem-stat ${upcomingExams > 0 ? "warn" : ""}`}>
+      <button className={`sem-stat sem-stat-cta ${upcomingExams > 0 ? "warn" : ""}`} onClick={onExamsClick}>
         <span className="sem-val">{upcomingExams === 0 ? "None" : upcomingExams}</span>
         <span className="sem-label">Exam{upcomingExams !== 1 ? "s" : ""} this week</span>
-      </div>
+      </button>
 
       <div className="sem-divider" />
 
-      <div className="sem-stat">
+      <button className="sem-stat sem-stat-cta" onClick={onSessionsClick}>
         <span className="sem-val">{sessionsLeft}</span>
         <span className="sem-label">Sessions left</span>
-      </div>
+      </button>
     </div>
   );
 }
