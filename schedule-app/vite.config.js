@@ -110,4 +110,19 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('lucide-react')) return 'lucide';
+            if (id.includes('@clerk')) return 'clerk';
+            if (id.includes('react') || id.includes('react-dom')) return 'react-vendor';
+            if (id.includes('@supabase')) return 'supabase';
+            return 'vendor';
+          }
+        }
+      }
+    }
+  }
 })
