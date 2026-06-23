@@ -1554,6 +1554,27 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 export default function App() {
   const { isSignedIn, isLoaded, user } = useUser();
   const { signOut } = useClerk();
+  const [domainBlocked, setDomainBlocked] = useState(false);
+
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn || !user) return;
+    const email = user.primaryEmailAddress?.emailAddress || "";
+    if (!email.toLowerCase().endsWith("@iimsambalpur.ac.in")) {
+      signOut();
+      setDomainBlocked(true);
+    }
+  }, [isLoaded, isSignedIn, user]);
+
+  if (domainBlocked) return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100dvh", gap: 12, padding: 32, textAlign: "center" }}>
+      <ShieldAlert size={44} style={{ color: "#e74c3c" }} />
+      <p style={{ margin: 0, fontWeight: 700, fontSize: 17 }}>Access Restricted</p>
+      <p style={{ margin: 0, color: "var(--muted, #888)", fontSize: 14, maxWidth: 280 }}>
+        Only <strong>@iimsambalpur.ac.in</strong> email addresses can access this app.
+      </p>
+    </div>
+  );
+
   return <AppCore isSignedIn={isSignedIn} isLoaded={isLoaded} signOut={signOut} userId={user?.id} user={user} />;
 }
 
