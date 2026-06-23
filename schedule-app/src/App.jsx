@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, Suspense, lazy } from "react";
 import { createPortal } from "react-dom";
-import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, ChevronsLeft, ChevronsRight, ChevronRight, ChevronLeft, Megaphone, BarChart2, Shield, User, CloudOff } from "lucide-react";
+import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, ChevronsLeft, ChevronsRight, ChevronRight, ChevronLeft, Megaphone, BarChart2, Shield, User, CloudOff, MessageSquare } from "lucide-react";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
 import SemSummary from "./components/SemSummary.jsx";
@@ -18,13 +18,14 @@ const FriendsPanel = lazy(() => import("./components/FriendsPanel.jsx"));
 const CompareView = lazy(() => import("./components/CompareView.jsx"));
 const RecentChanges = lazy(() => import("./components/RecentChanges.jsx"));
 const ExamsPanel = lazy(() => import("./components/ExamsPanel.jsx"));
+const FeedbackWidget = lazy(() => import("./components/FeedbackWidget.jsx"));
 const NotificationsPage = lazy(() => import("./components/NotificationsPage.jsx"));
 const FullSchedulePage = lazy(() => import("./components/FullSchedulePage.jsx"));
 const AdminDashboard = lazy(() => import("./components/AdminDashboard.jsx"));
 const CommandPalette = lazy(() => import("./components/CommandPalette.jsx"));
 import { loadAttendance, saveAttendance, sessionKey, syncAttendanceFromCloud, pushMark } from "./lib/attendance.js";
 import { syncProfileFromCloud, pushProfile } from "./lib/profile.js";
-import { decodeSchedule, saveFriend, loadFriends, loadGroups, friendVisibleClasses, syncFriendsAndGroupsFromCloud } from "./lib/friends.js";
+import { decodeSchedule, saveFriend, loadFriends, loadGroups, friendVisibleClasses, syncFriendsAndGroupsFromCloud, fetchFriendPings, clearFriendPings, pushFriendsToCloud } from "./lib/friends.js";
 import { supabase } from "./lib/supabase.js";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
@@ -49,6 +50,20 @@ function weatherIcon(code) {
   return CloudLightning;
 }
 
+const LAST_USER_KEY = "pgp2.last-user-id";
+const USER_SCOPED_KEYS = [
+  "pgp2.friends", "pgp2.groups", "pgp2.my_share_code",
+  "pgp2.setup", "pgp2-notif-seen", "pgp2.friend-pings-seen-ts",
+  "pgp2.seen-recv-groups", "pgp2.recv-groups-count", "pgp2.sidebar",
+];
+function clearStaleUserData(newUserId) {
+  const lastId = localStorage.getItem(LAST_USER_KEY);
+  if (lastId && lastId !== newUserId) {
+    USER_SCOPED_KEYS.forEach(k => { try { localStorage.removeItem(k); } catch {} });
+  }
+  try { localStorage.setItem(LAST_USER_KEY, newUserId); } catch {}
+}
+
 const SETUP_KEY = "pgp2.setup";
 function readSetup() {
   try {
@@ -61,6 +76,10 @@ function saveSetup(s) { try { localStorage.setItem(SETUP_KEY, JSON.stringify(s))
 
 const NOTIF_KEY = "pgp2-notif-seen";
 function loadLastSeen() { try { return parseInt(localStorage.getItem(NOTIF_KEY) || "0", 10); } catch { return 0; } }
+const READ_PINGS_KEY = "pgp2.read-ping-ids";
+function loadReadPingIds() { try { return new Set(JSON.parse(localStorage.getItem(READ_PINGS_KEY) || "[]")); } catch { return new Set(); } }
+const READ_CHANGES_KEY = "pgp2.read-change-keys";
+function loadReadChangeKeys() { try { return new Set(JSON.parse(localStorage.getItem(READ_CHANGES_KEY) || "[]")); } catch { return new Set(); } }
 const ADMIN_EMAILS = [
   "mba25rakeshb@iimsambalpur.ac.in",
   "test@iimsambalpur.ac.in"
@@ -71,6 +90,33 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const isAdmin = userEmail && ADMIN_EMAILS.includes(userEmail);
   const [adminMode, setAdminMode] = useState(false);
   useEffect(() => { if (isAdmin) setAdminMode(true); }, [isAdmin]);
+
+  // ── User-switch guard ──────────────────────────────────────────
+  // When a different account logs in on the same browser, wipe stale
+  // per-user localStorage and reset all user-scoped state.
+  const userSwitchHandled = useRef(false);
+  useEffect(() => {
+    if (!userId || userSwitchHandled.current) return;
+    userSwitchHandled.current = true;
+    const lastId = localStorage.getItem(LAST_USER_KEY);
+    if (lastId && lastId !== userId) {
+      USER_SCOPED_KEYS.forEach(k => { try { localStorage.removeItem(k); } catch {} });
+      setFriends([]);
+      setGroups([]);
+      setEnrolled(null);
+      setMine(null);
+      setSetup(null);
+      setPings([]);
+      setSeenRecvGroupIds(new Set());
+      setSeenRecvCount(0);
+      setLastSeenTs(0);
+      setFriendPingSeenTs(0);
+      setAttendance({});
+      setCloudChecked(false);
+    }
+    try { localStorage.setItem(LAST_USER_KEY, userId); } catch {}
+  }, [userId]);
+  // ──────────────────────────────────────────────────────────────
   const showAdminUI = isAdmin && adminMode;
   const [sysConfig, setSysConfig] = useState(null);
 
@@ -135,10 +181,13 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [syncedAt, setSyncedAt] = useState(new Date());
   const [notifOpen, setNotifOpen] = useState(false);
   const [lastSeenTs, setLastSeenTs] = useState(() => loadLastSeen());
+  const [readPingIds, setReadPingIds] = useState(() => loadReadPingIds());
+  const [readChangeKeys, setReadChangeKeys] = useState(() => loadReadChangeKeys());
   const [attendance, setAttendance] = useState(() => loadAttendance());
   const [syncing, setSyncing] = useState(false);
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [weather, setWeather] = useState(null);
   const [cloudChecked, setCloudChecked] = useState(false);
   const [friends, setFriends] = useState(() => loadFriends());
@@ -147,6 +196,11 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [friendToast, setFriendToast] = useState(null);
 
   // Received groups badge: track how many received groups were seen when Friends tab was last opened
+  const [pings, setPings] = useState([]);
+  const [seenRecvGroupIds, setSeenRecvGroupIds] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem("pgp2.seen-recv-groups") || "[]")); }
+    catch { return new Set(); }
+  });
   const [seenRecvCount, setSeenRecvCount] = useState(() => {
     try { return parseInt(localStorage.getItem("pgp2.recv-groups-count") || "0", 10); } catch { return 0; }
   });
@@ -257,6 +311,31 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   }, [userId]);
 
   useEffect(() => {
+    if (!userId) return;
+    fetchFriendPings(userId).then(async data => {
+      if (!data.length) return;
+      setPings(data);
+      // Auto-add friend when we find an acceptance ping (e.g. after offline period)
+      for (const p of data) {
+        try {
+          const meta = JSON.parse(p.from_name);
+          if (meta.type === "friend_accepted" && meta.fromCode) {
+            const decoded = await decodeSchedule(meta.fromCode);
+            if (decoded) {
+              const current = loadFriends();
+              if (!current.some(f => f.cloudId === decoded.id)) {
+                const updated = saveFriend(decoded.name, decoded.courses, decoded.id);
+                setFriends(updated);
+                pushFriendsToCloud(userId, updated);
+              }
+            }
+          }
+        } catch {}
+      }
+    });
+  }, [userId]);
+
+  useEffect(() => {
     fetch("https://api.open-meteo.com/v1/forecast?latitude=21.4669&longitude=83.9812&current=temperature_2m,weather_code&temperature_unit=celsius&timezone=Asia%2FKolkata")
       .then(r => r.json())
       .then(d => setWeather({ temp: Math.round(d.current.temperature_2m), code: d.current.weather_code }))
@@ -308,6 +387,49 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           setFriends(payload.new.friends);
           try { localStorage.setItem("pgp2.friends", JSON.stringify(payload.new.friends)); } catch {}
         }
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [userId]);
+
+  // Supabase Realtime: live friend pings (group invites, friend-add notifications)
+  useEffect(() => {
+    if (!userId) return;
+    const channel = supabase
+      .channel(`pings-realtime-${userId}`)
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "friend_pings",
+        filter: `target_id=eq.${userId}`,
+      }, async (payload) => {
+        if (!payload.new) return;
+        try {
+          const meta = JSON.parse(payload.new.from_name);
+          if (meta.type === "friend_accepted" && meta.fromCode) {
+            const decoded = await decodeSchedule(meta.fromCode);
+            if (decoded) {
+              const current = loadFriends();
+              if (!current.some(f => f.cloudId === decoded.id)) {
+                const updated = saveFriend(decoded.name, decoded.courses, decoded.id);
+                setFriends(updated);
+                pushFriendsToCloud(userId, updated);
+              }
+            }
+          }
+          if (meta.group) {
+            // Group invite: re-fetch profile to get the new group immediately
+            const result = await syncFriendsAndGroupsFromCloud(userId);
+            if (result) {
+              setGroups(result.groups);
+              setFriends(result.friends);
+            }
+          }
+        } catch {}
+        setPings(prev => {
+          if (prev.some(p => p.id === payload.new.id)) return prev;
+          return [payload.new, ...prev];
+        });
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -538,7 +660,32 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     });
   }, [CHANGES, mine, LEGEND]);
 
-  const hasUnread = filteredChanges.length > 0 && filteredChanges.some(c => new Date(c.ts).getTime() > lastSeenTs);
+  const newRecvGroups = groups.filter(g => g.isReceived && !seenRecvGroupIds.has(g.id));
+  const TWO_DAYS_AGO = Date.now() - 2 * 24 * 60 * 60 * 1000;
+  const changeKey = c => `${c.ts}-${c.code || ""}`;
+  const friendNotifItems = [
+    ...pings
+      .filter(p => new Date(p.created_at).getTime() > TWO_DAYS_AGO)
+      .map(p => {
+        let name = p.from_name;
+        let text = `${name} added you as a friend`;
+        let kind = "ping";
+        let meta = null;
+        try {
+          meta = JSON.parse(p.from_name);
+          name = meta.name || name;
+          if (meta.group) { text = `${name} added you to "${meta.group}"`; kind = "group_invite"; }
+          else if (meta.type === "friend_request") { text = `${name} wants to be your friend`; kind = "friend_request"; }
+          else if (meta.type === "friend_accepted") { text = `${name} accepted your friend request`; kind = "friend_accepted"; }
+        } catch {}
+        const pingId = p.id || p.from_id;
+        return { id: `ping-${pingId}`, pingId, text, ts: p.created_at, kind, name, meta, fromId: p.from_id, isRead: readPingIds.has(pingId) };
+      }),
+    ...newRecvGroups.map(g => ({ id: `grp-${g.id}`, pingId: null, text: `${g.ownerName} shared "${g.name}" with you`, ts: g.createdAt, kind: "group", name: g.ownerName, isRead: false })),
+  ];
+  const unreadFriendCount = friendNotifItems.filter(item => !item.isRead).length;
+  const unreadChangeCount = filteredChanges.filter(c => !readChangeKeys.has(changeKey(c))).length;
+  const hasUnread = unreadChangeCount > 0 || unreadFriendCount > 0;
   const receivedGroupCount = groups.filter(g => g.isReceived).length;
   const hasNewGroups = receivedGroupCount > seenRecvCount;
 
@@ -547,14 +694,45 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     try { localStorage.setItem("pgp2.recv-groups-count", String(receivedGroupCount)); } catch {}
   }
 
+  function markPingRead(pingId) {
+    if (!pingId || readPingIds.has(pingId)) return;
+    setReadPingIds(prev => {
+      const next = new Set([...prev, pingId]);
+      try { localStorage.setItem(READ_PINGS_KEY, JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  }
+
+  function markChangeRead(c) {
+    const key = changeKey(c);
+    if (readChangeKeys.has(key)) return;
+    setReadChangeKeys(prev => {
+      const next = new Set([...prev, key]);
+      try { localStorage.setItem(READ_CHANGES_KEY, JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  }
+
+  function markAllRead() {
+    const nextPings = new Set([...readPingIds, ...friendNotifItems.map(i => i.pingId).filter(Boolean)]);
+    setReadPingIds(nextPings);
+    try { localStorage.setItem(READ_PINGS_KEY, JSON.stringify([...nextPings])); } catch {}
+
+    const nextChanges = new Set([...readChangeKeys, ...filteredChanges.map(changeKey)]);
+    setReadChangeKeys(nextChanges);
+    try { localStorage.setItem(READ_CHANGES_KEY, JSON.stringify([...nextChanges])); } catch {}
+
+    const newIds = new Set([...seenRecvGroupIds, ...newRecvGroups.map(g => g.id)]);
+    setSeenRecvGroupIds(newIds);
+    try { localStorage.setItem("pgp2.seen-recv-groups", JSON.stringify([...newIds])); } catch {}
+  }
+
   function handleOpenNotif() {
-    if (!notifOpen && filteredChanges.length > 0) {
+    if (!notifOpen && filteredChanges.length > 0 && userId && enrolled) {
       const latest = Math.max(...filteredChanges.map(c => new Date(c.ts).getTime()));
       setLastSeenTs(latest);
-      try { localStorage.setItem(NOTIF_KEY, String(latest)); } catch { }
-      if (userId && enrolled) {
-         pushProfile(userId, enrolled, user?.firstName || user?.username || "Student", latest);
-      }
+      try { localStorage.setItem(NOTIF_KEY, String(latest)); } catch {}
+      pushProfile(userId, enrolled, user?.firstName || user?.username || "Student", latest);
     }
     setNotifOpen(o => !o);
   }
@@ -638,6 +816,26 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     );
   }
 
+  const enableExams = sysConfig?.flags?.enableExams !== false;
+  const enableFriends = sysConfig?.flags?.enableFriends !== false;
+  const enableAttendance = sysConfig?.flags?.enableAttendance !== false;
+
+  let activeGlobalAnnouncement = null;
+  if (sysConfig?.announcement) {
+    if (typeof sysConfig.announcement === 'string') {
+      activeGlobalAnnouncement = sysConfig.announcement;
+    } else if (typeof sysConfig.announcement === 'object') {
+      const { message, target } = sysConfig.announcement;
+      let matches = false;
+      if (!target || target === "global") matches = true;
+      else if (target === "section_A" && Object.values(setup?.courses || {}).includes("A")) matches = true;
+      else if (target === "section_B" && Object.values(setup?.courses || {}).includes("B")) matches = true;
+      else if (target === "BM" || target === "MM") matches = true; // Simplified for demo
+      
+      if (matches) activeGlobalAnnouncement = message;
+    }
+  }
+
   return (
     <div className="app-shell">
       {/* ── Impersonation Banner ── */}
@@ -672,19 +870,25 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           <button className={`sb-link${view === "tomorrow" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Tomorrow")} onMouseLeave={hideSbTip} onClick={() => { setView("tomorrow"); setCompareTarget(null); hideSbTip(); }}>
             <Sunrise size={18} /><span className="sb-link-label">Tomorrow</span>
           </button>
-          <button className={`sb-link${view === "attendance" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Attendance")} onMouseLeave={hideSbTip} onClick={() => { setView("attendance"); setCompareTarget(null); hideSbTip(); }}>
-            <ClipboardList size={18} /><span className="sb-link-label">Attendance</span>
-          </button>
-          <button className={`sb-link${view === "exams" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Exams")} onMouseLeave={hideSbTip} onClick={() => { setView("exams"); setCompareTarget(null); hideSbTip(); }}>
-            <GraduationCap size={18} /><span className="sb-link-label">Exams</span>
-          </button>
+          {enableAttendance && (
+            <button className={`sb-link${view === "attendance" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Attendance")} onMouseLeave={hideSbTip} onClick={() => { setView("attendance"); setCompareTarget(null); hideSbTip(); }}>
+              <ClipboardList size={18} /><span className="sb-link-label">Attendance</span>
+            </button>
+          )}
+          {enableExams && (
+            <button className={`sb-link${view === "exams" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Exams")} onMouseLeave={hideSbTip} onClick={() => { setView("exams"); setCompareTarget(null); hideSbTip(); }}>
+              <GraduationCap size={18} /><span className="sb-link-label">Exams</span>
+            </button>
+          )}
           <button className={`sb-link${view === "notifications" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Announcements")} onMouseLeave={hideSbTip} onClick={() => { setView("notifications"); setCompareTarget(null); hideSbTip(); }}>
             <Megaphone size={18} /><span className="sb-link-label">Announcements</span>
           </button>
-          <button className={`sb-link${view === "friends" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Friends")} onMouseLeave={hideSbTip} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); hideSbTip(); }}>
-            <Users size={18} /><span className="sb-link-label">Friends</span> <span className="beta-badge">Beta</span>
-            {hasNewGroups && <span className="nav-badge">{receivedGroupCount - seenRecvCount}</span>}
-          </button>
+          {enableFriends && (
+            <button className={`sb-link${view === "friends" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Friends")} onMouseLeave={hideSbTip} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); hideSbTip(); }}>
+              <Users size={18} /><span className="sb-link-label">Friends</span> <span className="beta-badge">Beta</span>
+              {unreadFriendCount > 0 && <span className="nav-badge">{unreadFriendCount}</span>}
+            </button>
+          )}
           {showAdminUI && (
             <button className={`sb-link${view === "admin" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Admin Tools")} onMouseLeave={hideSbTip} onClick={() => { setView("admin"); setCompareTarget(null); hideSbTip(); }}>
               <Shield size={18} /><span className="sb-link-label" style={{ color: "var(--live)" }}>Admin Tools</span>
@@ -777,12 +981,14 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               </button>
               <span className="tooltip" role="tooltip">{syncing ? "Syncing…" : "Refresh"}</span>
             </div>
-            <div className="tb-wrap desktop-only">
-              <button className={`sync${view === "attendance" ? " sync-on" : ""}`} onClick={() => setView("attendance")} aria-label="Attendance" aria-pressed={view === "attendance"}>
-                <ClipboardList size={15} />
-              </button>
-              <span className="tooltip" role="tooltip">Attendance</span>
-            </div>
+            {enableAttendance && (
+              <div className="tb-wrap desktop-only">
+                <button className={`sync${view === "attendance" ? " sync-on" : ""}`} onClick={() => setView("attendance")} aria-label="Attendance" aria-pressed={view === "attendance"}>
+                  <ClipboardList size={15} />
+                </button>
+                <span className="tooltip" role="tooltip">Attendance</span>
+              </div>
+            )}
             <div className="tb-wrap notif-wrap mobile-only">
               <button className="sync" onClick={() => setCmdOpen(true)} aria-label="Search" title="Search (Cmd+K)">
                 <Search size={15} />
@@ -800,9 +1006,36 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 <>
                   <div className="notif-backdrop" onClick={() => setNotifOpen(false)} />
                   <div className="notif-panel">
-                    {filteredChanges.length === 0
-                      ? <p className="notif-empty">No recent changes</p>
-                      : <RecentChanges changes={filteredChanges} onViewAll={handleViewAllNotifs} />}
+                    {friendNotifItems.length === 0 && filteredChanges.length === 0 ? (
+                      <p className="notif-empty">No new notifications</p>
+                    ) : (
+                      <>
+                        <div className="notif-panel-header">
+                          {hasUnread
+                            ? <button className="rc-mark-all" onClick={markAllRead}>Mark all read</button>
+                            : <span className="rc-all-read">All caught up</span>
+                          }
+                        </div>
+                        {friendNotifItems.length > 0 && (
+                          <section className="rc">
+                            <div className="rc-head">
+                              <span className="rc-title"><Users size={14} /> Friends</span>
+                              <button className="rc-view-all" style={{ padding: "2px 8px", fontSize: 12 }} onClick={() => { setNotifOpen(false); setView("friends"); }}>Go to Friends</button>
+                            </div>
+                            <ul className="rc-list">
+                              {friendNotifItems.map(item => (
+                                <li key={item.id} className={`rc-item rc-item-clickable${item.isRead ? " rc-item-read" : ""}`} onClick={() => markPingRead(item.pingId)}>
+                                  <span className="rc-dot rc-friend" />
+                                  <span className="rc-text">{item.text}</span>
+                                  {item.isRead && <span className="rc-read-check">✓</span>}
+                                </li>
+                              ))}
+                            </ul>
+                          </section>
+                        )}
+                        {filteredChanges.length > 0 && <RecentChanges changes={filteredChanges} readKeys={readChangeKeys} onMarkRead={markChangeRead} onViewAll={handleViewAllNotifs} />}
+                      </>
+                    )}
                   </div>
                 </>
               )}
@@ -825,6 +1058,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       </div>
                     </div>
                     <div className="over-sep" />
+                    <button onClick={() => { setFeedbackOpen(true); setProfileOpen(false); setOverflowOpen(false); }}>
+                      <MessageSquare size={14} /> Submit Feedback
+                    </button>
                     {isAdmin && (
                       <button onClick={() => { setAdminMode(!adminMode); setProfileOpen(false); }}>
                         {adminMode ? <User size={14} /> : <Shield size={14} />}
@@ -864,6 +1100,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       {syncing ? "Syncing…" : "Refresh"}
                     </button>
                     <div className="over-sep" />
+                    <button onClick={() => { setFeedbackOpen(true); setProfileOpen(false); setOverflowOpen(false); }}>
+                      <MessageSquare size={14} /> Submit Feedback
+                    </button>
                     {showAdminUI && (
                       <button onClick={() => { setView("admin"); setCompareTarget(null); setOverflowOpen(false); }} style={{ color: "var(--live)" }}>
                         <Shield size={14} color="var(--live)" /> Admin Dashboard
@@ -906,19 +1145,25 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 <button className={`tab tab-week ${view === "week" ? "on" : ""}`} onClick={() => { setView("week"); setCompareTarget(null); }}>
                   <Calendar size={15} /> Week
                 </button>
-                <button className={`tab ${view === "attendance" ? "on" : ""}`} onClick={() => { setView("attendance"); setCompareTarget(null); }}>
-                  <ClipboardList size={15} /> Attendance
-                </button>
-                <button className={`tab ${view === "exams" ? "on" : ""}`} onClick={() => { setView("exams"); setCompareTarget(null); }}>
-                  <GraduationCap size={15} /> Exams
-                </button>
+                {enableAttendance && (
+                  <button className={`tab ${view === "attendance" ? "on" : ""}`} onClick={() => { setView("attendance"); setCompareTarget(null); }}>
+                    <ClipboardList size={15} /> Attendance
+                  </button>
+                )}
+                {enableExams && (
+                  <button className={`tab ${view === "exams" ? "on" : ""}`} onClick={() => { setView("exams"); setCompareTarget(null); }}>
+                    <GraduationCap size={15} /> Exams
+                  </button>
+                )}
                 <button className={`tab ${view === "notifications" ? "on" : ""}`} onClick={() => { setView("notifications"); setCompareTarget(null); }}>
                   <Megaphone size={15} /> Announcements
                 </button>
-                <button className={`tab ${view === "friends" ? "on" : ""}`} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); }}>
-                  <Users size={15} /> Friends <span className="beta-badge">Beta</span>
-                  {hasNewGroups && <span className="nav-badge">{receivedGroupCount - seenRecvCount}</span>}
-                </button>
+                {enableFriends && (
+                  <button className={`tab ${view === "friends" ? "on" : ""}`} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); }}>
+                    <Users size={15} /> Friends <span className="beta-badge">Beta</span>
+                    {unreadFriendCount > 0 && <span className="nav-badge">{unreadFriendCount}</span>}
+                  </button>
+                )}
               </nav>
               {showLeftScroll && (
                 <button
@@ -945,13 +1190,21 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             </div>
 
             {view !== "attendance" && view !== "insights" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && !compareTarget && (
-              <div className="view-date-header">
-                <span className="vdh-label">
-                  {view === "notifications" ? `${filteredChanges.length} update${filteredChanges.length !== 1 ? "s" : ""}`
-                    : view === "week" ? weekRangeLabel : prettyDate(view === "tomorrow" ? tomorrowISO : todayISO)}
-                </span>
-                <WeatherWidget now={now} weather={weather} />
-              </div>
+              <>
+                {activeGlobalAnnouncement && (
+                  <div style={{ background: "var(--amber)", color: "#000", padding: "12px 16px", borderRadius: 8, marginBottom: 16, display: "flex", gap: 8, alignItems: "center", fontWeight: 600 }}>
+                    <Megaphone size={18} style={{ flexShrink: 0 }} />
+                    <span style={{ fontSize: 14 }}>{activeGlobalAnnouncement}</span>
+                  </div>
+                )}
+                <div className="view-date-header">
+                  <span className="vdh-label">
+                    {view === "notifications" ? `${filteredChanges.length} update${filteredChanges.length !== 1 ? "s" : ""}`
+                      : view === "week" ? weekRangeLabel : prettyDate(view === "tomorrow" ? tomorrowISO : todayISO)}
+                  </span>
+                  <WeatherWidget now={now} weather={weather} />
+                </div>
+              </>
             )}
             {view !== "attendance" && view !== "insights" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && !compareTarget && view !== "tomorrow" && <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} onMarkAttendance={markAttendance} attendance={attendance} />}
             {(view === "today" || view === "week") && !compareTarget && (
@@ -963,8 +1216,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 todayISO={todayISO}
                 now={now}
                 classes={CLASSES}
-                onAttendanceClick={() => setView("attendance")}
-                onExamsClick={() => setView("exams")}
+                onAttendanceClick={enableAttendance ? () => setView("attendance") : undefined}
+                onExamsClick={enableExams ? () => setView("exams") : undefined}
                 onSessionsClick={() => setView("fullSchedule")}
               />
             )}
@@ -1027,6 +1280,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                         }
                         setCompareTarget({ mode: "group", groupData: { name: g.name, members } });
                       }}
+                      notifications={friendNotifItems}
+                      onDismissNotifs={() => markAllRead()}
+                      onMarkRead={pingId => markPingRead(pingId)}
+                      onMarkAllRead={() => markAllRead()}
                     />
                     : view === "exams"
                       ? <ExamsPanel
@@ -1091,6 +1348,12 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             friends={friends}
           />
         </Suspense>
+
+        {feedbackOpen && (
+          <Suspense fallback={null}>
+            <FeedbackWidget user={user} onClose={() => setFeedbackOpen(false)} />
+          </Suspense>
+        )}
 
 
         {/* Bottom nav — commented out, restore when needed

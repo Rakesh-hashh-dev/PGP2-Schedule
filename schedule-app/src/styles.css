@@ -1808,15 +1808,20 @@ button:focus-visible {
 .rc-title { display: inline-flex; align-items: center; gap: 7px; font-family: var(--display); font-weight: 700; font-size: 15px; }
 .rc-count { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .rc-list { list-style: none; margin: 0; padding: 0; }
-.rc-item { display: flex; align-items: center; gap: 9px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 13.5px; transition: background .12s; border-radius: 6px; }
+.rc-item { display: flex; align-items: center; gap: 9px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 13.5px; transition: background .12s, opacity .15s; border-radius: 6px; }
 .rc-item:hover { background: var(--surface); }
 .rc-item:first-child { border-top: none; }
+.rc-item-clickable { cursor: pointer; }
+.rc-item-read { opacity: 0.45; }
+.rc-item-read .rc-dot { background: var(--muted) !important; }
+.rc-read-check { font-size: 11px; color: var(--muted); flex: none; margin-left: auto; }
 .rc-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--muted); }
 .rc-added { background: var(--live); }
 .rc-removed { background: #C0392B; }
 .rc-moved { background: var(--amber); }
 .rc-course { background: var(--violet); }
 .rc-update { background: var(--muted); }
+.rc-friend { background: #6366f1; }
 .rc-text { flex: 1; min-width: 0; }
 .rc-time { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; flex: none; }
 
@@ -2107,6 +2112,21 @@ button:focus-visible {
 .notif-empty {
   margin: 0; padding: 20px 16px;
   font-size: 13px; color: var(--muted); text-align: center;
+}
+
+.notif-panel-header {
+  display: flex; align-items: center; justify-content: flex-end;
+  padding: 10px 16px 2px;
+}
+.rc-mark-all {
+  background: none; border: none; cursor: pointer;
+  font-size: 12px; font-weight: 600; color: var(--violet);
+  padding: 3px 8px; border-radius: 6px;
+  transition: background .12s;
+}
+.rc-mark-all:hover { background: var(--surface); }
+.rc-all-read {
+  font-size: 12px; color: var(--muted); font-style: italic;
 }
 
 .rc-view-all {
@@ -2552,6 +2572,7 @@ button:focus-visible {
   margin-top: 1px;
 }
 
+
 /* Scrollable middle body (nav + util strip + avatar) — logo stays fixed */
 .sb-scroll-body {
   flex: 1; min-height: 0;
@@ -2849,6 +2870,8 @@ button:focus-visible {
 .fr-btn-danger { background: transparent; color: #64748b; border: none; padding: 8px 16px; border-radius: 8px; transition: all 0.2s ease; font-weight: 600; }
 .fr-btn-danger:hover { background: rgba(239, 68, 68, 0.15); color: #f87171; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.15); }
 .fr-btn-add { flex: none; padding-left: 20px; padding-right: 20px; }
+.fr-confirm-row { display: flex; align-items: center; gap: 8px; }
+.fr-confirm-label { font-size: 12.5px; font-weight: 600; color: var(--ink); }
 
 /* Add Friend & Groups general cards */
 .fr-add-section, .fr-groups-section, .fr-friends-section { 
@@ -3055,13 +3078,21 @@ button:focus-visible {
   font-family: var(--body); font-weight: 600; font-size: 13.5px;
   box-shadow: 0 8px 24px rgba(21,24,43,.25);
   border-left: 3px solid transparent;
-  z-index: 200; animation: toast-in .3s ease, toast-out .3s ease 2.2s forwards;
+  z-index: 200; animation: toast-in .3s ease, toast-out .3s ease 7s forwards;
   white-space: nowrap;
 }
 .fr-toast-success { border-left-color: #1FA971; }
 .fr-toast-error   { border-left-color: #e74c3c; }
 .fr-toast-info    { border-left-color: #6D5BD0; }
 .fr-toast-warning { border-left-color: #C9882B; }
+.fr-toast-text { flex: 1; }
+.fr-toast-action {
+  background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.3);
+  color: #fff; font-weight: 700; font-size: 12px;
+  padding: 3px 10px; border-radius: 6px; cursor: pointer;
+  white-space: nowrap; transition: background .12s;
+}
+.fr-toast-action:hover { background: rgba(255,255,255,0.28); }
 @keyframes toast-in { from { opacity: 0; transform: translateX(-50%) translateY(16px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
 @keyframes toast-out { from { opacity: 1; } to { opacity: 0; transform: translateX(-50%) translateY(-8px); } }
 
@@ -3102,6 +3133,48 @@ button:focus-visible {
   color: var(--muted); font-size: 13px; padding: 10px 0;
 }
 
+/* ── Friends page header + bell ── */
+.fr-page-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: -8px;
+}
+.fr-page-hdr-title {
+  font-family: var(--display); font-weight: 800; font-size: 22px;
+  color: var(--text); margin: 0;
+}
+.fr-bell-wrap { position: relative; }
+.fr-bell-btn {
+  position: relative; display: grid; place-items: center;
+  width: 38px; height: 38px; border-radius: 12px;
+  background: var(--card, rgba(255,255,255,.6)); border: 1px solid var(--border, rgba(0,0,0,.09));
+  color: var(--text); cursor: pointer;
+  transition: background .15s, box-shadow .15s;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+.fr-bell-btn:hover, .fr-bell-btn.open { background: var(--surface, #f5f3ff); box-shadow: 0 2px 8px rgba(105,56,239,.12); }
+.fr-bell-dot {
+  position: absolute; top: 6px; right: 6px;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #e74c3c; border: 2px solid var(--bg, #fff);
+}
+.fr-bell-panel {
+  position: absolute; top: calc(100% + 8px); right: 0;
+  width: 300px; background: var(--card, #fff);
+  border: 1px solid var(--border, rgba(0,0,0,.1));
+  border-radius: 16px; padding: 14px 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.12);
+  display: flex; flex-direction: column; gap: 10px;
+  z-index: 200;
+}
+.fr-bell-panel-head {
+  display: flex; align-items: center; justify-content: space-between;
+}
+.fr-bell-panel-title {
+  font-family: var(--display); font-weight: 700; font-size: 13px;
+  color: var(--muted); text-transform: uppercase; letter-spacing: .05em;
+}
+.fr-bell-empty { font-size: 13px; color: var(--muted); margin: 0; text-align: center; padding: 8px 0; }
+
 /* ── Friend Pings (incoming notifications) ── */
 .fr-pings-section {
   background: linear-gradient(135deg, rgba(251,191,36,.07) 0%, rgba(245,158,11,.09) 100%);
@@ -3118,10 +3191,13 @@ button:focus-visible {
   color: #92400e; text-transform: uppercase; letter-spacing: .04em;
 }
 .fr-ping-card {
-  display: flex; align-items: center; gap: 12px;
+  display: flex; align-items: flex-start; gap: 12px;
   background: rgba(255,255,255,.55); border: 1px solid rgba(245,158,11,.18);
   border-radius: 12px; padding: 10px 14px;
+  transition: opacity .15s;
 }
+.fr-ping-read { opacity: 0.45; }
+.fr-ping-read .fr-ping-avatar { filter: grayscale(1); }
 .fr-ping-avatar {
   width: 34px; height: 34px; border-radius: 50%;
   background: linear-gradient(135deg, #F59E0B 0%, #EF4444 100%);
@@ -3129,10 +3205,12 @@ button:focus-visible {
   display: grid; place-items: center; flex: none;
   font-family: var(--display);
 }
-.fr-ping-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.fr-ping-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .fr-ping-name { font-weight: 700; font-size: 14px; color: #1c1917; }
 .fr-ping-sub { font-size: 12px; color: #78716c; font-weight: 500; }
-.fr-ping-time { font-size: 11.5px; color: #a8a29e; font-weight: 600; white-space: nowrap; flex: none; }
+.fr-ping-time { font-size: 11.5px; color: #a8a29e; font-weight: 600; white-space: nowrap; flex: none; margin-top: 2px; }
+.fr-ping-actions { display: flex; gap: 6px; }
+.fr-ping-actions .fr-btn { padding: 4px 10px; font-size: 12px; }
 
 /* ── Friend free/busy status ── */
 .fr-friend-meta-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }

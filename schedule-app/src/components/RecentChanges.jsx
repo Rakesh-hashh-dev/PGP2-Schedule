@@ -11,9 +11,10 @@ function relTime(iso) {
   return Math.round(hrs / 24) + "d ago";
 }
 
-export default function RecentChanges({ changes, onViewAll }) {
+export default function RecentChanges({ changes, readKeys, onMarkRead, onViewAll }) {
   if (!changes || changes.length === 0) return null;
 
+  const changeKey = c => `${c.ts}-${c.code || ""}`;
   const visible = changes.slice(0, PREVIEW);
 
   return (
@@ -23,13 +24,17 @@ export default function RecentChanges({ changes, onViewAll }) {
         <span className="rc-count">{changes.length}</span>
       </div>
       <ul className="rc-list">
-        {visible.map((c) => (
-          <li key={c.id} className="rc-item">
-            <span className={`rc-dot rc-${c.kind}`} />
-            <span className="rc-text">{c.text}</span>
-            <span className="rc-time">{relTime(c.ts)}</span>
-          </li>
-        ))}
+        {visible.map((c) => {
+          const isRead = readKeys?.has(changeKey(c));
+          return (
+            <li key={c.id} className={`rc-item rc-item-clickable${isRead ? " rc-item-read" : ""}`} onClick={() => onMarkRead?.(c)}>
+              <span className={`rc-dot rc-${c.kind}`} />
+              <span className="rc-text">{c.text}</span>
+              <span className="rc-time">{relTime(c.ts)}</span>
+              {isRead && <span className="rc-read-check">✓</span>}
+            </li>
+          );
+        })}
       </ul>
       {changes.length > PREVIEW && onViewAll && (
         <button className="rc-view-all" onClick={onViewAll}>

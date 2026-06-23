@@ -24,6 +24,15 @@ function generateRandomCode(len = 4) {
   return result;
 }
 
+async function fetchExistingCode(userId) {
+  const { data } = await supabase
+    .from("share_codes")
+    .select("code")
+    .eq("user_id", userId)
+    .maybeSingle();
+  return data?.code || null;
+}
+
 export async function getOrCreateShareCode(userId, name) {
   if (!userId) return null;
 
@@ -31,25 +40,18 @@ export async function getOrCreateShareCode(userId, name) {
   const cached = localStorage.getItem(MY_CODE_KEY);
   if (cached) return cached;
 
-  // Check Supabase — same account on another device may have already created a code
+  // Check Supabase — same account on another device may already have a code
   try {
-    const { data } = await supabase
-      .from("share_codes")
-      .select("code")
-      .eq("user_id", userId)
-      .limit(1)
-      .maybeSingle();
-    if (data?.code) {
-      localStorage.setItem(MY_CODE_KEY, data.code);
-      return data.code;
+    const existing = await fetchExistingCode(userId);
+    if (existing) {
+      localStorage.setItem(MY_CODE_KEY, existing);
+      return existing;
     }
   } catch { /* fall through to generate */ }
 
   // No existing code anywhere — generate a new one
   const code = await encodeSchedule(userId, name);
-  if (code) {
-    localStorage.setItem(MY_CODE_KEY, code);
-  }
+  if (code) localStorage.setItem(MY_CODE_KEY, code);
   return code;
 }
 
@@ -59,21 +61,30 @@ export async function getOrCreateShareCode(userId, name) {
  */
 export async function encodeSchedule(userId, name) {
   if (!userId) return null;
-  
+
+  // Guard: if a code already exists for this user, return it unchanged
+  try {
+    const existing = await fetchExistingCode(userId);
+    if (existing) return existing;
+  } catch {}
+
   const namePart = (name || "FRND").trim().split(/\s+/)[0].toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3);
   const randomStr = generateRandomCode(4);
   const codeStr = `${namePart}-${randomStr}`;
-  
+
   try {
+    // onConflict: "user_id" — if this user already has a row, do nothing (ignoreDuplicates)
     const { error } = await supabase.from("share_codes").upsert(
       { code: codeStr, user_id: userId },
-      { onConflict: "code" }
+      { onConflict: "user_id", ignoreDuplicates: true }
     );
     if (error) {
       console.error("Failed to save share code:", error);
       return null;
     }
-    return codeStr;
+    // Read back in case ignoreDuplicates kicked in and kept an older code
+    const saved = await fetchExistingCode(userId);
+    return saved || codeStr;
   } catch (e) {
     console.error("Supabase error:", e);
     return null;
@@ -249,6 +260,7 @@ export function createGroup(name, friendIds = []) {
     id: crypto.randomUUID?.() || Date.now().toString(36),
     name,
     memberIds: friendIds,
+    visibility: "shared",
     createdAt: new Date().toISOString(),
   };
   groups.push(group);
@@ -503,31 +515,39 @@ export async function pushGroupsToCloud(userId, groups) {
 
 // ── Friend Pings (who added you) ────────────────────────────────
 
-export async function sendFriendPing(targetUserId, fromUserId, fromName) {
+// fromMeta: optional { group: "GroupName" } — encoded into from_name as JSON for group invites
+export async function sendFriendPing(targetUserId, fromUserId, fromName, fromMeta = null) {
   if (!targetUserId || !fromUserId || targetUserId === fromUserId) return;
   try {
-    await supabase.from("friend_pings").insert({
+    const { error } = await supabase.from("friend_pings").insert({
       target_id: targetUserId,
       from_id: fromUserId,
-      from_name: fromName || "Someone",
+      from_name: fromMeta ? JSON.stringify({ name: fromName || "Someone", ...fromMeta }) : (fromName || "Someone"),
     });
-  } catch { /* silent */ }
+    if (error) console.error("[sendFriendPing] error:", error.message, error.details, error.hint);
+  } catch (e) {
+    console.error("[sendFriendPing] catch:", e);
+  }
 }
 
-export async function fetchAndClearFriendPings(userId) {
+export async function fetchFriendPings(userId) {
   if (!userId) return [];
   try {
+    const cutoff = new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString();
+    // Lazy cleanup: fire-and-forget delete of pings older than 45 days
+    supabase.from("friend_pings").delete().eq("target_id", userId).lt("created_at", cutoff).then(() => {});
     const { data } = await supabase
       .from("friend_pings")
       .select("*")
       .eq("target_id", userId)
+      .gte("created_at", cutoff)
       .order("created_at", { ascending: false });
-    if (data?.length) {
-      await supabase.from("friend_pings").delete().eq("target_id", userId);
-    }
     return data || [];
   } catch { return []; }
 }
+
+// Pings persist for 45 days; seen state is tracked in localStorage — no immediate delete needed.
+export async function clearFriendPings(_userId) {}
 
 /**
  * Push this group (as a read-only "received" copy) to every cloud-linked friend in the group.
@@ -558,20 +578,28 @@ export async function shareGroupWithMembers(userId, userName, group, targetFrien
 
   for (const memberId of memberCloudIds) {
     try {
-      const { data } = await supabase
+      const { data, error: fetchErr } = await supabase
         .from("profiles")
         .select("groups")
         .eq("user_id", memberId)
         .maybeSingle();
+      if (fetchErr) console.error("[shareGroup] fetch error for", memberId, ":", fetchErr.message, fetchErr.hint);
 
       const existing = (data?.groups || []).filter(g => !(g.id === group.id && g.isReceived));
       existing.push(receivedGroup);
 
-      await supabase.from("profiles").upsert(
-        { user_id: memberId, groups: existing },
-        { onConflict: "user_id" }
-      );
-    } catch { /* silent */ }
+      const { error: upsertErr } = await supabase.rpc("push_group_to_member", {
+        target_user_id: memberId,
+        new_groups: existing,
+      });
+      if (upsertErr) console.error("[shareGroup] rpc error for", memberId, ":", upsertErr.message, upsertErr.hint, upsertErr.details);
+      else console.log("[shareGroup] pushed group to", memberId, "ok");
+    } catch (e) {
+      console.error("[shareGroup] catch for", memberId, ":", e);
+    }
+
+    // Ping the member so they get a bell notification even if realtime missed it
+    await sendFriendPing(memberId, userId, userName, { group: group.name });
   }
 
   return { cloudMemberIds: allCloudIds };
@@ -592,10 +620,10 @@ export async function unshareGroupFromMembers(groupId, cloudMemberIds, ownerId) 
         .maybeSingle();
 
       const updated = (data?.groups || []).filter(g => g.id !== groupId);
-      await supabase.from("profiles").upsert(
-        { user_id: memberId, groups: updated },
-        { onConflict: "user_id" }
-      );
+      await supabase.rpc("push_group_to_member", {
+        target_user_id: memberId,
+        new_groups: updated,
+      });
     } catch { /* silent */ }
   }
 }

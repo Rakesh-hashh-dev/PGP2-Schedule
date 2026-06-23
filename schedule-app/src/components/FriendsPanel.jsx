@@ -18,7 +18,7 @@ import {
   saveFriend, removeFriend as removeFriendFromStore,
   loadGroups, createGroup, removeGroup as removeGroupFromStore, updateGroup,
   getOrCreateShareCode, pushFriendsToCloud, pushGroupsToCloud,
-  refreshFriendCoursesFromCloud, sendFriendPing, fetchAndClearFriendPings,
+  refreshFriendCoursesFromCloud, sendFriendPing,
   shareGroupWithMembers, unshareGroupFromMembers,
 } from "../lib/friends.js";
 
@@ -29,12 +29,17 @@ const TOAST_META = {
   warning: { Icon: AlertTriangle, color: "#C9882B" },
 };
 
-function Toast({ message, type = "info", onDone }) {
+function Toast({ message, type = "info", action, onDone }) {
   const { Icon, color } = TOAST_META[type] || TOAST_META.info;
   return (
-    <div className={`fr-toast fr-toast-${type}`} onAnimationEnd={onDone}>
+    <div className={`fr-toast fr-toast-${type}`} onAnimationEnd={e => e.animationName === "toast-out" && onDone?.()}>
       <Icon size={15} style={{ color, flex: "none" }} />
       <span className="fr-toast-text">{message}</span>
+      {action && (
+        <button className="fr-toast-action" onClick={() => { action.onClick(); onDone?.(); }}>
+          {action.label}
+        </button>
+      )}
     </div>
   );
 }
@@ -69,22 +74,24 @@ function timeAgo(iso) {
 export default function FriendsPanel({
   userId, userName, enrolled, legend, friends, setFriends,
   groups, setGroups, myClasses, allClasses, now, onCompare, onGroupCompare,
+  notifications = [], onDismissNotifs, onMarkRead, onMarkAllRead,
 }) {
   const [addCode, setAddCode] = useState("");
   const [addError, setAddError] = useState("");
-  const [toast, setToast] = useState(null); // { message, type }
+  const [toast, setToast] = useState(null); // { message, type, action? }
+  const [pendingDelete, setPendingDelete] = useState(null); // { id, timeoutId }
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [newGroupName, setNewGroupName] = useState("");
   const [showNewGroup, setShowNewGroup] = useState(false);
   const [expandedGroup, setExpandedGroup] = useState(null);
   const [addToGroupId, setAddToGroupId] = useState(null);
 
+  const [notifOpen, setNotifOpen] = useState(false);
   const [myCode, setMyCode] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [syncingFriendId, setSyncingFriendId] = useState(null);
   const [sharingGroupId, setSharingGroupId] = useState(null);
-  const [pings, setPings] = useState([]);
-
   // Show skeleton only when no local friends and still might be syncing from cloud
   const [initialLoading, setInitialLoading] = useState(friends.length === 0);
   useEffect(() => {
@@ -93,7 +100,7 @@ export default function FriendsPanel({
     return () => clearTimeout(t);
   }, [friends.length]);
 
-  const showToast = (message, type = "success") => setToast({ message, type });
+  const showToast = (message, type = "success", action = null) => setToast({ message, type, action });
 
   useEffect(() => {
     if (!userId) return;
@@ -103,13 +110,6 @@ export default function FriendsPanel({
       setIsGenerating(false);
     });
   }, [userId, userName]);
-
-  useEffect(() => {
-    if (!userId) return;
-    fetchAndClearFriendPings(userId).then(data => {
-      if (data.length) setPings(data);
-    });
-  }, [userId]);
 
   useEffect(() => {
     if (!friends.length) return;
@@ -159,12 +159,46 @@ export default function FriendsPanel({
       setAddError("Invalid link or code. Ask your friend to share their invite link again.");
       return;
     }
+
+    if (decoded.id && friends.some(f => f.cloudId === decoded.id)) {
+      setAddError("You're already friends with this person.");
+      return;
+    }
+
+    if (decoded.id && myCode) {
+      // Cloud user: send a friend request — they must accept before either side is added
+      await sendFriendPing(decoded.id, userId, userName, { type: "friend_request", fromCode: myCode });
+      setAddCode("");
+      showToast(`Friend request sent to ${decoded.name}!`, "success");
+    } else {
+      // Local/offline code: no request flow possible, add immediately
+      const updated = saveFriend(decoded.name, decoded.courses, decoded.id);
+      setFriends(updated);
+      pushFriendsToCloud(userId, updated);
+      setAddCode("");
+      showToast(`Added ${decoded.name}!`, "success");
+      if (decoded.id) sendFriendPing(decoded.id, userId, userName);
+    }
+  }
+
+  async function handleAcceptRequest(item) {
+    if (!item.meta?.fromCode) { showToast("Request data missing", "error"); return; }
+    const decoded = await decodeSchedule(item.meta.fromCode);
+    if (!decoded) { showToast("Could not fetch friend's schedule", "error"); return; }
     const updated = saveFriend(decoded.name, decoded.courses, decoded.id);
     setFriends(updated);
     pushFriendsToCloud(userId, updated);
-    setAddCode("");
-    showToast(`Added ${decoded.name}!`, "success");
-    if (decoded.id) sendFriendPing(decoded.id, userId, userName);
+    if (myCode) {
+      await sendFriendPing(item.fromId, userId, userName, { type: "friend_accepted", fromCode: myCode });
+    }
+    showToast(`You're now friends with ${decoded.name}!`, "success");
+    onDismissNotifs?.();
+    setNotifOpen(false);
+  }
+
+  function handleDeclineRequest(item) {
+    onDismissNotifs?.();
+    setNotifOpen(false);
   }
 
   function handleRemoveFriend(id) {
@@ -193,20 +227,40 @@ export default function FriendsPanel({
     pushGroupsToCloud(userId, updated);
     setNewGroupName("");
     setShowNewGroup(false);
-    showToast("Group created!", "success");
+    showToast("Group created! Add friends and they'll see it automatically.", "success");
   }
 
   async function handleRemoveGroup(id, isReceived = false) {
-    if (!isReceived) {
-      const group = groups.find(g => g.id === id);
-      if ((group?.visibility === "shared" || group?.visibility === "global") && group.cloudMemberIds?.length) {
+    const group = groups.find(g => g.id === id);
+    if (!group) return;
+
+    // Cancel any existing pending delete first
+    if (pendingDelete) clearTimeout(pendingDelete.timeoutId);
+
+    // Optimistic hide — don't touch localStorage yet
+    setGroups(prev => prev.filter(g => g.id !== id));
+    setExpandedGroup(prev => prev === id ? null : prev);
+
+    const commitDelete = async () => {
+      const updated = removeGroupFromStore(id);
+      pushGroupsToCloud(userId, updated);
+      if (!isReceived && (group.visibility === "shared" || group.visibility === "global") && group.cloudMemberIds?.length) {
         await unshareGroupFromMembers(id, group.cloudMemberIds, userId);
       }
-    }
-    const updated = removeGroupFromStore(id);
-    setGroups(updated);
-    pushGroupsToCloud(userId, updated);
-    showToast(isReceived ? "Left group" : "Group deleted", "info");
+      setPendingDelete(null);
+    };
+
+    const timeoutId = setTimeout(commitDelete, 8000);
+    setPendingDelete({ id, timeoutId });
+
+    showToast(isReceived ? "Left group" : "Group deleted", "info", {
+      label: "Undo",
+      onClick: () => {
+        clearTimeout(timeoutId);
+        setPendingDelete(null);
+        setGroups(loadGroups()); // restore from localStorage (not yet deleted)
+      },
+    });
   }
 
   async function handleToggleFriendInGroup(groupId, friendId) {
@@ -301,29 +355,66 @@ export default function FriendsPanel({
 
   return (
     <div className="fr-page">
-      {toast && <Toast message={toast.message} type={toast.type} onDone={() => setToast(null)} />}
+      {toast && <Toast message={toast.message} type={toast.type} action={toast.action} onDone={() => setToast(null)} />}
 
-      {/* ── Incoming Pings ── */}
-      {pings.length > 0 && (
-        <section className="fr-pings-section">
-          <div className="fr-pings-header">
-            <span className="fr-pings-title"><Bell size={14} /> {pings.length} added you</span>
-            <button className="fr-btn-icon" onClick={() => setPings([])} aria-label="Dismiss">
-              <X size={14} />
-            </button>
-          </div>
-          {pings.map((p, i) => (
-            <div key={i} className="fr-ping-card">
-              <div className="fr-ping-avatar">{(p.from_name || "?")[0].toUpperCase()}</div>
-              <div className="fr-ping-text">
-                <span className="fr-ping-name">{p.from_name}</span>
-                <span className="fr-ping-sub">added you as a friend</span>
+      {/* ── Page Header + Bell ── */}
+      <div className="fr-page-hdr">
+        <h2 className="fr-page-hdr-title">Friends</h2>
+        <div className="fr-bell-wrap">
+          <button
+            className={`fr-bell-btn${notifOpen ? " open" : ""}`}
+            onClick={() => setNotifOpen(o => !o)}
+            aria-label="Friend notifications"
+          >
+            <Bell size={17} />
+            {notifications.some(n => !n.isRead) && <span className="fr-bell-dot" />}
+          </button>
+          {notifOpen && (
+            <>
+            <div className="notif-backdrop" onClick={() => setNotifOpen(false)} />
+            <div className="fr-bell-panel">
+              <div className="fr-bell-panel-head">
+                <span className="fr-bell-panel-title">Notifications</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  {notifications.some(n => !n.isRead)
+                    ? <button className="rc-mark-all" onClick={() => { onMarkAllRead?.(); }}>Mark all read</button>
+                    : <span className="rc-all-read">All caught up</span>
+                  }
+                  <button className="fr-btn-icon" onClick={() => setNotifOpen(false)} aria-label="Close"><X size={13} /></button>
+                </div>
               </div>
-              <span className="fr-ping-time">{timeAgo(p.created_at)}</span>
+              {notifications.length === 0 ? (
+                <p className="fr-bell-empty">No new notifications</p>
+              ) : (
+                notifications.map(item => (
+                  <div
+                    key={item.id}
+                    className={`fr-ping-card${item.isRead ? " fr-ping-read" : ""}`}
+                    onClick={() => item.kind !== "friend_request" && onMarkRead?.(item.pingId)}
+                    style={{ cursor: item.kind !== "friend_request" ? "pointer" : "default" }}
+                  >
+                    <div className="fr-ping-avatar">{(item.name || "?")[0].toUpperCase()}</div>
+                    <div className="fr-ping-text">
+                      <span className="fr-ping-name">{item.text}</span>
+                      {item.kind === "friend_request" && (
+                        <div className="fr-ping-actions">
+                          <button className="fr-btn fr-btn-primary fr-btn-small" onClick={e => { e.stopPropagation(); handleAcceptRequest(item); }}>Accept</button>
+                          <button className="fr-btn fr-btn-small" onClick={e => { e.stopPropagation(); handleDeclineRequest(item); }}>Decline</button>
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flex: "none" }}>
+                      <span className="fr-ping-time">{timeAgo(item.ts)}</span>
+                      {item.isRead && <span className="rc-read-check">✓</span>}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
-          ))}
-        </section>
-      )}
+            </>
+          )}
+        </div>
+      </div>
 
       <div className="fr-layout">
       <div className="fr-left-col">
@@ -487,9 +578,17 @@ export default function FriendsPanel({
                             </div>
                           )}
                           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
-                            <button className="fr-btn fr-btn-danger fr-btn-small" onClick={() => handleRemoveGroup(group.id, true)}>
-                              <X size={14} /> Leave group
-                            </button>
+                            {confirmDeleteId === group.id ? (
+                              <div className="fr-confirm-row" onClick={e => e.stopPropagation()}>
+                                <span className="fr-confirm-label">Leave group?</span>
+                                <button className="fr-btn fr-btn-danger fr-btn-small" onClick={() => { setConfirmDeleteId(null); handleRemoveGroup(group.id, true); }}>Yes</button>
+                                <button className="fr-btn fr-btn-small" onClick={() => setConfirmDeleteId(null)}>Cancel</button>
+                              </div>
+                            ) : (
+                              <button className="fr-btn fr-btn-danger fr-btn-small" onClick={e => { e.stopPropagation(); setConfirmDeleteId(group.id); }}>
+                                <X size={14} /> Leave group
+                              </button>
+                            )}
                           </div>
                         </>
                       ) : (
@@ -542,9 +641,17 @@ export default function FriendsPanel({
                             </div>
                           )}
                           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
-                            <button className="fr-btn fr-btn-danger fr-btn-small" onClick={() => handleRemoveGroup(group.id)}>
-                              <Trash2 size={14} /> Delete group
-                            </button>
+                            {confirmDeleteId === group.id ? (
+                              <div className="fr-confirm-row" onClick={e => e.stopPropagation()}>
+                                <span className="fr-confirm-label">Delete group?</span>
+                                <button className="fr-btn fr-btn-danger fr-btn-small" onClick={() => { setConfirmDeleteId(null); handleRemoveGroup(group.id); }}>Yes</button>
+                                <button className="fr-btn fr-btn-small" onClick={() => setConfirmDeleteId(null)}>Cancel</button>
+                              </div>
+                            ) : (
+                              <button className="fr-btn fr-btn-danger fr-btn-small" onClick={e => { e.stopPropagation(); setConfirmDeleteId(group.id); }}>
+                                <Trash2 size={14} /> Delete group
+                              </button>
+                            )}
                           </div>
                         </>
                       )}
