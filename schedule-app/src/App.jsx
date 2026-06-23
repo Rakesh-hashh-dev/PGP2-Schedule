@@ -199,6 +199,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [showSetupEdit, setShowSetupEdit] = useState(false);
   const [syncedAt, setSyncedAt] = useState(new Date());
   const [notifOpen, setNotifOpen] = useState(false);
+  const notifOpenedAt = useRef(0);
   const [lastSeenTs, setLastSeenTs] = useState(() => loadLastSeen());
   const [readPingIds, setReadPingIds] = useState(() => loadReadPingIds());
   const [readChangeKeys, setReadChangeKeys] = useState(() => loadReadChangeKeys());
@@ -852,10 +853,14 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       try { localStorage.setItem(NOTIF_KEY, String(latest)); } catch {}
       pushProfile(userId, enrolled, user?.firstName || user?.username || "Student", latest);
     }
+    if (!notifOpen) notifOpenedAt.current = Date.now();
     setNotifOpen(o => !o);
   }
 
   function handleViewAllNotifs() {
+    // Guard against mobile tap-through: if the panel just opened (<350ms ago)
+    // the tap-up from the bell press lands on this button — ignore it.
+    if (Date.now() - notifOpenedAt.current < 350) return;
     setNotifOpen(false);
     setView("notifications");
   }
