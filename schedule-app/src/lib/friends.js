@@ -515,6 +515,17 @@ export async function deletePingsBetween(myUserId, friendUserId) {
 // ── Friend Pings (who added you) ────────────────────────────────
 
 // fromMeta: optional { group: "GroupName" } — encoded into from_name as JSON for group invites
+export async function hasPendingFriendRequest(fromUserId, toUserId) {
+  if (!fromUserId || !toUserId) return false;
+  const { data } = await supabase
+    .from("friend_pings")
+    .select("id")
+    .eq("from_id", fromUserId)
+    .eq("target_id", toUserId)
+    .limit(1);
+  return (data?.length ?? 0) > 0;
+}
+
 export async function sendFriendPing(targetUserId, fromUserId, fromName, fromMeta = null) {
   if (!targetUserId || !fromUserId || targetUserId === fromUserId) return;
   try {
@@ -541,7 +552,13 @@ export async function fetchFriendPings(userId) {
       .eq("target_id", userId)
       .gte("created_at", cutoff)
       .order("created_at", { ascending: false });
-    return data || [];
+    // Deduplicate: keep only the newest ping per sender (handles duplicate requests)
+    const seen = new Set();
+    return (data || []).filter(p => {
+      if (seen.has(p.from_id)) return false;
+      seen.add(p.from_id);
+      return true;
+    });
   } catch { return []; }
 }
 

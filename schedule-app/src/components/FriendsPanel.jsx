@@ -18,7 +18,7 @@ import {
   saveFriend, removeFriend as removeFriendFromStore,
   loadGroups, createGroup, removeGroup as removeGroupFromStore, updateGroup,
   getOrCreateShareCode, pushFriendsToCloud, pushGroupsToCloud,
-  refreshFriendCoursesFromCloud, sendFriendPing, removeSelfFromFriendCloud, deleteFriendPing, deletePingsBetween,
+  refreshFriendCoursesFromCloud, sendFriendPing, hasPendingFriendRequest, removeSelfFromFriendCloud, deleteFriendPing, deletePingsBetween,
   shareGroupWithMembers, unshareGroupFromMembers,
 } from "../lib/friends.js";
 
@@ -167,6 +167,12 @@ export default function FriendsPanel({
     }
 
     if (decoded.id && myCode) {
+      const alreadySent = await hasPendingFriendRequest(userId, decoded.id);
+      if (alreadySent) {
+        setAddError(`Request already sent to ${decoded.name}. Waiting for them to accept.`);
+        setIsAdding(false);
+        return;
+      }
       // Cloud user: send a friend request — they must accept before either side is added
       await sendFriendPing(decoded.id, userId, userName, { type: "friend_request", fromCode: myCode });
       setAddCode("");
