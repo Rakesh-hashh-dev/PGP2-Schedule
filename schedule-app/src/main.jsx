@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { ClerkProvider, AuthenticateWithRedirectCallback } from "@clerk/clerk-react";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 import App from "./App.jsx";
 import "./styles.css";
 import { registerSW } from "virtual:pwa-register";
@@ -17,6 +18,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <ClerkProvider publishableKey={pk} afterSignOutUrl="/">
       {isCallback ? <AuthenticateWithRedirectCallback /> : <App />}
+      <SpeedInsights />
     </ClerkProvider>
   </React.StrictMode>
 );
