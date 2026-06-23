@@ -267,7 +267,7 @@ export function createGroup(name, friendIds = []) {
     id: crypto.randomUUID?.() || Date.now().toString(36),
     name,
     memberIds: friendIds,
-    visibility: "shared",
+    visibility: "private",
     createdAt: new Date().toISOString(),
   };
   groups.push(group);

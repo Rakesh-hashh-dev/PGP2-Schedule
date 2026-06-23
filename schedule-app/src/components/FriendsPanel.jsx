@@ -670,7 +670,10 @@ export default function FriendsPanel({
                               })}
                             </div>
                           )}
-                          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "8px" }}>
+                            <button className="fr-btn fr-btn-primary fr-btn-small" onClick={e => { e.stopPropagation(); setExpandedGroup(null); showToast("Changes saved", "success"); }}>
+                              <Check size={13} strokeWidth={2.8} /> Done
+                            </button>
                             {confirmDeleteId === group.id ? (
                               <div className="fr-confirm-row" onClick={e => e.stopPropagation()}>
                                 <span className="fr-confirm-label">Delete group?</span>
