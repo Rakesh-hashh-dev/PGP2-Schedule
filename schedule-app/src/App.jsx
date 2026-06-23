@@ -50,6 +50,22 @@ function weatherIcon(code) {
   return CloudLightning;
 }
 
+const APP_VERSION_KEY = "pgp2.app-version";
+
+// Fetches /sw.js with a cache-busting query param (bypasses SW cache) and
+// compares its hash to the stored value. If it changed, a new deploy happened.
+async function checkAppVersion(onUpdateAvailable) {
+  try {
+    const resp = await fetch(`/sw.js?_=${Date.now()}`, { cache: "no-store" });
+    if (!resp.ok) return;
+    const text = await resp.text();
+    const hash = await sha256hex(text);
+    const stored = localStorage.getItem(APP_VERSION_KEY);
+    localStorage.setItem(APP_VERSION_KEY, hash);
+    if (stored && stored !== hash) onUpdateAvailable();
+  } catch {}
+}
+
 const LAST_USER_KEY = "pgp2.last-user-id";
 const USER_SCOPED_KEYS = [
   "pgp2.friends", "pgp2.groups", "pgp2.my_share_code",
@@ -475,25 +491,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     return () => { supabase.removeChannel(channel); };
   }, [userId]);
 
-  // Page visibility: re-fetch schedule when user returns to tab after 5+ minutes away,
-  // and always re-fetch pings (catches anything missed while tab was hidden)
-  useEffect(() => {
-    if (!isSignedIn) return;
-    const syncedAtRef = { current: syncedAt };
-    const updateRef = () => { syncedAtRef.current = syncedAt; };
-    updateRef();
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible") {
-        if (userId) refreshPings(userId);
-        const elapsed = Date.now() - syncedAtRef.current.getTime();
-        if (elapsed > 5 * 60 * 1000) handleSync();
-      }
-    };
-    document.addEventListener("visibilitychange", handleVisibility);
-    return () => document.removeEventListener("visibilitychange", handleVisibility);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSignedIn, syncedAt, userId, refreshPings]);
-
   useEffect(() => {
     // Catch updates that fired before React mounted
     if (window.__swPendingUpdate) {
@@ -504,6 +501,43 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     window.addEventListener("sw-update-available", handler);
     return () => window.removeEventListener("sw-update-available", handler);
   }, []);
+
+  // Version-check fallback: compare /sw.js hash to localStorage so updates are
+  // detected even when the SW lifecycle doesn't trigger onNeedRefresh reliably.
+  const triggerHardRefresh = () => setSwUpdateFn(() => async () => {
+    try {
+      const names = await caches.keys();
+      await Promise.all(names.map(n => caches.delete(n)));
+    } catch {}
+    localStorage.removeItem(APP_VERSION_KEY);
+    window.location.reload();
+  });
+
+  useEffect(() => {
+    if (!isSignedIn) return;
+    checkAppVersion(triggerHardRefresh);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSignedIn]);
+
+  // Page visibility: re-fetch schedule when user returns to tab after 5+ minutes away,
+  // and always re-fetch pings (catches anything missed while tab was hidden)
+  useEffect(() => {
+    if (!isSignedIn) return;
+    const syncedAtRef = { current: syncedAt };
+    const updateRef = () => { syncedAtRef.current = syncedAt; };
+    updateRef();
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        if (userId) refreshPings(userId);
+        checkAppVersion(triggerHardRefresh);
+        const elapsed = Date.now() - syncedAtRef.current.getTime();
+        if (elapsed > 5 * 60 * 1000) handleSync();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSignedIn, syncedAt, userId, refreshPings]);
 
   useEffect(() => {
     const hour = now.getHours();
