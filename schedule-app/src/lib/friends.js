@@ -469,36 +469,16 @@ export async function syncFriendsAndGroupsFromCloud(userId) {
     return null;
   }
 
-  // Merge friends
+  // Cloud is the source of truth — don't re-add local entries the cloud no longer has
+  // (a re-add from local would undo a bidirectional removal)
   const cloudFriends = (data?.friends || []);
-  const localFriends = loadFriends();
   const mergedFriends = [...cloudFriends];
-  for (const lf of localFriends) {
-    if (!mergedFriends.find(cf => cf.id === lf.id)) {
-      mergedFriends.push(lf);
-    }
-  }
   localStorage.setItem(FRIENDS_KEY, JSON.stringify(mergedFriends));
 
-  // Merge groups
+  // Cloud is the source of truth for groups too
   const cloudGroups = (data?.groups || []);
-  const localGroups = loadGroups();
   const mergedGroups = [...cloudGroups];
-  for (const lg of localGroups) {
-    if (!mergedGroups.find(cg => cg.id === lg.id)) {
-      mergedGroups.push(lg);
-    }
-  }
   localStorage.setItem(GROUPS_KEY, JSON.stringify(mergedGroups));
-
-  // Push back the merged result so the cloud has the local stuff too
-  if (mergedFriends.length > cloudFriends.length || mergedGroups.length > cloudGroups.length) {
-    await supabase.from("profiles").upsert({ 
-      user_id: userId, 
-      friends: mergedFriends, 
-      groups: mergedGroups 
-    }, { onConflict: "user_id" });
-  }
 
   return { friends: mergedFriends, groups: mergedGroups };
 }
@@ -511,6 +491,16 @@ export async function pushFriendsToCloud(userId, friends) {
 export async function pushGroupsToCloud(userId, groups) {
   if (!userId) return;
   await supabase.from("profiles").upsert({ user_id: userId, groups }, { onConflict: "user_id" });
+}
+
+// Remove yourself from a friend's cloud friends list so their UI updates in real-time
+export async function removeSelfFromFriendCloud(friendUserId, myUserId) {
+  if (!friendUserId || !myUserId) return;
+  const { data } = await supabase.from("profiles").select("friends").eq("user_id", friendUserId).single();
+  if (!data?.friends) return;
+  const updated = data.friends.filter(f => f.cloudId !== myUserId);
+  if (updated.length === data.friends.length) return;
+  await supabase.from("profiles").upsert({ user_id: friendUserId, friends: updated }, { onConflict: "user_id" });
 }
 
 // ── Friend Pings (who added you) ────────────────────────────────

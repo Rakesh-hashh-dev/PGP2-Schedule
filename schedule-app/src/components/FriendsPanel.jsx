@@ -18,7 +18,7 @@ import {
   saveFriend, removeFriend as removeFriendFromStore,
   loadGroups, createGroup, removeGroup as removeGroupFromStore, updateGroup,
   getOrCreateShareCode, pushFriendsToCloud, pushGroupsToCloud,
-  refreshFriendCoursesFromCloud, sendFriendPing,
+  refreshFriendCoursesFromCloud, sendFriendPing, removeSelfFromFriendCloud,
   shareGroupWithMembers, unshareGroupFromMembers,
 } from "../lib/friends.js";
 
@@ -202,9 +202,12 @@ export default function FriendsPanel({
   }
 
   function handleRemoveFriend(id) {
+    const friend = friends.find(f => f.id === id);
     const updated = removeFriendFromStore(id);
     setFriends(updated);
     pushFriendsToCloud(userId, updated);
+    // Remove self from the other person's cloud list so their UI updates in real-time
+    if (friend?.cloudId) removeSelfFromFriendCloud(friend.cloudId, userId);
   }
 
   async function handleRefreshFriend(id) {
