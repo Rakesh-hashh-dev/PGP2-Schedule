@@ -466,6 +466,11 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   }, [isSignedIn, syncedAt, userId, refreshPings]);
 
   useEffect(() => {
+    // Catch updates that fired before React mounted
+    if (window.__swPendingUpdate) {
+      setSwUpdateFn(() => window.__swPendingUpdate);
+      window.__swPendingUpdate = null;
+    }
     const handler = (e) => setSwUpdateFn(() => e.detail.updateSW);
     window.addEventListener("sw-update-available", handler);
     return () => window.removeEventListener("sw-update-available", handler);

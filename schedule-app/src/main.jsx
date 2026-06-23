@@ -11,6 +11,8 @@ const ClerkApp = lazy(() => clerkAppPromise);
 registerSW({
   immediate: true,
   onNeedRefresh(updateSW) {
+    // Store immediately — onNeedRefresh can fire before React mounts
+    window.__swPendingUpdate = updateSW;
     window.dispatchEvent(new CustomEvent("sw-update-available", { detail: { updateSW } }));
   },
 });
