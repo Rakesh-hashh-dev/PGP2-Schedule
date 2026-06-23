@@ -329,9 +329,13 @@ export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, no
         <div className="exam-card-h">
           <h2><Clock size={15} /> Exam Countdown</h2>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-            <div className="exam-filter-toggle">
-              <button className={`exam-ft-btn${examFilter === "mine" ? " on" : ""}`} onClick={() => setExamFilter("mine")}>My Subjects</button>
-              <button className={`exam-ft-btn${examFilter === "all" ? " on" : ""}`} onClick={() => setExamFilter("all")}>All Subjects</button>
+            <div style={{ display: "flex", background: "var(--surface)", padding: 4, borderRadius: 12, gap: 4, border: "1px solid var(--border)" }}>
+              <button onClick={() => setExamFilter("mine")} style={{ background: examFilter === "mine" ? "var(--card)" : "transparent", color: examFilter === "mine" ? "var(--text)" : "var(--muted)", border: "none", borderRadius: 8, padding: "6px 16px", fontSize: 13, fontWeight: 600, boxShadow: examFilter === "mine" ? "0 2px 8px rgba(0,0,0,0.08)" : "none", cursor: "pointer", transition: "all 0.2s" }}>
+                My Subjects
+              </button>
+              <button onClick={() => setExamFilter("all")} style={{ background: examFilter === "all" ? "var(--card)" : "transparent", color: examFilter === "all" ? "var(--text)" : "var(--muted)", border: "none", borderRadius: 8, padding: "6px 16px", fontSize: 13, fontWeight: 600, boxShadow: examFilter === "all" ? "0 2px 8px rgba(0,0,0,0.08)" : "none", cursor: "pointer", transition: "all 0.2s" }}>
+                All Subjects
+              </button>
             </div>
             <div className="exam-view-toggle">
               <button className={`exam-vt-btn${cdView === "list" ? " on" : ""}`} onClick={() => setCdView("list")} aria-label="List view">
