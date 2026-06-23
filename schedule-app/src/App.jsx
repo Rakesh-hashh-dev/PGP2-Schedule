@@ -253,6 +253,15 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     setShowRightScroll(scrollLeft + clientWidth < scrollWidth - 10);
     setShowLeftScroll(scrollLeft > 10);
   };
+  // On mount, scroll the active tab into view so the highlight is visible after refresh
+  useEffect(() => {
+    const id = setTimeout(() => {
+      tabsRef.current?.querySelector(".tab.on")?.scrollIntoView({ behavior: "instant", block: "nearest", inline: "center" });
+      handleTabsScroll();
+    }, 50);
+    return () => clearTimeout(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [cmdOpen, setCmdOpen] = useState(false);
   const premiumMode = true;
