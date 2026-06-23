@@ -769,7 +769,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         const pingId = p.id || p.from_id;
         return { id: `ping-${pingId}`, pingId, text, ts: p.created_at, kind, name, meta, fromId: p.from_id, isRead: readPingIds.has(pingId) };
       }),
-    ...newRecvGroups.map(g => ({ id: `grp-${g.id}`, pingId: null, text: `${g.ownerName} shared "${g.name}" with you`, ts: g.createdAt, kind: "group", name: g.ownerName, isRead: false })),
+    ...newRecvGroups.map(g => ({ id: `grp-${g.id}`, pingId: `grp-${g.id}`, text: `${g.ownerName} shared "${g.name}" with you`, ts: g.createdAt, kind: "group", name: g.ownerName, isRead: seenRecvGroupIds.has(g.id) })),
   ];
   const unreadFriendCount = friendNotifItems.filter(item => !item.isRead).length;
   const unreadChangeCount = filteredChanges.filter(c => !readChangeKeys.has(changeKey(c))).length;
@@ -783,7 +783,18 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   }
 
   function markPingRead(pingId) {
-    if (!pingId || readPingIds.has(pingId)) return;
+    if (!pingId) return;
+    if (pingId.startsWith("grp-")) {
+      const groupId = pingId.slice(4);
+      if (seenRecvGroupIds.has(groupId)) return;
+      setSeenRecvGroupIds(prev => {
+        const next = new Set([...prev, groupId]);
+        try { localStorage.setItem("pgp2.seen-recv-groups", JSON.stringify([...next])); } catch {}
+        return next;
+      });
+      return;
+    }
+    if (readPingIds.has(pingId)) return;
     setReadPingIds(prev => {
       const next = new Set([...prev, pingId]);
       try { localStorage.setItem(READ_PINGS_KEY, JSON.stringify([...next])); } catch {}
