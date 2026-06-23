@@ -236,6 +236,13 @@ export function removeFriend(id) {
   return friends;
 }
 
+export function removeFriendByCloudId(cloudId) {
+  if (!cloudId) return readFriends();
+  const friends = readFriends().filter(f => f.cloudId !== cloudId);
+  writeFriends(friends);
+  return friends;
+}
+
 // ── Groups CRUD ─────────────────────────────────────────────────
 
 function readGroups() {

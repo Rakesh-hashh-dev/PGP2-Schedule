@@ -216,10 +216,11 @@ export default function FriendsPanel({
     setFriends(updated);
     pushFriendsToCloud(userId, updated);
     if (friend?.cloudId) {
-      // Remove self from the other person's cloud list so their UI updates in real-time
-      removeSelfFromFriendCloud(friend.cloudId, userId);
-      // Delete all pings between both users so refreshPings can't re-add the removed friend
-      deletePingsBetween(userId, friend.cloudId);
+      // Clear all pings between both users, then send a removal signal so the
+      // other person's app removes us from their list (works even if they're offline)
+      deletePingsBetween(userId, friend.cloudId).then(() => {
+        sendFriendPing(friend.cloudId, userId, userName, { type: "friend_removed" });
+      });
     }
   }
 

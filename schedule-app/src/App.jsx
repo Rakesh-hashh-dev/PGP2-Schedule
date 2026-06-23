@@ -25,7 +25,7 @@ const AdminDashboard = lazy(() => import("./components/AdminDashboard.jsx"));
 const CommandPalette = lazy(() => import("./components/CommandPalette.jsx"));
 import { loadAttendance, saveAttendance, sessionKey, syncAttendanceFromCloud, pushMark } from "./lib/attendance.js";
 import { syncProfileFromCloud, pushProfile } from "./lib/profile.js";
-import { decodeSchedule, saveFriend, loadFriends, loadGroups, friendVisibleClasses, syncFriendsAndGroupsFromCloud, fetchFriendPings, clearFriendPings, pushFriendsToCloud, deleteAllFriendPings } from "./lib/friends.js";
+import { decodeSchedule, saveFriend, loadFriends, loadGroups, friendVisibleClasses, syncFriendsAndGroupsFromCloud, fetchFriendPings, clearFriendPings, pushFriendsToCloud, deleteAllFriendPings, removeFriendByCloudId, deleteFriendPing } from "./lib/friends.js";
 import { supabase } from "./lib/supabase.js";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
@@ -316,7 +316,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const refreshPings = useCallback(async (uid) => {
     const data = await fetchFriendPings(uid);
     if (!data.length) return;
-    setPings(data);
+    const visiblePings = [];
     for (const p of data) {
       try {
         const meta = JSON.parse(p.from_name);
@@ -330,9 +330,25 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               pushFriendsToCloud(uid, updated);
             }
           }
+          visiblePings.push(p);
+        } else if (meta.type === "friend_removed") {
+          // Silently remove the sender from this user's friends list
+          const current = loadFriends();
+          if (current.some(f => f.cloudId === p.from_id)) {
+            const updated = removeFriendByCloudId(p.from_id);
+            setFriends(updated);
+            pushFriendsToCloud(uid, updated);
+          }
+          deleteFriendPing(p.id);
+          // Not added to visiblePings — this is an internal signal
+        } else {
+          visiblePings.push(p);
         }
-      } catch {}
+      } catch {
+        visiblePings.push(p);
+      }
     }
+    setPings(visiblePings);
   }, []);
 
   // Initial fetch + 30-second poll (realtime fallback)
@@ -415,6 +431,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         filter: `target_id=eq.${userId}`,
       }, async (payload) => {
         if (!payload.new) return;
+        let isInternalSignal = false;
         try {
           const meta = JSON.parse(payload.new.from_name);
           if (meta.type === "friend_accepted" && meta.fromCode) {
@@ -428,6 +445,16 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               }
             }
           }
+          if (meta.type === "friend_removed") {
+            isInternalSignal = true;
+            const current = loadFriends();
+            if (current.some(f => f.cloudId === payload.new.from_id)) {
+              const updated = removeFriendByCloudId(payload.new.from_id);
+              setFriends(updated);
+              pushFriendsToCloud(userId, updated);
+            }
+            deleteFriendPing(payload.new.id);
+          }
           if (meta.group) {
             // Group invite: re-fetch profile to get the new group immediately
             const result = await syncFriendsAndGroupsFromCloud(userId);
@@ -437,10 +464,12 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             }
           }
         } catch {}
-        setPings(prev => {
-          if (prev.some(p => p.id === payload.new.id)) return prev;
-          return [payload.new, ...prev];
-        });
+        if (!isInternalSignal) {
+          setPings(prev => {
+            if (prev.some(p => p.id === payload.new.id)) return prev;
+            return [payload.new, ...prev];
+          });
+        }
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
