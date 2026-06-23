@@ -1453,9 +1453,8 @@ button:focus-visible {
 /* ── Login screen ── */
 .login-screen {
   position: relative; display: grid; place-items: center; min-height: 100vh;
-  padding: 40px 24px 48px; overflow: hidden;
+  padding: 24px; overflow: hidden;
   transition: background 0.8s cubic-bezier(0.16, 1, 0.3, 1);
-  align-items: center;
 }
 
 /* Light Theme Variables */
@@ -1578,7 +1577,7 @@ button:focus-visible {
 }
 
 .login-card {
-  position: relative;
+  position: relative; z-index: 10;
   background: var(--l-card); border: 1px solid var(--l-border);
   backdrop-filter: blur(32px); -webkit-backdrop-filter: blur(32px);
   border-radius: 28px; padding: 48px 36px;
@@ -1664,123 +1663,6 @@ button:focus-visible {
   background: #ffffff;
 }
 
-/* ── Login wrap (card + how-it-works stacked) ── */
-.login-wrap {
-  position: relative; z-index: 10;
-  display: flex; flex-direction: column; align-items: center;
-  gap: 28px; width: 100%; max-width: 480px;
-}
-
-/* ── How it works section ── */
-.htw-section { width: 100%; }
-
-.htw-label {
-  text-align: center;
-  font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
-  color: var(--l-sub); opacity: .45; margin: 0 0 16px;
-}
-
-/* Flex row: [card] [arrow] [card] [arrow] [card] */
-.htw-steps {
-  display: flex; align-items: stretch; gap: 0;
-}
-
-/* ── Step card ── */
-.htw-step {
-  flex: 1; min-width: 0;
-  padding: 18px 16px 20px;
-  background: rgba(255,255,255,0.72);
-  border: 1px solid rgba(0,0,0,.07);
-  border-radius: 20px;
-  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-  box-shadow: 0 2px 12px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
-  display: flex; flex-direction: column; gap: 12px;
-  transition: transform .22s cubic-bezier(.4,0,.2,1), box-shadow .22s;
-}
-.htw-step:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 12px 32px rgba(0,0,0,.10), 0 2px 6px rgba(0,0,0,.06);
-}
-
-/* Header row: num left, icon right */
-.htw-step-header {
-  display: flex; align-items: center; justify-content: space-between;
-}
-
-/* Step number badge */
-.htw-num {
-  font-family: var(--mono, monospace); font-size: 10px; font-weight: 700;
-  letter-spacing: .06em;
-  color: #6D5BD0;
-  background: rgba(109,91,208,.08);
-  border: 1px solid rgba(109,91,208,.15);
-  border-radius: 6px; padding: 2px 7px;
-}
-
-/* Icon chip — gradient, white icon */
-.htw-icon {
-  width: 38px; height: 38px; border-radius: 12px; flex: none;
-  display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(135deg, #6D5BD0, #a855f7);
-  color: #fff;
-  box-shadow: 0 4px 12px rgba(109,91,208,.28);
-}
-
-.htw-step-title {
-  font-family: var(--display); font-weight: 700; font-size: 14px;
-  color: #1a1533; margin: 0; line-height: 1.25;
-}
-
-.htw-step-desc {
-  font-size: 12px; color: rgba(30,20,60,.52); margin: 0; line-height: 1.6;
-}
-
-/* ── Arrow connector between cards ── */
-.htw-connector {
-  flex: none; align-self: center;
-  width: 32px; display: flex; align-items: center; justify-content: center;
-  color: rgba(109,91,208,.3);
-}
-
-/* ── Dark theme overrides ── */
-.login-screen.theme-dark .htw-step {
-  background: rgba(255,255,255,.04);
-  border-color: rgba(255,255,255,.08);
-  box-shadow: 0 2px 12px rgba(0,0,0,.3);
-}
-.login-screen.theme-dark .htw-step:hover {
-  box-shadow: 0 12px 32px rgba(0,0,0,.4);
-}
-.login-screen.theme-dark .htw-num {
-  color: #c4b5fd; background: rgba(167,139,250,.1); border-color: rgba(167,139,250,.2);
-}
-.login-screen.theme-dark .htw-step-title { color: rgba(255,255,255,.92); }
-.login-screen.theme-dark .htw-step-desc { color: rgba(255,255,255,.42); }
-.login-screen.theme-dark .htw-connector { color: rgba(167,139,250,.3); }
-
-/* ── Premium theme overrides ── */
-.login-screen.theme-premium .htw-step {
-  background: rgba(255,255,255,.03);
-  border-color: rgba(255,255,255,.07);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 4px 24px rgba(0,0,0,.3);
-}
-.login-screen.theme-premium .htw-step:hover {
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 16px 40px rgba(109,91,208,.2);
-}
-.login-screen.theme-premium .htw-num {
-  color: #e9d5ff; background: rgba(167,139,250,.1); border-color: rgba(167,139,250,.15);
-}
-.login-screen.theme-premium .htw-step-title { color: rgba(255,255,255,.9); }
-.login-screen.theme-premium .htw-step-desc { color: rgba(255,255,255,.38); }
-.login-screen.theme-premium .htw-connector { color: rgba(167,139,250,.25); }
-
-/* ── Mobile: stacked column, connector hidden ── */
-@media (max-width: 540px) {
-  .login-wrap { max-width: 100%; }
-  .htw-steps { flex-direction: column; gap: 8px; }
-  .htw-connector { display: none; }
-  .htw-step { border-radius: 16px; padding: 16px 16px 18px; gap: 10px; }
-}
 
 
 /* â”€â”€ Recent changes â”€â”€ */
