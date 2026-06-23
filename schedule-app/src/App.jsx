@@ -797,11 +797,21 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const termDateRange = TERM ? [fmtTermDate(TERM.start), fmtTermDate(TERM.end)].filter(Boolean).join(" – ") : "";
   const termLabel = TERM?.number ? `Term ${TERM.number}${termDateRange ? ` · ${termDateRange}` : ""}` : termDateRange;
 
-  if (!isLoaded) return <div className="loading-screen"><TermFlowLoader variant="splash" size={96} /></div>;
+  if (!isLoaded) return (
+    <div className="loading-screen">
+      <TermFlowLoader variant="splash" size={96} />
+      <p className="loading-label">Starting up…</p>
+    </div>
+  );
   if (!isSignedIn) return <Login />;
-  if (!scheduleData) return <div className="loading-screen"><TermFlowLoader size={72} /></div>;
-  if (userId && !setup && !cloudChecked) return <div className="loading-screen"><TermFlowLoader size={72} /></div>;
-  if (!setup) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} termLabel={termLabel} onPullFromSheet={buildAllocationFromSheet} prefill={prefillPicked} />;
+  if (!scheduleData) return (
+    <div className="loading-screen">
+      <TermFlowLoader size={72} />
+      <p className="loading-label">Loading timetable…</p>
+      <p className="loading-sub">Fetching your class schedule</p>
+    </div>
+  );
+  if (!setup) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} termLabel={termLabel} onPullFromSheet={buildAllocationFromSheet} prefill={prefillPicked} cloudChecked={cloudChecked} />;
   if (showSetupEdit) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} initialPicked={enrolled} onCancel={() => setShowSetupEdit(false)} termLabel={termLabel} onPullFromSheet={buildAllocationFromSheet} />;
 
   // Banned User Lockout

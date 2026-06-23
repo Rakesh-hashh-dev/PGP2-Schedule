@@ -1475,8 +1475,25 @@ button:focus-visible {
 
 /* â”€â”€ Loading screen â”€â”€ */
 .loading-screen {
-  display: grid; place-items: center; min-height: 100vh;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 0; min-height: 100vh;
   background: var(--bone);
+}
+.loading-label {
+  margin: 18px 0 4px;
+  font-family: var(--display); font-weight: 700; font-size: 16px;
+  color: var(--ink); letter-spacing: -0.2px;
+  animation: loading-fadein .5s ease .3s both;
+}
+.loading-sub {
+  margin: 0;
+  font-family: var(--body); font-size: 13px; font-weight: 500;
+  color: var(--muted);
+  animation: loading-fadein .5s ease .5s both;
+}
+@keyframes loading-fadein {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
 }
 .spinner {
   width: 32px; height: 32px; border-radius: 50%;
@@ -2439,6 +2456,30 @@ button:focus-visible {
   padding:10px 14px;margin-bottom:22px;
 }
 .ob-hint svg{color:var(--live);flex:none;}
+.ob-sync-notice {
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(109, 91, 208, 0.07);
+  border: 1px solid rgba(109, 91, 208, 0.18);
+  border-radius: 12px; padding: 10px 14px; margin-bottom: 18px;
+  animation: ob-rise .35s ease both;
+}
+.ob-sync-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex: none;
+  background: #6D5BD0;
+  box-shadow: 0 0 0 0 rgba(109, 91, 208, 0.5);
+  animation: ob-sync-pulse 1.4s ease-in-out infinite;
+}
+@keyframes ob-sync-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(109, 91, 208, 0.5); }
+  70%  { box-shadow: 0 0 0 7px rgba(109, 91, 208, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(109, 91, 208, 0); }
+}
+.ob-sync-title {
+  display: block; font-size: 13px; font-weight: 700; color: #5548b0;
+}
+.ob-sync-sub {
+  display: block; font-size: 12px; font-weight: 500; color: var(--muted); margin-top: 1px;
+}
 .ob-pull-row{display:flex;align-items:center;gap:10px;margin:0 0 16px;flex-wrap:wrap;}
 .ob-pull-btn{display:inline-flex;align-items:center;gap:6px;background:none;border:1.5px solid var(--border);border-radius:8px;font-family:var(--body);font-size:13px;font-weight:600;color:var(--ink);padding:7px 14px;cursor:pointer;transition:border-color .15s,background .15s,color .15s;}
 .ob-pull-btn:hover:not(:disabled){border-color:var(--live);background:rgba(31,169,113,.06);color:var(--live);}

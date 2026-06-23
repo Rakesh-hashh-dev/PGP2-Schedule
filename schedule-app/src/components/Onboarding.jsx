@@ -4,7 +4,7 @@ import { ArrowRight, Info, X, Settings2, Download } from "lucide-react";
 const AREA_LABEL = { "F&A": "Finance & Accounting", MKTG: "Marketing", ISM: "Information Systems", STM: "Strategy", OPS: "Operations", "OB&HR": "OB & HR", Other: "Other" };
 const AREA_ORDER = ["F&A", "MKTG", "ISM", "STM", "OPS", "OB&HR", "Other"];
 
-export default function Onboarding({ legend, sectionsByCode, onDone, initialPicked, onCancel, termLabel, onPullFromSheet, prefill }) {
+export default function Onboarding({ legend, sectionsByCode, onDone, initialPicked, onCancel, termLabel, onPullFromSheet, prefill, cloudChecked }) {
   const isEditing = !!initialPicked;
   const [picked, setPicked] = useState(() => initialPicked || {});
   const [pulling, setPulling] = useState(false);
@@ -84,6 +84,16 @@ export default function Onboarding({ legend, sectionsByCode, onDone, initialPick
         <h1 className="ob-title">{isEditing ? "Edit your courses." : "Set up your timetable."}</h1>
         <p className="ob-sub">Pick your courses — and your section for each. We'll show only your classes, with no clashes.</p>
         <div className="ob-hint"><Info size={14} /> Your section can differ per course — choose A or B on each.</div>
+
+        {!isEditing && !cloudChecked && (
+          <div className="ob-sync-notice">
+            <span className="ob-sync-dot" />
+            <div>
+              <span className="ob-sync-title">Checking your profile for subjects…</span>
+              <span className="ob-sync-sub">Syncing from database, courses may auto-fill</span>
+            </div>
+          </div>
+        )}
 
         {onPullFromSheet && (
           <div className="ob-pull-row">
