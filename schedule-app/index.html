@@ -44,68 +44,9 @@
       "offers": { "@type": "Offer", "price": "0" }
     }
     </script>
-
-    <!-- Inline loading shell — visible before React mounts, improves FCP -->
-    <style>
-      #app-shell {
-        position: fixed; inset: 0;
-        background: #15182B;
-        display: flex; align-items: center; justify-content: center;
-        flex-direction: column; gap: 16px;
-        font-family: system-ui, -apple-system, sans-serif;
-        transition: opacity 0.25s ease;
-        z-index: 9999;
-      }
-      #app-shell.hidden { opacity: 0; pointer-events: none; }
-      .shell-logo {
-        width: 52px; height: 52px; border-radius: 14px;
-        background: linear-gradient(135deg, #6D5BD0, #a855f7);
-        display: flex; align-items: center; justify-content: center;
-      }
-      .shell-logo svg { width: 28px; height: 28px; }
-      .shell-wordmark {
-        font-size: 18px; font-weight: 700; letter-spacing: -0.02em;
-        color: rgba(255,255,255,0.9);
-      }
-      .shell-bar {
-        width: 120px; height: 3px; border-radius: 99px;
-        background: rgba(255,255,255,0.08); overflow: hidden;
-        margin-top: 4px;
-      }
-      .shell-fill {
-        height: 100%; border-radius: 99px;
-        background: linear-gradient(90deg, #6D5BD0, #a855f7);
-        animation: shell-progress 1.4s cubic-bezier(0.4,0,0.2,1) infinite;
-      }
-      @keyframes shell-progress {
-        0%   { width: 0%;   margin-left: 0%; }
-        50%  { width: 60%;  margin-left: 20%; }
-        100% { width: 0%;   margin-left: 100%; }
-      }
-    </style>
   </head>
   <body>
-    <!-- Loading shell: shown immediately, hidden once React mounts -->
-    <div id="app-shell">
-      <div class="shell-logo">
-        <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect x="4" y="6" width="20" height="3" rx="1.5" fill="white" opacity="0.9"/>
-          <rect x="4" y="12" width="14" height="3" rx="1.5" fill="white" opacity="0.7"/>
-          <rect x="4" y="18" width="17" height="3" rx="1.5" fill="white" opacity="0.5"/>
-        </svg>
-      </div>
-      <span class="shell-wordmark">TermFlow</span>
-      <div class="shell-bar"><div class="shell-fill"></div></div>
-    </div>
-
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
-    <script>
-      // Hide the shell once React has painted its first frame
-      window.__hideShell = function() {
-        var s = document.getElementById('app-shell');
-        if (s) { s.classList.add('hidden'); setTimeout(function(){ s.remove(); }, 300); }
-      };
-    </script>
   </body>
 </html>

@@ -25,7 +25,3 @@ root.render(
   </React.StrictMode>
 );
 
-// Hide the loading shell after React's first paint
-if (typeof window.__hideShell === "function") {
-  requestAnimationFrame(() => requestAnimationFrame(window.__hideShell));
-}
