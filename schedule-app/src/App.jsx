@@ -24,7 +24,6 @@ const FullSchedulePage = lazy(() => import("./components/FullSchedulePage.jsx"))
 const AdminDashboard = lazy(() => import("./components/AdminDashboard.jsx"));
 const CommandPalette = lazy(() => import("./components/CommandPalette.jsx"));
 import { loadAttendance, saveAttendance, sessionKey, syncAttendanceFromCloud, pushMark } from "./lib/attendance.js";
-import SwipeToDelete from "./components/SwipeToDelete.jsx";
 import { syncProfileFromCloud, pushProfile } from "./lib/profile.js";
 import { decodeSchedule, saveFriend, loadFriends, loadGroups, friendVisibleClasses, syncFriendsAndGroupsFromCloud, fetchFriendPings, clearFriendPings, pushFriendsToCloud, deleteAllFriendPings, removeFriendByCloudId, deleteFriendPing } from "./lib/friends.js";
 import { supabase } from "./lib/supabase.js";
@@ -1189,15 +1188,15 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                               <span className="rc-title"><Users size={14} /> Friends</span>
                               <button className="rc-view-all" style={{ padding: "2px 8px", fontSize: 12 }} onClick={() => { setNotifOpen(false); setView("friends"); }}>Go to Friends</button>
                             </div>
-                            <div className="rc-list">
+                            <ul className="rc-list">
                               {friendNotifItems.map(item => (
-                                <SwipeToDelete key={item.id} className={`rc-item rc-item-clickable${item.isRead ? " rc-item-read" : ""}`} onClick={() => markPingRead(item.pingId)} onDelete={() => markPingRead(item.pingId)}>
+                                <li key={item.id} className={`rc-item rc-item-clickable${item.isRead ? " rc-item-read" : ""}`} onClick={() => markPingRead(item.pingId)}>
                                   <span className="rc-dot rc-friend" />
                                   <span className="rc-text">{item.text}</span>
                                   {item.isRead && <span className="rc-read-check">✓</span>}
-                                </SwipeToDelete>
+                                </li>
                               ))}
-                            </div>
+                            </ul>
                           </section>
                         )}
                         {filteredChanges.length > 0 && <RecentChanges changes={filteredChanges} readKeys={readChangeKeys} onMarkRead={markChangeRead} onViewAll={handleViewAllNotifs} />}

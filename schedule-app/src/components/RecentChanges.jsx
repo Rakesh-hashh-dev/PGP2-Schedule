@@ -1,5 +1,4 @@
 import { Bell } from "lucide-react";
-import SwipeToDelete from "./SwipeToDelete.jsx";
 
 const PREVIEW = 5;
 
@@ -24,24 +23,19 @@ export default function RecentChanges({ changes, readKeys, onMarkRead, onViewAll
         <span className="rc-title"><Bell size={14} /> Recent changes</span>
         <span className="rc-count">{changes.length}</span>
       </div>
-      <div className="rc-list">
+      <ul className="rc-list">
         {visible.map((c) => {
           const isRead = readKeys?.has(changeKey(c));
           return (
-            <SwipeToDelete
-              key={c.id}
-              className={`rc-item rc-item-clickable${isRead ? " rc-item-read" : ""}`}
-              onClick={() => onMarkRead?.(c)}
-              onDelete={() => onMarkRead?.(c)}
-            >
+            <li key={c.id} className={`rc-item rc-item-clickable${isRead ? " rc-item-read" : ""}`} onClick={() => onMarkRead?.(c)}>
               <span className={`rc-dot rc-${c.kind}`} />
               <span className="rc-text">{c.text}</span>
               <span className="rc-time">{relTime(c.ts)}</span>
               {isRead && <span className="rc-read-check">✓</span>}
-            </SwipeToDelete>
+            </li>
           );
         })}
-      </div>
+      </ul>
       {changes.length > PREVIEW && onViewAll && (
         <button className="rc-view-all" onClick={onViewAll}>
           View all {changes.length} notifications
