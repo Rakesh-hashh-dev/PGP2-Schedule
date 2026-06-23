@@ -1,11 +1,12 @@
-import { useState } from "react";
-import { Sun, Moon, Sparkles } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Sun, Moon, Sparkles, Shield, Settings2, RefreshCw, X } from "lucide-react";
 import { useSignIn } from "@clerk/clerk-react";
 
 export default function Login() {
   const { signIn, isLoaded } = useSignIn();
   const [loading, setLoading] = useState(false);
   const [theme, setTheme] = useState("light"); // 'light', 'dark', 'premium'
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
 
   const themes = ["light", "dark", "premium"];
   const handleThemeToggle = () => {
@@ -21,6 +22,16 @@ export default function Login() {
       redirectUrlComplete: window.location.origin,
     });
   }
+
+  // Prevent scrolling on body when bottom sheet is open
+  useEffect(() => {
+    if (showHowItWorks) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "auto";
+    }
+    return () => { document.body.style.overflow = "auto"; };
+  }, [showHowItWorks]);
 
   return (
     <div className={`login-screen theme-${theme}`}>
@@ -50,8 +61,56 @@ export default function Login() {
           {loading ? "Redirecting…" : "Continue with Google"}
         </button>
 
+        <button className="login-how-btn" onClick={() => setShowHowItWorks(true)}>
+          How does this work?
+        </button>
+
         <p className="login-note">Only @iimsambalpur.ac.in accounts are allowed.</p>
       </div>
+
+      {showHowItWorks && (
+        <>
+          <div className="hiw-backdrop" onClick={() => setShowHowItWorks(false)}></div>
+          <div className="hiw-bottom-sheet">
+            <button className="hiw-close" onClick={() => setShowHowItWorks(false)}>
+              <X size={20} />
+            </button>
+            <h2 className="hiw-title">How TermFlow Works</h2>
+            <div className="hiw-steps">
+              <div className="hiw-step">
+                <div className="hiw-icon-wrap" style={{ background: "rgba(39, 174, 96, 0.15)", color: "#27ae60" }}>
+                  <Shield size={22} />
+                </div>
+                <div className="hiw-text">
+                  <h3>Secure Login</h3>
+                  <p>Sign in exclusively using your verified <code>@iimsambalpur.ac.in</code> institute account.</p>
+                </div>
+              </div>
+              <div className="hiw-step">
+                <div className="hiw-icon-wrap" style={{ background: "rgba(52, 152, 219, 0.15)", color: "#3498db" }}>
+                  <Settings2 size={22} />
+                </div>
+                <div className="hiw-text">
+                  <h3>Personalize</h3>
+                  <p>Select your exact electives and sections to build a schedule tailored just for you.</p>
+                </div>
+              </div>
+              <div className="hiw-step">
+                <div className="hiw-icon-wrap" style={{ background: "rgba(155, 89, 182, 0.15)", color: "#9b59b6" }}>
+                  <RefreshCw size={22} />
+                </div>
+                <div className="hiw-text">
+                  <h3>Stay Synced</h3>
+                  <p>Get a live, personalized daily timetable, track your attendance, and see live changes instantly.</p>
+                </div>
+              </div>
+            </div>
+            <button className="hiw-got-it" onClick={() => setShowHowItWorks(false)}>
+              Got it, let's go!
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -66,3 +125,4 @@ function GoogleIcon() {
     </svg>
   );
 }
+
