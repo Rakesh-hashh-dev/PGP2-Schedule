@@ -50,6 +50,7 @@ export default function SwipeToDelete({ onDelete, children, className, onClick }
           transform: `translateX(${Math.min(0, x)}px)`,
           transition: x === 0 || x <= -window.innerWidth ? "transform .2s ease" : "none",
           position: "relative",
+          background: "inherit",
         }}
       >
         {children}
