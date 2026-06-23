@@ -15,6 +15,16 @@ const updateSW = registerSW({
     window.__swPendingUpdate = updateSW;
     window.dispatchEvent(new CustomEvent("sw-update-available", { detail: { updateSW } }));
   },
+  onRegisteredSW(_url, registration) {
+    if (!registration) return;
+    // Force an immediate check for a new SW, then recheck every 60 s
+    registration.update();
+    setInterval(() => registration.update(), 60_000);
+    // Also recheck when the user switches back to this tab
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") registration.update();
+    });
+  },
 });
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
