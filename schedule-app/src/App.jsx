@@ -50,25 +50,12 @@ function weatherIcon(code) {
   return CloudLightning;
 }
 
-const APP_VERSION_KEY = "pgp2.app-version";
-
-// Fetches /sw.js with a cache-busting query param (bypasses SW cache) and
-// compares its hash to the stored value. If it changed, a new deploy happened.
-// Only stores the hash on first visit — never on detection, so multiple rapid
-// deploys while the user is away still produce exactly one banner.
 async function checkAppVersion(onUpdateAvailable) {
   try {
-    const resp = await fetch(`/sw.js?_=${Date.now()}`, { cache: "no-store" });
+    const resp = await fetch(`/meta.json?_=${Date.now()}`, { cache: "no-store" });
     if (!resp.ok) return;
-    const text = await resp.text();
-    const hash = await sha256hex(text);
-    const stored = localStorage.getItem(APP_VERSION_KEY);
-    if (!stored) {
-      localStorage.setItem(APP_VERSION_KEY, hash); // first visit — seed the value
-      return;
-    }
-    if (stored !== hash) onUpdateAvailable();
-    // Don't update stored here — only update it when the user actually refreshes
+    const data = await resp.json();
+    if (data.version !== __APP_VERSION__) onUpdateAvailable();
   } catch {}
 }
 
@@ -539,7 +526,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         const names = await caches.keys();
         await Promise.all(names.map(n => caches.delete(n)));
       } catch {}
-      localStorage.removeItem(APP_VERSION_KEY);
       window.location.reload();
     };
   });

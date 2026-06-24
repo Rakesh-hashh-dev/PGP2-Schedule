@@ -1,10 +1,26 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import { writeFileSync } from 'node:fs'
+
+const BUILD_VERSION = Date.now();
+
+function generateMeta() {
+  return {
+    name: 'generate-meta',
+    writeBundle() {
+      writeFileSync('dist/meta.json', JSON.stringify({ version: BUILD_VERSION }));
+    },
+  };
+}
 
 export default defineConfig({
+  define: {
+    __APP_VERSION__: BUILD_VERSION,
+  },
   plugins: [
     react(),
+    generateMeta(),
     VitePWA({
       registerType: 'prompt',
       devOptions: { enabled: true },
