@@ -33,7 +33,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
     return classOnly
       .filter(c => {
         const sec = enrolled[c.code];
-        return sec !== undefined && c.section === sec;
+        return sec !== undefined && (c.section === sec || c.section === "Single");
       })
       .sort((a, b) => a.date.localeCompare(b.date) || toMin(a.start) - toMin(b.start));
   }, [allClasses, enrolled, showAllClasses]);

@@ -727,19 +727,31 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               </button>
 
               <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                <input type="time" id="live-start-input" className="admin-input" style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)" }} defaultValue={flags.classOverrides?.[liveEditorModal.date]?.[liveEditorModal.code]?.start || liveEditorModal.start} />
+                <span style={{ display: "flex", alignItems: "center", color: "var(--muted)" }}>-</span>
+                <input type="time" id="live-end-input" className="admin-input" style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)" }} defaultValue={flags.classOverrides?.[liveEditorModal.date]?.[liveEditorModal.code]?.end || liveEditorModal.end} />
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                 <input type="text" id="live-room-input" placeholder="New Room" className="admin-input" style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)" }} defaultValue={flags.classOverrides?.[liveEditorModal.date]?.[liveEditorModal.code]?.room || liveEditorModal.room} />
                 <button onClick={() => {
                   const newRoom = document.getElementById('live-room-input').value;
-                  if (!newRoom) return;
+                  const newStart = document.getElementById('live-start-input').value;
+                  const newEnd = document.getElementById('live-end-input').value;
                   const nextOverrides = { ...(flags.classOverrides || {}) };
                   if (!nextOverrides[liveEditorModal.date]) nextOverrides[liveEditorModal.date] = {};
                   const existing = nextOverrides[liveEditorModal.date][liveEditorModal.code] || {};
-                  nextOverrides[liveEditorModal.date][liveEditorModal.code] = { ...existing, room: newRoom };
+                  
+                  const changes = { ...existing };
+                  if (newRoom) changes.room = newRoom;
+                  if (newStart) changes.start = newStart;
+                  if (newEnd) changes.end = newEnd;
+
+                  nextOverrides[liveEditorModal.date][liveEditorModal.code] = changes;
                   setFlags({...flags, classOverrides: nextOverrides});
-                  logAdminAction(admin_id, "change_room", { date: liveEditorModal.date, class: liveEditorModal.code, room: newRoom });
+                  logAdminAction(admin_id, "edit_class", { date: liveEditorModal.date, class: liveEditorModal.code, room: newRoom, start: newStart, end: newEnd });
                   setLiveEditorModal(null);
                 }} className="admin-btn primary">
-                  Save Room
+                  Save Changes
                 </button>
               </div>
               
