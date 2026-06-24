@@ -977,11 +977,10 @@ button:focus-visible {
 }
 
 .att-weather-slider {
-  position: relative; display: flex; align-items: center; overflow: hidden;
-  height: 16px; min-width: 115px;
+  display: grid; grid-template-rows: 16px; overflow: hidden;
 }
 .att-weather-wx, .att-weather-time {
-  position: absolute; left: 0; display: flex; align-items: center; gap: 6px;
+  grid-area: 1 / 1; display: flex; align-items: center; gap: 6px;
   font-family: var(--body); font-size: 12.5px; font-weight: 600; color: var(--text);
   transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
   white-space: nowrap;
