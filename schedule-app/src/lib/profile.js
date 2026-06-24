@@ -16,11 +16,12 @@ export async function syncProfileFromCloud(userId) {
   const { data, error } = await supabase.from("profiles").select("courses").maybeSingle();
   if (error) return local;
   if (data && data.courses && Object.keys(data.courses).length) {
-    const cleanCourses = { ...data.courses };
-    const remoteSeen = cleanCourses._lastSeenNotif;
-    delete cleanCourses._name;
-    delete cleanCourses._lastSeenNotif;
-    const s = { courses: cleanCourses, lastSeenNotif: remoteSeen };
+    const raw = data.courses;
+    const remoteSeen = raw._lastSeenNotif;
+    const readPingIds = raw._readPingIds || [];
+    const seenGroupIds = raw._seenGroupIds || [];
+    const cleanCourses = Object.fromEntries(Object.entries(raw).filter(([k]) => !k.startsWith('_')));
+    const s = { courses: cleanCourses, lastSeenNotif: remoteSeen, readPingIds, seenGroupIds };
     writeLocal({ courses: cleanCourses });
     return s;
   }
@@ -41,13 +42,22 @@ export async function pushProfile(userId, courses, userName, optionalLastSeenNot
   
   const dbCourses = { ...courses };
   if (userName) dbCourses._name = userName;
-  
+
   let lastSeenNotif = optionalLastSeenNotif;
   if (lastSeenNotif === undefined) {
     try { lastSeenNotif = parseInt(localStorage.getItem("pgp2-notif-seen") || "0", 10); } catch { }
   }
   if (lastSeenNotif) dbCourses._lastSeenNotif = lastSeenNotif;
-  
+
+  try {
+    const rp = JSON.parse(localStorage.getItem("pgp2.read-ping-ids") || "[]");
+    if (rp.length) dbCourses._readPingIds = rp;
+  } catch {}
+  try {
+    const sg = JSON.parse(localStorage.getItem("pgp2.seen-recv-groups") || "[]");
+    if (sg.length) dbCourses._seenGroupIds = sg;
+  } catch {}
+
   try {
     await supabase.from("profiles").upsert(
       { user_id: userId, courses: dbCourses, updated_at: new Date().toISOString() },
@@ -55,4 +65,24 @@ export async function pushProfile(userId, courses, userName, optionalLastSeenNot
     );
   } catch (e) { /* cached; re-syncs next load */ }
   return s;
+}
+
+export async function pushReadState(userId, readPingIds, seenGroupIds) {
+  if (!userId) return;
+  try {
+    const { data } = await supabase.from("profiles").select("courses").eq("user_id", userId).maybeSingle();
+    const current = data?.courses || {};
+    await supabase.from("profiles").upsert(
+      {
+        user_id: userId,
+        courses: {
+          ...current,
+          _readPingIds: [...readPingIds],
+          _seenGroupIds: [...seenGroupIds],
+        },
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id" }
+    );
+  } catch {}
 }

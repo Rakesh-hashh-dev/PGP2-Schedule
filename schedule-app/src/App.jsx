@@ -24,7 +24,7 @@ const FullSchedulePage = lazy(() => import("./components/FullSchedulePage.jsx"))
 const AdminDashboard = lazy(() => import("./components/AdminDashboard.jsx"));
 const CommandPalette = lazy(() => import("./components/CommandPalette.jsx"));
 import { loadAttendance, saveAttendance, sessionKey, syncAttendanceFromCloud, pushMark } from "./lib/attendance.js";
-import { syncProfileFromCloud, pushProfile } from "./lib/profile.js";
+import { syncProfileFromCloud, pushProfile, pushReadState } from "./lib/profile.js";
 import { decodeSchedule, saveFriend, loadFriends, loadGroups, friendVisibleClasses, syncFriendsAndGroupsFromCloud, fetchFriendPings, clearFriendPings, pushFriendsToCloud, deleteAllFriendPings, removeFriendByCloudId, deleteFriendPing } from "./lib/friends.js";
 import { supabase } from "./lib/supabase.js";
 
@@ -329,6 +329,20 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 try { localStorage.setItem(NOTIF_KEY, String(p.lastSeenNotif)); } catch { }
              }
           }
+          if (p.readPingIds?.length) {
+            setReadPingIds(prev => {
+              const merged = new Set([...prev, ...p.readPingIds]);
+              try { localStorage.setItem(READ_PINGS_KEY, JSON.stringify([...merged])); } catch {}
+              return merged;
+            });
+          }
+          if (p.seenGroupIds?.length) {
+            setSeenRecvGroupIds(prev => {
+              const merged = new Set([...prev, ...p.seenGroupIds]);
+              try { localStorage.setItem("pgp2.seen-recv-groups", JSON.stringify([...merged])); } catch {}
+              return merged;
+            });
+          }
         }
         setAttendance(a);
         if (fg) {
@@ -442,6 +456,22 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         if (Array.isArray(payload.new.friends)) {
           setFriends(payload.new.friends);
           try { localStorage.setItem("pgp2.friends", JSON.stringify(payload.new.friends)); } catch {}
+        }
+        const remotePingIds = payload.new.courses?._readPingIds;
+        const remoteGroupIds = payload.new.courses?._seenGroupIds;
+        if (Array.isArray(remotePingIds) && remotePingIds.length) {
+          setReadPingIds(prev => {
+            const merged = new Set([...prev, ...remotePingIds]);
+            try { localStorage.setItem(READ_PINGS_KEY, JSON.stringify([...merged])); } catch {}
+            return merged;
+          });
+        }
+        if (Array.isArray(remoteGroupIds) && remoteGroupIds.length) {
+          setSeenRecvGroupIds(prev => {
+            const merged = new Set([...prev, ...remoteGroupIds]);
+            try { localStorage.setItem("pgp2.seen-recv-groups", JSON.stringify([...merged])); } catch {}
+            return merged;
+          });
         }
       })
       .subscribe();
@@ -805,19 +835,17 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     if (pingId.startsWith("grp-")) {
       const groupId = pingId.slice(4);
       if (seenRecvGroupIds.has(groupId)) return;
-      setSeenRecvGroupIds(prev => {
-        const next = new Set([...prev, groupId]);
-        try { localStorage.setItem("pgp2.seen-recv-groups", JSON.stringify([...next])); } catch {}
-        return next;
-      });
+      const nextGroupIds = new Set([...seenRecvGroupIds, groupId]);
+      setSeenRecvGroupIds(nextGroupIds);
+      try { localStorage.setItem("pgp2.seen-recv-groups", JSON.stringify([...nextGroupIds])); } catch {}
+      pushReadState(userId, readPingIds, nextGroupIds);
       return;
     }
     if (readPingIds.has(pingId)) return;
-    setReadPingIds(prev => {
-      const next = new Set([...prev, pingId]);
-      try { localStorage.setItem(READ_PINGS_KEY, JSON.stringify([...next])); } catch {}
-      return next;
-    });
+    const nextPingIds = new Set([...readPingIds, pingId]);
+    setReadPingIds(nextPingIds);
+    try { localStorage.setItem(READ_PINGS_KEY, JSON.stringify([...nextPingIds])); } catch {}
+    pushReadState(userId, nextPingIds, seenRecvGroupIds);
   }
 
   function markChangeRead(c) {
@@ -842,6 +870,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     const newIds = new Set([...seenRecvGroupIds, ...newRecvGroups.map(g => g.id)]);
     setSeenRecvGroupIds(newIds);
     try { localStorage.setItem("pgp2.seen-recv-groups", JSON.stringify([...newIds])); } catch {}
+
+    pushReadState(userId, nextPings, newIds);
   }
 
   function handleOpenNotif() {

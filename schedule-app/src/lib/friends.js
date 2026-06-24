@@ -167,9 +167,7 @@ export async function decodeSchedule(code) {
     if (profileErr || !profileData) return null;
     
     const fullName = profileData.courses?._name || namePart;
-    const cleanCourses = { ...profileData.courses };
-    delete cleanCourses._name;
-    delete cleanCourses._lastSeenNotif;
+    const cleanCourses = Object.fromEntries(Object.entries(profileData.courses).filter(([k]) => !k.startsWith('_')));
 
     return { id: userId, name: fullName, courses: cleanCourses };
   } catch (e) {
@@ -681,10 +679,9 @@ export async function refreshFriendCoursesFromCloud(friends) {
   let changed = false;
   const updated = friends.map(f => {
     if (!f.cloudId || !profileMap[f.cloudId]) return f;
-    const raw = { ...profileMap[f.cloudId] };
-    const freshName = raw._name || f.name;
-    delete raw._name;
-    delete raw._lastSeenNotif;
+    const rawProfile = profileMap[f.cloudId];
+    const freshName = rawProfile._name || f.name;
+    const raw = Object.fromEntries(Object.entries(rawProfile).filter(([k]) => !k.startsWith('_')));
 
     const coursesChanged =
       JSON.stringify(raw) !== JSON.stringify(f.courses) || freshName !== f.name;
