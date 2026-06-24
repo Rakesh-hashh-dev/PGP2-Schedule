@@ -25,6 +25,10 @@ function normalizeSingleSection(c) {
   if (SINGLE_SECTION_B.has(c.code) && c.section === "B") {
     return { ...c, section: "Single" };
   }
+  // Guest sessions span all sections in the sheet — show them to everyone enrolled in the course
+  if (c.session && c.session.toLowerCase().includes("guest")) {
+    return { ...c, section: "Single" };
+  }
   return c;
 }
 
