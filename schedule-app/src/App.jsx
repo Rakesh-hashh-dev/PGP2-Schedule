@@ -90,6 +90,8 @@ const READ_PINGS_KEY = "pgp2.read-ping-ids";
 function loadReadPingIds() { try { return new Set(JSON.parse(localStorage.getItem(READ_PINGS_KEY) || "[]")); } catch { return new Set(); } }
 const READ_CHANGES_KEY = "pgp2.read-change-keys";
 function loadReadChangeKeys() { try { return new Set(JSON.parse(localStorage.getItem(READ_CHANGES_KEY) || "[]")); } catch { return new Set(); } }
+const CLEARED_GROUPS_KEY = "pgp2.cleared-groups";
+function loadClearedGroups() { try { return new Set(JSON.parse(localStorage.getItem(CLEARED_GROUPS_KEY) || "[]")); } catch { return new Set(); } }
 const ADMIN_EMAILS = [
   "mba25rakeshb@iimsambalpur.ac.in",
   "test@iimsambalpur.ac.in"
@@ -124,6 +126,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       setReadChangeKeys(new Set());
       setAttendance({});
       setCloudChecked(false);
+      setClearedGroupIds(new Set());
     }
     try { localStorage.setItem(LAST_USER_KEY, userId); } catch {}
   }, [userId]);
@@ -204,6 +207,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [weather, setWeather] = useState(null);
   const [cloudChecked, setCloudChecked] = useState(false);
+  const [clearedGroupIds, setClearedGroupIds] = useState(() => loadClearedGroups());
   const [friends, setFriends] = useState(() => loadFriends());
   const [groups, setGroups] = useState(() => loadGroups());
   const [compareTarget, setCompareTarget] = useState(null); // { mode, friendData?, groupData? }
@@ -817,7 +821,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         const pingId = p.id || p.from_id;
         return { id: `ping-${pingId}`, pingId, text, ts: p.created_at, kind, name, meta, fromId: p.from_id, isRead: readPingIds.has(pingId) };
       }),
-    ...allRecvGroups.map(g => ({ id: `grp-${g.id}`, pingId: `grp-${g.id}`, text: `${g.ownerName} shared "${g.name}" with you`, ts: g.createdAt, kind: "group", name: g.ownerName, isRead: seenRecvGroupIds.has(g.id) })),
+    ...allRecvGroups
+      .filter(g => !clearedGroupIds.has(g.id))
+      .map(g => ({ id: `grp-${g.id}`, pingId: `grp-${g.id}`, text: `${g.ownerName} shared "${g.name}" with you`, ts: g.createdAt, kind: "group", name: g.ownerName, isRead: seenRecvGroupIds.has(g.id) })),
   ];
   const unreadFriendCount = friendNotifItems.filter(item => !item.isRead).length;
   const unreadChangeCount = filteredChanges.filter(c => !readChangeKeys.has(changeKey(c))).length;
@@ -1474,6 +1480,11 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                         setReadPingIds(new Set());
                         try { localStorage.removeItem(READ_PINGS_KEY); } catch {}
                         markGroupsSeen();
+                        setClearedGroupIds(prev => {
+                          const next = new Set([...prev, ...allRecvGroups.map(g => g.id)]);
+                          try { localStorage.setItem(CLEARED_GROUPS_KEY, JSON.stringify([...next])); } catch {}
+                          return next;
+                        });
                       }}
                     />
                     : view === "exams"
