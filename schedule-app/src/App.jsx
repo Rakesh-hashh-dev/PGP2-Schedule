@@ -56,7 +56,7 @@ async function checkAppVersion(onUpdateAvailable) {
     if (!resp.ok) return;
     const data = await resp.json();
     if (data.version !== __APP_VERSION__) onUpdateAvailable();
-  } catch {}
+  } catch { }
 }
 
 const LAST_USER_KEY = "pgp2.last-user-id";
@@ -69,9 +69,9 @@ const USER_SCOPED_KEYS = [
 function clearStaleUserData(newUserId) {
   const lastId = localStorage.getItem(LAST_USER_KEY);
   if (lastId && lastId !== newUserId) {
-    USER_SCOPED_KEYS.forEach(k => { try { localStorage.removeItem(k); } catch {} });
+    USER_SCOPED_KEYS.forEach(k => { try { localStorage.removeItem(k); } catch { } });
   }
-  try { localStorage.setItem(LAST_USER_KEY, newUserId); } catch {}
+  try { localStorage.setItem(LAST_USER_KEY, newUserId); } catch { }
 }
 
 const SETUP_KEY = "pgp2.setup";
@@ -112,7 +112,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     userSwitchHandled.current = true;
     const lastId = localStorage.getItem(LAST_USER_KEY);
     if (lastId && lastId !== userId) {
-      USER_SCOPED_KEYS.forEach(k => { try { localStorage.removeItem(k); } catch {} });
+      USER_SCOPED_KEYS.forEach(k => { try { localStorage.removeItem(k); } catch { } });
       setFriends([]);
       setGroups([]);
       setEnrolled(null);
@@ -128,7 +128,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       setCloudChecked(false);
       setClearedGroupIds(new Set());
     }
-    try { localStorage.setItem(LAST_USER_KEY, userId); } catch {}
+    try { localStorage.setItem(LAST_USER_KEY, userId); } catch { }
   }, [userId]);
   // ──────────────────────────────────────────────────────────────
   const showAdminUI = isAdmin && adminMode;
@@ -142,14 +142,14 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     // Save real state
     originalStateRef.current = { enrolled, mine, setup, attendance };
     setImpersonatedUser(targetUser);
-    
+
     // Apply mocked profile data
     if (targetUser.courses) {
-       setEnrolled(targetUser.courses);
-       setMine(new Set(Object.keys(targetUser.courses)));
-       setSetup({ courses: targetUser.courses });
+      setEnrolled(targetUser.courses);
+      setMine(new Set(Object.keys(targetUser.courses)));
+      setSetup({ courses: targetUser.courses });
     }
-    
+
     // Fetch and mock attendance
     const { data } = await supabase.from("attendance").select("record").eq("user_id", targetUser.user_id).maybeSingle();
     setAttendance(data?.record || {});
@@ -172,7 +172,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [timeOverride, setTimeOverride] = useState(null);
   const now = timeOverride ? new Date(timeOverride) : realNow;
   const [view, setView] = useState(() => { try { return localStorage.getItem(VIEW_KEY) || "today"; } catch { return "today"; } });
-  useEffect(() => { try { localStorage.setItem(VIEW_KEY, view); } catch {} }, [view]);
+  useEffect(() => { try { localStorage.setItem(VIEW_KEY, view); } catch { } }, [view]);
   useEffect(() => {
     if (!showAdminUI) {
       if (view === "admin") setView("today");
@@ -266,7 +266,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       }
     }, 100);
     return () => clearTimeout(id);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabsReady]);
 
   const [cmdOpen, setCmdOpen] = useState(false);
@@ -324,26 +324,26 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           setEnrolled(p.courses);
           setMine(new Set(Object.keys(p.courses)));
           setSetup(p);
-          
+
           // Auto-sync notification read state from cloud
           if (p.lastSeenNotif) {
-             const localSeen = loadLastSeen();
-             if (p.lastSeenNotif > localSeen) {
-                setLastSeenTs(p.lastSeenNotif);
-                try { localStorage.setItem(NOTIF_KEY, String(p.lastSeenNotif)); } catch { }
-             }
+            const localSeen = loadLastSeen();
+            if (p.lastSeenNotif > localSeen) {
+              setLastSeenTs(p.lastSeenNotif);
+              try { localStorage.setItem(NOTIF_KEY, String(p.lastSeenNotif)); } catch { }
+            }
           }
           if (p.readPingIds?.length) {
             setReadPingIds(prev => {
               const merged = new Set([...prev, ...p.readPingIds]);
-              try { localStorage.setItem(READ_PINGS_KEY, JSON.stringify([...merged])); } catch {}
+              try { localStorage.setItem(READ_PINGS_KEY, JSON.stringify([...merged])); } catch { }
               return merged;
             });
           }
           if (p.seenGroupIds?.length) {
             setSeenRecvGroupIds(prev => {
               const merged = new Set([...prev, ...p.seenGroupIds]);
-              try { localStorage.setItem("pgp2.seen-recv-groups", JSON.stringify([...merged])); } catch {}
+              try { localStorage.setItem("pgp2.seen-recv-groups", JSON.stringify([...merged])); } catch { }
               return merged;
             });
           }
@@ -455,25 +455,25 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         if (!payload.new) return;
         if (Array.isArray(payload.new.groups)) {
           setGroups(payload.new.groups);
-          try { localStorage.setItem("pgp2.groups", JSON.stringify(payload.new.groups)); } catch {}
+          try { localStorage.setItem("pgp2.groups", JSON.stringify(payload.new.groups)); } catch { }
         }
         if (Array.isArray(payload.new.friends)) {
           setFriends(payload.new.friends);
-          try { localStorage.setItem("pgp2.friends", JSON.stringify(payload.new.friends)); } catch {}
+          try { localStorage.setItem("pgp2.friends", JSON.stringify(payload.new.friends)); } catch { }
         }
         const remotePingIds = payload.new.courses?._readPingIds;
         const remoteGroupIds = payload.new.courses?._seenGroupIds;
         if (Array.isArray(remotePingIds) && remotePingIds.length) {
           setReadPingIds(prev => {
             const merged = new Set([...prev, ...remotePingIds]);
-            try { localStorage.setItem(READ_PINGS_KEY, JSON.stringify([...merged])); } catch {}
+            try { localStorage.setItem(READ_PINGS_KEY, JSON.stringify([...merged])); } catch { }
             return merged;
           });
         }
         if (Array.isArray(remoteGroupIds) && remoteGroupIds.length) {
           setSeenRecvGroupIds(prev => {
             const merged = new Set([...prev, ...remoteGroupIds]);
-            try { localStorage.setItem("pgp2.seen-recv-groups", JSON.stringify([...merged])); } catch {}
+            try { localStorage.setItem("pgp2.seen-recv-groups", JSON.stringify([...merged])); } catch { }
             return merged;
           });
         }
@@ -526,7 +526,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               setFriends(result.friends);
             }
           }
-        } catch {}
+        } catch { }
         if (!isInternalSignal) {
           setPings(prev => {
             if (prev.some(p => p.id === payload.new.id)) return prev;
@@ -559,7 +559,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       try {
         const names = await caches.keys();
         await Promise.all(names.map(n => caches.delete(n)));
-      } catch {}
+      } catch { }
       window.location.reload();
     };
   });
@@ -567,7 +567,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   useEffect(() => {
     if (!isSignedIn) return;
     checkAppVersion(triggerHardRefresh);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSignedIn]);
 
   // Page visibility: re-fetch schedule when user returns to tab after 5+ minutes away,
@@ -587,7 +587,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     };
     document.addEventListener("visibilitychange", handleVisibility);
     return () => document.removeEventListener("visibilitychange", handleVisibility);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSignedIn, syncedAt, userId, refreshPings]);
 
   useEffect(() => {
@@ -597,7 +597,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     else if (hour >= 11 && hour < 17) timeTheme = "theme-afternoon";
     else if (hour >= 17 && hour < 20) timeTheme = "theme-evening";
     else timeTheme = "theme-night";
-    
+
     document.body.classList.remove("theme-morning", "theme-afternoon", "theme-evening", "theme-night");
     document.body.classList.add(timeTheme);
   }, [now]);
@@ -606,7 +606,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   useEffect(() => {
     const students = scheduleData?.STUDENTS;
     const email = user?.primaryEmailAddress?.emailAddress?.toLowerCase();
-    
+
     if (students && email && enrolled && setup && userId) {
       (async () => {
         const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(email));
@@ -693,23 +693,23 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             const codeParts = key.split('_');
             const code = codeParts[0];
             const section = codeParts[1] || "All";
-            
+
             const exists = data.CLASSES.some(c => c.date === date && c.code === code && (c.section === section || section === "All" || c.section === "Single"));
             if (!exists) {
-               newClasses.push({
-                 date: date,
-                 code: code,
-                 section: section,
-                 name: ovr.name || "Custom Added Class",
-                 room: ovr.room || "",
-                 start: ovr.start || "",
-                 end: ovr.end || "",
-                 type: ovr.type || "class"
-               });
+              newClasses.push({
+                date: date,
+                code: code,
+                section: section,
+                name: ovr.name || "Custom Added Class",
+                room: ovr.room || "",
+                start: ovr.start || "",
+                end: ovr.end || "",
+                type: ovr.type || "class"
+              });
             }
           });
         });
-        
+
         if (newClasses.length > 0) {
           data.CLASSES = [...data.CLASSES, ...newClasses];
         }
@@ -846,7 +846,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           else if (meta.type === "friend_request") { text = `${name} wants to be your friend`; kind = "friend_request"; }
           else if (meta.type === "friend_accepted") { text = `${name} accepted your friend request`; kind = "friend_accepted"; }
           else { text = `${name} added you as a friend`; }
-        } catch {}
+        } catch { }
         const pingId = p.id || p.from_id;
         return { id: `ping-${pingId}`, pingId, text, ts: p.created_at, kind, name, meta, fromId: p.from_id, isRead: readPingIds.has(pingId) };
       }),
@@ -862,7 +862,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
   function markGroupsSeen() {
     setSeenRecvCount(receivedGroupCount);
-    try { localStorage.setItem("pgp2.recv-groups-count", String(receivedGroupCount)); } catch {}
+    try { localStorage.setItem("pgp2.recv-groups-count", String(receivedGroupCount)); } catch { }
   }
 
   function markPingRead(pingId) {
@@ -872,14 +872,14 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       if (seenRecvGroupIds.has(groupId)) return;
       const nextGroupIds = new Set([...seenRecvGroupIds, groupId]);
       setSeenRecvGroupIds(nextGroupIds);
-      try { localStorage.setItem("pgp2.seen-recv-groups", JSON.stringify([...nextGroupIds])); } catch {}
+      try { localStorage.setItem("pgp2.seen-recv-groups", JSON.stringify([...nextGroupIds])); } catch { }
       pushReadState(userId, readPingIds, nextGroupIds);
       return;
     }
     if (readPingIds.has(pingId)) return;
     const nextPingIds = new Set([...readPingIds, pingId]);
     setReadPingIds(nextPingIds);
-    try { localStorage.setItem(READ_PINGS_KEY, JSON.stringify([...nextPingIds])); } catch {}
+    try { localStorage.setItem(READ_PINGS_KEY, JSON.stringify([...nextPingIds])); } catch { }
     pushReadState(userId, nextPingIds, seenRecvGroupIds);
   }
 
@@ -888,7 +888,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     if (readChangeKeys.has(key)) return;
     setReadChangeKeys(prev => {
       const next = new Set([...prev, key]);
-      try { localStorage.setItem(READ_CHANGES_KEY, JSON.stringify([...next])); } catch {}
+      try { localStorage.setItem(READ_CHANGES_KEY, JSON.stringify([...next])); } catch { }
       return next;
     });
   }
@@ -896,15 +896,15 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   function markAllRead() {
     const nextPings = new Set([...readPingIds, ...friendNotifItems.map(i => i.pingId).filter(Boolean)]);
     setReadPingIds(nextPings);
-    try { localStorage.setItem(READ_PINGS_KEY, JSON.stringify([...nextPings])); } catch {}
+    try { localStorage.setItem(READ_PINGS_KEY, JSON.stringify([...nextPings])); } catch { }
 
     const nextChanges = new Set([...readChangeKeys, ...filteredChanges.map(changeKey)]);
     setReadChangeKeys(nextChanges);
-    try { localStorage.setItem(READ_CHANGES_KEY, JSON.stringify([...nextChanges])); } catch {}
+    try { localStorage.setItem(READ_CHANGES_KEY, JSON.stringify([...nextChanges])); } catch { }
 
     const newIds = new Set([...seenRecvGroupIds, ...newRecvGroups.map(g => g.id)]);
     setSeenRecvGroupIds(newIds);
-    try { localStorage.setItem("pgp2.seen-recv-groups", JSON.stringify([...newIds])); } catch {}
+    try { localStorage.setItem("pgp2.seen-recv-groups", JSON.stringify([...newIds])); } catch { }
 
     pushReadState(userId, nextPings, newIds);
   }
@@ -913,7 +913,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     if (!notifOpen && filteredChanges.length > 0 && userId && enrolled) {
       const latest = Math.max(...filteredChanges.map(c => new Date(c.ts).getTime()));
       setLastSeenTs(latest);
-      try { localStorage.setItem(NOTIF_KEY, String(latest)); } catch {}
+      try { localStorage.setItem(NOTIF_KEY, String(latest)); } catch { }
       pushProfile(userId, enrolled, user?.firstName || user?.username || "Student", latest);
     }
     if (!notifOpen) notifOpenedAt.current = Date.now();
@@ -1032,7 +1032,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         const subjectCode = target.replace("subject_", "");
         if (setup?.courses?.[subjectCode]) matches = true;
       }
-      
+
       if (matches) activeGlobalAnnouncement = message;
     }
   }
@@ -1041,16 +1041,27 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     <div className="app-shell">
       {/* ── SW Update Modal ── */}
       {swUpdateFn && (
-        <div className="sw-update-overlay">
+        <div className="sw-update-overlay" role="dialog" aria-modal="true" aria-labelledby="sw-update-title">
           <div className="sw-update-modal">
+            <div className="sw-update-glow" />
             <div className="sw-update-icon-wrap">
-              <RefreshCw size={24} color="#6D5BD0" strokeWidth={2.5} />
+              <div className="sw-update-ring" />
+              <RefreshCw size={22} color="#fff" strokeWidth={2.5} className="sw-update-spin-icon" />
             </div>
-            <h3 className="sw-update-title">Update Available</h3>
-            <p className="sw-update-desc">A new version of TermFlow is ready. Refresh to get the latest features and fixes.</p>
+            <div className="sw-update-badge">New Update</div>
+            <h3 className="sw-update-title" id="sw-update-title">TermFlow just got better</h3>
+            <p className="sw-update-desc">A fresh version is cached and ready to go. Refresh now for the latest features and bug fixes.</p>
+            <ul className="sw-update-highlights">
+              <li><span className="sw-update-check">✦</span> Faster load times</li>
+              <li><span className="sw-update-check">✦</span> New features & improvements</li>
+              <li><span className="sw-update-check">✦</span> Bug fixes & stability</li>
+            </ul>
             <div className="sw-update-actions">
-              <button className="sw-update-refresh" onClick={() => swUpdateFn(true)}>Refresh Now</button>
-              <button className="sw-update-later" onClick={() => setSwUpdateFn(null)}>Later</button>
+              <button className="sw-update-refresh" onClick={() => swUpdateFn(true)}>
+                <RefreshCw size={15} strokeWidth={2.5} />
+                Refresh Now
+              </button>
+              <button className="sw-update-later" onClick={() => setSwUpdateFn(null)}>Maybe Later</button>
             </div>
           </div>
         </div>
@@ -1078,96 +1089,96 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         </div>
 
         <div className="sb-scroll-body">
-        <nav className="sb-nav">
-          <button className="sb-link" onMouseEnter={e => showSbTip(e, "Search")} onMouseLeave={hideSbTip} onClick={() => { setCmdOpen(true); hideSbTip(); }}>
-            <Search size={18} /><span className="sb-link-label">Search</span>
-          </button>
-          <button className={`sb-link${view === "today" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Today")} onMouseLeave={hideSbTip} onClick={() => { setView("today"); setCompareTarget(null); hideSbTip(); }}>
-            <Clock size={18} /><span className="sb-link-label">Today</span>
-          </button>
-          <button className={`sb-link${view === "tomorrow" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Tomorrow")} onMouseLeave={hideSbTip} onClick={() => { setView("tomorrow"); setCompareTarget(null); hideSbTip(); }}>
-            <Sunrise size={18} /><span className="sb-link-label">Tomorrow</span>
-          </button>
-          {enableAttendance && (
-            <button className={`sb-link${view === "attendance" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Attendance")} onMouseLeave={hideSbTip} onClick={() => { setView("attendance"); setCompareTarget(null); hideSbTip(); }}>
-              <ClipboardList size={18} /><span className="sb-link-label">Attendance</span>
+          <nav className="sb-nav">
+            <button className="sb-link" onMouseEnter={e => showSbTip(e, "Search")} onMouseLeave={hideSbTip} onClick={() => { setCmdOpen(true); hideSbTip(); }}>
+              <Search size={18} /><span className="sb-link-label">Search</span>
             </button>
-          )}
-          {enableExams && (
-            <button className={`sb-link${view === "exams" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Exams")} onMouseLeave={hideSbTip} onClick={() => { setView("exams"); setCompareTarget(null); hideSbTip(); }}>
-              <GraduationCap size={18} /><span className="sb-link-label">Exams</span>
+            <button className={`sb-link${view === "today" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Today")} onMouseLeave={hideSbTip} onClick={() => { setView("today"); setCompareTarget(null); hideSbTip(); }}>
+              <Clock size={18} /><span className="sb-link-label">Today</span>
             </button>
-          )}
-          <button className={`sb-link${view === "notifications" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Announcements")} onMouseLeave={hideSbTip} onClick={() => { setView("notifications"); setCompareTarget(null); hideSbTip(); }}>
-            <Megaphone size={18} /><span className="sb-link-label">Announcements</span>
-          </button>
-          {enableFriends && (
-            <button className={`sb-link${view === "friends" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Friends")} onMouseLeave={hideSbTip} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); hideSbTip(); }}>
-              <Users size={18} /><span className="sb-link-label">Friends</span> <span className="beta-badge">Beta</span>
-              {unreadFriendCount > 0 && <span className="nav-badge">{unreadFriendCount}</span>}
+            <button className={`sb-link${view === "tomorrow" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Tomorrow")} onMouseLeave={hideSbTip} onClick={() => { setView("tomorrow"); setCompareTarget(null); hideSbTip(); }}>
+              <Sunrise size={18} /><span className="sb-link-label">Tomorrow</span>
             </button>
-          )}
-          {showAdminUI && (
-            <button className={`sb-link${view === "admin" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Admin Tools")} onMouseLeave={hideSbTip} onClick={() => { setView("admin"); setCompareTarget(null); hideSbTip(); }}>
-              <Shield size={18} /><span className="sb-link-label" style={{ color: "var(--live)" }}>Admin Tools</span>
-            </button>
-          )}
-        </nav>
-
-        <div className="sb-bottom">
-          <div className="sb-sep-line" />
-          <div className="sb-util-strip">
-            <button className="sb-util-btn" onMouseEnter={e => showSbTip(e, "Edit setup", true)} onMouseLeave={hideSbTip} onClick={() => { setShowSetupEdit(true); hideSbTip(); }} aria-label="Edit setup">
-              <Settings2 size={16} />
-            </button>
-            <button className="sb-util-btn" onMouseEnter={e => showSbTip(e, syncing ? "Syncing…" : "Refresh", true)} onMouseLeave={hideSbTip} onClick={handleSync} aria-label="Refresh">
-              <RefreshCw size={16} className={syncing ? "spin-icon" : ""} />
-            </button>
-            <button className="sb-util-btn sb-util-danger" onMouseEnter={e => showSbTip(e, "Log out", true)} onMouseLeave={hideSbTip} onClick={() => signOut()} aria-label="Log out">
-              <LogOut size={16} />
-            </button>
-            {isAdmin && (
-              <button
-                className={`sb-util-btn${adminMode ? " sb-util-admin-on" : ""}`}
-                onMouseEnter={e => showSbTip(e, adminMode ? "Exit Admin" : "Admin Mode", true)}
-                onMouseLeave={hideSbTip}
-                onClick={() => setAdminMode(!adminMode)}
-                aria-label={adminMode ? "Exit Admin" : "Admin Mode"}
-              >
-                {adminMode ? <Shield size={16} /> : <User size={16} />}
+            {enableAttendance && (
+              <button className={`sb-link${view === "attendance" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Attendance")} onMouseLeave={hideSbTip} onClick={() => { setView("attendance"); setCompareTarget(null); hideSbTip(); }}>
+                <ClipboardList size={18} /><span className="sb-link-label">Attendance</span>
               </button>
             )}
-            <button className="sb-util-btn sb-util-collapse" onMouseEnter={e => showSbTip(e, sidebarCollapsed ? "Expand" : "Collapse", true)} onMouseLeave={hideSbTip} onClick={toggleSidebar} aria-label="Toggle sidebar">
-              {sidebarCollapsed ? <ChevronsRight size={15} /> : <ChevronsLeft size={15} />}
+            {enableExams && (
+              <button className={`sb-link${view === "exams" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Exams")} onMouseLeave={hideSbTip} onClick={() => { setView("exams"); setCompareTarget(null); hideSbTip(); }}>
+                <GraduationCap size={18} /><span className="sb-link-label">Exams</span>
+              </button>
+            )}
+            <button className={`sb-link${view === "notifications" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Announcements")} onMouseLeave={hideSbTip} onClick={() => { setView("notifications"); setCompareTarget(null); hideSbTip(); }}>
+              <Megaphone size={18} /><span className="sb-link-label">Announcements</span>
             </button>
-          </div>
-          <div className="sb-avatar-wrap" onMouseEnter={hideSbTip}>
-            <button className="sb-avatar-btn">
-              <div className="sb-avatar-img">
-                {user?.imageUrl ? <img src={user.imageUrl} alt="" /> : (user?.firstName?.[0] || "?")}
-              </div>
-              <div className="sb-avatar-info">
-                <span className="sb-avatar-name">
-                  {user?.firstName || user?.fullName || "Student"}
-                  {showAdminUI && <span className="admin-badge">Admin</span>}
-                </span>
-                <span className="sb-avatar-batch">PGP2 · 2025–27</span>
-              </div>
-            </button>
-            <div className="sb-profile-pop">
-              <div className="sb-pop-name">
-                {user?.fullName || "Student"}
-                {showAdminUI && <span className="admin-badge">Admin</span>}
-              </div>
-              <div className="sb-pop-email">{user?.primaryEmailAddress?.emailAddress || ""}</div>
-              <span className="sb-pop-batch">PGP2 · 2025–27</span>
-              <div className="sb-pop-sep" />
-              <button className="sb-pop-signout" onClick={() => signOut()}>
-                <LogOut size={14} /> Sign out
+            {enableFriends && (
+              <button className={`sb-link${view === "friends" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Friends")} onMouseLeave={hideSbTip} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); hideSbTip(); }}>
+                <Users size={18} /><span className="sb-link-label">Friends</span> <span className="beta-badge">Beta</span>
+                {unreadFriendCount > 0 && <span className="nav-badge">{unreadFriendCount}</span>}
+              </button>
+            )}
+            {showAdminUI && (
+              <button className={`sb-link${view === "admin" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Admin Tools")} onMouseLeave={hideSbTip} onClick={() => { setView("admin"); setCompareTarget(null); hideSbTip(); }}>
+                <Shield size={18} /><span className="sb-link-label" style={{ color: "var(--live)" }}>Admin Tools</span>
+              </button>
+            )}
+          </nav>
+
+          <div className="sb-bottom">
+            <div className="sb-sep-line" />
+            <div className="sb-util-strip">
+              <button className="sb-util-btn" onMouseEnter={e => showSbTip(e, "Edit setup", true)} onMouseLeave={hideSbTip} onClick={() => { setShowSetupEdit(true); hideSbTip(); }} aria-label="Edit setup">
+                <Settings2 size={16} />
+              </button>
+              <button className="sb-util-btn" onMouseEnter={e => showSbTip(e, syncing ? "Syncing…" : "Refresh", true)} onMouseLeave={hideSbTip} onClick={handleSync} aria-label="Refresh">
+                <RefreshCw size={16} className={syncing ? "spin-icon" : ""} />
+              </button>
+              <button className="sb-util-btn sb-util-danger" onMouseEnter={e => showSbTip(e, "Log out", true)} onMouseLeave={hideSbTip} onClick={() => signOut()} aria-label="Log out">
+                <LogOut size={16} />
+              </button>
+              {isAdmin && (
+                <button
+                  className={`sb-util-btn${adminMode ? " sb-util-admin-on" : ""}`}
+                  onMouseEnter={e => showSbTip(e, adminMode ? "Exit Admin" : "Admin Mode", true)}
+                  onMouseLeave={hideSbTip}
+                  onClick={() => setAdminMode(!adminMode)}
+                  aria-label={adminMode ? "Exit Admin" : "Admin Mode"}
+                >
+                  {adminMode ? <Shield size={16} /> : <User size={16} />}
+                </button>
+              )}
+              <button className="sb-util-btn sb-util-collapse" onMouseEnter={e => showSbTip(e, sidebarCollapsed ? "Expand" : "Collapse", true)} onMouseLeave={hideSbTip} onClick={toggleSidebar} aria-label="Toggle sidebar">
+                {sidebarCollapsed ? <ChevronsRight size={15} /> : <ChevronsLeft size={15} />}
               </button>
             </div>
+            <div className="sb-avatar-wrap" onMouseEnter={hideSbTip}>
+              <button className="sb-avatar-btn">
+                <div className="sb-avatar-img">
+                  {user?.imageUrl ? <img src={user.imageUrl} alt="" /> : (user?.firstName?.[0] || "?")}
+                </div>
+                <div className="sb-avatar-info">
+                  <span className="sb-avatar-name">
+                    {user?.firstName || user?.fullName || "Student"}
+                    {showAdminUI && <span className="admin-badge">Admin</span>}
+                  </span>
+                  <span className="sb-avatar-batch">PGP2 · 2025–27</span>
+                </div>
+              </button>
+              <div className="sb-profile-pop">
+                <div className="sb-pop-name">
+                  {user?.fullName || "Student"}
+                  {showAdminUI && <span className="admin-badge">Admin</span>}
+                </div>
+                <div className="sb-pop-email">{user?.primaryEmailAddress?.emailAddress || ""}</div>
+                <span className="sb-pop-batch">PGP2 · 2025–27</span>
+                <div className="sb-pop-sep" />
+                <button className="sb-pop-signout" onClick={() => signOut()}>
+                  <LogOut size={14} /> Sign out
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
         </div>
       </aside>
 
@@ -1507,11 +1518,11 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                         deleteAllFriendPings(userId);
                         setPings([]);
                         setReadPingIds(new Set());
-                        try { localStorage.removeItem(READ_PINGS_KEY); } catch {}
+                        try { localStorage.removeItem(READ_PINGS_KEY); } catch { }
                         markGroupsSeen();
                         setClearedGroupIds(prev => {
                           const next = new Set([...prev, ...allRecvGroups.map(g => g.id)]);
-                          try { localStorage.setItem(CLEARED_GROUPS_KEY, JSON.stringify([...next])); } catch {}
+                          try { localStorage.setItem(CLEARED_GROUPS_KEY, JSON.stringify([...next])); } catch { }
                           return next;
                         });
                       }}
@@ -1543,20 +1554,20 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                           : view === "admin" && isAdmin
                             ? <AdminDashboard user={user} startImpersonation={startImpersonation} syncLogs={syncLogs} timeOverride={timeOverride} setTimeOverride={setTimeOverride} />
                             : view === "fullSchedule"
-                            ? <FullSchedulePage allClasses={CLASSES} enrolled={enrolled} legend={enrolledLegend} termLabel={termLabel} onBack={() => setView("today")} />
-                            : todayList.length === 0 && tomorrowList.length === 0
-                            ? premiumMode && syncing 
-                              ? (
-                                <ul className="rail">
-                                  <li className="row premium-skeleton" style={{ height: "80px", marginBottom: "12px", border: "none" }} />
-                                  <li className="row premium-skeleton" style={{ height: "80px", marginBottom: "12px", border: "none", opacity: 0.7 }} />
-                                  <li className="row premium-skeleton" style={{ height: "80px", marginBottom: "12px", border: "none", opacity: 0.4 }} />
-                                </ul>
-                              )
-                              : <div className="cva-card soft"><div className="cva-content"><strong>No classes!</strong><div className="cva-sub">Enjoy your free time.</div></div></div>
-                            : view === "tomorrow"
-                              ? <Timeline list={tomorrowList} current={null} now={now} showNowLine={false} label="Tomorrow" dateLabel={prettyDate(tomorrowISO)} attendance={attendance} markAttendance={markAttendance} syncStatus={<span className="live"><span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} />
-                              : <Timeline list={todayList} current={current} now={now} dateLabel={prettyDate(todayISO)} attendance={attendance} markAttendance={markAttendance} syncStatus={<span className="live"><span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} />}
+                              ? <FullSchedulePage allClasses={CLASSES} enrolled={enrolled} legend={enrolledLegend} termLabel={termLabel} onBack={() => setView("today")} />
+                              : todayList.length === 0 && tomorrowList.length === 0
+                                ? premiumMode && syncing
+                                  ? (
+                                    <ul className="rail">
+                                      <li className="row premium-skeleton" style={{ height: "80px", marginBottom: "12px", border: "none" }} />
+                                      <li className="row premium-skeleton" style={{ height: "80px", marginBottom: "12px", border: "none", opacity: 0.7 }} />
+                                      <li className="row premium-skeleton" style={{ height: "80px", marginBottom: "12px", border: "none", opacity: 0.4 }} />
+                                    </ul>
+                                  )
+                                  : <div className="cva-card soft"><div className="cva-content"><strong>No classes!</strong><div className="cva-sub">Enjoy your free time.</div></div></div>
+                                : view === "tomorrow"
+                                  ? <Timeline list={tomorrowList} current={null} now={now} showNowLine={false} label="Tomorrow" dateLabel={prettyDate(tomorrowISO)} attendance={attendance} markAttendance={markAttendance} syncStatus={<span className="live"><span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} />
+                                  : <Timeline list={todayList} current={current} now={now} dateLabel={prettyDate(todayISO)} attendance={attendance} markAttendance={markAttendance} syncStatus={<span className="live"><span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} />}
               </Suspense>
             </div>
           </main>
@@ -1567,14 +1578,14 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
         <footer className="foot">
           <span className="foot-credit">Auto-syncs from the live timetable sheet every few minutes</span>
-          <span className="foot-credit">Built with <span className="foot-heart">♥</span> by <a href="https://www.linkedin.com/" target="_blank" rel="noopener noreferrer" className="foot-credit-name">Rakesh</a></span>
+          <span className="foot-credit">Built with <span className="foot-heart">♥</span> by <a href="https://www.linkedin.com/in/rakesh-kumar-behera-rk821604/" target="_blank" rel="noopener noreferrer" className="foot-credit-name">Rakesh</a></span>
         </footer>
 
         <Suspense fallback={null}>
-          <CommandPalette 
-            isOpen={cmdOpen} 
-            onClose={() => setCmdOpen(false)} 
-            onViewChange={(v) => setView(v)} 
+          <CommandPalette
+            isOpen={cmdOpen}
+            onClose={() => setCmdOpen(false)}
+            onViewChange={(v) => setView(v)}
             allClasses={CLASSES}
             friends={friends}
           />
