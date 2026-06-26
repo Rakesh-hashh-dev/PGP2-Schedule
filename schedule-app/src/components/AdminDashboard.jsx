@@ -79,10 +79,11 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     setLiveSchedule(getSnapshot().CLASSES || []);
   }, []);
 
-  useEffect(() => {
+  const fetchDashboardData = async () => {
+    setStatsLoading(true);
+    setLoadingUsers(true);
+
     async function fetchStatsAndUsers() {
-      setStatsLoading(true);
-      setLoadingUsers(true);
       try {
         const { data, count, error } = await supabase.from("profiles").select("user_id, courses", { count: "exact" });
         if (error) {
@@ -117,10 +118,41 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
         console.error("Fetch Error:", e);
         setTotalUsers("Error: " + e.message);
       }
-      setStatsLoading(false);
-      setLoadingUsers(false);
     }
-    fetchStatsAndUsers();
+
+    async function fetchDbSize() {
+      try {
+        const { data, error } = await supabase.rpc("get_db_size");
+        if (error) {
+          setDbSize("Error");
+        } else {
+          setDbSize(data || "N/A");
+        }
+      } catch (e) {
+        setDbSize("Error");
+      }
+    }
+
+    async function fetchFeedbackAndLogs() {
+      const { data: fb } = await supabase.from("feedback").select("*").order("created_at", { ascending: false }).limit(20);
+      if (fb) setFeedbackList(fb);
+
+      const { data: logs } = await supabase.from("admin_audit_logs").select("*").order("created_at", { ascending: false }).limit(20);
+      if (logs) setAuditLogs(logs);
+    }
+
+    await Promise.all([
+      fetchStatsAndUsers(),
+      fetchDbSize(),
+      fetchFeedbackAndLogs()
+    ]);
+    
+    setStatsLoading(false);
+    setLoadingUsers(false);
+  };
+
+  useEffect(() => {
+    fetchDashboardData();
 
     async function fetchConfig() {
       try {
@@ -137,30 +169,6 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       }
     }
     fetchConfig();
-
-    async function fetchDbSize() {
-      try {
-        const { data, error } = await supabase.rpc("get_db_size");
-        if (error) {
-          setDbSize("Error");
-        } else {
-          setDbSize(data || "N/A");
-        }
-      } catch (e) {
-        setDbSize("Error");
-      }
-    }
-    fetchDbSize();
-
-    async function fetchFeedbackAndLogs() {
-      const { data: fb } = await supabase.from("feedback").select("*").order("created_at", { ascending: false }).limit(20);
-      if (fb) setFeedbackList(fb);
-
-      const { data: logs } = await supabase.from("admin_audit_logs").select("*").order("created_at", { ascending: false }).limit(20);
-      if (logs) setAuditLogs(logs);
-      
-    }
-    fetchFeedbackAndLogs();
   }, []);
 
   async function saveConfig() {
@@ -251,6 +259,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
         <div style={{ display: "inline-flex", background: "rgba(109, 91, 208, 0.1)", color: "var(--live)", padding: "12px 24px", borderRadius: 30, alignItems: "center", gap: 12, marginBottom: 16 }}>
           <ShieldAlert size={28} />
           <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, letterSpacing: "-0.5px" }}>Admin Control Center</h1>
+          <button onClick={fetchDashboardData} disabled={statsLoading} style={{ background: "transparent", border: "none", color: "var(--live)", cursor: "pointer", padding: 4, display: "flex", alignItems: "center", justifyContent: "center", opacity: statsLoading ? 0.5 : 1 }} title="Refresh Data">
+            <RefreshCw size={20} className={statsLoading ? "spin-icon" : ""} />
+          </button>
         </div>
         <p style={{ color: "var(--muted)", margin: "0 0 32px 0", fontSize: 16 }}>Global settings, feature flags, and user management.</p>
         
