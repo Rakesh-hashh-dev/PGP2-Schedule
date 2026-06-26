@@ -41,6 +41,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [roomOverrideDate, setRoomOverrideDate] = useState("");
   const [roomOverrideClass, setRoomOverrideClass] = useState("");
   const [roomOverrideRoom, setRoomOverrideRoom] = useState("");
+  const [roomOverrideStart, setRoomOverrideStart] = useState("");
+  const [roomOverrideEnd, setRoomOverrideEnd] = useState("");
+  const [roomOverrideSection, setRoomOverrideSection] = useState("All");
   
   const [showAllLogs, setShowAllLogs] = useState(false);
   const displayedLogs = showAllLogs ? syncLogs : syncLogs.slice(0, 5);
@@ -221,18 +224,29 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   };
 
   const handleAddRoomOverride = () => {
-    if (!roomOverrideDate || !roomOverrideClass || !roomOverrideRoom) {
-      alert("Please fill in all fields (Date, Class Code, and New Classroom) before adding.");
+    if (!roomOverrideDate || !roomOverrideClass || (!roomOverrideRoom && !roomOverrideStart && !roomOverrideEnd)) {
+      alert("Please fill in Date, Class Code, and at least one change (Room, Start Time, or End Time).");
       return;
     }
     const nextOverrides = { ...(flags.classOverrides || {}) };
     if (!nextOverrides[roomOverrideDate]) nextOverrides[roomOverrideDate] = {};
-    const existing = nextOverrides[roomOverrideDate][roomOverrideClass] || {};
-    nextOverrides[roomOverrideDate][roomOverrideClass] = { ...existing, room: roomOverrideRoom };
+    
+    const overrideKey = roomOverrideSection === "All" ? roomOverrideClass : `${roomOverrideClass}_${roomOverrideSection}`;
+    const existing = nextOverrides[roomOverrideDate][overrideKey] || {};
+    
+    const changes = { ...existing };
+    if (roomOverrideRoom) changes.room = roomOverrideRoom;
+    if (roomOverrideStart) changes.start = roomOverrideStart;
+    if (roomOverrideEnd) changes.end = roomOverrideEnd;
+    
+    nextOverrides[roomOverrideDate][overrideKey] = changes;
     setFlags({...flags, classOverrides: nextOverrides});
-    logAdminAction(admin_id, "change_room", { date: roomOverrideDate, class: roomOverrideClass, room: roomOverrideRoom });
+    logAdminAction(admin_id, "edit_class_override", { date: roomOverrideDate, class: overrideKey, changes });
     setRoomOverrideClass("");
     setRoomOverrideRoom("");
+    setRoomOverrideStart("");
+    setRoomOverrideEnd("");
+    setRoomOverrideSection("All");
   };
 
   const markFeedbackResolved = async (id) => {
@@ -503,17 +517,39 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             </div>
           </section>
 
-          {/* Classroom Allotment Edit */}
+          {/* Class Editor */}
           <section className="admin-card" style={{ gridColumn: "1 / -1" }}>
-            <h2><CalendarDays size={20} color="var(--blue)" /> Classroom Allotment Edit</h2>
-            <p className="admin-subtext">Globally change the classroom for a specific class on a given date.</p>
+            <h2><CalendarDays size={20} color="var(--blue)" /> Class Editor</h2>
+            <p className="admin-subtext">Globally change the classroom or timings for a specific class on a given date.</p>
             <div style={{ display: "flex", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
                <input type="date" className="admin-input" value={roomOverrideDate} onChange={e => setRoomOverrideDate(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)" }} />
                <input type="text" placeholder="Class Code (e.g. BM)" className="admin-input" value={roomOverrideClass} onChange={e => setRoomOverrideClass(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)" }} />
+               
+               <select className="admin-input" value={roomOverrideSection} onChange={e => setRoomOverrideSection(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)" }}>
+                 <option value="All">All Sections</option>
+                 <option value="A">Section A</option>
+                 <option value="B">Section B</option>
+               </select>
+
+               <input type="time" title="Start Time" className="admin-input" value={roomOverrideStart} onChange={e => setRoomOverrideStart(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)" }} />
+               <input type="time" title="End Time" className="admin-input" value={roomOverrideEnd} onChange={e => setRoomOverrideEnd(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)" }} />
                <input type="text" placeholder="New Classroom" className="admin-input" value={roomOverrideRoom} onChange={e => setRoomOverrideRoom(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)" }} />
-               <button className="cva-btn primary" onClick={handleAddRoomOverride} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "var(--blue)", color: "#fff", cursor: "pointer", fontWeight: 600 }}>Change Room</button>
+               <button className="cva-btn primary" onClick={handleAddRoomOverride} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "var(--blue)", color: "#fff", cursor: "pointer", fontWeight: 600 }}>Save Change</button>
+               {roomOverrideDate && roomOverrideClass && flags.classOverrides?.[roomOverrideDate]?.[roomOverrideSection === "All" ? roomOverrideClass : `${roomOverrideClass}_${roomOverrideSection}`] && (
+                 <button className="cva-btn outline" onClick={() => {
+                    const overrideKey = roomOverrideSection === "All" ? roomOverrideClass : `${roomOverrideClass}_${roomOverrideSection}`;
+                    const next = {...flags.classOverrides};
+                    delete next[roomOverrideDate][overrideKey];
+                    if (Object.keys(next[roomOverrideDate]).length === 0) delete next[roomOverrideDate];
+                    setFlags({...flags, classOverrides: next});
+                    setRoomOverrideClass("");
+                    setRoomOverrideRoom("");
+                    setRoomOverrideStart("");
+                    setRoomOverrideEnd("");
+                    setRoomOverrideSection("All");
+                 }} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid var(--danger)", color: "var(--danger)", background: "transparent", cursor: "pointer", fontWeight: 600 }}>Remove Override</button>
+               )}
             </div>
-            
           </section>
 
           {/* Active Overrides List */}
@@ -526,19 +562,31 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     const override = classes[code];
                     const isCancelled = override.type === "cancelled";
                     const isRoomChanged = !!override.room;
+                    const isTimeChanged = !!override.start || !!override.end;
+                    const isModified = isRoomChanged || isTimeChanged;
+                    const codeParts = code.split('_');
+                    const displayCode = codeParts.length > 1 ? `${codeParts[0]} (Sec ${codeParts[1]})` : code;
+
                     return (
                       <div key={`${date}-${code}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(0,0,0,0.03)", padding: "12px 16px", borderRadius: 8, border: "1px solid var(--border)" }}>
                         <span style={{ fontWeight: 600, fontSize: 14 }}>
-                          {new Date(date).toLocaleDateString()} — {code} 
+                          {new Date(date).toLocaleDateString()} — {displayCode} 
                           {isCancelled && <span style={{ color: "var(--danger)", marginLeft: 8 }}>(Cancelled)</span>}
-                          {isRoomChanged && !isCancelled && <span style={{ color: "var(--blue)", marginLeft: 8 }}>(Room: {override.room})</span>}
+                          {isModified && !isCancelled && (
+                            <span style={{ color: "var(--blue)", marginLeft: 8 }}>
+                              ({[override.room && `Room: ${override.room}`, (override.start || override.end) && `${override.start || "?"} - ${override.end || "?"}`].filter(Boolean).join(" | ")})
+                            </span>
+                          )}
                         </span>
                         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                          {isRoomChanged && (
+                          {isModified && (
                             <button onClick={() => {
                                setRoomOverrideDate(date);
-                               setRoomOverrideClass(code);
-                               setRoomOverrideRoom(override.room);
+                               setRoomOverrideClass(codeParts[0]);
+                               setRoomOverrideSection(codeParts[1] || "All");
+                               setRoomOverrideRoom(override.room || "");
+                               setRoomOverrideStart(override.start || "");
+                               setRoomOverrideEnd(override.end || "");
                             }} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 13, color: "var(--blue)", fontWeight: 600, padding: "4px 8px" }}>
                                Edit
                             </button>
@@ -568,23 +616,56 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               <input type="date" className="admin-input" value={liveEditorDate} onChange={e => setLiveEditorDate(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)" }} />
             </div>
             <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 16 }}>
-              {liveSchedule.filter(c => c.date === liveEditorDate && c.type !== "break").length === 0 ? (
-                <div className="admin-empty">No classes found for this date.</div>
-              ) : (
-                liveSchedule.filter(c => c.date === liveEditorDate && c.type !== "break").map((c, i) => {
-                  const override = flags.classOverrides?.[c.date]?.[c.code] || null;
+              {(() => {
+                const baseClasses = liveSchedule.filter(c => c.date === liveEditorDate && c.type !== "break");
+                const newClasses = [];
+                const overridesForDate = flags.classOverrides?.[liveEditorDate] || {};
+                
+                Object.keys(overridesForDate).forEach(key => {
+                  const codeParts = key.split('_');
+                  const code = codeParts[0];
+                  const section = codeParts[1] || "All";
+                  const exists = baseClasses.some(c => c.code === code && (c.section === section || section === "All" || c.section === "Single"));
+                  
+                  if (!exists) {
+                    const ovr = overridesForDate[key];
+                    if (ovr.type !== "cancelled") {
+                      newClasses.push({
+                        date: liveEditorDate,
+                        code: code,
+                        section: section,
+                        name: ovr.name || "Custom Added Class",
+                        room: ovr.room || "",
+                        start: ovr.start || "",
+                        end: ovr.end || "",
+                        type: ovr.type || "class"
+                      });
+                    }
+                  }
+                });
+                
+                const displayClasses = [...baseClasses, ...newClasses];
+                
+                if (displayClasses.length === 0) {
+                  return <div className="admin-empty">No classes found for this date.</div>;
+                }
+                
+                return displayClasses.map((c, i) => {
+                  const override = overridesForDate[`${c.code}_${c.section}`] || overridesForDate[c.code] || null;
                   const isCancelled = override?.type === "cancelled";
                   const displayRoom = override?.room || c.room;
+                  const displayStart = override?.start || c.start;
+                  const displayEnd = override?.end || c.end;
                   return (
                     <div key={i} onClick={() => setLiveEditorModal(c)} style={{ minWidth: 200, padding: 12, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, cursor: "pointer", position: "relative", opacity: isCancelled ? 0.6 : 1 }}>
-                      <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>{c.start} - {c.end} | Sec: {c.section}</div>
+                      <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4, textDecoration: isCancelled ? "line-through" : "none" }}>{displayStart} - {displayEnd} | Sec: {c.section}</div>
                       <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)", marginBottom: 4, textDecoration: isCancelled ? "line-through" : "none" }}>{c.code} - {c.name || "Class"}</div>
-                      <div style={{ fontSize: 12, color: "var(--muted)" }}>Room: {displayRoom || "TBD"}</div>
+                      <div style={{ fontSize: 12, color: "var(--muted)", textDecoration: isCancelled ? "line-through" : "none" }}>Room: {displayRoom || "TBD"}</div>
                       {override && <div style={{ position: "absolute", top: -6, right: -6, background: "var(--amber)", color: "#000", padding: "2px 6px", borderRadius: 4, fontSize: 10, fontWeight: 800 }}>OVERRIDDEN</div>}
                     </div>
                   );
-                })
-              )}
+                });
+              })()}
             </div>
           </section>
 
@@ -726,50 +807,67 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ display: "flex", gap: 8 }}>
+                <select id="live-section-input" className="admin-input" style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)" }} defaultValue={liveEditorModal.section}>
+                  <option value="All">All Sections</option>
+                  <option value="A">Section A</option>
+                  <option value="B">Section B</option>
+                </select>
+              </div>
+
               <button onClick={() => {
+                const newSection = document.getElementById('live-section-input').value;
+                const overrideKey = newSection === "All" ? liveEditorModal.code : `${liveEditorModal.code}_${newSection}`;
                 const nextOverrides = { ...(flags.classOverrides || {}) };
                 if (!nextOverrides[liveEditorModal.date]) nextOverrides[liveEditorModal.date] = {};
-                nextOverrides[liveEditorModal.date][liveEditorModal.code] = { type: "cancelled", name: `Cancelled: ${liveEditorModal.code}` };
+                nextOverrides[liveEditorModal.date][overrideKey] = { type: "cancelled", name: `Cancelled: ${overrideKey}` };
                 setFlags({...flags, classOverrides: nextOverrides});
-                logAdminAction(admin_id, "cancel_class", { date: liveEditorModal.date, class: liveEditorModal.code });
+                logAdminAction(admin_id, "cancel_class", { date: liveEditorModal.date, class: overrideKey });
                 setLiveEditorModal(null);
               }} className="admin-btn outline" style={{ color: "var(--danger)", borderColor: "var(--danger)" }}>
                 <Ban size={16} /> Cancel Class
               </button>
 
               <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                <input type="time" id="live-start-input" className="admin-input" style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)" }} defaultValue={flags.classOverrides?.[liveEditorModal.date]?.[liveEditorModal.code]?.start || liveEditorModal.start} />
+                <input type="time" id="live-start-input" className="admin-input" style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)" }} defaultValue={liveEditorModal.start} />
                 <span style={{ display: "flex", alignItems: "center", color: "var(--muted)" }}>-</span>
-                <input type="time" id="live-end-input" className="admin-input" style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)" }} defaultValue={flags.classOverrides?.[liveEditorModal.date]?.[liveEditorModal.code]?.end || liveEditorModal.end} />
+                <input type="time" id="live-end-input" className="admin-input" style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)" }} defaultValue={liveEditorModal.end} />
               </div>
               <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                <input type="text" id="live-room-input" placeholder="New Room" className="admin-input" style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)" }} defaultValue={flags.classOverrides?.[liveEditorModal.date]?.[liveEditorModal.code]?.room || liveEditorModal.room} />
+                <input type="text" id="live-room-input" placeholder="New Room" className="admin-input" style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)" }} defaultValue={liveEditorModal.room} />
                 <button onClick={() => {
+                  const newSection = document.getElementById('live-section-input').value;
+                  const overrideKey = newSection === "All" ? liveEditorModal.code : `${liveEditorModal.code}_${newSection}`;
                   const newRoom = document.getElementById('live-room-input').value;
                   const newStart = document.getElementById('live-start-input').value;
                   const newEnd = document.getElementById('live-end-input').value;
                   const nextOverrides = { ...(flags.classOverrides || {}) };
                   if (!nextOverrides[liveEditorModal.date]) nextOverrides[liveEditorModal.date] = {};
-                  const existing = nextOverrides[liveEditorModal.date][liveEditorModal.code] || {};
+                  const existing = nextOverrides[liveEditorModal.date][overrideKey] || {};
                   
                   const changes = { ...existing };
                   if (newRoom) changes.room = newRoom;
                   if (newStart) changes.start = newStart;
                   if (newEnd) changes.end = newEnd;
 
-                  nextOverrides[liveEditorModal.date][liveEditorModal.code] = changes;
+                  nextOverrides[liveEditorModal.date][overrideKey] = changes;
                   setFlags({...flags, classOverrides: nextOverrides});
-                  logAdminAction(admin_id, "edit_class", { date: liveEditorModal.date, class: liveEditorModal.code, room: newRoom, start: newStart, end: newEnd });
+                  logAdminAction(admin_id, "edit_class", { date: liveEditorModal.date, class: overrideKey, room: newRoom, start: newStart, end: newEnd });
                   setLiveEditorModal(null);
                 }} className="admin-btn primary">
                   Save Changes
                 </button>
               </div>
               
-              {flags.classOverrides?.[liveEditorModal.date]?.[liveEditorModal.code] && (
+              {(flags.classOverrides?.[liveEditorModal.date]?.[liveEditorModal.code] || flags.classOverrides?.[liveEditorModal.date]?.[`${liveEditorModal.code}_${liveEditorModal.section}`]) && (
                 <button onClick={() => {
                   const nextOverrides = { ...(flags.classOverrides || {}) };
-                  delete nextOverrides[liveEditorModal.date][liveEditorModal.code];
+                  if (nextOverrides[liveEditorModal.date]?.[liveEditorModal.code]) {
+                     delete nextOverrides[liveEditorModal.date][liveEditorModal.code];
+                  }
+                  if (nextOverrides[liveEditorModal.date]?.[`${liveEditorModal.code}_${liveEditorModal.section}`]) {
+                     delete nextOverrides[liveEditorModal.date][`${liveEditorModal.code}_${liveEditorModal.section}`];
+                  }
                   setFlags({...flags, classOverrides: nextOverrides});
                   logAdminAction(admin_id, "clear_override", { date: liveEditorModal.date, class: liveEditorModal.code });
                   setLiveEditorModal(null);

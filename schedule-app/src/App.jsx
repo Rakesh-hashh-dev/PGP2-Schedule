@@ -680,10 +680,39 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
       if (sysConfig.flags.classOverrides) {
         const overrides = sysConfig.flags.classOverrides;
+        const newClasses = [];
         data.CLASSES = data.CLASSES.map(c => {
-          const classOverride = overrides[c.date]?.[c.code];
+          const classOverride = overrides[c.date]?.[`${c.code}_${c.section}`] || overrides[c.date]?.[c.code];
           return classOverride ? { ...c, ...classOverride } : c;
         });
+
+        Object.keys(overrides).forEach(date => {
+          Object.keys(overrides[date]).forEach(key => {
+            const ovr = overrides[date][key];
+            if (ovr.type === "cancelled") return;
+            const codeParts = key.split('_');
+            const code = codeParts[0];
+            const section = codeParts[1] || "All";
+            
+            const exists = data.CLASSES.some(c => c.date === date && c.code === code && (c.section === section || section === "All" || c.section === "Single"));
+            if (!exists) {
+               newClasses.push({
+                 date: date,
+                 code: code,
+                 section: section,
+                 name: ovr.name || "Custom Added Class",
+                 room: ovr.room || "",
+                 start: ovr.start || "",
+                 end: ovr.end || "",
+                 type: ovr.type || "class"
+               });
+            }
+          });
+        });
+        
+        if (newClasses.length > 0) {
+          data.CLASSES = [...data.CLASSES, ...newClasses];
+        }
       }
     }
     return data;
@@ -708,7 +737,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     return CLASSES.filter((c) => {
       if (c.type === "class") {
         const sec = enrolled[c.code];
-        return sec !== undefined && (c.section === sec || c.section === "Single") && mine.has(c.code);
+        return sec !== undefined && (c.section === sec || c.section === "Single" || c.section === "All") && mine.has(c.code);
       }
       const key = c.date + c.slot + c.name;
       if (seen.has(key)) return false; seen.add(key); return true;
