@@ -64,7 +64,7 @@ export default function WeekAgenda({ visible, now, offset, setOffset, todayISO, 
 
       {onViewFullSchedule && (
         <div className="wa-footer">
-          <button className="fr-btn fr-btn-secondary" style={{ flex: 1, justifyContent: "center" }} onClick={onViewFullSchedule}>
+          <button className="fr-btn fr-btn-secondary" style={{ flex: 1, justifyContent: "center" }} onClick={() => onViewFullSchedule(ymd(days[0]))}>
             <Calendar size={15} /> View full schedule
           </button>
         </div>

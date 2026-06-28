@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from "react";
-import { ArrowLeft, Clock, MapPin, User } from "lucide-react";
+import React, { useMemo, useState, useEffect } from "react";
+import { ArrowLeft, Clock, MapPin, User, SlidersHorizontal, X, ArrowUp, Calendar } from "lucide-react";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 
@@ -17,9 +17,35 @@ function fmtShort(iso) {
   return new Date(Y, M - 1, D).toLocaleDateString([], { day: "numeric", month: "short" });
 }
 
-export default React.memo(function FullSchedulePage({ allClasses, enrolled, legend, termLabel, onBack }) {
+export default React.memo(function FullSchedulePage({ allClasses, enrolled, legend, termLabel, onBack, jumpToDate, setJumpToDate }) {
   const [filterCode, setFilterCode] = useState(null); // null = show all
   const [showAllClasses, setShowAllClasses] = useState(false);
+  const [filterModalOpen, setFilterModalOpen] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+    if (jumpToDate) {
+      const t = setTimeout(() => {
+        const el = document.getElementById(`day-${jumpToDate}`);
+        if (el) {
+          const headerOffset = 100;
+          const elementPosition = el.getBoundingClientRect().top;
+          const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+          window.scrollTo({ top: offsetPosition, behavior: "smooth" });
+        }
+        if (setJumpToDate) setJumpToDate(null);
+      }, 100);
+      return () => clearTimeout(t);
+    }
+  }, [jumpToDate, setJumpToDate]);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 300);
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   // Get base classes (either user's enrolled classes or the entire master schedule)
   const baseClasses = useMemo(() => {
@@ -99,7 +125,41 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
             {termLabel && <> · {termLabel}</>}
           </span>
         </div>
-        <div style={{ marginLeft: "auto", display: "flex", gap: "8px", alignItems: "center" }}>
+      </div>
+
+      {/* Controls Bar (Filter + Select Date) */}
+      <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "28px", flexWrap: "wrap" }}>
+        <button 
+          onClick={() => setFilterModalOpen(true)}
+          style={{
+            display: "inline-flex", alignItems: "center", gap: "6px",
+            border: "1px solid var(--border)", background: "var(--card)",
+            color: "var(--text)", fontFamily: "var(--body)", fontWeight: 600, fontSize: "13px",
+            padding: "8px 16px", borderRadius: "99px", cursor: "pointer",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
+            transition: "all 0.2s"
+          }}
+          onMouseDown={e => e.currentTarget.style.transform = "scale(0.96)"}
+          onMouseUp={e => e.currentTarget.style.transform = "scale(1)"}
+          onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}
+          onTouchStart={e => e.currentTarget.style.transform = "scale(0.96)"}
+          onTouchEnd={e => e.currentTarget.style.transform = "scale(1)"}
+        >
+          <SlidersHorizontal size={15} /> 
+          {filterCode ? `Filter: ${filterCode}` : (!showAllClasses ? "Filter: My Schedule" : "Filter: All Subjects")}
+        </button>
+
+        <div style={{ position: "relative", display: "inline-block" }}>
+          <div style={{ 
+            display: "flex", alignItems: "center", gap: "6px",
+            background: "var(--card)", padding: "8px 16px",
+            borderRadius: "99px", border: "1px solid var(--border)",
+            fontSize: "13px", fontWeight: "600", color: "var(--text)",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
+            pointerEvents: "none"
+          }}>
+            <Calendar size={15} /> Select Date
+          </div>
           <input 
             type="date"
             onChange={(e) => {
@@ -119,95 +179,97 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
               }
               e.target.value = ""; // Reset after scrolling
             }}
-            title="Go to specific date"
+            title="Jump to specific date"
             style={{ 
-              padding: "7px 12px", 
-              background: "var(--surface)", 
-              color: "var(--text)", 
-              borderRadius: "16px", 
-              fontSize: "13px", 
-              border: "1px solid var(--border)",
-              cursor: "pointer",
+              position: "absolute", inset: 0, width: "100%", height: "100%",
+              opacity: 0, cursor: "pointer"
             }}
           />
-          <button 
-            onClick={() => {
-              const d = new Date();
-              const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-              const el = document.getElementById(`day-${today}`);
-              if (el) {
-                const headerOffset = 100;
-                const elementPosition = el.getBoundingClientRect().top;
-                const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
-                window.scrollTo({
-                  top: offsetPosition,
-                  behavior: "smooth"
-                });
-              } else {
-                alert("There are no classes scheduled for today.");
-              }
-            }}
-            style={{ 
-              padding: "8px 16px", 
-              background: "var(--live)", 
-              color: "#fff", 
-              borderRadius: "16px", 
-              fontSize: "13px", 
-              fontWeight: "700", 
-              border: "none", 
-              cursor: "pointer", 
-              display: "flex", 
-              alignItems: "center", 
-              gap: "6px" 
-            }}
-          >
-            <Clock size={16} /> Go to Today
-          </button>
         </div>
       </div>
 
-      {/* Subject filter chips */}
-      <div className="fs-filters">
-        <button
-          className={`fs-chip ${!filterCode && !showAllClasses ? "fs-chip-on" : ""}`}
-          onClick={() => { setFilterCode(null); setShowAllClasses(false); }}
-        >
-          My Schedule
-        </button>
-        <button
-          className={`fs-chip ${!filterCode && showAllClasses ? "fs-chip-on" : ""}`}
-          onClick={() => { setFilterCode(null); setShowAllClasses(true); }}
-        >
-          Whole Timetable
-        </button>
-        <div style={{ width: '1px', height: '24px', background: 'var(--border)', margin: '0 4px', flexShrink: 0 }} />
-        {subjectCodes.map(code => {
-          const section = enrolled ? enrolled[code] : null;
-          const showSection = section && section !== "Single";
-          return (
-            <button
-              key={code}
-              className={`fs-chip ${filterCode === code ? "fs-chip-on" : ""}`}
-              onClick={() => setFilterCode(filterCode === code ? null : code)}
-              style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
-            >
-              {code}
-              {showSection && !showAllClasses && (
-                <span style={{ 
-                  background: filterCode === code ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.06)", 
-                  padding: "1px 5px", 
-                  borderRadius: "10px", 
-                  fontSize: "10.5px",
-                  fontWeight: "700",
-                  letterSpacing: "0.2px"
-                }}>
-                  {section}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+      {filterModalOpen && (
+        <div className="filter-modal-overlay" onClick={() => setFilterModalOpen(false)}>
+          <div className="filter-modal-sheet" onClick={e => e.stopPropagation()}>
+            <div className="filter-modal-header">
+              <h3>Filter Schedule</h3>
+              <button onClick={() => setFilterModalOpen(false)}><X size={18} /></button>
+            </div>
+            <div className="filter-modal-scroll" style={{ padding: "20px" }}>
+              <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
+                <button
+                  className={`fs-chip ${!filterCode && !showAllClasses ? "fs-chip-on" : ""}`}
+                  onClick={() => { setFilterCode(null); setShowAllClasses(false); }}
+                  style={{ flex: 1, justifyContent: "center", padding: "12px", fontSize: "13.5px" }}
+                >
+                  My Schedule
+                </button>
+                <button
+                  className={`fs-chip ${!filterCode && showAllClasses ? "fs-chip-on" : ""}`}
+                  onClick={() => { setFilterCode(null); setShowAllClasses(true); }}
+                  style={{ flex: 1, justifyContent: "center", padding: "12px", fontSize: "13.5px" }}
+                >
+                  Whole Timetable
+                </button>
+              </div>
+
+              <h4 style={{ fontSize: "11.5px", fontWeight: "700", color: "var(--muted)", margin: "0 0 12px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                Filter by Subject
+              </h4>
+
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                {subjectCodes.map(code => {
+                  const section = enrolled ? enrolled[code] : null;
+                  const showSection = section && section !== "Single";
+                  return (
+                    <button
+                      key={code}
+                      className={`fs-chip ${filterCode === code ? "fs-chip-on" : ""}`}
+                      onClick={() => { setFilterCode(filterCode === code ? null : code); setShowAllClasses(true); }}
+                      style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+                    >
+                      {code}
+                      {showSection && !showAllClasses && (
+                        <span style={{ 
+                          background: filterCode === code ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.06)", 
+                          color: filterCode === code ? "#fff" : "var(--muted)",
+                          padding: "1px 6px", 
+                          borderRadius: "6px", 
+                          fontSize: "11px",
+                          fontWeight: "700",
+                        }}>
+                          {section}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div style={{ marginTop: "32px" }}>
+                <button
+                  onClick={() => setFilterModalOpen(false)}
+                  style={{
+                    width: "100%", padding: "14px", borderRadius: "12px",
+                    background: "var(--ink)", color: "#fff",
+                    fontFamily: "var(--body)", fontSize: "15px", fontWeight: "700",
+                    border: "none", cursor: "pointer",
+                    boxShadow: "0 4px 16px rgba(21,24,43,0.15)",
+                    transition: "transform 0.1s"
+                  }}
+                  onMouseDown={e => e.currentTarget.style.transform = "scale(0.98)"}
+                  onMouseUp={e => e.currentTarget.style.transform = "scale(1)"}
+                  onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}
+                  onTouchStart={e => e.currentTarget.style.transform = "scale(0.98)"}
+                  onTouchEnd={e => e.currentTarget.style.transform = "scale(1)"}
+                >
+                  Show Schedule
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Schedule grouped by date */}
       <div className="fs-list">
@@ -278,6 +340,17 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
           })
         )}
       </div>
+
+      {/* Scroll to top FAB */}
+      {showScrollTop && (
+        <button
+          className="fs-scroll-top"
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          aria-label="Scroll to top"
+        >
+          <ArrowUp size={22} />
+        </button>
+      )}
     </div>
   );
 });

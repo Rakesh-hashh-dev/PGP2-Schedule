@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from "react";
 import { createPortal } from "react-dom";
-import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, ChevronsLeft, ChevronsRight, ChevronRight, ChevronLeft, Megaphone, BarChart2, Shield, ShieldAlert, User, CloudOff, MessageSquare } from "lucide-react";
+import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, ChevronsLeft, ChevronsRight, ChevronRight, ChevronLeft, Megaphone, BarChart2, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal } from "lucide-react";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
 import SemSummary from "./components/SemSummary.jsx";
@@ -205,6 +205,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [weather, setWeather] = useState(null);
   const [cloudChecked, setCloudChecked] = useState(false);
   const [clearedGroupIds, setClearedGroupIds] = useState(() => loadClearedGroups());
@@ -212,6 +213,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [groups, setGroups] = useState(() => loadGroups());
   const [compareTarget, setCompareTarget] = useState(null); // { mode, friendData?, groupData? }
   const [friendToast, setFriendToast] = useState(null);
+  const [jumpToDate, setJumpToDate] = useState(null);
 
   // Received groups badge: track how many received groups were seen when Friends tab was last opened
   const [pings, setPings] = useState([]);
@@ -1199,7 +1201,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             </div>
           </div>
           <div className="bar-right" role="toolbar" aria-label="App actions">
-            {/* Desktop-only: full button set */}
             <div className="tb-wrap desktop-only">
               <button className="sync" onClick={() => setShowSetupEdit(true)} aria-label="Edit setup"><Settings2 size={15} /></button>
               <span className="tooltip" role="tooltip">Edit setup</span>
@@ -1321,6 +1322,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       </div>
                     </div>
                     <div className="over-sep" />
+                    <button className="mobile-only" onClick={() => { setFilterModalOpen(true); setOverflowOpen(false); }}>
+                      <SlidersHorizontal size={14} /> Filter subjects
+                    </button>
+                    <div className="over-sep" />
                     <button onClick={() => { setShowSetupEdit(true); setOverflowOpen(false); }}>
                       <Settings2 size={14} /> Edit setup
                     </button>
@@ -1358,8 +1363,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             <span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}
           </span>
         </div>
-
-        <SubjectFilter legend={enrolledLegend} mine={mine} setMine={setMine} onEditSetup={() => setShowSetupEdit(true)} />
 
         <div className="desk-layout">
           <main className="main-col">
@@ -1431,7 +1434,12 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                     {view === "notifications" ? `${filteredChanges.length} update${filteredChanges.length !== 1 ? "s" : ""}`
                       : view === "week" ? weekRangeLabel : prettyDate(view === "tomorrow" ? tomorrowISO : todayISO)}
                   </span>
-                  <WeatherWidget now={now} weather={weather} />
+                  <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                    <button className="desktop-only vdh-filter-btn" onClick={() => setFilterModalOpen(true)}>
+                      <SlidersHorizontal size={14} /> Filter subjects
+                    </button>
+                    <WeatherWidget now={now} weather={weather} />
+                  </div>
                 </div>
               </>
             )}
@@ -1554,7 +1562,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                           : view === "admin" && isAdmin
                             ? <AdminDashboard user={user} startImpersonation={startImpersonation} syncLogs={syncLogs} timeOverride={timeOverride} setTimeOverride={setTimeOverride} />
                             : view === "fullSchedule"
-                              ? <FullSchedulePage allClasses={CLASSES} enrolled={enrolled} legend={enrolledLegend} termLabel={termLabel} onBack={() => setView("today")} />
+                              ? <FullSchedulePage allClasses={CLASSES} enrolled={enrolled} legend={enrolledLegend} termLabel={termLabel} onBack={() => setView("today")} jumpToDate={jumpToDate} setJumpToDate={setJumpToDate} />
                               : todayList.length === 0 && tomorrowList.length === 0
                                 ? premiumMode && syncing
                                   ? (
@@ -1572,7 +1580,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             </div>
           </main>
           <aside className={view !== "week" ? "side-col hide-mobile" : "side-col"}>
-            <WeekAgenda visible={visible} now={now} offset={weekOffset} setOffset={setWeekOffset} todayISO={todayISO} onViewFullSchedule={() => setView("fullSchedule")} />
+            <WeekAgenda visible={visible} now={now} offset={weekOffset} setOffset={setWeekOffset} todayISO={todayISO} onViewFullSchedule={(iso) => { setJumpToDate(iso); setView("fullSchedule"); }} />
           </aside>
         </div>
 
@@ -1590,6 +1598,20 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             friends={friends}
           />
         </Suspense>
+
+        {filterModalOpen && (
+          <div className="filter-modal-overlay" onClick={() => setFilterModalOpen(false)}>
+            <div className="filter-modal-sheet" onClick={e => e.stopPropagation()}>
+              <div className="filter-modal-header">
+                <h3>Filter Subjects</h3>
+                <button onClick={() => setFilterModalOpen(false)}><X size={18} /></button>
+              </div>
+              <div className="filter-modal-scroll">
+                 <SubjectFilter legend={enrolledLegend} mine={mine} setMine={setMine} forceOpen={true} onEditSetup={() => { setShowSetupEdit(true); setFilterModalOpen(false); }} />
+              </div>
+            </div>
+          </div>
+        )}
 
         {feedbackOpen && (
           <Suspense fallback={null}>

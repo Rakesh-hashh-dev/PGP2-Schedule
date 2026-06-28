@@ -10,8 +10,8 @@ const AREA_LABELS = {
   "STM":   "Strategy",
 };
 
-export default function SubjectFilter({ legend, mine, setMine, sections = {}, setSection, classes = [], onEditSetup }) {
-  const [open, setOpen] = useState(false);
+export default function SubjectFilter({ legend, mine, setMine, sections = {}, setSection, classes = [], onEditSetup, forceOpen }) {
+  const [open, setOpen] = useState(forceOpen || false);
 
   const allCodes = useMemo(() => Object.keys(legend), [legend]);
 
@@ -73,18 +73,20 @@ export default function SubjectFilter({ legend, mine, setMine, sections = {}, se
 
   return (
     <div className="sf-wrap">
-      <div className={`sf ${open ? "sf-open" : ""}`}>
+      <div className={`sf ${open || forceOpen ? "sf-open" : ""}`}>
         {/* Header toggle */}
-        <button className="sf-toggle" onClick={() => setOpen((p) => !p)}>
-          <span className="sf-left">
-            <SlidersHorizontal size={13} />
-            <span className="sf-label">Subject Filter</span>
-            <span className={`sf-count${!isAll ? " filtered" : ""}`}>
-              {isAll ? `All ${allCodes.length} subjects` : `${mine.size} of ${allCodes.length}`}
+        {!forceOpen && (
+          <button className="sf-toggle" onClick={() => setOpen((p) => !p)}>
+            <span className="sf-left">
+              <SlidersHorizontal size={13} />
+              <span className="sf-label">Subject Filter</span>
+              <span className={`sf-count${!isAll ? " filtered" : ""}`}>
+                {isAll ? `All ${allCodes.length} subjects` : `${mine.size} of ${allCodes.length}`}
+              </span>
             </span>
-          </span>
-          <ChevronDown size={14} className="sf-chev" />
-        </button>
+            <ChevronDown size={14} className="sf-chev" />
+          </button>
+        )}
 
         {/* Expanded Content with CSS transition wrapper */}
         <div className="sf-drawer">
