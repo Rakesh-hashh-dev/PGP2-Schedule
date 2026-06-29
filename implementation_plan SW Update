@@ -1,0 +1,34 @@
+# Fix PWA Update Fallback Logic
+
+This plan replaces the brittle `localStorage` and Service Worker hash comparison fallback with a robust build-time timestamp approach. This guarantees that if a tablet or browser is stuck on an old version of the app, it will persistently detect the new version until it successfully updates.
+
+## Proposed Changes
+
+### 1. Update Vite Configuration
+We will inject a unique build timestamp into the app environment and simultaneously output a `meta.json` file during the build process containing this exact timestamp.
+
+#### [MODIFY] [vite.config.js](file:///f:/Web%20Dev/Antigravity/PGP2%20Schedule/schedule-app/vite.config.js)
+- Define a global constant `__APP_VERSION__` set to `Date.now()`.
+- Add a tiny custom Vite plugin called `generate-meta` to the plugins array. 
+- During the `writeBundle` step, this plugin will write `meta.json` to the `dist` folder containing `{"version": [timestamp]}`.
+
+### 2. Rewrite Fallback Logic
+We will simplify `checkAppVersion` to compare the hardcoded `__APP_VERSION__` of the currently running Javascript against the `meta.json` served from the network.
+
+#### [MODIFY] [App.jsx](file:///f:/Web%20Dev/Antigravity/PGP2%20Schedule/schedule-app/src/App.jsx)
+- **Rewrite `checkAppVersion`**: 
+  - Fetch `/meta.json?_=[timestamp]` (bypassing caches).
+  - Parse the JSON and compare the network version to the `__APP_VERSION__` constant.
+  - If they do not match, call `onUpdateAvailable()`.
+- **Clean up `triggerHardRefresh`**: Remove the `localStorage.removeItem(APP_VERSION_KEY)` call since `localStorage` is no longer used for versioning.
+- **Clean up imports**: We no longer need to use `sha256hex` for the Service Worker hash, but we will leave the import since it is used elsewhere for email hashing.
+
+## Verification Plan
+
+### Automated Tests
+- N/A - relying on manual verification for PWA lifecycle changes.
+
+### Manual Verification
+- After these changes, running `npm run build && npm run preview` will generate and serve the new `meta.json`.
+- Modifying `__APP_VERSION__` manually in the browser console or altering `dist/meta.json` will instantly trigger the update banner.
+- Users stuck on old versions will naturally clear their cache when they successfully reload, fetching the new `App.jsx` which contains the new hardcoded version.

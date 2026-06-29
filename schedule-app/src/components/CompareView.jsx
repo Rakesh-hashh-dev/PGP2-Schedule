@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { ArrowLeft, Columns, Layers, Clock, BookOpen, UserCheck, Sparkles, ChevronDown, Copy, Check } from "lucide-react";
+import { ArrowLeft, Columns, Layers, Clock, BookOpen, UserCheck, Sparkles, ChevronDown, Copy, Check, CalendarDays, ArrowRight as ArrowRightIcon } from "lucide-react";
 import { findFreeSlots, findGroupFreeSlots, scheduleInsights, friendVisibleClasses } from "../lib/friends.js";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
@@ -86,7 +86,20 @@ export default function CompareView({
   const [viewMode, setViewMode] = useState("merged"); // "merged" | "side"
   const [dayFilter, setDayFilter] = useState("today"); // "today", "tomorrow", "week"
   const [customRange, setCustomRange] = useState({ start: ymd(now), end: ymd(now) });
+  const [pendingRange, setPendingRange] = useState({ start: ymd(now), end: ymd(now) });
+  // "idle" | "loading" | "applied"
+  const [applyState, setApplyState] = useState("idle");
+  const isApplyingRef = useRef(false);
   const [slotsCopied, setSlotsCopied] = useState(false);
+
+  useEffect(() => {
+    if (!isApplyingRef.current) return;
+    const t = setTimeout(() => {
+      isApplyingRef.current = false;
+      setApplyState("applied");
+    }, 400);
+    return () => clearTimeout(t);
+  }, [customRange]);
 
   const selectedDates = useMemo(() => {
     if (dayFilter === "today") return [ymd(now)];
@@ -288,30 +301,66 @@ export default function CompareView({
 
         {dayFilter === "custom" && (
           <div className="cv-custom-range">
-            <div className="cv-range-field">
-              <label className="cv-range-label">From</label>
-              <input
-                type="date"
-                className="cv-range-input"
-                value={customRange.start}
-                onChange={e => setCustomRange(p => ({ ...p, start: e.target.value }))}
-              />
+            <div className="cv-custom-range-inner">
+              <CalendarDays size={16} className="cv-custom-range-icon" />
+              <div className="cv-range-field">
+                <label className="cv-range-label">From</label>
+                <input
+                  type="date"
+                  className="cv-range-input"
+                  value={pendingRange.start}
+                  onChange={e => { setPendingRange(p => ({ ...p, start: e.target.value })); setApplyState("idle"); }}
+                />
+              </div>
+              <div className="cv-range-divider">
+                <div className="cv-range-divider-line" />
+                <ArrowRightIcon size={12} className="cv-range-divider-arrow" />
+                <div className="cv-range-divider-line" />
+              </div>
+              <div className="cv-range-field">
+                <label className="cv-range-label">To</label>
+                <input
+                  type="date"
+                  className="cv-range-input"
+                  value={pendingRange.end}
+                  min={pendingRange.start}
+                  onChange={e => { setPendingRange(p => ({ ...p, end: e.target.value })); setApplyState("idle"); }}
+                />
+              </div>
+              {pendingRange.start && pendingRange.end && applyState === "idle" && (() => {
+                const s = new Date(pendingRange.start);
+                const e = new Date(pendingRange.end);
+                const diff = !isNaN(s) && !isNaN(e) && e >= s ? Math.round((e - s) / 86400000) + 1 : null;
+                return diff ? <span className="cv-range-day-count">{diff}d</span> : null;
+              })()}
             </div>
-            <span className="cv-range-arrow">→</span>
-            <div className="cv-range-field">
-              <label className="cv-range-label">To</label>
-              <input
-                type="date"
-                className="cv-range-input"
-                value={customRange.end}
-                onChange={e => setCustomRange(p => ({ ...p, end: e.target.value }))}
-              />
-            </div>
+            <button
+              className={`cv-range-apply${applyState === "applied" ? " done" : ""}${applyState === "loading" ? " loading" : ""}`}
+              disabled={applyState === "loading" || !pendingRange.start || !pendingRange.end || new Date(pendingRange.start) > new Date(pendingRange.end)}
+              onClick={() => {
+                setApplyState("loading");
+                isApplyingRef.current = true;
+                setTimeout(() => {
+                  setCustomRange({ ...pendingRange });
+                }, 0);
+              }}
+            >
+              {applyState === "loading"
+                ? <span className="cv-range-apply-spinner" />
+                : applyState === "applied"
+                  ? <><Check size={14} /> Applied</>  
+                  : <>Apply</>}
+            </button>
           </div>
         )}
       </div>
 
-      <div className="cv-body-grid">
+      {applyState === "loading" && (
+        <div className="cv-applying-loader">
+          <span className="cv-range-apply-spinner cv-range-apply-spinner--lg" />
+        </div>
+      )}
+      <div className={`cv-body-grid${applyState === "loading" ? " cv-applying" : ""}`}>
         {/* Left / main column: free summary + timeline */}
         <div className="cv-body-main">
           {/* Free time summary */}
