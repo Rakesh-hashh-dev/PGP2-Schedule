@@ -39,9 +39,9 @@ export default function NotificationsPage({ allChanges, myChanges }) {
           <span className="notif-pg-count">{changes.length}</span>
         </div>
         <div className="notif-toggles" style={{ marginLeft: "auto", display: "flex", gap: "6px", background: "var(--surface)", padding: "4px", borderRadius: "8px" }}>
-          <button 
+          <button
             onClick={() => setShowAll(false)}
-            style={{ 
+            style={{
               padding: "4px 12px", fontSize: "12px", fontWeight: 600, border: "none", borderRadius: "6px", cursor: "pointer",
               background: !showAll ? "var(--ink)" : "transparent",
               color: !showAll ? "#fff" : "var(--muted)",
@@ -50,9 +50,9 @@ export default function NotificationsPage({ allChanges, myChanges }) {
           >
             My Subjects
           </button>
-          <button 
+          <button
             onClick={() => setShowAll(true)}
-            style={{ 
+            style={{
               padding: "4px 12px", fontSize: "12px", fontWeight: 600, border: "none", borderRadius: "6px", cursor: "pointer",
               background: showAll ? "var(--ink)" : "transparent",
               color: showAll ? "#fff" : "var(--muted)",
@@ -63,7 +63,7 @@ export default function NotificationsPage({ allChanges, myChanges }) {
           </button>
         </div>
       </div>
-      
+
       {changes.length === 0 ? (
         <p className="notif-pg-empty">No announcements for your subjects.</p>
       ) : (

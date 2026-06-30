@@ -21,7 +21,9 @@ export async function syncProfileFromCloud(userId) {
     const readPingIds = raw._readPingIds || [];
     const seenGroupIds = raw._seenGroupIds || [];
     const cleanCourses = Object.fromEntries(Object.entries(raw).filter(([k]) => !k.startsWith('_')));
-    const s = { courses: cleanCourses, lastSeenNotif: remoteSeen, readPingIds, seenGroupIds };
+    const assignments = raw._assignments || {};
+    try { localStorage.setItem("pgp2.assignments", JSON.stringify(assignments)); } catch {}
+    const s = { courses: cleanCourses, lastSeenNotif: remoteSeen, readPingIds, seenGroupIds, assignments };
     writeLocal({ courses: cleanCourses });
     return s;
   }
@@ -56,6 +58,10 @@ export async function pushProfile(userId, courses, userName, optionalLastSeenNot
   try {
     const sg = JSON.parse(localStorage.getItem("pgp2.seen-recv-groups") || "[]");
     if (sg.length) dbCourses._seenGroupIds = sg;
+  } catch {}
+  try {
+    const asgn = JSON.parse(localStorage.getItem("pgp2.assignments") || "{}");
+    if (Object.keys(asgn).length) dbCourses._assignments = asgn;
   } catch {}
 
   try {

@@ -196,7 +196,7 @@ function readFriends() {
   catch { return []; }
 }
 
-function writeFriends(list) {
+export function writeFriends(list) {
   try { localStorage.setItem(FRIENDS_KEY, JSON.stringify(list)); } catch { }
 }
 
@@ -230,6 +230,14 @@ export function saveFriend(name, courses, cloudId = null) {
 
 export function removeFriend(id) {
   const friends = readFriends().filter(f => f.id !== id);
+  writeFriends(friends);
+  return friends;
+}
+
+export function updateFriend(id, updates) {
+  const friends = readFriends();
+  const idx = friends.findIndex(f => f.id === id);
+  if (idx >= 0) friends[idx] = { ...friends[idx], ...updates };
   writeFriends(friends);
   return friends;
 }
@@ -577,6 +585,50 @@ export async function deleteFriendPing(pingId) {
 export async function deleteAllFriendPings(userId) {
   if (!userId) return;
   await supabase.from("friend_pings").delete().eq("target_id", userId);
+}
+
+// ── Group Chat (Persistent) ─────────────────────────────────────
+
+export async function sendGroupMessage(groupId, fromUserId, fromName, text) {
+  if (!groupId || !fromUserId || !text) return;
+  try {
+    const meta = { type: 'group_chat', text };
+    await supabase.from("friend_pings").insert({
+      target_id: groupId,
+      from_id: fromUserId,
+      from_name: JSON.stringify({ name: fromName || "Someone", ...meta })
+    });
+  } catch (e) {
+    console.error("[sendGroupMessage] error:", e);
+  }
+}
+
+export async function fetchGroupMessages(groupId) {
+  if (!groupId) return [];
+  try {
+    // 30-day retention cleanup
+    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    supabase.from("friend_pings").delete().eq("target_id", groupId).lt("created_at", cutoff).then(() => {});
+    
+    const { data } = await supabase
+      .from("friend_pings")
+      .select("*")
+      .eq("target_id", groupId)
+      .gte("created_at", cutoff)
+      .order("created_at", { ascending: true });
+      
+    return (data || []).map(p => {
+      let meta = {};
+      try { meta = JSON.parse(p.from_name); } catch { meta = { name: p.from_name }; }
+      return {
+        id: p.id,
+        from_id: p.from_id,
+        name: meta.name || p.from_name,
+        text: meta.text || "",
+        created_at: p.created_at
+      };
+    });
+  } catch { return []; }
 }
 
 /**

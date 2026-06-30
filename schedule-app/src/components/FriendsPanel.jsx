@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Copy, Link2, UserPlus, Users, Trash2, ArrowRight, Plus, X, Check, ChevronDown, ChevronUp, RefreshCw, Bell, Globe, Lock, CheckCircle, AlertCircle, Info, AlertTriangle } from "lucide-react";
+import { Copy, Link2, UserPlus, Users, Trash2, ArrowRight, Plus, X, Check, ChevronDown, ChevronUp, RefreshCw, Bell, Globe, Lock, CheckCircle, AlertCircle, Info, AlertTriangle, Star } from "lucide-react";
 
 const AVATAR_PALETTE = [
   ["#7C3AED", "#A855F7"],
@@ -15,11 +15,11 @@ function avatarGradient(name) {
 }
 import {
   decodeSchedule, codeDisplayPart, buildShareUrl,
-  saveFriend, removeFriend as removeFriendFromStore,
+  saveFriend, removeFriend as removeFriendFromStore, updateFriend, writeFriends,
   loadGroups, createGroup, removeGroup as removeGroupFromStore, updateGroup,
   getOrCreateShareCode, pushFriendsToCloud, pushGroupsToCloud,
   refreshFriendCoursesFromCloud, sendFriendPing, hasPendingFriendRequest, removeSelfFromFriendCloud, deleteFriendPing, deletePingsBetween,
-  shareGroupWithMembers, unshareGroupFromMembers,
+  shareGroupWithMembers, unshareGroupFromMembers, sendGroupMessage, fetchGroupMessages,
 } from "../lib/friends.js";
 
 const TOAST_META = {
@@ -44,6 +44,20 @@ function Toast({ message, type = "info", action, onDone }) {
   );
 }
 
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, arrayMove, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
+function SortableFriendItem({ f, renderFriendCard, isCompact }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: f.id });
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1, zIndex: isDragging ? 10 : 1, position: 'relative' };
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      {renderFriendCard(f, isCompact)}
+    </div>
+  );
+}
+
 function FriendSkeleton() {
   return (
     <div className="fr-friend-card fr-sk-card">
@@ -55,6 +69,74 @@ function FriendSkeleton() {
       <div className="fr-sk-actions">
         <div className="sk-shimmer" style={{ height: 32, width: 84, borderRadius: 10 }} />
       </div>
+    </div>
+  );
+}
+
+function GroupChat({ group, userId, userName }) {
+  const [messages, setMessages] = useState([]);
+  const [text, setText] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let channel;
+    async function load() {
+      setLoading(true);
+      const msgs = await fetchGroupMessages(group.id);
+      setMessages(msgs);
+      setLoading(false);
+      
+      const { supabase } = await import("../lib/supabase.js");
+      channel = supabase.channel(`group-chat-${group.id}`)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'friend_pings', filter: `target_id=eq.${group.id}` }, payload => {
+           const p = payload.new;
+           let meta = {};
+           try { meta = JSON.parse(p.from_name); } catch { meta = { name: p.from_name }; }
+           if (meta.type === 'group_chat') {
+             setMessages(prev => {
+                if (prev.some(m => m.id === p.id)) return prev;
+                return [...prev, {
+                  id: p.id,
+                  from_id: p.from_id,
+                  name: meta.name || p.from_name,
+                  text: meta.text || "",
+                  created_at: p.created_at
+                }];
+             });
+           }
+        })
+        .subscribe();
+    }
+    load();
+    return () => { if (channel) channel.unsubscribe(); };
+  }, [group.id]);
+
+  async function handleSend(e) {
+    e.preventDefault();
+    if (!text.trim()) return;
+    const txt = text.trim();
+    setText("");
+    await sendGroupMessage(group.id, userId, userName, txt);
+  }
+
+  return (
+    <div className="fr-chat-box" style={{ marginTop: 16 }}>
+      <p className="fr-group-body-label">Group Chat</p>
+      <div className="fr-chat-msgs" style={{ maxHeight: 250, overflowY: "auto", padding: "12px", background: "rgba(0,0,0,0.02)", border: "1px solid rgba(0,0,0,0.05)", borderRadius: 12, marginBottom: 8, display: "flex", flexDirection: "column" }}>
+         {loading ? <div className="fr-empty">Loading chat...</div> : messages.length === 0 ? <div className="fr-empty">No messages yet. Say hi!</div> : messages.map(m => (
+            <div key={m.id} style={{ display: "flex", gap: 8, marginBottom: 12, flexDirection: m.from_id === userId ? "row-reverse" : "row" }}>
+               <div className="fr-group-avatar-dot" style={{ background: avatarGradient(m.name)[0], flexShrink: 0 }}>{m.name[0]?.toUpperCase()}</div>
+               <div style={{ background: m.from_id === userId ? "var(--live)" : "#fff", color: m.from_id === userId ? "#fff" : "#000", padding: "8px 12px", borderRadius: 12, fontSize: 13, maxWidth: "85%", wordBreak: "break-word", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+                  {m.from_id !== userId && <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 4, fontWeight: 700 }}>{m.name}</div>}
+                  {m.text}
+               </div>
+            </div>
+         ))}
+      </div>
+      <form onSubmit={handleSend} style={{ display: "flex", gap: 6 }}>
+         <input type="text" className="fr-add-input" placeholder="Message group..." value={text} onChange={e => setText(e.target.value)} style={{ flex: 1, padding: "8px 14px", borderRadius: 20, border: "1px solid rgba(0,0,0,0.1)", background: "#fff", fontSize: 13 }} />
+         <button type="submit" className="fr-btn fr-btn-primary" style={{ borderRadius: 20, padding: "0 16px" }}>Send</button>
+      </form>
     </div>
   );
 }
@@ -100,6 +182,74 @@ export default function FriendsPanel({
     const t = setTimeout(() => setInitialLoading(false), 1400);
     return () => clearTimeout(t);
   }, [friends.length]);
+
+  const [suggestedBuddies, setSuggestedBuddies] = useState(null);
+  const [optOutMatchmaker, setOptOutMatchmaker] = useState(() => {
+    try { return localStorage.getItem("pgp2.opt-out-matchmaker") === "true"; } catch { return false; }
+  });
+
+  const toggleOptOut = () => {
+    setOptOutMatchmaker(prev => {
+      const next = !prev;
+      try { localStorage.setItem("pgp2.opt-out-matchmaker", next ? "true" : "false"); } catch {}
+      if (userId) {
+        import("../lib/supabase.js").then(({ supabase }) => {
+          supabase.from("profiles").select("courses").eq("user_id", userId).single().then(({data}) => {
+             if (data?.courses) {
+                const updatedCourses = { ...data.courses, _hide_from_matchmaker: next };
+                supabase.from("profiles").update({ courses: updatedCourses }).eq("user_id", userId).then();
+             }
+          });
+        });
+      }
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    if (!userId || !enrolled || optOutMatchmaker) {
+      setSuggestedBuddies([]);
+      return;
+    }
+    
+    async function fetchMatches() {
+      const myCourseKeys = Object.keys(enrolled).filter(k => !k.startsWith("_"));
+      if (myCourseKeys.length === 0) {
+        setSuggestedBuddies([]);
+        return;
+      }
+      
+      const { supabase } = await import("../lib/supabase.js");
+      const { data, error } = await supabase.from("profiles")
+        .select("user_id, name, courses")
+        .neq("user_id", userId);
+        
+      if (error || !data) return;
+      
+      const friendCloudIds = new Set(friends.map(f => f.cloudId).filter(Boolean));
+      
+      const matches = data.map(profile => {
+        if (friendCloudIds.has(profile.user_id)) return null; // Already friends
+        if (profile.courses?._hide_from_matchmaker) return null; // Opted out
+        
+        const theirCourses = Object.keys(profile.courses || {}).filter(k => !k.startsWith("_"));
+        if (theirCourses.length === 0) return null;
+        
+        const intersection = myCourseKeys.filter(c => theirCourses.includes(c)).length;
+        const union = new Set([...myCourseKeys, ...theirCourses]).size;
+        const score = union === 0 ? 0 : Math.round((intersection / union) * 100);
+        
+        if (score >= 40) {
+           return { ...profile, score };
+        }
+        return null;
+      }).filter(Boolean).sort((a, b) => b.score - a.score).slice(0, 3);
+      
+      setSuggestedBuddies(matches);
+    }
+    
+    fetchMatches();
+  }, [userId, enrolled, friends, optOutMatchmaker]);
 
   const showToast = (message, type = "success", action = null) => setToast({ message, type, action });
 
@@ -216,12 +366,17 @@ export default function FriendsPanel({
     setFriends(updated);
     pushFriendsToCloud(userId, updated);
     if (friend?.cloudId) {
-      // Clear all pings between both users, then send a removal signal so the
-      // other person's app removes us from their list (works even if they're offline)
       deletePingsBetween(userId, friend.cloudId).then(() => {
         sendFriendPing(friend.cloudId, userId, userName, { type: "friend_removed" });
       });
     }
+  }
+
+  function handleToggleFavourite(e, f) {
+    e.stopPropagation();
+    const updated = updateFriend(f.id, { isFavourite: !f.isFavourite });
+    setFriends(updated);
+    pushFriendsToCloud(userId, updated);
   }
 
   async function handleRefreshFriend(id) {
@@ -370,23 +525,504 @@ export default function FriendsPanel({
     return inClass ? "busy" : "free";
   }
 
+  const sortedFriends = [...friends].sort((a, b) => {
+    if (a.isFavourite !== b.isFavourite) return a.isFavourite ? -1 : 1;
+    if (a.isFavourite && b.isFavourite) {
+      const aOrder = a.favOrder !== undefined ? a.favOrder : 9999;
+      const bOrder = b.favOrder !== undefined ? b.favOrder : 9999;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+    }
+    return a.name.localeCompare(b.name);
+  });
+  const visibleFriends = sortedFriends.slice(0, 4);
+
+  const [showAllFriendsModal, setShowAllFriendsModal] = useState(false);
+  const [friendSearchQuery, setFriendSearchQuery] = useState("");
+  const [showAllGroupsModal, setShowAllGroupsModal] = useState(false);
+  const [groupSearchQuery, setGroupSearchQuery] = useState("");
+  const [showAllBuddiesModal, setShowAllBuddiesModal] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  );
+
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const activeIdx = friends.findIndex(f => f.id === active.id);
+      const overIdx = friends.findIndex(f => f.id === over.id);
+      if (activeIdx !== -1 && overIdx !== -1) {
+        const sortedFavs = sortedFriends.filter(f => f.isFavourite);
+        const oldIndex = sortedFavs.findIndex(f => f.id === active.id);
+        const newIndex = sortedFavs.findIndex(f => f.id === over.id);
+        const newFavs = arrayMove(sortedFavs, oldIndex, newIndex);
+        
+        const updated = friends.map(f => {
+          if (f.isFavourite) {
+            const index = newFavs.findIndex(nf => nf.id === f.id);
+            return { ...f, favOrder: index };
+          }
+          return f;
+        });
+        
+        writeFriends(updated);
+        setFriends(updated);
+        pushFriendsToCloud(userId, updated);
+      }
+    }
+  };
+
+  const renderFriendCard = (f, isCompact = false) => {
+    const fCourseCount = Object.keys(f.courses || {}).length;
+    const [c1, c2] = avatarGradient(f.name);
+    const status = getFriendStatusNow(f);
+    return (
+      <div key={f.id} className={`fr-friend-card ${isCompact ? "compact" : ""} ${f.isFavourite && !isCompact ? "favourite-glow" : ""}`} style={{ '--accent': c1 }}>
+        <div className="fr-friend-avatar" style={{ background: `linear-gradient(135deg, ${c1} 0%, ${c2} 100%)`, boxShadow: `0 4px 10px ${c1}40` }}>
+          {f.name[0]?.toUpperCase()}
+        </div>
+        <div className="fr-friend-info">
+          <span className="fr-friend-name">{f.name}</span>
+          <div className="fr-friend-meta-row">
+            <span className="fr-friend-meta">{fCourseCount} course{fCourseCount !== 1 ? "s" : ""}</span>
+            {status && (
+              <span className={`fr-friend-status fr-friend-status-${status}`}>
+                <span className="fr-friend-status-dot" />
+                {status === "free" ? "Free now" : "In class"}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="fr-friend-actions">
+          <button className="fr-btn fr-btn-compare" onClick={() => onCompare(f)}>
+            Compare <ArrowRight size={13} />
+          </button>
+          <button 
+            className={`fr-btn fr-btn-icon ${f.isFavourite ? 'favourite-active' : ''}`} 
+            onClick={(e) => handleToggleFavourite(e, f)} 
+            aria-label={f.isFavourite ? "Remove from favourites" : "Add to favourites"}
+            title={f.isFavourite ? "Remove from favourites" : "Add to favourites"}
+          >
+            <Star size={14} fill={f.isFavourite ? "currentColor" : "none"} style={{ color: f.isFavourite ? "#FBBF24" : "var(--muted)" }} />
+          </button>
+          {f.cloudId && (
+            <button
+              className="fr-btn fr-btn-icon"
+              onClick={() => handleRefreshFriend(f.id)}
+              disabled={syncingFriendId === f.id}
+              aria-label="Sync friend's schedule"
+              title="Sync latest schedule"
+            >
+              <RefreshCw size={14} className={syncingFriendId === f.id ? "spin-icon" : ""} />
+            </button>
+          )}
+          <button className="fr-btn fr-btn-icon fr-btn-delete" onClick={() => handleRemoveFriend(f.id)} aria-label="Remove friend">
+            <Trash2 size={14} />
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderGroupCard = (group, isCompact = false) => {
+    const memberCount = (group.memberIds || []).length;
+    const isExpanded = expandedGroup === group.id && !isCompact; // don't expand in compact mode
+
+    const displayMembers = group.isReceived
+      ? (group.cloudMemberIds || [])
+          .filter(cid => cid !== userId)
+          .map(cid => friends.find(f => f.cloudId === cid))
+          .filter(Boolean)
+      : friends.filter(f => (group.memberIds || []).includes(f.id));
+
+    const displayCount = group.isReceived ? displayMembers.length : memberCount;
+
+    return (
+      <div key={group.id} className={`fr-group-card ${group.isReceived ? "fr-group-received" : ""} ${isCompact ? "compact" : ""}`}>
+        <div className="fr-group-head" onClick={() => !isCompact && setExpandedGroup(isExpanded ? null : group.id)}>
+          <div className="fr-group-info">
+            <span className="fr-group-name">{group.name}</span>
+            <span className="fr-group-meta">
+              {group.isReceived
+                ? <span className="fr-group-shared-badge"><Globe size={11} /> Shared by {group.ownerName}</span>
+                : `${memberCount} member${memberCount !== 1 ? "s" : ""}`
+              }
+            </span>
+          </div>
+          {displayCount > 0 && (
+            <div className="fr-group-member-preview">
+              {displayMembers.slice(0, 4).map((f, fi) => {
+                const [c1] = avatarGradient(f.name);
+                return (
+                  <div key={f.id} className="fr-group-avatar-dot" style={{ background: c1, zIndex: 10 - fi }}>
+                    {f.name[0]?.toUpperCase()}
+                  </div>
+                );
+              })}
+              {displayCount > 4 && (
+                <div className="fr-group-avatar-dot fr-group-avatar-more">+{displayCount - 4}</div>
+              )}
+            </div>
+          )}
+          <div className="fr-group-actions">
+            {(memberCount >= 1 || group.isReceived) && (
+              <button className="fr-btn fr-btn-compare" onClick={e => { e.stopPropagation(); onGroupCompare(group); }}>
+                Compare <ArrowRight size={13} />
+              </button>
+            )}
+            {!group.isReceived && !isCompact && (
+              <span className={`fr-privacy-badge fr-privacy-badge-${group.visibility || "private"}`}>
+                {group.visibility === "global" ? <Globe size={11} /> : group.visibility === "shared" ? <Users size={11} /> : <Lock size={11} />}
+                {group.visibility === "global" ? "Global" : group.visibility === "shared" ? "Members" : "Private"}
+              </span>
+            )}
+            {!isCompact && (isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />)}
+          </div>
+        </div>
+        {isExpanded && !isCompact && (
+          <div className="fr-group-body">
+            {group.isReceived ? (
+              <>
+                <p className="fr-group-body-label">Members in this group:</p>
+                {displayMembers.length === 0 ? (
+                  <p className="fr-empty">Add the group members as friends to see them here.</p>
+                ) : (
+                  <div className="fr-group-members">
+                    {displayMembers.map(f => (
+                      <div key={f.id} className="fr-member-chip in" style={{ cursor: "default" }}>
+                        <span className="fr-member-initial">{f.name[0]}</span>
+                        {f.name}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
+                  {confirmDeleteId === group.id ? (
+                    <div className="fr-confirm-row" onClick={e => e.stopPropagation()}>
+                      <span className="fr-confirm-label">Leave group?</span>
+                      <button className="fr-btn fr-btn-danger fr-btn-small" onClick={() => { setConfirmDeleteId(null); handleRemoveGroup(group.id, true); }}>Yes</button>
+                      <button className="fr-btn fr-btn-small" onClick={() => setConfirmDeleteId(null)}>Cancel</button>
+                    </div>
+                  ) : (
+                    <button className="fr-btn fr-btn-danger fr-btn-small" onClick={e => { e.stopPropagation(); setConfirmDeleteId(group.id); }}>
+                      <X size={14} /> Leave group
+                    </button>
+                  )}
+                </div>
+                
+                <GroupChat group={group} userId={userId} userName={userName} />
+              </>
+            ) : (
+              <>
+                <div className="fr-privacy-row">
+                  <span className="fr-privacy-label">Privacy</span>
+                  <div className="fr-privacy-picker">
+                    {[
+                      { key: "private", Icon: Lock,  label: "Private",  desc: "Only you" },
+                      { key: "shared",  Icon: Users, label: "Members",  desc: "Group members" },
+                      { key: "global",  Icon: Globe, label: "Global",   desc: "All friends" },
+                    ].map(({ key, Icon, label, desc }) => (
+                      <button
+                        key={key}
+                        className={`fr-privacy-opt fr-privacy-opt-${key} ${(group.visibility || "private") === key ? "on" : ""}`}
+                        onClick={() => handleSetGroupPrivacy(group, key)}
+                        disabled={sharingGroupId === group.id}
+                        title={desc}
+                      >
+                        {sharingGroupId === group.id && (group.visibility || "private") !== key
+                          ? <RefreshCw size={12} className="spin-icon" />
+                          : <Icon size={12} />
+                        }
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <p className="fr-group-body-label">Tap friends to add/remove from this group:</p>
+                {friends.length === 0 ? (
+                  <div className="fr-empty-inline">
+                    <UserPlus size={18} strokeWidth={1.5} />
+                    <span>Add friends first, then build your group.</span>
+                  </div>
+                ) : (
+                  <div className="fr-group-members">
+                    {friends.map(f => {
+                      const inGroup = (group.memberIds || []).includes(f.id);
+                      return (
+                        <button
+                          key={f.id}
+                          className={`fr-member-chip ${inGroup ? "in" : ""}`}
+                          onClick={() => handleToggleFriendInGroup(group.id, f.id)}
+                        >
+                          <span className="fr-member-initial">{f.name[0]}</span>
+                          {f.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "8px" }}>
+                  <button className="fr-btn fr-btn-primary" style={{ padding: "6px 12px", fontSize: 12 }} onClick={e => { e.stopPropagation(); setExpandedGroup(null); showToast("Changes saved", "success"); }}>
+                    <Check size={13} strokeWidth={2.8} /> Done
+                  </button>
+                  {confirmDeleteId === group.id ? (
+                    <div className="fr-confirm-row" onClick={e => e.stopPropagation()}>
+                      <span className="fr-confirm-label">Delete group?</span>
+                      <button className="fr-btn fr-btn-danger fr-btn-small" onClick={() => { setConfirmDeleteId(null); handleRemoveGroup(group.id); }}>Yes</button>
+                      <button className="fr-btn fr-btn-small" onClick={() => setConfirmDeleteId(null)}>Cancel</button>
+                    </div>
+                  ) : (
+                    <button className="fr-btn fr-btn-danger fr-btn-small" onClick={e => { e.stopPropagation(); setConfirmDeleteId(group.id); }}>
+                      <Trash2 size={14} /> Delete group
+                    </button>
+                  )}
+                </div>
+                
+                {(group.visibility === "shared" || group.visibility === "global") && (
+                  <GroupChat group={group} userId={userId} userName={userName} />
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderBuddyCard = (match, isCompact = false) => {
+    return (
+      <div key={match.user_id} className={`fr-friend-card ${isCompact ? "compact" : ""}`} style={{ '--accent': '#6D5BD0' }}>
+        <div className="fr-friend-avatar" style={{ background: `linear-gradient(135deg, #6D5BD0 0%, #a29bfe 100%)` }}>
+          {match.name[0]?.toUpperCase() || "?"}
+        </div>
+        <div className="fr-friend-info">
+          <span className="fr-friend-name">{match.name || "Student"}</span>
+          <div className="fr-friend-meta-row">
+            <span className="fr-friend-meta" style={{ color: "var(--live)", fontWeight: 700 }}>{match.score}% Match</span>
+          </div>
+        </div>
+        <div className="fr-friend-actions">
+          <button className="fr-btn fr-btn-primary" onClick={async () => {
+             if (!myCode) { showToast("Wait for code generation", "info"); return; }
+             const alreadySent = await hasPendingFriendRequest(userId, match.user_id);
+             if (alreadySent) { showToast("Request already sent", "info"); return; }
+             await sendFriendPing(match.user_id, userId, userName, { type: "friend_request", fromCode: myCode });
+             showToast(`Request sent to ${match.name}!`, "success");
+             setSuggestedBuddies(prev => prev.filter(p => p.user_id !== match.user_id));
+          }}>
+            <UserPlus size={13} /> Add
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const filteredFriendsForModal = sortedFriends.filter(f => f.name.toLowerCase().includes(friendSearchQuery.toLowerCase()));
+  const groupedFriends = {};
+  filteredFriendsForModal.forEach(f => {
+    const letter = f.isFavourite ? '★ Favourites' : (f.name[0]?.toUpperCase() || '#');
+    if (!groupedFriends[letter]) groupedFriends[letter] = [];
+    groupedFriends[letter].push(f);
+  });
+  const alphabet = ["★", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("")];
+  const activeLetters = Object.keys(groupedFriends).sort((a, b) => {
+    if (a === '★ Favourites') return -1;
+    if (b === '★ Favourites') return 1;
+    return a.localeCompare(b);
+  });
+
+  const filteredGroupsForModal = groups.filter(g => g.name.toLowerCase().includes(groupSearchQuery.toLowerCase()));
+  const sortedGroups = [...filteredGroupsForModal].sort((a, b) => a.name.localeCompare(b.name));
+  const groupedGroups = {};
+  sortedGroups.forEach(g => {
+    const letter = g.name[0]?.toUpperCase() || '#';
+    if (!groupedGroups[letter]) groupedGroups[letter] = [];
+    groupedGroups[letter].push(g);
+  });
+  const activeGroupLetters = Object.keys(groupedGroups).sort();
+
   return (
     <div className="fr-page">
       {toast && <Toast message={toast.message} type={toast.type} action={toast.action} onDone={() => setToast(null)} />}
 
+      {showAllFriendsModal && (
+        <div className="fr-modal-backdrop" onClick={() => setShowAllFriendsModal(false)}>
+          <div className="fr-friends-modal" onClick={e => e.stopPropagation()}>
+            <div className="fr-friends-modal-head">
+              <div className="fr-friends-modal-title-row">
+                <h2 className="fr-friends-modal-title">All Friends</h2>
+                <button className="fr-modal-close" onClick={() => setShowAllFriendsModal(false)}>
+                  <X size={18} />
+                </button>
+              </div>
+              <input
+                type="text"
+                className="fr-friends-modal-search"
+                placeholder="Search friends..."
+                value={friendSearchQuery}
+                onChange={e => setFriendSearchQuery(e.target.value)}
+                autoFocus
+              />
+            </div>
+            
+            <div className="fr-friends-modal-body" id="fr-modal-scroll-body">
+              {activeLetters.length === 0 ? (
+                <p className="fr-empty">No friends found.</p>
+              ) : (
+                activeLetters.map(letter => (
+                  <div key={letter} className="fr-friends-modal-group" id={`fr-group-${letter}`}>
+                    <h4 className="fr-friends-modal-letter">{letter}</h4>
+                    <div className="fr-friend-list">
+                      {letter === '★ Favourites' ? (
+                        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                          <SortableContext items={groupedFriends[letter].map(f => f.id)} strategy={verticalListSortingStrategy}>
+                            {groupedFriends[letter].map(f => <SortableFriendItem key={f.id} f={f} renderFriendCard={renderFriendCard} isCompact={true} />)}
+                          </SortableContext>
+                        </DndContext>
+                      ) : (
+                        groupedFriends[letter].map(f => renderFriendCard(f, true))
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="fr-az-scroller">
+              {alphabet.map(letter => {
+                const groupKey = letter === '★' ? '★ Favourites' : letter;
+                const isActive = activeLetters.includes(groupKey);
+                return (
+                  <div 
+                    key={letter} 
+                    className={`fr-az-letter ${isActive ? 'active' : ''}`}
+                    style={{ opacity: isActive ? 1 : 0.4, cursor: isActive ? 'pointer' : 'default', fontSize: letter === '★' ? 14 : undefined }}
+                    onClick={() => {
+                      if (isActive) {
+                        const el = document.getElementById(`fr-group-${groupKey}`);
+                        if (el) el.scrollIntoView({ behavior: 'smooth' });
+                      }
+                    }}
+                  >
+                    {letter}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Groups Modal ── */}
+      {showAllGroupsModal && (
+        <div className="fr-modal-backdrop" onClick={() => setShowAllGroupsModal(false)}>
+          <div className="fr-friends-modal" onClick={e => e.stopPropagation()}>
+            <div className="fr-friends-modal-head">
+              <div className="fr-friends-modal-title-row">
+                <h2 className="fr-friends-modal-title">All Groups</h2>
+                <button className="fr-modal-close" onClick={() => setShowAllGroupsModal(false)}>
+                  <X size={18} />
+                </button>
+              </div>
+              <input
+                type="text"
+                className="fr-friends-modal-search"
+                placeholder="Search groups..."
+                value={groupSearchQuery}
+                onChange={e => setGroupSearchQuery(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="fr-friends-modal-body" id="fr-modal-scroll-body-groups">
+              {activeGroupLetters.length === 0 ? (
+                <p className="fr-empty">No groups found.</p>
+              ) : (
+                activeGroupLetters.map(letter => (
+                  <div key={letter} className="fr-friends-modal-group" id={`fr-group-letter-${letter}`}>
+                    <h4 className="fr-friends-modal-letter">{letter}</h4>
+                    <div className="fr-group-list">
+                      {groupedGroups[letter].map(g => renderGroupCard(g, true))}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="fr-az-scroller">
+              {alphabet.map(letter => {
+                const isActive = activeGroupLetters.includes(letter);
+                return (
+                  <div 
+                    key={letter} 
+                    className={`fr-az-letter ${isActive ? 'active' : ''}`}
+                    style={{ opacity: isActive ? 1 : 0.4, cursor: isActive ? 'pointer' : 'default' }}
+                    onClick={() => {
+                      if (isActive) {
+                        const el = document.getElementById(`fr-group-letter-${letter}`);
+                        if (el) el.scrollIntoView({ behavior: 'smooth' });
+                      }
+                    }}
+                  >
+                    {letter}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Suggested Buddies Modal ── */}
+      {showAllBuddiesModal && (
+        <div className="fr-modal-backdrop" onClick={() => setShowAllBuddiesModal(false)}>
+          <div className="fr-friends-modal" onClick={e => e.stopPropagation()}>
+            <div className="fr-friends-modal-head">
+              <div className="fr-friends-modal-title-row">
+                <h2 className="fr-friends-modal-title">Suggested Buddies</h2>
+                <button className="fr-modal-close" onClick={() => setShowAllBuddiesModal(false)}>
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+            <div className="fr-friends-modal-body" style={{ paddingRight: 24 }}>
+              <div className="fr-friend-list">
+                {suggestedBuddies.map(match => renderBuddyCard(match, true))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Page Header + Bell ── */}
       <div className="fr-page-hdr">
-        <h2 className="fr-page-hdr-title">Friends</h2>
-        <div className="fr-bell-wrap">
-          <button
-            className={`fr-bell-btn${notifOpen ? " open" : ""}`}
-            onClick={() => setNotifOpen(o => !o)}
-            aria-label="Friend notifications"
-          >
-            <Bell size={17} />
-            {notifications.some(n => !n.isRead) && <span className="fr-bell-dot" />}
-          </button>
-          {notifOpen && (
+        <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
+          <h2 className="fr-page-hdr-title">Friends</h2>
+          {(friends.length > 0 || groups.length > 0) && (
+            <span style={{ fontSize: 14, color: "var(--muted)", fontWeight: 500 }}>
+              {friends.length} friend{friends.length !== 1 ? 's' : ''} · {groups.length} group{groups.length !== 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {friends.length > 0 && (
+            <button
+              className="fr-btn fr-btn-secondary fr-btn-small"
+              onClick={() => handleRefreshFriend("all")}
+              disabled={!!syncingFriendId}
+            >
+              <RefreshCw size={14} className={syncingFriendId ? "spin-icon" : ""} />
+              <span className="desk-only">Sync all</span>
+            </button>
+          )}
+          <div className="fr-bell-wrap">
+            <button
+              className={`fr-bell-btn${notifOpen ? " open" : ""}`}
+              onClick={() => setNotifOpen(o => !o)}
+              aria-label="Friend notifications"
+            >
+              <Bell size={17} />
+              {notifications.some(n => !n.isRead) && <span className="fr-bell-dot" />}
+            </button>
+            {notifOpen && (
             <>
             <div className="notif-backdrop" onClick={() => { setNotifOpen(false); setShowAllNotifs(false); }} />
             <div className="fr-bell-panel">
@@ -443,65 +1079,17 @@ export default function FriendsPanel({
             </div>
             </>
           )}
+          </div>
         </div>
       </div>
 
       <div className="fr-layout">
       <div className="fr-left-col">
-      {/* ── Share Your Schedule ── */}
-      <section className="fr-share-card">
-        <div className="fr-share-head">
-          <h2>Share Your Schedule</h2>
-          <span className="fr-share-sub">{courseCount} courses enrolled</span>
-        </div>
-        {isGenerating ? (
-          <p className="fr-share-empty">Generating secure share code...</p>
-        ) : myCode ? (
-          <>
-            <div className="fr-code-display">
-              <span className="fr-code-text">{myCodeDisplay}</span>
-            </div>
-            <div className="fr-share-actions" style={{ marginTop: 12 }}>
-              <button className="fr-btn fr-btn-primary" onClick={copyCode} style={{ flex: 1, justifyContent: "center", padding: "10px", fontSize: "14px" }}>
-                <Copy size={16} /> Copy Code
-              </button>
-              <button className="fr-btn fr-btn-secondary" onClick={copyLink} style={{ flex: 1, justifyContent: "center", padding: "10px", fontSize: "14px" }}>
-                <Link2 size={16} /> Copy Link
-              </button>
-            </div>
-            <p className="fr-share-note" style={{ fontSize: "12px", color: "var(--muted)", marginTop: "12px", textAlign: "center" }}>
-              Your friend can enter this code manually or open your invite link.
-            </p>
-          </>
-        ) : (
-          <p className="fr-share-empty">Complete your course setup first to share your schedule.</p>
-        )}
-      </section>
-
-      {/* ── Add a Friend ── */}
-      <section className="fr-add-section">
-        <h3 className="fr-section-title"><UserPlus size={15} /> Add a Friend</h3>
-        <div className="fr-add-row">
-          <input
-            className="fr-add-input"
-            type="text"
-            placeholder="Paste friend's invite link here..."
-            value={addCode}
-            onChange={e => { setAddCode(e.target.value); setAddError(""); }}
-            onKeyDown={e => e.key === "Enter" && handleAddFriend()}
-          />
-          <button className="fr-btn fr-btn-primary fr-btn-add" onClick={handleAddFriend} disabled={!addCode.trim() || isAdding}>
-            {isAdding ? "Searching..." : "Add"}
-          </button>
-        </div>
-        {addError && <p className="fr-add-error">{addError}</p>}
-      </section>
-
       {/* ── Groups ── */}
-      <section className="fr-groups-section">
+      <section className="fr-groups-section fr-sec-groups">
         <div className="fr-section-header">
           <h3 className="fr-section-title"><Users size={15} /> Groups</h3>
-          <button className="fr-btn fr-btn-small" onClick={() => setShowNewGroup(s => !s)}>
+          <button className="fr-btn fr-btn-secondary fr-btn-small" style={{ borderRadius: 20 }} onClick={() => setShowNewGroup(s => !s)}>
             {showNewGroup ? <X size={13} /> : <Plus size={13} />}
             {showNewGroup ? "Cancel" : "New Group"}
           </button>
@@ -535,173 +1123,32 @@ export default function FriendsPanel({
           </div>
         ) : (
           <div className="fr-group-list">
-            {groups.map(group => {
-              const memberCount = (group.memberIds || []).length;
-              const isExpanded = expandedGroup === group.id;
-
-              const displayMembers = group.isReceived
-                ? (group.cloudMemberIds || [])
-                    .filter(cid => cid !== userId)
-                    .map(cid => friends.find(f => f.cloudId === cid))
-                    .filter(Boolean)
-                : friends.filter(f => (group.memberIds || []).includes(f.id));
-
-              const displayCount = group.isReceived ? displayMembers.length : memberCount;
-
-              return (
-                <div key={group.id} className={`fr-group-card ${group.isReceived ? "fr-group-received" : ""}`}>
-                  <div className="fr-group-head" onClick={() => setExpandedGroup(isExpanded ? null : group.id)}>
-                    <div className="fr-group-info">
-                      <span className="fr-group-name">{group.name}</span>
-                      <span className="fr-group-meta">
-                        {group.isReceived
-                          ? <span className="fr-group-shared-badge"><Globe size={11} /> Shared by {group.ownerName}</span>
-                          : `${memberCount} member${memberCount !== 1 ? "s" : ""}`
-                        }
-                      </span>
-                    </div>
-                    {displayCount > 0 && (
-                      <div className="fr-group-member-preview">
-                        {displayMembers.slice(0, 4).map((f, fi) => {
-                          const [c1] = avatarGradient(f.name);
-                          return (
-                            <div key={f.id} className="fr-group-avatar-dot" style={{ background: c1, zIndex: 10 - fi }}>
-                              {f.name[0]?.toUpperCase()}
-                            </div>
-                          );
-                        })}
-                        {displayCount > 4 && (
-                          <div className="fr-group-avatar-dot fr-group-avatar-more">+{displayCount - 4}</div>
-                        )}
-                      </div>
-                    )}
-                    <div className="fr-group-actions">
-                      {(memberCount >= 1 || group.isReceived) && (
-                        <button className="fr-btn fr-btn-compare" onClick={e => { e.stopPropagation(); onGroupCompare(group); }}>
-                          Compare <ArrowRight size={13} />
-                        </button>
-                      )}
-                      {!group.isReceived && (
-                        <span className={`fr-privacy-badge fr-privacy-badge-${group.visibility || "private"}`}>
-                          {group.visibility === "global" ? <Globe size={11} /> : group.visibility === "shared" ? <Users size={11} /> : <Lock size={11} />}
-                          {group.visibility === "global" ? "Global" : group.visibility === "shared" ? "Members" : "Private"}
-                        </span>
-                      )}
-                      {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                    </div>
-                  </div>
-                  {isExpanded && (
-                    <div className="fr-group-body">
-                      {group.isReceived ? (
-                        <>
-                          <p className="fr-group-body-label">Members in this group:</p>
-                          {displayMembers.length === 0 ? (
-                            <p className="fr-empty">Add the group members as friends to see them here.</p>
-                          ) : (
-                            <div className="fr-group-members">
-                              {displayMembers.map(f => (
-                                <div key={f.id} className="fr-member-chip in" style={{ cursor: "default" }}>
-                                  <span className="fr-member-initial">{f.name[0]}</span>
-                                  {f.name}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
-                            {confirmDeleteId === group.id ? (
-                              <div className="fr-confirm-row" onClick={e => e.stopPropagation()}>
-                                <span className="fr-confirm-label">Leave group?</span>
-                                <button className="fr-btn fr-btn-danger fr-btn-small" onClick={() => { setConfirmDeleteId(null); handleRemoveGroup(group.id, true); }}>Yes</button>
-                                <button className="fr-btn fr-btn-small" onClick={() => setConfirmDeleteId(null)}>Cancel</button>
-                              </div>
-                            ) : (
-                              <button className="fr-btn fr-btn-danger fr-btn-small" onClick={e => { e.stopPropagation(); setConfirmDeleteId(group.id); }}>
-                                <X size={14} /> Leave group
-                              </button>
-                            )}
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="fr-privacy-row">
-                            <span className="fr-privacy-label">Privacy</span>
-                            <div className="fr-privacy-picker">
-                              {[
-                                { key: "private", Icon: Lock,  label: "Private",  desc: "Only you" },
-                                { key: "shared",  Icon: Users, label: "Members",  desc: "Group members" },
-                                { key: "global",  Icon: Globe, label: "Global",   desc: "All friends" },
-                              ].map(({ key, Icon, label, desc }) => (
-                                <button
-                                  key={key}
-                                  className={`fr-privacy-opt fr-privacy-opt-${key} ${(group.visibility || "private") === key ? "on" : ""}`}
-                                  onClick={() => handleSetGroupPrivacy(group, key)}
-                                  disabled={sharingGroupId === group.id}
-                                  title={desc}
-                                >
-                                  {sharingGroupId === group.id && (group.visibility || "private") !== key
-                                    ? <RefreshCw size={12} className="spin-icon" />
-                                    : <Icon size={12} />
-                                  }
-                                  {label}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                          <p className="fr-group-body-label">Tap friends to add/remove from this group:</p>
-                          {friends.length === 0 ? (
-                            <div className="fr-empty-inline">
-                              <UserPlus size={18} strokeWidth={1.5} />
-                              <span>Add friends first, then build your group.</span>
-                            </div>
-                          ) : (
-                            <div className="fr-group-members">
-                              {friends.map(f => {
-                                const inGroup = (group.memberIds || []).includes(f.id);
-                                return (
-                                  <button
-                                    key={f.id}
-                                    className={`fr-member-chip ${inGroup ? "in" : ""}`}
-                                    onClick={() => handleToggleFriendInGroup(group.id, f.id)}
-                                  >
-                                    <span className="fr-member-initial">{f.name[0]}</span>
-                                    {f.name}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          )}
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "8px" }}>
-                            <button className="fr-btn fr-btn-primary" style={{ padding: "6px 12px", fontSize: 12 }} onClick={e => { e.stopPropagation(); setExpandedGroup(null); showToast("Changes saved", "success"); }}>
-                              <Check size={13} strokeWidth={2.8} /> Done
-                            </button>
-                            {confirmDeleteId === group.id ? (
-                              <div className="fr-confirm-row" onClick={e => e.stopPropagation()}>
-                                <span className="fr-confirm-label">Delete group?</span>
-                                <button className="fr-btn fr-btn-danger fr-btn-small" onClick={() => { setConfirmDeleteId(null); handleRemoveGroup(group.id); }}>Yes</button>
-                                <button className="fr-btn fr-btn-small" onClick={() => setConfirmDeleteId(null)}>Cancel</button>
-                              </div>
-                            ) : (
-                              <button className="fr-btn fr-btn-danger fr-btn-small" onClick={e => { e.stopPropagation(); setConfirmDeleteId(group.id); }}>
-                                <Trash2 size={14} /> Delete group
-                              </button>
-                            )}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            {groups.slice(0, 4).map(group => renderGroupCard(group, false))}
           </div>
+        )}
+
+        {groups.length > 4 && (
+          <button 
+            className="fr-btn fr-btn-secondary" 
+            style={{ width: "100%", marginTop: 16, justifyContent: "center", padding: "12px", background: "transparent", border: "1px dashed rgba(0,0,0,0.15)" }} 
+            onClick={() => setShowAllGroupsModal(true)}
+          >
+            Show all {groups.length} groups
+          </button>
         )}
       </section>
 
-      </div>{/* /fr-left-col */}
-      <div className="fr-right-col">
       {/* ── Saved Friends ── */}
-      <section className="fr-friends-section">
-        <h3 className="fr-section-title">Saved Friends</h3>
+      <section className="fr-friends-section fr-sec-friends">
+        <div className="fr-section-header">
+          <h3 className="fr-section-title">
+            Saved Friends
+            {friends.length > 0 && <span style={{ fontSize: 11, background: "rgba(0,0,0,0.05)", padding: "2px 8px", borderRadius: 10, color: "var(--muted)", fontWeight: 600 }}>{friends.length}</span>}
+          </h3>
+          <button className="fr-btn fr-btn-icon" onClick={() => document.querySelector(".fr-add-input")?.focus()} title="Add Friend">
+            <UserPlus size={15} />
+          </button>
+        </div>
         {initialLoading && friends.length === 0 ? (
           <div className="fr-friend-list">
             <FriendSkeleton />
@@ -722,52 +1169,127 @@ export default function FriendsPanel({
           </div>
         ) : (
           <div className="fr-friend-list">
-            {friends.map(f => {
-              const fCourseCount = Object.keys(f.courses || {}).length;
-              const [c1, c2] = avatarGradient(f.name);
-              const status = getFriendStatusNow(f);
-              return (
-                <div key={f.id} className="fr-friend-card" style={{ '--accent': c1 }}>
-                  <div className="fr-friend-avatar" style={{ background: `linear-gradient(135deg, ${c1} 0%, ${c2} 100%)`, boxShadow: `0 4px 10px ${c1}40` }}>
-                    {f.name[0]?.toUpperCase()}
-                  </div>
-                  <div className="fr-friend-info">
-                    <span className="fr-friend-name">{f.name}</span>
-                    <div className="fr-friend-meta-row">
-                      <span className="fr-friend-meta">{fCourseCount} course{fCourseCount !== 1 ? "s" : ""}</span>
-                      {status && (
-                        <span className={`fr-friend-status fr-friend-status-${status}`}>
-                          <span className="fr-friend-status-dot" />
-                          {status === "free" ? "Free now" : "In class"}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="fr-friend-actions">
-                    <button className="fr-btn fr-btn-compare" onClick={() => onCompare(f)}>
-                      Compare <ArrowRight size={13} />
-                    </button>
-                    {f.cloudId && (
-                      <button
-                        className="fr-btn fr-btn-icon"
-                        onClick={() => handleRefreshFriend(f.id)}
-                        disabled={syncingFriendId === f.id}
-                        aria-label="Sync friend's schedule"
-                        title="Sync latest schedule"
-                      >
-                        <RefreshCw size={14} className={syncingFriendId === f.id ? "spin-icon" : ""} />
-                      </button>
-                    )}
-                    <button className="fr-btn fr-btn-icon fr-btn-delete" onClick={() => handleRemoveFriend(f.id)} aria-label="Remove friend">
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={visibleFriends.filter(f => f.isFavourite).map(f => f.id)} strategy={verticalListSortingStrategy}>
+                {visibleFriends.map(f => 
+                  f.isFavourite 
+                    ? <SortableFriendItem key={f.id} f={f} renderFriendCard={renderFriendCard} isCompact={false} />
+                    : renderFriendCard(f, false)
+                )}
+              </SortableContext>
+            </DndContext>
           </div>
         )}
+        
+        {sortedFriends.length > 4 && (
+          <button 
+            className="fr-btn fr-btn-secondary" 
+            style={{ width: "100%", marginTop: 16, justifyContent: "center", padding: "12px", background: "transparent", border: "1px dashed rgba(0,0,0,0.15)" }} 
+            onClick={() => setShowAllFriendsModal(true)}
+          >
+            Show all {sortedFriends.length} friends
+          </button>
+        )}
       </section>
+
+      </div>{/* /fr-left-col */}
+      <div className="fr-right-col">
+      
+      {/* ── Share & Connect ── */}
+      <section className="fr-share-card fr-sec-share" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div className="fr-share-head" style={{ marginBottom: 0 }}>
+          <h2>Share & Connect</h2>
+          <span className="fr-share-sub">{courseCount} courses enrolled</span>
+        </div>
+        
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {isGenerating ? (
+            <p className="fr-share-empty">Generating secure share code...</p>
+          ) : myCode ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div className="fr-code-display" style={{ margin: 0 }}>
+                <span className="fr-code-text">{myCodeDisplay}</span>
+              </div>
+              <div className="fr-share-actions" style={{ display: "flex", flexDirection: "row", gap: "8px", flexWrap: "nowrap" }}>
+                <button className="fr-btn fr-btn-primary" onClick={copyCode} style={{ flex: 1, justifyContent: "center", padding: "10px 4px", fontSize: "13px", whiteSpace: "nowrap", minWidth: 0 }}>
+                  <Copy size={16} style={{ flexShrink: 0 }} /> <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>Copy Code</span>
+                </button>
+                <button className="fr-btn fr-btn-secondary" onClick={copyLink} style={{ flex: 1, justifyContent: "center", padding: "10px 4px", fontSize: "13px", background: "#fff", border: "1px solid rgba(0,0,0,0.1)", color: "#000", whiteSpace: "nowrap", minWidth: 0 }}>
+                  <Link2 size={16} style={{ flexShrink: 0 }} /> <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>Copy Link</span>
+                </button>
+              </div>
+              <p className="fr-share-note" style={{ fontSize: "12px", color: "var(--muted)", textAlign: "center", margin: 0 }}>
+                Your friend can enter this code manually or open your invite link.
+              </p>
+            </div>
+          ) : (
+            <p className="fr-share-empty">Complete your course setup first to share your schedule.</p>
+          )}
+
+          <div style={{ height: 1, background: "rgba(0,0,0,0.06)", margin: "4px 0" }} />
+
+          <div className="fr-add-section-inner" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <h3 style={{ fontSize: 13, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px", margin: 0, display: "flex", alignItems: "center", gap: 6 }}>
+              <UserPlus size={14} /> Add a Friend
+            </h3>
+            <div className="fr-add-row" style={{ display: "flex", gap: "8px" }}>
+              <input
+                className="fr-add-input"
+                type="text"
+                placeholder="Paste friend's invite link here..."
+                value={addCode}
+                onChange={e => { setAddCode(e.target.value); setAddError(""); }}
+                onKeyDown={e => e.key === "Enter" && handleAddFriend()}
+                style={{ flex: 1, margin: 0 }}
+              />
+              <button className="fr-btn fr-btn-primary fr-btn-add" onClick={handleAddFriend} disabled={!addCode.trim() || isAdding} style={{ margin: 0 }}>
+                {isAdding ? "..." : "Add"}
+              </button>
+            </div>
+            {addError && <p className="fr-add-error" style={{ margin: 0 }}>{addError}</p>}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Suggested Study Buddies ── */}
+      <section className="fr-friends-section fr-sec-buddies" style={{ marginBottom: 24 }}>
+        <div className="fr-section-header">
+           <h3 className="fr-section-title">
+             Suggested Study Buddies
+             <label style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 6, color: "var(--muted)", cursor: "pointer", textTransform: "none", letterSpacing: "normal", fontWeight: 500, marginLeft: 4 }}>
+               <input type="checkbox" checked={optOutMatchmaker} onChange={toggleOptOut} />
+               Opt Out
+             </label>
+           </h3>
+        </div>
+        {!optOutMatchmaker && suggestedBuddies && suggestedBuddies.length > 0 && (
+          <div className="fr-friend-list" style={{ marginTop: 12 }}>
+            {suggestedBuddies.slice(0, 3).map(match => renderBuddyCard(match, false))}
+          </div>
+        )}
+        
+        {!optOutMatchmaker && suggestedBuddies && suggestedBuddies.length > 3 && (
+          <button 
+            className="fr-btn fr-btn-secondary" 
+            style={{ width: "100%", marginTop: 16, justifyContent: "center", padding: "12px", background: "transparent", border: "1px dashed rgba(0,0,0,0.15)" }} 
+            onClick={() => setShowAllBuddiesModal(true)}
+          >
+            Show all {suggestedBuddies.length} buddies
+          </button>
+        )}
+        {optOutMatchmaker && (
+           <div className="fr-empty-state" style={{ padding: "16px", minHeight: "auto", background: "rgba(0,0,0,0.02)" }}>
+              <span style={{ fontSize: 13 }}>You are hidden from the matchmaker.</span>
+           </div>
+        )}
+        {!optOutMatchmaker && (!suggestedBuddies || suggestedBuddies.length === 0) && (
+           <div className="fr-empty-state" style={{ padding: "16px", minHeight: "auto", background: "rgba(0,0,0,0.02)" }}>
+              <span style={{ fontSize: 13 }}>No high-match buddies found right now.</span>
+           </div>
+        )}
+      </section>
+
+
       </div>{/* /fr-right-col */}
       </div>{/* /fr-layout */}
     </div>

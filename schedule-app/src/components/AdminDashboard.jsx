@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, BarChart3, Terminal, Clock, Database } from "lucide-react";
+import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, BarChart3, Terminal, Clock, Database, FileText } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { LEGEND } from "../data/schedule.js";
 import { getSnapshot } from "../lib/sheet.js";
+import AdminCommandPalette from "./AdminCommandPalette";
 
 export async function logAdminAction(admin_id, action, details) {
   try {
@@ -32,7 +33,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     enableAttendance: true,
     maintenanceMode: false,
     bannedUsers: [],
-    classOverrides: {}
+    classOverrides: {},
+    abTests: {}
   });
   
   const [popularCourses, setPopularCourses] = useState([]);
@@ -75,8 +77,15 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [liveSchedule, setLiveSchedule] = useState([]);
   const [liveEditorDate, setLiveEditorDate] = useState(new Date().toISOString().split("T")[0]);
   const [liveEditorModal, setLiveEditorModal] = useState(null);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
 
   const admin_id = user?.id || user?.user_id || "unknown";
+
+  useEffect(() => {
+    const handleOpen = () => setIsCommandPaletteOpen(true);
+    document.addEventListener("open-admin-command-palette", handleOpen);
+    return () => document.removeEventListener("open-admin-command-palette", handleOpen);
+  }, []);
 
   useEffect(() => {
     setLiveSchedule(getSnapshot().CLASSES || []);
@@ -276,6 +285,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           <button onClick={fetchDashboardData} disabled={statsLoading} style={{ background: "transparent", border: "none", color: "var(--live)", cursor: "pointer", padding: 4, display: "flex", alignItems: "center", justifyContent: "center", opacity: statsLoading ? 0.5 : 1 }} title="Refresh Data">
             <RefreshCw size={20} className={statsLoading ? "spin-icon" : ""} />
           </button>
+          <button onClick={() => setIsCommandPaletteOpen(true)} style={{ background: "transparent", border: "none", color: "var(--live)", cursor: "pointer", padding: 4, display: "flex", alignItems: "center", justifyContent: "center" }} title="Open Command Palette (Cmd+Shift+K)">
+            <Search size={20} />
+          </button>
         </div>
         <p style={{ color: "var(--muted)", margin: "0 0 32px 0", fontSize: 16 }}>Global settings, feature flags, and user management.</p>
         
@@ -290,7 +302,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </div>
           <div style={{ background: "var(--card)", padding: "16px 32px", borderRadius: 16, border: "1px solid var(--border)", minWidth: 180 }}>
             <div style={{ fontSize: 12, textTransform: "uppercase", fontWeight: 700, color: "var(--muted)", marginBottom: 8, letterSpacing: "1px", display: "flex", alignItems: "center", gap: 6 }}><Database size={14}/> DB Storage Used</div>
-            <div style={{ fontSize: 36, fontWeight: 800, fontFamily: "var(--display)", color: "var(--text)" }}>{dbSize}</div>
+            <div style={{ fontSize: 36, fontWeight: 800, fontFamily: "var(--display)", color: "var(--text)" }}>{statsLoading ? "..." : dbSize}</div>
           </div>
           <div style={{ background: "var(--card)", padding: "16px 32px", borderRadius: 16, border: "1px solid var(--border)", minWidth: 200, display: "flex", flexDirection: "column", justifyContent: "center" }}>
             <div style={{ fontSize: 12, textTransform: "uppercase", fontWeight: 700, color: "var(--muted)", marginBottom: 8, letterSpacing: "1px", display: "flex", alignItems: "center", gap: 6 }}><BarChart3 size={14}/> Top Electives</div>
@@ -464,7 +476,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           <section className="admin-card">
             <h2><Flag size={20} color="var(--violet)" /> Feature Flags</h2>
             <div className="admin-flag-list">
-              {Object.keys(flags).filter(k => k !== "maintenanceMode" && k !== "bannedUsers" && k !== "classOverrides").map(key => (
+              {Object.keys(flags).filter(k => k !== "maintenanceMode" && k !== "bannedUsers" && k !== "classOverrides" && k !== "abTests" && k !== "scheduledAnnouncements" && k !== "quickLinks").map(key => (
                 <label key={key} className="admin-flag-item">
                   <input 
                     type="checkbox" 
@@ -475,6 +487,39 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 </label>
               ))}
             </div>
+          </section>
+
+          <section className="admin-card">
+            <h2><Flag size={20} color="var(--violet)" /> A/B Testing</h2>
+            <p className="admin-subtext">Roll out features to a percentage of users deterministically.</p>
+            <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+               <input type="text" placeholder="Test Key (e.g. new_hero)" className="admin-input" id="abTestKey" style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)" }} />
+               <input type="number" placeholder="%" className="admin-input" id="abTestPercent" style={{ width: 80, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)" }} min="0" max="100" />
+               <button className="cva-btn primary" onClick={() => {
+                  const k = document.getElementById('abTestKey').value.trim();
+                  const p = parseInt(document.getElementById('abTestPercent').value);
+                  if (k && !isNaN(p) && p >= 0 && p <= 100) {
+                     setFlags({...flags, abTests: {...(flags.abTests || {}), [k]: p}});
+                     document.getElementById('abTestKey').value = "";
+                     document.getElementById('abTestPercent').value = "";
+                  } else {
+                     alert("Please enter a valid key and percentage (0-100)");
+                  }
+               }} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "var(--violet)", color: "#fff", cursor: "pointer", fontWeight: 600 }}>Add Test</button>
+            </div>
+            {flags.abTests && Object.entries(flags.abTests).map(([k, p]) => (
+               <div key={k} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "rgba(0,0,0,0.03)", borderRadius: 8, border: "1px solid var(--border)", marginBottom: 8 }}>
+                  <div>
+                    <strong style={{ fontSize: 14 }}>{k}</strong> 
+                    <div style={{ fontSize: 12, color: "var(--muted)" }}>Variant B: {p}% of users</div>
+                  </div>
+                  <button onClick={() => {
+                     const next = {...flags.abTests};
+                     delete next[k];
+                     setFlags({...flags, abTests: next});
+                  }} style={{ background: "transparent", border: "none", cursor: "pointer", padding: 4 }}><Trash2 size={16} color="var(--danger)" /></button>
+               </div>
+            ))}
           </section>
 
           <section className="admin-card danger-zone">
@@ -646,11 +691,47 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 
                 const displayClasses = [...baseClasses, ...newClasses];
                 
+                // --- CONFLICT DETECTOR ---
+                const conflicts = [];
+                function toMinFP(t) { const [h, m] = t.split(":").map(Number); return h * 60 + (m || 0); }
+                
+                for (let i = 0; i < displayClasses.length; i++) {
+                  for (let j = i + 1; j < displayClasses.length; j++) {
+                    const c1 = displayClasses[i];
+                    const c2 = displayClasses[j];
+                    
+                    const ovr1 = overridesForDate[`${c1.code}_${c1.section}`] || overridesForDate[c1.code];
+                    const ovr2 = overridesForDate[`${c2.code}_${c2.section}`] || overridesForDate[c2.code];
+                    
+                    if (ovr1?.type === "cancelled" || ovr2?.type === "cancelled") continue;
+                    
+                    const room1 = ovr1?.room || c1.room;
+                    const room2 = ovr2?.room || c2.room;
+                    
+                    const start1 = toMinFP(ovr1?.start || c1.start || "00:00");
+                    const end1 = toMinFP(ovr1?.end || c1.end || "00:00");
+                    const start2 = toMinFP(ovr2?.start || c2.start || "00:00");
+                    const end2 = toMinFP(ovr2?.end || c2.end || "00:00");
+
+                    // Overlap logic: start1 < end2 && start2 < end1
+                    const isTimeOverlap = start1 < end2 && start2 < end1;
+                    
+                    if (isTimeOverlap) {
+                      if (room1 && room2 && room1.toLowerCase() === room2.toLowerCase() && room1.toLowerCase() !== "tbd") {
+                        conflicts.push(`Room Double-Booked: ${room1} (${c1.code} and ${c2.code})`);
+                      } else if (c1.section === c2.section || c1.section === "All" || c2.section === "All") {
+                        conflicts.push(`Section Overlap: Section ${c1.section === "All" ? c2.section : c1.section} expected in ${c1.code} and ${c2.code} simultaneously.`);
+                      }
+                    }
+                  }
+                }
+                // -------------------------
+
                 if (displayClasses.length === 0) {
                   return <div className="admin-empty">No classes found for this date.</div>;
                 }
                 
-                return displayClasses.map((c, i) => {
+                const classElements = displayClasses.map((c, i) => {
                   const override = overridesForDate[`${c.code}_${c.section}`] || overridesForDate[c.code] || null;
                   const isCancelled = override?.type === "cancelled";
                   const displayRoom = override?.room || c.room;
@@ -665,6 +746,22 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     </div>
                   );
                 });
+                
+                return (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 16, width: "100%" }}>
+                    {conflicts.length > 0 && (
+                       <div style={{ background: "rgba(231, 76, 60, 0.1)", border: "1px solid var(--danger)", padding: 12, borderRadius: 8, color: "var(--danger)" }}>
+                         <strong style={{ display: "flex", alignItems: "center", gap: 8 }}><AlertTriangle size={16} /> Conflict Warning</strong>
+                         <ul style={{ margin: "8px 0 0 0", paddingLeft: 20, fontSize: 13 }}>
+                           {Array.from(new Set(conflicts)).map((c, idx) => <li key={idx}>{c}</li>)}
+                         </ul>
+                       </div>
+                    )}
+                    <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8 }}>
+                       {classElements}
+                    </div>
+                  </div>
+                );
               })()}
             </div>
           </section>
@@ -721,17 +818,39 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           <section className="admin-card" style={{ gridColumn: "1 / -1" }}>
             <h2><Terminal size={20} color="var(--violet)" /> Admin Audit Logs</h2>
             <p className="admin-subtext">Recent administrative actions performed by all admins.</p>
-            <div style={{ background: "rgba(0,0,0,0.8)", color: "#e2e8f0", borderRadius: 8, padding: 16, marginTop: 16, maxHeight: 300, overflowY: "auto", fontFamily: "monospace", fontSize: 13, border: "1px solid var(--border)" }}>
+            <div style={{ padding: 16, marginTop: 16 }}>
               {auditLogs.length === 0 ? (
-                <div style={{ color: "var(--muted)", fontStyle: "italic" }}>No audit logs found.</div>
+                <div className="admin-empty">No audit logs found.</div>
               ) : (
-                auditLogs.map((log) => (
-                  <div key={log.id} style={{ display: "flex", gap: 12, marginBottom: 8, paddingBottom: 8, borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                    <span style={{ color: "var(--muted)", whiteSpace: "nowrap" }}>{new Date(log.created_at).toLocaleString()}</span>
-                    <span style={{ color: "var(--live)", fontWeight: 700 }}>[{log.action}]</span>
-                    <span style={{ color: "#e2e8f0" }}>{JSON.stringify(log.details)}</span>
-                  </div>
-                ))
+                <div style={{ position: "relative", borderLeft: "2px solid var(--border)", paddingLeft: 24, marginLeft: 12, display: "flex", flexDirection: "column", gap: 24 }}>
+                  {auditLogs.map((log) => {
+                     let Icon = FileText;
+                     let color = "var(--text)";
+                     if (log.action.includes("save") || log.action.includes("refresh")) { Icon = Save; color = "var(--blue)"; }
+                     else if (log.action.includes("cancel") || log.action.includes("override") || log.action.includes("edit")) { Icon = AlertTriangle; color = "var(--amber)"; }
+                     else if (log.action.includes("ban") || log.action.includes("delete")) { Icon = Trash2; color = "var(--danger)"; }
+                     
+                     return (
+                        <div key={log.id} style={{ position: "relative" }}>
+                           <div style={{ position: "absolute", left: -41, top: 0, width: 32, height: 32, borderRadius: 16, background: "var(--bg)", border: `2px solid ${color}`, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>
+                              <Icon size={16} color={color} />
+                           </div>
+                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
+                              <div style={{ flex: 1, minWidth: 200 }}>
+                                 <div style={{ fontWeight: 800, color, fontSize: 14, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 4 }}>{log.action.replace(/_/g, ' ')}</div>
+                                 <div style={{ fontSize: 13, color: "var(--muted)" }}>Admin ID: {log.admin_id}</div>
+                                 {Object.keys(log.details || {}).length > 0 && (
+                                   <pre style={{ margin: "8px 0 0 0", background: "rgba(0,0,0,0.02)", padding: "8px 12px", borderRadius: 8, fontSize: 12, border: "1px solid var(--border)", overflowX: "auto", maxWidth: "100%", color: "var(--text)" }}>
+                                      {JSON.stringify(log.details, null, 2)}
+                                   </pre>
+                                 )}
+                              </div>
+                              <span style={{ fontSize: 12, color: "var(--muted)", whiteSpace: "nowrap", fontWeight: 600 }}>{new Date(log.created_at).toLocaleString()}</span>
+                           </div>
+                        </div>
+                     );
+                  })}
+                </div>
               )}
             </div>
           </section>
@@ -879,6 +998,24 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </div>
         </>
       )}
+
+      <AdminCommandPalette 
+         isOpen={isCommandPaletteOpen}
+         onClose={() => setIsCommandPaletteOpen(false)}
+         allUsers={allUsers}
+         flags={flags}
+         auditLogs={auditLogs}
+         onUserSelect={(u) => {
+            setSelectedUser(u);
+            setIsCommandPaletteOpen(false);
+         }}
+         onFlagSelect={(fKey) => {
+            if (typeof flags[fKey] === 'boolean') {
+               setFlags({ ...flags, [fKey]: !flags[fKey] });
+            }
+            setIsCommandPaletteOpen(false);
+         }}
+      />
     </div>
   );
 }

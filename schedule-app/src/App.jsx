@@ -200,6 +200,18 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [readPingIds, setReadPingIds] = useState(() => loadReadPingIds());
   const [readChangeKeys, setReadChangeKeys] = useState(() => loadReadChangeKeys());
   const [swUpdateFn, setSwUpdateFn] = useState(null);
+  
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
   const [attendance, setAttendance] = useState(() => loadAttendance());
   const [syncing, setSyncing] = useState(false);
   const [overflowOpen, setOverflowOpen] = useState(false);
@@ -1090,6 +1102,12 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           </div>
         </div>
 
+        {isOffline && (
+          <div style={{ margin: "0 16px 12px 16px", padding: "6px 8px", background: "rgba(231, 76, 60, 0.1)", border: "1px solid var(--danger)", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: sidebarCollapsed ? "center" : "flex-start", gap: "8px", color: "var(--danger)", fontSize: "11px", fontWeight: 700 }}>
+            <CloudOff size={14} style={{ flexShrink: 0 }} /> {!sidebarCollapsed && <span>🚇 Offline Mode (Cached)</span>}
+          </div>
+        )}
+
         <div className="sb-scroll-body">
           <nav className="sb-nav">
             <button className="sb-link" onMouseEnter={e => showSbTip(e, "Search")} onMouseLeave={hideSbTip} onClick={() => { setCmdOpen(true); hideSbTip(); }}>
@@ -1126,17 +1144,18 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               </button>
             )}
           </nav>
+        </div>
 
-          <div className="sb-bottom">
-            <div className="sb-sep-line" />
+        <div className="sb-bottom">
+          <div className="sb-sep-line" />
             <div className="sb-util-strip">
               <button className="sb-util-btn" onMouseEnter={e => showSbTip(e, "Edit setup", true)} onMouseLeave={hideSbTip} onClick={() => { setShowSetupEdit(true); hideSbTip(); }} aria-label="Edit setup">
                 <Settings2 size={16} />
               </button>
-              <button className="sb-util-btn" onMouseEnter={e => showSbTip(e, syncing ? "Syncing…" : "Refresh", true)} onMouseLeave={hideSbTip} onClick={handleSync} aria-label="Refresh">
+              <button className="sb-util-btn" disabled={isOffline} onMouseEnter={e => showSbTip(e, isOffline ? "Offline" : syncing ? "Syncing…" : "Refresh", true)} onMouseLeave={hideSbTip} onClick={handleSync} aria-label="Refresh" style={{ opacity: isOffline ? 0.3 : 1 }}>
                 <RefreshCw size={16} className={syncing ? "spin-icon" : ""} />
               </button>
-              <button className="sb-util-btn sb-util-danger" onMouseEnter={e => showSbTip(e, "Log out", true)} onMouseLeave={hideSbTip} onClick={() => signOut()} aria-label="Log out">
+              <button className="sb-util-btn sb-util-danger" disabled={isOffline} onMouseEnter={e => showSbTip(e, "Log out", true)} onMouseLeave={hideSbTip} onClick={() => signOut()} aria-label="Log out" style={{ opacity: isOffline ? 0.3 : 1 }}>
                 <LogOut size={16} />
               </button>
               {isAdmin && (
@@ -1181,7 +1200,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               </div>
             </div>
           </div>
-        </div>
       </aside>
 
       {sbTip && createPortal(
