@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from "react";
 import { createPortal } from "react-dom";
-import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, ChevronsLeft, ChevronsRight, ChevronRight, ChevronLeft, Megaphone, BarChart2, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal } from "lucide-react";
+import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, ChevronsLeft, ChevronsRight, ChevronRight, ChevronLeft, Megaphone, BarChart2, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck } from "lucide-react";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
 import SemSummary from "./components/SemSummary.jsx";
@@ -23,6 +23,7 @@ const NotificationsPage = lazy(() => import("./components/NotificationsPage.jsx"
 const FullSchedulePage = lazy(() => import("./components/FullSchedulePage.jsx"));
 const AdminDashboard = lazy(() => import("./components/AdminDashboard.jsx"));
 const CommandPalette = lazy(() => import("./components/CommandPalette.jsx"));
+const AssignmentsPanel = lazy(() => import("./components/AssignmentsPanel.jsx"));
 import { loadAttendance, saveAttendance, sessionKey, syncAttendanceFromCloud, pushMark } from "./lib/attendance.js";
 import { syncProfileFromCloud, pushProfile, pushReadState } from "./lib/profile.js";
 import { decodeSchedule, saveFriend, loadFriends, loadGroups, friendVisibleClasses, syncFriendsAndGroupsFromCloud, fetchFriendPings, clearFriendPings, pushFriendsToCloud, deleteAllFriendPings, removeFriendByCloudId, deleteFriendPing } from "./lib/friends.js";
@@ -1063,13 +1064,24 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               <RefreshCw size={22} color="#fff" strokeWidth={2.5} className="sw-update-spin-icon" />
             </div>
             <div className="sw-update-badge">New Update</div>
-            <h3 className="sw-update-title" id="sw-update-title">TermFlow just got better</h3>
-            <p className="sw-update-desc">A fresh version is cached and ready to go. Refresh now for the latest features and bug fixes.</p>
-            <ul className="sw-update-highlights">
-              <li><span className="sw-update-check">✦</span> Faster load times</li>
-              <li><span className="sw-update-check">✦</span> New features & improvements</li>
-              <li><span className="sw-update-check">✦</span> Bug fixes & stability</li>
-            </ul>
+            {(() => {
+              const prompt = sysConfig?.flags?.updatePrompt || {
+                title: "TermFlow just got better",
+                desc: "A fresh version is cached and ready to go. Refresh now for the latest features and bug fixes.",
+                highlights: ["Faster load times", "New features & improvements", "Bug fixes & stability"]
+              };
+              return (
+                <>
+                  <h3 className="sw-update-title" id="sw-update-title">{prompt.title}</h3>
+                  <p className="sw-update-desc">{prompt.desc}</p>
+                  <ul className="sw-update-highlights">
+                    {(prompt.highlights || []).map((h, i) => (
+                      <li key={i}><span className="sw-update-check">✦</span> {h}</li>
+                    ))}
+                  </ul>
+                </>
+              );
+            })()}
             <div className="sw-update-actions">
               <button className="sw-update-refresh" onClick={() => swUpdateFn(true)}>
                 <RefreshCw size={15} strokeWidth={2.5} />
@@ -1131,6 +1143,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             )}
             <button className={`sb-link${view === "notifications" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Announcements")} onMouseLeave={hideSbTip} onClick={() => { setView("notifications"); setCompareTarget(null); hideSbTip(); }}>
               <Megaphone size={18} /><span className="sb-link-label">Announcements</span>
+            </button>
+            <button className={`sb-link${view === "assignments" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Assignments")} onMouseLeave={hideSbTip} onClick={() => { setView("assignments"); setCompareTarget(null); hideSbTip(); }}>
+              <BookOpenCheck size={18} /><span className="sb-link-label">Assignments</span>
             </button>
             {enableFriends && (
               <button className={`sb-link${view === "friends" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Friends")} onMouseLeave={hideSbTip} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); hideSbTip(); }}>
@@ -1408,6 +1423,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 <button className={`tab ${view === "notifications" ? "on" : ""}`} onClick={() => { setView("notifications"); setCompareTarget(null); }}>
                   <Megaphone size={15} /> Announcements
                 </button>
+                <button className={`tab ${view === "assignments" ? "on" : ""}`} onClick={() => { setView("assignments"); setCompareTarget(null); }}>
+                  <BookOpenCheck size={15} /> Assignments
+                </button>
                 {enableFriends && (
                   <button className={`tab ${view === "friends" ? "on" : ""}`} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); }}>
                     <Users size={15} /> Friends <span className="beta-badge">Beta</span>
@@ -1439,7 +1457,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               )}
             </div>
 
-            {view !== "attendance" && view !== "insights" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && !compareTarget && (
+            {view !== "attendance" && view !== "insights" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && !compareTarget && (
               <>
                 {activeGlobalAnnouncement && (
                   <div style={{ background: "var(--amber)", color: "#000", padding: "12px 16px", borderRadius: 8, marginBottom: 16, display: "flex", gap: 8, alignItems: "center", fontWeight: 600 }}>
@@ -1461,7 +1479,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 </div>
               </>
             )}
-            {view !== "attendance" && view !== "insights" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && !compareTarget && view !== "tomorrow" && <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} onMarkAttendance={markAttendance} attendance={attendance} />}
+            {view !== "attendance" && view !== "insights" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && !compareTarget && view !== "tomorrow" && <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} onMarkAttendance={markAttendance} attendance={attendance} />}
             {(view === "today" || view === "week") && !compareTarget && (
               <SemSummary
                 enrolled={enrolled}
@@ -1581,6 +1599,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                             ? <AdminDashboard user={user} startImpersonation={startImpersonation} syncLogs={syncLogs} timeOverride={timeOverride} setTimeOverride={setTimeOverride} />
                             : view === "fullSchedule"
                               ? <FullSchedulePage allClasses={CLASSES} enrolled={enrolled} legend={enrolledLegend} termLabel={termLabel} onBack={() => setView("today")} jumpToDate={jumpToDate} setJumpToDate={setJumpToDate} />
+                              : view === "assignments"
+                                ? <AssignmentsPanel enrolled={enrolled} legend={enrolledLegend} userId={userId} />
                               : todayList.length === 0 && tomorrowList.length === 0
                                 ? premiumMode && syncing
                                   ? (

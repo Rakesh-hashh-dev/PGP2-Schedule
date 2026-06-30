@@ -73,6 +73,11 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [qlStart, setQlStart] = useState("");
   const [qlEnd, setQlEnd] = useState("");
 
+  // Software Update Config
+  const [updatePromptTitle, setUpdatePromptTitle] = useState("");
+  const [updatePromptDesc, setUpdatePromptDesc] = useState("");
+  const [updatePromptHighlights, setUpdatePromptHighlights] = useState("");
+
   // Live Editor State
   const [liveSchedule, setLiveSchedule] = useState([]);
   const [liveEditorDate, setLiveEditorDate] = useState(new Date().toISOString().split("T")[0]);
@@ -174,7 +179,14 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             setActiveAnnouncement(data.announcement);
             setAnnouncement(data.announcement);
           }
-          if (data.flags) setFlags(prev => ({ ...prev, ...data.flags }));
+          if (data.flags) {
+            setFlags(prev => ({ ...prev, ...data.flags }));
+            if (data.flags.updatePrompt) {
+              setUpdatePromptTitle(data.flags.updatePrompt.title || "");
+              setUpdatePromptDesc(data.flags.updatePrompt.desc || "");
+              setUpdatePromptHighlights(data.flags.updatePrompt.highlights?.join("\n") || "");
+            }
+          }
         }
       } catch (e) {
         // Table likely doesn't exist yet
@@ -187,16 +199,24 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     setSaving(true);
     setSaveMsg("");
     try {
+      const newFlags = {
+        ...flags,
+        updatePrompt: {
+          title: updatePromptTitle,
+          desc: updatePromptDesc,
+          highlights: updatePromptHighlights.split("\n").filter(l => l.trim())
+        }
+      };
       const { error } = await supabase.from("system_config").upsert({
         id: "global",
         announcement: activeAnnouncement,
-        flags,
+        flags: newFlags,
         updated_at: new Date().toISOString()
       });
       if (error) {
         setSaveMsg("Failed: " + error.message);
       } else {
-        await logAdminAction(admin_id, "save_config", { announcement: activeAnnouncement, flags });
+        await logAdminAction(admin_id, "save_config", { announcement: activeAnnouncement, flags: newFlags });
         setSaveMsg("Successfully saved to cloud!");
         setTimeout(() => setSaveMsg(""), 3000);
       }
@@ -652,6 +672,24 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               </div>
             </section>
           )}
+
+          {/* Software Update Prompt Config */}
+          <section className="admin-card">
+            <h2><RefreshCw size={20} color="var(--violet)" /> Update Prompt Text</h2>
+            <p className="admin-subtext">Configure what users see when a new app version is available.</p>
+            <div className="admin-field">
+              <label>Title</label>
+              <input className="admin-input" value={updatePromptTitle} onChange={e => setUpdatePromptTitle(e.target.value)} placeholder="TermFlow just got better" />
+            </div>
+            <div className="admin-field">
+              <label>Description</label>
+              <textarea className="admin-textarea" value={updatePromptDesc} onChange={e => setUpdatePromptDesc(e.target.value)} placeholder="A fresh version is cached..." rows={2}></textarea>
+            </div>
+            <div className="admin-field">
+              <label>Highlights (one per line)</label>
+              <textarea className="admin-textarea" value={updatePromptHighlights} onChange={e => setUpdatePromptHighlights(e.target.value)} placeholder="Faster load times&#10;New features..." rows={3}></textarea>
+            </div>
+          </section>
 
           {/* Interactive Live Schedule Editor */}
           <section className="admin-card" style={{ gridColumn: "1 / -1" }}>
