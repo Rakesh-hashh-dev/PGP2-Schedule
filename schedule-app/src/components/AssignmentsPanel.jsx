@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { CheckCircle2, Circle, Plus, Trash2, X } from "lucide-react";
+import { CheckCircle2, Circle, Plus, Trash2, X, ChevronDown, ChevronUp } from "lucide-react";
 import { loadAssignments, pushAssignments } from "../lib/assignments.js";
 
 function getUrgencyState(dueDate) {
@@ -23,9 +23,24 @@ function formatShortDate(dateStr) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+const COLORS = [
+  'var(--violet)',
+  'var(--live)',
+  '#E67E22',
+  '#2980B9',
+  '#9B59B6',
+  '#E74C3C'
+];
+
+function getCourseColor(code) {
+  const hash = Array.from(code).reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+  return COLORS[hash % COLORS.length];
+}
+
 export default function AssignmentsPanel({ enrolled, legend, userId }) {
   const [assignments, setAssignments] = useState(() => loadAssignments());
   const [modalOpen, setModalOpen] = useState(false);
+  const [collapsedCards, setCollapsedCards] = useState({});
   const [modalData, setModalData] = useState({ id: "", code: "", title: "", description: "", dueDate: "" });
 
   const updateAssignments = (newAssignments) => {
@@ -43,6 +58,7 @@ export default function AssignmentsPanel({ enrolled, legend, userId }) {
       return {
         code,
         name: info.name || code,
+        color: info.color || getCourseColor(code),
         tasks: subjectAssignments,
         pendingCount: pending.length,
       };
@@ -224,17 +240,23 @@ export default function AssignmentsPanel({ enrolled, legend, userId }) {
         {courses.map(course => {
           if (course.tasks.length === 0) return null; // Only show courses with tasks
           return (
-            <div key={course.code} className="assign-card">
-              <div className="assign-card-header">
+            <div key={course.code} className="assign-card" style={{ '--course-color': course.color }}>
+              <div 
+                className="assign-card-header" 
+                onClick={() => setCollapsedCards(prev => ({ ...prev, [course.code]: !prev[course.code] }))}
+                style={{ cursor: 'pointer' }}
+              >
                 <span className="assign-course-name">{course.name}</span>
                 <div className="assign-card-actions">
-                  <button className="assign-add-mini" onClick={() => openModal(course.code)}>
+                  <button className="assign-add-mini" onClick={(e) => { e.stopPropagation(); openModal(course.code); }}>
                     <Plus size={14} strokeWidth={3} /> Add
                   </button>
                   <span className="assign-badge">{course.pendingCount} open</span>
+                  {collapsedCards[course.code] ? <ChevronDown size={18} color="var(--muted)" /> : <ChevronUp size={18} color="var(--muted)" />}
                 </div>
               </div>
-              <div className="assign-tasks">
+              {!collapsedCards[course.code] && (
+                <div className="assign-tasks">
                 {course.tasks.sort((a, b) => a.completed === b.completed ? 0 : a.completed ? 1 : -1).map(task => {
                   const urgency = task.completed ? "none" : getUrgencyState(task.dueDate);
                   return (
@@ -258,6 +280,7 @@ export default function AssignmentsPanel({ enrolled, legend, userId }) {
                   );
                 })}
               </div>
+              )}
             </div>
           );
         })}

@@ -124,7 +124,7 @@ function diff(oldMap, newMap) {
     });
     if (match) {
       usedAdd[match] = true;
-      events.push(moveEvent(date, field(oldMap[rk], 5), field(oldMap[rk], 6), field(newMap[match], 6)));
+      events.push(moveEvent(date, code, field(oldMap[rk], 5), field(oldMap[rk], 6), field(newMap[match], 6)));
     } else {
       events.push(removeEvent(rk, oldMap[rk]));
     }
@@ -135,26 +135,37 @@ function diff(oldMap, newMap) {
 
 function changedEvent(key, oldSig, newSig) {
   const date = key.split('|')[0], lbl = isoToLabel(date);
+  const code = field(newSig, 1);
   const start = field(newSig, 6), name = field(newSig, 5), oName = field(oldSig, 5);
-  if (oName !== name) return mk(date, start, 'course', lbl + ' · ' + start + ' — ' + oName + ' → ' + name);
+  if (oName !== name) return mk(date, start, 'course', lbl + ' · ' + start + ' — ' + oName + ' → ' + name, code);
   const bits = [];
-  if (field(oldSig, 3) !== field(newSig, 3)) bits.push('room ' + (field(oldSig, 3) || '?') + '→' + (field(newSig, 3) || '?'));
-  if (field(oldSig, 4) !== field(newSig, 4)) bits.push('faculty changed');
-  return mk(date, start, 'update', lbl + ' · ' + start + ' — ' + name + ' ' + (bits.join(', ') || 'updated'));
+  let adminOnly = false;
+  const oldRoom = field(oldSig, 3), newRoom = field(newSig, 3);
+  if (oldRoom !== newRoom) {
+    // If either side is blank it's a data-quality gap — hide from regular users
+    if (!oldRoom || !newRoom) adminOnly = true;
+    bits.push('room ' + (oldRoom || '?') + '→' + (newRoom || '?'));
+  }
+  const oldFac = field(oldSig, 4), newFac = field(newSig, 4);
+  if (oldFac !== newFac) {
+    if (!oldFac || !newFac) adminOnly = true;
+    bits.push('faculty changed');
+  }
+  return mk(date, start, 'update', lbl + ' · ' + start + ' — ' + name + ' ' + (bits.join(', ') || 'updated'), code, adminOnly);
 }
-function moveEvent(date, name, oldStart, newStart) {
-  return mk(date, newStart, 'moved', name + ' moved ' + oldStart + '→' + newStart + ' (' + isoToLabel(date) + ')');
+function moveEvent(date, code, name, oldStart, newStart) {
+  return mk(date, newStart, 'moved', name + ' moved ' + oldStart + '→' + newStart + ' (' + isoToLabel(date) + ')', code);
 }
 function addEvent(key, sig) {
-  const date = key.split('|')[0], start = field(sig, 6), name = field(sig, 5), room = field(sig, 3);
-  return mk(date, start, 'added', isoToLabel(date) + ' · ' + start + ' — ' + name + ' added' + (room ? ' (' + room + ')' : ''));
+  const date = key.split('|')[0], code = field(sig, 1), start = field(sig, 6), name = field(sig, 5), room = field(sig, 3);
+  return mk(date, start, 'added', isoToLabel(date) + ' · ' + start + ' — ' + name + ' added' + (room ? ' (' + room + ')' : ''), code);
 }
 function removeEvent(key, sig) {
-  const date = key.split('|')[0], start = field(sig, 6), name = field(sig, 5);
-  return mk(date, start, 'removed', isoToLabel(date) + ' · ' + start + ' — ' + name + ' cancelled');
+  const date = key.split('|')[0], code = field(sig, 1), start = field(sig, 6), name = field(sig, 5);
+  return mk(date, start, 'removed', isoToLabel(date) + ' · ' + start + ' — ' + name + ' cancelled', code);
 }
-function mk(date, start, kind, text) {
-  return { id: Utilities.getUuid().slice(0, 8), ts: new Date().toISOString(), date: date, start: start, kind: kind, text: text };
+function mk(date, start, kind, text, code, adminOnly) {
+  return { id: Utilities.getUuid().slice(0, 8), ts: new Date().toISOString(), date: date, start: start, kind: kind, text: text, code: code || '', admin_only: !!adminOnly };
 }
 
 /* ---------- payload cache (gzipped to fit CacheService's per-entry limit) ---------- */

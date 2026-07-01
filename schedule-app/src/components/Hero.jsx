@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { MapPin, CheckCircle2, Timer, ThumbsUp, ThumbsDown } from "lucide-react";
+import { MapPin, CheckCircle2, Timer, ThumbsUp, ThumbsDown, Bookmark } from "lucide-react";
 import { sessionKey } from "../lib/attendance.js";
 
 function clsDate(c, which) {
@@ -78,6 +78,25 @@ function HeroCountdown({ target }) {
   );
 }
 
+function HeroBackdrop({ sysConfig }) {
+  const adminSetting = sysConfig?.flags?.heroBackdrop || "swap";
+  
+  if (adminSetting === "none") return null;
+  
+  let bgImage;
+  if (adminSetting === "v2") {
+    bgImage = "/premium_hero_backdrop_v2.png";
+  } else if (adminSetting === "v3") {
+    bgImage = "/premium_hero_backdrop_v3.png";
+  } else {
+    // swap logic (default)
+    const isEvenDay = new Date().getDate() % 2 === 0;
+    bgImage = isEvenDay ? "/premium_hero_backdrop_v2.png" : "/premium_hero_backdrop_v3.png";
+  }
+  
+  return <div className="hero-img-bg" style={{ backgroundImage: `url(${bgImage})` }} />;
+}
+
 function UpNext({ c }) {
   return (
     <div className="upnext">
@@ -89,7 +108,7 @@ function UpNext({ c }) {
   );
 }
 
-export default function Hero({ current, next, now, todayISO, tomorrowISO, onMarkAttendance, attendance }) {
+export default function Hero({ current, next, now, todayISO, tomorrowISO, onMarkAttendance, attendance, sysConfig }) {
   const prevRef = useRef(current);
   const [justDone, setJustDone] = useState(null); // full class object
 
@@ -110,6 +129,7 @@ export default function Hero({ current, next, now, todayISO, tomorrowISO, onMark
     const marked = attendance?.[key];
     return (
       <section className="hero hero-complete">
+        <HeroBackdrop sysConfig={sysConfig} />
         <div className="done-ring" />
         <div className="done-icon"><CheckCircle2 size={38} strokeWidth={1.6} /></div>
         <h1 className="hero-course done-course">{justDone.name}</h1>
@@ -140,6 +160,7 @@ export default function Hero({ current, next, now, todayISO, tomorrowISO, onMark
 
     return (
       <section className="hero hero-live">
+        <HeroBackdrop sysConfig={sysConfig} />
         <div className="hero-state-row">
           <div className="hero-tag in"><span className="dot" />In session</div>
           {current.code && (
@@ -178,6 +199,7 @@ export default function Hero({ current, next, now, todayISO, tomorrowISO, onMark
       const nextLabel = next.date === tomorrowISO ? "Tomorrow" : prettyDate(next.date);
       return (
         <section className="hero hero-done-today">
+          <HeroBackdrop sysConfig={sysConfig} />
           <div className="hero-state-row">
             <div className="hero-tag done"><span className="dot" />Done for today</div>
           </div>
@@ -194,6 +216,7 @@ export default function Hero({ current, next, now, todayISO, tomorrowISO, onMark
 
     return (
       <section className="hero hero-upnext">
+        <HeroBackdrop sysConfig={sysConfig} />
         <div className="hero-state-row">
           <div className="hero-tag next"><span className="dot amber" />Up next</div>
           {next.code && (
@@ -218,6 +241,7 @@ export default function Hero({ current, next, now, todayISO, tomorrowISO, onMark
 
   return (
     <section className="hero hero-clear">
+      <HeroBackdrop sysConfig={sysConfig} />
       <div className="hero-state-row">
         <div className="hero-tag done"><span className="dot" />All clear</div>
       </div>

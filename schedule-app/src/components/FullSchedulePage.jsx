@@ -136,6 +136,15 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
     return map;
   }, [filtered]);
 
+  const nextUpcomingCls = useMemo(() => {
+    for (const c of filtered) {
+      if (c.date < TODAY) continue;
+      if (c.date === TODAY && toMin(c.start) <= nowMin) continue;
+      return c;
+    }
+    return null;
+  }, [filtered, nowMin]);
+
   const weekDays = useMemo(() => {
     const days = [];
     const [Y, M, D] = calWeek.split("-").map(Number);
@@ -258,36 +267,56 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
           {filterCode ? `Filter: ${filterCode}` : (!showAllClasses ? "Filter: My Schedule" : "Filter: All Subjects")}
         </button>
 
-        {viewMode === "list" && (
-          <div style={{ position: "relative", display: "inline-block" }}>
-            <div style={{
-              display: "flex", alignItems: "center", gap: "6px",
-              background: "var(--card)", padding: "8px 16px",
-              borderRadius: "99px", border: "1px solid var(--border)",
-              fontSize: "13px", fontWeight: "600", color: "var(--text)",
-              boxShadow: "0 1px 2px rgba(0,0,0,0.03)", pointerEvents: "none"
-            }}>
-              <Calendar size={15} /> Select Date
-            </div>
-            <input
-              type="date"
-              onChange={(e) => {
-                const targetDate = e.target.value;
-                if (!targetDate) return;
-                const el = document.getElementById(`day-${targetDate}`);
+        <div style={{ position: "relative", display: "inline-block" }}>
+          <div style={{
+            display: "flex", alignItems: "center", gap: "6px",
+            background: "var(--card)", padding: "8px 16px",
+            borderRadius: "99px", border: "1px solid var(--border)",
+            fontSize: "13px", fontWeight: "600", color: "var(--text)",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.03)", pointerEvents: "none"
+          }}>
+            <Calendar size={15} /> Select Date
+          </div>
+          <input
+            type="date"
+            onClick={(e) => {
+              try {
+                if (e.currentTarget.showPicker) e.currentTarget.showPicker();
+              } catch (err) {
+                // Ignore if showPicker fails (e.g. cross-origin iframe issues in dev)
+              }
+            }}
+            onChange={(e) => {
+              const targetDate = e.target.value;
+              if (!targetDate) return;
+              
+              if (viewMode === "list") {
+                let el = document.getElementById(`day-${targetDate}`);
+                if (!el) {
+                  const classDates = grouped.filter(g => g.type === "day").map(g => g.date);
+                  const nextDate = classDates.find(d => d >= targetDate);
+                  if (nextDate) el = document.getElementById(`day-${nextDate}`);
+                }
                 if (el) {
                   const offsetPosition = el.getBoundingClientRect().top + window.pageYOffset - 100;
                   window.scrollTo({ top: offsetPosition, behavior: "smooth" });
                 } else {
-                  alert("There are no classes scheduled for the selected date.");
+                  alert("There are no upcoming classes from the selected date.");
                 }
-                e.target.value = "";
-              }}
-              title="Jump to specific date"
-              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer" }}
-            />
-          </div>
-        )}
+              } else if (viewMode === "calendar") {
+                setCalWeek(getWeekStart(targetDate));
+              } else if (viewMode === "month") {
+                const [Y, M] = targetDate.split("-").map(Number);
+                setCalMonth({ year: Y, month: M - 1 });
+                setSelectedDate(targetDate);
+              }
+              
+              e.target.value = "";
+            }}
+            title="Jump to specific date"
+            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer" }}
+          />
+        </div>
       </div>
 
       {/* Filter Modal */}
@@ -378,17 +407,45 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
               if (entry.type === "free") {
                 return (
                   <div key={entry.date} id={`day-${entry.date}`} className="fs-free-day">
-                    <span className="fs-free-date">{fmtDate(entry.date)}</span>
-                    <span className="fs-free-label">No classes</span>
+                    <span className="fs-free-date">
+                      {fmtDate(entry.date)} 
+                      <span style={{ opacity: 0.5, margin: "0 6px" }}>·</span> 
+                      <span style={{ fontWeight: 600 }}>No classes</span>
+                    </span>
                   </div>
                 );
               }
               if (entry.type === "gap") {
+                const nextEntry = grouped[idx + 1];
+                let nextLabel = null;
+                if (nextEntry && nextEntry.type === "day" && nextEntry.items.length > 0) {
+                  const nextCls = nextEntry.items[0];
+                  const dObj = new Date(nextEntry.date);
+                  const dow = dObj.toLocaleDateString([], { weekday: "short" });
+                  const dNum = dObj.getDate();
+                  const dMo = dObj.toLocaleDateString([], { month: "short" });
+                  nextLabel = `${dow}, ${dMo} ${dNum} · ${nextCls.code}`;
+                }
+                const gapDays = [];
+                const fd = new Date(entry.from);
+                const td = new Date(entry.to);
+                for (let d = new Date(fd); d <= td; d.setDate(d.getDate() + 1)) {
+                  if (gapDays.length < 8) gapDays.push(d.getDate());
+                }
+                const hasMore = entry.count > 8;
+
                 return (
-                  <div key={`gap-${idx}`} className="fs-gap-row">
-                    <span className="fs-gap-range">{fmtShort(entry.from)} – {fmtShort(entry.to)}</span>
-                    <span className="fs-gap-label">No classes · {entry.count} days</span>
-                  </div>
+                  <details key={`gap-${idx}`} className="fs-gap-row">
+                    <summary className="fs-gap-summary">
+                      <span className="fs-gap-range">{fmtShort(entry.from)} – {fmtShort(entry.to)}</span>
+                      <span className="fs-gap-label">No classes · {entry.count} days</span>
+                      {nextLabel && <span className="fs-gap-next">→ Next: {nextLabel}</span>}
+                    </summary>
+                    <div className="fs-gap-bubbles">
+                      {gapDays.map((d, di) => <span key={di} className="fs-gap-bubble">{d}</span>)}
+                      {hasMore && <span className="fs-gap-bubble-more">+{entry.count - 8}</span>}
+                    </div>
+                  </details>
                 );
               }
               const { date, items } = entry;
@@ -402,13 +459,36 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                     {items.map((c, i) => {
                       const colorIdx = (Array.from(c.code).reduce((h, ch) => h + ch.charCodeAt(0), 0)) % 6;
                       const showSection = c.section && c.section !== "Single";
+                      const isNow = date === TODAY && nowMin >= toMin(c.start) && nowMin <= toMin(c.end);
+                      const isNext = c === nextUpcomingCls;
+                      let countdownStr = null;
+                      if (isNext) {
+                        const nextTime = new Date(`${c.date}T${c.start}:00`);
+                        const nowTime = new Date();
+                        const diffMin = Math.floor((nextTime - nowTime) / 60000);
+                        if (diffMin > 0 && diffMin < 24 * 60) {
+                           const h = Math.floor(diffMin / 60);
+                           const m = diffMin % 60;
+                           countdownStr = h > 0 ? `in ${h}h ${m}m` : `in ${m}m`;
+                        } else if (diffMin > 0) {
+                           countdownStr = `in ${Math.floor(diffMin/1440)}d`;
+                        }
+                      }
+                      
                       return (
-                        <div key={i} className="fs-card">
+                        <div
+                          key={i}
+                          className={`fs-card ${isNow ? "fs-card-now" : ""}`}
+                          style={{ animationDelay: `${i * 0.055}s` }}
+                        >
                           <div className={`fs-card-accent accent-${colorIdx}`} />
                           <div className="fs-card-body">
                             <div className="fs-card-top">
-                              <span className="fs-card-name">{c.name}</span>
-                              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                              <span className="fs-card-name">
+                                {isNow && <span className="fs-live-pulse" style={{ display: 'inline-block' }} />}
+                                {c.name}
+                              </span>
+                              <div style={{ display: "flex", alignItems: "center", gap: "6px", marginLeft: "auto" }}>
                                 {showSection && (
                                   <span style={{
                                     fontSize: "10px", fontWeight: "700", padding: "2px 6px",
@@ -420,10 +500,18 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                                 )}
                                 <span className={`ses ses-${colorIdx}`}>{c.code} {c.session}</span>
                               </div>
+                              {countdownStr && <span className="fs-upcoming-badge">{countdownStr}</span>}
                             </div>
                             <div className="fs-card-meta">
                               <span className="fs-meta-item"><Clock size={13} /> {c.start} – {c.end}</span>
-                              <span className="fs-meta-item"><MapPin size={13} /> {c.room || "TBA"}</span>
+                              <span className="fs-meta-item">
+                                <MapPin size={13} /> 
+                                {c.room ? (
+                                  <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.room + " classroom")}`} target="_blank" rel="noreferrer" className="fs-meta-link">
+                                    {c.room}
+                                  </a>
+                                ) : "TBA"}
+                              </span>
                               {c.faculty && <span className="fs-meta-item"><User size={13} /> {c.faculty}</span>}
                             </div>
                           </div>
@@ -541,6 +629,34 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                         </div>
                       );
                     })}
+
+                    {/* Break / free-slot highlights between consecutive classes */}
+                    {(() => {
+                      // Only use lane-0 events, sorted by start time, to find gaps
+                      const lane0 = (lanes[0] || []).slice().sort((a, b) => toMin(a.start) - toMin(b.start));
+                      const gaps = [];
+                      for (let gi = 0; gi < lane0.length - 1; gi++) {
+                        const gapStart = toMin(lane0[gi].end);
+                        const gapEnd   = toMin(lane0[gi + 1].start);
+                        const gapMin   = gapEnd - gapStart;
+                        if (gapMin < 15) continue; // ignore tiny overlaps/buffers
+                        const left  = (gapStart - timeRange.startH * 60) / 60 * HOUR_W + 3;
+                        const width = (gapMin / 60) * HOUR_W - 6;
+                        const label = gapMin >= 60
+                          ? `${Math.floor(gapMin / 60)}h${gapMin % 60 ? ` ${gapMin % 60}m` : ""} free`
+                          : `${gapMin}m free`;
+                        gaps.push({ left, width, label, key: gi });
+                      }
+                      return gaps.map(g => (
+                        <div
+                          key={`gap-${g.key}`}
+                          className="cal-h-break"
+                          style={{ left: g.left, width: g.width, top: 5, height: LANE_H - 10 }}
+                        >
+                          {g.width > 44 && <span className="cal-h-break-label">{g.label}</span>}
+                        </div>
+                      ));
+                    })()}
                   </div>
                 </div>
               );
@@ -589,12 +705,9 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                 >
                   <span className={`cal-month-dnum${isToday ? " cal-dnum-today" : ""}`}>{D}</span>
                   {hasCls && (
-                    <div className="cal-month-dots">
-                      {codes.slice(0, 3).map(code => {
-                        const colorIdx = Array.from(code).reduce((acc, ch) => acc + ch.charCodeAt(0), 0) % 6;
-                        return <span key={code} className={`cal-month-dot cal-dot-${colorIdx}`} />;
-                      })}
-                      {codes.length > 3 && <span className="cal-month-more">+{codes.length - 3}</span>}
+                    <div className="cal-month-count-wrap">
+                      <span className="cal-month-count">{classes.length}</span>
+                      <span className="cal-month-count-label">{classes.length === 1 ? "class" : "classes"}</span>
                     </div>
                   )}
                 </div>

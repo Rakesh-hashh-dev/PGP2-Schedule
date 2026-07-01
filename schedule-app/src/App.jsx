@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from "react";
 import { createPortal } from "react-dom";
-import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, ChevronsLeft, ChevronsRight, ChevronRight, ChevronLeft, Megaphone, BarChart2, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck } from "lucide-react";
+import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, ChevronsLeft, ChevronsRight, ChevronRight, ChevronLeft, Megaphone, BarChart2, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Lightbulb, Sparkles, Wand2, BellRing, CalendarDays } from "lucide-react";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
 import SemSummary from "./components/SemSummary.jsx";
@@ -134,6 +134,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // ──────────────────────────────────────────────────────────────
   const showAdminUI = isAdmin && adminMode;
   const [sysConfig, setSysConfig] = useState(null);
+  const [helpModalOpen, setHelpModalOpen] = useState(false);
 
   // --- Admin Advanced Features ---
   const [impersonatedUser, setImpersonatedUser] = useState(null);
@@ -217,6 +218,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [syncing, setSyncing] = useState(false);
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [sbProfileOpen, setSbProfileOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [weather, setWeather] = useState(null);
@@ -828,12 +830,14 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
   const filteredChanges = useMemo(() => {
     if (!CHANGES || !CHANGES.length) return [];
-    if (!mine || mine.size === 0) return CHANGES;
+    // Strip data-quality gaps (admin_only) from what regular users see
+    const userChanges = CHANGES.filter(c => !c.admin_only);
+    if (!mine || mine.size === 0) return userChanges;
 
     const myCourseNames = [...mine].map(code => LEGEND[code]?.name).filter(Boolean);
     const allCourseNames = Object.values(LEGEND).map(l => l.name).filter(Boolean);
 
-    return CHANGES.filter(c => {
+    return userChanges.filter(c => {
       if (c.code) return mine.has(c.code);
       const text = c.text || "";
       if (myCourseNames.some(name => text.includes(name))) return true;
@@ -1122,8 +1126,12 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
         <div className="sb-scroll-body">
           <nav className="sb-nav">
-            <button className="sb-link" onMouseEnter={e => showSbTip(e, "Search")} onMouseLeave={hideSbTip} onClick={() => { setCmdOpen(true); hideSbTip(); }}>
-              <Search size={18} /><span className="sb-link-label">Search</span>
+            <button className="sb-search-btn" onClick={() => setCmdOpen(true)}>
+              <div className="sb-search-left">
+                <Search size={16} />
+                <span className="sb-search-label">Search</span>
+              </div>
+              <span className="sb-search-shortcut">⌘K</span>
             </button>
             <button className={`sb-link${view === "today" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Today")} onMouseLeave={hideSbTip} onClick={() => { setView("today"); setCompareTarget(null); hideSbTip(); }}>
               <Clock size={18} /><span className="sb-link-label">Today</span>
@@ -1170,9 +1178,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               <button className="sb-util-btn" disabled={isOffline} onMouseEnter={e => showSbTip(e, isOffline ? "Offline" : syncing ? "Syncing…" : "Refresh", true)} onMouseLeave={hideSbTip} onClick={handleSync} aria-label="Refresh" style={{ opacity: isOffline ? 0.3 : 1 }}>
                 <RefreshCw size={16} className={syncing ? "spin-icon" : ""} />
               </button>
-              <button className="sb-util-btn sb-util-danger" disabled={isOffline} onMouseEnter={e => showSbTip(e, "Log out", true)} onMouseLeave={hideSbTip} onClick={() => signOut()} aria-label="Log out" style={{ opacity: isOffline ? 0.3 : 1 }}>
-                <LogOut size={16} />
-              </button>
               {isAdmin && (
                 <button
                   className={`sb-util-btn${adminMode ? " sb-util-admin-on" : ""}`}
@@ -1188,8 +1193,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 {sidebarCollapsed ? <ChevronsRight size={15} /> : <ChevronsLeft size={15} />}
               </button>
             </div>
-            <div className="sb-avatar-wrap" onMouseEnter={hideSbTip}>
-              <button className="sb-avatar-btn">
+            <div className="sb-avatar-wrap" onMouseEnter={(e) => showSbTip(e, "Profile", true)} onMouseLeave={hideSbTip}>
+              <button className="sb-avatar-btn" onClick={(e) => { e.stopPropagation(); setSbProfileOpen(o => !o); hideSbTip(); }} aria-label="Profile">
                 <div className="sb-avatar-img">
                   {user?.imageUrl ? <img src={user.imageUrl} alt="" /> : (user?.firstName?.[0] || "?")}
                 </div>
@@ -1201,7 +1206,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                   <span className="sb-avatar-batch">PGP2 · 2025–27</span>
                 </div>
               </button>
-              <div className="sb-profile-pop">
+              {sbProfileOpen && <div className="notif-backdrop" style={{ zIndex: 299 }} onClick={() => setSbProfileOpen(false)} />}
+              <div className={`sb-profile-pop ${sbProfileOpen ? "sb-open" : ""}`}>
                 <div className="sb-pop-name">
                   {user?.fullName || "Student"}
                   {showAdminUI && <span className="admin-badge">Admin</span>}
@@ -1209,6 +1215,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 <div className="sb-pop-email">{user?.primaryEmailAddress?.emailAddress || ""}</div>
                 <span className="sb-pop-batch">PGP2 · 2025–27</span>
                 <div className="sb-pop-sep" />
+                <button className="sb-pop-btn" onClick={() => { setHelpModalOpen(true); hideSbTip(); }}>
+                  <BookOpenCheck size={14} /> App Guide
+                </button>
                 <button className="sb-pop-signout" onClick={() => signOut()}>
                   <LogOut size={14} /> Sign out
                 </button>
@@ -1304,10 +1313,11 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               )}
             </div>
             {/* Desktop-only: profile avatar */}
-            <div className="tb-wrap over-wrap desktop-only">
+            <div className="tb-wrap over-wrap desktop-only" onMouseEnter={() => setProfileOpen(true)} onMouseLeave={() => setProfileOpen(false)}>
               <button className="sync profile-avatar-btn" onClick={() => setProfileOpen(o => !o)} aria-label="Profile" aria-expanded={profileOpen}>
                 <UserAvatar user={user} size={30} />
               </button>
+              <span className="tooltip" role="tooltip">Profile & Settings</span>
               {profileOpen && (
                 <>
                   <div className="notif-backdrop" onClick={() => setProfileOpen(false)} />
@@ -1321,6 +1331,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       </div>
                     </div>
                     <div className="over-sep" />
+                    <button onClick={() => { setHelpModalOpen(true); setProfileOpen(false); }}>
+                      <BookOpenCheck size={14} /> App Guide
+                    </button>
                     <button onClick={() => { setFeedbackOpen(true); setProfileOpen(false); setOverflowOpen(false); }}>
                       <MessageSquare size={14} /> Submit Feedback
                     </button>
@@ -1367,6 +1380,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       {syncing ? "Syncing…" : "Refresh"}
                     </button>
                     <div className="over-sep" />
+                    <button onClick={() => { setHelpModalOpen(true); setOverflowOpen(false); }}>
+                      <BookOpenCheck size={14} /> App Guide
+                    </button>
                     <button onClick={() => { setFeedbackOpen(true); setProfileOpen(false); setOverflowOpen(false); }}>
                       <MessageSquare size={14} /> Submit Feedback
                     </button>
@@ -1479,7 +1495,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 </div>
               </>
             )}
-            {view !== "attendance" && view !== "insights" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && !compareTarget && view !== "tomorrow" && <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} onMarkAttendance={markAttendance} attendance={attendance} />}
+            {view !== "attendance" && view !== "insights" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && !compareTarget && view !== "tomorrow" && <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} onMarkAttendance={markAttendance} attendance={attendance} sysConfig={sysConfig} />}
             {(view === "today" || view === "week") && !compareTarget && (
               <SemSummary
                 enrolled={enrolled}
@@ -1594,9 +1610,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                           termNumber={TERM?.number}
                         />
                         : view === "notifications"
-                          ? <NotificationsPage allChanges={CHANGES} myChanges={filteredChanges} />
+                          ? <NotificationsPage allChanges={CHANGES} myChanges={filteredChanges} isAdmin={isAdmin} />
                           : view === "admin" && isAdmin
-                            ? <AdminDashboard user={user} startImpersonation={startImpersonation} syncLogs={syncLogs} timeOverride={timeOverride} setTimeOverride={setTimeOverride} />
+                            ? <AdminDashboard user={user} startImpersonation={startImpersonation} syncLogs={syncLogs} timeOverride={timeOverride} setTimeOverride={setTimeOverride} allChanges={CHANGES} />
                             : view === "fullSchedule"
                               ? <FullSchedulePage allClasses={CLASSES} enrolled={enrolled} legend={enrolledLegend} termLabel={termLabel} onBack={() => setView("today")} jumpToDate={jumpToDate} setJumpToDate={setJumpToDate} />
                               : view === "assignments"
@@ -1626,6 +1642,63 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           <span className="foot-credit">Auto-syncs from the live timetable sheet every few minutes</span>
           <span className="foot-credit">Built with <span className="foot-heart">♥</span> by <a href="https://www.linkedin.com/in/rakesh-kumar-behera-rk821604/" target="_blank" rel="noopener noreferrer" className="foot-credit-name">Rakesh</a></span>
         </footer>
+
+        {/* Global Help Modal */}
+        {helpModalOpen && (
+          <div className="fs-modal-overlay" onClick={() => setHelpModalOpen(false)}>
+            <div className="fs-modal-content" onClick={e => e.stopPropagation()}>
+              
+              <div className="fs-modal-header">
+                <h3><BookOpenCheck size={20} color="var(--violet)" /> App Guide</h3>
+                <button className="fs-modal-close" onClick={() => setHelpModalOpen(false)}><X size={18}/></button>
+              </div>
+
+              <div className="fs-modal-body">
+                <div className="fs-help-hero">
+                  <Sparkles size={32} color="var(--violet)" />
+                  <h2>Welcome to your PGP2 Schedule</h2>
+                  <p>Getting the hang of a new term can be chaotic. We built this app to make tracking your days, managing your time, and coordinating with friends as effortless as possible.</p>
+                </div>
+                
+                <div className="fs-help-section">
+                  <div className="fs-help-card">
+                    <h3><Wand2 size={16} color="var(--violet)" /> Dashboard & Auto-Setup</h3>
+                    <p>Automatically builds your schedule based on your enrolled electives. Tap the ⚙️ gear icon anytime to drop or swap subjects. The dashboard always shows your Current and Next classes.</p>
+                  </div>
+                  <div className="fs-help-card">
+                    <h3><BellRing size={16} color="var(--violet)" /> Live Updates</h3>
+                    <p>Alerts you about room changes, cancellations, or reschedules. Tap the bell icon in the top right. It filters out the noise so you only see updates for your classes.</p>
+                  </div>
+                  <div className="fs-help-card">
+                    <h3><CalendarDays size={16} color="var(--violet)" /> Full Schedule</h3>
+                    <p>Click "View Full Schedule" on the dashboard to see every upcoming class for the entire term laid out cleanly.</p>
+                  </div>
+                  <div className="fs-help-card">
+                    <h3><Users size={16} color="var(--violet)" /> Friend Sync</h3>
+                    <p>Head to the Friends tab, add your squad, and compare schedules side-by-side to find overlapping free slots. You can even form custom Groups!</p>
+                  </div>
+                  <div className="fs-help-card">
+                    <h3><ClipboardList size={16} color="var(--violet)" /> Attendance Tracking</h3>
+                    <p>Switch to the Attendance tab to log your presence or absences. It calculates your percentage automatically.</p>
+                  </div>
+                  <div className="fs-help-card">
+                    <h3><GraduationCap size={16} color="var(--violet)" /> Assignments & Exams</h3>
+                    <p>Use the Exams and Assignments tabs to see upcoming deadlines and midterms, filtered specifically for your enrolled subjects.</p>
+                  </div>
+                  <div className="fs-help-card">
+                    <h3><Search size={16} color="var(--violet)" /> Quick Search</h3>
+                    <p>Press <code>Ctrl+K</code> (or Cmd+K) anywhere in the app to open the Command Palette and instantly jump to any class or friend.</p>
+                  </div>
+                </div>
+
+                <div className="fs-help-tip">
+                  <strong>💡 Pro Tip:</strong> You don't need to open your browser every time! Install this app directly to your phone's home screen for quick access. Just tap "Share" (iOS) or open the browser menu (Android) and select "Add to Home Screen".
+                </div>
+              </div>
+
+            </div>
+          </div>
+        )}
 
         <Suspense fallback={null}>
           <CommandPalette

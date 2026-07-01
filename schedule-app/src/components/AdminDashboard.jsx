@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
-import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, BarChart3, Terminal, Clock, Database, FileText } from "lucide-react";
+import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, BarChart3, Terminal, Clock, Database, FileText, X } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { LEGEND } from "../data/schedule.js";
 import { getSnapshot } from "../lib/sheet.js";
 import AdminCommandPalette from "./AdminCommandPalette";
+import Hero from "./Hero.jsx";
 
 export async function logAdminAction(admin_id, action, details) {
   try {
@@ -18,7 +19,7 @@ function Avatar({ name, email }) {
   return <div className="admin-avatar">{init.toUpperCase()}</div>;
 }
 
-export default function AdminDashboard({ user, startImpersonation, syncLogs = [], timeOverride, setTimeOverride }) {
+export default function AdminDashboard({ user, startImpersonation, syncLogs = [], timeOverride, setTimeOverride, allChanges = [] }) {
   const [totalUsers, setTotalUsers] = useState(null);
   const [activeUsers, setActiveUsers] = useState(0);
   const [statsLoading, setStatsLoading] = useState(true);
@@ -26,6 +27,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   
   const [announcement, setAnnouncement] = useState("");
   const [activeAnnouncement, setActiveAnnouncement] = useState(null);
+  
+  const [showAllAdminNotifs, setShowAllAdminNotifs] = useState(false);
   
   const [flags, setFlags] = useState({
     enableFriends: true,
@@ -324,12 +327,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             <div style={{ fontSize: 12, textTransform: "uppercase", fontWeight: 700, color: "var(--muted)", marginBottom: 8, letterSpacing: "1px", display: "flex", alignItems: "center", gap: 6 }}><Database size={14}/> DB Storage Used</div>
             <div style={{ fontSize: 36, fontWeight: 800, fontFamily: "var(--display)", color: "var(--text)" }}>{statsLoading ? "..." : dbSize}</div>
           </div>
-          <div style={{ background: "var(--card)", padding: "16px 32px", borderRadius: 16, border: "1px solid var(--border)", minWidth: 200, display: "flex", flexDirection: "column", justifyContent: "center" }}>
-            <div style={{ fontSize: 12, textTransform: "uppercase", fontWeight: 700, color: "var(--muted)", marginBottom: 8, letterSpacing: "1px", display: "flex", alignItems: "center", gap: 6 }}><BarChart3 size={14}/> Top Electives</div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", display: "flex", flexDirection: "column", gap: 4 }}>
-              {popularCourses.length > 0 ? popularCourses.map(([c, n]) => <div key={c}>{c} <span style={{color: "var(--muted)"}}>({n})</span></div>) : "None yet"}
-            </div>
-          </div>
+
         </div>
       </section>
 
@@ -496,7 +494,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           <section className="admin-card">
             <h2><Flag size={20} color="var(--violet)" /> Feature Flags</h2>
             <div className="admin-flag-list">
-              {Object.keys(flags).filter(k => k !== "maintenanceMode" && k !== "bannedUsers" && k !== "classOverrides" && k !== "abTests" && k !== "scheduledAnnouncements" && k !== "quickLinks").map(key => (
+              {Object.keys(flags).filter(k => k !== "maintenanceMode" && k !== "bannedUsers" && k !== "classOverrides" && k !== "abTests" && k !== "scheduledAnnouncements" && k !== "quickLinks" && k !== "heroBackdrop").map(key => (
                 <label key={key} className="admin-flag-item">
                   <input 
                     type="checkbox" 
@@ -507,40 +505,132 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 </label>
               ))}
             </div>
+            
+            <div className="admin-field" style={{ marginTop: 16 }}>
+              <label style={{ display: "block", marginBottom: 8, fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "1px" }}>Hero Backdrop Strategy</label>
+              <select 
+                className="admin-input" 
+                value={flags.heroBackdrop || "swap"} 
+                onChange={e => setFlags({ ...flags, heroBackdrop: e.target.value })}
+                style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", width: "100%" }}
+              >
+                <option value="none">None (Remove Background)</option>
+                <option value="swap">Swap Alt Days (Default)</option>
+                <option value="v2">Static (V2 Image)</option>
+                <option value="v3">Static (V3 Image)</option>
+              </select>
+            </div>
+            
+            <div style={{ marginTop: 24 }}>
+               <label style={{ display: "block", marginBottom: 8, fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "1px" }}>Preview</label>
+               <div style={{ borderRadius: 16, overflow: "hidden", position: "relative", pointerEvents: "none", border: "1px solid var(--border)", paddingBottom: 16, background: "var(--bg)" }}>
+                 <div style={{ transform: "scale(0.8)", transformOrigin: "top center", marginBottom: "-40px" }}>
+                   <Hero 
+                     sysConfig={{ flags: { heroBackdrop: flags.heroBackdrop } }}
+                     now={new Date().getTime() - 1000 * 60 * 30}
+                     todayISO={new Date().toISOString().split("T")[0]}
+                     tomorrowISO={new Date(Date.now() + 86400000).toISOString().split("T")[0]}
+                     current={{ name: "Strategic Management", start: "10:00", end: "11:30", room: "LT-1", date: new Date().toISOString().split("T")[0], type: "class", code: "SM" }}
+                     premiumMode={true}
+                   />
+                 </div>
+               </div>
+            </div>
           </section>
 
           <section className="admin-card">
-            <h2><Flag size={20} color="var(--violet)" /> A/B Testing</h2>
-            <p className="admin-subtext">Roll out features to a percentage of users deterministically.</p>
-            <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-               <input type="text" placeholder="Test Key (e.g. new_hero)" className="admin-input" id="abTestKey" style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)" }} />
-               <input type="number" placeholder="%" className="admin-input" id="abTestPercent" style={{ width: 80, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)" }} min="0" max="100" />
-               <button className="cva-btn primary" onClick={() => {
-                  const k = document.getElementById('abTestKey').value.trim();
-                  const p = parseInt(document.getElementById('abTestPercent').value);
-                  if (k && !isNaN(p) && p >= 0 && p <= 100) {
-                     setFlags({...flags, abTests: {...(flags.abTests || {}), [k]: p}});
-                     document.getElementById('abTestKey').value = "";
-                     document.getElementById('abTestPercent').value = "";
-                  } else {
-                     alert("Please enter a valid key and percentage (0-100)");
-                  }
-               }} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "var(--violet)", color: "#fff", cursor: "pointer", fontWeight: 600 }}>Add Test</button>
-            </div>
-            {flags.abTests && Object.entries(flags.abTests).map(([k, p]) => (
-               <div key={k} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "rgba(0,0,0,0.03)", borderRadius: 8, border: "1px solid var(--border)", marginBottom: 8 }}>
-                  <div>
-                    <strong style={{ fontSize: 14 }}>{k}</strong> 
-                    <div style={{ fontSize: 12, color: "var(--muted)" }}>Variant B: {p}% of users</div>
+            <h2><Megaphone size={20} color="var(--amber)" /> All Announcements</h2>
+            <div className="admin-subtext" style={{ marginBottom: 16 }}>Live feed of all schedule changes (including admin-only data quality issues).</div>
+            
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {allChanges.length === 0 ? (
+                <div style={{ padding: "20px", textAlign: "center", color: "var(--muted)", background: "rgba(0,0,0,0.02)", borderRadius: 8 }}>No announcements found.</div>
+              ) : (
+                allChanges.slice(0, showAllAdminNotifs ? undefined : 3).map(c => (
+                  <div key={c.id} style={{ 
+                    padding: "10px 14px", 
+                    background: "rgba(0,0,0,0.02)", 
+                    borderRadius: 8, 
+                    borderLeft: `3px solid ${c.admin_only ? "var(--amber)" : "var(--violet)"}`,
+                    borderStyle: c.admin_only ? "dashed" : "solid",
+                    borderTop: "1px solid var(--border)",
+                    borderRight: "1px solid var(--border)",
+                    borderBottom: "1px solid var(--border)"
+                  }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", lineHeight: 1.4 }}>{c.text}</div>
+                        <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4, display: "flex", gap: 8 }}>
+                          <span>{new Date(c.ts).toLocaleString()}</span>
+                          {c.admin_only && <span style={{ color: "var(--amber)", fontWeight: 700 }}>ADMIN ONLY</span>}
+                          {c.code && <span>Course: {c.code}</span>}
+                          <span>Type: {c.kind}</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <button onClick={() => {
-                     const next = {...flags.abTests};
-                     delete next[k];
-                     setFlags({...flags, abTests: next});
-                  }} style={{ background: "transparent", border: "none", cursor: "pointer", padding: 4 }}><Trash2 size={16} color="var(--danger)" /></button>
-               </div>
-            ))}
+                ))
+              )}
+              
+              {allChanges.length > 3 && (
+                <button 
+                  onClick={() => setShowAllAdminNotifs(true)}
+                  style={{
+                    padding: "8px",
+                    background: "transparent",
+                    border: "1px dashed var(--border)",
+                    borderRadius: 8,
+                    cursor: "pointer",
+                    color: "var(--muted)",
+                    fontWeight: 600,
+                    marginTop: 4,
+                    transition: "all 0.2s"
+                  }}
+                  onMouseOver={(e) => { e.currentTarget.style.background = "var(--surface)"; e.currentTarget.style.color = "var(--text)"; }}
+                  onMouseOut={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--muted)"; }}
+                >
+                  View More ({allChanges.length - 3} remaining)
+                </button>
+              )}
+            </div>
           </section>
+
+          {showAllAdminNotifs && (
+            <div className="assign-modal-overlay" onClick={() => setShowAllAdminNotifs(false)}>
+              <div className="assign-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 600, maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
+                <div className="assign-modal-head">
+                  <h2><Megaphone size={20} color="var(--amber)" style={{ verticalAlign: "middle", marginRight: 8, marginTop: -3 }} /> All Announcements</h2>
+                  <button className="assign-modal-close" onClick={() => setShowAllAdminNotifs(false)}><X size={16} /></button>
+                </div>
+                <div className="assign-modal-body" style={{ overflowY: "auto", flex: 1, padding: "24px 32px", gap: 12 }}>
+                  {allChanges.map(c => (
+                    <div key={c.id} style={{ 
+                      padding: "12px 16px", 
+                      background: "rgba(0,0,0,0.02)", 
+                      borderRadius: 10, 
+                      borderLeft: `3px solid ${c.admin_only ? "var(--amber)" : "var(--violet)"}`,
+                      borderStyle: c.admin_only ? "dashed" : "solid",
+                      borderTop: "1px solid var(--border)",
+                      borderRight: "1px solid var(--border)",
+                      borderBottom: "1px solid var(--border)"
+                    }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)", lineHeight: 1.4 }}>{c.text}</div>
+                          <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                            <span>{new Date(c.ts).toLocaleString()}</span>
+                            {c.admin_only && <span style={{ color: "var(--amber)", fontWeight: 700 }}>ADMIN ONLY</span>}
+                            {c.code && <span>Course: {c.code}</span>}
+                            <span>Type: {c.kind}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
 
           <section className="admin-card danger-zone">
             <h2><AlertTriangle size={20} color="var(--danger, #e74c3c)" /> Danger Zone</h2>

@@ -288,6 +288,26 @@ export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, no
   const upcoming = exams.filter(e => e.days >= 0);
   const past = exams.filter(e => e.days < 0);
 
+  const progressPct = useMemo(() => {
+    if (!allClasses || !codes.length) return 0;
+    let total = 0;
+    let pastCount = 0;
+    allClasses.forEach(c => {
+      if (c.code && codes.includes(c.code)) {
+        total++;
+        if (c.date) {
+          const [Y, M, D] = c.date.split("-").map(Number);
+          if (new Date(Y, M - 1, D) < now) pastCount++;
+        }
+      }
+    });
+    return total === 0 ? 0 : Math.round((pastCount / total) * 100);
+  }, [allClasses, codes, now]);
+
+  const midTermCount = exams.filter(e => e.category === "Mid Term").length;
+  const endTermCount = exams.filter(e => e.category === "End Term").length;
+  const nextExam = upcoming[0];
+
   if (!codes.length) {
     return (
       <div className="exam-page">
@@ -301,26 +321,97 @@ export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, no
     <div className="exam-page">
       <div className="exam-head">
         <h1>Exams & Credits</h1>
-        <span className="att-sub">{termNumber ? `Term ${termNumber}` : "This term"}</span>
+        <span className="att-sub">{termNumber ? `Term ${["", "I", "II", "III", "IV", "V", "VI"][termNumber] || termNumber}` : "This term"}</span>
       </div>
 
       {/* ── Credit Summary Hero ── */}
-      <section className="exam-hero">
-        <div className="exam-hero-ring">
-          <GraduationCap size={28} />
-        </div>
-        <div className="exam-hero-r">
-          <div className="exam-hero-label">Credit load</div>
-          <div className="exam-hero-big">
-            <b>{creditData.total}</b> credits · <b>{creditData.courses.length}</b> courses
+      <section className="exam-hero-new">
+        <div className="eh-top-label">SEMESTER PROGRESS</div>
+        <div className="eh-content">
+          
+          <div className="eh-progress-ring">
+            <svg width="100" height="100" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="8" />
+              <circle 
+                cx="50" cy="50" r="42" fill="none" 
+                stroke="url(#purpleGrad)" 
+                strokeWidth="8" strokeLinecap="round" 
+                strokeDasharray="264" 
+                strokeDashoffset={264 - (264 * progressPct) / 100} 
+                transform="rotate(-90 50 50)" 
+                style={{ transition: 'stroke-dashoffset 1s ease-out' }}
+              />
+              <defs>
+                <linearGradient id="purpleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#8B5CF6" />
+                  <stop offset="100%" stopColor="#C084FC" />
+                </linearGradient>
+              </defs>
+            </svg>
+            <div className="eh-ring-text">
+              <div className="eh-ring-val">{progressPct}%</div>
+              <div className="eh-ring-sub">Completed</div>
+            </div>
           </div>
-          <div className="exam-hero-areas">
-            {Object.entries(creditData.byArea)
-              .sort((a, b) => b[1] - a[1])
-              .map(([area, cr]) => (
-                <span key={area} className="exam-area-chip">{area}: {cr}cr</span>
-              ))}
+
+          <div className="eh-progress-linear">
+            <div className="eh-pl-text">
+              <span>Semester Progress</span>
+              <span>{progressPct}% Completed</span>
+            </div>
+            <div className="eh-pl-bar">
+              <div className="eh-pl-fill" style={{ width: `${progressPct}%` }} />
+            </div>
           </div>
+
+          <div className="eh-stats-block">
+            <div className="eh-stats-row">
+              <div className="eh-stat">
+                <div className="eh-stat-val">{creditData.total}</div>
+                <div className="eh-stat-label">Credits<br/>Loaded</div>
+              </div>
+              <div className="eh-stat-divider" />
+              <div className="eh-stat">
+                <div className="eh-stat-val">{creditData.courses.length}</div>
+                <div className="eh-stat-label">Subjects<br/>&nbsp;</div>
+              </div>
+              <div className="eh-stat-divider" />
+              <div className="eh-stat">
+                <div className="eh-stat-val">{midTermCount}</div>
+                <div className="eh-stat-label">Mid Terms<br/>&nbsp;</div>
+              </div>
+              <div className="eh-stat-divider" />
+              <div className="eh-stat">
+                <div className="eh-stat-val">{endTermCount}</div>
+                <div className="eh-stat-label">End Terms<br/>&nbsp;</div>
+              </div>
+            </div>
+
+            <div className="eh-next-exam">
+              <div className="eh-ne-label">Next Exam</div>
+              {nextExam ? (
+                <>
+                  <div className="eh-ne-title">{nextExam.name || nextExam.code || "Upcoming Exam"}</div>
+                  <div className="eh-ne-meta">
+                    <span className="eh-ne-days">{nextExam.days} Days</span> Remaining &bull; {fmtDate(nextExam.date)}
+                  </div>
+                </>
+              ) : (
+                <div className="eh-ne-title" style={{ opacity: 0.5 }}>No upcoming exams</div>
+              )}
+            </div>
+          </div>
+
+          <div className="eh-ill-block">
+            <div className="eh-ill-img-wrap">
+              <div className="eh-ill-glow" />
+              <img src="/grad-cap-3d.png" alt="" onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} />
+              <div className="eh-ill-fallback" style={{ display: 'none' }}>
+                <GraduationCap size={48} color="#A78BFA" />
+              </div>
+            </div>
+          </div>
+
         </div>
       </section>
 
@@ -402,23 +493,30 @@ export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, no
       </section>
 
       {/* ── Credits by Course ── */}
-      <section className="exam-card">
+      <section className="exam-card exam-credits-card">
         <div className="exam-card-h">
           <h2><GraduationCap size={15} /> Credits by Course</h2>
           <span className="att-count">{creditData.total} total</span>
         </div>
-        {creditData.courses.map((c, i) => (
-          <div key={c.code} className="exam-cr-row" style={{ animationDelay: `${i * 40}ms` }}>
-            <span className={`ses ses-${(Array.from(c.code).reduce((h, char) => h + char.charCodeAt(0), 0)) % 6}`}>
-              {c.code}
-            </span>
-            <span className="exam-cr-name">{c.name}</span>
-            <span className="exam-cr-area">{c.area}</span>
-            <span className={`exam-cr-val${!c.raw ? " exam-cr-missing" : ""}`}>
-              {c.raw ? `${c.credits}cr` : "—"}
-            </span>
-          </div>
-        ))}
+        <div className="exam-cr-grid">
+          {creditData.courses.map((c, i) => {
+            const colorIndex = (Array.from(c.code).reduce((h, char) => h + char.charCodeAt(0), 0)) % 6;
+            return (
+              <div key={c.code} className="exam-cr-row" style={{ animationDelay: `${i * 40}ms` }}>
+                <span className={`ses ses-${colorIndex}`}>
+                  {c.code}
+                </span>
+                <span className="exam-cr-name">{c.name}</span>
+                <span className="exam-cr-area">
+                  {c.area}
+                </span>
+                <span className={`exam-cr-val${!c.raw ? " exam-cr-missing" : ""}`}>
+                  {c.raw ? `${c.credits}cr` : "—"}
+                </span>
+              </div>
+            );
+          })}
+        </div>
       </section>
     </div>
   );

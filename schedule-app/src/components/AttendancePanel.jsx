@@ -191,13 +191,16 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
       <div className="att-head">
         <div className="att-head-left">
           <h1>Attendance</h1>
-          <span className="att-sub">{termNumber ? `Term ${termNumber}` : "Term so far"}</span>
+          <span className="att-sub">{termNumber ? `Term ${["", "I", "II", "III", "IV", "V", "VI"][termNumber] || termNumber}` : "Term so far"}</span>
         </div>
         <WeatherWidget now={now} weather={weather} />
       </div>
 
       {/* ── Overall hero ── */}
       <section className={`att-hero tone-${overall_tone}`}>
+        <div className="att-hero-bg-text">
+          {termNumber ? ["", "I", "II", "III", "IV", "V", "VI"][termNumber] || termNumber : ""}
+        </div>
         <div className="att-hero-ring">
           <Ring pct={overall.pct ?? 0} t={overall_tone} noData={noData} size={64} />
         </div>
