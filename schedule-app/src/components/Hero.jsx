@@ -94,13 +94,13 @@ function HeroBackdrop({ sysConfig }) {
   
   let bgImage;
   if (adminSetting === "v2") {
-    bgImage = "/premium_hero_backdrop_v2.png";
+    bgImage = "/premium_hero_backdrop_v2.webp";
   } else if (adminSetting === "v3") {
-    bgImage = "/premium_hero_backdrop_v3.png";
+    bgImage = "/premium_hero_backdrop_v3.webp";
   } else {
     // swap logic (default)
     const isEvenDay = new Date().getDate() % 2 === 0;
-    bgImage = isEvenDay ? "/premium_hero_backdrop_v2.png" : "/premium_hero_backdrop_v3.png";
+    bgImage = isEvenDay ? "/premium_hero_backdrop_v2.webp" : "/premium_hero_backdrop_v3.webp";
   }
   
   return <div className="hero-img-bg" style={{ backgroundImage: `url(${bgImage})` }} />;

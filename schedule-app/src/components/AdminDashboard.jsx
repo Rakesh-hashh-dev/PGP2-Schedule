@@ -1,4 +1,7 @@
 import { useState, useEffect } from "react";
+import "../styles/admin.css";
+import "../styles/assignments.css";
+import "../styles/cmdk.css";
 import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { logAdminAction } from "../lib/adminAudit.js";
@@ -120,7 +123,16 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             };
           });
           setAllUsers(usersWithNames);
-          setActiveUsers(Math.floor(count * 0.85)); // Mock active users for now
+
+          // Real active count from the last_seen_at heartbeat (App.jsx stamps
+          // it hourly). Falls back to an estimate if the column doesn't exist.
+          const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+          const { count: activeCount, error: activeErr } = await supabase
+            .from("profiles")
+            .select("user_id", { count: "exact", head: true })
+            .gte("last_seen_at", dayAgo);
+          if (!activeErr && activeCount !== null) setActiveUsers(activeCount);
+          else setActiveUsers("~" + Math.floor(count * 0.85));
 
           // Tally popular courses
           const counts = {};

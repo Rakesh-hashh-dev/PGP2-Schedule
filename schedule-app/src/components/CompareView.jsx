@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
+import "../styles/compare.css";
 import { ArrowLeft, Columns, Layers, Clock, BookOpen, UserCheck, Sparkles, ChevronDown, Copy, Check, CalendarDays, ArrowRight as ArrowRightIcon } from "lucide-react";
 import { findFreeSlots, findGroupFreeSlots, scheduleInsights, friendVisibleClasses } from "../lib/friends.js";
 

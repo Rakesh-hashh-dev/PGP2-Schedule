@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import "../styles/exams.css";
 import { GraduationCap, Clock, AlertTriangle, BookOpen, Trophy, CalendarDays, List, ChevronLeft, ChevronRight } from "lucide-react";
 import { sessionKey } from "../lib/attendance.js";
 

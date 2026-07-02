@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import "../styles/assignments.css";
 import { CheckCircle2, Circle, Plus, Trash2, X, ChevronDown, ChevronUp } from "lucide-react";
 import { loadAssignments, pushAssignments } from "../lib/assignments.js";
 

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Check, X, Clock, AlertTriangle, ChevronDown, Flame } from "lucide-react";
-import { sessionKey } from "../lib/attendance.js";
+import { sessionKey, courseSkipStats } from "../lib/attendance.js";
 import WeatherWidget from "./WeatherWidget.jsx";
 
 const THRESHOLD = 80;
@@ -133,20 +133,19 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
     return codes.map(code => {
       const list = allPast.filter(s => s.code === code);
       const section = enrolled[code];
-      const allCourseSessions = allClasses.filter(c => c.type === "class" && c.code === code && (c.section === "Single" || c.section === section));
-      const totalScheduled = allCourseSessions.length;
-      
       const rawCredit = legend[code]?.credits;
-      const isZeroCredit = rawCredit === "0" || rawCredit === 0;
-      const minPct = isZeroCredit ? 0.90 : 0.80;
-      const minAttend = Math.ceil(totalScheduled * minPct);
-      const totalAllowedSkips = Math.max(0, totalScheduled - minAttend);
-      
+      const zeroCredit = rawCredit === "0" || rawCredit === 0;
+      const budget = courseSkipStats(allClasses, code, section, attendance, { zeroCredit });
+
       const st = stat(list);
-      const skipsRemaining = Math.max(0, totalAllowedSkips - st.absent);
-      const penaltyHit = st.absent > totalAllowedSkips;
-      
-      return { code, name: legend[code]?.name || code, sessions: list, totalScheduled, totalAllowedSkips, skipsRemaining, penaltyHit, ...st };
+      return {
+        code, name: legend[code]?.name || code, sessions: list,
+        totalScheduled: budget.totalScheduled,
+        totalAllowedSkips: budget.totalAllowedSkips,
+        skipsRemaining: budget.skipsRemaining,
+        penaltyHit: budget.penaltyHit,
+        ...st,
+      };
     }).sort((a, b) => {
       // Sort by penalty hit first, then skips remaining, then percentage
       if (a.penaltyHit !== b.penaltyHit) return a.penaltyHit ? -1 : 1;

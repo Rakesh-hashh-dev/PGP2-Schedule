@@ -24,10 +24,11 @@ const FullSchedulePage = lazy(() => import("./components/FullSchedulePage.jsx"))
 const AdminDashboard = lazy(() => import("./components/AdminDashboard.jsx"));
 const CommandPalette = lazy(() => import("./components/CommandPalette.jsx"));
 const AssignmentsPanel = lazy(() => import("./components/AssignmentsPanel.jsx"));
-import { loadAttendance, saveAttendance, sessionKey, syncAttendanceFromCloud, pushMark } from "./lib/attendance.js";
+import { loadAttendance, saveAttendance, sessionKey, syncAttendanceFromCloud, pushMark, courseSkipStats } from "./lib/attendance.js";
 import { syncProfileFromCloud, pushProfile, pushReadState } from "./lib/profile.js";
 import { decodeSchedule, saveFriend, loadFriends, loadGroups, syncFriendsAndGroupsFromCloud, fetchFriendPings, pushFriendsToCloud, deleteAllFriendPings, removeFriendByCloudId, deleteFriendPing } from "./lib/friends.js";
 import { supabase } from "./lib/supabase.js";
+import MarkPrompt from "./components/MarkPrompt.jsx";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
@@ -201,7 +202,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [friends, setFriends] = useState(() => loadFriends());
   const [groups, setGroups] = useState(() => loadGroups());
   const [compareTarget, setCompareTarget] = useState(null); // { mode, friendData?, groupData? }
-  const [, setFriendToast] = useState(null);
+  const [friendToast, setFriendToast] = useState(null);
   const [jumpToDate, setJumpToDate] = useState(null);
 
   // Received groups badge: track how many received groups were seen when Friends tab was last opened
@@ -751,6 +752,20 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     return out;
   }, [enrolled, LEGEND]);
 
+  // Per-course skip budget + "what if I skip one more" projection, shown as a
+  // hint on today's unmarked class rows (same math as the Attendance panel).
+  const skipInfo = useMemo(() => {
+    if (!enrolled) return {};
+    const out = {};
+    for (const [code, section] of Object.entries(enrolled)) {
+      const rawCredit = LEGEND[code]?.credits;
+      out[code] = courseSkipStats(CLASSES, code, section, attendance, {
+        zeroCredit: rawCredit === "0" || rawCredit === 0,
+      });
+    }
+    return out;
+  }, [CLASSES, enrolled, attendance, LEGEND]);
+
   const todayISO = ymd(now);
   const tomorrowISO = ymd(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
 
@@ -930,6 +945,25 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     setView("notifications");
   }
 
+  // Presence heartbeat — stamps profiles.last_seen_at (at most once/hour) so
+  // the admin "Active Today" stat reflects real usage. No-ops silently if the
+  // column doesn't exist yet or the profile row hasn't been created.
+  useEffect(() => {
+    if (!userId) return;
+    const beat = async () => {
+      try {
+        const last = Number(localStorage.getItem("pgp2.last-heartbeat") || 0);
+        if (Date.now() - last < 60 * 60 * 1000) return;
+        localStorage.setItem("pgp2.last-heartbeat", String(Date.now()));
+        await supabase.from("profiles").update({ last_seen_at: new Date().toISOString() }).eq("user_id", userId);
+      } catch { /* best effort */ }
+    };
+    beat();
+    const onVisible = () => { if (document.visibilityState === "visible") beat(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [userId]);
+
   const markAttendance = async (c, status) => {
     if (premiumMode && navigator.vibrate) navigator.vibrate([10]);
     const key = sessionKey(c);
@@ -1077,6 +1111,13 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               <button className="sw-update-later" onClick={() => setSwUpdateFn(null)}>Maybe Later</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── Friend-added toast (share-link accepts) ── */}
+      {friendToast && (
+        <div className="app-toast" role="status">
+          <Users size={15} /> {friendToast}
         </div>
       )}
 
@@ -1612,8 +1653,11 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                   )
                                   : <div className="cva-card soft"><div className="cva-content"><strong>No classes!</strong><div className="cva-sub">Enjoy your free time.</div></div></div>
                                 : view === "tomorrow"
-                                  ? <Timeline list={tomorrowList} current={null} now={now} showNowLine={false} label="Tomorrow" dateLabel={prettyDate(tomorrowISO)} attendance={attendance} markAttendance={markAttendance} syncStatus={<span className="live"><span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} />
-                                  : <Timeline list={todayList} current={current} now={now} dateLabel={prettyDate(todayISO)} attendance={attendance} markAttendance={markAttendance} syncStatus={<span className="live"><span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} />}
+                                  ? <Timeline list={tomorrowList} current={null} now={now} showNowLine={false} label="Tomorrow" dateLabel={prettyDate(tomorrowISO)} attendance={attendance} markAttendance={markAttendance} skipInfo={skipInfo} syncStatus={<span className="live"><span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} />
+                                  : <>
+                                      <MarkPrompt list={todayList} now={now} attendance={attendance} markAttendance={markAttendance} />
+                                      <Timeline list={todayList} current={current} now={now} dateLabel={prettyDate(todayISO)} attendance={attendance} markAttendance={markAttendance} skipInfo={skipInfo} syncStatus={<span className="live"><span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} />
+                                    </>}
               </Suspense>
             </div>
           </main>

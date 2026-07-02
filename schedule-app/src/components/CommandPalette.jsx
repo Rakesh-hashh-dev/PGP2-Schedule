@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import "../styles/cmdk.css";
 import { Search, Clock, Calendar, ClipboardList, GraduationCap, Users, Megaphone, MapPin, X } from "lucide-react";
 
 export default function CommandPalette({ isOpen, onClose, onViewChange, allClasses = [], friends = [] }) {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import "../styles/cmdk.css";
 import { Search, Users, Flag, FileText, X } from "lucide-react";
 
 export default function AdminCommandPalette({ isOpen, onClose, allUsers = [], flags = {}, auditLogs = [], onUserSelect, onFlagSelect }) {

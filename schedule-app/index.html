@@ -17,6 +17,20 @@
     <link rel="dns-prefetch" href="https://api.open-meteo.com" />
     <link rel="dns-prefetch" href="https://script.google.com" />
 
+    <!-- Preload today's hero backdrop (must mirror HeroBackdrop's even/odd-day
+         swap logic in Hero.jsx) so it paints with the hero instead of after it -->
+    <script>
+      (function () {
+        var l = document.createElement("link");
+        l.rel = "preload";
+        l.as = "image";
+        l.href = new Date().getDate() % 2 === 0
+          ? "/premium_hero_backdrop_v2.webp"
+          : "/premium_hero_backdrop_v3.webp";
+        document.head.appendChild(l);
+      })();
+    </script>
+
     <!-- Icons -->
     <link rel="icon" type="image/svg+xml" href="/termflow-icon.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
@@ -34,7 +48,9 @@
     <meta property="og:url" content="https://pgp2.termflow.tech/" />
     <meta property="og:title" content="TermFlow | IIM Sambalpur | PGP2" />
     <meta property="og:description" content="PGP2 timetable, attendance tracker and class schedule for IIM Sambalpur students." />
-    <meta property="og:image" content="https://pgp2.termflow.tech/TermFlow.png" />
+    <meta property="og:image" content="https://pgp2.termflow.tech/TermFlow-og.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
     <meta name="twitter:card" content="summary_large_image" />
 
     <!-- Structured data -->

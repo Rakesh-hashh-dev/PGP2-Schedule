@@ -25,7 +25,8 @@ export default defineConfig({
       registerType: 'prompt',
       devOptions: { enabled: true },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,webp,jpg}'],
+        globIgnores: ['**/*.unused.*'],
         runtimeCaching: [
           {
             // Google Sheets feed — network-first, 1h cache, 5s timeout before stale

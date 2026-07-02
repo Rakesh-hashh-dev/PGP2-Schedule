@@ -19,7 +19,22 @@ function clsStart(c) {
 }
 import { RefreshCw } from "lucide-react";
 
-export default React.memo(function Timeline({ list, current, now, showNowLine = true, label = "Today", dateLabel, attendance = {}, markAttendance, syncStatus, onRefresh, isSyncing }) {
+// "What if I skip this one" hint for unmarked upcoming classes; math comes
+// from courseSkipStats in lib/attendance.js (same source as Attendance panel)
+function SkipHint({ info }) {
+  if (!info || info.totalAllowedSkips === 0) return null;
+  if (info.skipsRemaining === 0) {
+    return <span className="skip-hint skip-hint-bad">skip → grade penalty</span>;
+  }
+  const tone = info.skipsRemaining === 1 || info.pctIfSkip < 80 ? "skip-hint-warn" : "skip-hint-ok";
+  return (
+    <span className={`skip-hint ${tone}`}>
+      skip → {info.pctIfSkip}% · {info.skipsRemaining} left
+    </span>
+  );
+}
+
+export default React.memo(function Timeline({ list, current, now, showNowLine = true, label = "Today", dateLabel, attendance = {}, markAttendance, skipInfo, syncStatus, onRefresh, isSyncing }) {
   if (!list.length)
     return (
       <section className="panel">
@@ -123,6 +138,7 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
                           <><MapPin size={13} /> {c.room || "TBA"}</>
                           {c.faculty && <> · {c.faculty}</>}
                           {c.section === "Single" && <span className="single-tag">all</span>}
+                          {!isPast && !attStatus && <SkipHint info={skipInfo?.[c.code]} />}
                         </>
                       : <TypeBadge type={c.type} />}
                   </div>

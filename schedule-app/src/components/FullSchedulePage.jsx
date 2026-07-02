@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect } from "react";
+import "../styles/fullschedule.css";
 import { ArrowLeft, Clock, MapPin, User, SlidersHorizontal, X, ArrowUp, Calendar, ChevronLeft, ChevronRight, List, CalendarDays } from "lucide-react";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }

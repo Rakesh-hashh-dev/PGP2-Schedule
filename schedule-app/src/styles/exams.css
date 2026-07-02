@@ -1,0 +1,1087 @@
+/* Split from styles.css — loaded with the exams route chunk */
+
+/* ── Exams & Credits ── */
+.exam-page {
+  padding-bottom: 12px;
+}
+
+.exam-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.exam-head h1 {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 22px;
+  margin: 0;
+  letter-spacing: -.5px;
+  line-height: 1;
+  color: var(--text);
+}
+
+/* Hero Redesign (Screenshot Match) */
+.exam-hero-new {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: linear-gradient(135deg, #181A2A, #0C0D1A);
+  color: #fff;
+  border-radius: 20px;
+  padding: 24px 32px;
+  margin-bottom: 24px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 18px 40px -24px rgba(21, 24, 43, .85), inset 0 1px 1px rgba(255, 255, 255, 0.08);
+  animation: exam-rise .5s ease both;
+}
+
+.exam-hero-new::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 90% at 90% -10%, rgba(139, 92, 246, 0.25), transparent 60%);
+  pointer-events: none;
+}
+
+.eh-top-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+}
+
+.eh-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 40px;
+  flex-wrap: wrap;
+}
+
+.eh-progress-ring {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  flex-shrink: 0;
+}
+
+.eh-ring-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.eh-ring-val {
+  font-family: var(--display);
+  font-size: 24px;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+
+.eh-ring-sub {
+  font-size: 9px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+}
+
+.eh-progress-linear {
+  display: none;
+  width: 100%;
+}
+
+.eh-pl-text {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.eh-pl-text span:last-child {
+  color: #fff;
+  font-size: 13px;
+  letter-spacing: 0;
+}
+
+.eh-pl-bar {
+  height: 8px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.eh-pl-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #8B5CF6, #C084FC);
+  border-radius: 99px;
+  transition: width 1s ease-out;
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.5);
+}
+
+.eh-stats-block {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 300px;
+}
+
+.eh-stats-row {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.eh-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.eh-stat-val {
+  font-family: var(--display);
+  font-size: 20px;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1;
+}
+
+.eh-stat-label {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1.2;
+}
+
+.eh-stat-divider {
+  width: 1px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.eh-next-exam {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.eh-ne-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.eh-ne-title {
+  font-family: var(--display);
+  font-size: 18px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.2px;
+}
+
+.eh-ne-meta {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 500;
+}
+
+.eh-ne-days {
+  color: #f59e0b;
+  font-weight: 700;
+}
+
+.eh-ill-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.eh-ill-img-wrap {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  display: grid;
+  place-items: center;
+}
+
+.eh-ill-glow {
+  position: absolute;
+  inset: -20px;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.eh-ill-img-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  position: relative;
+  z-index: 1;
+}
+
+.eh-ill-fallback {
+  position: relative;
+  z-index: 1;
+}
+
+.eh-planner-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #A78BFA;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 99px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.eh-planner-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
+}
+
+@media (max-width: 650px) {
+  .exam-hero-new {
+      padding: 20px 16px;
+      gap: 20px;
+    }
+
+  .eh-top-label {
+      display: none;
+    }
+
+  .eh-content {
+      gap: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+  .eh-progress-ring {
+      display: none;
+    }
+
+  .eh-progress-linear {
+      display: block;
+    }
+
+  .eh-stats-block {
+      min-width: 100%;
+      gap: 16px;
+    }
+
+  .eh-stats-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+      width: 100%;
+    }
+
+  .eh-stat-val {
+      font-size: 15px;
+    }
+
+  .eh-stat-label {
+      font-size: 10px;
+    }
+
+  .eh-stat-divider {
+      display: block;
+      height: 20px;
+    }
+
+  .eh-ne-title {
+      font-size: 16px;
+    }
+
+  .eh-ill-block {
+      display: none;
+    }
+}
+
+/* Cards */
+.exam-card {
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 16px;
+  padding: 24px;
+  margin-top: 10px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.02), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  animation: exam-rise .5s ease both;
+}
+
+.exam-card:nth-child(3) {
+  animation-delay: .1s;
+}
+
+.exam-card:nth-child(4) {
+  animation-delay: .2s;
+}
+
+.exam-card:nth-child(5) {
+  animation-delay: .3s;
+}
+
+.exam-card-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.exam-card-h h2 {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 15px;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Filter pill — desktop: inline in header row */
+.exam-filter-pill {
+  display: flex;
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 4px;
+  gap: 4px;
+}
+
+.exam-fp-btn {
+  border: none;
+  border-radius: 8px;
+  padding: 6px 16px;
+  font-family: var(--body);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  background: transparent;
+  color: var(--muted);
+  transition: background .18s, color .18s, box-shadow .18s;
+  touch-action: manipulation;
+  white-space: nowrap;
+}
+
+.exam-fp-btn:hover {
+  color: var(--text);
+  background: var(--card-hi);
+}
+
+@media (max-width: 768px) {
+  .exam-card-h {
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+  .exam-card-h h2 {
+      flex: 1;
+    }
+
+  .exam-view-toggle {
+      order: 0;
+    }
+
+  .exam-filter-pill {
+      order: 1;
+      flex: 0 0 100%;
+      border-radius: 12px;
+      padding: 3px;
+    }
+
+  .exam-fp-btn {
+      flex: 1;
+      padding: 8px 0;
+      text-align: center;
+    }
+}
+
+/* View toggle */
+.exam-view-toggle {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.exam-vt-btn {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 30px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--muted);
+  transition: background .12s, color .12s;
+  touch-action: manipulation;
+}
+
+.exam-vt-btn:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.exam-vt-btn+.exam-vt-btn {
+  border-left: 1px solid var(--border);
+}
+
+.exam-cd-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+@media (min-width: 640px) {
+  .exam-cd-grid {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+}
+
+.exam-cd {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  border-left: 4px solid var(--border);
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(8px);
+  transition: background .12s, transform .12s;
+  animation: exam-cd-in .4s ease both;
+}
+
+.exam-cd:hover {
+  background: rgba(255, 255, 255, 0.6);
+  transform: translateX(3px);
+}
+
+.exam-cd-days {
+  font-family: var(--mono);
+  font-weight: 800;
+  font-size: 18px;
+  min-width: 52px;
+  text-align: center;
+  flex: none;
+  position: relative;
+}
+
+.exam-cd-pulse {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  margin: -14px 0 0 -14px;
+  border: 2px solid #E84545;
+  animation: exam-pulse-ring 1.8s ease-out infinite;
+  pointer-events: none;
+}
+
+.exam-cd-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.exam-cd-cat {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--muted);
+}
+
+.exam-cd-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.exam-cd-date {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.exam-cd-alert {
+  color: #E84545;
+  flex: none;
+  animation: exam-alert-bounce 1s ease infinite;
+}
+
+.exam-cd-sep {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--muted);
+  padding: 8px 0 2px;
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+}
+
+/* Empty state */
+.exam-empty {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 8px;
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.ecal-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.ecal-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  transition: background .12s, color .12s;
+}
+
+.ecal-btn:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.ecal-month {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 15px;
+  flex: 1;
+  text-align: center;
+}
+
+.ecal-today-btn {
+  font-family: var(--body);
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--live);
+  color: #000;
+  border: none;
+  border-radius: 7px;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: opacity .12s;
+}
+
+.ecal-today-btn:hover {
+  opacity: .8;
+}
+
+.ecal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.ecal-hd {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--muted);
+  text-align: center;
+  padding: 4px 0;
+}
+
+.ecal-cell {
+  position: relative;
+  text-align: center;
+  padding: 8px 2px 10px;
+  border-radius: 8px;
+  min-height: 40px;
+  transition: background .12s;
+}
+
+.ecal-cell:not(.ecal-empty):hover {
+  background: var(--surface);
+}
+
+.ecal-cell.ecal-term {
+  background: rgba(109, 91, 208, .04);
+}
+
+.ecal-cell.ecal-today {
+  background: var(--ink);
+  border-radius: 10px;
+}
+
+.ecal-cell.ecal-today .ecal-d {
+  color: #fff;
+  font-weight: 700;
+}
+
+.ecal-cell.ecal-exam {
+  background: rgba(248, 113, 113, .06);
+  border: 1px solid rgba(248, 113, 113, .2);
+}
+
+.ecal-cell.ecal-today.ecal-exam {
+  background: var(--ink);
+  border-color: #E84545;
+}
+
+.ecal-d {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.ecal-empty .ecal-d {
+  visibility: hidden;
+}
+
+.ecal-dots {
+  display: flex;
+  justify-content: center;
+  gap: 3px;
+  margin-top: 3px;
+}
+
+.ecal-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+/* Custom Tooltip */
+.ecal-tooltip {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  left: 50%;
+  transform: translateX(-50%) translateY(6px) scale(0.96);
+  background: var(--card);
+  border: 1px solid var(--border-hi);
+  border-radius: 14px;
+  padding: 13px 14px;
+  box-shadow: 0 12px 40px rgba(21, 24, 43, .16), 0 4px 12px rgba(21, 24, 43, .08), 0 1px 3px rgba(21, 24, 43, .05);
+  z-index: 100;
+  min-width: 160px;
+  text-align: left;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .18s cubic-bezier(.16, 1, .3, 1), transform .18s cubic-bezier(.16, 1, .3, 1), visibility .18s;
+  pointer-events: none;
+}
+
+.ecal-cell:hover .ecal-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0) scale(1);
+}
+
+.ecal-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 6px;
+  border-style: solid;
+  border-color: var(--border-hi) transparent transparent transparent;
+}
+
+.ecal-tooltip::before {
+  content: "";
+  position: absolute;
+  top: calc(100% - 1.5px);
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 6px;
+  border-style: solid;
+  border-color: var(--card) transparent transparent transparent;
+  z-index: 2;
+}
+
+.ecal-tooltip-date {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--muted);
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+  font-weight: 600;
+}
+
+.ecal-tooltip-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.ecal-tooltip-item:not(:last-child) {
+  border-bottom: 1px dashed var(--line);
+  padding-bottom: 8px;
+  margin-bottom: 4px;
+}
+
+.ecal-tooltip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-top: 5px;
+  flex: none;
+}
+
+.ecal-tooltip-content {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ecal-tooltip-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.ecal-tooltip-time {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.ecal-legend {
+  display: flex;
+  gap: 14px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.ecal-leg-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.ecal-leg-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+}
+
+.ecal-leg-today {
+  background: var(--ink);
+}
+
+.ecal-leg-exam {
+  background: rgba(248, 113, 113, .3);
+  border: 1px solid rgba(248, 113, 113, .5);
+}
+
+.ecal-leg-term {
+  background: rgba(109, 91, 208, .12);
+}
+
+/* ── Course Progress Countdown ── */
+.exam-cc-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.exam-cc {
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  transition: background .12s, transform .12s;
+  animation: exam-cd-in .4s ease both;
+}
+
+.exam-cc:hover {
+  background: var(--card-hi);
+  transform: translateX(3px);
+}
+
+.exam-cc-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.exam-cc-name {
+  flex: 1;
+  font-size: 13.5px;
+  font-weight: 500;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.exam-cc-cr {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--violet);
+  flex: none;
+}
+
+.exam-cc-bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.exam-cc-bar {
+  flex: 1;
+  height: 6px;
+  border-radius: 99px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.exam-cc-bar-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--violet), var(--live));
+  transition: width .8s cubic-bezier(.4, 0, .2, 1);
+  box-shadow: 0 0 8px rgba(109, 91, 208, .3);
+}
+
+.exam-cc-pct {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--violet);
+  min-width: 32px;
+  text-align: right;
+  flex: none;
+}
+
+.exam-cc-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--muted);
+  flex-wrap: wrap;
+}
+
+.exam-cc-rem {
+  color: var(--amber);
+  font-weight: 600;
+}
+
+.exam-cc-end {
+  font-family: var(--mono);
+  font-weight: 600;
+  color: var(--live);
+}
+
+/* Credits table (animated rows) */
+.exam-credits-card {
+  background: #E5E7EB;
+  border: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  border-radius: 16px;
+  padding: 16px;
+}
+
+@media (min-width: 800px) {
+  .exam-credits-card {
+      padding: 24px;
+    }
+}
+
+.exam-credits-card h2 {
+  color: #1E293B;
+  font-size: 16px;
+}
+
+.exam-cr-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0 40px;
+}
+
+@media (min-width: 1024px) {
+  .exam-cr-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.exam-cr-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  font-size: 14.5px;
+  border-top: none;
+  animation: exam-cd-in .35s ease both;
+}
+
+.exam-cr-grid>.exam-cr-row:nth-last-child(-n+2) {
+  /* Attempt to remove border on last row in 2-col layout (if even).
+     If odd, one will still have it. It's fine or we can just let it have a border. */
+}
+
+@media (max-width: 1023px) {
+  .exam-cr-grid>.exam-cr-row:last-child {
+      border-bottom: none;
+    }
+}
+
+.exam-cr-name {
+  flex: 1;
+  font-weight: 500;
+  color: #334155;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.exam-cr-area {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  background: rgba(0, 0, 0, 0.05);
+  color: #64748B;
+  border-radius: 5px;
+  padding: 2px 6px;
+  flex: none;
+  white-space: nowrap;
+}
+
+.exam-cr-val {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 14px;
+  color: #0F172A;
+  flex: none;
+  min-width: 32px;
+  text-align: right;
+}
+
+.exam-cr-missing {
+  color: var(--muted);
+  opacity: .5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .exam-hero,
+    .exam-card,
+    .exam-cd,
+    .exam-cc,
+    .exam-cr-row {
+      animation: none !important;
+    }
+
+  .exam-cd-pulse,
+    .exam-cd-alert {
+      animation: none !important;
+    }
+
+  .exam-cc-bar-fill {
+      transition: none !important;
+    }
+}
+
+/* Exam course progress dot trail */
+.exam-dot-trail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  padding: 4px 0 2px;
+}
+
+.exam-sp {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  flex: none;
+}
+
+.exam-sp-present {
+  background: var(--live);
+  opacity: .85;
+}
+
+.exam-sp-absent {
+  background: #C0392B;
+  opacity: .85;
+}
+
+.exam-sp-unmarked {
+  background: rgba(255, 255, 255, .22);
+}
+
+.exam-sp-future {
+  background: rgba(255, 255, 255, .07);
+  border: 1px solid rgba(255, 255, 255, .15);
+}
+
+.exam-cc-att {
+  font-weight: 600;
+}
+
+.exam-cc-next {
+  color: var(--muted);
+  font-style: italic;
+}
+

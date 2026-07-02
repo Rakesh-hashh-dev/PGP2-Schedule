@@ -6,6 +6,35 @@ export function sessionKey(c) {
   return `${c.date}_${c.start}_${c.code}_${c.section}`;
 }
 
+/**
+ * Skip-budget math for one course — single source of truth shared by the
+ * Attendance panel and the Timeline "what if I skip" hint.
+ * 80% minimum attendance (90% for zero-credit courses) over ALL scheduled
+ * sessions; pct is computed over marked sessions only.
+ */
+export function courseSkipStats(allClasses, code, section, attendance, { zeroCredit = false } = {}) {
+  const sessions = allClasses.filter(
+    (c) => c.type === "class" && c.code === code && (c.section === "Single" || c.section === section)
+  );
+  const totalScheduled = sessions.length;
+  let present = 0, absent = 0;
+  sessions.forEach((s) => {
+    const st = attendance[sessionKey(s)];
+    if (st === "present") present++;
+    else if (st === "absent") absent++;
+  });
+  const minPct = zeroCredit ? 0.90 : 0.80;
+  const minAttend = Math.ceil(totalScheduled * minPct);
+  const totalAllowedSkips = Math.max(0, totalScheduled - minAttend);
+  const skipsRemaining = Math.max(0, totalAllowedSkips - absent);
+  const penaltyHit = absent > totalAllowedSkips;
+  const marked = present + absent;
+  const pct = marked > 0 ? Math.round((present / marked) * 100) : null;
+  // Projection if one more session is marked absent
+  const pctIfSkip = Math.round((present / (marked + 1)) * 100);
+  return { totalScheduled, totalAllowedSkips, skipsRemaining, penaltyHit, present, absent, pct, pctIfSkip };
+}
+
 export function loadAttendance() {
   try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; }
 }
