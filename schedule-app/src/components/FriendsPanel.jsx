@@ -2,18 +2,6 @@ import { useState, useEffect } from "react";
 import "../styles/friends.css";
 import { Copy, Link2, UserPlus, Users, Trash2, ArrowRight, Plus, X, Check, ChevronDown, ChevronUp, RefreshCw, Bell, Globe, Lock, CheckCircle, AlertCircle, Info, AlertTriangle, Star } from "lucide-react";
 
-const AVATAR_PALETTE = [
-  ["#7C3AED", "#A855F7"],
-  ["#2563EB", "#60A5FA"],
-  ["#0D9488", "#2DD4BF"],
-  ["#DC2626", "#FB7185"],
-  ["#D97706", "#FBBF24"],
-  ["#4338CA", "#818CF8"],
-];
-function avatarGradient(name) {
-  const idx = [...(name || "?")].reduce((h, c) => h + c.charCodeAt(0), 0) % AVATAR_PALETTE.length;
-  return AVATAR_PALETTE[idx];
-}
 import {
   decodeSchedule, codeDisplayPart, buildShareUrl,
   saveFriend, removeFriend as removeFriendFromStore, updateFriend, writeFriends,
@@ -21,6 +9,7 @@ import {
   getOrCreateShareCode, pushFriendsToCloud, pushGroupsToCloud,
   refreshFriendCoursesFromCloud, sendFriendPing, hasPendingFriendRequest, deleteFriendPing, deletePingsBetween,
   shareGroupWithMembers, unshareGroupFromMembers, sendGroupMessage, fetchGroupMessages,
+  avatarGradient,
 } from "../lib/friends.js";
 
 const TOAST_META = {
@@ -221,30 +210,34 @@ export default function FriendsPanel({
       }
       
       const { supabase } = await import("../lib/supabase.js");
+      // No `name` column exists on profiles — display names live in courses._name
       const { data, error } = await supabase.from("profiles")
-        .select("user_id, name, courses")
+        .select("user_id, courses")
         .neq("user_id", userId);
-        
-      if (error || !data) return;
-      
+
+      if (error || !data) {
+        if (error) console.error("[matchmaker] fetch failed:", error.message);
+        return;
+      }
+
       const friendCloudIds = new Set(friends.map(f => f.cloudId).filter(Boolean));
-      
+
       const matches = data.map(profile => {
         if (friendCloudIds.has(profile.user_id)) return null; // Already friends
         if (profile.courses?._hide_from_matchmaker) return null; // Opted out
-        
+
         const theirCourses = Object.keys(profile.courses || {}).filter(k => !k.startsWith("_"));
         if (theirCourses.length === 0) return null;
-        
+
         const intersection = myCourseKeys.filter(c => theirCourses.includes(c)).length;
         const union = new Set([...myCourseKeys, ...theirCourses]).size;
         const score = union === 0 ? 0 : Math.round((intersection / union) * 100);
-        
+
         if (score >= 40) {
-           return { ...profile, score };
+           return { user_id: profile.user_id, name: profile.courses?._name || "Student", score };
         }
         return null;
-      }).filter(Boolean).sort((a, b) => b.score - a.score).slice(0, 3);
+      }).filter(Boolean).sort((a, b) => b.score - a.score).slice(0, 12);
       
       setSuggestedBuddies(matches);
     }
@@ -286,10 +279,13 @@ export default function FriendsPanel({
     }).catch(() => showToast("Failed to copy", "error"));
   }
 
-  async function handleAddFriend() {
+  // codeOverride lets other UI (e.g. the group builder) reuse this flow with its
+  // own input. Guarded by typeof because onClick passes an event object.
+  // Returns true when the request/add succeeded.
+  async function handleAddFriend(codeOverride) {
     setAddError("");
-    let input = addCode.trim();
-    if (!input) return;
+    let input = (typeof codeOverride === "string" ? codeOverride : addCode).trim();
+    if (!input) return false;
 
     if (input.startsWith("http")) {
       try {
@@ -305,12 +301,12 @@ export default function FriendsPanel({
 
     if (!decoded) {
       setAddError("Invalid link or code. Ask your friend to share their invite link again.");
-      return;
+      return false;
     }
 
     if (decoded.id && friends.some(f => f.cloudId === decoded.id)) {
       setAddError("You're already friends with this person.");
-      return;
+      return false;
     }
 
     if (decoded.id && myCode) {
@@ -318,12 +314,13 @@ export default function FriendsPanel({
       if (alreadySent) {
         setAddError(`Request already sent to ${decoded.name}. Waiting for them to accept.`);
         setIsAdding(false);
-        return;
+        return false;
       }
       // Cloud user: send a friend request — they must accept before either side is added
       await sendFriendPing(decoded.id, userId, userName, { type: "friend_request", fromCode: myCode });
       setAddCode("");
       showToast(`Friend request sent to ${decoded.name}!`, "success");
+      return true;
     } else {
       // Local/offline code: no request flow possible, add immediately
       const updated = saveFriend(decoded.name, decoded.courses, decoded.id);
@@ -332,6 +329,7 @@ export default function FriendsPanel({
       setAddCode("");
       showToast(`Added ${decoded.name}!`, "success");
       if (decoded.id) sendFriendPing(decoded.id, userId, userName);
+      return true;
     }
   }
 
@@ -378,7 +376,11 @@ export default function FriendsPanel({
 
   async function handleRefreshFriend(id) {
     setSyncingFriendId(id);
-    const updated = await refreshFriendCoursesFromCloud(friends);
+    // "all" refreshes every cloud friend; a specific id refreshes just that friend
+    const only = id === "all"
+      ? null
+      : [friends.find(f => f.id === id)?.cloudId].filter(Boolean);
+    const updated = await refreshFriendCoursesFromCloud(friends, only);
     setSyncingFriendId(null);
     if (updated) {
       setFriends(updated);
@@ -538,6 +540,75 @@ export default function FriendsPanel({
   const [showAllGroupsModal, setShowAllGroupsModal] = useState(false);
   const [groupSearchQuery, setGroupSearchQuery] = useState("");
   const [showAllBuddiesModal, setShowAllBuddiesModal] = useState(false);
+
+  // Student directory ("find people") modal — lists everyone using the app
+  const [showDirectory, setShowDirectory] = useState(false);
+  const [directory, setDirectory] = useState(null); // null = not fetched yet
+  const [dirSearch, setDirSearch] = useState("");
+  const [requestedIds, setRequestedIds] = useState(() => new Set());
+
+  async function openDirectory() {
+    setShowDirectory(true);
+    if (directory !== null) return; // fetched once per visit
+    const { supabase } = await import("../lib/supabase.js");
+    const { data, error } = await supabase.from("profiles")
+      .select("user_id, courses")
+      .neq("user_id", userId);
+    if (error || !data) {
+      setDirectory([]);
+      showToast("Couldn't load students", "error");
+      return;
+    }
+    const myCourseKeys = Object.keys(enrolled || {}).filter(k => !k.startsWith("_"));
+    const list = data
+      .filter(p => !p.courses?._hide_from_matchmaker) // respect discovery opt-out
+      .map(p => {
+        const theirs = Object.keys(p.courses || {}).filter(k => !k.startsWith("_"));
+        if (!p.courses?._name && theirs.length === 0) return null; // skip empty shell profiles
+        return {
+          user_id: p.user_id,
+          name: p.courses?._name || "Student",
+          shared: myCourseKeys.filter(c => theirs.includes(c)).length,
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.shared - a.shared || a.name.localeCompare(b.name));
+    setDirectory(list);
+  }
+
+  async function handleDirectoryAdd(person) {
+    if (!myCode) { showToast("Wait for code generation", "info"); return; }
+    const alreadySent = await hasPendingFriendRequest(userId, person.user_id);
+    if (alreadySent) {
+      setRequestedIds(prev => new Set([...prev, person.user_id]));
+      showToast("Request already sent", "info");
+      return;
+    }
+    await sendFriendPing(person.user_id, userId, userName, { type: "friend_request", fromCode: myCode });
+    setRequestedIds(prev => new Set([...prev, person.user_id]));
+    showToast(`Request sent to ${person.name}!`, "success");
+  }
+
+  // Manual "add friends to a group" builder inside the Study Buddies section
+  const [manualGroupOpen, setManualGroupOpen] = useState(false);
+  const [manualGroupId, setManualGroupId] = useState(null);
+  const [manualNewName, setManualNewName] = useState("");
+  const [manualAddCode, setManualAddCode] = useState("");
+
+  async function handleManualAddFriend() {
+    const ok = await handleAddFriend(manualAddCode);
+    if (ok) setManualAddCode("");
+  }
+
+  function handleManualCreateGroup() {
+    if (!manualNewName.trim()) return;
+    const updated = createGroup(manualNewName.trim());
+    setGroups(updated);
+    pushGroupsToCloud(userId, updated);
+    setManualGroupId(updated[updated.length - 1].id);
+    setManualNewName("");
+    showToast("Group created", "success");
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -788,15 +859,13 @@ export default function FriendsPanel({
 
   const renderBuddyCard = (match, isCompact = false) => {
     return (
-      <div key={match.user_id} className={`fr-friend-card ${isCompact ? "compact" : ""}`} style={{ '--accent': '#6D5BD0' }}>
+      <div key={match.user_id} className={`fr-friend-card fr-buddy ${isCompact ? "compact" : ""}`} style={{ '--accent': '#6D5BD0' }}>
         <div className="fr-friend-avatar" style={{ background: `linear-gradient(135deg, #6D5BD0 0%, #a29bfe 100%)` }}>
           {match.name[0]?.toUpperCase() || "?"}
         </div>
         <div className="fr-friend-info">
           <span className="fr-friend-name">{match.name || "Student"}</span>
-          <div className="fr-friend-meta-row">
-            <span className="fr-friend-meta" style={{ color: "var(--live)", fontWeight: 700 }}>{match.score}% Match</span>
-          </div>
+          <span className="fr-buddy-match">{match.score}% match</span>
         </div>
         <div className="fr-friend-actions">
           <button className="fr-btn fr-btn-primary" onClick={async () => {
@@ -963,6 +1032,74 @@ export default function FriendsPanel({
                   </div>
                 );
               })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Student Directory Modal (find people) ── */}
+      {showDirectory && (
+        <div className="fr-modal-backdrop" onClick={() => setShowDirectory(false)}>
+          <div className="fr-friends-modal" onClick={e => e.stopPropagation()}>
+            <div className="fr-friends-modal-head">
+              <div className="fr-friends-modal-title-row">
+                <h2 className="fr-friends-modal-title">Find Students</h2>
+                <button className="fr-modal-close" onClick={() => setShowDirectory(false)}>
+                  <X size={18} />
+                </button>
+              </div>
+              <input
+                type="text"
+                className="fr-friends-modal-search"
+                placeholder="Search students..."
+                value={dirSearch}
+                onChange={e => setDirSearch(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="fr-friends-modal-body">
+              {directory === null ? (
+                <p className="fr-empty">Loading students…</p>
+              ) : (() => {
+                const friendIds = new Set(friends.map(f => f.cloudId).filter(Boolean));
+                const visible = directory.filter(p => p.name.toLowerCase().includes(dirSearch.toLowerCase()));
+                if (!visible.length) return <p className="fr-empty">No students found.</p>;
+                return (
+                  <div className="fr-friend-list">
+                    {visible.map(p => {
+                      const isFriend = friendIds.has(p.user_id);
+                      const isSent = requestedIds.has(p.user_id);
+                      const [c1, c2] = avatarGradient(p.name);
+                      return (
+                        <div key={p.user_id} className="fr-friend-card fr-buddy compact" style={{ "--accent": c1 }}>
+                          <div className="fr-friend-avatar" style={{ background: `linear-gradient(135deg, ${c1} 0%, ${c2} 100%)` }}>
+                            {p.name[0]?.toUpperCase() || "?"}
+                          </div>
+                          <div className="fr-friend-info">
+                            <span className="fr-friend-name">{p.name}</span>
+                            <div className="fr-friend-meta-row">
+                              <span className="fr-friend-meta">
+                                {p.shared > 0 ? `${p.shared} shared course${p.shared !== 1 ? "s" : ""}` : "No shared courses"}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="fr-friend-actions">
+                            {isFriend ? (
+                              <span className="fr-dir-state fr-dir-friends"><Check size={12} strokeWidth={3} /> Friends</span>
+                            ) : isSent ? (
+                              <span className="fr-dir-state fr-dir-sent">Sent</span>
+                            ) : (
+                              <button className="fr-btn fr-btn-primary" onClick={() => handleDirectoryAdd(p)}>
+                                <UserPlus size={13} /> Add
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -1142,7 +1279,7 @@ export default function FriendsPanel({
             Saved Friends
             {friends.length > 0 && <span style={{ fontSize: 11, background: "rgba(0,0,0,0.05)", padding: "2px 8px", borderRadius: 10, color: "var(--muted)", fontWeight: 600 }}>{friends.length}</span>}
           </h3>
-          <button className="fr-btn fr-btn-icon" onClick={() => document.querySelector(".fr-add-input")?.focus()} title="Add Friend">
+          <button className="fr-btn fr-btn-icon" onClick={openDirectory} title="Find students">
             <UserPlus size={15} />
           </button>
         </div>
@@ -1159,9 +1296,9 @@ export default function FriendsPanel({
             <span>Share your code with classmates and paste theirs above to compare schedules.</span>
             <button
               className="fr-btn fr-btn-primary fr-empty-cta"
-              onClick={() => document.querySelector(".fr-add-input")?.focus()}
+              onClick={openDirectory}
             >
-              <UserPlus size={14} /> Add your first friend
+              <UserPlus size={14} /> Find classmates
             </button>
           </div>
         ) : (
@@ -1179,9 +1316,8 @@ export default function FriendsPanel({
         )}
         
         {sortedFriends.length > 4 && (
-          <button 
-            className="fr-btn fr-btn-secondary" 
-            style={{ width: "100%", marginTop: 16, justifyContent: "center", padding: "12px", background: "transparent", border: "1px dashed rgba(0,0,0,0.15)" }} 
+          <button
+            className="fr-btn fr-btn-secondary fr-show-all-btn"
             onClick={() => setShowAllFriendsModal(true)}
           >
             Show all {sortedFriends.length} friends
@@ -1251,13 +1387,11 @@ export default function FriendsPanel({
       {/* ── Suggested Study Buddies ── */}
       <section className="fr-friends-section fr-sec-buddies" style={{ marginBottom: 24 }}>
         <div className="fr-section-header">
-           <h3 className="fr-section-title">
-             Suggested Study Buddies
-             <label style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 6, color: "var(--muted)", cursor: "pointer", textTransform: "none", letterSpacing: "normal", fontWeight: 500, marginLeft: 4 }}>
-               <input type="checkbox" checked={optOutMatchmaker} onChange={toggleOptOut} />
-               Opt Out
-             </label>
-           </h3>
+           <h3 className="fr-section-title">Suggested Study Buddies</h3>
+           <label className="fr-optout-label">
+             <input type="checkbox" checked={optOutMatchmaker} onChange={toggleOptOut} />
+             Opt Out
+           </label>
         </div>
         {!optOutMatchmaker && suggestedBuddies && suggestedBuddies.length > 0 && (
           <div className="fr-friend-list" style={{ marginTop: 12 }}>
@@ -1266,9 +1400,8 @@ export default function FriendsPanel({
         )}
         
         {!optOutMatchmaker && suggestedBuddies && suggestedBuddies.length > 3 && (
-          <button 
-            className="fr-btn fr-btn-secondary" 
-            style={{ width: "100%", marginTop: 16, justifyContent: "center", padding: "12px", background: "transparent", border: "1px dashed rgba(0,0,0,0.15)" }} 
+          <button
+            className="fr-btn fr-btn-secondary fr-show-all-btn"
             onClick={() => setShowAllBuddiesModal(true)}
           >
             Show all {suggestedBuddies.length} buddies
@@ -1283,6 +1416,148 @@ export default function FriendsPanel({
            <div className="fr-empty-state" style={{ padding: "16px", minHeight: "auto", background: "rgba(0,0,0,0.02)" }}>
               <span style={{ fontSize: 13 }}>No high-match buddies found right now.</span>
            </div>
+        )}
+
+        {/* Manual group builder — works regardless of matchmaker results */}
+        <button
+          className="fr-btn fr-btn-secondary fr-manual-group-toggle"
+          onClick={() => { setManualGroupOpen(o => !o); if (manualGroupOpen) setManualGroupId(null); }}
+        >
+          <Users size={14} />
+          {manualGroupOpen ? "Close" : "Add friends to a group"}
+          {manualGroupOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        </button>
+
+        {manualGroupOpen && (
+          <div className="fr-manual-group-panel">
+            {/* Step 1: pick or create a group */}
+            <div className="fr-mg-step">
+              <span className="fr-mg-step-num">1</span>
+              <span className="fr-mg-step-label">Pick a group</span>
+            </div>
+            {groups.filter(g => !g.isReceived).length > 0 && (
+              <div className="fr-group-members">
+                {groups.filter(g => !g.isReceived).map(g => (
+                  <button
+                    key={g.id}
+                    className={`fr-member-chip ${manualGroupId === g.id ? "in" : ""}`}
+                    onClick={() => setManualGroupId(manualGroupId === g.id ? null : g.id)}
+                  >
+                    <Users size={12} /> {g.name}
+                    <span className="fr-mg-chip-count">{(g.memberIds || []).length}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="fr-new-group" style={{ marginTop: 8 }}>
+              <input
+                className="fr-add-input"
+                type="text"
+                placeholder={groups.filter(g => !g.isReceived).length ? "Or create a new group…" : "Name your group (e.g. Finance Gang)…"}
+                value={manualNewName}
+                onChange={e => setManualNewName(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && handleManualCreateGroup()}
+              />
+              <button className="fr-btn fr-btn-primary fr-btn-add" onClick={handleManualCreateGroup} disabled={!manualNewName.trim()}>
+                Create
+              </button>
+            </div>
+
+            {/* Step 2: members — only once a group is chosen */}
+            {manualGroupId && (
+              <>
+                <div className="fr-mg-divider" />
+                <div className="fr-mg-step">
+                  <span className="fr-mg-step-num">2</span>
+                  <span className="fr-mg-step-label">Tap friends to add or remove</span>
+                </div>
+                {friends.length > 0 && (
+                  <div className="fr-group-members">
+                    {friends.map(f => {
+                      const grp = groups.find(g => g.id === manualGroupId);
+                      const inGroup = (grp?.memberIds || []).includes(f.id);
+                      return (
+                        <button
+                          key={f.id}
+                          className={`fr-member-chip ${inGroup ? "in" : ""}`}
+                          onClick={() => handleToggleFriendInGroup(manualGroupId, f.id)}
+                        >
+                          <span className="fr-member-initial">{f.name[0]}</span>
+                          {f.name}
+                          {inGroup && <Check size={12} strokeWidth={3} />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Add someone who isn't a friend yet */}
+                <p className="fr-mg-hint">
+                  {friends.length === 0
+                    ? "No friends yet — paste an invite link to add your first:"
+                    : "Missing someone? Paste their invite link:"}
+                </p>
+                <div className="fr-add-row" style={{ display: "flex", gap: 8 }}>
+                  <input
+                    className="fr-add-input"
+                    type="text"
+                    placeholder="Paste a friend's invite link…"
+                    value={manualAddCode}
+                    onChange={e => { setManualAddCode(e.target.value); setAddError(""); }}
+                    onKeyDown={e => e.key === "Enter" && handleManualAddFriend()}
+                    style={{ flex: 1, margin: 0 }}
+                  />
+                  <button
+                    className="fr-btn fr-btn-primary fr-btn-add"
+                    onClick={handleManualAddFriend}
+                    disabled={!manualAddCode.trim() || isAdding}
+                    style={{ margin: 0 }}
+                  >
+                    {isAdding ? "..." : "Add"}
+                  </button>
+                </div>
+                {addError && manualAddCode && <p className="fr-add-error" style={{ margin: "6px 0 0" }}>{addError}</p>}
+
+                <div className="fr-mg-footer">
+                  <span className="fr-mg-count">
+                    {(groups.find(g => g.id === manualGroupId)?.memberIds || []).length} member{(groups.find(g => g.id === manualGroupId)?.memberIds || []).length !== 1 ? "s" : ""}
+                  </span>
+                  {confirmDeleteId === manualGroupId ? (
+                    <div className="fr-confirm-row">
+                      <span className="fr-confirm-label">Delete group?</span>
+                      <button
+                        className="fr-btn fr-btn-danger fr-btn-small"
+                        onClick={() => {
+                          const id = manualGroupId;
+                          setConfirmDeleteId(null);
+                          setManualGroupId(null);
+                          handleRemoveGroup(id);
+                        }}
+                      >
+                        Yes
+                      </button>
+                      <button className="fr-btn fr-btn-small" onClick={() => setConfirmDeleteId(null)}>Cancel</button>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        className="fr-btn fr-btn-danger fr-btn-small"
+                        onClick={() => setConfirmDeleteId(manualGroupId)}
+                      >
+                        <Trash2 size={13} /> Delete
+                      </button>
+                      <button
+                        className="fr-btn fr-btn-primary fr-btn-small"
+                        onClick={() => { setManualGroupOpen(false); setManualGroupId(null); showToast("Group updated", "success"); }}
+                      >
+                        <Check size={13} strokeWidth={2.8} /> Done
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         )}
       </section>
 

@@ -43,6 +43,33 @@
   min-width: 0;
 }
 
+.cv-avatar {
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 800;
+  font-family: var(--display);
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .15);
+  border: 2px solid var(--card);
+}
+
+.cv-avatar-stack {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.cv-avatar-more {
+  width: 30px;
+  height: 30px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 11px;
+}
+
 .cv-header-title {
   font-family: var(--display);
   font-weight: 700;
@@ -65,16 +92,32 @@
 }
 
 .cv-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   border: none;
   background: transparent;
   color: var(--muted);
-  padding: 7px 11px;
+  padding: 8px 12px;
+  min-height: 36px;
+  font-family: var(--body);
+  font-weight: 600;
+  font-size: 12.5px;
   cursor: pointer;
   transition: all .15s;
 }
 
 .cv-toggle-btn:hover {
   color: var(--text);
+}
+
+.cv-toggle-btn.on {
+  background: var(--ink);
+  color: #fff;
+}
+
+.cv-back {
+  min-height: 36px;
 }
 
 /* Day selector */
@@ -89,6 +132,13 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+@media (max-width: 480px) {
+  /* No overflow-x here: a scroll container would clip the Select Range dropdown */
+  .cv-day-btn {
+    min-height: 40px;
+  }
 }
 
 .cv-day-btn {
@@ -111,7 +161,7 @@
 }
 
 .cv-day-label {
-  margin-left: 4px;
+  display: block;
   font-size: 12.5px;
   color: var(--muted);
   font-weight: 500;
@@ -365,23 +415,92 @@
   padding: 10px 0;
 }
 
-/* Sticky name bar for side-by-side compare */
+/* Sticky name bar for side-by-side compare.
+   Mobile: sits below the app's sticky header (.bar, 65px) + tab nav (.tabs-wrapper, ~68px).
+   Desktop (≥900px): both are hidden, so it sticks to the top. */
 .cv-sbs-sticky-header {
   position: sticky;
-  top: 0;
+  top: 132px;
   z-index: 15;
   background: rgba(255, 255, 255, 0.55);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   display: flex;
-  gap: 6px;
+  flex-direction: column;
+  gap: 8px;
   padding: 8px 4px 10px;
   border-bottom: 1px solid var(--border);
   margin-bottom: 8px;
 }
 
+.cv-sbs-datebar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cv-sbs-rangelabel {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.cv-sbs-datechip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1.5px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  border-radius: 9px;
+  padding: 5px 10px;
+  font-family: var(--body);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all .15s;
+}
+
+.cv-sbs-datechip:hover {
+  border-color: var(--border-hi);
+}
+
+.cv-sbs-datemenu {
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.cv-range-opt.on {
+  background: var(--surface);
+  color: var(--text);
+}
+
+/* Pill row scrolls in sync with the columns below (swipeable on touch, scrollbar hidden) */
+.cv-sbs-pills-clip {
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.cv-sbs-pills-clip::-webkit-scrollbar {
+  display: none;
+}
+
+.cv-sbs-pills-track {
+  display: flex;
+}
+
+.cv-sbs-pill-cell {
+  flex: 1;
+  padding: 0 6px;
+  min-width: 0;
+  display: flex;
+}
+
 .cv-sbs-name-pill {
   flex: 1;
+  min-width: 0;
   text-align: center;
   font-size: 11px;
   font-weight: 700;
@@ -390,12 +509,44 @@
   padding: 5px 10px;
   border-radius: 20px;
   color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Compact row for days where nobody has classes */
+.cv-sbs-freeday {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(31, 169, 113, .07);
+  border: 1px dashed rgba(31, 169, 113, .3);
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin: 0 4px;
+}
+
+.cv-sbs-freeday-badge {
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--live);
+  background: rgba(31, 169, 113, .16);
+  padding: 3px 8px;
+  border-radius: 8px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  flex-shrink: 0;
+}
+
+.cv-sbs-freeday-text {
+  font-size: 12.5px;
+  color: var(--muted);
+  font-weight: 600;
 }
 
 /* Side by Side Agenda */
 .cv-side-agenda {
-  display: flex;
-  gap: 16px;
+  display: block;
   padding: 10px 4px 20px;
   overflow-x: auto;
   scroll-snap-type: x proximity;
@@ -409,6 +560,105 @@
 .cv-side-agenda::-webkit-scrollbar-thumb {
   background: var(--border-hi);
   border-radius: 6px;
+}
+
+.cv-side-agenda-wrap {
+  position: relative;
+}
+
+.cv-side-agenda-fade {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 28px;
+  pointer-events: none;
+  background: linear-gradient(to right, transparent, var(--bg));
+  opacity: .85;
+}
+
+.cv-sbs-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cv-sbs-day {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cv-sbs-row {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cv-sbs-noclasses {
+  padding: 20px 0;
+  text-align: center;
+}
+
+.cv-sbs-freepill {
+  background: rgba(31, 169, 113, .18);
+  border: 1px solid rgba(31, 169, 113, .35);
+  color: var(--live);
+  padding: 9px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin: 0 4px;
+}
+
+.cv-sbs-freepill-tag {
+  font-size: 10px;
+  font-weight: 600;
+  background: rgba(31, 169, 113, .2);
+  padding: 2px 7px;
+  border-radius: 10px;
+}
+
+.cv-sbs-cols {
+  display: flex;
+}
+
+.cv-sbs-col {
+  flex: 1;
+  padding: 0 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cv-sbs-card {
+  margin: 0;
+  height: 100%;
+}
+
+.cv-sbs-emptycell {
+  margin: 0;
+  height: 100%;
+  min-height: 64px;
+  background: var(--surface);
+  border: 1px dashed var(--border-hi);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cv-sbs-emptycell span {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+  letter-spacing: .03em;
+  text-transform: uppercase;
 }
 
 /* Free time section */
@@ -435,7 +685,26 @@
 .cv-free-list {
   display: flex;
   flex-direction: column;
+  gap: 14px;
+}
+
+.cv-free-group {
+  display: flex;
+  flex-direction: column;
   gap: 10px;
+}
+
+.cv-day-heading {
+  font-family: var(--body);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--violet);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.cv-day-heading-agenda {
+  padding: 12px 10px 4px;
 }
 
 .cv-free-block {
@@ -443,6 +712,55 @@
   border: 1px solid rgba(31, 169, 113, .15);
   border-radius: 12px;
   padding: 12px 14px;
+}
+
+.cv-free-block-best {
+  border-color: rgba(31, 169, 113, .4);
+  background: rgba(31, 169, 113, .1);
+}
+
+.cv-free-best-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(31, 169, 113, .18);
+  color: var(--live);
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  padding: 2px 7px;
+  border-radius: 8px;
+  margin-right: 8px;
+}
+
+.cv-empty-block {
+  padding: 32px 16px;
+  text-align: center;
+  background: var(--surface);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.cv-empty-block .cv-empty-icon {
+  font-size: 26px;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.cv-empty-block p {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.cv-empty-block span {
+  font-size: 12.5px;
+  color: var(--muted);
 }
 
 .cv-free-time {
@@ -554,6 +872,256 @@
   margin: 0;
 }
 
+/* "Show N more days" inline expander for long ranges */
+.cv-show-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px;
+  margin-top: 2px;
+  border: 1.5px dashed var(--border-hi);
+  background: var(--card);
+  color: var(--muted);
+  border-radius: 12px;
+  font-family: var(--body);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all .15s;
+}
+
+.cv-show-more:hover {
+  color: var(--text);
+  border-color: var(--violet);
+}
+
+/* ── Full-range modal (bottom sheet on mobile, dialog on desktop) ── */
+.cv-more-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: rgba(21, 24, 43, .5);
+  backdrop-filter: blur(8px) saturate(120%);
+  -webkit-backdrop-filter: blur(8px) saturate(120%);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: cv-fade-in .2s ease-out;
+}
+
+.cv-more-modal {
+  position: relative;
+  background: var(--bg);
+  border-radius: 24px 24px 0 0;
+  width: 100%;
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* Glass edge highlight on top + deep ambient lift */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .75),
+    0 -12px 48px rgba(21, 24, 43, .22);
+  animation: cv-sheet-up .36s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Grab handle — bottom-sheet affordance (mobile only) */
+.cv-more-grab {
+  width: 40px;
+  height: 4.5px;
+  border-radius: 3px;
+  background: var(--border-hi);
+  margin: 10px auto 2px;
+  flex: none;
+}
+
+/* Frosted sticky header — content scrolls beneath it */
+.cv-more-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px 14px;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  border-bottom: 1px solid var(--border);
+  flex: none;
+  z-index: 2;
+}
+
+.cv-more-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  flex: none;
+}
+
+.cv-more-icon-violet {
+  background: rgba(109, 91, 208, .12);
+  border: 1px solid rgba(109, 91, 208, .22);
+  color: var(--violet);
+}
+
+.cv-more-icon-green {
+  background: rgba(31, 169, 113, .1);
+  border: 1px solid rgba(31, 169, 113, .22);
+  color: var(--live);
+}
+
+.cv-more-titles {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.cv-more-head h3 {
+  margin: 0;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1.2;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cv-more-sub {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* "Go to date" menu inside the modal header: right-aligned so it can't
+   overflow the sheet edge, layered above the modal body */
+.cv-more-jumpmenu {
+  left: auto;
+  right: 0;
+  z-index: 60;
+}
+
+@media (max-width: 400px) {
+  .cv-more-jump-label {
+    display: none;
+  }
+}
+
+.cv-more-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: 1.5px solid var(--border);
+  background: var(--card);
+  color: var(--muted);
+  border-radius: 50%;
+  cursor: pointer;
+  flex: none;
+  transition: color .15s, border-color .15s, background .15s;
+}
+
+.cv-more-close:hover {
+  color: var(--text);
+  border-color: var(--border-hi);
+  background: var(--card-hi);
+}
+
+.cv-more-close:active {
+  transform: scale(.94);
+}
+
+.cv-more-body {
+  overflow-y: auto;
+  padding: 14px 16px calc(24px + env(safe-area-inset-bottom, 0px));
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.cv-more-body::-webkit-scrollbar {
+  display: none;
+}
+
+/* Bottom fade so long lists dissolve instead of hard-clipping */
+.cv-more-modal::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 28px;
+  background: linear-gradient(to top, var(--bg), transparent);
+  pointer-events: none;
+}
+
+/* Inside the modal the sticky bar pins to the modal's own scroll area,
+   and the window-scroll-driven date chip doesn't apply */
+.cv-more-modal .cv-sbs-sticky-header {
+  top: 0;
+}
+
+.cv-more-modal .cv-sbs-datebar {
+  display: none;
+}
+
+@media (min-width: 600px) {
+  .cv-more-backdrop {
+    align-items: center;
+    padding: 24px;
+  }
+
+  .cv-more-modal {
+    border-radius: 22px;
+    max-width: 640px;
+    max-height: 80vh;
+    border: 1.5px solid var(--border);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, .75),
+      0 24px 80px rgba(21, 24, 43, .3);
+    animation: cv-dialog-in .28s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  .cv-more-grab {
+    display: none;
+  }
+
+  .cv-more-head {
+    padding-top: 16px;
+  }
+}
+
+@keyframes cv-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes cv-sheet-up {
+  from { transform: translateY(56px); opacity: .5; }
+  to { transform: none; opacity: 1; }
+}
+
+@keyframes cv-dialog-in {
+  from { transform: translateY(14px) scale(.965); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cv-more-backdrop,
+  .cv-more-modal {
+    animation: none;
+  }
+}
+
 /* cv-body-grid: single column on mobile, 2-col on desktop */
 .cv-body-grid {
   display: flex;
@@ -571,6 +1139,32 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+/* Desktop: timeline + free-time/insights side by side, mirrors .desk-layout */
+@media (min-width: 900px) {
+  .cv-sbs-sticky-header {
+    top: 0;
+  }
+
+  .cv-body-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: 20px;
+    align-items: start;
+  }
+
+  .cv-body-side {
+    position: sticky;
+    top: 24px;
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+    scrollbar-width: none; /* Firefox */
+  }
+
+  .cv-body-side::-webkit-scrollbar {
+    display: none; /* Chrome/Edge/Safari */
+  }
 }
 
 /* Loading state while date range recomputes via useTransition */
@@ -592,25 +1186,40 @@
   border-top-color: var(--violet, #8b5cf6);
 }
 
+@media (max-width: 599px) {
+  /* Header stays a single row on mobile: icon-only back, ellipsized title, icon-only toggle */
+  .cv-header {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .cv-back-label,
+  .cv-toggle-label {
+    display: none;
+  }
+
+  .cv-back {
+    padding: 7px;
+  }
+
+  .cv-header-title {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .cv-header-sub {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+  }
+}
+
 @media (max-width: 480px) {
   /* CompareView */
   .cv-page {
       gap: 12px;
-    }
-
-  .cv-header {
-      flex-direction: column;
-      align-items: stretch;
-      gap: 10px;
-      padding: 12px;
-    }
-
-  .cv-view-toggle {
-      align-self: flex-end;
-    }
-
-  .cv-back {
-      align-self: flex-start;
     }
 
   .cv-header-title {
@@ -627,24 +1236,52 @@
       padding: 14px;
       border-radius: 14px;
     }
+
+  .cv-custom-range {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 14px;
+  }
+
+  .cv-custom-range-inner {
+    gap: 12px;
+  }
+
+  .cv-range-field {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .cv-range-input {
+    width: 100%;
+  }
+
+  .cv-range-divider {
+    flex-direction: column;
+    margin-top: 14px;
+  }
+
+  .cv-range-divider-line {
+    width: 1.5px;
+    height: 10px;
+  }
+
+  .cv-range-divider-arrow {
+    transform: rotate(90deg);
+  }
+
+  .cv-range-day-count {
+    margin-top: 0;
+  }
+
+  .cv-range-apply {
+    margin-top: 4px;
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 @media (min-width: 480px) and (max-width: 599px) {
-  .cv-header {
-      flex-direction: column;
-      align-items: stretch;
-      gap: 12px;
-      padding: 14px;
-    }
-
-  .cv-view-toggle {
-      align-self: flex-end;
-    }
-
-  .cv-back {
-      align-self: flex-start;
-    }
-
   .cv-insight-card {
       flex-direction: column;
       padding: 12px;

@@ -1551,3 +1551,264 @@
     }
 }
 
+
+/* ── Manual group builder (Study Buddies section) ── */
+.fr-manual-group-toggle {
+  width: 100%;
+  margin-top: 14px;
+  justify-content: center;
+  padding: 11px;
+  background: transparent;
+  border: 1.5px dashed var(--border-hi);
+  border-radius: 12px;
+  font-size: 12.5px;
+  gap: 7px;
+}
+
+.fr-manual-group-toggle:hover {
+  border-color: var(--violet);
+  color: var(--violet);
+}
+
+.fr-manual-group-panel {
+  margin-top: 10px;
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.fr-mg-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.fr-mg-step-num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  flex: none;
+}
+
+.fr-mg-step-label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.fr-mg-chip-count {
+  font-size: 10px;
+  font-weight: 800;
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  padding: 1px 6px;
+  margin-left: 2px;
+}
+
+.fr-member-chip.in .fr-mg-chip-count {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.fr-mg-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 14px 0;
+}
+
+.fr-mg-hint {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 500;
+  margin: 12px 0 6px;
+}
+
+.fr-mg-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+}
+
+.fr-mg-count {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+/* ── Student directory (find people) ── */
+.fr-dir-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 5px 11px;
+  border-radius: 9px;
+  white-space: nowrap;
+}
+
+.fr-dir-friends {
+  color: var(--live);
+  background: rgba(31, 169, 113, 0.1);
+  border: 1px solid rgba(31, 169, 113, 0.22);
+}
+
+.fr-dir-sent {
+  color: var(--muted);
+  background: rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--border);
+}
+
+/* ── Buddy / directory rows: compact anatomy, always-visible Add button ── */
+.fr-buddy {
+  gap: 12px;
+  padding: 12px 14px;
+}
+
+.fr-buddy .fr-friend-avatar {
+  width: 38px;
+  height: 38px;
+  font-size: 14px;
+}
+
+.fr-buddy .fr-friend-name {
+  font-size: 14.5px;
+}
+
+.fr-buddy .fr-friend-info {
+  gap: 5px;
+}
+
+/* The Add CTA must always be visible, unlike friend-card hover actions */
+.fr-buddy .fr-friend-actions {
+  opacity: 1;
+  transform: none;
+}
+
+.fr-buddy .fr-friend-actions .fr-btn {
+  padding: 7px 12px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.fr-buddy-match {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--live);
+  background: rgba(31, 169, 113, 0.1);
+  border: 1px solid rgba(31, 169, 113, 0.2);
+  padding: 2px 8px;
+  border-radius: 8px;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+
+.fr-buddy .fr-friend-meta {
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Builder panel sits on a light surface — the default chips were styled for
+   the dark group-card body (white-on-white here). Re-theme them. */
+.fr-manual-group-panel .fr-member-chip {
+  color: var(--text);
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: none;
+}
+
+.fr-manual-group-panel .fr-member-chip:hover {
+  border-color: var(--violet);
+  background: rgba(109, 91, 208, 0.06);
+}
+
+.fr-manual-group-panel .fr-member-initial {
+  background: rgba(0, 0, 0, 0.07);
+  color: var(--text);
+}
+
+.fr-manual-group-panel .fr-mg-chip-count {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+/* Selected state: keep the violet gradient + white text */
+.fr-manual-group-panel .fr-member-chip.in {
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  color: #fff;
+  border-color: transparent;
+}
+
+.fr-manual-group-panel .fr-member-chip.in .fr-member-initial {
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+
+.fr-manual-group-panel .fr-member-chip.in .fr-mg-chip-count {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* ── Desktop alignment pass: unified section rhythm ── */
+
+/* Opt Out sits in the header row, not inside the title, so the title
+   can wrap without squeezing the checkbox */
+.fr-optout-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+  flex: none;
+}
+
+/* One dashed-button style shared by "Show all" and the group-builder toggle */
+.fr-show-all-btn {
+  width: 100%;
+  margin-top: 12px;
+  justify-content: center;
+  padding: 11px;
+  background: transparent;
+  border: 1.5px dashed var(--border-hi);
+  border-radius: 12px;
+  font-size: 12.5px;
+}
+
+.fr-show-all-btn:hover {
+  border-color: var(--violet);
+  color: var(--violet);
+}
+
+.fr-manual-group-toggle {
+  margin-top: 12px;
+  white-space: nowrap;
+}
+
+/* Narrow middle column (two-col desktop): tighten long titles/buttons */
+@media (min-width: 800px) and (max-width: 1250px) {
+  .fr-sec-buddies .fr-section-title {
+    font-size: 13px;
+    letter-spacing: 0.03em;
+  }
+
+  .fr-manual-group-toggle,
+  .fr-show-all-btn {
+    font-size: 12px;
+    padding: 10px;
+  }
+}

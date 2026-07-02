@@ -46,7 +46,7 @@ export function saveAttendance(data) {
 export async function syncAttendanceFromCloud(userId) {
   const local = loadAttendance();
   if (!userId) return local;
-  const { data, error } = await supabase.from("attendance").select("session_key,status");
+  const { data, error } = await supabase.from("attendance").select("session_key,status").eq("user_id", userId);
   if (error || !data) return local;
   const remote = {};
   data.forEach((r) => { remote[r.session_key] = r.status; });
@@ -66,7 +66,7 @@ export async function syncAttendanceFromCloud(userId) {
 export async function pushMark(userId, key, status) {
   if (!userId) return;
   try {
-    if (status === null) await supabase.from("attendance").delete().eq("session_key", key);
+    if (status === null) await supabase.from("attendance").delete().eq("user_id", userId).eq("session_key", key);
     else await supabase.from("attendance").upsert(
       { user_id: userId, session_key: key, status },
       { onConflict: "user_id,session_key" }

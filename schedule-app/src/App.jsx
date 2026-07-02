@@ -339,6 +339,13 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               return merged;
             });
           }
+          if (p.readChangeKeys?.length) {
+            setReadChangeKeys(prev => {
+              const merged = new Set([...prev, ...p.readChangeKeys]);
+              try { localStorage.setItem(READ_CHANGES_KEY, JSON.stringify([...merged])); } catch { }
+              return merged;
+            });
+          }
         }
         setAttendance(a);
         if (fg) {
@@ -455,6 +462,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         }
         const remotePingIds = payload.new.courses?._readPingIds;
         const remoteGroupIds = payload.new.courses?._seenGroupIds;
+        const remoteChangeKeys = payload.new.courses?._readChangeKeys;
         if (Array.isArray(remotePingIds) && remotePingIds.length) {
           setReadPingIds(prev => {
             const merged = new Set([...prev, ...remotePingIds]);
@@ -466,6 +474,13 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           setSeenRecvGroupIds(prev => {
             const merged = new Set([...prev, ...remoteGroupIds]);
             try { localStorage.setItem("pgp2.seen-recv-groups", JSON.stringify([...merged])); } catch { }
+            return merged;
+          });
+        }
+        if (Array.isArray(remoteChangeKeys) && remoteChangeKeys.length) {
+          setReadChangeKeys(prev => {
+            const merged = new Set([...prev, ...remoteChangeKeys]);
+            try { localStorage.setItem(READ_CHANGES_KEY, JSON.stringify([...merged])); } catch { }
             return merged;
           });
         }
@@ -890,24 +905,23 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       const nextGroupIds = new Set([...seenRecvGroupIds, groupId]);
       setSeenRecvGroupIds(nextGroupIds);
       try { localStorage.setItem("pgp2.seen-recv-groups", JSON.stringify([...nextGroupIds])); } catch { }
-      pushReadState(userId, readPingIds, nextGroupIds);
+      pushReadState(userId, readPingIds, nextGroupIds, readChangeKeys);
       return;
     }
     if (readPingIds.has(pingId)) return;
     const nextPingIds = new Set([...readPingIds, pingId]);
     setReadPingIds(nextPingIds);
     try { localStorage.setItem(READ_PINGS_KEY, JSON.stringify([...nextPingIds])); } catch { }
-    pushReadState(userId, nextPingIds, seenRecvGroupIds);
+    pushReadState(userId, nextPingIds, seenRecvGroupIds, readChangeKeys);
   }
 
   function markChangeRead(c) {
     const key = changeKey(c);
     if (readChangeKeys.has(key)) return;
-    setReadChangeKeys(prev => {
-      const next = new Set([...prev, key]);
-      try { localStorage.setItem(READ_CHANGES_KEY, JSON.stringify([...next])); } catch { }
-      return next;
-    });
+    const next = new Set([...readChangeKeys, key]);
+    setReadChangeKeys(next);
+    try { localStorage.setItem(READ_CHANGES_KEY, JSON.stringify([...next])); } catch { }
+    pushReadState(userId, readPingIds, seenRecvGroupIds, next);
   }
 
   function markAllRead() {
@@ -923,7 +937,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     setSeenRecvGroupIds(newIds);
     try { localStorage.setItem("pgp2.seen-recv-groups", JSON.stringify([...newIds])); } catch { }
 
-    pushReadState(userId, nextPings, newIds);
+    pushReadState(userId, nextPings, newIds, nextChanges);
   }
 
   function handleOpenNotif() {

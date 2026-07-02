@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import "../styles/compare.css";
-import { ArrowLeft, Columns, Layers, Clock, BookOpen, UserCheck, Sparkles, ChevronDown, Copy, Check, CalendarDays, ArrowRight as ArrowRightIcon } from "lucide-react";
-import { findFreeSlots, findGroupFreeSlots, scheduleInsights, friendVisibleClasses } from "../lib/friends.js";
+import { ArrowLeft, Columns, Layers, Clock, BookOpen, UserCheck, Sparkles, ChevronDown, Copy, Check, CalendarDays, ArrowRight as ArrowRightIcon, Flame, X } from "lucide-react";
+import { findFreeSlots, findGroupFreeSlots, scheduleInsights, friendVisibleClasses, avatarGradient } from "../lib/friends.js";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
@@ -63,6 +63,77 @@ function RangeDropdown({ value, onChange }) {
         </div>
       )}
     </div>
+  );
+}
+
+function Avatar({ name, size = 30, style }) {
+  const [c1, c2] = avatarGradient(name);
+  return (
+    <div
+      className="cv-avatar"
+      style={{
+        width: size, height: size,
+        background: `linear-gradient(135deg, ${c1} 0%, ${c2} 100%)`,
+        fontSize: size * 0.42,
+        ...style,
+      }}
+    >
+      {(name || "?")[0]?.toUpperCase()}
+    </div>
+  );
+}
+
+function HeaderIdentity({ mode, label, targets }) {
+  if (mode === "group") {
+    const shown = targets.slice(0, 3);
+    return (
+      <div className="cv-avatar-stack">
+        {shown.map((t, i) => (
+          <Avatar key={t.name + i} name={t.name} size={30} style={{ zIndex: 10 - i, marginLeft: i === 0 ? 0 : -10 }} />
+        ))}
+        {targets.length > 3 && (
+          <div className="cv-avatar cv-avatar-more" style={{ marginLeft: -10 }}>+{targets.length - 3}</div>
+        )}
+      </div>
+    );
+  }
+  return <Avatar name={label} size={32} />;
+}
+
+function FreeSlotGroups({ groups, isMultiDay, longestFreeIdx, maxFreeDuration, totalSlots }) {
+  return (
+    <>
+      {groups.map((group, gi) => (
+        <div key={gi} className="cv-free-group" data-date={group.date || undefined}>
+          {isMultiDay && group.date && (
+            <div className="cv-day-heading">
+              {new Date(group.date).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}
+            </div>
+          )}
+          {group.slots.map((slot) => (
+            <div key={slot._idx} className={`cv-free-block${slot._idx === longestFreeIdx ? " cv-free-block-best" : ""}`}>
+              <div className="cv-free-time">
+                <span className="cv-free-range">
+                  {fmtTime(slot.start)} – {fmtTime(slot.end)}
+                </span>
+                <span className="cv-free-dur">
+                  {slot._idx === longestFreeIdx && totalSlots > 1 && (
+                    <span className="cv-free-best-badge"><Flame size={11} /> Longest</span>
+                  )}
+                  {fmtDuration(slot.durationMin)} free
+                </span>
+              </div>
+              <div className="cv-free-bar">
+                <div
+                  className="cv-free-bar-fill"
+                  style={{ width: `${Math.max(8, (slot.durationMin / maxFreeDuration) * 100)}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      ))}
+    </>
   );
 }
 
@@ -131,7 +202,7 @@ export default function CompareView({
       return dates;
     }
     return [ymd(now)];
-  }, [now, dayFilter]);
+  }, [now, dayFilter, customRange.start, customRange.end]);
 
   const prettyDateLabel = useMemo(() => {
     if (dayFilter === "custom") return "";
@@ -162,6 +233,13 @@ export default function CompareView({
   }, [mode, friendData, groupData]);
 
   const label = mode === "friend" ? friendData?.name : groupData?.name;
+
+  const groupSubtitle = useMemo(() => {
+    if (mode !== "group") return "You vs. them";
+    const names = targets.map(t => t.name);
+    if (names.length <= 2) return `${names.join(", ")} + you`;
+    return `${names.slice(0, 2).join(", ")} + ${names.length - 2} more`;
+  }, [mode, targets]);
 
   function copyFreeSlots() {
     if (!freeSlots.length) return;
@@ -224,6 +302,89 @@ export default function CompareView({
     return slots;
   }, [myClasses, allClasses, targets, selectedDates, mine, enrolled]);
 
+  const maxFreeDuration = useMemo(
+    () => freeSlots.reduce((m, s) => Math.max(m, s.durationMin), 0),
+    [freeSlots]
+  );
+  const longestFreeIdx = useMemo(() => {
+    if (!freeSlots.length) return -1;
+    return freeSlots.reduce((best, s, i) => (s.durationMin > freeSlots[best].durationMin ? i : best), 0);
+  }, [freeSlots]);
+  const isMultiDay = ["3", "7", "14", "30", "custom"].includes(dayFilter);
+  const groupedFreeSlots = useMemo(() => {
+    if (!isMultiDay) return [{ date: null, slots: freeSlots.map((s, i) => ({ ...s, _idx: i })) }];
+    const groups = [];
+    let cur = null;
+    freeSlots.forEach((s, i) => {
+      if (!cur || cur.date !== s.date) {
+        cur = { date: s.date, slots: [] };
+        groups.push(cur);
+      }
+      cur.slots.push({ ...s, _idx: i });
+    });
+    return groups;
+  }, [freeSlots, isMultiDay]);
+
+  // Long-range preview: the page shows only the first 2 days; the full range
+  // opens in a modal (bottom sheet on mobile, dialog on desktop).
+  const PREVIEW_DAYS = 2;
+  const canTruncate = isMultiDay && selectedDates.length > PREVIEW_DAYS;
+  const [moreModal, setMoreModal] = useState(null); // null | "timeline" | "free"
+  const [modalJumpOpen, setModalJumpOpen] = useState(false);
+  const moreBodyRef = useRef(null);
+  const modalJumpRef = useRef(null);
+
+  function closeMoreModal() {
+    setMoreModal(null);
+    setModalJumpOpen(false);
+  }
+
+  useEffect(() => {
+    if (!moreModal) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = e => { if (e.key === "Escape") closeMoreModal(); };
+    const onDown = e => {
+      if (modalJumpRef.current && !modalJumpRef.current.contains(e.target)) setModalJumpOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onDown);
+    };
+  }, [moreModal]);
+
+  // Scroll the modal's own list to a given day (day groups carry data-date)
+  function jumpInModal(d) {
+    setModalJumpOpen(false);
+    const body = moreBodyRef.current;
+    if (!body) return;
+    const el = body.querySelector(`[data-date="${d}"]`);
+    if (!el) return;
+    const top = el.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop - 64;
+    body.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+  }
+
+  const timelineDates = useMemo(
+    () => canTruncate ? selectedDates.slice(0, PREVIEW_DAYS) : selectedDates,
+    [canTruncate, selectedDates]
+  );
+  const tlMyClasses = useMemo(() => {
+    const set = new Set(timelineDates);
+    return myDayClasses.filter(c => set.has(c.date));
+  }, [myDayClasses, timelineDates]);
+  const tlTargetClasses = useMemo(() => {
+    const set = new Set(timelineDates);
+    return targetDayClasses.map(list => list.filter(c => set.has(c.date)));
+  }, [targetDayClasses, timelineDates]);
+  const tlFreeSlots = useMemo(() => {
+    const set = new Set(timelineDates);
+    return freeSlots.filter(s => set.has(s.date));
+  }, [freeSlots, timelineDates]);
+  const hiddenTimelineDays = selectedDates.length - PREVIEW_DAYS;
+
   // Insights (for friend mode — 1:1)
   const insights = useMemo(() => {
     if (targets.length === 1) {
@@ -262,23 +423,22 @@ export default function CompareView({
     <div className="cv-page">
       {/* Header */}
       <div className="cv-header">
-        <button className="cv-back" onClick={onExit}>
-          <ArrowLeft size={18} /> Back
+        <button className="cv-back" onClick={onExit} aria-label="Back">
+          <ArrowLeft size={18} /> <span className="cv-back-label">Back</span>
         </button>
+        <HeaderIdentity mode={mode} label={label} targets={targets} />
         <div className="cv-header-info">
           <span className="cv-header-title">
             {mode === "friend" ? `Comparing with ${label}` : label}
           </span>
-          <span className="cv-header-sub">
-            {mode === "group" ? `${targets.length} member${targets.length !== 1 ? "s" : ""} + you` : "You vs. them"}
-          </span>
+          <span className="cv-header-sub">{groupSubtitle}</span>
         </div>
         <div className="cv-view-toggle">
-          <button className={`cv-toggle-btn ${viewMode === "merged" ? "on" : ""}`} onClick={() => setViewMode("merged")} title="Merged view">
-            <Layers size={15} />
+          <button className={`cv-toggle-btn ${viewMode === "merged" ? "on" : ""}`} onClick={() => setViewMode("merged")} title="Merged view" aria-label="Merged view">
+            <Layers size={15} /> <span className="cv-toggle-label">Merged</span>
           </button>
-          <button className={`cv-toggle-btn ${viewMode === "side" ? "on" : ""}`} onClick={() => setViewMode("side")} title="Side by side">
-            <Columns size={15} />
+          <button className={`cv-toggle-btn ${viewMode === "side" ? "on" : ""}`} onClick={() => setViewMode("side")} title="Side by side" aria-label="Side by side view">
+            <Columns size={15} /> <span className="cv-toggle-label">Columns</span>
           </button>
         </div>
       </div>
@@ -292,10 +452,11 @@ export default function CompareView({
             value={RANGE_OPTIONS.some(o => o.key === dayFilter) ? dayFilter : null}
             onChange={setDayFilter}
           />
-          {dayFilter !== "custom" && prettyDateLabel && (
-            <span className="cv-day-label">{prettyDateLabel}</span>
-          )}
         </div>
+        {/* In multi-day Columns view the range label rides in the sticky bar instead */}
+        {dayFilter !== "custom" && prettyDateLabel && !(viewMode === "side" && isMultiDay) && (
+          <span className="cv-day-label">{prettyDateLabel}</span>
+        )}
 
         {dayFilter === "custom" && (
           <div className="cv-custom-range">
@@ -365,17 +526,20 @@ export default function CompareView({
           {freeSlots.length > 0 && (
             <div className="cv-free-summary">
               <Sparkles size={15} />
-              <span>{freeSlots.length} free slot{freeSlots.length !== 1 ? "s" : ""} found</span>
+              <span>
+                {freeSlots.length} free slot{freeSlots.length !== 1 ? "s" : ""} found
+                {isMultiDay ? ` across ${selectedDates.length} days` : ""}
+              </span>
             </div>
           )}
 
           {/* Timeline */}
           {viewMode === "merged" ? (
             <MergedTimeline
-              myClasses={myDayClasses}
-              targetClasses={targetDayClasses}
+              myClasses={tlMyClasses}
+              targetClasses={tlTargetClasses}
               targets={targets}
-              freeSlots={freeSlots}
+              freeSlots={tlFreeSlots}
               blockStyle={blockStyle}
               TOTAL_MIN={TOTAL_MIN}
               DAY_START={DAY_START}
@@ -385,10 +549,10 @@ export default function CompareView({
             />
           ) : (
             <SideBySide
-              myClasses={myDayClasses}
-              targetClasses={targetDayClasses}
+              myClasses={tlMyClasses}
+              targetClasses={tlTargetClasses}
               targets={targets}
-              freeSlots={freeSlots}
+              freeSlots={tlFreeSlots}
               blockStyle={blockStyle}
               TOTAL_MIN={TOTAL_MIN}
               DAY_START={DAY_START}
@@ -396,7 +560,14 @@ export default function CompareView({
               legend={legend}
               userName={/* current user name */ "You"}
               dayFilter={dayFilter}
+              rangeLabel={prettyDateLabel}
             />
+          )}
+
+          {canTruncate && (
+            <button className="cv-show-more" onClick={() => setMoreModal("timeline")}>
+              <ChevronDown size={14} /> Show {hiddenTimelineDays} more day{hiddenTimelineDays !== 1 ? "s" : ""}
+            </button>
           )}
         </div>
 
@@ -413,23 +584,25 @@ export default function CompareView({
               )}
             </div>
             {freeSlots.length === 0 ? (
-              <p className="cv-empty">No common free time on this day.</p>
+              <div className="cv-empty-block">
+                <span className="cv-empty-icon">😔</span>
+                <p>No common free time</p>
+                <span>Try a different day or range.</span>
+              </div>
             ) : (
               <div className="cv-free-list">
-                {freeSlots.map((slot, i) => (
-                  <div key={i} className="cv-free-block">
-                    <div className="cv-free-time">
-                      <span className="cv-free-range">
-                        {["3", "7", "14", "30", "custom"].includes(dayFilter) && <span style={{opacity: 0.7, marginRight: "8px"}}>{new Date(slot.date).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</span>}
-                        {fmtTime(slot.start)} – {fmtTime(slot.end)}
-                      </span>
-                      <span className="cv-free-dur">{fmtDuration(slot.durationMin)} free</span>
-                    </div>
-                    <div className="cv-free-bar">
-                      <div className="cv-free-bar-fill" style={{ width: `${Math.min(100, (slot.durationMin / 120) * 100)}%` }} />
-                    </div>
-                  </div>
-                ))}
+                <FreeSlotGroups
+                  groups={canTruncate ? groupedFreeSlots.slice(0, PREVIEW_DAYS) : groupedFreeSlots}
+                  isMultiDay={isMultiDay}
+                  longestFreeIdx={longestFreeIdx}
+                  maxFreeDuration={maxFreeDuration}
+                  totalSlots={freeSlots.length}
+                />
+                {canTruncate && groupedFreeSlots.length > PREVIEW_DAYS && (
+                  <button className="cv-show-more" onClick={() => setMoreModal("free")}>
+                    <ChevronDown size={14} /> Show {groupedFreeSlots.length - PREVIEW_DAYS} more day{groupedFreeSlots.length - PREVIEW_DAYS !== 1 ? "s" : ""}
+                  </button>
+                )}
               </div>
             )}
           </section>
@@ -473,6 +646,80 @@ export default function CompareView({
           </section>
         </div>{/* /cv-body-side */}
       </div>{/* /cv-body-grid */}
+
+      {/* Full-range modal: bottom sheet on mobile, dialog on desktop */}
+      {moreModal && (
+        <div className="cv-more-backdrop" onClick={closeMoreModal}>
+          <div className="cv-more-modal" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
+            <div className="cv-more-grab" aria-hidden="true" />
+            <div className="cv-more-head">
+              <div className={`cv-more-icon ${moreModal === "timeline" ? "cv-more-icon-violet" : "cv-more-icon-green"}`}>
+                {moreModal === "timeline" ? <CalendarDays size={16} /> : <Clock size={16} />}
+              </div>
+              <div className="cv-more-titles">
+                <h3>{moreModal === "timeline" ? "Full schedule" : "All free time"}</h3>
+                <span className="cv-more-sub">
+                  {prettyDateLabel || "Custom range"} · {selectedDates.length} day{selectedDates.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+              {selectedDates.length > 1 && (
+                <div className="cv-range-drop" ref={modalJumpRef}>
+                  <button className="cv-sbs-datechip" onClick={() => setModalJumpOpen(o => !o)} aria-label="Go to date">
+                    <CalendarDays size={13} />
+                    <span className="cv-more-jump-label">Go to</span>
+                    <ChevronDown size={12} className={`cv-range-caret ${modalJumpOpen ? "open" : ""}`} />
+                  </button>
+                  {modalJumpOpen && (
+                    <div className="cv-range-menu cv-sbs-datemenu cv-more-jumpmenu">
+                      {selectedDates.map(d => (
+                        <button key={d} className="cv-range-opt" onClick={() => jumpInModal(d)}>
+                          {new Date(d).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              <button className="cv-more-close" onClick={closeMoreModal} aria-label="Close">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="cv-more-body" ref={moreBodyRef}>
+              {moreModal === "timeline" ? (
+                viewMode === "merged" ? (
+                  <MergedTimeline
+                    myClasses={myDayClasses}
+                    targetClasses={targetDayClasses}
+                    targets={targets}
+                    freeSlots={freeSlots}
+                    legend={legend}
+                    dayFilter={dayFilter}
+                  />
+                ) : (
+                  <SideBySide
+                    myClasses={myDayClasses}
+                    targetClasses={targetDayClasses}
+                    targets={targets}
+                    freeSlots={freeSlots}
+                    legend={legend}
+                    dayFilter={dayFilter}
+                  />
+                )
+              ) : (
+                <div className="cv-free-list">
+                  <FreeSlotGroups
+                    groups={groupedFreeSlots}
+                    isMultiDay={isMultiDay}
+                    longestFreeIdx={longestFreeIdx}
+                    maxFreeDuration={maxFreeDuration}
+                    totalSlots={freeSlots.length}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -533,9 +780,9 @@ function MergedTimeline({ myClasses, targetClasses, targets, freeSlots, dayFilte
   return (
     <div className="cv-agenda">
       {grouped.map((g, gi) => (
-        <div key={gi} className="cv-agenda-day-group">
+        <div key={gi} className="cv-agenda-day-group" data-date={g.date}>
           {["3", "7", "14", "30", "custom"].includes(dayFilter) && (
-            <div style={{ padding: "12px 10px 4px 10px", fontSize: "12px", fontWeight: "600", color: "var(--primary)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            <div className="cv-day-heading cv-day-heading-agenda">
               {new Date(g.date).toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })}
             </div>
           )}
@@ -575,7 +822,7 @@ function MergedTimeline({ myClasses, targetClasses, targets, freeSlots, dayFilte
 }
 
 /* ── Side by Side Agenda ── */
-function SideBySide({ myClasses, targetClasses, targets, dayFilter, freeSlots = [] }) {
+function SideBySide({ myClasses, targetClasses, targets, dayFilter, freeSlots = [], rangeLabel = "" }) {
   const FRIEND_COLORS = ["cva-theirs", "cva-friend2", "cva-friend3"];
   const columnsDef = [
     { label: "You", colorClass: "cva-mine" },
@@ -613,70 +860,191 @@ function SideBySide({ myClasses, targetClasses, targets, dayFilter, freeSlots = 
     return { date, rows };
   });
 
+  const isMultiDay = ["3", "7", "14", "30", "custom"].includes(dayFilter);
+  const minTrackWidth = Math.max(100, columnsDef.length * 150);
+
+  // Keep the sticky name pills horizontally aligned with their columns.
+  // Bidirectional: swiping either the pills or the columns drags the other along.
+  const agendaRef = useRef(null);
+  const pillsClipRef = useRef(null);
+  useEffect(() => {
+    const agenda = agendaRef.current;
+    const clip = pillsClipRef.current;
+    if (!agenda || !clip) return;
+    let source = null;
+    let releaseTimer = 0;
+    const makeSync = (from, to) => () => {
+      // Ignore the echo scroll event fired on the element we just updated
+      if (source && source !== from) return;
+      source = from;
+      to.scrollLeft = from.scrollLeft;
+      clearTimeout(releaseTimer);
+      releaseTimer = setTimeout(() => { source = null; }, 100);
+    };
+    const fromAgenda = makeSync(agenda, clip);
+    const fromPills = makeSync(clip, agenda);
+    agenda.addEventListener("scroll", fromAgenda, { passive: true });
+    clip.addEventListener("scroll", fromPills, { passive: true });
+    clip.scrollLeft = agenda.scrollLeft;
+    return () => {
+      agenda.removeEventListener("scroll", fromAgenda);
+      clip.removeEventListener("scroll", fromPills);
+      clearTimeout(releaseTimer);
+    };
+  }, []);
+
+  // Track which date sits under the sticky bar while scrolling vertically
+  const dayRefs = useRef({});
+  const stickyRef = useRef(null);
+  const [activeDate, setActiveDate] = useState(null);
+  const datesKey = dates.join(",");
+  // Bottom edge of the sticky bar (its CSS `top` offset varies: below the app's
+  // mobile header/tabs on phones, at the viewport top on desktop)
+  const stickyBottom = () => {
+    const bar = stickyRef.current;
+    if (!bar) return 140;
+    return (parseFloat(getComputedStyle(bar).top) || 0) + bar.offsetHeight;
+  };
+  useEffect(() => {
+    if (!isMultiDay || !dates.length) return;
+    let raf = 0;
+    const measure = () => {
+      const threshold = stickyBottom() + 10;
+      let cur = dates[0];
+      for (const d of dates) {
+        const el = dayRefs.current[d];
+        if (el && el.getBoundingClientRect().top <= threshold) cur = d;
+      }
+      setActiveDate(cur);
+    };
+    const onScroll = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(measure); };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    measure();
+    return () => { window.removeEventListener("scroll", onScroll); cancelAnimationFrame(raf); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [datesKey, isMultiDay]);
+
+  const [jumpOpen, setJumpOpen] = useState(false);
+  const jumpRef = useRef(null);
+  useEffect(() => {
+    function onDown(e) { if (jumpRef.current && !jumpRef.current.contains(e.target)) setJumpOpen(false); }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, []);
+
+  function jumpToDate(d) {
+    setJumpOpen(false);
+    const el = dayRefs.current[d];
+    if (!el) return;
+    const y = el.getBoundingClientRect().top + window.scrollY - stickyBottom() - 8;
+    window.scrollTo({ top: y, behavior: "smooth" });
+  }
+
+  const fmtChip = d => new Date(d).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+
   return (
     <div>
-      {/* Sticky column name bar — lives outside overflow-x container so it actually sticks */}
-      <div className="cv-sbs-sticky-header">
-        {columnsDef.map((col, i) => {
-          const pillClass = i === 0 ? "you" : i === 1 ? "them" : i === 2 ? "them2" : "them3";
-          return (
-            <div key={i} className={`cv-sbs-name-pill ${pillClass}`}>
-              {col.label}
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="cv-side-agenda" style={{ display: "block" }}>
-        <div style={{ minWidth: Math.max(100, columnsDef.length * 150) + "px" }}>
-        {/* Body */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          {dateGroups.length === 0 && <div className="cv-empty" style={{ padding: "20px 0", textAlign: "center" }}>No classes</div>}
-          
-          {dateGroups.map((dg, dgi) => (
-            <div key={dgi} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              {["3", "7", "14", "30", "custom"].includes(dayFilter) && (
-                <div style={{ padding: "4px 8px", fontSize: "12px", fontWeight: "700", color: "var(--primary)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                  {new Date(dg.date).toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })}
+      {/* Sticky bar — lives outside overflow-x container so it actually sticks */}
+      <div className="cv-sbs-sticky-header" ref={stickyRef}>
+        {isMultiDay && activeDate && dates.includes(activeDate) && (
+          <div className="cv-sbs-datebar">
+            <div className="cv-range-drop" ref={jumpRef}>
+              <button className="cv-sbs-datechip" onClick={() => setJumpOpen(o => !o)} aria-label="Jump to date">
+                <CalendarDays size={13} />
+                {fmtChip(activeDate)}
+                <ChevronDown size={12} className={`cv-range-caret ${jumpOpen ? "open" : ""}`} />
+              </button>
+              {jumpOpen && (
+                <div className="cv-range-menu cv-sbs-datemenu">
+                  {dates.map(d => (
+                    <button key={d} className={`cv-range-opt ${d === activeDate ? "on" : ""}`} onClick={() => jumpToDate(d)}>
+                      {fmtChip(d)}
+                    </button>
+                  ))}
                 </div>
               )}
-              
-              {dg.rows.map((row, ri) => (
-                <div key={ri} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                  {row.freeSlots.map((fs, fsi) => (
-                    <div key={fsi} className="cva-free-pill" style={{ background: "rgba(31,169,113,.18)", border: "1px solid rgba(31,169,113,.35)", color: "var(--live)", padding: "9px 12px", borderRadius: "12px", fontSize: "12px", fontWeight: "700", textAlign: "center", display: "flex", justifyContent: "center", gap: "8px", alignItems: "center", margin: "0 4px" }}>
-                      <span>{fmtTime(fs.start)} – {fmtTime(fs.end)}</span>
-                      <span style={{ fontSize: "10px", fontWeight: "600", background: "rgba(31,169,113,.20)", padding: "2px 7px", borderRadius: "10px" }}>Free</span>
-                    </div>
-                  ))}
-                  
-                  {row.columns.some(col => col.length > 0) && (
-                    <div style={{ display: "flex" }}>
-                      {row.columns.map((colItems, ci) => (
-                        <div key={ci} style={{ flex: 1, padding: "0 6px", display: "flex", flexDirection: "column", gap: "8px", minWidth: 0 }}>
-                          {colItems.length === 0 ? (
-                            <div className="cva-card" style={{ margin: 0, height: "100%", background: "var(--surface)", border: "1px dashed var(--border-hi)", display: "flex", alignItems: "center", justifyContent: "center", minHeight: "64px" }}>
-                              <span style={{ fontSize: "11px", color: "var(--muted)", fontWeight: "600", letterSpacing: "0.03em", textTransform: "uppercase" }}>Free</span>
-                            </div>
-                          ) : colItems.map((c, cii) => {
-                            const isShared = c.type === "holiday" || c.type === "break";
-                            return (
-                              <div key={cii} className={`cva-card ${isShared ? "cva-shared" : columnsDef[ci].colorClass}`} style={{ margin: 0, height: "100%" }}>
-                                <div className="cva-time-sm">{fmtTime(c.start)} – {fmtTime(c.end)}</div>
-                                <div className="cva-title">{c.name}</div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
             </div>
-          ))}
+            {rangeLabel && <span className="cv-day-label cv-sbs-rangelabel">{rangeLabel}</span>}
+          </div>
+        )}
+        <div className="cv-sbs-pills-clip" ref={pillsClipRef}>
+          <div className="cv-sbs-pills-track" style={{ minWidth: minTrackWidth + "px" }}>
+            {columnsDef.map((col, i) => {
+              const pillClass = i === 0 ? "you" : i === 1 ? "them" : i === 2 ? "them2" : "them3";
+              return (
+                <div key={i} className="cv-sbs-pill-cell">
+                  <div className={`cv-sbs-name-pill ${pillClass}`}>{col.label}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="cv-side-agenda-wrap">
+      <div className="cv-side-agenda" ref={agendaRef}>
+        <div className="cv-sbs-inner" style={{ minWidth: minTrackWidth + "px" }}>
+        {/* Body */}
+        <div className="cv-sbs-body">
+          {dateGroups.length === 0 && <div className="cv-empty cv-sbs-noclasses">No classes</div>}
+
+          {dateGroups.map((dg) => {
+            const isFreeDay = isMultiDay && dg.rows.every(r => r.columns.every(c => c.length === 0));
+            const daySlots = dg.rows.flatMap(r => r.freeSlots);
+            return (
+              <div key={dg.date} className="cv-sbs-day" data-date={dg.date} ref={el => { dayRefs.current[dg.date] = el; }}>
+                {isMultiDay && (
+                  <div className="cv-day-heading">
+                    {new Date(dg.date).toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })}
+                  </div>
+                )}
+
+                {isFreeDay ? (
+                  <div className="cv-sbs-freeday">
+                    <span className="cv-sbs-freeday-badge">All free</span>
+                    <span className="cv-sbs-freeday-text">
+                      No classes for anyone{daySlots.length ? ` · ${fmtTime(daySlots[0].start)} – ${fmtTime(daySlots[daySlots.length - 1].end)}` : ""} 🎉
+                    </span>
+                  </div>
+                ) : dg.rows.map((row, ri) => (
+                  <div key={ri} className="cv-sbs-row">
+                    {row.freeSlots.map((fs, fsi) => (
+                      <div key={fsi} className="cv-sbs-freepill">
+                        <span>{fmtTime(fs.start)} – {fmtTime(fs.end)}</span>
+                        <span className="cv-sbs-freepill-tag">Free</span>
+                      </div>
+                    ))}
+
+                    {row.columns.some(col => col.length > 0) && (
+                      <div className="cv-sbs-cols">
+                        {row.columns.map((colItems, ci) => (
+                          <div key={ci} className="cv-sbs-col">
+                            {colItems.length === 0 ? (
+                              <div className="cva-card cv-sbs-emptycell">
+                                <span>Free</span>
+                              </div>
+                            ) : colItems.map((c, cii) => {
+                              const isShared = c.type === "holiday" || c.type === "break";
+                              return (
+                                <div key={cii} className={`cva-card cv-sbs-card ${isShared ? "cva-shared" : columnsDef[ci].colorClass}`}>
+                                  <div className="cva-time-sm">{fmtTime(c.start)} – {fmtTime(c.end)}</div>
+                                  <div className="cva-title">{c.name}</div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            );
+          })}
         </div>
         </div>
+      </div>
+      <div className="cv-side-agenda-fade" aria-hidden="true" />
       </div>
     </div>
   );

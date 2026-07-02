@@ -15,6 +15,20 @@ const MY_CODE_KEY = "pgp2.my_share_code";
 import { LEGEND } from "../data/schedule.js";
 import { supabase } from "./supabase.js";
 
+// Deterministic name → gradient pair, shared by FriendsPanel and CompareView
+const AVATAR_PALETTE = [
+  ["#7C3AED", "#A855F7"],
+  ["#2563EB", "#60A5FA"],
+  ["#0D9488", "#2DD4BF"],
+  ["#DC2626", "#FB7185"],
+  ["#D97706", "#FBBF24"],
+  ["#4338CA", "#818CF8"],
+];
+export function avatarGradient(name) {
+  const idx = [...(name || "?")].reduce((h, c) => h + c.charCodeAt(0), 0) % AVATAR_PALETTE.length;
+  return AVATAR_PALETTE[idx];
+}
+
 function generateRandomCode(len = 4) {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   let result = "";
@@ -711,11 +725,13 @@ export async function unshareGroupFromMembers(groupId, cloudMemberIds, ownerId) 
 }
 
 /**
- * Re-fetch the latest courses for all cloud-linked friends (those with a cloudId).
+ * Re-fetch the latest courses for cloud-linked friends (those with a cloudId).
+ * Pass onlyCloudIds to limit the fetch to specific friends; the full friends
+ * array is still merged and persisted so nobody gets dropped.
  * Returns the updated friends array if anything changed, or null if nothing changed.
  */
-export async function refreshFriendCoursesFromCloud(friends) {
-  const cloudFriends = friends.filter(f => f.cloudId);
+export async function refreshFriendCoursesFromCloud(friends, onlyCloudIds = null) {
+  const cloudFriends = friends.filter(f => f.cloudId && (!onlyCloudIds || onlyCloudIds.includes(f.cloudId)));
   if (!cloudFriends.length) return null;
 
   const { data, error } = await supabase
