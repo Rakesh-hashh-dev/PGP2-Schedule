@@ -18,7 +18,7 @@ import {
   saveFriend, removeFriend as removeFriendFromStore, updateFriend, writeFriends,
   loadGroups, createGroup, removeGroup as removeGroupFromStore, updateGroup,
   getOrCreateShareCode, pushFriendsToCloud, pushGroupsToCloud,
-  refreshFriendCoursesFromCloud, sendFriendPing, hasPendingFriendRequest, removeSelfFromFriendCloud, deleteFriendPing, deletePingsBetween,
+  refreshFriendCoursesFromCloud, sendFriendPing, hasPendingFriendRequest, deleteFriendPing, deletePingsBetween,
   shareGroupWithMembers, unshareGroupFromMembers, sendGroupMessage, fetchGroupMessages,
 } from "../lib/friends.js";
 
@@ -154,9 +154,9 @@ function timeAgo(iso) {
 }
 
 export default function FriendsPanel({
-  userId, userName, enrolled, legend, friends, setFriends,
-  groups, setGroups, myClasses, allClasses, now, onCompare, onGroupCompare,
-  notifications = [], onDismissNotifs, onMarkRead, onMarkAllRead, onRemovePing, onClearAllPings,
+  userId, userName, enrolled, friends, setFriends,
+  groups, setGroups, allClasses, now, onCompare, onGroupCompare,
+  notifications = [], onMarkRead, onMarkAllRead, onRemovePing, onClearAllPings,
 }) {
   const [addCode, setAddCode] = useState("");
   const [addError, setAddError] = useState("");
@@ -166,24 +166,24 @@ export default function FriendsPanel({
   const [newGroupName, setNewGroupName] = useState("");
   const [showNewGroup, setShowNewGroup] = useState(false);
   const [expandedGroup, setExpandedGroup] = useState(null);
-  const [addToGroupId, setAddToGroupId] = useState(null);
 
   const [notifOpen, setNotifOpen] = useState(false);
   const [showAllNotifs, setShowAllNotifs] = useState(false);
   const [myCode, setMyCode] = useState(null);
-  const [isGenerating, setIsGenerating] = useState(false);
+  const isGenerating = !!userId && !myCode; // code still being fetched/created
   const [isAdding, setIsAdding] = useState(false);
   const [syncingFriendId, setSyncingFriendId] = useState(null);
   const [sharingGroupId, setSharingGroupId] = useState(null);
   // Show skeleton only when no local friends and still might be syncing from cloud
   const [initialLoading, setInitialLoading] = useState(friends.length === 0);
+  if (initialLoading && friends.length > 0) setInitialLoading(false);
   useEffect(() => {
-    if (friends.length > 0) { setInitialLoading(false); return; }
+    if (friends.length > 0) return;
     const t = setTimeout(() => setInitialLoading(false), 1400);
     return () => clearTimeout(t);
   }, [friends.length]);
 
-  const [suggestedBuddies, setSuggestedBuddies] = useState(null);
+  const [suggestedBuddiesRaw, setSuggestedBuddies] = useState(null);
   const [optOutMatchmaker, setOptOutMatchmaker] = useState(() => {
     try { return localStorage.getItem("pgp2.opt-out-matchmaker") === "true"; } catch { return false; }
   });
@@ -206,11 +206,11 @@ export default function FriendsPanel({
     });
   };
 
+  // Matchmaker results only apply while eligible — derived, not reset via effect
+  const suggestedBuddies = (!userId || !enrolled || optOutMatchmaker) ? [] : suggestedBuddiesRaw;
+
   useEffect(() => {
-    if (!userId || !enrolled || optOutMatchmaker) {
-      setSuggestedBuddies([]);
-      return;
-    }
+    if (!userId || !enrolled || optOutMatchmaker) return;
     
     async function fetchMatches() {
       const myCourseKeys = Object.keys(enrolled).filter(k => !k.startsWith("_"));
@@ -255,11 +255,7 @@ export default function FriendsPanel({
 
   useEffect(() => {
     if (!userId) return;
-    setIsGenerating(true);
-    getOrCreateShareCode(userId, userName || "User").then(code => {
-      setMyCode(code);
-      setIsGenerating(false);
-    });
+    getOrCreateShareCode(userId, userName || "User").then(setMyCode);
   }, [userId, userName]);
 
   useEffect(() => {

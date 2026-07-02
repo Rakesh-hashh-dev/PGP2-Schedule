@@ -618,7 +618,7 @@ export async function fetchGroupMessages(groupId) {
       .order("created_at", { ascending: true });
       
     return (data || []).map(p => {
-      let meta = {};
+      let meta;
       try { meta = JSON.parse(p.from_name); } catch { meta = { name: p.from_name }; }
       return {
         id: p.id,

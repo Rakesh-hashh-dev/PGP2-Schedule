@@ -196,12 +196,12 @@ export default function CompareView({
 
   // Free slots
   const freeSlots = useMemo(() => {
-    let slots = [];
+    const slots = [];
     if (targets.length === 1) {
-      let theirClasses = friendVisibleClasses(allClasses, targets[0].courses);
-      if (mine && enrolled) {
-        theirClasses = theirClasses.filter(c => !(enrolled[c.code] && !mine.has(c.code)));
-      }
+      const visible = friendVisibleClasses(allClasses, targets[0].courses);
+      const theirClasses = (mine && enrolled)
+        ? visible.filter(c => !(enrolled[c.code] && !mine.has(c.code)))
+        : visible;
       for (const d of selectedDates) {
         const daySlots = findFreeSlots(myClasses, theirClasses, d);
         slots.push(...daySlots.map(s => ({ ...s, date: d })));
@@ -211,11 +211,8 @@ export default function CompareView({
       const allLists = [
         myClasses,
         ...targets.map(t => {
-          let vis = friendVisibleClasses(allClasses, t.courses);
-          if (mine && enrolled) {
-            vis = vis.filter(c => !(enrolled[c.code] && !mine.has(c.code)));
-          }
-          return vis;
+          const vis = friendVisibleClasses(allClasses, t.courses);
+          return (mine && enrolled) ? vis.filter(c => !(enrolled[c.code] && !mine.has(c.code))) : vis;
         }),
       ];
       for (const d of selectedDates) {

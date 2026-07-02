@@ -32,7 +32,16 @@ const SLOTS = [
   ['08:00','09:30'], ['10:00','11:30'], ['12:00','13:30'], ['13:30','14:30'],
   ['14:30','16:00'], ['16:30','18:00'], ['18:30','20:00'], ['20:30','22:00']
 ];
-const SECTION_MAP = { 'section a':'A', 'section b':'B', 'single section':'Single' };
+const SECTION_MAP = {
+  'section a':      'A',
+  'section b':      'B',
+  'single section': 'Single',
+  // Joint sessions — both sections attend the same slot:
+  'section a/b':    'AB',
+  'section ab':     'AB',
+  'a/b':            'AB',
+  'ab':             'AB',
+};
 const MONTHS = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
 
 const FORCE_TOKEN = "admin_force_123";
@@ -301,8 +310,15 @@ function parseTimetable(ss, legend) {
           room = info.room || '';
         }
       }
-      out.push({ date: curDate, day: curDay, section, slot: s,
-        start: SLOTS[s][0], end: SLOTS[s][1], type, code, session, name, faculty, room });
+      // 'AB' = joint session attended by both sections — emit one entry per section.
+      // Guest sessions override to 'Single' so all enrolled students see them.
+      const sectionsToEmit = section === 'AB' ? ['A', 'B'] : [section];
+      for (const sec of sectionsToEmit) {
+        const isGuest = session && session.toLowerCase().includes('guest');
+        const finalSection = isGuest ? 'Single' : sec;
+        out.push({ date: curDate, day: curDay, section: finalSection, slot: s,
+          start: SLOTS[s][0], end: SLOTS[s][1], type, code, session, name, faculty, room });
+      }
     }
   }
   return out;
@@ -387,8 +403,39 @@ function parseStudentEnrollments(ss) {
       if (emailColIdx !== -1) break; // We found the header row
     }
     
-    // If we didn't find an email column, skip this sheet completely
-    if (emailColIdx === -1) continue; 
+    // Fallback for tabs with no header row (e.g. WAI): detect the email column
+    // by content — the column where most "@"-containing cells live — and the
+    // section column as the one whose values are A/B/Single on those same rows.
+    if (emailColIdx === -1) {
+      // Only trust the fallback on tabs named like a course code (WAI, SCM, …) —
+      // it would otherwise pick up rosters like "Faculty Details" / "CR Details".
+      if (!/^[A-Za-z]{1,8}$/.test(sheetName)) continue;
+      const emailCounts = {};
+      for (let r = 0; r < data.length; r++) {
+        for (let c = 0; c < data[r].length; c++) {
+          const v = String(data[r][c]).trim();
+          if (v.indexOf("@") > 0 && v.indexOf(".") > 0) emailCounts[c] = (emailCounts[c] || 0) + 1;
+        }
+      }
+      let best = -1, bestN = 0;
+      Object.keys(emailCounts).forEach(c => { if (emailCounts[c] > bestN) { bestN = emailCounts[c]; best = +c; } });
+      if (best === -1 || bestN < 5) continue; // not an enrollment tab
+      emailColIdx = best;
+      headerRowIdx = -1; // no header — scan from the first row
+      // Find the section column: values are exactly A / B / Single on email rows
+      const colScore = {};
+      for (let r = 0; r < data.length; r++) {
+        if (String(data[r][emailColIdx]).indexOf("@") === -1) continue;
+        for (let c = 0; c < data[r].length; c++) {
+          if (c === emailColIdx) continue;
+          const v = String(data[r][c]).trim().toLowerCase();
+          if (v === "a" || v === "b" || v === "single") colScore[c] = (colScore[c] || 0) + 1;
+        }
+      }
+      let secBest = -1, secN = 0;
+      Object.keys(colScore).forEach(c => { if (colScore[c] > secN) { secN = colScore[c]; secBest = +c; } });
+      if (secBest !== -1 && secN >= bestN / 2) sectionColIdx = secBest;
+    }
     
     // Loop through the data rows below the header
     for (let r = headerRowIdx + 1; r < data.length; r++) {

@@ -5,11 +5,16 @@ export default function CommandPalette({ isOpen, onClose, onViewChange, allClass
   const [query, setQuery] = useState("");
   const inputRef = useRef(null);
 
+  // Reset the query when the palette opens — adjusted during render (React docs
+  // pattern) instead of inside an effect, so there is no cascading re-render.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (wasOpen !== isOpen) {
+    setWasOpen(isOpen);
+    if (isOpen) setQuery("");
+  }
+
   useEffect(() => {
-    if (isOpen) {
-      setQuery("");
-      setTimeout(() => inputRef.current?.focus(), 50);
-    }
+    if (isOpen) setTimeout(() => inputRef.current?.focus(), 50);
   }, [isOpen]);
 
   useEffect(() => {

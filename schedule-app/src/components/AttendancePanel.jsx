@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Check, X, Clock, MapPin, AlertTriangle, ChevronDown } from "lucide-react";
+import { Check, X, Clock, AlertTriangle, ChevronDown, Flame } from "lucide-react";
 import { sessionKey } from "../lib/attendance.js";
 import WeatherWidget from "./WeatherWidget.jsx";
 
@@ -34,9 +34,9 @@ function Ring({ pct, t, noData, size = 92 }) {
       {!noData && (
         <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={col} strokeWidth={strokeW} strokeLinecap="round"
           strokeDasharray={C} strokeDashoffset={off} transform={`rotate(-90 ${size/2} ${size/2})`}
-          style={{ transition: "stroke-dashoffset 1s cubic-bezier(0.175, 0.885, 0.32, 1.275)" }} />
+          style={{ transition: "stroke-dashoffset 900ms cubic-bezier(0.23, 1, 0.32, 1)" }} />
       )}
-      <text x={size/2} y={size/2} textAnchor="middle" dominantBaseline="central" style={{ fill: "#ffffff", fontSize: size * 0.22, fontWeight: 800, letterSpacing: "-0.5px" }}>
+      <text x={size/2} y={size/2} textAnchor="middle" dominantBaseline="central" style={{ fill: "#ffffff", fontSize: size * 0.22, fontWeight: 800, letterSpacing: "-0.5px", fontVariantNumeric: "tabular-nums" }}>
         {noData ? "—" : `${pct}%`}
       </text>
     </svg>
@@ -222,13 +222,14 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
                   </span>
                 )}
                 {overallSkipBudget.hasPenalty ? (
-                  <span className="att-area-chip att-area-chip-warn" style={{ background: 'rgba(192, 57, 43, 0.2)', color: '#ff6b6b' }}>
-                    <AlertTriangle size={11} style={{ marginRight: 4, display: "inline-block", verticalAlign: "-1px" }} />
+                  <span className="att-area-chip att-area-chip-bad">
+                    <AlertTriangle size={11} />
                     Grade Penalty Hit
                   </span>
                 ) : overallSkipBudget.allowed > 0 ? (
-                  <span className="att-area-chip" style={{ background: 'rgba(255, 255, 255, 0.12)' }}>
-                    🔥 {overallSkipBudget.remaining} / {overallSkipBudget.allowed} skips left
+                  <span className="att-area-chip att-area-chip-hi">
+                    <Flame size={11} />
+                    {overallSkipBudget.remaining} / {overallSkipBudget.allowed} skips left
                   </span>
                 ) : null}
               </div>
@@ -272,7 +273,13 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
                     )}
                     {c.totalScheduled > 0 && (
                       <span className={`att-skip-chip ${c.penaltyHit ? 'skip-critical' : c.skipsRemaining <= 1 ? 'skip-warn' : 'skip-safe'}`}>
-                        {c.penaltyHit ? "🚨 Penalty Hit" : c.skipsRemaining <= 1 ? `🔥 ${c.skipsRemaining} skip left` : `${c.skipsRemaining} skips left`}
+                        {c.penaltyHit ? (
+                          <><AlertTriangle size={10} /> Penalty Hit</>
+                        ) : c.skipsRemaining <= 1 ? (
+                          <><Flame size={10} /> {c.skipsRemaining} {c.skipsRemaining === 1 ? "skip" : "skips"} left</>
+                        ) : (
+                          <>{c.skipsRemaining} skips left</>
+                        )}
                       </span>
                     )}
                     {canExpand && <ChevronDown size={14} className={`att-chev${open ? " open" : ""}`} />}
@@ -288,8 +295,9 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
                 </div>
               </button>
 
-              {open && (
-                <div className="att-edit-list" style={{ padding: "0 14px 12px", borderTop: "none" }}>
+              <div className={`att-collapse${open ? " open" : ""}`} inert={open ? undefined : true} aria-hidden={!open}>
+                <div className="att-collapse-in">
+                <div className="att-edit-list">
                   <SparkTrend sessions={c.sessions} attendance={attendance} />
                   {c.sessions.map((s, i) => {
                     const status = attendance[s.key] || null;
@@ -324,7 +332,8 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
                     );
                   })}
                 </div>
-              )}
+                </div>
+              </div>
             </div>
           );
             })}

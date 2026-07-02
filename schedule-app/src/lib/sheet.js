@@ -16,7 +16,6 @@ export async function sha256hex(str) {
 }
 
 const CACHE_KEY = "pgp2-feed-cache";
-const CACHE_TTL = 15 * 60 * 1000; // 15 minutes
 
 // These courses have only one combined section; rename stray "B" feed entries to "Single".
 const SINGLE_SECTION_B = new Set(["AMR", "BAMD", "BBM"]);

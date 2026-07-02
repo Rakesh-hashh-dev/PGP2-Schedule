@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { MapPin, CheckCircle2, Timer, ThumbsUp, ThumbsDown, Bookmark } from "lucide-react";
+import { MapPin, CheckCircle2, Timer, ThumbsUp, ThumbsDown } from "lucide-react";
 import { sessionKey } from "../lib/attendance.js";
 
 function clsDate(c, which) {
@@ -52,13 +52,22 @@ function timeOfDaySign(now) {
 }
 
 function HeroCountdown({ target }) {
-  const [ms, setMs] = useState(() => target.getTime() - Date.now());
+  const targetMs = target.getTime();
+  const [ms, setMs] = useState(() => targetMs - Date.now());
+
+  // Re-sync immediately when the countdown target changes (render adjustment)
+  const [prevTargetMs, setPrevTargetMs] = useState(targetMs);
+  if (prevTargetMs !== targetMs) {
+    setPrevTargetMs(targetMs);
+    // ms ≈ prevTarget − now, so the new remaining time is a pure delta (no clock
+    // call during render; the 1s interval corrects any drift immediately anyway)
+    setMs(ms - prevTargetMs + targetMs);
+  }
 
   useEffect(() => {
-    setMs(target.getTime() - Date.now());
-    const id = setInterval(() => setMs(target.getTime() - Date.now()), 1000);
+    const id = setInterval(() => setMs(targetMs - Date.now()), 1000);
     return () => clearInterval(id);
-  }, [target]);
+  }, [targetMs]);
 
   const totalSec = Math.max(0, Math.floor(ms / 1000));
   const urgent = totalSec < 300;

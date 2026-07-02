@@ -4,7 +4,7 @@ import { ArrowRight, Info, X, Settings2, Download } from "lucide-react";
 const AREA_LABEL = { "F&A": "Finance & Accounting", MKTG: "Marketing", ISM: "Information Systems", STM: "Strategy", OPS: "Operations", "OB&HR": "OB & HR", Other: "Other" };
 const AREA_ORDER = ["F&A", "MKTG", "ISM", "STM", "OPS", "OB&HR", "Other"];
 
-export default function Onboarding({ legend, sectionsByCode, onDone, initialPicked, onCancel, termLabel, onPullFromSheet, prefill, cloudChecked }) {
+export default function Onboarding({ legend, sectionsByCode, onDone, initialPicked, onCancel, termLabel, onPullFromSheet, prefill, cloudChecked, waitingForAllocation }) {
   const isEditing = !!initialPicked;
   const [picked, setPicked] = useState(() => initialPicked || {});
   const [pulling, setPulling] = useState(false);
@@ -91,6 +91,16 @@ export default function Onboarding({ legend, sectionsByCode, onDone, initialPick
             <div>
               <span className="ob-sync-title">Checking your profile for subjects…</span>
               <span className="ob-sync-sub">Syncing from database, courses may auto-fill</span>
+            </div>
+          </div>
+        )}
+
+        {!isEditing && cloudChecked && waitingForAllocation && (
+          <div className="ob-sync-notice ob-sync-notice--feed">
+            <span className="ob-sync-dot ob-sync-dot--feed" />
+            <div>
+              <span className="ob-sync-title">Fetching timetable allocation…</span>
+              <span className="ob-sync-sub">Reading your course list from the sheet, hang tight</span>
             </div>
           </div>
         )}

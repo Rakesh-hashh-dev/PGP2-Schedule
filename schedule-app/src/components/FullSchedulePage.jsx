@@ -692,7 +692,6 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
           <div className="cal-month-grid">
             {monthGrid.map((cell, i) => {
               const classes = dateClassMap.get(cell.iso) || [];
-              const codes = [...new Set(classes.map(c => c.code))];
               const isToday = cell.iso === TODAY;
               const isSelected = cell.iso === selectedDate;
               const hasCls = cell.inMonth && classes.length > 0;

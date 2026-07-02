@@ -24,6 +24,10 @@
   --display: 'Bricolage Grotesque', system-ui, sans-serif;
   --body: 'Inter', system-ui, sans-serif;
   --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+
+  /* Motion — strong curves; built-in CSS easings are too weak */
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
 }
 
 *,
@@ -830,6 +834,64 @@ button:focus-visible {
 
 .admin-save-msg.error {
   color: #e74c3c;
+}
+
+/* ── Admin Dashboard — Mobile ── */
+@media (max-width: 640px) {
+  .admin-page {
+    padding: 20px 16px 100px;
+    /* extra bottom padding clears the mobile bottom-nav bar */
+  }
+
+  .admin-card {
+    padding: 18px 16px;
+    border-radius: 16px;
+  }
+
+  .admin-card h2 {
+    font-size: 16px;
+    flex-wrap: wrap;
+  }
+
+  .admin-danger-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  /* The toggle switch has a fixed width and stays compact; only the button
+     variant (Force Sync, Rebuild) should grow to a full-width tap target. */
+  .admin-danger-row .admin-btn {
+    align-self: stretch;
+  }
+
+  .admin-save-footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .admin-save-btn {
+    justify-content: center;
+  }
+
+  .admin-directory-card {
+    max-height: 420px;
+  }
+
+  .admin-user-row {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 400px) {
+  .admin-page {
+    padding: 16px 12px 100px;
+  }
+
+  .admin-card {
+    padding: 14px 12px;
+  }
 }
 
 .att-spark .tooltip::before {
@@ -5170,6 +5232,37 @@ button:focus-visible {
   padding-bottom: 12px;
 }
 
+/* Entrance — panel opens occasionally, so a quiet cascade is earned.
+   Sections rise 8px with a 60ms stagger, capped at 4 steps. */
+.att-page>.att-head,
+.att-page>section {
+  animation: att-rise 380ms var(--ease-out-strong) both;
+}
+
+.att-page>*:nth-child(2) {
+  animation-delay: 40ms;
+}
+
+.att-page>*:nth-child(3) {
+  animation-delay: 100ms;
+}
+
+.att-page>*:nth-child(n+4) {
+  animation-delay: 160ms;
+}
+
+@keyframes att-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .att-head {
   display: flex;
   align-items: flex-end;
@@ -5311,6 +5404,9 @@ button:focus-visible {
 }
 
 .att-area-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: 10.5px;
   font-weight: 600;
   letter-spacing: .03em;
@@ -5319,11 +5415,22 @@ button:focus-visible {
   padding: 4px 8px;
   border-radius: 6px;
   text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
 }
 
 .att-area-chip-warn {
   background: rgba(245, 158, 11, 0.2);
   color: #FCD34D;
+}
+
+.att-area-chip-hi {
+  background: rgba(255, 255, 255, .12);
+  color: rgba(255, 255, 255, .85);
+}
+
+.att-area-chip-bad {
+  background: rgba(192, 57, 43, 0.22);
+  color: #FF8A80;
 }
 
 .att-flag {
@@ -5423,14 +5530,21 @@ button:focus-visible {
   border: none;
   border-radius: 12px;
   min-width: 0;
-  transition: transform .1s, filter .15s;
+  transition: transform 160ms var(--ease-out-strong), filter 150ms ease, box-shadow 220ms var(--ease-out-strong);
   overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 
-.att-row:hover {
-  filter: brightness(0.96);
+@media (hover: hover) and (pointer: fine) {
+  .att-row:hover {
+    filter: brightness(0.97);
+  }
+}
+
+/* Press feedback on the whole card, not just the header button */
+.att-row:has(.att-row-hd:not(:disabled):active) {
+  transform: scale(0.985);
 }
 
 .att-row-hd {
@@ -5471,6 +5585,7 @@ button:focus-visible {
   font-weight: 700;
   color: var(--text);
   font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
 }
 
 .ar-code {
@@ -5591,6 +5706,8 @@ button:focus-visible {
   flex: none;
   display: inline-flex;
   align-items: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
 }
 
 .att-skip-chip.skip-safe {
@@ -5609,20 +5726,19 @@ button:focus-visible {
   background: rgba(192, 57, 43, 0.15);
   color: #C0392B;
   box-shadow: inset 0 0 0 1px rgba(192, 57, 43, 0.4);
-  animation: skip-pulse 2s infinite;
+  animation: skip-pulse 3s ease-in-out infinite;
 }
 
+/* Breathe via ring glow, not opacity — text stays readable */
 @keyframes skip-pulse {
-  0% {
-    opacity: 1;
+
+  0%,
+  100% {
+    box-shadow: inset 0 0 0 1px rgba(192, 57, 43, 0.4), 0 0 0 0 rgba(192, 57, 43, 0.25);
   }
 
   50% {
-    opacity: 0.6;
-  }
-
-  100% {
-    opacity: 1;
+    box-shadow: inset 0 0 0 1px rgba(192, 57, 43, 0.55), 0 0 0 4px rgba(192, 57, 43, 0);
   }
 }
 
@@ -5661,13 +5777,13 @@ button:focus-visible {
 .att-bar-p {
   height: 100%;
   background: var(--live);
-  transition: width .5s cubic-bezier(.4, 0, .2, 1);
+  transition: width 450ms var(--ease-out-strong);
 }
 
 .att-bar-a {
   height: 100%;
   background: #C0392B;
-  transition: width .5s cubic-bezier(.4, 0, .2, 1);
+  transition: width 450ms var(--ease-out-strong);
 }
 
 .att-row-sub {
@@ -5696,27 +5812,16 @@ button:focus-visible {
   border-radius: 8px;
 }
 
-/* Open state */
+/* Open state — elevation ring instead of a layout-shifting margin pop */
 .att-row.att-row-open {
-  margin: 4px -6px;
-  border-radius: 12px;
-  filter: brightness(0.96);
-}
-
-.att-row.att-row-open+.att-row {
-  border-top: none;
-}
-
-@media (min-width: 768px) {
-  .att-row.att-row-open {
-    margin: 0;
-  }
+  filter: brightness(0.98);
+  box-shadow: 0 0 0 1.5px var(--border-hi), 0 14px 32px -20px rgba(21, 24, 43, .35);
 }
 
 .att-chev {
   color: var(--muted);
   flex: none;
-  transition: transform .22s ease;
+  transition: transform 240ms var(--ease-out-strong);
 }
 
 .att-chev.open {
@@ -5822,27 +5927,40 @@ button:focus-visible {
   font-style: italic;
 }
 
-/* Session edit list (expanded) */
-@keyframes att-slide-in {
-  from {
-    opacity: 0;
-    transform: translateY(-5px);
-  }
+/* Collapsible session editor — grid-rows keeps the height animation
+   interruptible (a keyframe would restart from zero on rapid toggling) */
+.att-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 280ms var(--ease-out-strong);
+}
 
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.att-collapse.open {
+  grid-template-rows: 1fr;
+}
+
+.att-collapse-in {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.att-collapse .att-edit-list {
+  opacity: 0;
+  transform: translateY(-6px);
+  transition: opacity 180ms ease, transform 280ms var(--ease-out-strong);
+}
+
+.att-collapse.open .att-edit-list {
+  opacity: 1;
+  transform: none;
+  transition: opacity 220ms ease 60ms, transform 280ms var(--ease-out-strong);
 }
 
 .att-edit-list {
-  margin-top: 8px;
-  padding-top: 9px;
-  border-top: 1px solid var(--border);
+  padding: 2px 14px 14px;
   display: flex;
   flex-direction: column;
   gap: 1px;
-  animation: att-slide-in .18s ease both;
 }
 
 .att-edit-row {
@@ -5905,8 +6023,10 @@ button:focus-visible {
   padding: 11px 8px;
 }
 
-.att-mark:hover {
-  filter: brightness(0.96);
+@media (hover: hover) and (pointer: fine) {
+  .att-mark:hover {
+    filter: brightness(0.97);
+  }
 }
 
 .att-mark-missed {
@@ -5959,32 +6079,46 @@ button:focus-visible {
   place-items: center;
   cursor: pointer;
   color: var(--muted);
-  transition: border-color .12s, color .12s, background .12s, transform .1s, box-shadow .12s;
+  transition: border-color 120ms ease, color 120ms ease, background 120ms ease, transform 140ms var(--ease-out-strong), box-shadow 140ms ease;
   box-shadow: 0 1px 3px rgba(21, 24, 43, .04);
-}
-
-.att-b:hover {
-  background: #fff;
-  box-shadow: 0 2px 6px rgba(21, 24, 43, .08);
+  touch-action: manipulation;
 }
 
 .att-b:active {
-  transform: scale(.9);
+  transform: scale(.92);
   box-shadow: none;
 }
 
-.att-b.present:hover,
+/* Selected state — works on touch too, so keep separate from :hover */
 .att-b.present.active {
   border-color: rgba(31, 169, 113, .3);
   color: var(--live);
   background: rgba(31, 169, 113, .10);
 }
 
-.att-b.absent:hover,
 .att-b.absent.active {
   border-color: rgba(192, 57, 43, .3);
   color: #C0392B;
   background: rgba(192, 57, 43, .09);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .att-b:hover {
+    background: #fff;
+    box-shadow: 0 2px 6px rgba(21, 24, 43, .08);
+  }
+
+  .att-b.present:hover {
+    border-color: rgba(31, 169, 113, .3);
+    color: var(--live);
+    background: rgba(31, 169, 113, .10);
+  }
+
+  .att-b.absent:hover {
+    border-color: rgba(192, 57, 43, .3);
+    color: #C0392B;
+    background: rgba(192, 57, 43, .09);
+  }
 }
 
 .att-b-sm {
@@ -6074,6 +6208,45 @@ button:focus-visible {
 .att-undo:hover {
   color: #C0392B;
   opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .att-page>.att-head,
+  .att-page>section {
+    animation-duration: 150ms;
+    animation-delay: 0ms !important;
+  }
+
+  @keyframes att-rise {
+    from {
+      opacity: 0;
+      transform: none;
+    }
+
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  .att-collapse {
+    transition-duration: 0ms;
+  }
+
+  .att-collapse .att-edit-list {
+    transform: none;
+    transition: opacity 150ms ease;
+  }
+
+  .att-skip-chip.skip-critical {
+    animation: none;
+  }
+
+  .att-row:has(.att-row-hd:not(:disabled):active),
+  .att-b:active {
+    transform: none;
+  }
 }
 
 .att-undo:active {
@@ -7075,6 +7248,22 @@ button:focus-visible {
   }
 }
 
+/* Feed-fetch variant — amber/orange to distinguish from the purple profile-check */
+.ob-sync-notice--feed {
+  background: rgba(234, 153, 51, 0.07);
+  border-color: rgba(234, 153, 51, 0.22);
+}
+.ob-sync-dot--feed {
+  background: #EA9933;
+  box-shadow: 0 0 0 0 rgba(234, 153, 51, 0.5);
+  animation: ob-sync-pulse-feed 1.4s ease-in-out infinite;
+}
+@keyframes ob-sync-pulse-feed {
+  0%   { box-shadow: 0 0 0 0   rgba(234, 153, 51, 0.5); }
+  70%  { box-shadow: 0 0 0 7px rgba(234, 153, 51, 0);   }
+  100% { box-shadow: 0 0 0 0   rgba(234, 153, 51, 0);   }
+}
+
 .ob-sync-title {
   display: block;
   font-size: 13px;
@@ -7662,6 +7851,28 @@ button:focus-visible {
   padding: 6px 0;
   justify-content: center;
   gap: 0;
+}
+
+/* IIM emblem watermark — the full logo SVG is used as an alpha mask so we can
+   tint it; the element's height crops away the wordmark below the emblem */
+.sb-brand-mark {
+  position: absolute;
+  right: -16px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 94px;
+  height: 68px;
+  background: linear-gradient(215deg, rgba(255, 255, 255, .13), rgba(255, 255, 255, .015) 80%);
+  -webkit-mask: url("/iim-emblem.svg") no-repeat top center / 94px auto;
+  mask: url("/iim-emblem.svg") no-repeat top center / 94px auto;
+  pointer-events: none;
+  user-select: none;
+  z-index: -1;
+  transition: opacity .3s ease;
+}
+
+.sidebar.collapsed .sb-brand-mark {
+  opacity: 0;
 }
 
 .sb-brand .logo {
@@ -11688,6 +11899,13 @@ button:focus-visible {
   font-size: 11px;
   color: var(--muted);
   align-items: center;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 400px) {
+  .cmd-footer {
+    gap: 10px;
+  }
 }
 
 .cmd-footer kbd {

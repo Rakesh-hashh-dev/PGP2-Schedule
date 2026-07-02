@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { SlidersHorizontal, ChevronDown, ChevronUp, Settings2 } from "lucide-react";
+import { SlidersHorizontal, ChevronDown, Settings2 } from "lucide-react";
 
 const AREA_LABELS = {
   "F&A":   "Finance",
@@ -46,7 +46,6 @@ export default function SubjectFilter({ legend, mine, setMine, sections = {}, se
   }, [mine, byArea, areas]);
 
   const isAll = mine.size === allCodes.length;
-  const isFiltered = !isAll;
 
   function selectArea(area) {
     setMine(activeArea === area ? new Set(allCodes) : new Set(byArea[area]));

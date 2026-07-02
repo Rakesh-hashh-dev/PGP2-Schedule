@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from "react";
 import { createPortal } from "react-dom";
-import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, ChevronsLeft, ChevronsRight, ChevronRight, ChevronLeft, Megaphone, BarChart2, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Lightbulb, Sparkles, Wand2, BellRing, CalendarDays } from "lucide-react";
+import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, ChevronsLeft, ChevronsRight, ChevronRight, ChevronLeft, Megaphone, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Sparkles, Wand2, BellRing, CalendarDays } from "lucide-react";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
 import SemSummary from "./components/SemSummary.jsx";
@@ -26,7 +26,7 @@ const CommandPalette = lazy(() => import("./components/CommandPalette.jsx"));
 const AssignmentsPanel = lazy(() => import("./components/AssignmentsPanel.jsx"));
 import { loadAttendance, saveAttendance, sessionKey, syncAttendanceFromCloud, pushMark } from "./lib/attendance.js";
 import { syncProfileFromCloud, pushProfile, pushReadState } from "./lib/profile.js";
-import { decodeSchedule, saveFriend, loadFriends, loadGroups, friendVisibleClasses, syncFriendsAndGroupsFromCloud, fetchFriendPings, clearFriendPings, pushFriendsToCloud, deleteAllFriendPings, removeFriendByCloudId, deleteFriendPing } from "./lib/friends.js";
+import { decodeSchedule, saveFriend, loadFriends, loadGroups, syncFriendsAndGroupsFromCloud, fetchFriendPings, pushFriendsToCloud, deleteAllFriendPings, removeFriendByCloudId, deleteFriendPing } from "./lib/friends.js";
 import { supabase } from "./lib/supabase.js";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
@@ -38,17 +38,6 @@ function UserAvatar({ user, size = 30 }) {
   const initials = `${user?.firstName?.[0] ?? ""}${user?.lastName?.[0] ?? ""}` || "?";
   if (user?.imageUrl) return <img src={user.imageUrl} alt="" className="user-avatar" style={{ width: size, height: size }} />;
   return <span className="user-avatar user-avatar-initials" style={{ width: size, height: size }}>{initials}</span>;
-}
-
-function weatherIcon(code) {
-  if (code === 0) return Sun;
-  if (code <= 3) return Cloud;
-  if (code <= 48) return CloudFog;
-  if (code <= 55) return CloudDrizzle;
-  if (code <= 67) return CloudRain;
-  if (code <= 77) return CloudSnow;
-  if (code <= 82) return CloudRain;
-  return CloudLightning;
 }
 
 async function checkAppVersion(onUpdateAvailable) {
@@ -67,14 +56,6 @@ const USER_SCOPED_KEYS = [
   "pgp2.setup", "pgp2-notif-seen", "pgp2.read-ping-ids", "pgp2.read-change-keys",
   "pgp2.seen-recv-groups", "pgp2.recv-groups-count", "pgp2.sidebar", VIEW_KEY,
 ];
-function clearStaleUserData(newUserId) {
-  const lastId = localStorage.getItem(LAST_USER_KEY);
-  if (lastId && lastId !== newUserId) {
-    USER_SCOPED_KEYS.forEach(k => { try { localStorage.removeItem(k); } catch { } });
-  }
-  try { localStorage.setItem(LAST_USER_KEY, newUserId); } catch { }
-}
-
 const SETUP_KEY = "pgp2.setup";
 function readSetup() {
   try {
@@ -182,13 +163,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     }
   }, [view, showAdminUI]);
   const [weekOffset, setWeekOffset] = useState(0);
-  const [format12, setFormat12] = useState(() => {
-    try { return localStorage.getItem("pgp2.format12") !== "false"; } catch { return true; }
-  });
-  const toggleFormat12 = () => setFormat12(p => {
-    try { localStorage.setItem("pgp2.format12", !p ? "true" : "false"); } catch { }
-    return !p;
-  });
   const [mine, setMine] = useState(() => { const s = readSetup(); return s?.courses ? new Set(Object.keys(s.courses)) : null; });
   const [enrolled, setEnrolled] = useState(() => { const s = readSetup(); return s?.courses ?? null; });
   const [setup, setSetup] = useState(() => readSetup());
@@ -198,7 +172,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [syncedAt, setSyncedAt] = useState(new Date());
   const [notifOpen, setNotifOpen] = useState(false);
   const notifOpenedAt = useRef(0);
-  const [lastSeenTs, setLastSeenTs] = useState(() => loadLastSeen());
+  const [, setLastSeenTs] = useState(() => loadLastSeen());
   const [readPingIds, setReadPingIds] = useState(() => loadReadPingIds());
   const [readChangeKeys, setReadChangeKeys] = useState(() => loadReadChangeKeys());
   const [swUpdateFn, setSwUpdateFn] = useState(null);
@@ -227,7 +201,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [friends, setFriends] = useState(() => loadFriends());
   const [groups, setGroups] = useState(() => loadGroups());
   const [compareTarget, setCompareTarget] = useState(null); // { mode, friendData?, groupData? }
-  const [friendToast, setFriendToast] = useState(null);
+  const [, setFriendToast] = useState(null);
   const [jumpToDate, setJumpToDate] = useState(null);
 
   // Received groups badge: track how many received groups were seen when Friends tab was last opened
@@ -236,7 +210,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     try { return new Set(JSON.parse(localStorage.getItem("pgp2.seen-recv-groups") || "[]")); }
     catch { return new Set(); }
   });
-  const [seenRecvCount, setSeenRecvCount] = useState(() => {
+  const [, setSeenRecvCount] = useState(() => {
     try { return parseInt(localStorage.getItem("pgp2.recv-groups-count") || "0", 10); } catch { return 0; }
   });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
@@ -283,7 +257,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       }
     }, 100);
     return () => clearTimeout(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [tabsReady]);
 
   const [cmdOpen, setCmdOpen] = useState(false);
@@ -584,7 +558,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   useEffect(() => {
     if (!isSignedIn) return;
     checkAppVersion(triggerHardRefresh);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [isSignedIn]);
 
   // Page visibility: re-fetch schedule when user returns to tab after 5+ minutes away,
@@ -609,7 +583,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
   useEffect(() => {
     const hour = now.getHours();
-    let timeTheme = "theme-afternoon";
+    let timeTheme;
     if (hour >= 5 && hour < 11) timeTheme = "theme-morning";
     else if (hour >= 11 && hour < 17) timeTheme = "theme-afternoon";
     else if (hour >= 17 && hour < 20) timeTheme = "theme-evening";
@@ -619,7 +593,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     document.body.classList.add(timeTheme);
   }, [now]);
 
-  // Auto-sync section overrides from live sheet
+  // Auto-sync section overrides from live sheet.
+  // Also adds new courses from the sheet's STUDENTS roster that the user
+  // wasn't enrolled in yet (e.g. WAI added after initial onboarding).
   useEffect(() => {
     const students = scheduleData?.STUDENTS;
     const email = user?.primaryEmailAddress?.emailAddress?.toLowerCase();
@@ -632,7 +608,11 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         if (overrides) {
           let changed = false;
           const nextEnrolled = { ...enrolled };
-          for (const [code, section] of Object.entries(overrides)) {
+          for (const [code, rawSection] of Object.entries(overrides)) {
+            // Normalise whatever value the sheet uses → A | B | Single
+            const s = String(rawSection).trim();
+            const section = s === "A" || s === "B" ? s : "Single";
+            // Add the course if missing, OR update the section if it changed
             if (nextEnrolled[code] !== section) {
               nextEnrolled[code] = section;
               changed = true;
@@ -675,11 +655,11 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         return;
       }
       // Build the same shape handleOnboardingDone expects: { code: "A" | "B" | "Single" }
-      // Drop anything that isn't a real, joinable section (e.g. "Audit").
+      // Normalise any section value the sheet uses — anything other than A/B maps to Single.
       const courses = {};
-      Object.entries(allocation).forEach(([code, section]) => {
-        const s = String(section).trim();
-        if (s === "A" || s === "B" || s === "Single") courses[code] = s;
+      Object.entries(allocation).forEach(([code, rawSection]) => {
+        const s = String(rawSection).trim();
+        courses[code] = s === "A" || s === "B" ? s : "Single";
       });
       if (Object.keys(courses).length > 0) {
         setPrefillPicked(courses);
@@ -688,6 +668,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     });
     return () => { cancelled = true; };
   }, [scheduleData, isSignedIn, allocationApplied, cloudChecked, setup, userId, user]);
+
+  // True while cloudChecked but STUDENTS hasn't arrived yet (live feed still in-flight).
+  // Used to show a "Fetching timetable allocation…" notice in Onboarding.
+  const waitingForAllocation = cloudChecked && !setup && !readSetup() && !scheduleData?.STUDENTS;
 
   // Apply Admin Overrides (Term data & Cancellations)
   const sd = useMemo(() => {
@@ -877,7 +861,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const unreadChangeCount = filteredChanges.filter(c => !readChangeKeys.has(changeKey(c))).length;
   const hasUnread = unreadChangeCount > 0 || unreadFriendCount > 0;
   const receivedGroupCount = groups.filter(g => g.isReceived).length;
-  const hasNewGroups = receivedGroupCount > seenRecvCount;
 
   function markGroupsSeen() {
     setSeenRecvCount(receivedGroupCount);
@@ -1001,7 +984,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       <p className="loading-sub">Fetching your class schedule</p>
     </main>
   );
-  if (!setup) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} termLabel={termLabel} onPullFromSheet={buildAllocationFromSheet} prefill={prefillPicked} cloudChecked={cloudChecked} />;
+  if (!setup) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} termLabel={termLabel} onPullFromSheet={buildAllocationFromSheet} prefill={prefillPicked} cloudChecked={cloudChecked} waitingForAllocation={waitingForAllocation} />;
   if (showSetupEdit) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} initialPicked={enrolled} onCancel={() => setShowSetupEdit(false)} termLabel={termLabel} onPullFromSheet={buildAllocationFromSheet} />;
 
   // Banned User Lockout
@@ -1108,6 +1091,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       {/* ── Desktop Sidebar ── */}
       <aside className={`sidebar${sidebarCollapsed ? " collapsed" : ""}`}>
         <div className="sb-brand">
+          <div className="sb-brand-mark" aria-hidden="true" />
           <div className="logo"><img src="/termflow-icon.svg" alt="TermFlow" width={20} height={20} /></div>
           <div className="sb-brand-text">
             <div className="sb-brand-name">TermFlow</div>

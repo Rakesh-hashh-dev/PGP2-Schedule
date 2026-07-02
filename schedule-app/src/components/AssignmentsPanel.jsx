@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { CheckCircle2, Circle, Plus, Trash2, X, ChevronDown, ChevronUp } from "lucide-react";
 import { loadAssignments, pushAssignments } from "../lib/assignments.js";
 
@@ -35,6 +35,34 @@ const COLORS = [
 function getCourseColor(code) {
   const hash = Array.from(code).reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
   return COLORS[hash % COLORS.length];
+}
+
+function StatCard({ val, label, colorClass, isMuted, tooltipItems, emptyMsg }) {
+  const isEmpty = val === 0;
+  return (
+    <div className="assign-stat">
+      <div className={`assign-stat-val ${colorClass} ${isMuted && isEmpty ? 'stat-muted' : ''}`}>
+        {val}
+      </div>
+      <div className="assign-stat-label">{label}</div>
+      <div className="assign-stat-tooltip">
+        <div className="ast-header">{val} {label.toLowerCase()}</div>
+        {isEmpty || tooltipItems.length === 0 ? (
+          <div className="ast-empty">{emptyMsg || 'Nothing here 🎉'}</div>
+        ) : (
+          <ul className="ast-list">
+            {tooltipItems.map((item, i) => (
+              <li key={i} className="ast-item">
+                <span className={`ast-dot ${colorClass}`} />
+                <span className="ast-name">{item.name}</span>
+                <span className="ast-count">{item.count}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default function AssignmentsPanel({ enrolled, legend, userId }) {
@@ -156,34 +184,6 @@ export default function AssignmentsPanel({ enrolled, legend, userId }) {
       setModalOpen(false);
     }
   };
-
-  function StatCard({ val, label, colorClass, isMuted, tooltipItems, emptyMsg }) {
-    const isEmpty = val === 0;
-    return (
-      <div className="assign-stat">
-        <div className={`assign-stat-val ${colorClass} ${isMuted && isEmpty ? 'stat-muted' : ''}`}>
-          {val}
-        </div>
-        <div className="assign-stat-label">{label}</div>
-        <div className="assign-stat-tooltip">
-          <div className="ast-header">{val} {label.toLowerCase()}</div>
-          {isEmpty || tooltipItems.length === 0 ? (
-            <div className="ast-empty">{emptyMsg || 'Nothing here 🎉'}</div>
-          ) : (
-            <ul className="ast-list">
-              {tooltipItems.map((item, i) => (
-                <li key={i} className="ast-item">
-                  <span className={`ast-dot ${colorClass}`} />
-                  <span className="ast-name">{item.name}</span>
-                  <span className="ast-count">{item.count}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="assign-page">
