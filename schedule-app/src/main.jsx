@@ -27,6 +27,20 @@ const updateSW = registerSW({
   },
 });
 
+// Chrome/Edge/Android suppress their native install UI by default once we
+// call preventDefault — we stash the event and let App.jsx trigger it later
+// from a custom banner instead.
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  window.__pwaInstallPrompt = e;
+  window.dispatchEvent(new CustomEvent("pwa-install-available"));
+});
+
+window.addEventListener("appinstalled", () => {
+  window.__pwaInstallPrompt = null;
+  window.dispatchEvent(new CustomEvent("pwa-installed"));
+});
+
 const root = ReactDOM.createRoot(document.getElementById("root"));
 
 root.render(

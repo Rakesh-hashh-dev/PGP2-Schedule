@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from "react";
 import { createPortal } from "react-dom";
-import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, ChevronsLeft, ChevronsRight, ChevronRight, ChevronLeft, Megaphone, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Sparkles, Wand2, BellRing, CalendarDays, ExternalLink } from "lucide-react";
+import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, ChevronsLeft, ChevronsRight, ChevronRight, ChevronLeft, Megaphone, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Sparkles, Wand2, BellRing, CalendarDays, ExternalLink, Download, Share, WifiOff, Zap } from "lucide-react";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
 import SemSummary from "./components/SemSummary.jsx";
@@ -203,7 +203,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [readPingIds, setReadPingIds] = useState(() => loadReadPingIds());
   const [readChangeKeys, setReadChangeKeys] = useState(() => loadReadChangeKeys());
   const [swUpdateFn, setSwUpdateFn] = useState(null);
-  
+  const [installPromptEvent, setInstallPromptEvent] = useState(null);
+  const [showIOSInstallHint, setShowIOSInstallHint] = useState(false);
+  const [installBannerClosing, setInstallBannerClosing] = useState(false);
+
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
@@ -589,6 +592,84 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     window.addEventListener("sw-update-available", handler);
     return () => window.removeEventListener("sw-update-available", handler);
   }, []);
+
+  // Animate the install banner out before unmounting it.
+  const closeInstallBanner = () => {
+    setInstallBannerClosing(true);
+    setTimeout(() => {
+      setInstallPromptEvent(null);
+      setShowIOSInstallHint(false);
+      setInstallBannerClosing(false);
+    }, 300);
+  };
+
+  useEffect(() => {
+    const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+    if (isStandalone) return;
+
+    const DAY = 1000 * 60 * 60 * 24;
+    const DISMISS_KEY = "pgp2.install-prompt-dismissed-at";
+    // Respect a previous dismissal: an explicit ✕ backs off for 14 days, while
+    // simply ignoring it (auto-hide) backs off for a shorter 3 days.
+    try {
+      const raw = localStorage.getItem(DISMISS_KEY);
+      const parsed = raw && raw.startsWith("{") ? JSON.parse(raw) : { at: parseInt(raw || "0", 10), hard: true };
+      const cooldown = parsed.hard ? DAY * 14 : DAY * 3;
+      if (parsed.at && Date.now() - parsed.at < cooldown) return;
+    } catch { }
+
+    const ua = window.navigator.userAgent;
+    const isIOS = /iphone|ipad|ipod/i.test(ua);
+    const isSafari = /safari/i.test(ua) && !/crios|fxios|edgios/i.test(ua);
+    const iosHint = isIOS && isSafari;
+
+    let showTimer, hideTimer;
+
+    const autoHide = () => {
+      // Soft dismissal: remembered for 3 days so we don't nag every reload,
+      // but re-surface sooner than an explicit dismissal.
+      try { localStorage.setItem(DISMISS_KEY, JSON.stringify({ at: Date.now(), hard: false })); } catch { }
+      closeInstallBanner();
+    };
+
+    const reveal = () => {
+      if (window.__pwaInstallPrompt) setInstallPromptEvent(window.__pwaInstallPrompt);
+      else if (iosHint) setShowIOSInstallHint(true);
+      else return;
+      // Don't linger on screen forever — slide away after 15s.
+      hideTimer = setTimeout(autoHide, 15000);
+    };
+
+    // Let the user settle into the app before pitching an install (8s delay).
+    const scheduleReveal = () => { if (!showTimer) showTimer = setTimeout(reveal, 8000); };
+
+    if (window.__pwaInstallPrompt || iosHint) scheduleReveal();
+    const onAvailable = () => scheduleReveal();
+    const onInstalled = () => { setInstallPromptEvent(null); setShowIOSInstallHint(false); };
+    window.addEventListener("pwa-install-available", onAvailable);
+    window.addEventListener("pwa-installed", onInstalled);
+
+    return () => {
+      clearTimeout(showTimer);
+      clearTimeout(hideTimer);
+      window.removeEventListener("pwa-install-available", onAvailable);
+      window.removeEventListener("pwa-installed", onInstalled);
+    };
+  }, []);
+
+  const dismissInstallPrompt = () => {
+    // Explicit ✕ — a clear "not now", remembered for 14 days.
+    try { localStorage.setItem("pgp2.install-prompt-dismissed-at", JSON.stringify({ at: Date.now(), hard: true })); } catch { }
+    closeInstallBanner();
+  };
+
+  const handleInstallClick = async () => {
+    if (!installPromptEvent) return;
+    installPromptEvent.prompt();
+    await installPromptEvent.userChoice;
+    window.__pwaInstallPrompt = null;
+    closeInstallBanner();
+  };
 
   // Version-check fallback: compare /sw.js hash to localStorage so updates are
   // detected even when the SW lifecycle doesn't trigger onNeedRefresh reliably.
@@ -1157,17 +1238,21 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             </div>
             <div className="sw-update-badge">New Update</div>
             {(() => {
-              const prompt = sysConfig?.flags?.updatePrompt || {
-                title: "TermFlow just got better",
-                desc: "A fresh version is cached and ready to go. Refresh now for the latest features and bug fixes.",
-                highlights: ["Faster load times", "New features & improvements", "Bug fixes & stability"]
+              const cfg = sysConfig?.flags?.updatePrompt || {};
+              const highlights = (cfg.highlights && cfg.highlights.length)
+                ? cfg.highlights
+                : ["Faster load times", "New features & improvements", "Bug fixes & stability"];
+              const prompt = {
+                title: cfg.title || "TermFlow just got better",
+                desc: cfg.desc || "A fresh version is cached and ready to go. Refresh now for the latest features and bug fixes.",
+                highlights,
               };
               return (
                 <>
                   <h3 className="sw-update-title" id="sw-update-title">{prompt.title}</h3>
                   <p className="sw-update-desc">{prompt.desc}</p>
                   <ul className="sw-update-highlights">
-                    {(prompt.highlights || []).map((h, i) => (
+                    {prompt.highlights.map((h, i) => (
                       <li key={i}><span className="sw-update-check">✦</span> {h}</li>
                     ))}
                   </ul>
@@ -1194,6 +1279,39 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       {friendToast && (
         <div className="app-toast" role="status">
           <Users size={15} /> {friendToast}
+        </div>
+      )}
+
+      {/* ── Install App banner ── */}
+      {(installPromptEvent || showIOSInstallHint) && (
+        <div className={`install-banner${installBannerClosing ? " install-banner--closing" : ""}`} role="complementary" aria-label="Install TermFlow app">
+          <div className="install-banner-icon">
+            <Download size={18} strokeWidth={2.4} />
+          </div>
+          <div className="install-banner-text">
+            <div className="install-banner-title">Install TermFlow</div>
+            <div className="install-banner-desc">
+              {installPromptEvent
+                ? "Add it to your home screen for offline access and faster loading."
+                : <>Tap <Share size={12} style={{ verticalAlign: "-2px" }} /> Share, then "Add to Home Screen".</>}
+            </div>
+            {installPromptEvent && (
+              <div className="install-banner-perks">
+                <span className="install-banner-perk"><WifiOff size={11} /> Works offline</span>
+                <span className="install-banner-perk"><Zap size={11} /> Faster launch</span>
+              </div>
+            )}
+          </div>
+          <div className="install-banner-actions">
+            {installPromptEvent && (
+              <button className="install-banner-btn" onClick={handleInstallClick}>
+                <span>Install</span>
+              </button>
+            )}
+            <button className="install-banner-dismiss" onClick={dismissInstallPrompt} aria-label="Dismiss">
+              <X size={16} />
+            </button>
+          </div>
         </div>
       )}
 
@@ -1657,8 +1775,11 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 onViewChanges={() => { setView("notifications"); setCompareTarget(null); }}
               />
             )}
-            {/* Compact "now" banner on Tomorrow tab so user knows what's happening today */}
-            {view === "tomorrow" && (current || next) && (
+            {/* Compact "now" banner on Tomorrow tab so user knows what's happening today.
+                `next` is the next class on ANY future date, so once today's classes are
+                done it can point at tomorrow's (or a later day's) class — only show it
+                here when it's actually still today's. */}
+            {view === "tomorrow" && (current || (next && next.date === todayISO)) && (
               <button
                 type="button"
                 className={`now-banner${current ? "" : " is-next"}`}

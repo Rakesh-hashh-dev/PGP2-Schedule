@@ -8869,6 +8869,246 @@ body.premium-mode .rail>li:nth-child(10) {
   }
 }
 
+/* ── Install App banner ── */
+.install-banner {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: 84px;
+  z-index: 10001;
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  background: color-mix(in srgb, var(--card) 88%, transparent);
+  backdrop-filter: saturate(1.4) blur(14px);
+  -webkit-backdrop-filter: saturate(1.4) blur(14px);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 15px 15px 15px 16px;
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, .5) inset,
+    0 18px 44px -18px rgba(21, 24, 43, .42),
+    0 4px 12px -8px rgba(21, 24, 43, .25);
+  animation: install-banner-in .5s var(--ease-out-strong) both;
+  overflow: hidden;
+}
+
+.install-banner--closing {
+  animation: install-banner-out .3s var(--ease-in-out-strong) both;
+  pointer-events: none;
+}
+
+/* faint brand wash bleeding from the icon corner */
+.install-banner::before {
+  content: "";
+  position: absolute;
+  top: -40px;
+  left: -30px;
+  width: 140px;
+  height: 140px;
+  background: radial-gradient(circle, var(--violet-dim), transparent 70%);
+  pointer-events: none;
+}
+
+.install-banner-icon {
+  position: relative;
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  margin-top: 1px;
+  background: linear-gradient(145deg, #7C6BE0 0%, var(--violet) 45%, #4B3FB0 100%);
+  box-shadow:
+    0 1px 1px rgba(255, 255, 255, .35) inset,
+    0 8px 18px -6px rgba(109, 91, 208, .6);
+  animation: install-icon-float 4.5s ease-in-out infinite;
+}
+
+/* soft glossy highlight on the icon tile */
+.install-banner-icon::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .28), transparent 55%);
+  pointer-events: none;
+}
+
+.install-banner-text {
+  min-width: 0;
+  flex: 1;
+  padding-top: 1px;
+}
+
+.install-banner-title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--text);
+}
+
+.install-banner-desc {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 3px;
+  line-height: 1.45;
+}
+
+.install-banner-perks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.install-banner-perk {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--violet);
+  background: var(--violet-dim);
+  padding: 2px 8px 2px 6px;
+  border-radius: 99px;
+  white-space: nowrap;
+}
+
+.install-banner-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.install-banner-btn {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(180deg, #2A2E48 0%, var(--ink) 100%);
+  color: #fff;
+  border: none;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.1px;
+  padding: 9px 16px;
+  border-radius: 99px;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px -4px rgba(21, 24, 43, .5), 0 1px 0 rgba(255, 255, 255, .12) inset;
+  transition: transform .16s var(--ease-out-strong), box-shadow .2s ease, filter .15s ease;
+}
+
+.install-banner-btn > span {
+  position: relative;
+  z-index: 1;
+}
+
+/* light sweep on hover */
+.install-banner-btn::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -60%;
+  width: 45%;
+  height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .35), transparent);
+  transform: skewX(-18deg);
+  transition: left .55s var(--ease-out-strong);
+}
+
+.install-banner-btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+  box-shadow: 0 8px 20px -6px rgba(21, 24, 43, .55), 0 1px 0 rgba(255, 255, 255, .15) inset;
+}
+
+.install-banner-btn:hover::before {
+  left: 120%;
+}
+
+.install-banner-btn:active {
+  transform: translateY(0) scale(.97);
+}
+
+.install-banner-btn:focus-visible,
+.install-banner-dismiss:focus-visible {
+  outline: 2px solid var(--violet);
+  outline-offset: 2px;
+}
+
+.install-banner-dismiss {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  transition: background .15s ease, color .15s ease, transform .15s var(--ease-out-strong);
+}
+
+.install-banner-dismiss:hover {
+  background: var(--surface);
+  color: var(--text);
+  transform: rotate(90deg);
+}
+
+@media (min-width: 768px) {
+  .install-banner {
+    bottom: 32px;
+    left: auto;
+    right: 32px;
+    width: 372px;
+  }
+}
+
+@keyframes install-banner-in {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes install-banner-out {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(12px) scale(.96);
+  }
+}
+
+@keyframes install-icon-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .install-banner,
+  .install-banner--closing,
+  .install-banner-icon {
+    animation: none;
+  }
+  .install-banner-btn,
+  .install-banner-btn::before,
+  .install-banner-dismiss {
+    transition: none;
+  }
+  .install-banner-dismiss:hover {
+    transform: none;
+  }
+}
+
 /* ── Skip what-if hint (Timeline rows) ── */
 .skip-hint {
   font-size: 10.5px;
