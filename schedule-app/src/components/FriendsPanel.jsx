@@ -653,21 +653,22 @@ export default function FriendsPanel({
           <span className="fr-friend-name">{f.name}</span>
           <div className="fr-friend-meta-row">
             <span className="fr-friend-meta">{fCourseCount} course{fCourseCount !== 1 ? "s" : ""}</span>
-            {status && (
-              <span className={`fr-friend-status fr-friend-status-${status}`}>
-                <span className="fr-friend-status-dot" />
-                {status === "free" ? "Free now" : "In class"}
-              </span>
-            )}
           </div>
+          {status && (
+            <span className={`fr-friend-status fr-friend-status-${status}`}>
+              <span className="fr-friend-status-dot" />
+              {status === "free" ? "Free now" : "In class"}
+            </span>
+          )}
         </div>
         <div className="fr-friend-actions">
           <button className="fr-btn fr-btn-compare" onClick={() => onCompare(f)}>
             Compare <ArrowRight size={13} />
           </button>
-          <button 
-            className={`fr-btn fr-btn-icon ${f.isFavourite ? 'favourite-active' : ''}`} 
-            onClick={(e) => handleToggleFavourite(e, f)} 
+          <div className="fr-friend-icon-group">
+          <button
+            className={`fr-btn fr-btn-icon ${f.isFavourite ? 'favourite-active' : ''}`}
+            onClick={(e) => handleToggleFavourite(e, f)}
             aria-label={f.isFavourite ? "Remove from favourites" : "Add to favourites"}
             title={f.isFavourite ? "Remove from favourites" : "Add to favourites"}
           >
@@ -687,6 +688,7 @@ export default function FriendsPanel({
           <button className="fr-btn fr-btn-icon fr-btn-delete" onClick={() => handleRemoveFriend(f.id)} aria-label="Remove friend">
             <Trash2 size={14} />
           </button>
+          </div>
         </div>
       </div>
     );

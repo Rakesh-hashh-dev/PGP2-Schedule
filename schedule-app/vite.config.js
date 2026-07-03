@@ -26,7 +26,9 @@ export default defineConfig({
       devOptions: { enabled: true },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,webp,jpg}'],
-        globIgnores: ['**/*.unused.*'],
+        globIgnores: ['**/*.unused.*', '**/push-sw.js'],
+        // Web Push handlers live in public/push-sw.js (imported, not precached)
+        importScripts: ['push-sw.js'],
         runtimeCaching: [
           {
             // Google Sheets feed — network-first, 1h cache, 5s timeout before stale

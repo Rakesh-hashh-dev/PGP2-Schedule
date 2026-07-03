@@ -31,6 +31,13 @@ function normalizeSingleSection(c) {
   return c;
 }
 
+// The source sheet pads faculty cells with runs of whitespace (spreadsheet
+// column alignment) — collapse to single spaces so it renders cleanly.
+function cleanFaculty(f) {
+  if (!f) return f;
+  return f.replace(/\s+/g, " ").replace(/\s*&\s*/g, " & ").trim();
+}
+
 function withAreas(data) {
   const legend = {};
   for (const code in data.LEGEND) {
@@ -42,6 +49,7 @@ function withAreas(data) {
     .map((c) => ({
       ...c,
       area: c.code ? (AREA[c.code] || "Other") : "",
+      faculty: cleanFaculty(c.faculty),
     }));
   // Preserve static fields (like number) that the live feed may omit
   const term = data.TERM ? { number: TERM.number, ...data.TERM } : data.TERM;

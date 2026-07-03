@@ -48,6 +48,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
   const [filterCode, setFilterCode] = useState(null);
   const [showAllClasses, setShowAllClasses] = useState(false);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
+  const [dateModalOpen, setDateModalOpen] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [viewMode, setViewMode] = useState("list");
   const [calWeek, setCalWeek] = useState(() => getWeekStart(TODAY));
@@ -268,57 +269,69 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
           {filterCode ? `Filter: ${filterCode}` : (!showAllClasses ? "Filter: My Schedule" : "Filter: All Subjects")}
         </button>
 
-        <div style={{ position: "relative", display: "inline-block" }}>
-          <div style={{
+        <button
+          style={{
             display: "flex", alignItems: "center", gap: "6px",
             background: "var(--card)", padding: "8px 16px",
             borderRadius: "99px", border: "1px solid var(--border)",
             fontSize: "13px", fontWeight: "600", color: "var(--text)",
-            boxShadow: "0 1px 2px rgba(0,0,0,0.03)", pointerEvents: "none"
-          }}>
-            <Calendar size={15} /> Select Date
-          </div>
-          <input
-            type="date"
-            onClick={(e) => {
-              try {
-                if (e.currentTarget.showPicker) e.currentTarget.showPicker();
-              } catch (err) {
-                // Ignore if showPicker fails (e.g. cross-origin iframe issues in dev)
-              }
-            }}
-            onChange={(e) => {
-              const targetDate = e.target.value;
-              if (!targetDate) return;
-              
-              if (viewMode === "list") {
-                let el = document.getElementById(`day-${targetDate}`);
-                if (!el) {
-                  const classDates = grouped.filter(g => g.type === "day").map(g => g.date);
-                  const nextDate = classDates.find(d => d >= targetDate);
-                  if (nextDate) el = document.getElementById(`day-${nextDate}`);
-                }
-                if (el) {
-                  const offsetPosition = el.getBoundingClientRect().top + window.pageYOffset - 100;
-                  window.scrollTo({ top: offsetPosition, behavior: "smooth" });
-                } else {
-                  alert("There are no upcoming classes from the selected date.");
-                }
-              } else if (viewMode === "calendar") {
-                setCalWeek(getWeekStart(targetDate));
-              } else if (viewMode === "month") {
-                const [Y, M] = targetDate.split("-").map(Number);
-                setCalMonth({ year: Y, month: M - 1 });
-                setSelectedDate(targetDate);
-              }
-              
-              e.target.value = "";
-            }}
-            title="Jump to specific date"
-            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer" }}
-          />
-        </div>
+            boxShadow: "0 1px 2px rgba(0,0,0,0.03)", cursor: "pointer"
+          }}
+          onClick={() => setDateModalOpen(true)}
+        >
+          <Calendar size={15} /> Select Date
+        </button>
       </div>
+
+      {/* Date Jump Modal */}
+      {dateModalOpen && (
+        <div className="filter-modal-overlay" onClick={() => setDateModalOpen(false)}>
+          <div className="filter-modal-sheet" onClick={e => e.stopPropagation()}>
+            <div className="filter-modal-header">
+              <h3>Jump to Date</h3>
+              <button onClick={() => setDateModalOpen(false)}><X size={18} /></button>
+            </div>
+            <div className="filter-modal-scroll" style={{ padding: "20px" }}>
+              <input
+                type="date"
+                autoFocus
+                onChange={(e) => {
+                  const targetDate = e.target.value;
+                  if (!targetDate) return;
+
+                  if (viewMode === "list") {
+                    let el = document.getElementById(`day-${targetDate}`);
+                    if (!el) {
+                      const classDates = grouped.filter(g => g.type === "day").map(g => g.date);
+                      const nextDate = classDates.find(d => d >= targetDate);
+                      if (nextDate) el = document.getElementById(`day-${nextDate}`);
+                    }
+                    if (el) {
+                      const offsetPosition = el.getBoundingClientRect().top + window.pageYOffset - 100;
+                      window.scrollTo({ top: offsetPosition, behavior: "smooth" });
+                    } else {
+                      alert("There are no upcoming classes from the selected date.");
+                    }
+                  } else if (viewMode === "calendar") {
+                    setCalWeek(getWeekStart(targetDate));
+                  } else if (viewMode === "month") {
+                    const [Y, M] = targetDate.split("-").map(Number);
+                    setCalMonth({ year: Y, month: M - 1 });
+                    setSelectedDate(targetDate);
+                  }
+
+                  setDateModalOpen(false);
+                }}
+                style={{
+                  width: "100%", padding: "12px 14px", fontSize: "15px",
+                  borderRadius: "10px", border: "1px solid var(--border)",
+                  background: "var(--bg)", color: "var(--text)", fontFamily: "var(--body)"
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filter Modal */}
       {filterModalOpen && (
@@ -356,7 +369,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                     <button
                       key={code}
                       className={`fs-chip ${filterCode === code ? "fs-chip-on" : ""}`}
-                      onClick={() => { setFilterCode(filterCode === code ? null : code); setShowAllClasses(true); }}
+                      onClick={() => { setFilterCode(filterCode === code ? null : code); }}
                       style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
                     >
                       {code}

@@ -283,9 +283,9 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
                     )}
                     {canExpand && <ChevronDown size={14} className={`att-chev${open ? " open" : ""}`} />}
                   </div>
-                  <div className="att-row-sub" style={{ marginTop: 4, display: 'flex', gap: 12 }}>
-                    <span>{c.present}/{c.present + c.absent} attended</span>
-                    <span style={{ opacity: 0.6 }}>{c.totalScheduled} total classes</span>
+                  <div className="att-row-sub" style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', columnGap: 12, rowGap: 4 }}>
+                    <span style={{ whiteSpace: 'nowrap' }}>{c.present}/{c.present + c.absent} attended</span>
+                    <span style={{ opacity: 0.6, whiteSpace: 'nowrap' }}>{c.totalScheduled} total classes</span>
                   </div>
                   <div className="att-bar" style={{ marginTop: 8, marginBottom: 0 }}>
                     {c.present > 0 && <div className="att-bar-p" style={{ width: `${(c.present / c.total * 100).toFixed(1)}%` }} />}

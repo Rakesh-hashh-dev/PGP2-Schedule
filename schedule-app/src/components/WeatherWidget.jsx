@@ -1,6 +1,6 @@
 import { Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog } from "lucide-react";
 
-function wIcon(code) {
+export function wIcon(code) {
   if (code === 0) return { icon: Sun, color: "#F59E0B" }; // Amber
   if (code <= 3) return { icon: Cloud, color: "#9CA3AF" }; // Gray
   if (code <= 48) return { icon: CloudFog, color: "#94A3B8" }; // Slate

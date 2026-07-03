@@ -215,7 +215,7 @@
   border-radius: 99px;
 }
 
-@media (max-width: 650px) {
+@media (max-width: 1200px) {
   /* mobile assign-head override removed for consistency */
   .assign-sub {
       font-size: 13.5px;
@@ -255,12 +255,12 @@
 /* Subject Grid */
 .assign-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr));
   gap: 24px;
   align-items: start;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1200px) {
   .assign-grid {
       grid-template-columns: 1fr;
     }
@@ -419,7 +419,7 @@
   flex-shrink: 0;
 }
 
-@media (max-width: 650px) {
+@media (max-width: 1200px) {
   .assign-card-header {
       padding: 14px 16px;
     }

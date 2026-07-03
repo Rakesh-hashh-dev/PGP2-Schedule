@@ -59,13 +59,13 @@ overflow:hidden;
 
 background:
 radial-gradient(circle at top right,
-rgba(124,58,237,.18),
+var(--violet-dim),
 transparent 45%),
 linear-gradient(
 135deg,
-#10121f 0%,
+var(--ink) 0%,
 #14172a 55%,
-#17142c 100%
+#111322 100%
 );
 
 border-radius:24px;
@@ -89,8 +89,9 @@ height:450px;
 
 background:
 radial-gradient(circle,
-rgba(124,58,237,.35),
+var(--violet),
 transparent 72%);
+opacity: 0.35;
 
 filter:blur(55px);
 
@@ -122,24 +123,24 @@ stroke-linecap:round;
 
 ``` css
 .line1{
-stroke:#7C3AED;
+stroke:var(--violet);
 stroke-width:2.5;
 opacity:.45;
-filter:drop-shadow(0 0 12px rgba(124,58,237,.7));
+filter:drop-shadow(0 0 12px var(--violet));
 }
 
 .line2{
-stroke:#8B5CF6;
+stroke:var(--blue);
 stroke-width:1.8;
 opacity:.25;
-filter:drop-shadow(0 0 10px rgba(139,92,246,.45));
+filter:drop-shadow(0 0 10px var(--blue));
 }
 
 .line3{
-stroke:#6D28D9;
+stroke:var(--violet);
 stroke-width:1.3;
 opacity:.18;
-filter:drop-shadow(0 0 8px rgba(124,58,237,.35));
+filter:drop-shadow(0 0 8px var(--violet-dim));
 }
 ```
 
@@ -193,27 +194,25 @@ pointer-events:none;
 
 ------------------------------------------------------------------------
 
-# Tailwind Notes
+# CSS Integration Notes
 
--   Keep content above backdrop with `relative z-10`.
--   Backdrop layers should use `absolute inset-0`.
--   Use `pointer-events-none` for decorative layers.
--   Respect the parent's `rounded-2xl` or `rounded-3xl` with
-    `overflow-hidden`.
+-   Keep content above backdrop with `position: relative; z-index: 10;`.
+-   Backdrop layers should use `position: absolute; inset: 0;`.
+-   Use `pointer-events: none;` for decorative layers.
+-   Respect the parent's border radius using `border-radius` and `overflow: hidden;` on `.hero-card`.
 
 ------------------------------------------------------------------------
 
-# Color Palette
+# Color Palette (schedule-app variables)
 
-  Purpose                Color
+  Purpose                Color / Variable
   ---------------------- -----------------------
-  Background             #0B1020
-  Secondary Background   #111827
-  Accent Purple          #7C3AED
-  Soft Purple            #A855F7
-  Highlight              #C084FC
-  Cyan Accent            #22D3EE
-  Border                 rgba(255,255,255,.08)
+  Background             var(--ink)
+  Secondary Background   #14172a
+  Accent Purple          var(--violet)
+  Soft Purple            var(--violet-dim)
+  Cyan Accent            var(--blue)
+  Border                 var(--line)
 
 ------------------------------------------------------------------------
 

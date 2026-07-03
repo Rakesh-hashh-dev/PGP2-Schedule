@@ -93,22 +93,91 @@
 
 .admin-textarea {
   width: 100%;
-  height: 100px;
-  padding: 14px;
-  border-radius: 12px;
+  height: auto;
+  min-height: 56px;
+  padding: 10px 12px;
+  border-radius: 10px;
   border: 1px solid var(--border);
   background: var(--bg);
   color: var(--text);
   font-family: var(--body);
-  font-size: 14px;
+  font-size: 13.5px;
   resize: vertical;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   transition: border-color 0.2s ease;
 }
 
 .admin-textarea:focus {
   border-color: var(--live);
   outline: none;
+}
+
+/* Labeled form rows (Push Notifications, Update Prompt cards) */
+.admin-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 10px;
+}
+
+.admin-field label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.admin-optional {
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  opacity: .75;
+}
+
+.admin-field select.admin-input {
+  appearance: auto;
+  cursor: pointer;
+}
+
+.admin-field .admin-textarea,
+.admin-field .admin-input {
+  margin-bottom: 0;
+  width: 100%;
+}
+
+.admin-input {
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13.5px;
+  transition: border-color 0.2s ease;
+}
+
+.admin-input:focus {
+  border-color: var(--live);
+  outline: none;
+}
+
+/* Two fields side by side on wide screens */
+.admin-field-row {
+  display: flex;
+  gap: 10px;
+}
+
+.admin-field-row .admin-field {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 560px) {
+  .admin-field-row {
+    flex-direction: column;
+    gap: 0;
+  }
 }
 
 .admin-actions {

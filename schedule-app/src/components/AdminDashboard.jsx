@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import "../styles/admin.css";
 import "../styles/assignments.css";
 import "../styles/cmdk.css";
-import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X } from "lucide-react";
+import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { logAdminAction } from "../lib/adminAudit.js";
 import { LEGEND } from "../data/schedule.js";
@@ -45,8 +45,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   });
   
   const [, setPopularCourses] = useState([]);
-  const [overrideDate, setOverrideDate] = useState("");
+  const [overrideDate, setOverrideDate] = useState(new Date().toISOString().split("T")[0]);
   const [overrideClass, setOverrideClass] = useState("");
+  const [overrideSection, setOverrideSection] = useState("All");
   const [roomOverrideDate, setRoomOverrideDate] = useState("");
   const [roomOverrideClass, setRoomOverrideClass] = useState("");
   const [roomOverrideRoom, setRoomOverrideRoom] = useState("");
@@ -79,6 +80,19 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [qlUrl, setQlUrl] = useState("");
   const [qlStart, setQlStart] = useState("");
   const [qlEnd, setQlEnd] = useState("");
+
+  // Push Notification Broadcast State
+  const [pushTitle, setPushTitle] = useState("");
+  const [pushBody, setPushBody] = useState("");
+  const [pushUrl, setPushUrl] = useState("");
+  const [pushSending, setPushSending] = useState(false);
+  const [pushResult, setPushResult] = useState("");
+
+  // What's New (feature updates) State
+  const [wnEmoji, setWnEmoji] = useState("");
+  const [wnTitle, setWnTitle] = useState("");
+  const [wnDesc, setWnDesc] = useState("");
+  const [wnEditingId, setWnEditingId] = useState(null);
 
   // Software Update Config
   const [updatePromptTitle, setUpdatePromptTitle] = useState("");
@@ -247,6 +261,42 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     setSaving(false);
   }
 
+  async function sendPushBroadcast() {
+    if (!pushTitle.trim() || !pushBody.trim()) return alert("Fill in title and message.");
+    let pushKey = localStorage.getItem("pgp2.push-admin-key") || "";
+    if (!pushKey) {
+      pushKey = prompt("Enter the push admin key (PUSH_ADMIN_SECRET set on the send-push edge function):") || "";
+      if (!pushKey) return;
+      localStorage.setItem("pgp2.push-admin-key", pushKey);
+    }
+    if (!confirm(`Send this push notification to ALL subscribed devices?\n\n${pushTitle}\n${pushBody}`)) return;
+    setPushSending(true);
+    setPushResult("");
+    try {
+      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-push-key": pushKey,
+          "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({ title: pushTitle.trim(), body: pushBody.trim(), url: pushUrl.trim() || "/" }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        if (resp.status === 401) localStorage.removeItem("pgp2.push-admin-key");
+        setPushResult(`Failed: ${data.error || resp.status}`);
+      } else {
+        setPushResult(`Sent to ${data.sent} device${data.sent !== 1 ? "s" : ""}${data.failed ? `, ${data.failed} failed` : ""}${data.pruned ? `, ${data.pruned} stale pruned` : ""}.`);
+        setPushTitle(""); setPushBody(""); setPushUrl("");
+        await logAdminAction(admin_id, "push_broadcast", { title: pushTitle.trim() });
+      }
+    } catch (e) {
+      setPushResult("Error: " + e.message);
+    }
+    setPushSending(false);
+  }
+
   async function forceRefresh() {
     if (confirm("Are you sure you want to force all active users to refresh their app?")) {
       await saveConfig();
@@ -283,17 +333,37 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     u.user_id?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const cancelClass = (date, code, section) => {
+    const key = !section || section === "All" || section === "Single" ? code : `${code}_${section}`;
+    const nextOverrides = { ...(flags.classOverrides || {}) };
+    nextOverrides[date] = { ...(nextOverrides[date] || {}), [key]: { type: "cancelled", name: `Cancelled: ${key}` } };
+    setFlags({ ...flags, classOverrides: nextOverrides });
+    logAdminAction(admin_id, "cancel_class", { date, class: key });
+  };
+
+  // Only lifts the cancellation — leaves room/time overrides on the same key intact
+  const restoreClass = (date, code, section) => {
+    const nextOverrides = { ...(flags.classOverrides || {}) };
+    const forDate = { ...(nextOverrides[date] || {}) };
+    [code, `${code}_${section}`].forEach(key => {
+      if (forDate[key]?.type === "cancelled") delete forDate[key];
+    });
+    if (Object.keys(forDate).length === 0) delete nextOverrides[date];
+    else nextOverrides[date] = forDate;
+    setFlags({ ...flags, classOverrides: nextOverrides });
+    logAdminAction(admin_id, "restore_class", { date, class: code, section });
+  };
+
   const handleAddOverride = () => {
-    if (!overrideDate || !overrideClass) {
+    const code = overrideClass.trim().toUpperCase();
+    if (!overrideDate || !code) {
       alert("Please select a date and enter a class code to cancel.");
       return;
     }
-    const nextOverrides = { ...(flags.classOverrides || {}) };
-    if (!nextOverrides[overrideDate]) nextOverrides[overrideDate] = {};
-    nextOverrides[overrideDate][overrideClass] = { type: "cancelled", name: `Cancelled: ${overrideClass}` };
-    setFlags({...flags, classOverrides: nextOverrides});
-    logAdminAction(admin_id, "cancel_class", { date: overrideDate, class: overrideClass });
+    if (!LEGEND[code] && !window.confirm(`"${code}" isn't a known course code. Cancel it anyway?`)) return;
+    cancelClass(overrideDate, code, overrideSection);
     setOverrideClass("");
+    setOverrideSection("All");
   };
 
   const handleAddRoomOverride = () => {
@@ -320,6 +390,26 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     setRoomOverrideStart("");
     setRoomOverrideEnd("");
     setRoomOverrideSection("All");
+  };
+
+  // Stale = date-keyed config students still download but that can never apply again
+  const todayISO = new Date().toISOString().split("T")[0];
+  const staleOverrideDates = Object.keys(flags.classOverrides || {}).filter(d => d < todayISO);
+  const staleAnnouncements = (flags.scheduledAnnouncements || []).filter(a => a.end && a.end < todayISO);
+  const staleQuickLinks = (flags.quickLinks || []).filter(ql => ql.end && ql.end < todayISO);
+  const staleConfigCount = staleOverrideDates.length + staleAnnouncements.length + staleQuickLinks.length;
+
+  const purgeStaleConfig = () => {
+    if (!window.confirm(`Remove ${staleOverrideDates.length} past override date(s), ${staleAnnouncements.length} expired announcement(s) and ${staleQuickLinks.length} expired quick link(s)? Remember to deploy after.`)) return;
+    const nextOverrides = { ...(flags.classOverrides || {}) };
+    staleOverrideDates.forEach(d => delete nextOverrides[d]);
+    setFlags({
+      ...flags,
+      classOverrides: nextOverrides,
+      scheduledAnnouncements: (flags.scheduledAnnouncements || []).filter(a => !(a.end && a.end < todayISO)),
+      quickLinks: (flags.quickLinks || []).filter(ql => !(ql.end && ql.end < todayISO)),
+    });
+    logAdminAction(admin_id, "purge_stale_config", { overrideDates: staleOverrideDates.length, announcements: staleAnnouncements.length, quickLinks: staleQuickLinks.length });
   };
 
   const markFeedbackResolved = async (id) => {
@@ -411,7 +501,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                   }
                 });
                 
-                const displayClasses = [...baseClasses, ...newClasses];
+                // Chronological order — raw data lists Sec A, then Sec B, then
+                // Single-section/guest classes, which buries them off-screen
+                const displayClasses = [...baseClasses, ...newClasses]
+                  .sort((a, b) => (a.start || "").localeCompare(b.start || "") || (a.code || "").localeCompare(b.code || ""));
                 
                 // --- CONFLICT DETECTOR ---
                 const conflicts = [];
@@ -456,12 +549,16 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 const classElements = displayClasses.map((c, i) => {
                   const override = overridesForDate[`${c.code}_${c.section}`] || overridesForDate[c.code] || null;
                   const isCancelled = override?.type === "cancelled";
+                  const isGuest = (c.session || "").toLowerCase().includes("guest");
                   const displayRoom = override?.room || c.room;
                   const displayStart = override?.start || c.start;
                   const displayEnd = override?.end || c.end;
                   return (
-                    <div key={i} onClick={() => setLiveEditorModal(c)} style={{ minWidth: 200, padding: 12, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, cursor: "pointer", position: "relative", opacity: isCancelled ? 0.6 : 1 }}>
-                      <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4, textDecoration: isCancelled ? "line-through" : "none" }}>{displayStart} - {displayEnd} | Sec: {c.section}</div>
+                    <div key={i} onClick={() => setLiveEditorModal(c)} style={{ minWidth: 200, padding: 12, background: "var(--bg)", border: `1px solid ${isGuest ? "var(--violet)" : "var(--border)"}`, borderRadius: 12, cursor: "pointer", position: "relative", opacity: isCancelled ? 0.6 : 1 }}>
+                      <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4, textDecoration: isCancelled ? "line-through" : "none" }}>
+                        {displayStart} - {displayEnd} | Sec: {c.section === "Single" ? "All" : c.section}
+                        {isGuest && <span style={{ marginLeft: 6, background: "var(--violet)", color: "#fff", padding: "1px 6px", borderRadius: 4, fontSize: 9.5, fontWeight: 800, letterSpacing: ".03em" }}>GUEST</span>}
+                      </div>
                       <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)", marginBottom: 4, textDecoration: isCancelled ? "line-through" : "none" }}>{c.code} - {c.name || "Class"}</div>
                       <div style={{ fontSize: 12, color: "var(--muted)", textDecoration: isCancelled ? "line-through" : "none" }}>Room: {displayRoom || "TBD"}</div>
                       {override && <div style={{ position: "absolute", top: -6, right: -6, background: "var(--amber)", color: "#000", padding: "2px 6px", borderRadius: 4, fontSize: 10, fontWeight: 800 }}>OVERRIDDEN</div>}
@@ -491,34 +588,115 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           {/* Class Cancellation Board */}
           <section className="admin-card" style={{ gridColumn: "1 / -1" }}>
             <h2><XCircle size={20} color="var(--danger)" /> Class Cancellation Board</h2>
-            <p className="admin-subtext">Globally cancel a class for all students on a specific date.</p>
-            <div style={{ display: "flex", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
-               <input type="date" className="admin-input" value={overrideDate} onChange={e => setOverrideDate(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)" }} />
-               <input type="text" placeholder="Class Code (e.g. BM)" className="admin-input" value={overrideClass} onChange={e => setOverrideClass(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)" }} />
-               <button className="cva-btn primary" onClick={handleAddOverride} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "var(--danger)", color: "#fff", cursor: "pointer", fontWeight: 600 }}>Cancel Class</button>
+            <p className="admin-subtext">Globally cancel a class for all students on a specific date. Pick a date, then cancel directly from that day's schedule. Changes go live after "Deploy Config to Cloud".</p>
+            <div className="admin-field" style={{ maxWidth: 220 }}>
+              <label>Date</label>
+              <input type="date" className="admin-input" value={overrideDate} onChange={e => setOverrideDate(e.target.value)} />
             </div>
+            {overrideDate && (() => {
+              const overridesForDate = flags.classOverrides?.[overrideDate] || {};
+              const dayClasses = liveSchedule
+                .filter(c => c.date === overrideDate && c.type !== "break")
+                .sort((a, b) => (a.start || "").localeCompare(b.start || "") || (a.code || "").localeCompare(b.code || ""));
+              if (dayClasses.length === 0) {
+                return <div className="admin-empty" style={{ padding: "20px 0" }}>No classes scheduled on this date. Use manual entry below if needed.</div>;
+              }
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
+                  {dayClasses.map((c, i) => {
+                    const sectionKey = `${c.code}_${c.section}`;
+                    const isCancelled = overridesForDate[c.code]?.type === "cancelled" || overridesForDate[sectionKey]?.type === "cancelled";
+                    return (
+                      <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 14px", opacity: isCancelled ? 0.65 : 1 }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)", textDecoration: isCancelled ? "line-through" : "none" }}>
+                            {c.code} — {c.name || LEGEND[c.code]?.name || "Class"}
+                            {isCancelled && <span style={{ marginLeft: 8, background: "var(--danger)", color: "#fff", padding: "1px 7px", borderRadius: 4, fontSize: 10, fontWeight: 800, letterSpacing: ".04em", textDecoration: "none", display: "inline-block" }}>CANCELLED</span>}
+                          </div>
+                          <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
+                            {c.start} - {c.end} · Sec: {c.section === "Single" ? "All" : c.section} · Room: {c.room || "TBD"}
+                          </div>
+                        </div>
+                        {isCancelled ? (
+                          <button className="admin-btn outline" onClick={() => restoreClass(overrideDate, c.code, c.section)} style={{ flex: "0 0 auto", padding: "7px 14px", fontSize: 13 }}>
+                            <RefreshCw size={14} /> Restore
+                          </button>
+                        ) : (
+                          <button className="admin-btn outline" onClick={() => cancelClass(overrideDate, c.code, c.section)} style={{ flex: "0 0 auto", padding: "7px 14px", fontSize: 13, borderColor: "var(--danger)", color: "var(--danger)" }}>
+                            <XCircle size={14} /> Cancel
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+            <details style={{ marginTop: 14 }}>
+              <summary style={{ fontSize: 13, color: "var(--muted)", cursor: "pointer", fontWeight: 600 }}>Manual entry (class not listed?)</summary>
+              <div className="admin-field-row" style={{ marginTop: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
+                <div className="admin-field">
+                  <label>Class Code</label>
+                  <input type="text" list="cancel-course-codes" placeholder="e.g. BM" className="admin-input" value={overrideClass} onChange={e => setOverrideClass(e.target.value)} />
+                  <datalist id="cancel-course-codes">
+                    {Object.entries(LEGEND).map(([code, info]) => <option key={code} value={code}>{info.name}</option>)}
+                  </datalist>
+                </div>
+                <div className="admin-field">
+                  <label>Section</label>
+                  <select className="admin-input" value={overrideSection} onChange={e => setOverrideSection(e.target.value)}>
+                    <option value="All">All Sections</option>
+                    <option value="A">Section A</option>
+                    <option value="B">Section B</option>
+                  </select>
+                </div>
+                <button className="admin-btn danger" onClick={handleAddOverride} style={{ flex: "0 0 auto", marginBottom: 10, padding: "9px 16px" }}>
+                  <XCircle size={15} /> Cancel Class
+                </button>
+              </div>
+            </details>
           </section>
 
           {/* Class Editor */}
           <section className="admin-card" style={{ gridColumn: "1 / -1" }}>
             <h2><CalendarDays size={20} color="var(--blue)" /> Class Editor</h2>
             <p className="admin-subtext">Globally change the classroom or timings for a specific class on a given date.</p>
-            <div style={{ display: "flex", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
-               <input type="date" className="admin-input" value={roomOverrideDate} onChange={e => setRoomOverrideDate(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)" }} />
-               <input type="text" placeholder="Class Code (e.g. BM)" className="admin-input" value={roomOverrideClass} onChange={e => setRoomOverrideClass(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)" }} />
-               
-               <select className="admin-input" value={roomOverrideSection} onChange={e => setRoomOverrideSection(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)" }}>
-                 <option value="All">All Sections</option>
-                 <option value="A">Section A</option>
-                 <option value="B">Section B</option>
-               </select>
-
-               <input type="time" title="Start Time" className="admin-input" value={roomOverrideStart} onChange={e => setRoomOverrideStart(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)" }} />
-               <input type="time" title="End Time" className="admin-input" value={roomOverrideEnd} onChange={e => setRoomOverrideEnd(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)" }} />
-               <input type="text" placeholder="New Classroom" className="admin-input" value={roomOverrideRoom} onChange={e => setRoomOverrideRoom(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)" }} />
-               <button className="cva-btn primary" onClick={handleAddRoomOverride} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "var(--blue)", color: "#fff", cursor: "pointer", fontWeight: 600 }}>Save Change</button>
+            <div className="admin-field-row" style={{ marginTop: 10 }}>
+              <div className="admin-field">
+                <label>Date</label>
+                <input type="date" className="admin-input" value={roomOverrideDate} onChange={e => setRoomOverrideDate(e.target.value)} />
+              </div>
+              <div className="admin-field">
+                <label>Class Code</label>
+                <input type="text" placeholder="e.g. BM" className="admin-input" value={roomOverrideClass} onChange={e => setRoomOverrideClass(e.target.value)} />
+              </div>
+              <div className="admin-field">
+                <label>Section</label>
+                <select className="admin-input" value={roomOverrideSection} onChange={e => setRoomOverrideSection(e.target.value)}>
+                  <option value="All">All Sections</option>
+                  <option value="A">Section A</option>
+                  <option value="B">Section B</option>
+                </select>
+              </div>
+            </div>
+            <div className="admin-field-row">
+              <div className="admin-field">
+                <label>New Start <span className="admin-optional">(optional)</span></label>
+                <input type="time" className="admin-input" value={roomOverrideStart} onChange={e => setRoomOverrideStart(e.target.value)} />
+              </div>
+              <div className="admin-field">
+                <label>New End <span className="admin-optional">(optional)</span></label>
+                <input type="time" className="admin-input" value={roomOverrideEnd} onChange={e => setRoomOverrideEnd(e.target.value)} />
+              </div>
+              <div className="admin-field">
+                <label>New Classroom <span className="admin-optional">(optional)</span></label>
+                <input type="text" placeholder="e.g. C-104" className="admin-input" value={roomOverrideRoom} onChange={e => setRoomOverrideRoom(e.target.value)} />
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 10, marginTop: 4, flexWrap: "wrap" }}>
+               <button className="admin-btn blue" onClick={handleAddRoomOverride} style={{ padding: "9px 16px" }}><CalendarDays size={15} /> Save Change</button>
                {roomOverrideDate && roomOverrideClass && flags.classOverrides?.[roomOverrideDate]?.[roomOverrideSection === "All" ? roomOverrideClass : `${roomOverrideClass}_${roomOverrideSection}`] && (
-                 <button className="cva-btn outline" onClick={() => {
+                 <button onClick={() => {
                     const overrideKey = roomOverrideSection === "All" ? roomOverrideClass : `${roomOverrideClass}_${roomOverrideSection}`;
                     const next = {...flags.classOverrides};
                     delete next[roomOverrideDate][overrideKey];
@@ -529,7 +707,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     setRoomOverrideStart("");
                     setRoomOverrideEnd("");
                     setRoomOverrideSection("All");
-                 }} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid var(--danger)", color: "var(--danger)", background: "transparent", cursor: "pointer", fontWeight: 600 }}>Remove Override</button>
+                 }} className="admin-btn outline" style={{ padding: "9px 16px", borderColor: "var(--danger)", color: "var(--danger)" }}>Remove Override</button>
                )}
             </div>
           </section>
@@ -675,6 +853,104 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </div>
         </section>
 
+          {/* Push Notification Broadcast */}
+          <section className="admin-card" style={{ display: "flex", flexDirection: "column" }}>
+            <h2><BellRing size={20} color="var(--live)" /> Push Notifications</h2>
+            <p className="admin-subtext">Send a push notification to every device that enabled push on the Announcements page. Delivered even when the app is closed.</p>
+            <div className="admin-field-row">
+              <div className="admin-field">
+                <label>Title</label>
+                <input className="admin-input" value={pushTitle} onChange={e => setPushTitle(e.target.value)} placeholder="e.g. Room change: FIN-201 today" maxLength={80} />
+              </div>
+              <div className="admin-field">
+                <label>Open URL (optional)</label>
+                <input className="admin-input" value={pushUrl} onChange={e => setPushUrl(e.target.value)} placeholder="/?view=today" />
+              </div>
+            </div>
+            <div className="admin-field">
+              <label>Message</label>
+              <textarea className="admin-textarea" value={pushBody} onChange={e => setPushBody(e.target.value)} placeholder="e.g. Today's 11:30 FIN-201 class moved to Room C-104." rows={2} maxLength={200}></textarea>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 6 }}>
+              <button className="admin-btn primary" onClick={sendPushBroadcast} disabled={pushSending}>
+                <BellRing size={14} /> {pushSending ? "Sending..." : "Send to All Subscribers"}
+              </button>
+              {pushResult && (
+                <span className="admin-subtext" style={{ margin: 0, color: pushResult.startsWith("Sent") ? "var(--live)" : "var(--danger)" }}>{pushResult}</span>
+              )}
+            </div>
+          </section>
+
+          {/* What's New — feature updates */}
+          <section className="admin-card" style={{ display: "flex", flexDirection: "column" }}>
+            <h2><Sparkles size={20} color="var(--violet)" /> What&rsquo;s New (Feature Updates)</h2>
+            <p className="admin-subtext">Announce new features. Students see a "NEW" pill on the Today view until they open the What&rsquo;s New list. Publish with Deploy Config to Cloud.</p>
+            <div className="admin-field-row">
+              <div className="admin-field" style={{ flex: "0 0 90px" }}>
+                <label>Emoji</label>
+                <input className="admin-input" value={wnEmoji} onChange={e => setWnEmoji(e.target.value)} placeholder="🔔" maxLength={4} />
+              </div>
+              <div className="admin-field">
+                <label>Feature Title</label>
+                <input className="admin-input" value={wnTitle} onChange={e => setWnTitle(e.target.value)} placeholder="e.g. Class reminders are here" maxLength={60} />
+              </div>
+            </div>
+            <div className="admin-field">
+              <label>Description</label>
+              <textarea className="admin-textarea" value={wnDesc} onChange={e => setWnDesc(e.target.value)} placeholder="e.g. Enable push on the Announcements tab to get pinged 15/30/60 min before your classes." rows={2} maxLength={200}></textarea>
+            </div>
+            <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+              <button className="admin-btn primary" style={{ alignSelf: "flex-start" }} onClick={() => {
+                if (!wnTitle.trim()) return alert("Feature title is required.");
+                if (wnEditingId) {
+                  // Edit in place — keeps its original date and list position
+                  setFlags({
+                    ...flags,
+                    whatsNew: (flags.whatsNew || []).map(x => x.id === wnEditingId
+                      ? { ...x, emoji: wnEmoji.trim(), title: wnTitle.trim(), desc: wnDesc.trim() }
+                      : x)
+                  });
+                } else {
+                  const entry = {
+                    id: Date.now().toString(),
+                    date: new Date().toISOString().split("T")[0],
+                    emoji: wnEmoji.trim(),
+                    title: wnTitle.trim(),
+                    desc: wnDesc.trim(),
+                  };
+                  // newest first, keep the list short — students only care about recent
+                  setFlags({ ...flags, whatsNew: [entry, ...(flags.whatsNew || [])].slice(0, 10) });
+                }
+                setWnEmoji(""); setWnTitle(""); setWnDesc(""); setWnEditingId(null);
+              }}>
+                <Sparkles size={14} /> {wnEditingId ? "Save Changes" : "Add Feature Update"}
+              </button>
+              {wnEditingId && (
+                <button className="admin-btn outline" onClick={() => { setWnEmoji(""); setWnTitle(""); setWnDesc(""); setWnEditingId(null); }}>
+                  Cancel
+                </button>
+              )}
+            </div>
+
+            <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+              {(flags.whatsNew || []).map(w => (
+                <div key={w.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "8px 12px", background: w.id === wnEditingId ? "rgba(109, 91, 208, 0.08)" : "var(--bg)", borderRadius: 8, border: `1px solid ${w.id === wnEditingId ? "var(--violet)" : "var(--border)"}` }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{w.emoji ? `${w.emoji} ` : ""}{w.title}</div>
+                    <div style={{ fontSize: 11, color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{w.date}{w.desc ? ` — ${w.desc}` : ""}</div>
+                  </div>
+                  <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                    <button onClick={() => { setWnEmoji(w.emoji || ""); setWnTitle(w.title || ""); setWnDesc(w.desc || ""); setWnEditingId(w.id); }} className="admin-btn outline" style={{ padding: "4px 8px" }} aria-label="Edit"><Pencil size={14} /></button>
+                    <button onClick={() => {
+                      setFlags({ ...flags, whatsNew: flags.whatsNew.filter(x => x.id !== w.id) });
+                      if (wnEditingId === w.id) { setWnEmoji(""); setWnTitle(""); setWnDesc(""); setWnEditingId(null); }
+                    }} className="admin-btn outline" style={{ padding: "4px 8px", borderColor: "var(--danger)", color: "var(--danger)" }} aria-label="Delete"><Trash2 size={14} /></button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
           {/* Software Update Prompt Config */}
           <section className="admin-card">
             <h2><RefreshCw size={20} color="var(--violet)" /> Update Prompt Text</h2>
@@ -768,7 +1044,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           <section className="admin-card">
             <h2><Flag size={20} color="var(--violet)" /> Feature Flags</h2>
             <div className="admin-flag-list">
-              {Object.keys(flags).filter(k => k !== "maintenanceMode" && k !== "bannedUsers" && k !== "classOverrides" && k !== "abTests" && k !== "scheduledAnnouncements" && k !== "quickLinks" && k !== "heroBackdrop").map(key => (
+              {Object.keys(flags).filter(k => k !== "maintenanceMode" && k !== "bannedUsers" && k !== "classOverrides" && k !== "abTests" && k !== "scheduledAnnouncements" && k !== "quickLinks" && k !== "heroBackdrop" && k !== "whatsNew" && k !== "updatePrompt").map(key => (
                 <label key={key} className="admin-flag-item">
                   <input 
                     type="checkbox" 
@@ -1066,6 +1342,11 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
         <button className="admin-save-btn" onClick={saveConfig} disabled={saving}>
           <Save size={18} /> {saving ? "Saving..." : "Deploy Config to Cloud"}
         </button>
+        {staleConfigCount > 0 && (
+          <button className="admin-btn outline" onClick={purgeStaleConfig} title="Remove past-dated class overrides, expired announcements and quick links from the config students download" style={{ padding: "9px 16px" }}>
+            <Trash2 size={15} /> Purge expired ({staleConfigCount})
+          </button>
+        )}
         {saveMsg && (
           <span className={`admin-save-msg ${saveMsg.includes("Failed") || saveMsg.includes("Error") ? "error" : "success"}`}>
             {saveMsg.includes("Successfully") && <Check size={16} />}

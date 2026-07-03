@@ -212,6 +212,18 @@
   flex-shrink: 0;
 }
 
+@media (max-width: 1200px) {
+  .eh-ill-block {
+    position: absolute;
+    top: 24px;
+    right: 32px;
+  }
+  .eh-ill-img-wrap {
+    width: 90px;
+    height: 90px;
+  }
+}
+
 .eh-ill-img-wrap {
   position: relative;
   width: 120px;
@@ -261,7 +273,7 @@
   transform: translateY(-1px);
 }
 
-@media (max-width: 650px) {
+@media (max-width: 1200px) {
   .exam-hero-new {
       padding: 20px 16px;
       gap: 20px;
@@ -394,7 +406,7 @@
   background: var(--card-hi);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1200px) {
   .exam-card-h {
       flex-wrap: wrap;
       gap: 8px;
@@ -460,7 +472,7 @@
 
 @media (min-width: 640px) {
   .exam-cd-grid {
-      grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
       gap: 10px;
     }
 }

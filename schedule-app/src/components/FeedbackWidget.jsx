@@ -91,7 +91,7 @@ export default function FeedbackWidget({ user, onClose }) {
             <button
               type="submit"
               disabled={submitting || !message.trim()}
-              className="cva-btn primary"
+              className="admin-btn primary"
               style={{
                 width: "100%",
                 padding: "12px",

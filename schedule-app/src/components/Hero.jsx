@@ -51,6 +51,17 @@ function timeOfDaySign(now) {
   return "Enjoy your night!";
 }
 
+// Subtle time-of-day accent (r,g,b) used as an extra ambient tint layer.
+// `now` may be a Date or a numeric timestamp (the admin preview passes a number).
+function timeTint(now) {
+  const h = (now instanceof Date ? now : new Date(now)).getHours();
+  if (h < 7) return "60, 80, 170";      // pre-dawn indigo
+  if (h < 11) return "245, 180, 90";    // warm morning
+  if (h < 16) return "90, 190, 220";    // bright afternoon
+  if (h < 19) return "240, 140, 90";    // golden evening
+  return "70, 70, 150";                 // night violet
+}
+
 function HeroCountdown({ target }) {
   const targetMs = target.getTime();
   const [ms, setMs] = useState(() => targetMs - Date.now());
@@ -87,6 +98,32 @@ function HeroCountdown({ target }) {
   );
 }
 
+function LaterCountdown({ target }) {
+  const targetMs = target.getTime();
+  const [ms, setMs] = useState(() => targetMs - Date.now());
+
+  const [prevTargetMs, setPrevTargetMs] = useState(targetMs);
+  if (prevTargetMs !== targetMs) {
+    setPrevTargetMs(targetMs);
+    setMs(ms - prevTargetMs + targetMs);
+  }
+
+  useEffect(() => {
+    const id = setInterval(() => setMs(targetMs - Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [targetMs]);
+
+  const totalMin = Math.max(0, Math.round(ms / 60000));
+  const h = Math.floor(totalMin / 60), m = totalMin % 60;
+  const label = h > 0 ? `${h}h ${m}m` : `${m}m`;
+
+  return (
+    <div className="hero-when">
+      Later today <span className="hero-when-in">in {label}</span>
+    </div>
+  );
+}
+
 function HeroBackdrop({ sysConfig }) {
   const adminSetting = sysConfig?.flags?.heroBackdrop || "swap";
   
@@ -106,12 +143,13 @@ function HeroBackdrop({ sysConfig }) {
   return <div className="hero-img-bg" style={{ backgroundImage: `url(${bgImage})` }} />;
 }
 
-function UpNext({ c }) {
+function UpNext({ c, gapLabel }) {
   return (
     <div className="upnext">
       <span className="up-label">Then</span>
       <span className="up-t">{c.start}</span>
       <span className="up-c">{c.name}</span>
+      {gapLabel && <span className="up-gap">{gapLabel}</span>}
       <span className="up-r">{c.room || "TBA"}</span>
     </div>
   );
@@ -120,6 +158,7 @@ function UpNext({ c }) {
 export default function Hero({ current, next, now, todayISO, tomorrowISO, onMarkAttendance, attendance, sysConfig }) {
   const prevRef = useRef(current);
   const [justDone, setJustDone] = useState(null); // full class object
+  const tintStyle = { "--hero-time-tint": timeTint(now) };
 
   useEffect(() => {
     const prev = prevRef.current;
@@ -139,6 +178,9 @@ export default function Hero({ current, next, now, todayISO, tomorrowISO, onMark
     return (
       <section className="hero hero-complete">
         <HeroBackdrop sysConfig={sysConfig} />
+        <div className="hero-sparkles" aria-hidden="true">
+          {Array.from({ length: 10 }).map((_, i) => <span key={i} className="hero-sparkle" />)}
+        </div>
         <div className="done-ring" />
         <div className="done-icon"><CheckCircle2 size={38} strokeWidth={1.6} /></div>
         <h1 className="hero-course done-course">{justDone.name}</h1>
@@ -167,11 +209,30 @@ export default function Hero({ current, next, now, todayISO, tomorrowISO, onMark
     const done = Math.min(1, Math.max(0, (now - s) / (e - s)));
     const left = Math.max(0, Math.round((e - now) / 60000));
 
+    const popEnding = left <= 5 && left >= 3;
+    const sameDayNext = next && next.date === current.date;
+
+    let gapLabel = null;
+    if (next) {
+      if (sameDayNext) {
+        const gapMin = Math.round((clsDate(next, "start") - e) / 60000);
+        if (gapMin > 0) {
+          const gh = Math.floor(gapMin / 60), gm = gapMin % 60;
+          gapLabel = gh > 0 ? `in ${gh}h ${gm}m` : `in ${gm}m`;
+        } else {
+          gapLabel = "back-to-back";
+        }
+      } else {
+        gapLabel = next.date === tomorrowISO ? "Tomorrow" : prettyDate(next.date);
+      }
+    }
+
     return (
-      <section className="hero hero-live">
+      <section className="hero hero-live" style={tintStyle}>
         <HeroBackdrop sysConfig={sysConfig} />
+        <div className="hero-time-tint" />
         <div className="hero-state-row">
-          <div className="hero-tag in"><span className="dot" />In session</div>
+          <div className="hero-tag in hero-tag-glow"><span className="dot" />In session</div>
           {current.code && (
             <span className={`ses ses-${sesHue(current.code)}`}>
               {sesLabel(current.code, current.session)}
@@ -186,15 +247,26 @@ export default function Hero({ current, next, now, todayISO, tomorrowISO, onMark
           {current.faculty && <><span className="sep">·</span><span className="f">{current.faculty}</span></>}
         </div>
         <div className="hero-prog-wrap">
-          <div className={`prog${done > 0.85 ? " prog-wide" : ""}`}>
+          <div className={`prog${done > 0.85 ? " prog-wide" : ""}${popEnding ? " prog-pop" : ""}`}>
             <div
               className={`prog-fill${done > 0.85 ? " nearing-end" : ""}`}
               style={{ width: `${done * 100}%`, ...progFillStyle(done) }}
             />
           </div>
-          <span className="prog-label">{left} min left</span>
+          <span className={`prog-label${popEnding ? " prog-label-urgent" : ""}`}>{left} min left</span>
         </div>
-        {next && <UpNext c={next} />}
+        {/* Then-row only if next is same day, else a "last class" sign-off */}
+        {sameDayNext && <UpNext c={next} gapLabel={gapLabel} />}
+        {!sameDayNext && (
+          <div className="hero-lastclass">
+            <span className="hero-lastclass-badge">Last class today</span>
+            <span className="hero-lastclass-text">
+              {next
+                ? <>Free after {current.end} · next is {next.date === tomorrowISO ? "tomorrow" : prettyDate(next.date)} at {next.start}</>
+                : <>Free after {current.end} 🎉</>}
+            </span>
+          </div>
+        )}
       </section>
     );
   }
@@ -207,8 +279,9 @@ export default function Hero({ current, next, now, todayISO, tomorrowISO, onMark
     if (!sameDay) {
       const nextLabel = next.date === tomorrowISO ? "Tomorrow" : prettyDate(next.date);
       return (
-        <section className="hero hero-done-today">
+        <section className="hero hero-done-today" style={tintStyle}>
           <HeroBackdrop sysConfig={sysConfig} />
+          <div className="hero-time-tint" />
           <div className="hero-state-row">
             <div className="hero-tag done"><span className="dot" />Done for today</div>
           </div>
@@ -223,9 +296,12 @@ export default function Hero({ current, next, now, todayISO, tomorrowISO, onMark
       );
     }
 
+    const imminent = mins <= 2;
+
     return (
-      <section className="hero hero-upnext">
+      <section className={`hero hero-upnext${imminent ? " hero-imminent" : ""}`} style={tintStyle}>
         <HeroBackdrop sysConfig={sysConfig} />
+        <div className="hero-time-tint" />
         <div className="hero-state-row">
           <div className="hero-tag next"><span className="dot amber" />Up next</div>
           {next.code && (
@@ -242,15 +318,16 @@ export default function Hero({ current, next, now, todayISO, tomorrowISO, onMark
           {next.faculty && <><span className="sep">·</span><span className="f">{next.faculty}</span></>}
         </div>
         {mins > 17
-          ? <div className="hero-when">Later today</div>
+          ? <LaterCountdown target={s} />
           : <HeroCountdown target={s} />}
       </section>
     );
   }
 
   return (
-    <section className="hero hero-clear">
+    <section className="hero hero-clear" style={tintStyle}>
       <HeroBackdrop sysConfig={sysConfig} />
+      <div className="hero-time-tint" />
       <div className="hero-state-row">
         <div className="hero-tag done"><span className="dot" />All clear</div>
       </div>

@@ -1,5 +1,5 @@
-import React from "react";
-import { MapPin, CheckCircle2, XCircle } from "lucide-react";
+import React, { useState, useRef, useEffect } from "react";
+import { MapPin, CheckCircle2, XCircle, AlertTriangle, TrendingDown } from "lucide-react";
 import { sessionKey } from "../lib/attendance.js";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
@@ -21,15 +21,66 @@ import { RefreshCw } from "lucide-react";
 
 // "What if I skip this one" hint for unmarked upcoming classes; math comes
 // from courseSkipStats in lib/attendance.js (same source as Attendance panel)
-function SkipHint({ info }) {
+function SkipHint({ info, name }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onOutside = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("pointerdown", onOutside);
+    return () => document.removeEventListener("pointerdown", onOutside);
+  }, [open]);
+
   if (!info || info.totalAllowedSkips === 0) return null;
-  if (info.skipsRemaining === 0) {
-    return <span className="skip-hint skip-hint-bad">skip → grade penalty</span>;
-  }
-  const tone = info.skipsRemaining === 1 || info.pctIfSkip < 80 ? "skip-hint-warn" : "skip-hint-ok";
+
+  const bad = info.skipsRemaining === 0;
+  const tone = bad ? "skip-hint-bad" : info.skipsRemaining === 1 || info.pctIfSkip < 80 ? "skip-hint-warn" : "skip-hint-ok";
+  const skipsUsed = info.totalAllowedSkips - info.skipsRemaining;
+
   return (
-    <span className={`skip-hint ${tone}`}>
-      skip → {info.pctIfSkip}% · {info.skipsRemaining} left
+    <span
+      className="skip-hint-wrap"
+      ref={wrapRef}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <span
+        className={`skip-hint ${tone}`}
+        tabIndex={0}
+        role="button"
+        aria-expanded={open}
+        onClick={(e) => { e.stopPropagation(); setOpen(true); }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen(true); }
+          if (e.key === "Escape") setOpen(false);
+        }}
+      >
+        {bad ? "skip → grade penalty" : <>skip → {info.pctIfSkip}% · {info.skipsRemaining} left</>}
+      </span>
+      {open && (
+        <div className="skip-tip" role="tooltip">
+          <div className={`skip-tip-icon skip-tip-icon-${bad ? "bad" : tone === "skip-hint-warn" ? "warn" : "ok"}`}>
+            {bad ? <AlertTriangle size={13} /> : <TrendingDown size={13} />}
+          </div>
+          <div className="skip-tip-body">
+            <div className="skip-tip-headline">
+              {bad ? "Grade penalty risk" : `Drops to ${info.pctIfSkip}% if skipped`}
+            </div>
+            <div className="skip-tip-sub">{name}</div>
+            <div className="skip-tip-meter">
+              <div className="skip-tip-meter-track">
+                {Array.from({ length: info.totalAllowedSkips }).map((_, i) => (
+                  <span key={i} className={`skip-tip-dot${i < skipsUsed ? " used" : ""}`} />
+                ))}
+              </div>
+              <span className="skip-tip-meter-label">
+                {skipsUsed}/{info.totalAllowedSkips} skips used
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
     </span>
   );
 }
@@ -79,7 +130,10 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
           </div>
           {dateLabel && <span className="panel-date">{dateLabel}</span>}
         </div>
-        <span className="count">{list.filter((c) => c.type === "class").length} classes</span>
+        <span className="count">{(() => {
+          const n = list.filter((c) => c.type === "class").length;
+          return `${n} ${n === 1 ? "class" : "classes"}`;
+        })()}</span>
       </div>
       <ol className="rail">
         {list.map((c, i) => {
@@ -125,20 +179,25 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
                       <div className="cur-progress-fill" style={{ width: `${progress}%` }} />
                     </div>
                   )}
-                  <div className="row-course">
-                    {c.name} {c.session && (
-                      <span className={`ses ses-${(Array.from(c.code).reduce((h, char) => h + char.charCodeAt(0), 0)) % 6}`}>
-                        {c.code} {c.session}
-                      </span>
-                    )}
+                  <div className="row-head">
+                    <div className="row-course">
+                      {c.name} {c.session && (
+                        <span className={`ses ses-${(Array.from(c.code).reduce((h, char) => h + char.charCodeAt(0), 0)) % 6}`}>
+                          {c.code} {c.session}
+                        </span>
+                      )}
+                    </div>
+                    {isCur && <span className="row-flag">now</span>}
+                    {isNext && !isCur && <span className="row-flag row-flag-next">next</span>}
+                    {isFirst && !isCur && <span className="row-flag row-flag-first">1st class</span>}
                   </div>
                   <div className="row-meta">
                     {c.type === "class"
                       ? <>
-                          <><MapPin size={13} /> {c.room || "TBA"}</>
-                          {c.faculty && <> · {c.faculty}</>}
+                          <span className="row-loc"><MapPin size={13} /> {c.room || "TBA"}</span>
+                          {c.faculty && <span className="row-faculty">{c.faculty}</span>}
                           {c.section === "Single" && <span className="single-tag">all</span>}
-                          {!isPast && !attStatus && <SkipHint info={skipInfo?.[c.code]} />}
+                          {!isPast && !attStatus && <SkipHint info={skipInfo?.[c.code]} name={c.name} />}
                         </>
                       : <TypeBadge type={c.type} />}
                   </div>
@@ -161,9 +220,6 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
                     </button>
                   </div>
                 )}
-                {isCur && <span className="row-flag">now</span>}
-                {isNext && !isCur && <span className="row-flag row-flag-next">next</span>}
-                {isFirst && !isCur && <span className="row-flag row-flag-first">1st class</span>}
               </li>
             </React.Fragment>
           );

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from "react";
 import { createPortal } from "react-dom";
-import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, ChevronsLeft, ChevronsRight, ChevronRight, ChevronLeft, Megaphone, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Sparkles, Wand2, BellRing, CalendarDays } from "lucide-react";
+import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, ChevronsLeft, ChevronsRight, ChevronRight, ChevronLeft, Megaphone, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Sparkles, Wand2, BellRing, CalendarDays, ExternalLink } from "lucide-react";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
 import SemSummary from "./components/SemSummary.jsx";
@@ -10,6 +10,7 @@ import SubjectFilter from "./components/SubjectFilter.jsx";
 import Login from "./components/Login.jsx";
 import Onboarding from "./components/Onboarding.jsx";
 import WeatherWidget from "./components/WeatherWidget.jsx";
+import TomorrowSummary from "./components/TomorrowSummary.jsx";
 import { getSnapshot, fetchSchedule, sha256hex } from "./lib/sheet.js";
 import TermFlowLoader from "./components/TermFlowLoader.jsx";
 
@@ -29,6 +30,7 @@ import { syncProfileFromCloud, pushProfile, pushReadState } from "./lib/profile.
 import { decodeSchedule, saveFriend, loadFriends, loadGroups, syncFriendsAndGroupsFromCloud, fetchFriendPings, pushFriendsToCloud, deleteAllFriendPings, removeFriendByCloudId, deleteFriendPing } from "./lib/friends.js";
 import { supabase } from "./lib/supabase.js";
 import MarkPrompt from "./components/MarkPrompt.jsx";
+import { WhatsNewPill, WhatsNewModal } from "./components/WhatsNew.jsx";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
@@ -117,6 +119,30 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const showAdminUI = isAdmin && adminMode;
   const [sysConfig, setSysConfig] = useState(null);
   const [helpModalOpen, setHelpModalOpen] = useState(false);
+  const [dismissedAnnouncements, setDismissedAnnouncements] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem("pgp2.dismissed-announcements") || "[]")); } catch { return new Set(); }
+  });
+  function dismissAnnouncement(id) {
+    setDismissedAnnouncements(prev => {
+      const next = new Set(prev);
+      next.add(id);
+      try { localStorage.setItem("pgp2.dismissed-announcements", JSON.stringify([...next])); } catch { }
+      return next;
+    });
+  }
+  const [whatsNewOpen, setWhatsNewOpen] = useState(false);
+  const [seenWhatsNewIds, setSeenWhatsNewIds] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem("pgp2.seen-whatsnew") || "[]")); } catch { return new Set(); }
+  });
+  function closeWhatsNew(items) {
+    setWhatsNewOpen(false);
+    setSeenWhatsNewIds(prev => {
+      const next = new Set(prev);
+      (items || []).forEach(it => next.add(it.id));
+      try { localStorage.setItem("pgp2.seen-whatsnew", JSON.stringify([...next])); } catch { }
+      return next;
+    });
+  }
 
   // --- Admin Advanced Features ---
   const [impersonatedUser, setImpersonatedUser] = useState(null);
@@ -406,9 +432,17 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   }, [userId, refreshPings]);
 
   useEffect(() => {
-    fetch("https://api.open-meteo.com/v1/forecast?latitude=21.4669&longitude=83.9812&current=temperature_2m,weather_code&temperature_unit=celsius&timezone=Asia%2FKolkata")
+    fetch("https://api.open-meteo.com/v1/forecast?latitude=21.4669&longitude=83.9812&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&temperature_unit=celsius&timezone=Asia%2FKolkata&forecast_days=2")
       .then(r => r.json())
-      .then(d => setWeather({ temp: Math.round(d.current.temperature_2m), code: d.current.weather_code }))
+      .then(d => setWeather({
+        temp: Math.round(d.current.temperature_2m),
+        code: d.current.weather_code,
+        tomorrow: d.daily ? {
+          max: Math.round(d.daily.temperature_2m_max[1]),
+          min: Math.round(d.daily.temperature_2m_min[1]),
+          code: d.daily.weather_code[1],
+        } : null,
+      }))
       .catch(() => { });
   }, []);
 
@@ -890,6 +924,12 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const unreadFriendCount = friendNotifItems.filter(item => !item.isRead).length;
   const unreadChangeCount = filteredChanges.filter(c => !readChangeKeys.has(changeKey(c))).length;
   const hasUnread = unreadChangeCount > 0 || unreadFriendCount > 0;
+
+  // Unread changes that specifically name a course happening on tomorrow's list
+  const tomorrowChangeCount = useMemo(() => {
+    const codes = new Set(tomorrowList.filter(c => c.type === "class").map(c => c.code));
+    return filteredChanges.filter(c => c.code && codes.has(c.code) && !readChangeKeys.has(changeKey(c))).length;
+  }, [filteredChanges, tomorrowList, readChangeKeys]);
   const receivedGroupCount = groups.filter(g => g.isReceived).length;
 
   function markGroupsSeen() {
@@ -1056,7 +1096,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         <p style={{ color: "var(--muted)", maxWidth: 300, textAlign: "center", lineHeight: 1.5, margin: 0 }}>
           TermFlow is currently undergoing scheduled maintenance. Please check back later.
         </p>
-        <button className="cva-btn primary" onClick={() => window.location.reload()} style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 8 }}>
+        <button className="admin-btn primary" onClick={() => window.location.reload()} style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 8 }}>
           <RefreshCw size={16} /> Refresh Page
         </button>
       </main>
@@ -1067,25 +1107,42 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const enableFriends = sysConfig?.flags?.enableFriends !== false;
   const enableAttendance = sysConfig?.flags?.enableAttendance !== false;
 
+  const announcementTargetMatches = (target) => {
+    if (!target || target === "global") return true;
+    if (target === "section_A") return Object.values(setup?.courses || {}).includes("A");
+    if (target === "section_B") return Object.values(setup?.courses || {}).includes("B");
+    if (target === "has_friends") return !!(friends && friends.length > 0);
+    if (target.startsWith("subject_")) return !!setup?.courses?.[target.replace("subject_", "")];
+    return false;
+  };
+
   let activeGlobalAnnouncement = null;
   if (sysConfig?.announcement) {
     if (typeof sysConfig.announcement === 'string') {
       activeGlobalAnnouncement = sysConfig.announcement;
     } else if (typeof sysConfig.announcement === 'object') {
       const { message, target } = sysConfig.announcement;
-      let matches = false;
-      if (!target || target === "global") matches = true;
-      else if (target === "section_A" && Object.values(setup?.courses || {}).includes("A")) matches = true;
-      else if (target === "section_B" && Object.values(setup?.courses || {}).includes("B")) matches = true;
-      else if (target === "has_friends" && friends && friends.length > 0) matches = true;
-      else if (target?.startsWith("subject_")) {
-        const subjectCode = target.replace("subject_", "");
-        if (setup?.courses?.[subjectCode]) matches = true;
-      }
-
-      if (matches) activeGlobalAnnouncement = message;
+      if (announcementTargetMatches(target)) activeGlobalAnnouncement = message;
     }
   }
+
+  // Scheduled announcements (admin flags.scheduledAnnouncements) — active while
+  // todayISO is inside [start, end], target-filtered, dismissible per device
+  const activeScheduledAnnouncements = (sysConfig?.flags?.scheduledAnnouncements || []).filter(a =>
+    a?.message && a.start && a.end &&
+    todayISO >= a.start && todayISO <= a.end &&
+    !dismissedAnnouncements.has(a.id) &&
+    announcementTargetMatches(a.target)
+  );
+
+  // Quick links (admin flags.quickLinks) — date-windowed links for the sidebar
+  const activeQuickLinks = (sysConfig?.flags?.quickLinks || []).filter(q =>
+    q?.title && q.url && q.start && q.end && todayISO >= q.start && todayISO <= q.end
+  );
+
+  // What's New feature announcements (admin flags.whatsNew, newest first)
+  const whatsNewItems = (sysConfig?.flags?.whatsNew || []).filter(w => w?.id && w.title);
+  const unseenWhatsNew = whatsNewItems.filter(w => !seenWhatsNewIds.has(w.id));
 
   return (
     <div className="app-shell">
@@ -1126,6 +1183,11 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── What's New modal ── */}
+      {whatsNewOpen && (
+        <WhatsNewModal items={whatsNewItems} onClose={() => closeWhatsNew(whatsNewItems)} />
       )}
 
       {/* ── Friend-added toast (share-link accepts) ── */}
@@ -1206,6 +1268,17 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               </button>
             )}
           </nav>
+
+          {activeQuickLinks.length > 0 && (
+            <div className="sb-quicklinks">
+              <div className="sb-quicklinks-label">Quick Links</div>
+              {activeQuickLinks.map(ql => (
+                <a key={ql.id} className="sb-link sb-quicklink" href={ql.url} target="_blank" rel="noopener noreferrer" onMouseEnter={e => showSbTip(e, ql.title)} onMouseLeave={hideSbTip}>
+                  <ExternalLink size={18} /><span className="sb-link-label">{ql.title}</span>
+                </a>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="sb-bottom">
@@ -1254,6 +1327,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 <div className="sb-pop-email">{user?.primaryEmailAddress?.emailAddress || ""}</div>
                 <span className="sb-pop-batch">PGP2 · 2025–27</span>
                 <div className="sb-pop-sep" />
+                <button className="sb-pop-btn" onClick={() => { setWhatsNewOpen(true); setSbProfileOpen(false); hideSbTip(); }}>
+                  <Sparkles size={14} /> What&rsquo;s New
+                </button>
                 <button className="sb-pop-btn" onClick={() => { setHelpModalOpen(true); hideSbTip(); }}>
                   <BookOpenCheck size={14} /> App Guide
                 </button>
@@ -1419,6 +1495,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       {syncing ? "Syncing…" : "Refresh"}
                     </button>
                     <div className="over-sep" />
+                    <button onClick={() => { setWhatsNewOpen(true); setOverflowOpen(false); }}>
+                      <Sparkles size={14} /> What&rsquo;s New
+                    </button>
                     <button onClick={() => { setHelpModalOpen(true); setOverflowOpen(false); }}>
                       <BookOpenCheck size={14} /> App Guide
                     </button>
@@ -1514,10 +1593,31 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
             {view !== "attendance" && view !== "insights" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && !compareTarget && (
               <>
+                {unseenWhatsNew.length > 0 && (
+                  <WhatsNewPill item={unseenWhatsNew[0]} count={unseenWhatsNew.length} onOpen={() => setWhatsNewOpen(true)} />
+                )}
                 {activeGlobalAnnouncement && (
                   <div style={{ background: "var(--amber)", color: "#000", padding: "12px 16px", borderRadius: 8, marginBottom: 16, display: "flex", gap: 8, alignItems: "center", fontWeight: 600 }}>
                     <Megaphone size={18} style={{ flexShrink: 0 }} />
                     <span style={{ fontSize: 14 }}>{activeGlobalAnnouncement}</span>
+                  </div>
+                )}
+                {activeScheduledAnnouncements.map(a => (
+                  <div key={a.id} style={{ background: "var(--amber)", color: "#000", padding: "12px 16px", borderRadius: 8, marginBottom: 16, display: "flex", gap: 8, alignItems: "center", fontWeight: 600 }}>
+                    <Megaphone size={18} style={{ flexShrink: 0 }} />
+                    <span style={{ fontSize: 14, flex: 1 }}>{a.message}</span>
+                    <button onClick={() => dismissAnnouncement(a.id)} aria-label="Dismiss announcement" style={{ background: "none", border: "none", cursor: "pointer", color: "#000", display: "flex", padding: 2, flexShrink: 0 }}>
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))}
+                {activeQuickLinks.length > 0 && (
+                  <div className="ql-chips mobile-only">
+                    {activeQuickLinks.map(ql => (
+                      <a key={ql.id} className="ql-chip" href={ql.url} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink size={13} /> {ql.title}
+                      </a>
+                    ))}
                   </div>
                 )}
                 <div className="view-date-header">
@@ -1549,9 +1649,22 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 onSessionsClick={() => setView("fullSchedule")}
               />
             )}
+            {view === "tomorrow" && (
+              <TomorrowSummary
+                list={tomorrowList}
+                weather={weather}
+                changeCount={tomorrowChangeCount}
+                onViewChanges={() => { setView("notifications"); setCompareTarget(null); }}
+              />
+            )}
             {/* Compact "now" banner on Tomorrow tab so user knows what's happening today */}
             {view === "tomorrow" && (current || next) && (
-              <div className="now-banner" onClick={() => setView("today")}>
+              <button
+                type="button"
+                className={`now-banner${current ? "" : " is-next"}`}
+                onClick={() => setView("today")}
+                aria-label={`${current ? "Now" : "Up next"}: ${(current || next).name} at ${(current || next).start}. Go to Today.`}
+              >
                 <span className="now-banner-dot" />
                 <span className="now-banner-label">{current ? "NOW" : "UP NEXT"}</span>
                 <span className="now-banner-name">
@@ -1564,7 +1677,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 </span>
                 <span className="now-banner-time">{(current || next).start}{current ? `–${current.end}` : ""}</span>
                 <span className="now-banner-go">Today →</span>
-              </div>
+              </button>
             )}
             <div className={view === "week" ? "pane-today hide-mobile" : "pane-today"}>
               <Suspense fallback={<div className="loading-screen" style={{ minHeight: "300px" }}><TermFlowLoader size={48} /></div>}>
@@ -1649,7 +1762,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                           termNumber={TERM?.number}
                         />
                         : view === "notifications"
-                          ? <NotificationsPage allChanges={CHANGES} myChanges={filteredChanges} isAdmin={isAdmin} />
+                          ? <NotificationsPage allChanges={CHANGES} myChanges={filteredChanges} isAdmin={isAdmin} userId={userId} />
                           : view === "admin" && isAdmin
                             ? <AdminDashboard user={user} startImpersonation={startImpersonation} syncLogs={syncLogs} timeOverride={timeOverride} setTimeOverride={setTimeOverride} allChanges={CHANGES} />
                             : view === "fullSchedule"

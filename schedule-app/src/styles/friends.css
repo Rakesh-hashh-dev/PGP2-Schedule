@@ -647,22 +647,30 @@
   flex-shrink: 0;
 }
 
+/* Desktop (default): name, course count, then status pill — three stacked
+   rows via CSS grid areas. Phone layout (name+status sharing a row, pill
+   pinned top-right) is a max-width: 640px override further down. Using
+   named grid areas lets each piece move independently between the two
+   layouts without the DOM needing to change. */
 .fr-friend-info {
   flex: 1;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-areas: "name" "meta" "status";
+  row-gap: 4px;
   transition: transform 0.3s ease;
 }
 
 .fr-friend-name {
+  grid-area: name;
   font-weight: 700;
   font-size: 16px;
   color: var(--ink);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 100%;
 }
 
 .fr-friend-meta {
@@ -679,6 +687,12 @@
   opacity: 0;
   transform: translateX(10px) scale(0.95);
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.fr-friend-icon-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .fr-friend-card:hover .fr-friend-actions {
@@ -1242,6 +1256,7 @@
 
 /* ── Friend free/busy status ── */
 .fr-friend-meta-row {
+  grid-area: meta;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1249,6 +1264,8 @@
 }
 
 .fr-friend-status {
+  grid-area: status;
+  justify-self: start;
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -1318,7 +1335,7 @@
   order: 4;
 }
 
-@media (min-width: 800px) {
+@media (min-width: 1201px) {
   .fr-layout {
       flex-direction: row;
       align-items: flex-start;
@@ -1349,7 +1366,7 @@
     }
 }
 
-@media (min-width: 1100px) {
+@media (min-width: 1201px) {
   .fr-left-col {
       flex: 7;
     }
@@ -1534,6 +1551,47 @@
       width: 36px;
       height: 36px;
       font-size: 14px;
+    }
+}
+
+/* Phones — every iPhone/Samsung/Oppo portrait width (up to ~430px) fits here.
+   Compare + the icon buttons never shrink, so on a single row they squeeze
+   the name down to nothing; wrap them onto their own full-width row instead.
+   Suggested Study Buddies (.fr-buddy) is excluded: its one small "Add" button
+   always fits comfortably beside the name, so it stays a single row. */
+@media (max-width: 1200px) {
+  .fr-friend-card {
+      flex-wrap: wrap;
+      row-gap: 8px;
+    }
+
+  /* .fr-friend-info already has flex:1 + min-width:0 (base rule) which sizes
+     it correctly beside the avatar regardless of avatar width — a hardcoded
+     calc() here previously broke the differently-sized .fr-buddy avatar. */
+
+  /* Phone-only: name + status share a row (pill pinned top-right), course
+     count below. Falls back to wrapping the pill under the name if space
+     ever runs out (name keeps a 64px floor so it never gets crushed). */
+  .fr-friend-info {
+      grid-template-columns: 1fr auto;
+      grid-template-areas: "name status" "meta meta";
+      column-gap: 8px;
+    }
+
+  .fr-friend-name {
+      min-width: 64px;
+    }
+
+  .fr-friend-status {
+      justify-self: end;
+      align-self: start;
+    }
+
+  .fr-friend-card:not(.fr-buddy) .fr-friend-actions {
+      flex-basis: 100%;
+      justify-content: space-between;
+      opacity: 1;
+      transform: none;
     }
 }
 
@@ -1810,5 +1868,22 @@
   .fr-show-all-btn {
     font-size: 12px;
     padding: 10px;
+  }
+}
+
+
+/* Tablet Fix for Card Content Overlap */
+@media (max-width: 1400px) {
+  .fr-friend-card:not(.fr-buddy),
+  .fr-group-card {
+    flex-wrap: wrap;
+    row-gap: 12px;
+  }
+  .fr-friend-card:not(.fr-buddy) .fr-friend-actions,
+  .fr-group-actions {
+    flex-basis: 100%;
+    justify-content: flex-end;
+    opacity: 1;
+    transform: none;
   }
 }

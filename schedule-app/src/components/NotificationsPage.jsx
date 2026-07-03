@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { Megaphone, PlusCircle, MinusCircle, ArrowRightLeft, BookOpen, Info, ChevronDown } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Megaphone, PlusCircle, MinusCircle, ArrowRightLeft, BookOpen, Info, ChevronDown, Bell, BellOff, Sunrise } from "lucide-react";
+import { pushSupported, pushConfigured, getPushSubscription, subscribeToPush, unsubscribeFromPush, getReminderPrefs, setReminderPrefs } from "../lib/push.js";
 
 function relTime(iso) {
   const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
@@ -39,7 +40,161 @@ function groupByDate(changes) {
   return ORDER.filter(l => groups[l]).map(l => ({ label: l, items: groups[l] }));
 }
 
-export default function NotificationsPage({ allChanges, myChanges, isAdmin }) {
+function PushToggle({ userId, onStatusChange }) {
+  // 'unsupported' | 'denied' | 'off' | 'on' | 'busy'
+  const [status, setStatusRaw] = useState("busy");
+  const setStatus = (s) => { setStatusRaw(s); onStatusChange?.(s); };
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!pushSupported() || !pushConfigured()) return setStatus("unsupported");
+      if (Notification.permission === "denied") return setStatus("denied");
+      const sub = await getPushSubscription().catch(() => null);
+      if (!cancelled) setStatus(sub ? "on" : "off");
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (status === "unsupported") return null;
+
+  async function toggle() {
+    if (status === "busy" || status === "denied") return;
+    const prev = status;
+    setStatus("busy");
+    try {
+      if (prev === "on") {
+        await unsubscribeFromPush();
+        setStatus("off");
+      } else {
+        await subscribeToPush(userId);
+        setStatus("on");
+      }
+    } catch (e) {
+      setStatus(Notification.permission === "denied" ? "denied" : prev);
+      if (Notification.permission !== "denied") alert(e.message || "Could not update push notifications.");
+    }
+  }
+
+  const label = status === "on" ? "Push on" : status === "denied" ? "Push blocked" : "Enable push";
+  return (
+    <button
+      className={`notif-push-toggle${status === "on" ? " notif-push-on" : ""}`}
+      onClick={toggle}
+      disabled={status === "busy" || status === "denied"}
+      title={status === "denied" ? "Notifications are blocked in your browser settings" : "Get push alerts for schedule changes and announcements"}
+    >
+      {status === "on" ? <Bell size={13} /> : <BellOff size={13} />}
+      {label}
+    </button>
+  );
+}
+
+const LEAD_OPTIONS = [15, 30, 60];
+
+function ReminderBar({ userId }) {
+  const [prefs, setPrefs] = useState(null); // { enabled, leadMinutes }
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    getReminderPrefs(userId).then(p => { if (!cancelled) setPrefs(p); }).catch(() => {
+      if (!cancelled) setPrefs({ enabled: true, leadMinutes: 30 });
+    });
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  if (!prefs) return null;
+
+  async function save(next) {
+    const prev = prefs;
+    setPrefs(next);
+    setSaving(true);
+    try {
+      await setReminderPrefs(userId, next);
+    } catch (e) {
+      setPrefs(prev);
+      alert(e.message || "Could not save reminder settings.");
+    }
+    setSaving(false);
+  }
+
+  return (
+    <div className="reminder-bar">
+      <div className="reminder-row">
+        <span className="reminder-bar-label">
+          <Bell size={13} /> Class reminders
+        </span>
+        <div className="reminder-seg" role="radiogroup" aria-label="Class reminder lead time">
+          <button
+            className={`reminder-seg-btn${!prefs.enabled ? " reminder-seg-active" : ""}`}
+            disabled={saving}
+            onClick={() => save({ ...prefs, enabled: false })}
+          >
+            Off
+          </button>
+          {LEAD_OPTIONS.map(min => (
+            <button
+              key={min}
+              className={`reminder-seg-btn${prefs.enabled && prefs.leadMinutes === min ? " reminder-seg-active" : ""}`}
+              disabled={saving}
+              onClick={() => save({ ...prefs, enabled: true, leadMinutes: min })}
+            >
+              {min}m
+            </button>
+          ))}
+        </div>
+        <span className="reminder-bar-hint">
+          {prefs.enabled ? `Notified ${prefs.leadMinutes} min before each of your classes` : "No class reminders"}
+        </span>
+      </div>
+      <div className="reminder-row">
+        <span className="reminder-bar-label">
+          <Sunrise size={13} /> Morning summary
+        </span>
+        <div className="reminder-seg" role="radiogroup" aria-label="Morning summary">
+          <button
+            className={`reminder-seg-btn${!prefs.dailySummary ? " reminder-seg-active" : ""}`}
+            disabled={saving}
+            onClick={() => save({ ...prefs, dailySummary: false })}
+          >
+            Off
+          </button>
+          <button
+            className={`reminder-seg-btn${prefs.dailySummary ? " reminder-seg-active" : ""}`}
+            disabled={saving}
+            onClick={() => save({ ...prefs, dailySummary: true })}
+          >
+            On
+          </button>
+        </div>
+        {prefs.dailySummary && (
+          <input
+            type="time"
+            className="reminder-time"
+            value={prefs.summaryTime}
+            min="06:30"
+            max="22:00"
+            step={300}
+            disabled={saving}
+            onChange={e => {
+              const t = e.target.value;
+              if (t) save({ ...prefs, summaryTime: t });
+            }}
+            aria-label="Summary time"
+          />
+        )}
+        <span className="reminder-bar-hint">
+          {prefs.dailySummary ? `Your day's classes, every morning at ${prefs.summaryTime}` : "No morning digest"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+export default function NotificationsPage({ allChanges, myChanges, isAdmin, userId }) {
+  const [pushStatus, setPushStatus] = useState("busy");
   const [showAll, setShowAll] = useState(false);
   // Admins see admin_only items in the All view; regular users never do
   const visibleAll = isAdmin ? (allChanges || []) : (allChanges || []).filter(c => !c.admin_only);
@@ -50,9 +205,13 @@ export default function NotificationsPage({ allChanges, myChanges, isAdmin }) {
     return (
       <div className="notif-pg">
         <div className="notif-pg-head">
-          <Megaphone size={18} strokeWidth={2} />
-          <h2>Announcements</h2>
+          <div className="notif-pg-head-title">
+            <Megaphone size={18} strokeWidth={2} />
+            <h2>Announcements</h2>
+          </div>
+          <div style={{ marginLeft: "auto" }}><PushToggle userId={userId} onStatusChange={setPushStatus} /></div>
         </div>
+        {pushStatus === "on" && <ReminderBar userId={userId} />}
         <div className="notif-pg-empty">
           <span className="notif-empty-icon">🎉</span>
           <p>You're all caught up</p>
@@ -71,13 +230,15 @@ export default function NotificationsPage({ allChanges, myChanges, isAdmin }) {
     <div className="notif-pg">
       {/* Header */}
       <div className="notif-pg-head">
-        <div style={{ display: "flex", alignItems: "center", gap: "9px", flex: 1, minWidth: 0 }}>
+        <div className="notif-pg-head-title">
           <Megaphone size={18} strokeWidth={2} />
           <h2>Announcements</h2>
           {changes.length > 0 && (
             <span className="notif-pg-count">{changes.length}</span>
           )}
         </div>
+        <div className="notif-pg-head-controls">
+        <PushToggle userId={userId} onStatusChange={setPushStatus} />
         {/* Compact scope toggle */}
         <div className="notif-scope-toggle">
           <button
@@ -93,7 +254,10 @@ export default function NotificationsPage({ allChanges, myChanges, isAdmin }) {
             All
           </button>
         </div>
+        </div>
       </div>
+
+      {pushStatus === "on" && <ReminderBar userId={userId} />}
 
       {changes.length === 0 ? (
         <div className="notif-pg-empty">

@@ -160,7 +160,13 @@ function CourseCountdown({ courses, allClasses, enrolled, attendance, now }) {
 
     return courses.map(c => {
       const sessions = allClasses
-        .filter(cl => cl.type === "class" && cl.code === c.code && (cl.section === "Single" || cl.section === (enrolled[c.code] || "")))
+        .filter(cl => {
+          if (cl.type !== "class" || cl.code !== c.code) return false;
+          if (cl.section !== "Single" && cl.section !== (enrolled[c.code] || "")) return false;
+          const s = (cl.session || "").toLowerCase();
+          if (s.includes("mid term") || s.includes("end term") || s.includes("quiz")) return false;
+          return true;
+        })
         .sort((a, b) => a.date.localeCompare(b.date));
 
       const total = sessions.length;
