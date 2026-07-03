@@ -1011,6 +1011,16 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     const codes = new Set(tomorrowList.filter(c => c.type === "class").map(c => c.code));
     return filteredChanges.filter(c => c.code && codes.has(c.code) && !readChangeKeys.has(changeKey(c))).length;
   }, [filteredChanges, tomorrowList, readChangeKeys]);
+
+  // Unread changes for a course that still has an unfinished class TODAY. Only
+  // counts classes whose end time is in the future, so once the affected class
+  // wraps up the banner self-expires.
+  const todayChangeCount = useMemo(() => {
+    const liveCodes = new Set(
+      todayList.filter(c => c.type === "class" && clsDate(c, "end") > now).map(c => c.code)
+    );
+    return filteredChanges.filter(c => c.code && liveCodes.has(c.code) && !readChangeKeys.has(changeKey(c))).length;
+  }, [filteredChanges, todayList, readChangeKeys, now]);
   const receivedGroupCount = groups.filter(g => g.isReceived).length;
 
   function markGroupsSeen() {
@@ -1605,6 +1615,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       <SlidersHorizontal size={14} /> Filter subjects
                     </button>
                     <div className="over-sep" />
+                    <button onClick={() => { setView("notifications"); setCompareTarget(null); setOverflowOpen(false); }}>
+                      <Bell size={14} /> Notification settings
+                    </button>
+                    <div className="over-sep" />
                     <button onClick={() => { setShowSetupEdit(true); setOverflowOpen(false); }}>
                       <Settings2 size={14} /> Edit setup
                     </button>
@@ -1766,6 +1780,14 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 onExamsClick={enableExams ? () => setView("exams") : undefined}
                 onSessionsClick={() => setView("fullSchedule")}
               />
+            )}
+            {view === "today" && !compareTarget && todayChangeCount > 0 && (
+              <div className="tmrw-summary">
+                <button type="button" className="tmrw-summary-changes" onClick={() => { setView("notifications"); setCompareTarget(null); }}>
+                  <Bell size={13} />
+                  {todayChangeCount} schedule update{todayChangeCount > 1 ? "s" : ""} for today's classes
+                </button>
+              </div>
             )}
             {view === "tomorrow" && (
               <TomorrowSummary

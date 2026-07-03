@@ -40,7 +40,9 @@ function groupByDate(changes) {
   return ORDER.filter(l => groups[l]).map(l => ({ label: l, items: groups[l] }));
 }
 
-function PushToggle({ userId, onStatusChange }) {
+// Shared push subscription state + toggle logic, reused by the announcements
+// header pill (PushToggle) and the mobile overflow menu (PushMenuItem).
+function usePushStatus(userId, onStatusChange) {
   // 'unsupported' | 'denied' | 'off' | 'on' | 'busy'
   const [status, setStatusRaw] = useState("busy");
   const setStatus = (s) => { setStatusRaw(s); onStatusChange?.(s); };
@@ -56,8 +58,6 @@ function PushToggle({ userId, onStatusChange }) {
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  if (status === "unsupported") return null;
 
   async function toggle() {
     if (status === "busy" || status === "denied") return;
@@ -76,6 +76,14 @@ function PushToggle({ userId, onStatusChange }) {
       if (Notification.permission !== "denied") alert(e.message || "Could not update push notifications.");
     }
   }
+
+  return { status, toggle };
+}
+
+function PushToggle({ userId, onStatusChange }) {
+  const { status, toggle } = usePushStatus(userId, onStatusChange);
+
+  if (status === "unsupported") return null;
 
   const label = status === "on" ? "Push on" : status === "denied" ? "Push blocked" : "Enable push";
   return (
