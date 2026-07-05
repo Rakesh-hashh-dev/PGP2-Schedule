@@ -1,9 +1,12 @@
-import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
+import { useState } from "react";
+import { ChevronLeft, ChevronRight, Calendar, BarChart3, ChevronDown } from "lucide-react";
+import WeekGlance from "./WeekGlance.jsx";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
 
 export default function WeekAgenda({ visible, now, offset, setOffset, todayISO, onViewFullSchedule }) {
+  const [showStats, setShowStats] = useState(false);
   const monday = new Date(now);
   const dow = (monday.getDay() + 6) % 7;
   monday.setDate(monday.getDate() - dow + offset * 7);
@@ -69,6 +72,23 @@ export default function WeekAgenda({ visible, now, offset, setOffset, todayISO, 
           </button>
         </div>
       )}
+
+      {/* Week Stats — desktop/tablet only; on mobile the same card shows above the agenda */}
+      <div className="wa-stats desktop-only">
+        <button
+          className={`wa-stats-toggle${showStats ? " open" : ""}`}
+          onClick={() => setShowStats((s) => !s)}
+          aria-expanded={showStats}
+        >
+          <span className="wa-stats-toggle-l"><BarChart3 size={15} /> Week Stats</span>
+          <ChevronDown size={16} className="wa-stats-chev" />
+        </button>
+        {showStats && (
+          <div className="wa-stats-body">
+            <WeekGlance visible={visible} now={now} offset={offset} todayISO={todayISO} />
+          </div>
+        )}
+      </div>
     </section>
   );
 }

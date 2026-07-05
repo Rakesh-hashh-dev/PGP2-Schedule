@@ -3,7 +3,7 @@
    { title, body, url?, tag?, image?, cta?, icon? } */
 
 self.addEventListener("push", (event) => {
-  let data = {};
+  let data;
   try {
     data = event.data ? event.data.json() : {};
   } catch {

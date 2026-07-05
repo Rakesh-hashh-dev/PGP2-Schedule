@@ -17,14 +17,67 @@ function Stat({ icon: Icon, tone, label, value }) {
 
 export default function TomorrowSummary({ list, weather, changeCount, onViewChanges }) {
   const classes = list.filter((c) => c.type === "class");
-  if (classes.length === 0) return null;
+  const wx = weather?.tomorrow;
+  const WxIcon = wx ? wIcon(wx.code).icon : null;
+
+  if (classes.length === 0) {
+    const hour = new Date().getHours();
+    const night = hour >= 19 || hour < 6;
+    // Same WMO-code buckets as wIcon(): 0-1 clear, 2-48 cloud/fog, 51+ precip
+    const code = wx?.code;
+    const wxKind = code == null || code <= 1 ? "clear" : code <= 48 ? "cloudy" : "rain";
+    const sub = wxKind === "rain"
+      ? "Rain's on the way — cozy day in"
+      : "Sleep in — the whole day is yours";
+
+    return (
+      <div className="tmrw-summary">
+        <div className={`tmrw-summary-card tmrw-free-card ${night ? 'tmrw-free-night' : ''}`}>
+          <div className="tmrw-summary-head">
+            <span className="tmrw-summary-kicker">Tomorrow at a glance</span>
+            {wx && (
+              <span className="tmrw-summary-wx">
+                {WxIcon && <WxIcon size={14} style={{ color: wIcon(wx.code).color }} />}
+                {wx.min}°–{wx.max}°C
+              </span>
+            )}
+          </div>
+          <div className="tmrw-free-scene" aria-hidden="true">
+            <div className={`tmrw-free-sky ${night ? 'sky-night' : 'sky-day'} sky-${wxKind}`}>
+              {!night && wxKind === "clear" && <span className="tmrw-free-rays" />}
+              {night ? <span className="tmrw-free-moon" /> : <span className="tmrw-free-sun" />}
+              <span className="tmrw-free-cloud c1" />
+              <span className="tmrw-free-cloud c2" />
+              {wxKind !== "clear" && <span className="tmrw-free-cloud c3" />}
+              {wxKind === "rain" && (
+                <>
+                  <span className="tmrw-free-drop d1" />
+                  <span className="tmrw-free-drop d2" />
+                  <span className="tmrw-free-drop d3" />
+                  <span className="tmrw-free-drop d4" />
+                </>
+              )}
+              <span className="tmrw-free-spark s1" />
+              <span className="tmrw-free-spark s2" />
+              <span className="tmrw-free-spark s3" />
+            </div>
+          </div>
+          <div className="tmrw-free-text">
+            <div className="tmrw-free-title">No classes tomorrow</div>
+            <div className="tmrw-free-sub">{sub}</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const breaks = list.filter((c) => c.type === "break").length;
   const first = classes[0];
   const lastEnd = list.reduce((max, c) => (toMin(c.end) > toMin(max) ? c.end : max), list[0].end);
 
-  const wx = weather?.tomorrow;
-  const WxIcon = wx ? wIcon(wx.code).icon : null;
+  const dayStart = toMin(first.start);
+  const daySpan = toMin(lastEnd) - dayStart;
+  const railItems = daySpan > 0 ? list.filter((c) => c.type === "class" || c.type === "break") : [];
 
   return (
     <div className="tmrw-summary">
@@ -44,6 +97,21 @@ export default function TomorrowSummary({ list, weather, changeCount, onViewChan
           <Stat icon={MapPin} tone="teal" label={`first · ${first.room || "TBA"}`} value={first.start} />
           <Stat icon={Sunset} tone="blue" label="free after" value={lastEnd} />
         </div>
+        {railItems.length > 0 && (
+          <div className="tmrw-rail" aria-hidden="true">
+            {railItems.map((c, i) => (
+              <span
+                key={i}
+                className={`tmrw-rail-seg tmrw-rail-seg-${c.type}`}
+                style={{
+                  left: `${((toMin(c.start) - dayStart) / daySpan) * 100}%`,
+                  width: `${((toMin(c.end) - toMin(c.start)) / daySpan) * 100}%`,
+                }}
+                title={`${c.name || (c.type === "break" ? "Break" : "Class")} · ${c.start}–${c.end}`}
+              />
+            ))}
+          </div>
+        )}
       </div>
       {changeCount > 0 && (
         <button type="button" className="tmrw-summary-changes" onClick={onViewChanges}>

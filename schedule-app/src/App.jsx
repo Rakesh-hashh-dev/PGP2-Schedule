@@ -6,6 +6,7 @@ import Hero from "./components/Hero.jsx";
 import SemSummary from "./components/SemSummary.jsx";
 import Timeline from "./components/Timeline.jsx";
 import WeekAgenda from "./components/WeekAgenda.jsx";
+import WeekGlance from "./components/WeekGlance.jsx";
 import SubjectFilter from "./components/SubjectFilter.jsx";
 import Login from "./components/Login.jsx";
 import Onboarding from "./components/Onboarding.jsx";
@@ -1766,7 +1767,16 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 </div>
               </>
             )}
-            {view !== "attendance" && view !== "insights" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && !compareTarget && view !== "tomorrow" && <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} onMarkAttendance={markAttendance} attendance={attendance} sysConfig={sysConfig} />}
+            {view !== "attendance" && view !== "insights" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && !compareTarget && view !== "tomorrow" && (
+              view === "week"
+                ? <div className="hide-mobile"><Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} onMarkAttendance={markAttendance} attendance={attendance} sysConfig={sysConfig} /></div>
+                : <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} onMarkAttendance={markAttendance} attendance={attendance} sysConfig={sysConfig} />
+            )}
+            {view === "week" && !compareTarget && (
+              <div className="mobile-only">
+                <WeekGlance visible={visible} now={now} offset={weekOffset} todayISO={todayISO} collapsible />
+              </div>
+            )}
             {(view === "today" || view === "week") && !compareTarget && (
               <SemSummary
                 enrolled={enrolled}
@@ -1887,6 +1897,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                         allClasses={CLASSES}
                         enrolled={enrolled}
                         legend={enrolledLegend}
+                        allCodes={Object.keys(LEGEND)}
                         now={now}
                         termNumber={TERM?.number}
                         termStart={TERM?.start}
@@ -1912,6 +1923,15 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                               ? <FullSchedulePage allClasses={CLASSES} enrolled={enrolled} legend={enrolledLegend} termLabel={termLabel} onBack={() => setView("today")} jumpToDate={jumpToDate} setJumpToDate={setJumpToDate} />
                               : view === "assignments"
                                 ? <AssignmentsPanel enrolled={enrolled} legend={enrolledLegend} userId={userId} />
+                              : view === "tomorrow"
+                                ? tomorrowList.length === 0 && premiumMode && syncing
+                                  ? (
+                                    <ul className="rail">
+                                      <li className="row premium-skeleton" style={{ height: "80px", marginBottom: "12px", border: "none" }} />
+                                      <li className="row premium-skeleton" style={{ height: "80px", marginBottom: "12px", border: "none", opacity: 0.7 }} />
+                                    </ul>
+                                  )
+                                  : <Timeline list={tomorrowList} current={null} now={now} showNowLine={false} label="Tomorrow" dateLabel={prettyDate(tomorrowISO)} attendance={attendance} markAttendance={markAttendance} skipInfo={skipInfo} syncStatus={<span className="live"><span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} />
                               : todayList.length === 0 && tomorrowList.length === 0
                                 ? premiumMode && syncing
                                   ? (
@@ -1922,9 +1942,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                     </ul>
                                   )
                                   : <div className="cva-card soft"><div className="cva-content"><strong>No classes!</strong><div className="cva-sub">Enjoy your free time.</div></div></div>
-                                : view === "tomorrow"
-                                  ? <Timeline list={tomorrowList} current={null} now={now} showNowLine={false} label="Tomorrow" dateLabel={prettyDate(tomorrowISO)} attendance={attendance} markAttendance={markAttendance} skipInfo={skipInfo} syncStatus={<span className="live"><span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} />
-                                  : <>
+                                : <>
                                       <MarkPrompt list={todayList} now={now} attendance={attendance} markAttendance={markAttendance} />
                                       <Timeline list={todayList} current={current} now={now} dateLabel={prettyDate(todayISO)} attendance={attendance} markAttendance={markAttendance} skipInfo={skipInfo} syncStatus={<span className="live"><span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} />
                                     </>}

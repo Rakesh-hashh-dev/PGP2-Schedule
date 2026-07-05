@@ -841,7 +841,7 @@
 
 .cal-month-headers {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
   border-bottom: none;
   border-radius: 20px 20px 0 0;
@@ -869,7 +869,7 @@
 
 .cal-month-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
   border-top: none;
   border-radius: 0 0 20px 20px;
@@ -892,6 +892,8 @@
   transition: background 0.2s;
   cursor: default;
   position: relative;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .cal-month-cell:nth-child(7n) {
@@ -1069,14 +1071,22 @@
 
 @media (max-width: 600px) {
   .cal-month-cell {
-      min-height: 56px;
-      padding: 6px 4px 4px;
+      min-height: 60px;
+      padding: 7px 2px 8px;
+      align-items: center;
+      gap: 4px;
+    }
+
+  /* Last row: extra bottom padding so content clears the rounded corners */
+  .cal-month-grid .cal-month-cell:nth-last-child(-n+7) {
+      padding-bottom: 16px;
     }
 
   .cal-month-dnum {
       width: 22px;
       height: 22px;
       font-size: 11px;
+      align-self: center;
     }
 
   .cal-month-dot {
@@ -1091,6 +1101,30 @@
 
   .cal-month-more {
       font-size: 8px;
+    }
+
+  /* Cells are ~48px wide here; "CLASSES" can't fit without clipping */
+  .cal-month-count-label {
+      display: none;
+    }
+
+  /* Count becomes a centered pill badge */
+  .cal-month-count-wrap {
+      margin-top: 0;
+      justify-content: center;
+    }
+
+  .cal-month-count {
+      font-size: 11px;
+      font-weight: 800;
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--violet) 12%, transparent);
+      transform-origin: center;
+    }
+
+  .cal-month-grid {
+      border-radius: 0 0 16px 16px;
     }
 }
 

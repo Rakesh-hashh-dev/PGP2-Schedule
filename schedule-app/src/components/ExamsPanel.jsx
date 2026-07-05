@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import "../styles/exams.css";
-import { GraduationCap, Clock, AlertTriangle, BookOpen, Trophy, CalendarDays, List, ChevronLeft, ChevronRight } from "lucide-react";
+import { GraduationCap, Clock, AlertTriangle, BookOpen, Trophy, CalendarDays, List, ChevronLeft, ChevronRight, Layers, FileText, CalendarClock } from "lucide-react";
 import { sessionKey } from "../lib/attendance.js";
 
 function daysBetween(a, b) {
@@ -32,6 +32,21 @@ function examCategory(name, session) {
 }
 
 function pad2(n) { return String(n).padStart(2, "0"); }
+
+// Derive the subject code an exam belongs to. Exam entries often carry an empty
+// `code` with the subject baked into the name (e.g. "SAPM MID Term Exam"), so
+// fall back to matching a known course code embedded in the name. Returns null
+// for generic exams (e.g. "END Term", "Term Registration") that apply to everyone.
+function examSubjectCode(exam, allCodes) {
+  if (exam.code) return exam.code;
+  const name = (exam.name || "").toUpperCase();
+  if (!name || !allCodes) return null;
+  const hit = allCodes.find(code => {
+    const re = new RegExp(`\\b${code.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+    return re.test(name);
+  });
+  return hit || null;
+}
 
 // ── Mini Calendar ──
 function ExamCalendar({ exams, now, termStart, termEnd }) {
@@ -240,7 +255,7 @@ function CourseCountdown({ courses, allClasses, enrolled, attendance, now }) {
   );
 }
 
-export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, now, termNumber, termStart, termEnd, attendance }) {
+export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, allCodes, now, termNumber, termStart, termEnd, attendance }) {
   const codes = Object.keys(enrolled || {});
   const [cdView, setCdView] = useState("list"); // "list" | "calendar"
   const [examFilter, setExamFilter] = useState("mine"); // "mine" | "all"
@@ -278,9 +293,14 @@ export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, no
           if (s.includes("mid term") || s.includes("end term") || s.includes("quiz")) isExam = true;
         }
         if (!isExam) return false;
-        
-        // Does it apply to me?
-        if (examFilter === "mine" && c.code && !codes.includes(c.code)) return false;
+
+        // Does it apply to me? Subject-specific exams (code set, or subject baked
+        // into the name like "SAPM MID Term Exam") are hidden unless enrolled.
+        // Generic exams (no identifiable subject) apply to everyone.
+        if (examFilter === "mine") {
+          const subjectCode = examSubjectCode(c, allCodes);
+          if (subjectCode && !codes.includes(subjectCode)) return false;
+        }
         return true;
       })
       .map(c => {
@@ -290,7 +310,7 @@ export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, no
         return { ...c, dt, days, category: examCategory(c.name, c.session), tone: cdTone(days) };
       })
       .sort((a, b) => a.dt - b.dt);
-  }, [allClasses, now, codes, examFilter]);
+  }, [allClasses, now, codes, examFilter, allCodes]);
 
   const upcoming = exams.filter(e => e.days >= 0);
   const past = exams.filter(e => e.days < 0);
@@ -333,20 +353,30 @@ export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, no
 
       {/* ── Credit Summary Hero ── */}
       <section className="exam-hero-new">
-        <div className="eh-top-label">SEMESTER PROGRESS</div>
+        <span className="eh-tag"><GraduationCap size={13} /> Semester Progress</span>
+
+        <div className="eh-ill-block" aria-hidden="true">
+          <div className="eh-ill-img-wrap">
+            <div className="eh-ill-glow" />
+            <img src="/grad-cap-3d.png" alt="" onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} />
+            <div className="eh-ill-fallback" style={{ display: 'none' }}>
+              <GraduationCap size={44} color="#A78BFA" />
+            </div>
+          </div>
+        </div>
+
         <div className="eh-content">
-          
           <div className="eh-progress-ring">
-            <svg width="100" height="100" viewBox="0 0 100 100">
-              <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="8" />
-              <circle 
-                cx="50" cy="50" r="42" fill="none" 
-                stroke="url(#purpleGrad)" 
-                strokeWidth="8" strokeLinecap="round" 
-                strokeDasharray="264" 
-                strokeDashoffset={264 - (264 * progressPct) / 100} 
-                transform="rotate(-90 50 50)" 
-                style={{ transition: 'stroke-dashoffset 1s ease-out' }}
+            <svg width="112" height="112" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.09)" strokeWidth="8" />
+              <circle
+                cx="50" cy="50" r="42" fill="none"
+                stroke="url(#purpleGrad)"
+                strokeWidth="8" strokeLinecap="round"
+                strokeDasharray="264"
+                strokeDashoffset={264 - (264 * progressPct) / 100}
+                transform="rotate(-90 50 50)"
+                className="eh-ring-prog"
               />
               <defs>
                 <linearGradient id="purpleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -356,69 +386,65 @@ export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, no
               </defs>
             </svg>
             <div className="eh-ring-text">
-              <div className="eh-ring-val">{progressPct}%</div>
+              <div className="eh-ring-val">{progressPct}<span className="eh-ring-pct">%</span></div>
               <div className="eh-ring-sub">Completed</div>
             </div>
           </div>
 
-          <div className="eh-progress-linear">
-            <div className="eh-pl-text">
-              <span>Semester Progress</span>
-              <span>{progressPct}% Completed</span>
-            </div>
-            <div className="eh-pl-bar">
-              <div className="eh-pl-fill" style={{ width: `${progressPct}%` }} />
-            </div>
-          </div>
-
           <div className="eh-stats-block">
-            <div className="eh-stats-row">
-              <div className="eh-stat">
-                <div className="eh-stat-val">{creditData.total}</div>
-                <div className="eh-stat-label">Credits<br/>Loaded</div>
+            <div className="eh-progress-linear">
+              <div className="eh-pl-text">
+                <span>Semester Progress</span>
+                <span>{progressPct}% Completed</span>
               </div>
-              <div className="eh-stat-divider" />
-              <div className="eh-stat">
-                <div className="eh-stat-val">{creditData.courses.length}</div>
-                <div className="eh-stat-label">Subjects<br/>&nbsp;</div>
-              </div>
-              <div className="eh-stat-divider" />
-              <div className="eh-stat">
-                <div className="eh-stat-val">{midTermCount}</div>
-                <div className="eh-stat-label">Mid Terms<br/>&nbsp;</div>
-              </div>
-              <div className="eh-stat-divider" />
-              <div className="eh-stat">
-                <div className="eh-stat-val">{endTermCount}</div>
-                <div className="eh-stat-label">End Terms<br/>&nbsp;</div>
+              <div className="eh-pl-bar">
+                <div className="eh-pl-fill" style={{ width: `${progressPct}%` }} />
               </div>
             </div>
 
-            <div className="eh-next-exam">
-              <div className="eh-ne-label">Next Exam</div>
-              {nextExam ? (
-                <>
-                  <div className="eh-ne-title">{nextExam.name || nextExam.code || "Upcoming Exam"}</div>
-                  <div className="eh-ne-meta">
-                    <span className="eh-ne-days">{nextExam.days} Days</span> Remaining &bull; {fmtDate(nextExam.date)}
-                  </div>
-                </>
-              ) : (
-                <div className="eh-ne-title" style={{ opacity: 0.5 }}>No upcoming exams</div>
+            <div className="eh-stats-row">
+              <div className="eh-tile" style={{ animationDelay: "80ms" }}>
+                <span className="eh-tile-ico"><BookOpen size={15} /></span>
+                <div className="eh-tile-val">{creditData.total}</div>
+                <div className="eh-tile-label">Credits</div>
+              </div>
+              <div className="eh-tile" style={{ animationDelay: "140ms" }}>
+                <span className="eh-tile-ico"><Layers size={15} /></span>
+                <div className="eh-tile-val">{creditData.courses.length}</div>
+                <div className="eh-tile-label">Subjects</div>
+              </div>
+              <div className="eh-tile" style={{ animationDelay: "200ms" }}>
+                <span className="eh-tile-ico"><FileText size={15} /></span>
+                <div className="eh-tile-val">{midTermCount}</div>
+                <div className="eh-tile-label">Mid Terms</div>
+              </div>
+              <div className="eh-tile" style={{ animationDelay: "260ms" }}>
+                <span className="eh-tile-ico"><Trophy size={15} /></span>
+                <div className="eh-tile-val">{endTermCount}</div>
+                <div className="eh-tile-label">End Terms</div>
+              </div>
+            </div>
+
+            <div className={`eh-next-exam${nextExam ? ` tone-${nextExam.tone || (nextExam.days <= 3 ? "bad" : nextExam.days <= 7 ? "warn" : "ok")}` : ""}`}>
+              <div className="eh-ne-l">
+                <span className="eh-ne-label"><CalendarClock size={12} /> Next Exam</span>
+                {nextExam ? (
+                  <>
+                    <div className="eh-ne-title">{nextExam.name || nextExam.code || "Upcoming Exam"}</div>
+                    <div className="eh-ne-meta"><span className="eh-ne-days-m">{nextExam.days} {nextExam.days === 1 ? "Day" : "Days"}</span> Remaining &bull; {fmtDate(nextExam.date)}</div>
+                  </>
+                ) : (
+                  <div className="eh-ne-title" style={{ opacity: 0.5 }}>No upcoming exams</div>
+                )}
+              </div>
+              {nextExam && (
+                <div className="eh-ne-badge">
+                  <span className="eh-ne-badge-n">{nextExam.days}</span>
+                  <span className="eh-ne-badge-u">{nextExam.days === 1 ? "day" : "days"}</span>
+                </div>
               )}
             </div>
           </div>
-
-          <div className="eh-ill-block">
-            <div className="eh-ill-img-wrap">
-              <div className="eh-ill-glow" />
-              <img src="/grad-cap-3d.png" alt="" onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} />
-              <div className="eh-ill-fallback" style={{ display: 'none' }}>
-                <GraduationCap size={48} color="#A78BFA" />
-              </div>
-            </div>
-          </div>
-
         </div>
       </section>
 

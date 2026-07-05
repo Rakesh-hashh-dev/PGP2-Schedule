@@ -105,6 +105,7 @@ function SparkTrend({ sessions, attendance }) {
 
 export default function AttendancePanel({ allClasses, now, attendance, enrolled, legend, markAttendance, weather, termNumber }) {
   const [expandedCode, setExpandedCode] = useState(null);
+  const [showChart, setShowChart] = useState(false);
   const codes = Object.keys(enrolled || {});
   const allPast = useMemo(() => {
     if (!enrolled) return [];
@@ -195,8 +196,20 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
         <WeatherWidget now={now} weather={weather} />
       </div>
 
-      {/* ── Overall hero ── */}
-      <section className={`att-hero tone-${overall_tone}`}>
+      {/* ── Overall hero (tap to toggle subject-wise chart) ── */}
+      <section
+        className={`att-hero tone-${overall_tone}${noData ? "" : " att-hero-clickable"}${showChart ? " att-hero-open" : ""}`}
+        onClick={noData ? undefined : () => setShowChart(s => !s)}
+        role={noData ? undefined : "button"}
+        tabIndex={noData ? undefined : 0}
+        onKeyDown={noData ? undefined : (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setShowChart(s => !s); } }}
+        aria-expanded={noData ? undefined : showChart}
+      >
+        {!noData && (
+          <span className="att-hero-hint" aria-hidden="true">
+            <ChevronDown size={18} className="att-hero-chev" />
+          </span>
+        )}
         <div className="att-hero-bg-text">
           {termNumber ? ["", "I", "II", "III", "IV", "V", "VI"][termNumber] || termNumber : ""}
         </div>
@@ -236,6 +249,76 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
           )}
         </div>
       </section>
+
+      {/* ── Subject-wise chart (toggled by tapping the hero) ── */}
+      {!noData && byCourse.length > 0 && showChart && (
+        <section className="att-card att-chart-card att-chart-reveal">
+          <div className="att-card-h">
+            <h2>Subject-wise attendance</h2>
+            <span className="att-count">{THRESHOLD}% required</span>
+          </div>
+          <div className="att-chart">
+            <div className="att-chart-plot" style={{ gridTemplateColumns: `repeat(${byCourse.length}, 1fr)` }}>
+              <div className="att-chart-threshold" style={{ bottom: `${THRESHOLD}%` }}>
+                <span className="att-chart-threshold-lbl">{THRESHOLD}%</span>
+              </div>
+              {byCourse.map((c, i) => {
+                const t = tone(c.pct);
+                const noBar = c.pct == null;
+                const targetH = noBar ? "3px" : `${Math.max(5, c.pct)}%`;
+                const delay = `${i * 65}ms`;
+                const marked = c.present + c.absent;
+                return (
+                  <div
+                    key={c.code}
+                    className={`att-chart-col${noBar ? " att-chart-col-empty" : ""}`}
+                    style={{ "--i": i }}
+                  >
+                    <div
+                      className={`att-chart-bar att-chart-${t}`}
+                      style={{ "--barh": targetH, animationDelay: delay }}
+                    >
+                      <span className="att-chart-val" style={{ animationDelay: `calc(${delay} + 260ms)` }}>
+                        {noBar ? "—" : `${c.pct}%`}
+                      </span>
+                    </div>
+                    <div className="att-ctip" role="tooltip">
+                      <div className="att-ctip-name">{c.name}</div>
+                      {noBar ? (
+                        <div className="att-ctip-empty">No sessions marked yet</div>
+                      ) : (
+                        <>
+                          <div className="att-ctip-head">
+                            <span className={`att-ctip-pct att-pct tone-${t}`}>{c.pct}%</span>
+                            <span className="att-ctip-ratio">{c.present}/{marked} attended</span>
+                          </div>
+                          <div className="att-ctip-legend">
+                            <span className="att-ctip-seg"><i className="att-ctip-dot p" />{c.present} present</span>
+                            <span className="att-ctip-seg"><i className="att-ctip-dot a" />{c.absent} absent</span>
+                            {c.unmarked > 0 && <span className="att-ctip-seg"><i className="att-ctip-dot u" />{c.unmarked} to mark</span>}
+                          </div>
+                          {c.totalScheduled > 0 && (
+                            <div className="att-ctip-skips">
+                              {c.penaltyHit
+                                ? <><AlertTriangle size={11} /> Grade penalty hit</>
+                                : <><Flame size={11} /> {c.skipsRemaining} skip{c.skipsRemaining === 1 ? "" : "s"} left</>}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="att-chart-xaxis" style={{ gridTemplateColumns: `repeat(${byCourse.length}, 1fr)` }}>
+              {byCourse.map((c, i) => (
+                <span key={c.code} className="att-chart-code" style={{ animationDelay: `calc(${i * 65}ms + 120ms)` }} title={c.name}>{c.code}</span>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ── By course ── */}
       <section className="att-card">
