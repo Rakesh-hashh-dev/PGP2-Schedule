@@ -14,7 +14,11 @@ import webpush from "npm:web-push@3.6.7";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const LEADS = [15, 30, 60];
-const CRON_INTERVAL_MIN = 5; // must match the pg_cron schedule
+// How far back a trigger moment may be and still fire. Wider than the 5-min
+// cron interval so a late or skipped cron run still catches up on the next run
+// (reminder_log dedup guarantees once-only, so no duplicates). A reminder that
+// would have fired on a missed run lands late rather than never.
+const LOOKBACK_MIN = 15;
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -75,7 +79,8 @@ Deno.serve(async (req) => {
   const feedUrl = Deno.env.get("FEED_URL");
   if (feedUrl) {
     try {
-      const res = await fetch(feedUrl, { redirect: "follow", signal: AbortSignal.timeout(20_000) });
+      const res = await fetch(feedUrl, { redirect: "follow", signal: AbortSignal.timeout(8_000) });
+      // (8s, not 20s — a slow feed must not starve the send path; cache covers us)
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data?.CLASSES) && data.CLASSES.length > 0) {
@@ -104,8 +109,10 @@ Deno.serve(async (req) => {
   };
 
   // ── 3. Classes whose start hits a lead window this run ────────────────────
-  // A class matches lead L when: nowMin < startMin - L + interval  AND  startMin - L <= nowMin
-  // i.e. the (startMin - L) trigger moment fell inside the last cron interval.
+  // A class matches lead L when the (startMin - L) trigger moment fell within
+  // the last LOOKBACK_MIN minutes: startMin - L <= nowMin < startMin - L + LOOKBACK.
+  // The window is wider than one cron interval so a delayed/skipped run still
+  // catches up next time; reminder_log dedup keeps it once-only.
   const dueByLead: Record<number, Cls[]> = {};
   for (const raw of classes) {
     if (raw.date !== dateISO || (raw.type && raw.type !== "class")) continue;
@@ -115,7 +122,7 @@ Deno.serve(async (req) => {
     if (startMin === null) continue;
     for (const lead of LEADS) {
       const trigger = startMin - lead;
-      if (trigger <= nowMin && nowMin < trigger + CRON_INTERVAL_MIN) {
+      if (trigger <= nowMin && nowMin < trigger + LOOKBACK_MIN) {
         (dueByLead[lead] ??= []).push(c);
       }
     }
@@ -164,7 +171,7 @@ Deno.serve(async (req) => {
     const pref = prefByUser.get(profile.user_id);
     if (!pref?.daily_summary) continue;
     const trigger = toMin(pref.summary_time || "07:20");
-    if (trigger === null || !(trigger <= nowMin && nowMin < trigger + CRON_INTERVAL_MIN)) continue;
+    if (trigger === null || !(trigger <= nowMin && nowMin < trigger + LOOKBACK_MIN)) continue;
 
     const mine = classes
       .filter((raw) => raw.date === dateISO && (!raw.type || raw.type === "class"))
@@ -215,34 +222,57 @@ Deno.serve(async (req) => {
   const summariesToSend = summaryJobs.filter((s) => freshKeys.has(`_summary|_|${s.userId}`));
 
   // ── 7. Send ────────────────────────────────────────────────────────────────
+  // urgency:"high" tells the push service (FCM/APNs) to wake a dozing/idle
+  // phone instead of batching the message — critical for time-sensitive
+  // reminders. TTL is short so a message that can't be delivered before the
+  // class starts is dropped rather than arriving hours stale.
   let sent = 0;
   const dead: string[] = [];
 
-  async function pushToUser(userId: string, payload: string) {
+  // Returns whether the user received the push on at least one device, and
+  // whether any device failed with a *retryable* (non-expired) error. The
+  // reminder_log rows were reserved before sending (step 6); if a user got it
+  // nowhere but hit a transient failure, we release their row so a later cron
+  // run retries instead of the reminder being lost forever.
+  async function pushToUser(userId: string, payload: string, ttlSec: number) {
+    let delivered = false;
+    let transientFail = false;
     for (const s of subsByUser.get(userId) || []) {
       try {
         await webpush.sendNotification(
           { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
           payload,
+          { urgency: "high", TTL: ttlSec },
         );
         sent++;
+        delivered = true;
       } catch (e) {
         const status = (e as { statusCode?: number }).statusCode;
+        // 404/410 = subscription expired or unsubscribed — prune, not retryable
         if (status === 404 || status === 410) dead.push(s.endpoint);
+        else transientFail = true;
       }
     }
+    return { delivered, transientFail };
   }
 
+  // reminder_log rows to release (delete) so the next run retries them
+  const toRelease: { code: string; section: string; user_id: string }[] = [];
+
   await Promise.all(
-    summariesToSend.map((s) =>
-      pushToUser(s.userId, JSON.stringify({
+    summariesToSend.map(async (s) => {
+      const payload = JSON.stringify({
         title: s.title,
         body: s.body,
         url: "/?view=today",
         tag: `daily-summary-${dateISO}`,
         icon: "/icon-push-bell.png",
-      })),
-    ),
+      });
+      const { delivered, transientFail } = await pushToUser(s.userId, payload, 3600);
+      if (!delivered && transientFail) {
+        toRelease.push({ code: "_summary", section: "_", user_id: s.userId });
+      }
+    }),
   );
   await Promise.all(
     toSend.map(async ({ userId, cls }) => {
@@ -265,15 +295,30 @@ Deno.serve(async (req) => {
         tag: `class-reminder-${cls.code}-${dateISO}`,
         icon: "/icon-push-clock.png",
       });
-      await pushToUser(userId, payload);
+      // Drop it if it can't arrive before the class actually starts
+      const ttlSec = Math.max(60, lead * 60);
+      const { delivered, transientFail } = await pushToUser(userId, payload, ttlSec);
+      if (!delivered && transientFail) {
+        toRelease.push({ code: cls.code, section: cls.section, user_id: userId });
+      }
     }),
   );
 
   if (dead.length > 0) {
     await supabase.from("push_subscriptions").delete().in("endpoint", dead);
   }
+  // Release reserved dedup rows for undelivered/transient-failed jobs so the
+  // next cron run retries them (composite PK, so delete one row at a time).
+  if (toRelease.length > 0) {
+    await Promise.all(
+      toRelease.map((r) =>
+        supabase.from("reminder_log").delete()
+          .eq("date", dateISO).eq("code", r.code).eq("section", r.section).eq("user_id", r.user_id)
+      ),
+    );
+  }
   // Keep the dedup log small — entries are useless after the day passes
   await supabase.from("reminder_log").delete().lt("date", new Date(Date.now() - 7 * 86400_000).toISOString().slice(0, 10));
 
-  return json(200, { sent, users: toSend.length, summaries: summariesToSend.length, pruned: dead.length, date: dateISO, nowMin });
+  return json(200, { sent, users: toSend.length, summaries: summariesToSend.length, pruned: dead.length, released: toRelease.length, date: dateISO, nowMin });
 });

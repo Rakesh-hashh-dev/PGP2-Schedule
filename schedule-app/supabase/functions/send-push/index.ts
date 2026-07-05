@@ -87,6 +87,8 @@ Deno.serve(async (req) => {
         await webpush.sendNotification(
           { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
           payload,
+          // high urgency wakes dozing/idle phones instead of batching; 12h TTL
+          { urgency: "high", TTL: 12 * 3600 },
         );
         sent++;
       } catch (e) {

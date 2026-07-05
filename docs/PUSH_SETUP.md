@@ -155,9 +155,35 @@ select cron.schedule(
 
 How it works: each run fetches the live schedule (cached in `schedule_cache` as
 fallback), applies admin class overrides (cancelled classes are skipped), finds
-classes whose start time is exactly one lead-window away, matches enrolled
-students (`profiles.courses`, "Single" section = everyone in the course),
-dedupes via `reminder_log`, and pushes to every device of each matched user.
+classes whose start time is inside the lead-window catch-up range, matches
+enrolled students (`profiles.courses`, "Single" section = everyone in the
+course), dedupes via `reminder_log`, and pushes to every device of each matched
+user.
+
+**Reliability (why a reminder rarely gets lost):**
+
+- **Catch-up window** — a reminder doesn't have to fire on one exact cron run.
+  The trigger moment (`start − lead`) is considered "due" for `LOOKBACK_MIN`
+  (15 min) afterwards, so a *late or skipped* `pg_cron` run still delivers it on
+  the next run. `reminder_log` dedup keeps it once-only, so no duplicates. The
+  trade-off: if the on-time run is missed, the reminder lands late (up to 15 min
+  after its trigger) rather than never.
+- **Reserve-then-release** — dedup rows are reserved *before* sending. If a user
+  gets the push on **no** device but hit a *retryable* error (FCM 429/500,
+  network blip — anything that isn't a 404/410 expired subscription), that row
+  is deleted so the next cron run retries. Expired subs (404/410) are pruned
+  instead. The JSON response reports `sent`, `pruned`, and `released` counts.
+- **High urgency + short TTL** — every push is sent `urgency:"high"` so the push
+  service (FCM/APNs) wakes a dozing/battery-optimized phone instead of batching
+  it. TTL is short (`lead` minutes for class reminders, 1h for summaries) so a
+  message that can't arrive before the class starts is dropped rather than
+  showing up hours stale. Broadcasts/digests use high urgency + a 12h TTL.
+- The live-feed fetch has an 8s timeout (not 20s) so a slow Apps Script feed
+  can't starve the send path — the `schedule_cache` copy covers that run.
+
+> ⚠️ These behaviours live in the edge functions. After editing
+> `class-reminders` or `send-push`, redeploy for changes to take effect:
+> `npx supabase functions deploy class-reminders --no-verify-jwt --project-ref <ref>`
 
 **Morning summary (same function):** users can also enable a personal daily
 digest — "📋 Your Friday: 3 classes" with their day's timetable — at a time of
@@ -174,3 +200,34 @@ starts at 06:30 IST.
 3. Admin Tools → Push Notifications → send a test → notification should arrive
    even with the tab closed.
 4. Stale subscriptions (uninstalled PWAs etc.) are auto-pruned on each send.
+
+## Troubleshooting — "sometimes it doesn't come on my phone"
+
+Once the edge functions are deployed, the two most common causes are
+**device-side**, not the server:
+
+**iOS (iPhone/iPad):**
+- Web Push only works if the app is **installed to the Home Screen** (Share →
+  *Add to Home Screen*) and opened from that icon. A notification permission
+  granted in a normal Safari *tab* produces **no** usable subscription.
+- Requires iOS 16.4+.
+- Check: Settings → Notifications → (the installed app) → Allow Notifications on,
+  *and* Settings → Focus / Do Not Disturb isn't silencing it.
+
+**Android:**
+- Disable **battery optimization** for the browser/PWA (Settings → Apps →
+  Chrome/PWA → Battery → *Unrestricted*). Aggressive Doze silently suppresses
+  or delays background pushes even though the server sent them.
+- Confirm system notifications for the browser/PWA are enabled.
+
+**Both platforms:**
+- Re-check the subscription exists: a row in `push_subscriptions` for that
+  `user_id`. If the PWA was reinstalled or storage cleared, the old endpoint is
+  dead — have the user click **Enable push** again to re-subscribe.
+- If a specific user misses reminders but a manual Admin test *does* arrive,
+  the subscription is fine — check their `push_prefs` (`class_reminders` on,
+  `lead_minutes`) and that `profiles.courses` actually lists the class's course
+  code / section.
+- Inspect the `class-reminders` function logs / JSON response: `sent` vs.
+  `released` (transient retries) vs. `pruned` (expired subs removed) tells you
+  which stage is dropping.
