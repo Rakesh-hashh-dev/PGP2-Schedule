@@ -1495,7 +1495,9 @@ button:focus-visible {
   border-radius: 50%;
   background: radial-gradient(circle at 35% 35%, #fde68a, #fbbf24 70%);
   box-shadow: 0 0 24px rgba(251, 191, 36, 0.55), 0 0 64px rgba(251, 191, 36, 0.25);
-  animation: tmrw-sun-breathe 4s ease-in-out infinite;
+  animation:
+    tmrw-enter-rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both,
+    tmrw-sun-breathe 4s ease-in-out 0.85s infinite;
 }
 
 .tmrw-free-rays {
@@ -1509,7 +1511,9 @@ button:focus-visible {
   border-radius: 50%;
   -webkit-mask: radial-gradient(circle, transparent 34%, #000 35%, #000 60%, transparent 61%);
   mask: radial-gradient(circle, transparent 34%, #000 35%, #000 60%, transparent 61%);
-  animation: tmrw-rays-spin 26s linear infinite;
+  animation:
+    tmrw-enter-fade 1s ease-out 0.4s both,
+    tmrw-rays-spin 26s linear infinite;
 }
 
 .tmrw-free-cloud {
@@ -1546,7 +1550,9 @@ button:focus-visible {
   width: 46px;
   left: -4px;
   top: 30px;
-  animation: tmrw-cloud-drift 7s ease-in-out infinite alternate;
+  animation:
+    tmrw-enter-drift-l 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.3s both,
+    tmrw-cloud-drift 7s ease-in-out 1.1s infinite alternate;
 }
 
 .tmrw-free-cloud.c2 {
@@ -1554,7 +1560,9 @@ button:focus-visible {
   right: -6px;
   top: 60px;
   opacity: 0.85;
-  animation: tmrw-cloud-drift 9s ease-in-out infinite alternate-reverse;
+  animation:
+    tmrw-enter-drift-r 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.45s both,
+    tmrw-cloud-drift 9s ease-in-out 1.25s infinite alternate-reverse;
 }
 
 .tmrw-free-spark {
@@ -1624,7 +1632,10 @@ button:focus-visible {
   border-radius: 50%;
   background: radial-gradient(circle at 34% 32%, #ffffff, #dce4f5 55%, #a8b6da 85%);
   box-shadow: 0 0 18px rgba(199, 210, 254, 0.5), 0 0 44px rgba(165, 180, 252, 0.22);
-  animation: tmrw-moon-rock 6s ease-in-out infinite;
+  animation:
+    tmrw-enter-rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both,
+    tmrw-moon-rock 6s ease-in-out 0.85s infinite,
+    tmrw-moon-glow 7s ease-in-out 1s infinite;
 }
 
 .tmrw-free-moon::before,
@@ -1667,7 +1678,9 @@ button:focus-visible {
   top: 50px;
   background: #dbe2ec;
   z-index: 2;
-  animation: tmrw-cloud-drift 8s ease-in-out infinite alternate;
+  animation:
+    tmrw-enter-rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.35s both,
+    tmrw-cloud-drift 8s ease-in-out 1.05s infinite alternate;
 }
 
 .tmrw-free-cloud.c3::before {
@@ -1726,10 +1739,37 @@ button:focus-visible {
   animation: tmrw-rain-fall 1.3s ease-in infinite;
 }
 
-.tmrw-free-drop.d1 { left: 50px; top: 74px; }
-.tmrw-free-drop.d2 { left: 64px; top: 74px; animation-delay: 0.3s; }
-.tmrw-free-drop.d3 { left: 78px; top: 74px; animation-delay: 0.6s; }
-.tmrw-free-drop.d4 { left: 92px; top: 74px; animation-delay: 0.9s; }
+/* Drops wait for the entrance choreography to finish */
+.tmrw-free-drop.d1 { left: 50px; top: 74px; animation-delay: 1s; }
+.tmrw-free-drop.d2 { left: 64px; top: 74px; animation-delay: 1.3s; }
+.tmrw-free-drop.d3 { left: 78px; top: 74px; animation-delay: 1.6s; }
+.tmrw-free-drop.d4 { left: 92px; top: 74px; animation-delay: 1.9s; }
+
+/* Shooting star — clear/cloudy nights, one streak every ~8s */
+.tmrw-free-shoot {
+  position: absolute;
+  top: 14px;
+  left: -8px;
+  width: 34px;
+  height: 2px;
+  border-radius: 99px;
+  background: linear-gradient(to left, #e0e7ff, rgba(224, 231, 255, 0));
+  rotate: 24deg;
+  opacity: 0;
+  animation: tmrw-shoot 8s ease-in 2.5s infinite;
+}
+
+/* Lightning — storm codes only, double blink */
+.tmrw-free-flash {
+  position: absolute;
+  inset: -24px;
+  border-radius: 24px;
+  background: radial-gradient(circle at 50% 42%, rgba(226, 232, 240, 0.9), rgba(226, 232, 240, 0) 62%);
+  opacity: 0;
+  z-index: 3;
+  pointer-events: none;
+  animation: tmrw-flash 6s linear 3s infinite;
+}
 
 @keyframes tmrw-sun-breathe {
   50% { scale: 1.07; }
@@ -1747,13 +1787,52 @@ button:focus-visible {
   100% { translate: -4px 22px; opacity: 0; }
 }
 
+@keyframes tmrw-enter-fade {
+  from { opacity: 0; }
+}
+
+@keyframes tmrw-enter-rise {
+  from { opacity: 0; translate: 0 10px; }
+  to { translate: 0 0; }
+}
+
+@keyframes tmrw-enter-drift-l {
+  from { opacity: 0; translate: -12px 0; }
+  to { translate: 0 0; }
+}
+
+@keyframes tmrw-enter-drift-r {
+  from { opacity: 0; translate: 12px 0; }
+  to { translate: 0 0; }
+}
+
+@keyframes tmrw-moon-glow {
+  0%, 100% { box-shadow: 0 0 18px rgba(199, 210, 254, 0.5), 0 0 44px rgba(165, 180, 252, 0.22); }
+  50% { box-shadow: 0 0 26px rgba(199, 210, 254, 0.65), 0 0 60px rgba(165, 180, 252, 0.32); }
+}
+
+@keyframes tmrw-shoot {
+  0% { translate: 0 0; opacity: 0; }
+  3% { opacity: 0.9; }
+  9% { translate: 118px 52px; opacity: 0; }
+  100% { translate: 118px 52px; opacity: 0; }
+}
+
+@keyframes tmrw-flash {
+  0%, 87% { opacity: 0; }
+  88% { opacity: 0.75; }
+  90% { opacity: 0.08; }
+  92% { opacity: 0.9; }
+  96%, 100% { opacity: 0; }
+}
+
 @keyframes tmrw-rays-spin {
   to { rotate: 360deg; }
 }
 
 @keyframes tmrw-cloud-drift {
   from { translate: 0 0; }
-  to { translate: 14px 0; }
+  to { translate: 14px -3px; }
 }
 
 @keyframes tmrw-twinkle {
@@ -1768,6 +1847,8 @@ button:focus-visible {
   .tmrw-free-cloud,
   .tmrw-free-spark,
   .tmrw-free-drop,
+  .tmrw-free-shoot,
+  .tmrw-free-flash,
   .tmrw-free-text {
     animation: none;
   }

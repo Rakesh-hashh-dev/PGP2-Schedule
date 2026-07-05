@@ -23,12 +23,17 @@ export default function TomorrowSummary({ list, weather, changeCount, onViewChan
   if (classes.length === 0) {
     const hour = new Date().getHours();
     const night = hour >= 19 || hour < 6;
-    // Same WMO-code buckets as wIcon(): 0-1 clear, 2-48 cloud/fog, 51+ precip
+    // Same WMO-code buckets as wIcon(): 0-1 clear, 2-48 cloud/fog, 51+ precip, 95+ storm
     const code = wx?.code;
-    const wxKind = code == null || code <= 1 ? "clear" : code <= 48 ? "cloudy" : "rain";
-    const sub = wxKind === "rain"
-      ? "Rain's on the way — cozy day in"
-      : "Sleep in — the whole day is yours";
+    const wxKind = code == null || code <= 1 ? "clear" : code <= 48 ? "cloudy" : code < 95 ? "rain" : "storm";
+    const raining = wxKind === "rain" || wxKind === "storm";
+    const sub = wxKind === "storm"
+      ? "Storms outside — perfect excuse to stay in"
+      : wxKind === "rain"
+        ? "Rain's on the way — cozy day in"
+        : "Sleep in — the whole day is yours";
+    // Storm reuses all the rain styling plus the lightning flash
+    const skyClass = `tmrw-free-sky ${night ? "sky-night" : "sky-day"} sky-${raining ? "rain" : wxKind}`;
 
     return (
       <div className="tmrw-summary">
@@ -43,13 +48,13 @@ export default function TomorrowSummary({ list, weather, changeCount, onViewChan
             )}
           </div>
           <div className="tmrw-free-scene" aria-hidden="true">
-            <div className={`tmrw-free-sky ${night ? 'sky-night' : 'sky-day'} sky-${wxKind}`}>
+            <div className={skyClass}>
               {!night && wxKind === "clear" && <span className="tmrw-free-rays" />}
               {night ? <span className="tmrw-free-moon" /> : <span className="tmrw-free-sun" />}
               <span className="tmrw-free-cloud c1" />
               <span className="tmrw-free-cloud c2" />
               {wxKind !== "clear" && <span className="tmrw-free-cloud c3" />}
-              {wxKind === "rain" && (
+              {raining && (
                 <>
                   <span className="tmrw-free-drop d1" />
                   <span className="tmrw-free-drop d2" />
@@ -57,6 +62,8 @@ export default function TomorrowSummary({ list, weather, changeCount, onViewChan
                   <span className="tmrw-free-drop d4" />
                 </>
               )}
+              {night && !raining && <span className="tmrw-free-shoot" />}
+              {wxKind === "storm" && <span className="tmrw-free-flash" />}
               <span className="tmrw-free-spark s1" />
               <span className="tmrw-free-spark s2" />
               <span className="tmrw-free-spark s3" />
