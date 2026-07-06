@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { MapPin, CheckCircle2, XCircle, AlertTriangle, TrendingDown } from "lucide-react";
-import { sessionKey } from "../lib/attendance.js";
+import { sessionKey, isExamSession } from "../lib/attendance.js";
+import { subjectClass } from "../lib/subjectColors.js";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function fmtClock(d) { return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }); }
@@ -148,8 +149,8 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
           const isPast = showNowLine && !isCur && nowMin >= (c.type !== "class" ? toMin(c.start) : toMin(c.end));
           const isNext = showNowLine && i === nextUpIdx;
           const isFirst = !showNowLine && i === nextUpIdx;
-          const canMark = c.type === "class" && !!markAttendance && clsStart(c) <= now;
-          const attKey = c.type === "class" ? sessionKey(c) : null;
+          const canMark = c.type === "class" && !isExamSession(c) && !!markAttendance && clsStart(c) <= now;
+          const attKey = c.type === "class" && !isExamSession(c) ? sessionKey(c) : null;
           const attStatus = attKey ? attendance[attKey] : null;
 
           let progress = 0;
@@ -173,7 +174,7 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
                   <span className="rt-start">{c.start}</span>
                   <span className="rt-end">{c.end}</span>
                 </div>
-                <div className="row-body" style={{ position: "relative" }}>
+                <div className={`row-body${c.type === "class" && c.code ? ` subj-edge ${subjectClass(c.code)}` : ""}`} style={{ position: "relative" }}>
                   {isCur && (
                     <div className="cur-progress-track">
                       <div className="cur-progress-fill" style={{ width: `${progress}%` }} />
@@ -182,7 +183,7 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
                   <div className="row-head">
                     <div className="row-course">
                       {c.name} {c.session && (
-                        <span className={`ses ses-${(Array.from(c.code).reduce((h, char) => h + char.charCodeAt(0), 0)) % 6}`}>
+                        <span className={`ses ${subjectClass(c.code)}`}>
                           {c.code} {c.session}
                         </span>
                       )}
@@ -197,7 +198,7 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
                           <span className="row-loc"><MapPin size={13} /> {c.room || "TBA"}</span>
                           {c.faculty && <span className="row-faculty">{c.faculty}</span>}
                           {c.section === "Single" && <span className="single-tag">all</span>}
-                          {!isPast && !attStatus && <SkipHint info={skipInfo?.[c.code]} name={c.name} />}
+                          {!isPast && attKey && !attStatus && <SkipHint info={skipInfo?.[c.code]} name={c.name} />}
                         </>
                       : <TypeBadge type={c.type} />}
                   </div>

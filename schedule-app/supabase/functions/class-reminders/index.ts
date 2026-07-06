@@ -72,6 +72,24 @@ Deno.serve(async (req) => {
     Deno.env.get("SB_SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
+  // pg_net (the cron caller) gives up after ~5s and the runtime tears the
+  // request down on disconnect. A slow run (feed fetch + many sends — e.g. the
+  // morning-summary window) exceeded that and was killed *between* reserving
+  // reminder_log rows and sending, losing those summaries for the day.
+  // So: acknowledge the cron immediately and do the real work in the
+  // background — stats go to the function logs instead of the response.
+  const work = runReminders(supabase).then(
+    (stats) => console.log("class-reminders:", JSON.stringify(stats)),
+    (e) => console.error("class-reminders failed:", e),
+  );
+  // deno-lint-ignore no-explicit-any
+  const runtime = globalThis as any;
+  if (runtime.EdgeRuntime?.waitUntil) runtime.EdgeRuntime.waitUntil(work);
+  else await work;
+  return json(200, { accepted: true });
+});
+
+async function runReminders(supabase: ReturnType<typeof createClient>) {
   const { dateISO, minutes: nowMin } = nowIST();
 
   // ── 1. Today's schedule: live feed, fall back to cached copy ──────────────
@@ -98,7 +116,7 @@ Deno.serve(async (req) => {
     const { data: cached } = await supabase.from("schedule_cache").select("payload").eq("id", "latest").maybeSingle();
     classes = cached?.payload?.CLASSES ?? null;
   }
-  if (!classes) return json(200, { skipped: "no schedule available (feed down, cache empty)" });
+  if (!classes) return { skipped: "no schedule available (feed down, cache empty)" };
 
   // ── 2. Apply admin class overrides (cancel / room / time) ─────────────────
   const { data: sysConfig } = await supabase.from("system_config").select("flags").eq("id", "global").maybeSingle();
@@ -134,7 +152,7 @@ Deno.serve(async (req) => {
     supabase.from("push_prefs").select("user_id, class_reminders, lead_minutes, daily_summary, summary_time"),
     supabase.from("push_subscriptions").select("user_id, endpoint, p256dh, auth"),
   ]);
-  if (!subs || subs.length === 0) return json(200, { sent: 0, note: "no push subscribers" });
+  if (!subs || subs.length === 0) return { sent: 0, note: "no push subscribers" };
 
   const prefByUser = new Map((prefs || []).map((p) => [p.user_id, p]));
   const subsByUser = new Map<string, typeof subs>();
@@ -205,7 +223,7 @@ Deno.serve(async (req) => {
   }
 
   if (jobs.length === 0 && summaryJobs.length === 0) {
-    return json(200, { sent: 0, note: "nothing due this run" });
+    return { sent: 0, note: "nothing due this run" };
   }
 
   // ── 6. Dedupe via reminder_log (unique date+code+section+user) ────────────
@@ -268,7 +286,9 @@ Deno.serve(async (req) => {
         tag: `daily-summary-${dateISO}`,
         icon: "/icon-push-bell.png",
       });
-      const { delivered, transientFail } = await pushToUser(s.userId, payload, 3600);
+      // 4h TTL: a phone that's asleep at 07:20 still gets the digest when it
+      // wakes mid-morning; older than that and the "your day" push is stale
+      const { delivered, transientFail } = await pushToUser(s.userId, payload, 14400);
       if (!delivered && transientFail) {
         toRelease.push({ code: "_summary", section: "_", user_id: s.userId });
       }
@@ -320,5 +340,5 @@ Deno.serve(async (req) => {
   // Keep the dedup log small — entries are useless after the day passes
   await supabase.from("reminder_log").delete().lt("date", new Date(Date.now() - 7 * 86400_000).toISOString().slice(0, 10));
 
-  return json(200, { sent, users: toSend.length, summaries: summariesToSend.length, pruned: dead.length, released: toRelease.length, date: dateISO, nowMin });
-});
+  return { sent, users: toSend.length, summaries: summariesToSend.length, pruned: dead.length, released: toRelease.length, date: dateISO, nowMin };
+}

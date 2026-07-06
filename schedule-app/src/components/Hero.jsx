@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
-import { MapPin, CheckCircle2, Timer, ThumbsUp, ThumbsDown } from "lucide-react";
+import { MapPin, CheckCircle2, Timer, ThumbsUp, ThumbsDown, PartyPopper } from "lucide-react";
 import { sessionKey } from "../lib/attendance.js";
+import { subjectClass } from "../lib/subjectColors.js";
 
 function clsDate(c, which) {
   const [Y, Mo, D] = c.date.split("-").map(Number);
@@ -14,8 +15,6 @@ function prettyDate(iso) {
 }
 
 function pad2(n) { return String(n).padStart(2, "0"); }
-
-function sesHue(code) { return Array.from(code).reduce((h, c) => h + c.charCodeAt(0), 0) % 6; }
 
 function sesLabel(code, session) {
   if (!session) return code;
@@ -234,7 +233,7 @@ export default function Hero({ current, next, now, todayISO, tomorrowISO, onMark
         <div className="hero-state-row">
           <div className="hero-tag in hero-tag-glow"><span className="dot" />In session</div>
           {current.code && (
-            <span className={`ses ses-${sesHue(current.code)}`}>
+            <span className={`ses ${subjectClass(current.code)}`}>
               {sesLabel(current.code, current.session)}
             </span>
           )}
@@ -263,7 +262,7 @@ export default function Hero({ current, next, now, todayISO, tomorrowISO, onMark
             <span className="hero-lastclass-text">
               {next
                 ? <>Free after {current.end} · next is {next.date === tomorrowISO ? "tomorrow" : prettyDate(next.date)} at {next.start}</>
-                : <>Free after {current.end} 🎉</>}
+                : <>Free after {current.end} <PartyPopper size={12} aria-hidden="true" /></>}
             </span>
           </div>
         )}
@@ -285,7 +284,7 @@ export default function Hero({ current, next, now, todayISO, tomorrowISO, onMark
           <div className="hero-state-row">
             <div className="hero-tag done"><span className="dot" />Done for today</div>
           </div>
-          <h1 className="hero-course">All clear 🎉</h1>
+          <h1 className="hero-course">All clear <PartyPopper size={22} aria-hidden="true" className="hero-course-ico" /></h1>
           <div className="hero-when">No more classes left today. {timeOfDaySign(now)}</div>
           <div className="hero-next-hint">
             <span className="hero-hint-label">Next up</span>
@@ -305,7 +304,7 @@ export default function Hero({ current, next, now, todayISO, tomorrowISO, onMark
         <div className="hero-state-row">
           <div className="hero-tag next"><span className="dot amber" />Up next</div>
           {next.code && (
-            <span className={`ses ses-${sesHue(next.code)}`}>
+            <span className={`ses ${subjectClass(next.code)}`}>
               {sesLabel(next.code, next.session)}
             </span>
           )}

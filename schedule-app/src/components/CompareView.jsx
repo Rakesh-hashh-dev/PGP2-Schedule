@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import "../styles/compare.css";
-import { ArrowLeft, Columns, Layers, Clock, BookOpen, UserCheck, Sparkles, ChevronDown, Copy, Check, CalendarDays, ArrowRight as ArrowRightIcon, Flame, X } from "lucide-react";
+import { ArrowLeft, Columns, Layers, Clock, BookOpen, UserCheck, Sparkles, ChevronDown, Copy, Check, CalendarDays, ArrowRight as ArrowRightIcon, Flame, X, CalendarX2, PartyPopper } from "lucide-react";
+import { EmptyState } from "./ui.jsx";
 import { findFreeSlots, findGroupFreeSlots, scheduleInsights, friendVisibleClasses, avatarGradient } from "../lib/friends.js";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
@@ -584,11 +585,7 @@ export default function CompareView({
               )}
             </div>
             {freeSlots.length === 0 ? (
-              <div className="cv-empty-block">
-                <span className="cv-empty-icon">😔</span>
-                <p>No common free time</p>
-                <span>Try a different day or range.</span>
-              </div>
+              <EmptyState compact icon={CalendarX2} title="No common free time" sub="Try a different day or range." />
             ) : (
               <div className="cv-free-list">
                 <FreeSlotGroups
@@ -1003,7 +1000,7 @@ function SideBySide({ myClasses, targetClasses, targets, dayFilter, freeSlots = 
                   <div className="cv-sbs-freeday">
                     <span className="cv-sbs-freeday-badge">All free</span>
                     <span className="cv-sbs-freeday-text">
-                      No classes for anyone{daySlots.length ? ` · ${fmtTime(daySlots[0].start)} – ${fmtTime(daySlots[daySlots.length - 1].end)}` : ""} 🎉
+                      No classes for anyone{daySlots.length ? ` · ${fmtTime(daySlots[0].start)} – ${fmtTime(daySlots[daySlots.length - 1].end)}` : ""} <PartyPopper size={12} aria-hidden="true" />
                     </span>
                   </div>
                 ) : dg.rows.map((row, ri) => (

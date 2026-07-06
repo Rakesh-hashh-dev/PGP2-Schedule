@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { ArrowRight, Info, X, Settings2, Download } from "lucide-react";
+import { subjectClass } from "../lib/subjectColors.js";
 
 const AREA_LABEL = { "F&A": "Finance & Accounting", MKTG: "Marketing", ISM: "Information Systems", STM: "Strategy", OPS: "Operations", "OB&HR": "OB & HR", Other: "Other" };
 const AREA_ORDER = ["F&A", "MKTG", "ISM", "STM", "OPS", "OB&HR", "Other"];
@@ -131,7 +132,7 @@ export default function Onboarding({ legend, sectionsByCode, onDone, initialPick
                 return (
                   <div key={code} className={`oc ${on ? "on" : ""}`}>
                     <button className="oc-main" onClick={() => toggle(code)} aria-pressed={on}>
-                      <span className={`ses ses-${(Array.from(code).reduce((h, char) => h + char.charCodeAt(0), 0)) % 6}`}>
+                      <span className={`ses ${subjectClass(code)}`}>
                         {code}
                       </span>
                       <span className="oc-n">{name}</span>

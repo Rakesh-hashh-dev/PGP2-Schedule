@@ -2,6 +2,8 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import "../styles/assignments.css";
 import { CheckCircle2, Circle, Plus, Trash2, X, ChevronDown, ChevronUp, Check } from "lucide-react";
 import { loadAssignments, pushAssignments } from "../lib/assignments.js";
+import { EmptyState, Button } from "./ui.jsx";
+import { Inbox } from "lucide-react";
 
 function daysUntil(dueDate) {
   if (!dueDate) return null;
@@ -413,16 +415,16 @@ export default function AssignmentsPanel({ enrolled, legend, userId }) {
       )}
 
       {tab === "open" && allClear ? (
-        <div className="assign-empty-state">
-          <div className="assign-empty-ico"><CheckCircle2 size={28} /></div>
-          <div className="assign-empty-title">You're all caught up</div>
-          <div className="assign-empty-sub">Nothing due across your {courses.length} subjects</div>
-          {stats.submitted > 0 && (
-            <button className="assign-empty-link" onClick={() => setTab("done")}>
+        <EmptyState
+          icon={CheckCircle2}
+          title="You're all caught up"
+          sub={`Nothing due across your ${courses.length} subjects`}
+          action={stats.submitted > 0 && (
+            <Button variant="ghost" size="sm" onClick={() => setTab("done")}>
               View submitted work
-            </button>
+            </Button>
           )}
-        </div>
+        />
       ) : (
         <section className="assign-grid">
           {courses.map(course => {
@@ -472,10 +474,7 @@ export default function AssignmentsPanel({ enrolled, legend, userId }) {
       )}
 
       {tab === "done" && stats.submitted === 0 && (
-        <div className="assign-empty-state">
-          <div className="assign-empty-title">Nothing submitted yet</div>
-          <div className="assign-empty-sub">Completed assignments will show up here</div>
-        </div>
+        <EmptyState compact icon={Inbox} title="Nothing submitted yet" sub="Completed assignments will show up here" />
       )}
 
       {undoState && (

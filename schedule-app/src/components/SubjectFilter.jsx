@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { SlidersHorizontal, ChevronDown, Settings2 } from "lucide-react";
+import { subjectClass } from "../lib/subjectColors.js";
 
 const AREA_LABELS = {
   "F&A":   "Finance",
@@ -145,7 +146,7 @@ export default function SubjectFilter({ legend, mine, setMine, sections = {}, se
                           className={`sf-chip ${mine.has(code) ? "on" : ""}`}
                           onClick={() => toggleChip(code)}
                         >
-                          <span className={`ses ses-${(Array.from(code).reduce((h, char) => h + char.charCodeAt(0), 0)) % 6}`}>
+                          <span className={`ses ${subjectClass(code)}`}>
                             {code}
                           </span>
                           <span className="sf-name">{legend[code].name}</span>

@@ -93,6 +93,35 @@ export async function pushProfile(userId, courses, userName, optionalLastSeenNot
   return s;
 }
 
+// ── Notification dismiss/mute prefs (last-write-wins, not unioned — these
+// are toggleable, so unmuting/undoing on one device must be able to clear
+// state set on another) ─────────────────────────────────────────────────
+
+export async function getNotifPrefs(userId) {
+  if (!userId) return null;
+  const { data } = await supabase.from("profiles").select("courses").eq("user_id", userId).maybeSingle();
+  const raw = data?.courses || {};
+  return {
+    dismissedKeys: raw._dismissedChangeKeys || [],
+    mutedCourses: raw._mutedCourses || [],
+  };
+}
+
+export async function setNotifPrefs(userId, { dismissedKeys, mutedCourses }) {
+  if (!userId) return;
+  try {
+    const { data } = await supabase.from("profiles").select("courses").eq("user_id", userId).maybeSingle();
+    const current = data?.courses || {};
+    const next = { ...current };
+    if (dismissedKeys) next._dismissedChangeKeys = dismissedKeys;
+    if (mutedCourses) next._mutedCourses = mutedCourses;
+    await supabase.from("profiles").upsert(
+      { user_id: userId, courses: next, updated_at: new Date().toISOString() },
+      { onConflict: "user_id" }
+    );
+  } catch { /* cached locally; re-syncs next load */ }
+}
+
 export async function pushReadState(userId, readPingIds, seenGroupIds, readChangeKeys) {
   if (!userId) return;
   try {

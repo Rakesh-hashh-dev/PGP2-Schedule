@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChevronLeft, ChevronRight, Calendar, BarChart3, ChevronDown } from "lucide-react";
 import WeekGlance from "./WeekGlance.jsx";
+import { subjectClass } from "../lib/subjectColors.js";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
@@ -51,7 +52,7 @@ export default function WeekAgenda({ visible, now, offset, setOffset, todayISO, 
                         <span className="ag-c">
                           {c.name}
                           {c.session && (
-                            <span className={`ses ses-${(Array.from(c.code).reduce((h, char) => h + char.charCodeAt(0), 0)) % 6}`}>
+                            <span className={`ses ${subjectClass(c.code)}`}>
                               {c.code} {c.session}
                             </span>
                           )}

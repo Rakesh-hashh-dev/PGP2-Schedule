@@ -30,6 +30,7 @@ import { loadAttendance, saveAttendance, sessionKey, syncAttendanceFromCloud, pu
 import { syncProfileFromCloud, pushProfile, pushReadState } from "./lib/profile.js";
 import { decodeSchedule, saveFriend, loadFriends, loadGroups, syncFriendsAndGroupsFromCloud, fetchFriendPings, pushFriendsToCloud, deleteAllFriendPings, removeFriendByCloudId, deleteFriendPing } from "./lib/friends.js";
 import { supabase } from "./lib/supabase.js";
+import { assignSubjectColors, subjectClass } from "./lib/subjectColors.js";
 import MarkPrompt from "./components/MarkPrompt.jsx";
 import { WhatsNewPill, WhatsNewModal } from "./components/WhatsNew.jsx";
 
@@ -119,6 +120,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // ──────────────────────────────────────────────────────────────
   const showAdminUI = isAdmin && adminMode;
   const [sysConfig, setSysConfig] = useState(null);
+  const [showFriendsAgenda, setShowFriendsAgenda] = useState(false);
   const [helpModalOpen, setHelpModalOpen] = useState(false);
   const [dismissedAnnouncements, setDismissedAnnouncements] = useState(() => {
     try { return new Set(JSON.parse(localStorage.getItem("pgp2.dismissed-announcements") || "[]")); } catch { return new Set(); }
@@ -234,6 +236,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [compareTarget, setCompareTarget] = useState(null); // { mode, friendData?, groupData? }
   const [friendToast, setFriendToast] = useState(null);
   const [jumpToDate, setJumpToDate] = useState(null);
+  const [jumpToSession, setJumpToSession] = useState(null); // { date, code, start } — highlights the specific class row
 
   // Received groups badge: track how many received groups were seen when Friends tab was last opened
   const [pings, setPings] = useState([]);
@@ -883,6 +886,13 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     return out;
   }, [enrolled, LEGEND]);
 
+  // Assign stable subject colors before any child renders: enrolled courses
+  // first (max hue separation for the user's own subjects), rest of the term
+  // legend after.
+  useMemo(() => {
+    assignSubjectColors(Object.keys(enrolled || {}), Object.keys(LEGEND || {}));
+  }, [enrolled, LEGEND]);
+
   // Per-course skip budget + "what if I skip one more" projection, shown as a
   // hint on today's unmarked class rows (same math as the Attendance panel).
   const skipInfo = useMemo(() => {
@@ -1007,6 +1017,16 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const unreadChangeCount = filteredChanges.filter(c => !readChangeKeys.has(changeKey(c))).length;
   const hasUnread = unreadChangeCount > 0 || unreadFriendCount > 0;
 
+  // Surface unread count on the tab title + installed-PWA app icon badge
+  useEffect(() => {
+    const total = unreadChangeCount + unreadFriendCount;
+    document.title = total > 0 ? `(${total}) TermFlow` : "TermFlow | IIM Sambalpur | PGP2";
+    if ("setAppBadge" in navigator) {
+      if (total > 0) navigator.setAppBadge(total).catch(() => {});
+      else navigator.clearAppBadge?.().catch(() => {});
+    }
+  }, [unreadChangeCount, unreadFriendCount]);
+
   // Unread changes that specifically name a course happening on tomorrow's list
   const tomorrowChangeCount = useMemo(() => {
     const codes = new Set(tomorrowList.filter(c => c.type === "class").map(c => c.code));
@@ -1054,6 +1074,21 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     setReadChangeKeys(next);
     try { localStorage.setItem(READ_CHANGES_KEY, JSON.stringify([...next])); } catch { }
     pushReadState(userId, readPingIds, seenRecvGroupIds, next);
+  }
+
+  // Batch variant: one state update + one sync push for a whole bundle.
+  // Returns the pushReadState promise so callers can show a "synced" indicator.
+  function markChangesRead(cs) {
+    const fresh = (cs || []).map(changeKey).filter(k => !readChangeKeys.has(k));
+    if (!fresh.length) return Promise.resolve();
+    const next = new Set([...readChangeKeys, ...fresh]);
+    setReadChangeKeys(next);
+    try { localStorage.setItem(READ_CHANGES_KEY, JSON.stringify([...next])); } catch { }
+    return pushReadState(userId, readPingIds, seenRecvGroupIds, next);
+  }
+
+  function markAllChangesRead() {
+    return markChangesRead((CHANGES || []).filter(c => isAdmin || !c.admin_only));
   }
 
   function markAllRead() {
@@ -1350,7 +1385,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
         {isOffline && (
           <div style={{ margin: "0 16px 12px 16px", padding: "6px 8px", background: "rgba(231, 76, 60, 0.1)", border: "1px solid var(--danger)", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: sidebarCollapsed ? "center" : "flex-start", gap: "8px", color: "var(--danger)", fontSize: "11px", fontWeight: 700 }}>
-            <CloudOff size={14} style={{ flexShrink: 0 }} /> {!sidebarCollapsed && <span>🚇 Offline Mode (Cached)</span>}
+            <CloudOff size={14} style={{ flexShrink: 0 }} /> {!sidebarCollapsed && <span>Offline Mode (Cached)</span>}
           </div>
         )}
 
@@ -1664,7 +1699,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           </span>
         </div>
 
-        <div className="desk-layout">
+        <div className="desk-layout" style={view === "friends" ? { gridTemplateColumns: "1fr" } : {}}>
           <main className="main-col">
             <div className="tabs-wrapper">
               <nav className="tabs" ref={tabsRef} onScroll={handleTabsScroll}>
@@ -1823,7 +1858,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 <span className="now-banner-name">
                   <span className="now-banner-text">{(current || next).name}</span>
                   {(current || next).session && (
-                    <span className={`ses ses-${(Array.from((current || next).code).reduce((h, char) => h + char.charCodeAt(0), 0)) % 6}`}>
+                    <span className={`ses ${subjectClass((current || next).code)}`}>
                       {(current || next).code} {(current || next).session}
                     </span>
                   )}
@@ -1916,11 +1951,22 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                           termNumber={TERM?.number}
                         />
                         : view === "notifications"
-                          ? <NotificationsPage allChanges={CHANGES} myChanges={filteredChanges} isAdmin={isAdmin} userId={userId} />
+                          ? <NotificationsPage
+                              allChanges={CHANGES}
+                              myChanges={filteredChanges}
+                              isAdmin={isAdmin}
+                              userId={userId}
+                              legend={LEGEND}
+                              readChangeKeys={readChangeKeys}
+                              changeKeyOf={changeKey}
+                              onMarkReadMany={markChangesRead}
+                              onMarkAllRead={markAllChangesRead}
+                              onOpenDate={(c) => { setJumpToSession({ date: c.date, code: c.code, start: c.start }); setView("fullSchedule"); }}
+                            />
                           : view === "admin" && isAdmin
                             ? <AdminDashboard user={user} startImpersonation={startImpersonation} syncLogs={syncLogs} timeOverride={timeOverride} setTimeOverride={setTimeOverride} allChanges={CHANGES} />
                             : view === "fullSchedule"
-                              ? <FullSchedulePage allClasses={CLASSES} enrolled={enrolled} legend={enrolledLegend} termLabel={termLabel} onBack={() => setView("today")} jumpToDate={jumpToDate} setJumpToDate={setJumpToDate} />
+                              ? <FullSchedulePage allClasses={CLASSES} enrolled={enrolled} legend={enrolledLegend} termLabel={termLabel} onBack={() => setView("today")} jumpToDate={jumpToDate} setJumpToDate={setJumpToDate} jumpToSession={jumpToSession} setJumpToSession={setJumpToSession} />
                               : view === "assignments"
                                 ? <AssignmentsPanel enrolled={enrolled} legend={enrolledLegend} userId={userId} />
                               : view === "tomorrow"
@@ -1949,9 +1995,33 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               </Suspense>
             </div>
           </main>
-          <aside className={view !== "week" ? "side-col hide-mobile" : "side-col"}>
+          <aside className={view !== "week" ? "side-col hide-mobile" : "side-col"} style={view === "friends" ? { display: "none" } : {}}>
             <WeekAgenda visible={visible} now={now} offset={weekOffset} setOffset={setWeekOffset} todayISO={todayISO} onViewFullSchedule={(iso) => { setJumpToDate(iso); setView("fullSchedule"); }} />
           </aside>
+          
+          {/* Floating Schedule button & Modal for Friends View on Desktop */}
+          {view === "friends" && (
+            <>
+              <button className="fr-agenda-fab hide-mobile" onClick={() => setShowFriendsAgenda(true)} title="View Schedule">
+                <Calendar size={22} />
+              </button>
+              {showFriendsAgenda && (
+                <div className="fs-modal-overlay hide-mobile" onClick={() => setShowFriendsAgenda(false)}>
+                  <div className="fs-modal-content" style={{ width: 380, maxWidth: '90vw', padding: 0 }} onClick={e => e.stopPropagation()}>
+                    <div className="fs-modal-header" style={{ padding: "16px 20px" }}>
+                      <h3 style={{ display: 'flex', alignItems: 'center', gap: 8, margin: 0, fontSize: 16 }}>
+                        <Calendar size={18} color="var(--violet)" /> Schedule
+                      </h3>
+                      <button className="fs-modal-close" onClick={() => setShowFriendsAgenda(false)}><X size={18}/></button>
+                    </div>
+                    <div className="fs-modal-body" style={{ padding: "16px", maxHeight: '80vh', overflowY: 'auto' }}>
+                      <WeekAgenda visible={visible} now={now} offset={weekOffset} setOffset={setWeekOffset} todayISO={todayISO} onViewFullSchedule={(iso) => { setShowFriendsAgenda(false); setJumpToDate(iso); setView("fullSchedule"); }} />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         <footer className="foot">
@@ -1979,7 +2049,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 <div className="fs-help-section">
                   <div className="fs-help-card">
                     <h3><Wand2 size={16} color="var(--violet)" /> Dashboard & Auto-Setup</h3>
-                    <p>Automatically builds your schedule based on your enrolled electives. Tap the ⚙️ gear icon anytime to drop or swap subjects. The dashboard always shows your Current and Next classes.</p>
+                    <p>Automatically builds your schedule based on your enrolled electives. Tap the <Settings2 size={12} style={{ verticalAlign: "-1px" }} aria-hidden="true" /> gear icon anytime to drop or swap subjects. The dashboard always shows your Current and Next classes.</p>
                   </div>
                   <div className="fs-help-card">
                     <h3><BellRing size={16} color="var(--violet)" /> Live Updates</h3>
@@ -2008,7 +2078,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 </div>
 
                 <div className="fs-help-tip">
-                  <strong>💡 Pro Tip:</strong> You don't need to open your browser every time! Install this app directly to your phone's home screen for quick access. Just tap "Share" (iOS) or open the browser menu (Android) and select "Add to Home Screen".
+                  <strong><Zap size={12} style={{ verticalAlign: "-1px" }} aria-hidden="true" /> Pro Tip:</strong> You don't need to open your browser every time! Install this app directly to your phone's home screen for quick access. Just tap "Share" (iOS) or open the browser menu (Android) and select "Add to Home Screen".
                 </div>
               </div>
 

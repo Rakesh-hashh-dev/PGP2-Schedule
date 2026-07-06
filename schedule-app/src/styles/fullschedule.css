@@ -287,6 +287,16 @@
   border-radius: 4px 0 0 4px;
 }
 
+/* Deep-link highlight — briefly flags the exact class an announcement referred to */
+.fs-card-jump-highlight {
+  animation: fs-card-jump-pulse 2.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fs-card-jump-pulse {
+  0%, 100% { box-shadow: 0 2px 8px rgba(0, 0, 0, .015); border-color: var(--border); }
+  15%, 60% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--violet) 30%, transparent); border-color: var(--violet); }
+}
+
 .fs-card-body {
   flex: 1;
   padding: 14px 16px;
@@ -753,47 +763,15 @@
   white-space: nowrap;
 }
 
-/* Event color themes — opaque enough for readable text, glass edge border */
-.cal-ev-0 {
-  background: linear-gradient(135deg, rgba(109, 91, 208, .22), rgba(109, 91, 208, .12));
-  border: 1px solid rgba(109, 91, 208, .25);
-  border-left: 4px solid var(--violet);
-  color: #2e1a80;
-}
-
-.cal-ev-1 {
-  background: linear-gradient(135deg, rgba(31, 169, 113, .22), rgba(31, 169, 113, .12));
-  border: 1px solid rgba(31, 169, 113, .25);
-  border-left: 4px solid var(--live);
-  color: #0a4a2e;
-}
-
-.cal-ev-2 {
-  background: linear-gradient(135deg, rgba(230, 126, 34, .22), rgba(230, 126, 34, .12));
-  border: 1px solid rgba(230, 126, 34, .25);
-  border-left: 4px solid #E67E22;
-  color: #6b3508;
-}
-
-.cal-ev-3 {
-  background: linear-gradient(135deg, rgba(41, 128, 185, .22), rgba(41, 128, 185, .12));
-  border: 1px solid rgba(41, 128, 185, .25);
-  border-left: 4px solid #2980B9;
-  color: #0d3a5c;
-}
-
-.cal-ev-4 {
-  background: linear-gradient(135deg, rgba(155, 89, 182, .22), rgba(155, 89, 182, .12));
-  border: 1px solid rgba(155, 89, 182, .25);
-  border-left: 4px solid #9B59B6;
-  color: #4a1a6b;
-}
-
-.cal-ev-5 {
-  background: linear-gradient(135deg, rgba(231, 76, 60, .22), rgba(231, 76, 60, .12));
-  border: 1px solid rgba(231, 76, 60, .25);
-  border-left: 4px solid #E74C3C;
-  color: #7a1208;
+/* Event colors come from the shared subject palette (subj-N sets --subj /
+   --subj-deep in styles.css) — opaque enough for readable text, glass edge */
+.cal-h-event {
+  background: linear-gradient(135deg,
+      color-mix(in srgb, var(--subj, var(--violet)) 22%, transparent),
+      color-mix(in srgb, var(--subj, var(--violet)) 12%, transparent));
+  border: 1px solid color-mix(in srgb, var(--subj, var(--violet)) 25%, transparent);
+  border-left: 4px solid var(--subj, var(--violet));
+  color: var(--subj-deep, #2e1a80);
 }
 
 /* Styled scrollbar for the week calendar — minimal, on-brand */

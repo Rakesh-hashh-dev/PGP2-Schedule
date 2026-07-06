@@ -1,0 +1,187 @@
+/* ── Shared UI primitives (components/ui.jsx) ──
+   Built on the global tokens in styles.css. */
+
+.ui-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+}
+
+/* ── Badge ── */
+.ui-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 99px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  background: var(--surface);
+  white-space: nowrap;
+}
+
+.ui-badge-live   { color: #116A48; background: var(--live-dim);   border-color: color-mix(in srgb, var(--live) 30%, transparent); }
+.ui-badge-amber  { color: #8A5A14; background: var(--amber-dim);  border-color: color-mix(in srgb, var(--amber) 30%, transparent); }
+.ui-badge-violet { color: #4C3EA8; background: var(--violet-dim); border-color: color-mix(in srgb, var(--violet) 30%, transparent); }
+.ui-badge-blue   { color: #1D4ED8; background: rgba(59, 130, 246, .09); border-color: rgba(59, 130, 246, .3); }
+.ui-badge-danger { color: #B4232A; background: rgba(220, 53, 69, .09);  border-color: rgba(220, 53, 69, .3); }
+
+/* ── Button ── */
+.ui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-family: var(--body);
+  font-weight: 700;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, opacity .15s ease, box-shadow .2s var(--ease-out-strong);
+}
+
+.ui-btn-md { font-size: 13.5px; padding: 9px 14px; min-height: 38px; }
+.ui-btn-sm { font-size: 12.5px; padding: 6px 10px; min-height: 30px; }
+
+.ui-btn-primary {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--bone);
+}
+
+.ui-btn-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ink) 88%, #fff);
+}
+
+.ui-btn-secondary {
+  background: var(--card);
+  color: var(--text);
+}
+
+.ui-btn-secondary:hover:not(:disabled) {
+  background: var(--card-hi);
+  border-color: var(--border-hi);
+}
+
+.ui-btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+}
+
+.ui-btn-ghost:hover:not(:disabled) {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.ui-btn-danger {
+  background: rgba(220, 53, 69, .08);
+  border-color: rgba(220, 53, 69, .3);
+  color: #B4232A;
+}
+
+.ui-btn-danger:hover:not(:disabled) {
+  background: rgba(220, 53, 69, .14);
+}
+
+.ui-btn:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.ui-btn-spin {
+  animation: ui-spin 0.9s linear infinite;
+}
+
+@keyframes ui-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Empty state ── */
+.ui-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  text-align: center;
+  padding: 34px 18px;
+  border: 1px dashed var(--border-hi);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--card) 55%, transparent);
+}
+
+.ui-empty-compact {
+  padding: 18px 14px;
+  gap: 3px;
+}
+
+.ui-empty-ico {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.ui-empty-compact .ui-empty-ico {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  margin-bottom: 4px;
+}
+
+.ui-empty-title {
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.ui-empty-compact .ui-empty-title {
+  font-size: 13.5px;
+}
+
+.ui-empty-sub {
+  font-size: 12.5px;
+  color: var(--muted);
+  max-width: 340px;
+  line-height: 1.5;
+}
+
+.ui-empty-action {
+  margin-top: 10px;
+}
+
+/* ── Skeleton ── */
+.ui-skeleton {
+  display: inline-block;
+  background: linear-gradient(90deg, var(--surface) 25%, var(--card-hi) 50%, var(--surface) 75%);
+  background-size: 200% 100%;
+  animation: ui-shimmer 1.4s ease-in-out infinite;
+}
+
+.ui-skeleton-text {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 10px 0;
+}
+
+@keyframes ui-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-skeleton { animation: none; }
+  .ui-btn-spin { animation-duration: 1.5s; } /* keep spinner meaning, slower */
+}

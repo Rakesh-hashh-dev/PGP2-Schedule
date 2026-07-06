@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import "../styles/friends.css";
-import { Copy, Link2, UserPlus, Users, Trash2, ArrowRight, Plus, X, Check, ChevronDown, ChevronUp, RefreshCw, Bell, Globe, Lock, CheckCircle, AlertCircle, Info, AlertTriangle, Star } from "lucide-react";
+import { Copy, Link2, UserPlus, Users, Trash2, ArrowRight, Plus, X, Check, ChevronDown, ChevronUp, RefreshCw, Bell, Globe, Lock, CheckCircle, AlertCircle, Info, AlertTriangle, Star, Sparkles, ChevronRight } from "lucide-react";
+import { SkeletonText } from "./ui.jsx";
 
 import {
   decodeSchedule, codeDisplayPart, buildShareUrl,
@@ -113,7 +114,7 @@ function GroupChat({ group, userId, userName }) {
     <div className="fr-chat-box" style={{ marginTop: 16 }}>
       <p className="fr-group-body-label">Group Chat</p>
       <div className="fr-chat-msgs" style={{ maxHeight: 250, overflowY: "auto", padding: "12px", background: "rgba(0,0,0,0.02)", border: "1px solid rgba(0,0,0,0.05)", borderRadius: 12, marginBottom: 8, display: "flex", flexDirection: "column" }}>
-         {loading ? <div className="fr-empty">Loading chat...</div> : messages.length === 0 ? <div className="fr-empty">No messages yet. Say hi!</div> : messages.map(m => (
+         {loading ? <SkeletonText lines={3} /> : messages.length === 0 ? <div className="fr-empty">No messages yet. Say hi!</div> : messages.map(m => (
             <div key={m.id} style={{ display: "flex", gap: 8, marginBottom: 12, flexDirection: m.from_id === userId ? "row-reverse" : "row" }}>
                <div className="fr-group-avatar-dot" style={{ background: avatarGradient(m.name)[0], flexShrink: 0 }}>{m.name[0]?.toUpperCase()}</div>
                <div style={{ background: m.from_id === userId ? "var(--live)" : "#fff", color: m.from_id === userId ? "#fff" : "#000", padding: "8px 12px", borderRadius: 12, fontSize: 13, maxWidth: "85%", wordBreak: "break-word", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
@@ -646,7 +647,7 @@ export default function FriendsPanel({
     const status = getFriendStatusNow(f);
     return (
       <div key={f.id} className={`fr-friend-card ${isCompact ? "compact" : ""} ${f.isFavourite && !isCompact ? "favourite-glow" : ""}`} style={{ '--accent': c1 }}>
-        <div className="fr-friend-avatar" style={{ background: `linear-gradient(135deg, ${c1} 0%, ${c2} 100%)`, boxShadow: `0 4px 10px ${c1}40` }}>
+        <div className="fr-friend-avatar" style={{ background: `linear-gradient(135deg, ${c1} 0%, ${c2} 100%)`, boxShadow: `0 4px 16px ${c1}66` }}>
           {f.name[0]?.toUpperCase()}
         </div>
         <div className="fr-friend-info">
@@ -662,7 +663,17 @@ export default function FriendsPanel({
           )}
         </div>
         <div className="fr-friend-actions">
-          <button className="fr-btn fr-btn-compare" onClick={() => onCompare(f)}>
+          <button 
+            className="fr-btn fr-btn-compare" 
+            onClick={() => onCompare(f)}
+            style={{
+              '--btn-bg': `${c1}1A`,
+              '--btn-color': c1,
+              '--btn-border': `${c1}40`,
+              '--btn-bg-hover': `${c1}26`,
+              '--btn-border-hover': `${c1}80`
+            }}
+          >
             Compare <ArrowRight size={13} />
           </button>
           <div className="fr-friend-icon-group">
@@ -860,25 +871,46 @@ export default function FriendsPanel({
   };
 
   const renderBuddyCard = (match, isCompact = false) => {
+    const [c1, c2] = avatarGradient(match.name);
+    const score = match.score || 0;
+    const compatLabel = score >= 70 ? "Excellent compatibility"
+                      : score >= 55 ? "Good compatibility"
+                      : score >= 35 ? "Moderate compatibility"
+                      : "Low compatibility";
     return (
-      <div key={match.user_id} className={`fr-friend-card fr-buddy ${isCompact ? "compact" : ""}`} style={{ '--accent': '#6D5BD0' }}>
-        <div className="fr-friend-avatar" style={{ background: `linear-gradient(135deg, #6D5BD0 0%, #a29bfe 100%)` }}>
-          {match.name[0]?.toUpperCase() || "?"}
+      <div key={match.user_id} className={`fr-friend-card fr-buddy ${isCompact ? "compact" : ""}`}
+        style={{ '--buddy-c1': c1, '--buddy-c2': c2 }}>
+        <div className="fr-buddy-avatar-wrap">
+          <div className="fr-friend-avatar" style={{ background: `linear-gradient(135deg, ${c1} 0%, ${c2} 100%)` }}>
+            {match.name[0]?.toUpperCase() || "?"}
+          </div>
+          <span className="fr-buddy-dot" style={{ background: c1 }} />
         </div>
         <div className="fr-friend-info">
-          <span className="fr-friend-name">{match.name || "Student"}</span>
-          <span className="fr-buddy-match">{match.score}% match</span>
+          <div className="fr-buddy-header">
+            <span className="fr-friend-name">{match.name || "Student"}</span>
+            <span className="fr-buddy-match">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+                <polyline points="17 6 23 6 23 12"/>
+              </svg>
+              {score}% <span className="fr-buddy-match-text">match</span>
+            </span>
+          </div>
+          {!isCompact && <span className="fr-buddy-compat">{compatLabel}</span>}
         </div>
+        <div className="fr-buddy-divider" />
         <div className="fr-friend-actions">
-          <button className="fr-btn fr-btn-primary" onClick={async () => {
-             if (!myCode) { showToast("Wait for code generation", "info"); return; }
-             const alreadySent = await hasPendingFriendRequest(userId, match.user_id);
-             if (alreadySent) { showToast("Request already sent", "info"); return; }
-             await sendFriendPing(match.user_id, userId, userName, { type: "friend_request", fromCode: myCode });
-             showToast(`Request sent to ${match.name}!`, "success");
-             setSuggestedBuddies(prev => prev.filter(p => p.user_id !== match.user_id));
-          }}>
-            <UserPlus size={13} /> Add
+          <button className="fr-btn fr-buddy-add-btn" style={{ background: `linear-gradient(135deg, ${c1} 0%, ${c2} 100%)` }}
+            onClick={async () => {
+              if (!myCode) { showToast("Wait for code generation", "info"); return; }
+              const alreadySent = await hasPendingFriendRequest(userId, match.user_id);
+              if (alreadySent) { showToast("Request already sent", "info"); return; }
+              await sendFriendPing(match.user_id, userId, userName, { type: "friend_request", fromCode: myCode });
+              showToast(`Request sent to ${match.name}!`, "success");
+              setSuggestedBuddies(prev => prev.filter(p => p.user_id !== match.user_id));
+            }}>
+            <UserPlus size={14} /> Add
           </button>
         </div>
       </div>
@@ -1061,7 +1093,7 @@ export default function FriendsPanel({
             </div>
             <div className="fr-friends-modal-body">
               {directory === null ? (
-                <p className="fr-empty">Loading students…</p>
+                <SkeletonText lines={4} />
               ) : (() => {
                 const friendIds = new Set(friends.map(f => f.cloudId).filter(Boolean));
                 const visible = directory.filter(p => p.name.toLowerCase().includes(dirSearch.toLowerCase()));

@@ -1,7 +1,9 @@
 import React, { useMemo, useState } from "react";
 import "../styles/exams.css";
 import { GraduationCap, Clock, AlertTriangle, BookOpen, Trophy, CalendarDays, List, ChevronLeft, ChevronRight, Layers, FileText, CalendarClock } from "lucide-react";
-import { sessionKey } from "../lib/attendance.js";
+import { sessionKey, isExamSession } from "../lib/attendance.js";
+import { subjectClass } from "../lib/subjectColors.js";
+import { EmptyState } from "./ui.jsx";
 
 function daysBetween(a, b) {
   const msDay = 86400000;
@@ -220,7 +222,7 @@ function CourseCountdown({ courses, allClasses, enrolled, attendance, now }) {
         return (
           <div key={c.code} className="exam-cc" style={{ animationDelay: `${i * 60}ms` }}>
             <div className="exam-cc-top">
-              <span className={`ses ses-${(Array.from(c.code).reduce((h, char) => h + char.charCodeAt(0), 0)) % 6}`}>
+              <span className={`ses ${subjectClass(c.code)}`}>
                 {c.code}
               </span>
               <span className="exam-cc-name">{c.name}</span>
@@ -286,12 +288,7 @@ export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, al
     return allClasses
       .filter(c => {
         // Is it an exam?
-        let isExam = false;
-        if (c.type === "exam") isExam = true;
-        else if (c.type === "class") {
-          const s = (c.session || "").toLowerCase();
-          if (s.includes("mid term") || s.includes("end term") || s.includes("quiz")) isExam = true;
-        }
+        const isExam = c.type === "exam" || (c.type === "class" && isExamSession(c));
         if (!isExam) return false;
 
         // Does it apply to me? Subject-specific exams (code set, or subject baked
@@ -339,7 +336,7 @@ export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, al
     return (
       <div className="exam-page">
         <div className="exam-head"><h1>Exams & Credits</h1></div>
-        <div className="empty">No courses enrolled. Complete setup first.</div>
+        <EmptyState icon={GraduationCap} title="No courses enrolled" sub="Complete setup first — your exams and credits will show up here." />
       </div>
     );
   }
@@ -449,7 +446,7 @@ export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, al
       </section>
 
       {/* ── Exam Countdown ── */}
-      <section className="exam-card">
+      <section className="exam-card exam-card-countdown">
         <div className="exam-card-h">
           <h2><Clock size={15} /> Exam Countdown</h2>
           <div className="exam-filter-pill">
@@ -469,44 +466,103 @@ export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, al
         {cdView === "calendar" ? (
           <ExamCalendar exams={exams} now={now} termStart={termStart} termEnd={termEnd} />
         ) : exams.length === 0 ? (
-          <div className="exam-empty">
-            <Trophy size={20} />
-            <span>No exams scheduled yet — they'll appear here once the timetable is updated.</span>
-          </div>
+          <EmptyState compact icon={Trophy} title="No exams scheduled yet" sub="They'll appear here once the timetable is updated." />
         ) : (
-          <div className="exam-cd-grid">
+          <>
+            <div className="exam-cd-grid">
             {upcoming.map((e, i) => (
               <div key={i} className={`exam-cd tone-${e.tone}`} style={{ animationDelay: `${i * 80}ms` }}>
+                {/* Left: countdown number */}
                 <div className="exam-cd-days">
-                  {e.days === 0 ? "Today" : e.days === 1 ? "Tomorrow" : `${e.days}d`}
                   {e.days <= 3 && e.days >= 0 && <span className="exam-cd-pulse" />}
+                  <span className="exam-cd-days-num">
+                    {e.days === 0 ? "0" : e.days}
+                  </span>
+                  <span className="exam-cd-days-unit">
+                    {e.days === 0 ? "Today" : e.days === 1 ? "day left" : "days"}
+                  </span>
+                  {e.days > 1 && (
+                    <span className="exam-cd-days-unit">LEFT</span>
+                  )}
                 </div>
+
+                {/* Divider */}
+                <div className="exam-cd-divider" />
+
+                {/* Right: info */}
                 <div className="exam-cd-info">
                   <span className="exam-cd-cat">{e.category}</span>
-                  <span className="exam-cd-name">{e.name}</span>
-                  <span className="exam-cd-date">{fmtDate(e.date)} · {e.start}–{e.end}</span>
+                  <span className="exam-cd-name">{e.name || e.code}</span>
+                  <div className="exam-cd-meta">
+                    <span className="exam-cd-date">
+                      <CalendarDays size={11} /> {fmtDate(e.date)}
+                    </span>
+                    {e.start && (
+                      <span className="exam-cd-time">
+                        <Clock size={11} /> {e.start} – {e.end}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                {e.days <= 3 && e.days >= 0 && (
-                  <AlertTriangle size={14} className="exam-cd-alert" />
+
+                {/* Subject code badge */}
+                {e.code && (
+                  <span className={`ses ${subjectClass(e.code)} exam-cd-code`}>{e.code}</span>
                 )}
               </div>
             ))}
+
             {past.length > 0 && (
               <>
                 <div className="exam-cd-sep">Past</div>
                 {past.map((e, i) => (
                   <div key={`p${i}`} className="exam-cd tone-past" style={{ animationDelay: `${(upcoming.length + i) * 80}ms` }}>
-                    <div className="exam-cd-days">{Math.abs(e.days)}d ago</div>
+                    {/* Left: days ago */}
+                    <div className="exam-cd-days">
+                      <span className="exam-cd-days-num">{Math.abs(e.days)}</span>
+                      <span className="exam-cd-days-unit">{Math.abs(e.days) === 1 ? "day" : "days"}</span>
+                      <span className="exam-cd-days-unit">AGO</span>
+                    </div>
+
+                    {/* Divider */}
+                    <div className="exam-cd-divider" />
+
+                    {/* Right: info */}
                     <div className="exam-cd-info">
                       <span className="exam-cd-cat">{e.category}</span>
-                      <span className="exam-cd-name">{e.name}</span>
-                      <span className="exam-cd-date">{fmtDate(e.date)}</span>
+                      <span className="exam-cd-name">{e.name || e.code}</span>
+                      <div className="exam-cd-meta">
+                        <span className="exam-cd-date">
+                          <CalendarDays size={11} /> {fmtDate(e.date)}
+                        </span>
+                      </div>
                     </div>
+
+                    {/* Subject code badge */}
+                    {e.code && (
+                      <span className={`ses ${subjectClass(e.code)} exam-cd-code exam-cd-code-past`}>{e.code}</span>
+                    )}
                   </div>
                 ))}
               </>
             )}
           </div>
+
+          {/* Footer bar */}
+          {upcoming.length > 0 && (
+            <div className="exam-cd-footer">
+              <div className="exam-cd-footer-l">
+                <div className="exam-cd-footer-ico">
+                  <CalendarDays size={14} />
+                </div>
+                <div>
+                  <div className="exam-cd-footer-count">{upcoming.length} Exam{upcoming.length !== 1 ? "s" : ""} Upcoming</div>
+                  <div className="exam-cd-footer-sub">Keep going! You're on track.</div>
+                </div>
+              </div>
+            </div>
+          )}
+          </>
         )}
       </section>
 
@@ -533,10 +589,9 @@ export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, al
         </div>
         <div className="exam-cr-grid">
           {creditData.courses.map((c, i) => {
-            const colorIndex = (Array.from(c.code).reduce((h, char) => h + char.charCodeAt(0), 0)) % 6;
             return (
               <div key={c.code} className="exam-cr-row" style={{ animationDelay: `${i * 40}ms` }}>
-                <span className={`ses ses-${colorIndex}`}>
+                <span className={`ses ${subjectClass(c.code)}`}>
                   {c.code}
                 </span>
                 <span className="exam-cr-name">{c.name}</span>

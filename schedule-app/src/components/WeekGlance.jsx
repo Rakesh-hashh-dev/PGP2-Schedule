@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { CalendarRange, Clock, Flame, CalendarCheck, ChevronDown } from "lucide-react";
+import { CalendarRange, Clock, Flame, CalendarCheck, ChevronDown, PartyPopper } from "lucide-react";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
@@ -86,7 +86,7 @@ export default function WeekGlance({ visible, now, offset = 0, todayISO, collaps
           <div className="wglance-tag"><CalendarRange size={13} /> {relLabel}</div>
           <span className="wglance-range">{stats.range}</span>
         </div>
-        <h1 className="wglance-head">No classes this week 🎉</h1>
+        <h1 className="wglance-head">No classes this week <PartyPopper size={16} aria-hidden="true" /></h1>
         <div className="wglance-sub">Nothing scheduled in your selected courses.</div>
       </section>
     );
@@ -177,7 +177,7 @@ export default function WeekGlance({ visible, now, offset = 0, todayISO, collaps
         )}
         {stats.remaining != null && (
           <span className="wglance-foot-item wglance-foot-remaining">
-            {stats.remaining > 0 ? <><strong>{stats.remaining}</strong> left this week</> : "All done for the week 🎉"}
+            {stats.remaining > 0 ? <><strong>{stats.remaining}</strong> left this week</> : <>All done for the week <PartyPopper size={12} aria-hidden="true" /></>}
           </span>
         )}
       </div>

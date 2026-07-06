@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { sessionKey } from "../lib/attendance.js";
+import { sessionKey, isExamSession } from "../lib/attendance.js";
 
 function clsEnd(c) {
   const [Y, Mo, D] = c.date.split("-").map(Number);
@@ -22,7 +22,7 @@ export default function SemSummary({ enrolled, legend, attendance, visible, toda
   }, [enrolled, legend]);
 
   const { pct, present, total } = useMemo(() => {
-    const past = visible.filter(c => c.type === "class" && clsEnd(c) <= now);
+    const past = visible.filter(c => c.type === "class" && !isExamSession(c) && clsEnd(c) <= now);
     const totalSes = past.length;
     if (!totalSes) return { pct: null, present: 0, total: 0 };
     const presentCount = past.filter(c => attendance[sessionKey(c)] === "present").length;
@@ -38,7 +38,7 @@ export default function SemSummary({ enrolled, legend, attendance, visible, toda
   }, [classes, todayISO, now, enrolled]);
 
   const sessionsLeft = useMemo(() => {
-    return visible.filter(c => c.type === "class" && c.date >= todayISO && clsEnd(c) > now).length;
+    return visible.filter(c => c.type === "class" && !isExamSession(c) && c.date >= todayISO && clsEnd(c) > now).length;
   }, [visible, todayISO, now]);
 
   const pctColor = pct === null ? "" : pct >= 80 ? "good" : pct >= 75 ? "warn" : "bad";

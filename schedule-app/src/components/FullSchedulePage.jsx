@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect } from "react";
 import "../styles/fullschedule.css";
 import { ArrowLeft, Clock, MapPin, User, SlidersHorizontal, X, ArrowUp, Calendar, ChevronLeft, ChevronRight, List, CalendarDays } from "lucide-react";
+import { subjectClass } from "../lib/subjectColors.js";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 
@@ -44,7 +45,7 @@ const HOUR_W = 96;  // px per hour (horizontal week view)
 const LANE_H = 64;  // px per lane row
 const TODAY = isoOf(new Date());
 
-export default React.memo(function FullSchedulePage({ allClasses, enrolled, legend, termLabel, onBack, jumpToDate, setJumpToDate }) {
+export default React.memo(function FullSchedulePage({ allClasses, enrolled, legend, termLabel, onBack, jumpToDate, setJumpToDate, jumpToSession, setJumpToSession }) {
   const [filterCode, setFilterCode] = useState(null);
   const [showAllClasses, setShowAllClasses] = useState(false);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
@@ -76,6 +77,30 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
       return () => clearTimeout(t);
     }
   }, [jumpToDate, setJumpToDate]);
+
+  // Jump to a specific class row (from an announcement) — scroll to its day,
+  // then pulse-highlight the matching card so it's obvious which session changed.
+  useEffect(() => {
+    if (jumpToSession) {
+      const { date, code, start } = jumpToSession;
+      const t = setTimeout(() => {
+        const dayEl = date && document.getElementById(`day-${date}`);
+        if (dayEl) {
+          const headerOffset = 100;
+          const offsetPosition = dayEl.getBoundingClientRect().top + window.pageYOffset - headerOffset;
+          window.scrollTo({ top: offsetPosition, behavior: "smooth" });
+        }
+        const key = `${date || ""}-${code || ""}-${start || ""}`;
+        const cardEl = document.querySelector(`[data-class-key="${window.CSS?.escape ? CSS.escape(key) : key}"]`);
+        if (cardEl) {
+          cardEl.classList.add("fs-card-jump-highlight");
+          setTimeout(() => cardEl.classList.remove("fs-card-jump-highlight"), 2200);
+        }
+        if (setJumpToSession) setJumpToSession(null);
+      }, 100);
+      return () => clearTimeout(t);
+    }
+  }, [jumpToSession, setJumpToSession]);
 
   useEffect(() => {
     const handleScroll = () => setShowScrollTop(window.scrollY > 300);
@@ -471,7 +496,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                   </div>
                   <div className="fs-day-items">
                     {items.map((c, i) => {
-                      const colorIdx = (Array.from(c.code).reduce((h, ch) => h + ch.charCodeAt(0), 0)) % 6;
+                      const subjCls = subjectClass(c.code);
                       const showSection = c.section && c.section !== "Single";
                       const isNow = date === TODAY && nowMin >= toMin(c.start) && nowMin <= toMin(c.end);
                       const isNext = c === nextUpcomingCls;
@@ -492,10 +517,11 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                       return (
                         <div
                           key={i}
+                          data-class-key={`${c.date}-${c.code}-${c.start}`}
                           className={`fs-card ${isNow ? "fs-card-now" : ""}`}
                           style={{ animationDelay: `${i * 0.055}s` }}
                         >
-                          <div className={`fs-card-accent accent-${colorIdx}`} />
+                          <div className={`fs-card-accent ${subjCls}`} />
                           <div className="fs-card-body">
                             <div className="fs-card-top">
                               <span className="fs-card-name">
@@ -512,7 +538,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                                     Sec {c.section}
                                   </span>
                                 )}
-                                <span className={`ses ses-${colorIdx}`}>{c.code} {c.session}</span>
+                                <span className={`ses ${subjCls}`}>{c.code} {c.session}</span>
                               </div>
                               {countdownStr && <span className="fs-upcoming-badge">{countdownStr}</span>}
                             </div>
@@ -624,7 +650,6 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
 
                     {/* Class event blocks */}
                     {events.map((cls, i) => {
-                      const colorIdx = Array.from(cls.code).reduce((acc, ch) => acc + ch.charCodeAt(0), 0) % 6;
                       const left = (toMin(cls.start) - timeRange.startH * 60) / 60 * HOUR_W;
                       const width = Math.max((toMin(cls.end) - toMin(cls.start)) / 60 * HOUR_W - 6, 40);
                       const top = cls.laneIdx * LANE_H + 5;
@@ -632,7 +657,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                       return (
                         <div
                           key={i}
-                          className={`cal-h-event cal-ev-${colorIdx}`}
+                          className={`cal-h-event ${subjectClass(cls.code)}`}
                           style={{ left, width, top, height }}
                           onMouseEnter={(e) => showTooltip(e, cls)}
                           onMouseLeave={() => setTooltip(null)}
@@ -737,11 +762,11 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
               </div>
               <div className="cal-day-panel-items">
                 {(dateClassMap.get(selectedDate) || []).map((c, i) => {
-                  const colorIdx = Array.from(c.code).reduce((acc, ch) => acc + ch.charCodeAt(0), 0) % 6;
+                  const subjCls = subjectClass(c.code);
                   const showSection = c.section && c.section !== "Single";
                   return (
                     <div key={i} className="fs-card">
-                      <div className={`fs-card-accent accent-${colorIdx}`} />
+                      <div className={`fs-card-accent ${subjCls}`} />
                       <div className="fs-card-body">
                         <div className="fs-card-top">
                           <span className="fs-card-name">{c.name}</span>
@@ -751,7 +776,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                                 Sec {c.section}
                               </span>
                             )}
-                            <span className={`ses ses-${colorIdx}`}>{c.code} {c.session}</span>
+                            <span className={`ses ${subjCls}`}>{c.code} {c.session}</span>
                           </div>
                         </div>
                         <div className="fs-card-meta">

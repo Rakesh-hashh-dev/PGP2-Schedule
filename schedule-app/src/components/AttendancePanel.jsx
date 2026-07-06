@@ -1,6 +1,9 @@
 import { useMemo, useState } from "react";
 import { Check, X, Clock, AlertTriangle, ChevronDown, Flame } from "lucide-react";
-import { sessionKey, courseSkipStats } from "../lib/attendance.js";
+import { sessionKey, courseSkipStats, isExamSession } from "../lib/attendance.js";
+import { subjectClass } from "../lib/subjectColors.js";
+import { EmptyState } from "./ui.jsx";
+import { BookOpen, CalendarCheck2, PartyPopper } from "lucide-react";
 import WeatherWidget from "./WeatherWidget.jsx";
 
 const THRESHOLD = 80;
@@ -113,7 +116,7 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
     for (const [code, section] of Object.entries(enrolled)) {
       const name = legend[code]?.name || code;
       allClasses
-        .filter(c => c.type === "class" && c.code === code && (c.section === "Single" || c.section === section) && clsEnd(c) <= now)
+        .filter(c => c.type === "class" && !isExamSession(c) && c.code === code && (c.section === "Single" || c.section === section) && clsEnd(c) <= now)
         .sort((a, b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start))
         .forEach(c => out.push({ ...c, name, key: sessionKey(c) }));
     }
@@ -178,7 +181,7 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
     return (
       <div className="att-page">
         <div className="att-head"><h1>Attendance</h1></div>
-        <div className="empty">No courses enrolled. Complete setup first.</div>
+        <EmptyState icon={BookOpen} title="No courses enrolled" sub="Complete setup first — your attendance will show up here." />
       </div>
     );
 
@@ -282,7 +285,7 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
                         {noBar ? "—" : `${c.pct}%`}
                       </span>
                     </div>
-                    <div className="att-ctip" role="tooltip">
+                    <div className={`att-ctip att-ctip-${noBar ? "none" : t}`} role="tooltip">
                       <div className="att-ctip-name">{c.name}</div>
                       {noBar ? (
                         <div className="att-ctip-empty">No sessions marked yet</div>
@@ -291,6 +294,11 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
                           <div className="att-ctip-head">
                             <span className={`att-ctip-pct att-pct tone-${t}`}>{c.pct}%</span>
                             <span className="att-ctip-ratio">{c.present}/{marked} attended</span>
+                          </div>
+                          <div className="att-ctip-bar">
+                            {c.present > 0 && <span className="att-ctip-bar-seg p" style={{ flexGrow: c.present }} />}
+                            {c.absent > 0 && <span className="att-ctip-bar-seg a" style={{ flexGrow: c.absent }} />}
+                            {c.unmarked > 0 && <span className="att-ctip-bar-seg u" style={{ flexGrow: c.unmarked }} />}
                           </div>
                           <div className="att-ctip-legend">
                             <span className="att-ctip-seg"><i className="att-ctip-dot p" />{c.present} present</span>
@@ -327,7 +335,7 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
           <span className="att-count att-expand-hint">tap row to edit</span>
         </div>
         {noData ? (
-          <div className="att-empty-msg">No past classes yet — check back once sessions end.</div>
+          <EmptyState compact icon={CalendarCheck2} title="No past classes yet" sub="Check back once sessions end." />
         ) : (
           <div className="att-grid">
             {byCourse.map(c => {
@@ -335,7 +343,7 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
               const open = expandedCode === c.code;
               const canExpand = c.sessions.length > 0 && !!markAttendance;
               return (
-            <div key={c.code} className={`att-row ar-${(Array.from(c.code).reduce((h, char) => h + char.charCodeAt(0), 0)) % 6}${open ? " att-row-open" : ""}`}>
+            <div key={c.code} className={`att-row att-subj ${subjectClass(c.code)}${open ? " att-row-open" : ""}`}>
               <button
                 className="att-row-hd"
                 onClick={() => canExpand && toggle(c.code)}
@@ -432,7 +440,7 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
           </div>
           <div className="att-grid">
             {toMark.map(s => (
-              <div key={s.key} className={`att-mark ar-${(Array.from(s.code).reduce((h, char) => h + char.charCodeAt(0), 0)) % 6}`}>
+              <div key={s.key} className={`att-mark att-subj ${subjectClass(s.code)}`}>
                 <div className="ar-left">
                   <div className="ar-pct" style={{ fontSize: 13, lineHeight: 1.2 }}>{s.code}</div>
                   {s.session && <div className="ar-code" style={{ marginTop: 4 }}>S{s.session}</div>}
@@ -466,7 +474,7 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
           <span className="att-count">{missed.length}</span>
         </div>
         {missed.length === 0 ? (
-          <div className="att-empty-msg">Nothing missed yet — keep it up.</div>
+          <EmptyState compact icon={PartyPopper} title="Nothing missed yet" sub="Keep it up." />
         ) : missed.map(s => (
           <div key={s.key} className="att-missed">
             <span className="att-mdot" />
@@ -474,7 +482,7 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
             <span className="att-missed-name">
               <span className="att-missed-text">{s.name}</span>
               {s.session && (
-                <span className={`ses ses-${(Array.from(s.code).reduce((h, char) => h + char.charCodeAt(0), 0)) % 6}`}>
+                <span className={`ses ${subjectClass(s.code)}`}>
                   {s.code} {s.session}
                 </span>
               )}

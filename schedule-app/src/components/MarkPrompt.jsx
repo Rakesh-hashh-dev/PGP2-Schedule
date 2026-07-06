@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Check, X, ClipboardCheck } from "lucide-react";
-import { sessionKey } from "../lib/attendance.js";
+import { sessionKey, isExamSession } from "../lib/attendance.js";
 
 function clsEnd(c) {
   const [Y, Mo, D] = c.date.split("-").map(Number);
@@ -18,7 +18,7 @@ export default function MarkPrompt({ list, now, attendance, markAttendance }) {
 
   if (!markAttendance) return null;
   const pending = list.filter(
-    (c) => c.type === "class" && clsEnd(c) <= now && !attendance[sessionKey(c)]
+    (c) => c.type === "class" && !isExamSession(c) && clsEnd(c) <= now && !attendance[sessionKey(c)]
   );
   if (pending.length === 0) return null;
   // "Later" hides the card until another class ends (pending count grows)

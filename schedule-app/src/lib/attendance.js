@@ -7,6 +7,15 @@ export function sessionKey(c) {
 }
 
 /**
+ * Some exams are entered in the schedule data as type "class" with a session
+ * label like "MID Term" — they don't count toward attendance.
+ */
+export function isExamSession(c) {
+  const s = (c.session || "").toLowerCase();
+  return s.includes("mid term") || s.includes("end term") || s.includes("quiz");
+}
+
+/**
  * Skip-budget math for one course — single source of truth shared by the
  * Attendance panel and the Timeline "what if I skip" hint.
  * 80% minimum attendance (90% for zero-credit courses) over ALL scheduled
@@ -14,7 +23,7 @@ export function sessionKey(c) {
  */
 export function courseSkipStats(allClasses, code, section, attendance, { zeroCredit = false } = {}) {
   const sessions = allClasses.filter(
-    (c) => c.type === "class" && c.code === code && (c.section === "Single" || c.section === section)
+    (c) => c.type === "class" && !isExamSession(c) && c.code === code && (c.section === "Single" || c.section === section)
   );
   const totalScheduled = sessions.length;
   let present = 0, absent = 0;
