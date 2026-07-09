@@ -164,10 +164,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
         if (payload.error) throw new Error(payload.error);
 
-        // Server confirmed — migration done or user is new (no dev data)
-        localStorage.setItem(MIGRATION_DONE_KEY, `done-${userId}`);
-
         if (payload.migrated) {
+          // Server confirmed a real migration — never run again for this user
+          localStorage.setItem(MIGRATION_DONE_KEY, `done-${userId}`);
           // Re-sync so the freshly-migrated data appears immediately
           await Promise.allSettled([
             syncProfileFromCloud(userId),
@@ -175,8 +174,15 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             syncFriendsAndGroupsFromCloud(userId),
           ]);
           setMigrationState("done");
+        } else if (payload.reason === "already_done") {
+          // Confirmed previously migrated — never run again
+          localStorage.setItem(MIGRATION_DONE_KEY, `done-${userId}`);
+          setMigrationState(null);
         } else {
-          // New user or already migrated — no banner needed
+          // "new_user" — _migration_map has no row for this email yet (could be a
+          // genuinely new user, or the dev→prod export just hasn't run/landed yet).
+          // Don't persist a done flag — retry on next login so a later backfill
+          // of _migration_map still gets picked up automatically.
           setMigrationState(null);
         }
       } catch (err) {
