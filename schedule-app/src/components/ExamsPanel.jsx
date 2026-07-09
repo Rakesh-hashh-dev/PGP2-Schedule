@@ -219,36 +219,59 @@ function CourseCountdown({ courses, allClasses, enrolled, attendance, now }) {
     <div className="exam-cc-grid">
       {courseTimeline.map((c, i) => {
         const attTone = c.attPct == null ? "" : c.attPct >= 80 ? " att-good" : c.attPct >= 75 ? " att-warn" : " att-bad";
+        
+        // SVG Ring calculations
+        const radius = 22;
+        const circumference = 2 * Math.PI * radius;
+        const strokeDashoffset = circumference - (c.pct / 100) * circumference;
+
         return (
-          <div key={c.code} className="exam-cc" style={{ animationDelay: `${i * 60}ms` }}>
-            <div className="exam-cc-top">
-              <span className={`ses ${subjectClass(c.code)}`}>
-                {c.code}
-              </span>
-              <span className="exam-cc-name">{c.name}</span>
-              <span className="exam-cc-cr">{c.credits}cr</span>
-            </div>
-
-            <CourseDotTrail sessions={c.sessions} attendance={attendance} now={now} />
-
-            <div className="exam-cc-bar-wrap">
-              <div className="exam-cc-bar">
-                <div className="exam-cc-bar-fill" style={{ width: `${c.pct}%` }} />
+          <div key={c.code} className="exam-cc-card" style={{ animationDelay: `${i * 60}ms` }}>
+            <div className="ecc-top">
+              <div className="ecc-ring-wrap">
+                <svg className="ecc-ring-svg" width="56" height="56">
+                  <circle className="ecc-ring-bg" cx="28" cy="28" r={radius} />
+                  <circle 
+                    className="ecc-ring-fg" 
+                    cx="28" 
+                    cy="28" 
+                    r={radius} 
+                    strokeDasharray={circumference}
+                    strokeDashoffset={strokeDashoffset}
+                  />
+                </svg>
+                <div className="ecc-ring-pct">{c.pct}%</div>
               </div>
-              <span className="exam-cc-pct">{c.pct}%</span>
+              <div className="ecc-info">
+                <div className="ecc-head">
+                  <span className={`ses ${subjectClass(c.code)}`}>
+                    {c.code}
+                  </span>
+                  <span className="ecc-cr">{c.credits}cr</span>
+                </div>
+                <div className="ecc-name">{c.name}</div>
+                <CourseDotTrail sessions={c.sessions} attendance={attendance} now={now} />
+              </div>
             </div>
 
-            <div className="exam-cc-meta">
-              <span>{c.past}/{c.total} done</span>
+            <div className="ecc-bot">
+              <div className="ecc-pill ecc-pill-done">
+                <span>{c.past}/{c.total}</span> sessions
+              </div>
               {c.attPct !== null && (
-                <span className={`exam-cc-att${attTone}`}>{c.attPct}% att.</span>
+                <div className={`ecc-pill ecc-pill-att${attTone}`}>
+                  {c.attPct}% att
+                </div>
               )}
-              {c.nextSession && c.remaining > 0 && (
-                <span className="exam-cc-next">Next: {fmtDate(c.nextSession.date)}</span>
-              )}
-              {c.daysToLast != null && c.daysToLast >= 0 && c.remaining === 0 && (
-                <span className="exam-cc-end">ended</span>
-              )}
+              {c.nextSession && c.remaining > 0 ? (
+                <div className="ecc-pill ecc-pill-next">
+                  Next: {fmtDate(c.nextSession.date)}
+                </div>
+              ) : c.daysToLast != null && c.daysToLast >= 0 && c.remaining === 0 ? (
+                <div className="ecc-pill ecc-pill-ended">
+                  Ended
+                </div>
+              ) : null}
             </div>
           </div>
         );
@@ -587,20 +610,23 @@ export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, al
           <h2><GraduationCap size={15} /> Credits by Course</h2>
           <span className="att-count">{creditData.total} total</span>
         </div>
-        <div className="exam-cr-grid">
+        <div className="exam-cr-grid-new">
           {creditData.courses.map((c, i) => {
             return (
-              <div key={c.code} className="exam-cr-row" style={{ animationDelay: `${i * 40}ms` }}>
-                <span className={`ses ${subjectClass(c.code)}`}>
-                  {c.code}
-                </span>
-                <span className="exam-cr-name">{c.name}</span>
-                <span className="exam-cr-area">
-                  {c.area}
-                </span>
-                <span className={`exam-cr-val${!c.raw ? " exam-cr-missing" : ""}`}>
-                  {c.raw ? `${c.credits}cr` : "—"}
-                </span>
+              <div key={c.code} className="exam-cr-badge" style={{ animationDelay: `${i * 40}ms` }}>
+                <div className="ecr-bg-text">{c.code}</div>
+                <div className="ecr-content">
+                  <div className="ecr-top">
+                    <span className="ecr-area">{c.area}</span>
+                  </div>
+                  <div className="ecr-name">{c.name}</div>
+                  <div className="ecr-bot">
+                    <span className="ecr-code">{c.code}</span>
+                    <span className={`ecr-val${!c.raw ? " ecr-missing" : ""}`}>
+                      {c.raw ? c.credits : "—"}<small>cr</small>
+                    </span>
+                  </div>
+                </div>
               </div>
             );
           })}

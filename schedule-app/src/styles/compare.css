@@ -951,7 +951,7 @@
   -webkit-backdrop-filter: blur(16px) saturate(160%);
   border-bottom: 1px solid var(--border);
   flex: none;
-  z-index: 2;
+  z-index: 100;
 }
 
 .cv-more-icon {

@@ -548,6 +548,18 @@ export default function FriendsPanel({
   const [dirSearch, setDirSearch] = useState("");
   const [requestedIds, setRequestedIds] = useState(() => new Set());
 
+  useEffect(() => {
+    const isModalOpen = showAllFriendsModal || showAllGroupsModal || showAllBuddiesModal || showDirectory || notifOpen;
+    if (isModalOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [showAllFriendsModal, showAllGroupsModal, showAllBuddiesModal, showDirectory, notifOpen]);
+
   async function openDirectory() {
     setShowDirectory(true);
     if (directory !== null) return; // fetched once per visit

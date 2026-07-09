@@ -733,6 +733,7 @@
   justify-content: center;
   padding: 20px;
   animation: fade-in 0.2s ease;
+  overscroll-behavior: contain;
 }
 
 .fr-friends-modal {
@@ -798,10 +799,11 @@
   position: relative;
   scroll-behavior: smooth;
   scrollbar-width: none;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   /* Firefox */
   -ms-overflow-style: none;
   /* IE and Edge */
-  overscroll-behavior: contain;
 }
 
 .fr-friends-modal-body::-webkit-scrollbar {

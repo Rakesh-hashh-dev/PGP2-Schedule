@@ -28,6 +28,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [activeUsers, setActiveUsers] = useState(0);
   const [statsLoading, setStatsLoading] = useState(true);
   const [dbSize, setDbSize] = useState("...");
+  const [sysMetrics, setSysMetrics] = useState(null);
+  const [sysMetricsLoading, setSysMetricsLoading] = useState(false);
+  const [sysMetricsError, setSysMetricsError] = useState("");
   
   const [announcement, setAnnouncement] = useState("");
   const [activeAnnouncement, setActiveAnnouncement] = useState(null);
@@ -113,6 +116,35 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     return () => document.removeEventListener("open-admin-command-palette", handleOpen);
   }, []);
 
+  const fetchSysMetrics = async () => {
+    let adminKey = localStorage.getItem("pgp2.push-admin-key") || "";
+    if (!adminKey) return;
+    setSysMetricsLoading(true);
+    setSysMetricsError("");
+    try {
+      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-metrics`, {
+        headers: { "x-admin-key": adminKey }
+      });
+      if (!resp.ok) {
+        setSysMetricsError(`Failed to fetch metrics: ${resp.status}`);
+      } else {
+        const data = await resp.json();
+        setSysMetrics(data.metrics);
+      }
+    } catch (e) {
+      setSysMetricsError(e.message);
+    }
+    setSysMetricsLoading(false);
+  };
+
+  const promptAdminKey = () => {
+    const key = prompt("Enter the Admin Secret Key (set as ADMIN_SECRET or PUSH_ADMIN_SECRET in Supabase):");
+    if (key) {
+      localStorage.setItem("pgp2.push-admin-key", key);
+      fetchSysMetrics();
+    }
+  };
+
   // Fetches everything; loading flags start true at mount, so only the manual
   // Refresh action needs to flip them back on (see fetchDashboardData below).
   const loadDashboardData = async () => {
@@ -186,7 +218,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     await Promise.all([
       fetchStatsAndUsers(),
       fetchDbSize(),
-      fetchFeedbackAndLogs()
+      fetchFeedbackAndLogs(),
+      fetchSysMetrics()
     ]);
     
     setStatsLoading(false);
@@ -464,6 +497,46 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
       {/* ── Linear Layout ── */}
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+
+          {/* Database Health & Metrics */}
+          <section className="admin-card" style={{ gridColumn: "1 / -1" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h2><Database size={20} color="var(--blue)" /> Database Health & Metrics</h2>
+              <button onClick={fetchSysMetrics} disabled={sysMetricsLoading} className="admin-btn outline" style={{ padding: "4px 8px" }}>
+                <RefreshCw size={14} className={sysMetricsLoading ? "spin-icon" : ""} /> Refresh
+              </button>
+            </div>
+            <p className="admin-subtext">Live performance metrics powered by Supabase Metrics API.</p>
+            
+            {!localStorage.getItem("pgp2.push-admin-key") ? (
+              <div className="admin-empty" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+                <div>Admin key required to view metrics.</div>
+                <button onClick={promptAdminKey} className="admin-btn">Enter Admin Key</button>
+              </div>
+            ) : sysMetricsError ? (
+              <div className="admin-empty" style={{ color: "var(--danger)" }}>{sysMetricsError}</div>
+            ) : sysMetricsLoading && !sysMetrics ? (
+              <div className="admin-empty">Loading metrics...</div>
+            ) : sysMetrics ? (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16, marginTop: 16 }}>
+                {[
+                  { key: "pg_stat_activity_count", label: "Active Connections" },
+                  { key: "pg_stat_database_xact_commit", label: "Transactions (Commit)" },
+                  { key: "pg_stat_database_blks_hit", label: "Blocks Hit" },
+                  { key: "pg_stat_database_blks_read", label: "Blocks Read" },
+                  { key: "node_cpu_seconds_total", label: "CPU Seconds" }
+                ].map((m, i) => {
+                  const val = sysMetrics.find(x => x.name === m.key)?.value;
+                  return (
+                    <div key={i} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: 16 }}>
+                      <div style={{ fontSize: 12, color: "var(--muted)", textTransform: "uppercase", fontWeight: 700 }}>{m.label}</div>
+                      <div style={{ fontSize: 24, fontWeight: 800, marginTop: 4 }}>{val !== undefined ? val.toLocaleString(undefined, {maximumFractionDigits: 1}) : "N/A"}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+          </section>
 
           {/* Interactive Live Schedule Editor */}
           <section className="admin-card" style={{ gridColumn: "1 / -1" }}>

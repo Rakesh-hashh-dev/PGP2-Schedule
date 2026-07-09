@@ -149,6 +149,10 @@ function changedEvent(key, oldSig, newSig) {
   if (oName !== name) return mk(date, start, 'course', lbl + ' · ' + start + ' — ' + oName + ' → ' + name, code);
   const bits = [];
   let adminOnly = false;
+  const oldStart = field(oldSig, 6), newStart = field(newSig, 6);
+  if (oldStart !== newStart) {
+    bits.push('time ' + oldStart + '→' + newStart);
+  }
   const oldRoom = field(oldSig, 3), newRoom = field(newSig, 3);
   if (oldRoom !== newRoom) {
     // If either side is blank it's a data-quality gap — hide from regular users
