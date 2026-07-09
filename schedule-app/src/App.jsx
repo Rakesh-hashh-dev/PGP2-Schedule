@@ -33,7 +33,7 @@ import { supabase } from "./lib/supabase.js";
 import { assignSubjectColors, subjectClass } from "./lib/subjectColors.js";
 import MarkPrompt from "./components/MarkPrompt.jsx";
 import { WhatsNewPill, WhatsNewModal } from "./components/WhatsNew.jsx";
-import MigrationBanner from "./components/MigrationBanner.jsx";
+
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent || "");
 
@@ -121,86 +121,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     try { localStorage.setItem(LAST_USER_KEY, userId); } catch { }
   }, [userId]);
   // ──────────────────────────────────────────────────────────────
-
-  // ── Dev→Prod one-time data migration ─────────────────────────────────────
-  // Fires on first prod login. Uses 3-attempt exponential backoff (0s/5s/15s).
-  // MIGRATION_DONE_KEY is only set to "done-{userId}" on confirmed server success.
-  // A "failed-{userId}" value means all 3 attempts failed — will retry next login.
-  const MIGRATION_DONE_KEY = "pgp2.migration-v1";
-  const [migrationState, setMigrationState] = useState(null); // null | 'restoring' | 'done' | 'failed'
-  const migrationRan = useRef(false);
-
-  useEffect(() => {
-    if (!userId || !userEmail || migrationRan.current) return;
-
-    const stored = localStorage.getItem(MIGRATION_DONE_KEY);
-    // Already successfully migrated — never run again
-    if (stored === `done-${userId}`) return;
-
-    migrationRan.current = true;
-
-    const DELAYS = [0, 5000, 15000]; // attempt 1 immediately, then 5s, then 15s
-
-    async function attempt(attemptIndex) {
-      if (attemptIndex === 0) setMigrationState("restoring");
-      try {
-        const token = await window.Clerk?.session?.getToken();
-        if (!token) throw new Error("No Clerk session token");
-
-        const res = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/migrate-user`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ email: userEmail, new_user_id: userId }),
-          }
-        );
-
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const payload = await res.json();
-
-        if (payload.error) throw new Error(payload.error);
-
-        if (payload.migrated) {
-          // Server confirmed a real migration — never run again for this user
-          localStorage.setItem(MIGRATION_DONE_KEY, `done-${userId}`);
-          // Re-sync so the freshly-migrated data appears immediately
-          await Promise.allSettled([
-            syncProfileFromCloud(userId),
-            syncAttendanceFromCloud(userId),
-            syncFriendsAndGroupsFromCloud(userId),
-          ]);
-          setMigrationState("done");
-        } else if (payload.reason === "already_done") {
-          // Confirmed previously migrated — never run again
-          localStorage.setItem(MIGRATION_DONE_KEY, `done-${userId}`);
-          setMigrationState(null);
-        } else {
-          // "new_user" — _migration_map has no row for this email yet (could be a
-          // genuinely new user, or the dev→prod export just hasn't run/landed yet).
-          // Don't persist a done flag — retry on next login so a later backfill
-          // of _migration_map still gets picked up automatically.
-          setMigrationState(null);
-        }
-      } catch (err) {
-        const next = attemptIndex + 1;
-        if (next < DELAYS.length) {
-          // Still have retries — wait and try again
-          setTimeout(() => attempt(next), DELAYS[next]);
-        } else {
-          // All 3 attempts exhausted — mark as failed, will retry next login
-          localStorage.setItem(MIGRATION_DONE_KEY, `failed-${userId}`);
-          setMigrationState("failed");
-        }
-      }
-    }
-
-    attempt(0);
-  }, [userId, userEmail]);
-  // ─────────────────────────────────────────────────────────────────────────
 
   const showAdminUI = isAdmin && adminMode;
   const [sysConfig, setSysConfig] = useState(null);
@@ -1392,7 +1312,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   return (
     <div className="app-shell">
       {/* ── Dev→Prod Migration Banner (one-time, self-removing) ── */}
-      {migrationState && <MigrationBanner state={migrationState} />}
+
       {/* ── SW Update Modal ── */}
       {swUpdateFn && (
         <div className="sw-update-overlay" role="dialog" aria-modal="true" aria-labelledby="sw-update-title">
