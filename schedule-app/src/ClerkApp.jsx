@@ -1,7 +1,8 @@
-import { ClerkProvider, AuthenticateWithRedirectCallback } from "@clerk/clerk-react";
+import { ClerkProvider } from "@clerk/clerk-react";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import App from "./App.jsx";
+import SsoCallback from "./components/SsoCallback.jsx";
 
 const pk = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 if (!pk) console.error("Missing VITE_CLERK_PUBLISHABLE_KEY in .env.local");
@@ -15,7 +16,7 @@ export default function ClerkApp() {
     // uses no Clerk prebuilt components (<SignIn/>, <UserButton/>, …), so the
     // ~430 KB prebuilt-UI bundle is dropped from the critical path.
     <ClerkProvider publishableKey={pk} afterSignOutUrl="/" clerkJSVariant="headless">
-      {isCallback ? <AuthenticateWithRedirectCallback /> : <App />}
+      {isCallback ? <SsoCallback /> : <App />}
       <Analytics />
       <SpeedInsights />
     </ClerkProvider>
