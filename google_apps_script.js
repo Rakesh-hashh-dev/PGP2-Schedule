@@ -282,9 +282,19 @@ function parseTimetable(ss, legend) {
   let grid = null;
   ss.getSheets().forEach(sh => {
     if (grid) return;
-    const v = sh.getDataRange().getDisplayValues();
+    const range = sh.getDataRange();
+    const v = range.getDisplayValues();
     const hit = v.some(r => r.some(c => SECTION_MAP[String(c).trim().toLowerCase()]));
-    if (hit) grid = { values: v, raw: sh.getDataRange().getValues() };
+    if (hit) {
+      // Merged-cell map: "row,col" (0-based top-left) -> span. Used to tell
+      // combined guest sessions (merged across the section rows) apart from
+      // section-wise ones, and to detect cells spanning multiple time slots.
+      const merges = {};
+      range.getMergedRanges().forEach(r => {
+        merges[(r.getRow() - 1) + ',' + (r.getColumn() - 1)] = { rows: r.getNumRows(), cols: r.getNumColumns() };
+      });
+      grid = { values: v, raw: range.getValues(), merges: merges };
+    }
   });
   if (!grid) return [];
 
@@ -304,7 +314,9 @@ function parseTimetable(ss, legend) {
       const type = classify(cell);
       let code = '', session = '', name = cell, faculty = '', room = '';
       if (type === 'class') {
-        const m = cell.match(/^([A-Za-z]+)[\s\-]*(.*)$/);
+        // Collapse line breaks first — guest cells look like "DVB-9\n(Guest Session)"
+        // and `.` won't cross the newline, making the match fail entirely.
+        const m = cell.replace(/\s+/g, ' ').match(/^([A-Za-z]+)[\s\-]*(.*)$/);
         code = m ? m[1] : cell;
         session = m ? m[2].trim() : '';
         const info = legend[code];
@@ -314,14 +326,26 @@ function parseTimetable(ss, legend) {
           room = info.room || '';
         }
       }
+      const span = grid.merges[i + ',' + (3 + s)] || { rows: 1, cols: 1 };
+      // Cell merged across slot columns = one session spanning those slots.
+      const end = (SLOTS[Math.min(s + span.cols - 1, SLOTS.length - 1)])[1];
+      const isGuest = session && session.toLowerCase().includes('guest');
+      if (isGuest) {
+        // Room is often written inline, e.g. "BM 6 &7 Guest Session ( Seminar Hall)"
+        const rm = (session.match(/\(([^)]*)\)/g) || [])
+          .map(x => x.slice(1, -1).trim())
+          .find(x => x && !/guest/i.test(x));
+        if (rm) room = rm;
+      }
+      // Two guest types: merged across the section rows = combined (everyone
+      // attends → 'Single'); inside one section's row = section-wise (keep it).
+      const combinedGuest = isGuest && span.rows > 1;
       // 'AB' = joint session attended by both sections — emit one entry per section.
-      // Guest sessions override to 'Single' so all enrolled students see them.
-      const sectionsToEmit = section === 'AB' ? ['A', 'B'] : [section];
+      const sectionsToEmit = combinedGuest ? ['Single']
+        : section === 'AB' ? ['A', 'B'] : [section];
       for (const sec of sectionsToEmit) {
-        const isGuest = session && session.toLowerCase().includes('guest');
-        const finalSection = isGuest ? 'Single' : sec;
-        out.push({ date: curDate, day: curDay, section: finalSection, slot: s,
-          start: SLOTS[s][0], end: SLOTS[s][1], type, code, session, name, faculty, room });
+        out.push({ date: curDate, day: curDay, section: sec, slot: s,
+          start: SLOTS[s][0], end: end, type, code, session, name, faculty, room });
       }
     }
   }

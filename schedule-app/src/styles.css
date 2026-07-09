@@ -1048,6 +1048,14 @@ button:not(:disabled) {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  scroll-snap-type: x proximity;
+  overscroll-behavior-x: contain;
+  -webkit-mask-image: linear-gradient(to right, black, black calc(100% - 84px), transparent calc(100% - 64px));
+  mask-image: linear-gradient(to right, black, black calc(100% - 84px), transparent calc(100% - 64px));
+}
+
+/* Left fade only once actually scrolled — otherwise it clips the first tab */
+.tabs.tabs-scrolled {
   -webkit-mask-image: linear-gradient(to right, transparent, black 16px, black calc(100% - 84px), transparent calc(100% - 64px));
   mask-image: linear-gradient(to right, transparent, black 16px, black calc(100% - 84px), transparent calc(100% - 64px));
 }
@@ -1120,6 +1128,7 @@ button:not(:disabled) {
   display: inline-flex;
   align-items: center;
   gap: 7px;
+  scroll-snap-align: start;
   border: 1px solid transparent;
   background: transparent;
   color: var(--text);
@@ -1155,6 +1164,7 @@ button:not(:disabled) {
 .tab.on svg {
   color: #fff;
 }
+
 
 .view-date-header {
   display: flex;
@@ -6482,51 +6492,136 @@ button:not(:disabled) {
   margin: 4px 6px;
 }
 
-/* ── Bottom nav (mobile only) ── */
+.over-check {
+  margin-left: auto;
+  color: var(--violet);
+  flex: none;
+}
+
+/* Collapsible sub-group inside the overflow menu (e.g. Navigation options) */
+.over-caret {
+  margin-left: auto;
+  color: var(--muted);
+  flex: none;
+  transition: transform .2s ease;
+}
+
+.over-caret.open {
+  transform: rotate(180deg);
+}
+
+.over-sub {
+  border-left: 2px solid var(--border);
+  margin: 2px 0 4px 18px;
+  padding-left: 4px;
+}
+
+.over-sub button {
+  font-size: 13px;
+  padding: 8px 10px;
+}
+
+/* ── Bottom nav (mobile only) — floating iOS-style frosted glass dock.
+   All views listed as icon buttons; active one gets a violet gradient pill.
+   Solid-ish fallback first (budget Android WebViews skip backdrop-filter),
+   real glass layered on where the browser can blur. ── */
 .bnav {
   position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: calc(56px + env(safe-area-inset-bottom));
-  padding-bottom: env(safe-area-inset-bottom);
-  background: rgba(243, 241, 234, .92);
-  backdrop-filter: blur(16px) saturate(1.6);
-  -webkit-backdrop-filter: blur(16px) saturate(1.6);
-  border-top: 1px solid var(--border);
-  z-index: 50;
-  display: none;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 6px;
+  max-width: calc(100vw - 16px);
+  background: rgba(255, 255, 255, .92);
+  border: 1px solid rgba(255, 255, 255, .75);
+  border-radius: 999px;
+  box-shadow:
+    0 12px 40px rgba(21, 24, 43, .16),
+    0 2px 10px rgba(21, 24, 43, .08),
+    inset 0 1px 0 rgba(255, 255, 255, .9);
+  z-index: 120;
+  animation: bnav-rise .5s var(--ease-out-strong) both;
+}
+
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .bnav {
+    background: rgba(255, 255, 255, .62);
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+  }
+}
+
+@keyframes bnav-rise {
+  from { opacity: 0; transform: translateX(-50%) translateY(16px); }
 }
 
 .bnav-btn {
-  flex: 1;
+  position: relative;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
   border: none;
+  border-radius: 999px;
   background: transparent;
   color: var(--muted);
-  font-family: var(--body);
-  font-size: 10.5px;
-  font-weight: 600;
+  padding: 11px;
+  min-width: 42px;
+  min-height: 44px;
   cursor: pointer;
-  padding: 0;
-  transition: color .15s ease;
+  transition: background .25s var(--ease-out-strong), color .2s ease, transform .12s ease;
   touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .bnav-btn:active {
-  opacity: .55;
+  transform: scale(.9);
+}
+
+.bnav-icon {
+  position: relative;
+  display: flex;
+  flex: none;
 }
 
 .bnav-btn.on {
-  color: var(--ink);
+  background: linear-gradient(135deg, #6d5bd0, #8b5cf6);
+  color: #fff;
+  box-shadow:
+    0 4px 14px rgba(109, 91, 208, .45),
+    inset 0 1px 0 rgba(255, 255, 255, .25);
 }
 
-.bnav-btn.on svg {
-  color: var(--ink);
+/* Unread dot (Announcements / Friends) */
+.bnav-dot {
+  position: absolute;
+  top: -3px;
+  right: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e74c3c;
+  border: 2px solid #fff;
+}
+
+.bnav-btn.on .bnav-dot {
+  border-color: #7c66d9;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bnav {
+    animation: none;
+  }
+}
+
+/* Very narrow phones: tighten so all 8 icons fit without clipping */
+@media (max-width: 379px) {
+  .bnav-btn {
+    min-width: 38px;
+    padding: 11px 9px;
+  }
 }
 
 /* ---------- Onboarding (per-course sections) ---------- */
@@ -7150,8 +7245,17 @@ button:not(:disabled) {
       display: none;
     }
 
-  .bnav {
-      display: none !important;
+  /* Clear the floating dock — only when the user has it enabled */
+  body:has(.bnav) .app {
+      padding-bottom: calc(84px + env(safe-area-inset-bottom));
+    }
+
+  body:has(.bnav) .fs-help-fab {
+      bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+    }
+
+  body:has(.bnav) .notif-undo-toast {
+      bottom: calc(88px + env(safe-area-inset-bottom, 0px));
     }
 
   .desktop-only {
@@ -7342,6 +7446,20 @@ button:not(:disabled) {
   margin-top: 3px;
 }
 
+.sb-term-progress {
+  margin-top: 8px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, .08);
+  overflow: hidden;
+}
+
+.sb-term-progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #a78bfa, #6d5bd0);
+}
+
 /* Scrollable middle body (nav + util strip + avatar) — logo stays fixed */
 .sb-scroll-body {
   flex: 1;
@@ -7436,11 +7554,51 @@ button:not(:disabled) {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  flex: 1;
-  overflow: clip;
+  flex: none;
+  overflow: visible;
   position: relative;
   z-index: 1;
-  padding-bottom: 24px;
+  margin-bottom: 8px;
+}
+
+/* Nav section label */
+.sb-nav-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.3);
+  padding: 14px 14px 6px;
+  white-space: nowrap;
+  flex: none;
+}
+
+.sb-nav-static {
+  flex: none;
+  overflow: visible;
+}
+
+.sb-nav-label:first-of-type {
+  padding-top: 4px;
+}
+
+.sb-nav-label-admin {
+  color: rgba(31, 169, 113, .55);
+}
+
+.sidebar.collapsed .sb-nav-label {
+  height: 1px;
+  width: 26px;
+  padding: 0;
+  margin: 10px auto;
+  background: rgba(255, 255, 255, .14);
+  overflow: hidden;
+  text-indent: -9999px;
+}
+
+.sidebar.collapsed .sb-nav-label-admin {
+  background: rgba(31, 169, 113, .35);
 }
 
 .sb-link {
@@ -7451,7 +7609,7 @@ button:not(:disabled) {
   border-radius: 11px;
   border: none;
   background: transparent;
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(255, 255, 255, 0.6);
   font-family: var(--body);
   font-weight: 500;
   font-size: 13.5px;
@@ -7496,9 +7654,7 @@ button:not(:disabled) {
   color: #e9e4ff;
   font-weight: 600;
   border: 1px solid rgba(167, 139, 250, .2);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, .08),
-    0 4px 20px rgba(109, 91, 208, .2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08);
 }
 
 .sb-link.on::before {
@@ -7515,13 +7671,11 @@ button:not(:disabled) {
 
 .sb-link.on svg {
   color: #c4b5fd;
-  filter: drop-shadow(0 0 5px rgba(167, 139, 250, .5));
 }
 
 .sidebar.collapsed .sb-link.on {
   background: rgba(109, 91, 208, .25);
   border: 1px solid rgba(109, 91, 208, .35);
-  box-shadow: 0 0 20px rgba(109, 91, 208, .2);
 }
 
 .sidebar.collapsed .sb-link.on::before {
@@ -7530,7 +7684,6 @@ button:not(:disabled) {
 
 .sidebar.collapsed .sb-link.on svg {
   color: #c4b5fd;
-  filter: drop-shadow(0 0 6px rgba(167, 139, 250, .6));
 }
 
 .sb-link-label {
@@ -7559,16 +7712,32 @@ button:not(:disabled) {
   font-size: 8.5px;
   font-weight: 800;
   letter-spacing: .07em;
-  background: linear-gradient(135deg, #6D5BD0, #a855f7);
-  color: #fff;
+  background: transparent;
+  border: 1px solid rgba(167, 139, 250, .4);
+  color: #c4b5fd;
   border-radius: 4px;
-  padding: 2px 6px;
+  padding: 1px 5px;
   flex: none;
-  box-shadow: 0 2px 8px rgba(109, 91, 208, .3);
+}
+
+.sb-link .nav-badge {
+  margin-left: auto;
 }
 
 .sidebar.collapsed .sb-link .beta-badge {
   display: none;
+}
+
+.sidebar.collapsed .sb-link .nav-badge {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  min-width: 8px;
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  font-size: 0;
+  border: 2px solid #14091f;
 }
 
 /* Nav section separator */
@@ -9778,6 +9947,99 @@ a.sb-quicklink {
   text-decoration: none;
 }
 
+/* Sidebar "Now / Next" live class card */
+.sb-now-card {
+  margin: 14px 2px 4px;
+  padding: 12px 14px;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, .04);
+  border: 1px solid rgba(255, 255, 255, .07);
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+
+.sb-now-card:hover {
+  background: rgba(255, 255, 255, .07);
+  border-color: rgba(255, 255, 255, .12);
+}
+
+.sb-now-card.sb-now-live {
+  background: rgba(31, 169, 113, .08);
+  border-color: rgba(31, 169, 113, .22);
+}
+
+.sb-now-card.sb-now-live:hover {
+  background: rgba(31, 169, 113, .13);
+}
+
+.sb-now-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, .45);
+  margin-bottom: 6px;
+}
+
+.sb-now-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .3);
+  flex: none;
+}
+
+.sb-now-live .sb-now-dot {
+  background: var(--live);
+  box-shadow: 0 0 6px rgba(31, 169, 113, .7);
+  animation: sb-now-pulse 2s ease-in-out infinite;
+}
+
+@keyframes sb-now-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .4; }
+}
+
+.sb-now-live .sb-now-head {
+  color: rgba(134, 239, 172, .8);
+}
+
+.sb-now-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, .92);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sb-now-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, .5);
+  margin-top: 4px;
+  font-family: var(--mono);
+}
+
+.sb-now-progress {
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, .1);
+  margin-top: 8px;
+  overflow: hidden;
+}
+
+.sb-now-progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--live);
+}
+
 /* Push notification toggle (Announcements page header) */
 .notif-push-toggle {
   display: inline-flex;
@@ -10230,14 +10492,47 @@ a.sb-quicklink {
   color: var(--muted);
 }
 
-.wn-got-it {
+.wn-actions {
+  flex: none;
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.wn-guide-btn {
   flex: none;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 7px;
-  width: 100%;
-  margin-top: 14px;
+  padding: 13px 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+  color: var(--text);
+  font-family: var(--body);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
+}
+
+.wn-guide-btn:hover {
+  background: var(--surface);
+  border-color: var(--border-hi);
+}
+
+.wn-guide-btn svg {
+  color: var(--violet);
+}
+
+.wn-got-it {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 0;
   padding: 13px;
   border: none;
   border-radius: 14px;
@@ -12205,26 +12500,34 @@ a.sb-quicklink {
   vertical-align: -2px;
 }
 
-/* Floating Schedule FAB for Friends view (Desktop) */
+/* Floating Schedule FAB for Friends view — desktop only; the modal it opens
+   is desktop-only too, so it must never render on mobile */
 .fr-agenda-fab {
-  position: fixed;
-  bottom: 30px;
-  right: 30px;
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  background: var(--violet);
-  color: white;
-  border: none;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  display: none;
 }
 
-.fr-agenda-fab:hover {
-  transform: scale(1.08);
+@media (min-width: 900px) {
+  .fr-agenda-fab {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--violet);
+    color: white;
+    border: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+
+  .fr-agenda-fab:hover {
+    transform: scale(1.08);
+  }
 }
+

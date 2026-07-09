@@ -890,6 +890,15 @@
     margin-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
   }
 
+  /* With the bottom dock enabled, lift the FAB (and everything above it) clear */
+  body:has(.bnav) .assign-new-btn {
+    bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  }
+
+  body:has(.bnav):has(.assign-page) .foot {
+    margin-bottom: calc(140px + env(safe-area-inset-bottom, 0px));
+  }
+
   /* Compact single-line stats card */
   .assign-hero {
     gap: 6px;
@@ -937,6 +946,10 @@
     max-width: none;
     justify-content: space-between;
     bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+  }
+
+  body:has(.bnav) .assign-undo-toast {
+    bottom: calc(152px + env(safe-area-inset-bottom, 0px));
   }
 
   /* Cards & tasks: real touch targets */

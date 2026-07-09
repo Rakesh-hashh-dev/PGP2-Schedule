@@ -21,11 +21,16 @@ const CACHE_KEY = "pgp2-feed-cache";
 const SINGLE_SECTION_B = new Set(["AMR", "BAMD", "BBM"]);
 function normalizeSingleSection(c) {
   if (c.type !== "class") return c;
-  if (SINGLE_SECTION_B.has(c.code) && c.section === "B") {
-    return { ...c, section: "Single" };
+  // Repair guest cells the feed regex failed on: a line break in the sheet cell
+  // ("DVB-9\n(Guest Session)") makes the whole cell land in `code` with an
+  // empty session, so the enrollment filter (keyed by code) drops them.
+  // The section is kept as-is: section-wise guests belong to their section;
+  // combined guests already arrive from the feed as "Single" (merged cell).
+  if (!c.session && /guest/i.test(c.code || "")) {
+    const m = c.code.replace(/\s+/g, " ").match(/^([A-Za-z]+)[\s\-]*(.*)$/);
+    if (m) c = { ...c, code: m[1], session: m[2].trim(), name: m[0] };
   }
-  // Guest sessions span all sections in the sheet — show them to everyone enrolled in the course
-  if (c.session && c.session.toLowerCase().includes("guest")) {
+  if (SINGLE_SECTION_B.has(c.code) && c.section === "B") {
     return { ...c, section: "Single" };
   }
   return c;
@@ -63,7 +68,9 @@ const STATIC_SNAPSHOT = withAreas({ TERM, LEGEND, CLASSES, CHANGES: [] });
 export function getSnapshot() {
   try {
     const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
-    if (cached?.data) return cached.data;
+    // Re-normalize: cached payloads were processed by an older withAreas and
+    // may predate fixes (e.g. the guest-session code repair).
+    if (cached?.data) return withAreas(cached.data);
   } catch {}
   return STATIC_SNAPSHOT;
 }
@@ -87,7 +94,7 @@ export async function fetchSchedule(force = false) {
     const data = await res.json();
     if (data?.error) throw new Error(data.error);
     if (data?.unchanged && cached?.data) {
-      return { ...cached.data, _meta: { status: "success", message: "No changes from live sheet (using cache)", ts: new Date().toISOString() } };
+      return { ...withAreas(cached.data), _meta: { status: "success", message: "No changes from live sheet (using cache)", ts: new Date().toISOString() } };
     }
 
     if (!data?.CLASSES?.length) throw new Error("empty feed");

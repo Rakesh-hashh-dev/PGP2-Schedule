@@ -1,4 +1,4 @@
-import { X, Sparkles, ChevronRight, ArrowRight, BellRing, AlarmClock, Sunrise, ClipboardCheck, Link2, CalendarDays, Megaphone, Zap, Users, GraduationCap } from "lucide-react";
+import { X, Sparkles, ChevronRight, ArrowRight, BellRing, AlarmClock, Sunrise, ClipboardCheck, Link2, CalendarDays, Megaphone, Zap, Users, GraduationCap, BookOpenCheck } from "lucide-react";
 
 // "What's New" feature announcements. Entries come from
 // system_config.flags.whatsNew (managed in Admin Tools):
@@ -63,7 +63,7 @@ export function WhatsNewPill({ item, count, onOpen }) {
   );
 }
 
-export function WhatsNewModal({ items, onClose }) {
+export function WhatsNewModal({ items, onClose, onOpenGuide }) {
   return (
     <div className="wn-overlay" role="dialog" aria-modal="true" aria-labelledby="wn-title" onClick={onClose}>
       <div className="wn-modal" onClick={(e) => e.stopPropagation()}>
@@ -115,9 +115,16 @@ export function WhatsNewModal({ items, onClose }) {
             </div>
           </div>
         </div>
-        <button className="wn-got-it" onClick={onClose}>
-          Got it <ArrowRight size={15} strokeWidth={2.4} />
-        </button>
+        <div className="wn-actions">
+          {onOpenGuide && (
+            <button className="wn-guide-btn" onClick={onOpenGuide}>
+              <BookOpenCheck size={15} /> App Guide
+            </button>
+          )}
+          <button className="wn-got-it" onClick={onClose}>
+            Got it <ArrowRight size={15} strokeWidth={2.4} />
+          </button>
+        </div>
       </div>
     </div>
   );

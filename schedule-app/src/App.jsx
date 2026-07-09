@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from "react";
 import { createPortal } from "react-dom";
-import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, ChevronsLeft, ChevronsRight, ChevronRight, ChevronLeft, Megaphone, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Sparkles, Wand2, BellRing, CalendarDays, ExternalLink, Download, Share, WifiOff, Zap } from "lucide-react";
+import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, ChevronsLeft, ChevronsRight, ChevronRight, ChevronLeft, Megaphone, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Sparkles, Wand2, BellRing, CalendarDays, ExternalLink, Download, Share, WifiOff, Zap, PanelBottom, PanelTop, PanelsTopLeft, Check, ChevronDown } from "lucide-react";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
 import SemSummary from "./components/SemSummary.jsx";
@@ -33,6 +33,8 @@ import { supabase } from "./lib/supabase.js";
 import { assignSubjectColors, subjectClass } from "./lib/subjectColors.js";
 import MarkPrompt from "./components/MarkPrompt.jsx";
 import { WhatsNewPill, WhatsNewModal } from "./components/WhatsNew.jsx";
+
+const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent || "");
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
@@ -120,7 +122,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // ──────────────────────────────────────────────────────────────
   const showAdminUI = isAdmin && adminMode;
   const [sysConfig, setSysConfig] = useState(null);
-  const [showFriendsAgenda, setShowFriendsAgenda] = useState(false);
   const [helpModalOpen, setHelpModalOpen] = useState(false);
   const [dismissedAnnouncements, setDismissedAnnouncements] = useState(() => {
     try { return new Set(JSON.parse(localStorage.getItem("pgp2.dismissed-announcements") || "[]")); } catch { return new Set(); }
@@ -268,6 +269,23 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   function hideSbTip() { setSbTip(null); }
 
   const tabsRef = useRef(null);
+  // Mobile navigation preference: "bottom" (dock only), "top" (tab strip only), or "both"
+  const [mobileNavMode, setMobileNavMode] = useState(() => {
+    try {
+      const v = localStorage.getItem("pgp2.mobile-nav");
+      if (v === "bottom" || v === "top" || v === "both") return v;
+      if (localStorage.getItem("pgp2.bottom-nav") === "hidden") return "top";
+      return "top";
+    } catch { return "top"; }
+  });
+  function pickNavMode(mode) {
+    setMobileNavMode(mode);
+    try { localStorage.setItem("pgp2.mobile-nav", mode); } catch { }
+  }
+  const showBottomNav = mobileNavMode !== "top";
+  const showTopTabs = mobileNavMode !== "bottom";
+  const [navMenuOpen, setNavMenuOpen] = useState(false);
+  const [showFriendsAgenda, setShowFriendsAgenda] = useState(false);
   const [showRightScroll, setShowRightScroll] = useState(true);
   const [showLeftScroll, setShowLeftScroll] = useState(false);
   const handleTabsScroll = () => {
@@ -276,23 +294,26 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     setShowRightScroll(scrollLeft + clientWidth < scrollWidth - 10);
     setShowLeftScroll(scrollLeft > 10);
   };
-  // Scroll the active tab into center once ALL loading guards have passed
+  // Center the active tab whenever the view changes (initial load jumps,
+  // later changes glide) — view can change from anywhere (palette, bnav, links)
   const didScrollInitialTab = useRef(false);
   const tabsReady = isLoaded && isSignedIn && !!scheduleData && !!setup && !showSetupEdit;
   useEffect(() => {
-    if (!tabsReady || didScrollInitialTab.current) return;
-    didScrollInitialTab.current = true;
+    if (!tabsReady) return;
     const id = setTimeout(() => {
       const nav = tabsRef.current;
       const activeTab = nav?.querySelector(".tab.on");
       if (nav && activeTab) {
-        nav.scrollLeft = activeTab.offsetLeft - nav.offsetWidth / 2 + activeTab.offsetWidth / 2;
+        const target = activeTab.offsetLeft - nav.offsetWidth / 2 + activeTab.offsetWidth / 2;
+        if (didScrollInitialTab.current) nav.scrollTo({ left: target, behavior: "smooth" });
+        else nav.scrollLeft = target;
+        didScrollInitialTab.current = true;
         handleTabsScroll();
       }
     }, 100);
     return () => clearTimeout(id);
-     
-  }, [tabsReady]);
+
+  }, [tabsReady, view]);
 
   const [cmdOpen, setCmdOpen] = useState(false);
   const premiumMode = true;
@@ -863,7 +884,13 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       if (c.type === "class" && c.code) (m[c.code] = m[c.code] || new Set()).add(c.section);
     });
     const out = {};
-    Object.keys(m).forEach((k) => { out[k] = [...m[k]].sort(); });
+    Object.keys(m).forEach((k) => {
+      // Combined guest sessions are "Single"/"All" entries visible to every
+      // section — don't offer them as an enrollment choice for sectioned courses.
+      const secs = [...m[k]];
+      const real = secs.filter((s) => s !== "Single" && s !== "All");
+      out[k] = (real.length ? real : secs).sort();
+    });
     return out;
   }, [sd]);
 
@@ -1184,6 +1211,15 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   }
   const termDateRange = TERM ? [fmtTermDate(TERM.start), fmtTermDate(TERM.end)].filter(Boolean).join(" – ") : "";
   const termLabel = TERM?.number ? `Term ${TERM.number}${termDateRange ? ` · ${termDateRange}` : ""}` : termDateRange;
+  const termProgressPct = useMemo(() => {
+    if (!TERM?.start || !TERM?.end) return null;
+    const [sY, sM, sD] = TERM.start.split("-").map(Number);
+    const [eY, eM, eD] = TERM.end.split("-").map(Number);
+    const start = new Date(sY, sM - 1, sD).getTime();
+    const end = new Date(eY, eM - 1, eD).getTime();
+    if (!(end > start)) return null;
+    return Math.min(100, Math.max(0, Math.round(((now.getTime() - start) / (end - start)) * 100)));
+  }, [TERM?.start, TERM?.end, now]);
 
   if (!isLoaded) return (
     <main className="loading-screen">
@@ -1318,7 +1354,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
       {/* ── What's New modal ── */}
       {whatsNewOpen && (
-        <WhatsNewModal items={whatsNewItems} onClose={() => closeWhatsNew(whatsNewItems)} />
+        <WhatsNewModal items={whatsNewItems} onClose={() => closeWhatsNew(whatsNewItems)} onOpenGuide={() => { closeWhatsNew(whatsNewItems); setHelpModalOpen(true); }} />
       )}
 
       {/* ── Friend-added toast (share-link accepts) ── */}
@@ -1380,6 +1416,11 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               <div>IIM Sambalpur</div>
               <div className="sb-brand-date">{termLabel}</div>
             </div>
+            {termProgressPct != null && (
+              <div className="sb-term-progress" aria-hidden="true">
+                <div className="sb-term-progress-fill" style={{ width: `${termProgressPct}%` }} />
+              </div>
+            )}
           </div>
         </div>
 
@@ -1396,39 +1437,41 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 <Search size={16} />
                 <span className="sb-search-label">Search</span>
               </div>
-              <span className="sb-search-shortcut">⌘K</span>
+              <span className="sb-search-shortcut">{isMac ? "⌘K" : "Ctrl K"}</span>
             </button>
-            <button className={`sb-link${view === "today" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Today")} onMouseLeave={hideSbTip} onClick={() => { setView("today"); setCompareTarget(null); hideSbTip(); }}>
+
+            <div className="sb-nav-label">Schedule</div>
+            <button className={`sb-link${view === "today" ? " on" : ""}`} aria-current={view === "today" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Today")} onMouseLeave={hideSbTip} onClick={() => { setView("today"); setCompareTarget(null); hideSbTip(); }}>
               <Clock size={18} /><span className="sb-link-label">Today</span>
             </button>
-            <button className={`sb-link${view === "tomorrow" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Tomorrow")} onMouseLeave={hideSbTip} onClick={() => { setView("tomorrow"); setCompareTarget(null); hideSbTip(); }}>
+            <button className={`sb-link${view === "tomorrow" ? " on" : ""}`} aria-current={view === "tomorrow" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Tomorrow")} onMouseLeave={hideSbTip} onClick={() => { setView("tomorrow"); setCompareTarget(null); hideSbTip(); }}>
               <Sunrise size={18} /><span className="sb-link-label">Tomorrow</span>
             </button>
+
+            {(enableAttendance || enableExams) && <div className="sb-nav-label">Track</div>}
             {enableAttendance && (
-              <button className={`sb-link${view === "attendance" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Attendance")} onMouseLeave={hideSbTip} onClick={() => { setView("attendance"); setCompareTarget(null); hideSbTip(); }}>
+              <button className={`sb-link${view === "attendance" ? " on" : ""}`} aria-current={view === "attendance" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Attendance")} onMouseLeave={hideSbTip} onClick={() => { setView("attendance"); setCompareTarget(null); hideSbTip(); }}>
                 <ClipboardList size={18} /><span className="sb-link-label">Attendance</span>
               </button>
             )}
             {enableExams && (
-              <button className={`sb-link${view === "exams" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Exams")} onMouseLeave={hideSbTip} onClick={() => { setView("exams"); setCompareTarget(null); hideSbTip(); }}>
+              <button className={`sb-link${view === "exams" ? " on" : ""}`} aria-current={view === "exams" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Exams")} onMouseLeave={hideSbTip} onClick={() => { setView("exams"); setCompareTarget(null); hideSbTip(); }}>
                 <GraduationCap size={18} /><span className="sb-link-label">Exams</span>
               </button>
             )}
-            <button className={`sb-link${view === "notifications" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Announcements")} onMouseLeave={hideSbTip} onClick={() => { setView("notifications"); setCompareTarget(null); hideSbTip(); }}>
-              <Megaphone size={18} /><span className="sb-link-label">Announcements</span>
-            </button>
-            <button className={`sb-link${view === "assignments" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Assignments")} onMouseLeave={hideSbTip} onClick={() => { setView("assignments"); setCompareTarget(null); hideSbTip(); }}>
+            <button className={`sb-link${view === "assignments" ? " on" : ""}`} aria-current={view === "assignments" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Assignments")} onMouseLeave={hideSbTip} onClick={() => { setView("assignments"); setCompareTarget(null); hideSbTip(); }}>
               <BookOpenCheck size={18} /><span className="sb-link-label">Assignments</span>
             </button>
+
+            <div className="sb-nav-label">Campus</div>
+            <button className={`sb-link${view === "notifications" ? " on" : ""}`} aria-current={view === "notifications" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Announcements")} onMouseLeave={hideSbTip} onClick={() => { setView("notifications"); setCompareTarget(null); hideSbTip(); }}>
+              <Megaphone size={18} /><span className="sb-link-label">Announcements</span>
+              {unreadChangeCount > 0 && <span className="nav-badge">{unreadChangeCount}</span>}
+            </button>
             {enableFriends && (
-              <button className={`sb-link${view === "friends" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Friends")} onMouseLeave={hideSbTip} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); hideSbTip(); }}>
+              <button className={`sb-link${view === "friends" ? " on" : ""}`} aria-current={view === "friends" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Friends")} onMouseLeave={hideSbTip} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); hideSbTip(); }}>
                 <Users size={18} /><span className="sb-link-label">Friends</span> <span className="beta-badge">Beta</span>
                 {unreadFriendCount > 0 && <span className="nav-badge">{unreadFriendCount}</span>}
-              </button>
-            )}
-            {showAdminUI && (
-              <button className={`sb-link${view === "admin" ? " on" : ""}`} onMouseEnter={e => showSbTip(e, "Admin Tools")} onMouseLeave={hideSbTip} onClick={() => { setView("admin"); setCompareTarget(null); hideSbTip(); }}>
-                <Shield size={18} /><span className="sb-link-label" style={{ color: "var(--live)" }}>Admin Tools</span>
               </button>
             )}
           </nav>
@@ -1442,6 +1485,40 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 </a>
               ))}
             </div>
+          )}
+
+          {!sidebarCollapsed && (current || next) && (
+            <div className={`sb-now-card${current ? " sb-now-live" : ""}`} onClick={() => { setView(current || (next && next.date === todayISO) ? "today" : "tomorrow"); setCompareTarget(null); }}>
+              <div className="sb-now-head">
+                <span className="sb-now-dot" />
+                {current ? "Now" : "Next"}
+              </div>
+              <div className="sb-now-name">{(current || next).name}</div>
+              <div className="sb-now-meta">
+                <span>{(current || next).room || "TBA"}</span>
+                {current ? (
+                  <span>{Math.max(0, Math.round((current.e - now) / 60000))}m left</span>
+                ) : (
+                  <span>in {Math.max(0, Math.round((next.s - now) / 60000))}m</span>
+                )}
+              </div>
+              {current && (
+                <div className="sb-now-progress">
+                  <div className="sb-now-progress-fill" style={{ width: `${Math.min(100, Math.max(0, ((now - current.s) / (current.e - current.s)) * 100))}%` }} />
+                </div>
+              )}
+            </div>
+          )}
+
+          {showAdminUI && (
+            <>
+              <div className="sb-nav-label sb-nav-label-admin">Admin</div>
+              <nav className="sb-nav sb-nav-static">
+                <button className={`sb-link${view === "admin" ? " on" : ""}`} aria-current={view === "admin" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Admin Tools")} onMouseLeave={hideSbTip} onClick={() => { setView("admin"); setCompareTarget(null); hideSbTip(); }}>
+                  <Shield size={18} /><span className="sb-link-label">Admin Tools</span>
+                </button>
+              </nav>
+            </>
           )}
         </div>
 
@@ -1493,9 +1570,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 <div className="sb-pop-sep" />
                 <button className="sb-pop-btn" onClick={() => { setWhatsNewOpen(true); setSbProfileOpen(false); hideSbTip(); }}>
                   <Sparkles size={14} /> What&rsquo;s New
-                </button>
-                <button className="sb-pop-btn" onClick={() => { setHelpModalOpen(true); hideSbTip(); }}>
-                  <BookOpenCheck size={14} /> App Guide
                 </button>
                 <button className="sb-pop-signout" onClick={() => signOut()}>
                   <LogOut size={14} /> Sign out
@@ -1610,8 +1684,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       </div>
                     </div>
                     <div className="over-sep" />
-                    <button onClick={() => { setHelpModalOpen(true); setProfileOpen(false); }}>
-                      <BookOpenCheck size={14} /> App Guide
+                    <button onClick={() => { setWhatsNewOpen(true); setProfileOpen(false); }}>
+                      <Sparkles size={14} /> What&rsquo;s New
                     </button>
                     <button onClick={() => { setFeedbackOpen(true); setProfileOpen(false); setOverflowOpen(false); }}>
                       <MessageSquare size={14} /> Submit Feedback
@@ -1631,7 +1705,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             </div>
             {/* Mobile-only: overflow ⋯ */}
             <div className="tb-wrap over-wrap mobile-only">
-              <button className="sync" onClick={() => setOverflowOpen(o => !o)} aria-label="More options" aria-expanded={overflowOpen}>
+              <button className="sync" onClick={() => { setOverflowOpen(o => !o); setNavMenuOpen(false); }} aria-label="More options" aria-expanded={overflowOpen}>
                 <MoreHorizontal size={15} />
               </button>
               {overflowOpen && (
@@ -1650,6 +1724,27 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                     <button className="mobile-only" onClick={() => { setFilterModalOpen(true); setOverflowOpen(false); }}>
                       <SlidersHorizontal size={14} /> Filter subjects
                     </button>
+                    <div className="over-sep mobile-only" />
+                    <button className="mobile-only" aria-expanded={navMenuOpen} onClick={() => setNavMenuOpen(o => !o)}>
+                      <PanelsTopLeft size={14} /> Navigation
+                      <ChevronDown size={13} className={`over-caret${navMenuOpen ? " open" : ""}`} />
+                    </button>
+                    {navMenuOpen && (
+                      <div className="over-sub mobile-only">
+                        <button onClick={() => { pickNavMode("bottom"); setOverflowOpen(false); setNavMenuOpen(false); }}>
+                          <PanelBottom size={14} /> Show bottom nav
+                          {mobileNavMode === "bottom" && <Check size={14} className="over-check" />}
+                        </button>
+                        <button onClick={() => { pickNavMode("top"); setOverflowOpen(false); setNavMenuOpen(false); }}>
+                          <PanelTop size={14} /> Show top nav
+                          {mobileNavMode === "top" && <Check size={14} className="over-check" />}
+                        </button>
+                        <button onClick={() => { pickNavMode("both"); setOverflowOpen(false); setNavMenuOpen(false); }}>
+                          <PanelsTopLeft size={14} /> Show both
+                          {mobileNavMode === "both" && <Check size={14} className="over-check" />}
+                        </button>
+                      </div>
+                    )}
                     <div className="over-sep" />
                     <button onClick={() => { setView("notifications"); setCompareTarget(null); setOverflowOpen(false); }}>
                       <Bell size={14} /> Notification settings
@@ -1665,9 +1760,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                     <div className="over-sep" />
                     <button onClick={() => { setWhatsNewOpen(true); setOverflowOpen(false); }}>
                       <Sparkles size={14} /> What&rsquo;s New
-                    </button>
-                    <button onClick={() => { setHelpModalOpen(true); setOverflowOpen(false); }}>
-                      <BookOpenCheck size={14} /> App Guide
                     </button>
                     <button onClick={() => { setFeedbackOpen(true); setProfileOpen(false); setOverflowOpen(false); }}>
                       <MessageSquare size={14} /> Submit Feedback
@@ -1701,36 +1793,38 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
         <div className="desk-layout" style={view === "friends" ? { gridTemplateColumns: "1fr" } : {}}>
           <main className="main-col">
+            {showTopTabs && (
             <div className="tabs-wrapper">
-              <nav className="tabs" ref={tabsRef} onScroll={handleTabsScroll}>
-                <button className={`tab ${view === "today" ? "on" : ""}`} onClick={() => { setView("today"); setCompareTarget(null); }}>
-                  <Clock size={15} /> Today
+              <nav className={`tabs${showLeftScroll ? " tabs-scrolled" : ""}`} ref={tabsRef} onScroll={handleTabsScroll}>
+                <button className={`tab ${view === "today" ? "on" : ""}`} aria-label="Today" onClick={() => { setView("today"); setCompareTarget(null); }}>
+                  <Clock size={15} /> <span className="tab-label">Today</span>
                 </button>
-                <button className={`tab ${view === "tomorrow" ? "on" : ""}`} onClick={() => { setView("tomorrow"); setCompareTarget(null); }}>
-                  <Sunrise size={15} /> Tomorrow
+                <button className={`tab ${view === "tomorrow" ? "on" : ""}`} aria-label="Tomorrow" onClick={() => { setView("tomorrow"); setCompareTarget(null); }}>
+                  <Sunrise size={15} /> <span className="tab-label">Tomorrow</span>
                 </button>
-                <button className={`tab tab-week ${view === "week" ? "on" : ""}`} onClick={() => { setView("week"); setCompareTarget(null); }}>
-                  <Calendar size={15} /> Week
+                <button className={`tab tab-week ${view === "week" ? "on" : ""}`} aria-label="Week" onClick={() => { setView("week"); setCompareTarget(null); }}>
+                  <Calendar size={15} /> <span className="tab-label">Week</span>
                 </button>
                 {enableAttendance && (
-                  <button className={`tab ${view === "attendance" ? "on" : ""}`} onClick={() => { setView("attendance"); setCompareTarget(null); }}>
-                    <ClipboardList size={15} /> Attendance
+                  <button className={`tab ${view === "attendance" ? "on" : ""}`} aria-label="Attendance" onClick={() => { setView("attendance"); setCompareTarget(null); }}>
+                    <ClipboardList size={15} /> <span className="tab-label">Attendance</span>
                   </button>
                 )}
                 {enableExams && (
-                  <button className={`tab ${view === "exams" ? "on" : ""}`} onClick={() => { setView("exams"); setCompareTarget(null); }}>
-                    <GraduationCap size={15} /> Exams
+                  <button className={`tab ${view === "exams" ? "on" : ""}`} aria-label="Exams" onClick={() => { setView("exams"); setCompareTarget(null); }}>
+                    <GraduationCap size={15} /> <span className="tab-label">Exams</span>
                   </button>
                 )}
-                <button className={`tab ${view === "notifications" ? "on" : ""}`} onClick={() => { setView("notifications"); setCompareTarget(null); }}>
-                  <Megaphone size={15} /> Announcements
+                <button className={`tab ${view === "notifications" ? "on" : ""}`} aria-label="Announcements" onClick={() => { setView("notifications"); setCompareTarget(null); }}>
+                  <Megaphone size={15} /> <span className="tab-label">Announcements</span>
+                  {unreadChangeCount > 0 && <span className="nav-badge">{unreadChangeCount}</span>}
                 </button>
-                <button className={`tab ${view === "assignments" ? "on" : ""}`} onClick={() => { setView("assignments"); setCompareTarget(null); }}>
-                  <BookOpenCheck size={15} /> Assignments
+                <button className={`tab ${view === "assignments" ? "on" : ""}`} aria-label="Assignments" onClick={() => { setView("assignments"); setCompareTarget(null); }}>
+                  <BookOpenCheck size={15} /> <span className="tab-label">Assignments</span>
                 </button>
                 {enableFriends && (
-                  <button className={`tab ${view === "friends" ? "on" : ""}`} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); }}>
-                    <Users size={15} /> Friends <span className="beta-badge">Beta</span>
+                  <button className={`tab ${view === "friends" ? "on" : ""}`} aria-label="Friends" onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); }}>
+                    <Users size={15} /> <span className="tab-label">Friends</span> <span className="beta-badge tab-label">Beta</span>
                     {unreadFriendCount > 0 && <span className="nav-badge">{unreadFriendCount}</span>}
                   </button>
                 )}
@@ -1758,6 +1852,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 </button>
               )}
             </div>
+            )}
 
             {view !== "attendance" && view !== "insights" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && !compareTarget && (
               <>
@@ -1998,11 +2093,12 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           <aside className={view !== "week" ? "side-col hide-mobile" : "side-col"} style={view === "friends" ? { display: "none" } : {}}>
             <WeekAgenda visible={visible} now={now} offset={weekOffset} setOffset={setWeekOffset} todayISO={todayISO} onViewFullSchedule={(iso) => { setJumpToDate(iso); setView("fullSchedule"); }} />
           </aside>
-          
-          {/* Floating Schedule button & Modal for Friends View on Desktop */}
+
+          {/* Floating Schedule button & Modal for Friends view — desktop only
+              (.fr-agenda-fab is display:none below 900px) */}
           {view === "friends" && (
             <>
-              <button className="fr-agenda-fab hide-mobile" onClick={() => setShowFriendsAgenda(true)} title="View Schedule">
+              <button className="fr-agenda-fab" onClick={() => setShowFriendsAgenda(true)} title="View Schedule">
                 <Calendar size={22} />
               </button>
               {showFriendsAgenda && (
@@ -2117,22 +2213,47 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         )}
 
 
-        {/* Bottom nav — commented out, restore when needed
-      <nav className="bnav" aria-label="Main navigation">
-        <button className={`bnav-btn${view === "today" ? " on" : ""}`} onClick={() => setView("today")}>
-          <Clock size={20} /><span>Today</span>
-        </button>
-        <button className={`bnav-btn${view === "tomorrow" ? " on" : ""}`} onClick={() => setView("tomorrow")}>
-          <Sunrise size={20} /><span>Tomorrow</span>
-        </button>
-        <button className={`bnav-btn${view === "week" ? " on" : ""}`} onClick={() => setView("week")}>
-          <Calendar size={20} /><span>Week</span>
-        </button>
-        <button className={`bnav-btn${view === "attendance" ? " on" : ""}`} onClick={() => setView("attendance")}>
-          <ClipboardList size={20} /><span>Attendance</span>
-        </button>
-      </nav>
-      */}
+        {/* ── Bottom nav (mobile) — floating glass dock, all views listed ── */}
+        {showBottomNav && (
+          <nav className="bnav" aria-label="Main navigation">
+            <button className={`bnav-btn${view === "today" ? " on" : ""}`} aria-label="Today" aria-current={view === "today" ? "page" : undefined} onClick={() => { setView("today"); setCompareTarget(null); }}>
+              <span className="bnav-icon"><Clock size={19} /></span>
+            </button>
+            <button className={`bnav-btn${view === "tomorrow" ? " on" : ""}`} aria-label="Tomorrow" aria-current={view === "tomorrow" ? "page" : undefined} onClick={() => { setView("tomorrow"); setCompareTarget(null); }}>
+              <span className="bnav-icon"><Sunrise size={19} /></span>
+            </button>
+            <button className={`bnav-btn${view === "week" ? " on" : ""}`} aria-label="Week" aria-current={view === "week" ? "page" : undefined} onClick={() => { setView("week"); setCompareTarget(null); }}>
+              <span className="bnav-icon"><Calendar size={19} /></span>
+            </button>
+            {enableAttendance && (
+              <button className={`bnav-btn${view === "attendance" ? " on" : ""}`} aria-label="Attendance" aria-current={view === "attendance" ? "page" : undefined} onClick={() => { setView("attendance"); setCompareTarget(null); }}>
+                <span className="bnav-icon"><ClipboardList size={19} /></span>
+              </button>
+            )}
+            {enableExams && (
+              <button className={`bnav-btn${view === "exams" ? " on" : ""}`} aria-label="Exams" aria-current={view === "exams" ? "page" : undefined} onClick={() => { setView("exams"); setCompareTarget(null); }}>
+                <span className="bnav-icon"><GraduationCap size={19} /></span>
+              </button>
+            )}
+            <button className={`bnav-btn${view === "notifications" ? " on" : ""}`} aria-label="Announcements" aria-current={view === "notifications" ? "page" : undefined} onClick={() => { setView("notifications"); setCompareTarget(null); }}>
+              <span className="bnav-icon">
+                <Megaphone size={19} />
+                {unreadChangeCount > 0 && <span className="bnav-dot" />}
+              </span>
+            </button>
+            <button className={`bnav-btn${view === "assignments" ? " on" : ""}`} aria-label="Assignments" aria-current={view === "assignments" ? "page" : undefined} onClick={() => { setView("assignments"); setCompareTarget(null); }}>
+              <span className="bnav-icon"><BookOpenCheck size={19} /></span>
+            </button>
+            {enableFriends && (
+              <button className={`bnav-btn${view === "friends" ? " on" : ""}`} aria-label="Friends" aria-current={view === "friends" ? "page" : undefined} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); }}>
+                <span className="bnav-icon">
+                  <Users size={19} />
+                  {unreadFriendCount > 0 && <span className="bnav-dot" />}
+                </span>
+              </button>
+            )}
+          </nav>
+        )}
       </div>
     </div>
   );
