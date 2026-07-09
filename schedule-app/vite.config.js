@@ -43,7 +43,8 @@ export default defineConfig({
           },
           {
             // Clerk auth / API calls — network-only (never cache auth)
-            urlPattern: /^https:\/\/.*\.clerk\.accounts\.dev\/.*/i,
+            // Covers both dev (*.clerk.accounts.dev) and prod (*.clerk.com)
+            urlPattern: /^https:\/\/.*\.clerk\.accounts\.(dev|com)\/.*/i,
             handler: 'NetworkOnly',
           },
           {
