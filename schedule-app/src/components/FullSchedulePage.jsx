@@ -46,7 +46,7 @@ const LANE_H = 64;  // px per lane row
 const TODAY = isoOf(new Date());
 
 export default React.memo(function FullSchedulePage({ allClasses, enrolled, legend, termLabel, onBack, jumpToDate, setJumpToDate, jumpToSession, setJumpToSession }) {
-  const [filterCode, setFilterCode] = useState(null);
+  const [filterCodes, setFilterCodes] = useState([]);
   const [showAllClasses, setShowAllClasses] = useState(false);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [dateModalOpen, setDateModalOpen] = useState(false);
@@ -123,7 +123,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
     return codes;
   }, [baseClasses, legend]);
 
-  const filtered = filterCode ? baseClasses.filter(c => c.code === filterCode) : baseClasses;
+  const filtered = filterCodes.length > 0 ? baseClasses.filter(c => filterCodes.includes(c.code)) : baseClasses;
 
   const grouped = useMemo(() => {
     if (filtered.length === 0) return [];
@@ -254,14 +254,16 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
         <div className="fs-header-info">
           <h1 className="fs-title">Full Schedule</h1>
           <span className="fs-subtitle">
-            {filterCode ? (legend[filterCode]?.name || filterCode) : `${subjectCodes.length} subjects`} · {totalSessions} sessions
+            {filterCodes.length === 1
+              ? (legend[filterCodes[0]]?.name || filterCodes[0])
+              : `${filterCodes.length > 1 ? filterCodes.length : subjectCodes.length} subjects`} · {totalSessions} sessions
             {termLabel && <> · {termLabel}</>}
           </span>
         </div>
       </div>
 
       {/* Controls Bar */}
-      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "28px", flexWrap: "wrap" }}>
+      <div className="cal-controls">
         {/* View toggle */}
         <div className="cal-view-toggle">
           <button className={`cal-toggle-btn ${viewMode === "list" ? "cal-toggle-active" : ""}`} onClick={() => setViewMode("list")}>
@@ -275,37 +277,22 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
           </button>
         </div>
 
-        <button
-          onClick={() => setFilterModalOpen(true)}
-          style={{
-            display: "inline-flex", alignItems: "center", gap: "6px",
-            border: "1px solid var(--border)", background: "var(--card)",
-            color: "var(--text)", fontFamily: "var(--body)", fontWeight: 600, fontSize: "13px",
-            padding: "8px 16px", borderRadius: "99px", cursor: "pointer",
-            boxShadow: "0 1px 2px rgba(0,0,0,0.03)", transition: "all 0.2s"
-          }}
-          onMouseDown={e => e.currentTarget.style.transform = "scale(0.96)"}
-          onMouseUp={e => e.currentTarget.style.transform = "scale(1)"}
-          onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}
-          onTouchStart={e => e.currentTarget.style.transform = "scale(0.96)"}
-          onTouchEnd={e => e.currentTarget.style.transform = "scale(1)"}
-        >
-          <SlidersHorizontal size={15} />
-          {filterCode ? `Filter: ${filterCode}` : (!showAllClasses ? "Filter: My Schedule" : "Filter: All Subjects")}
-        </button>
+        <div className="cal-controls-right">
+          <button
+            className={`cal-ctrl-btn${filterCodes.length > 0 ? " cal-ctrl-btn-on" : ""}`}
+            onClick={() => setFilterModalOpen(true)}
+          >
+            <SlidersHorizontal size={14} />
+            {filterCodes.length > 0
+              ? (filterCodes.length === 1 ? filterCodes[0] : `${filterCodes[0]} +${filterCodes.length - 1}`)
+              : (!showAllClasses ? "My Schedule" : "All Subjects")}
+            {filterCodes.length > 0 && <span className="cal-ctrl-count">{filterCodes.length}</span>}
+          </button>
 
-        <button
-          style={{
-            display: "flex", alignItems: "center", gap: "6px",
-            background: "var(--card)", padding: "8px 16px",
-            borderRadius: "99px", border: "1px solid var(--border)",
-            fontSize: "13px", fontWeight: "600", color: "var(--text)",
-            boxShadow: "0 1px 2px rgba(0,0,0,0.03)", cursor: "pointer"
-          }}
-          onClick={() => setDateModalOpen(true)}
-        >
-          <Calendar size={15} /> Select Date
-        </button>
+          <button className="cal-ctrl-btn" onClick={() => setDateModalOpen(true)}>
+            <Calendar size={14} /> Select Date
+          </button>
+        </div>
       </div>
 
       {/* Date Jump Modal */}
@@ -369,15 +356,15 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
             <div className="filter-modal-scroll" style={{ padding: "20px" }}>
               <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
                 <button
-                  className={`fs-chip ${!filterCode && !showAllClasses ? "fs-chip-on" : ""}`}
-                  onClick={() => { setFilterCode(null); setShowAllClasses(false); }}
+                  className={`fs-chip ${filterCodes.length === 0 && !showAllClasses ? "fs-chip-on" : ""}`}
+                  onClick={() => { setFilterCodes([]); setShowAllClasses(false); }}
                   style={{ flex: 1, justifyContent: "center", padding: "12px", fontSize: "13.5px" }}
                 >
                   My Schedule
                 </button>
                 <button
-                  className={`fs-chip ${!filterCode && showAllClasses ? "fs-chip-on" : ""}`}
-                  onClick={() => { setFilterCode(null); setShowAllClasses(true); }}
+                  className={`fs-chip ${filterCodes.length === 0 && showAllClasses ? "fs-chip-on" : ""}`}
+                  onClick={() => { setFilterCodes([]); setShowAllClasses(true); }}
                   style={{ flex: 1, justifyContent: "center", padding: "12px", fontSize: "13.5px" }}
                 >
                   Whole Timetable
@@ -390,18 +377,21 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                 {subjectCodes.map(code => {
                   const section = enrolled ? enrolled[code] : null;
                   const showSection = section && section !== "Single";
+                  const isOn = filterCodes.includes(code);
                   return (
                     <button
                       key={code}
-                      className={`fs-chip ${filterCode === code ? "fs-chip-on" : ""}`}
-                      onClick={() => { setFilterCode(filterCode === code ? null : code); }}
+                      className={`fs-chip ${isOn ? "fs-chip-on" : ""}`}
+                      onClick={() => {
+                        setFilterCodes(isOn ? filterCodes.filter(c => c !== code) : [...filterCodes, code]);
+                      }}
                       style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
                     >
                       {code}
                       {showSection && !showAllClasses && (
                         <span style={{
-                          background: filterCode === code ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.06)",
-                          color: filterCode === code ? "#fff" : "var(--muted)",
+                          background: isOn ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.06)",
+                          color: isOn ? "#fff" : "var(--muted)",
                           padding: "1px 6px", borderRadius: "6px",
                           fontSize: "11px", fontWeight: "700",
                         }}>
@@ -662,9 +652,13 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                           onMouseEnter={(e) => showTooltip(e, cls)}
                           onMouseLeave={() => setTooltip(null)}
                         >
-                          <span className="cal-ev-code">{cls.code}</span>
+                          <span className="cal-ev-top">
+                            <span className="cal-ev-dot" />
+                            <span className="cal-ev-code">{cls.code}</span>
+                            {width > 128 && <span className="cal-ev-time">{cls.start}–{cls.end}</span>}
+                          </span>
                           {width > 88 && <span className="cal-ev-name">{cls.name}</span>}
-                          {width > 54 && <span className="cal-ev-time">{cls.start}–{cls.end}</span>}
+                          {width <= 128 && width > 54 && <span className="cal-ev-time">{cls.start}–{cls.end}</span>}
                         </div>
                       );
                     })}

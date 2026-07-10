@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from "react";
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Suspense, lazy } from "react";
 import { createPortal } from "react-dom";
-import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, ChevronsLeft, ChevronsRight, ChevronRight, ChevronLeft, Megaphone, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Sparkles, Wand2, BellRing, CalendarDays, ExternalLink, Download, Share, WifiOff, Zap, PanelBottom, PanelTop, PanelsTopLeft, Check, ChevronDown } from "lucide-react";
+import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, ChevronsLeft, ChevronsRight, ChevronRight, ChevronLeft, Megaphone, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Sparkles, Wand2, BellRing, CalendarDays, ExternalLink, Download, Share, WifiOff, Zap, PanelBottom, PanelTop, PanelsTopLeft, Check, ChevronDown, MapPin } from "lucide-react";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
 import SemSummary from "./components/SemSummary.jsx";
@@ -27,8 +27,11 @@ const AdminDashboard = lazy(() => import("./components/AdminDashboard.jsx"));
 const CommandPalette = lazy(() => import("./components/CommandPalette.jsx"));
 const AssignmentsPanel = lazy(() => import("./components/AssignmentsPanel.jsx"));
 import { loadAttendance, saveAttendance, sessionKey, syncAttendanceFromCloud, pushMark, courseSkipStats } from "./lib/attendance.js";
-import { syncProfileFromCloud, pushProfile, pushReadState } from "./lib/profile.js";
-import { decodeSchedule, saveFriend, loadFriends, loadGroups, syncFriendsAndGroupsFromCloud, fetchFriendPings, pushFriendsToCloud, deleteAllFriendPings, removeFriendByCloudId, deleteFriendPing } from "./lib/friends.js";
+import { syncProfileFromCloud, pushProfile, pushReadState, stampProfileEmail } from "./lib/profile.js";
+import { syncMigrationMap } from "./lib/migrationMap.js";
+import { useMigration } from "./lib/useMigration.js";
+import MigrationBanner from "./components/MigrationBanner.jsx";
+import { decodeSchedule, saveFriend, loadFriends, loadGroups, syncFriendsAndGroupsFromCloud, fetchFriendPings, pushFriendsToCloud, deleteAllFriendPings, removeFriendByCloudId, deleteFriendPing, sendFriendPing, hasPendingFriendRequest, getOrCreateShareCode } from "./lib/friends.js";
 import { supabase } from "./lib/supabase.js";
 import { assignSubjectColors, subjectClass } from "./lib/subjectColors.js";
 import MarkPrompt from "./components/MarkPrompt.jsx";
@@ -38,6 +41,13 @@ import { WhatsNewPill, WhatsNewModal } from "./components/WhatsNew.jsx";
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent || "");
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
+function fmtWait(ms) {
+  const m = Math.max(0, Math.round(ms / 60000));
+  if (m < 60) return `in ${m}m`;
+  const h = Math.floor(m / 60), r = m % 60;
+  if (h < 24) return r ? `in ${h}h ${r}m` : `in ${h}h`;
+  return `in ${Math.round(m / 1440)}d`;
+}
 function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
 function clsDate(c, which) { const [Y, Mo, D] = c.date.split("-").map(Number); const [h, m] = c[which].split(":").map(Number); return new Date(Y, Mo - 1, D, h, m); }
 function prettyDate(iso) { const [Y, M, D] = iso.split("-").map(Number); return new Date(Y, M - 1, D).toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" }); }
@@ -59,6 +69,9 @@ async function checkAppVersion(onUpdateAvailable) {
 
 const LAST_USER_KEY = "pgp2.last-user-id";
 const VIEW_KEY = "pgp2.last-view";
+// Deliberately not in USER_SCOPED_KEYS: an invite clicked before first sign-in
+// must survive the user-switch wipe.
+const PENDING_INVITE_KEY = "pgp2.pending-invite";
 const USER_SCOPED_KEYS = [
   "pgp2.friends", "pgp2.groups", "pgp2.my_share_code",
   "pgp2.setup", "pgp2-notif-seen", "pgp2.read-ping-ids", "pgp2.read-change-keys",
@@ -121,6 +134,20 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     try { localStorage.setItem(LAST_USER_KEY, userId); } catch { }
   }, [userId]);
   // ──────────────────────────────────────────────────────────────
+
+  // ── Migration bridge (dev instance only, background) ───────────
+  // Record { email → dev_user_id } so no user is orphaned at cutover.
+  // Fire-and-forget: never blocks or surfaces to the user. No-op on prod.
+  useEffect(() => {
+    if (isSignedIn && userId && userEmail) {
+      syncMigrationMap(userId, userEmail);
+      stampProfileEmail(userId, userEmail);
+    }
+  }, [isSignedIn, userId, userEmail]);
+  // ──────────────────────────────────────────────────────────────
+
+  // ── One-time dev→prod data restore (prod instance only) ────────
+  const migrationState = useMigration({ isSignedIn, userId, email: userEmail });
 
   const showAdminUI = isAdmin && adminMode;
   const [sysConfig, setSysConfig] = useState(null);
@@ -262,6 +289,15 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     setSbTip(null);
   }
 
+  // Sidebar visual style — "classic" (attached dark) or "aurora" (floating glass, animated)
+  const [sbStyle, setSbStyle] = useState(() => {
+    try { return localStorage.getItem("pgp2.sidebar-style") === "aurora" ? "aurora" : "classic"; } catch { return "classic"; }
+  });
+  function setSidebarStyle(s) {
+    setSbStyle(s);
+    try { localStorage.setItem("pgp2.sidebar-style", s); } catch { }
+  }
+
   const [sbTip, setSbTip] = useState(null);
   function showSbTip(e, label, always = false) {
     if (!sidebarCollapsed && !always) return;
@@ -286,6 +322,59 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   }
   const showBottomNav = mobileNavMode !== "top";
   const showTopTabs = mobileNavMode !== "bottom";
+
+  // ── Liquid-glass dock: sliding lens indicator + scroll recede ──
+  const bnavRef = useRef(null);
+  const [bnavLens, setBnavLens] = useState(null); // { x, w } px, or null until measured
+  const [bnavCompact, setBnavCompact] = useState(false);
+  useEffect(() => {
+    if (!showBottomNav) return;
+    let lastY = window.scrollY;
+    let acc = 0;        // accumulated same-direction scroll (hysteresis)
+    let compact = false;
+    let raf = 0;
+    let idleTimer = 0;
+    const apply = (v) => { if (compact !== v) { compact = v; setBnavCompact(v); } };
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const y = window.scrollY;
+        const dy = y - lastY;
+        lastY = y;
+        // Ignore micro-jitter from elastic scroll / address-bar resize
+        if (Math.abs(dy) < 2) return;
+        // Accumulate in one direction; a direction change resets the tally,
+        // so only sustained movement flips the state — no mid-scroll bouncing
+        acc = (dy > 0) === (acc > 0) ? acc + dy : dy;
+        if (acc > 28 && y > 120) apply(true);
+        else if (acc < -16 || y <= 120) apply(false);
+        // Spring back after ~1s of no scrolling
+        clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => { acc = 0; apply(false); }, 1000);
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+      clearTimeout(idleTimer);
+    };
+  }, [showBottomNav]);
+  useLayoutEffect(() => {
+    if (!showBottomNav) return;
+    const measure = () => {
+      const nav = bnavRef.current;
+      if (!nav) return;
+      const btn = nav.querySelector(".bnav-btn.on");
+      if (btn) setBnavLens({ x: btn.offsetLeft, w: btn.offsetWidth });
+      else setBnavLens(null);
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [showBottomNav, view, sysConfig]);
+
   const [navMenuOpen, setNavMenuOpen] = useState(false);
   const [showFriendsAgenda, setShowFriendsAgenda] = useState(false);
   const [showRightScroll, setShowRightScroll] = useState(true);
@@ -294,7 +383,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     if (!tabsRef.current) return;
     const { scrollLeft, scrollWidth, clientWidth } = tabsRef.current;
     setShowRightScroll(scrollLeft + clientWidth < scrollWidth - 10);
-    setShowLeftScroll(scrollLeft > 10);
+    // Threshold sits above the strip's left padding (16px): scroll-snap can
+    // settle the first tab at scrollLeft ≈ padding rather than 0, which
+    // would otherwise leave the left arrow stuck visible at the extreme
+    setShowLeftScroll(scrollLeft > 24);
   };
   // Center the active tab whenever the view changes (initial load jumps,
   // later changes glide) — view can change from anywhere (palette, bnav, links)
@@ -336,23 +428,60 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     return () => window.removeEventListener("resize", handleTabsScroll);
   }, []);
 
-  // URL param interception for friend codes
+  // Invite links (?f=CODE): stash the code before anything else can drop it —
+  // this effect also runs while signed out (the <Login/> gate is a return in
+  // this same component), so the code survives the Clerk OAuth redirect,
+  // which lands back on the bare origin.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get("f");
     if (code) {
-      (async () => {
-        const decoded = await decodeSchedule(code);
-        if (decoded) {
-          const updated = saveFriend(decoded.name, decoded.courses, decoded.id);
-          setFriends(updated);
-          setFriendToast(`Added ${decoded.name} as a friend!`);
-          setTimeout(() => setFriendToast(null), 3000);
-        }
-        window.history.replaceState({}, "", window.location.pathname);
-      })();
+      try { localStorage.setItem(PENDING_INVITE_KEY, code); } catch { }
+      window.history.replaceState({}, "", window.location.pathname);
     }
   }, []);
+
+  // Consume a stashed invite once signed in, through the same friend-request
+  // flow as manual code entry (request + accept), instead of the old silent
+  // one-way local add that the cloud sync immediately clobbered.
+  useEffect(() => {
+    if (!userId) return;
+    let code = null;
+    try {
+      code = localStorage.getItem(PENDING_INVITE_KEY);
+      if (code) localStorage.removeItem(PENDING_INVITE_KEY);
+    } catch { }
+    if (!code) return;
+    const inviteToast = (msg) => {
+      setFriendToast(msg);
+      setTimeout(() => setFriendToast(null), 4000);
+    };
+    (async () => {
+      const decoded = await decodeSchedule(code);
+      if (!decoded) { inviteToast("Invite link is invalid or expired."); return; }
+      if (decoded.id === userId) { inviteToast("That's your own invite link!"); return; }
+      if (decoded.id && loadFriends().some(f => f.cloudId === decoded.id)) {
+        inviteToast(`You're already friends with ${decoded.name}.`);
+        return;
+      }
+      if (decoded.id) {
+        if (await hasPendingFriendRequest(userId, decoded.id)) {
+          inviteToast(`Request already sent to ${decoded.name}.`);
+          return;
+        }
+        const myCode = await getOrCreateShareCode(userId, user?.firstName || user?.username || "Student");
+        await sendFriendPing(decoded.id, userId, user?.firstName || user?.username || "Student", { type: "friend_request", fromCode: myCode });
+        inviteToast(`Friend request sent to ${decoded.name}!`);
+      } else {
+        // Offline/legacy code: no request flow possible, add directly
+        const updated = saveFriend(decoded.name, decoded.courses, decoded.id);
+        setFriends(updated);
+        pushFriendsToCloud(userId, updated);
+        inviteToast(`Added ${decoded.name} as a friend!`);
+      }
+      setView("friends");
+    })();
+  }, [userId]);
 
   useEffect(() => {
     if (!userId) return;
@@ -1222,6 +1351,19 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     if (!(end > start)) return null;
     return Math.min(100, Math.max(0, Math.round(((now.getTime() - start) / (end - start)) * 100)));
   }, [TERM?.start, TERM?.end, now]);
+  const termWeekInfo = useMemo(() => {
+    if (!TERM?.start || !TERM?.end) return null;
+    const [sY, sM, sD] = TERM.start.split("-").map(Number);
+    const [eY, eM, eD] = TERM.end.split("-").map(Number);
+    const start = new Date(sY, sM - 1, sD).getTime();
+    const end = new Date(eY, eM - 1, eD).getTime();
+    if (!(end > start)) return null;
+    const DAY = 86400000;
+    const totalWeeks = Math.ceil(((end - start) / DAY + 1) / 7);
+    const week = Math.min(totalWeeks, Math.max(1, Math.ceil(((now.getTime() - start) / DAY + 1) / 7)));
+    const daysLeft = Math.max(0, Math.ceil((end - now.getTime()) / DAY));
+    return { week, totalWeeks, daysLeft };
+  }, [TERM?.start, TERM?.end, now]);
 
   if (!isLoaded) return (
     <main className="loading-screen">
@@ -1312,6 +1454,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   return (
     <div className="app-shell">
       {/* ── Dev→Prod Migration Banner (one-time, self-removing) ── */}
+      {migrationState && <MigrationBanner state={migrationState} />}
 
       {/* ── SW Update Modal ── */}
       {swUpdateFn && (
@@ -1410,7 +1553,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       )}
 
       {/* ── Desktop Sidebar ── */}
-      <aside className={`sidebar${sidebarCollapsed ? " collapsed" : ""}`}>
+      <aside className={`sidebar${sidebarCollapsed ? " collapsed" : ""}${sbStyle === "aurora" ? " sb-aurora" : ""}`}>
+        {sbStyle === "aurora" && (
+          <div className="sb-fx" aria-hidden="true"><i /><i /><span className="sb-grain" /></div>
+        )}
         <div className="sb-brand">
           <div className="sb-brand-mark" aria-hidden="true" />
           <div className="logo"><img src="/termflow-icon.svg" alt="TermFlow" width={20} height={20} /></div>
@@ -1421,8 +1567,11 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               <div className="sb-brand-date">{termLabel}</div>
             </div>
             {termProgressPct != null && (
-              <div className="sb-term-progress" aria-hidden="true">
-                <div className="sb-term-progress-fill" style={{ width: `${termProgressPct}%` }} />
+              <div className="sb-term-row" aria-hidden="true" title={termWeekInfo ? `${termWeekInfo.daysLeft} days left in term` : undefined}>
+                <div className="sb-term-progress">
+                  <div className="sb-term-progress-fill" style={{ width: `${termProgressPct}%` }} />
+                </div>
+                {termWeekInfo && <span className="sb-term-wk">WK {termWeekInfo.week}/{termWeekInfo.totalWeeks}</span>}
               </div>
             )}
           </div>
@@ -1470,12 +1619,12 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             <div className="sb-nav-label">Campus</div>
             <button className={`sb-link${view === "notifications" ? " on" : ""}`} aria-current={view === "notifications" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Announcements")} onMouseLeave={hideSbTip} onClick={() => { setView("notifications"); setCompareTarget(null); hideSbTip(); }}>
               <Megaphone size={18} /><span className="sb-link-label">Announcements</span>
-              {unreadChangeCount > 0 && <span className="nav-badge">{unreadChangeCount}</span>}
+              {unreadChangeCount > 0 && <span className="nav-badge">{unreadChangeCount > 9 ? "9+" : unreadChangeCount}</span>}
             </button>
             {enableFriends && (
-              <button className={`sb-link${view === "friends" ? " on" : ""}`} aria-current={view === "friends" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Friends")} onMouseLeave={hideSbTip} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); hideSbTip(); }}>
-                <Users size={18} /><span className="sb-link-label">Friends</span> <span className="beta-badge">Beta</span>
-                {unreadFriendCount > 0 && <span className="nav-badge">{unreadFriendCount}</span>}
+              <button className={`sb-link${view === "friends" ? " on" : ""}`} aria-current={view === "friends" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Social")} onMouseLeave={hideSbTip} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); hideSbTip(); }}>
+                <Users size={18} /><span className="sb-link-label">Social</span> <span className="beta-badge">Beta</span>
+                {unreadFriendCount > 0 && <span className="nav-badge">{unreadFriendCount > 9 ? "9+" : unreadFriendCount}</span>}
               </button>
             )}
           </nav>
@@ -1492,19 +1641,20 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           )}
 
           {!sidebarCollapsed && (current || next) && (
-            <div className={`sb-now-card${current ? " sb-now-live" : ""}`} onClick={() => { setView(current || (next && next.date === todayISO) ? "today" : "tomorrow"); setCompareTarget(null); }}>
+            <div className={`sb-now-card${current ? " sb-now-live" : (next.s - now <= 15 * 60000 ? " sb-now-soon" : "")}`} role="button" tabIndex={0} onClick={() => { setView(current || (next && next.date === todayISO) ? "today" : "tomorrow"); setCompareTarget(null); }} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setView(current || (next && next.date === todayISO) ? "today" : "tomorrow"); setCompareTarget(null); } }}>
               <div className="sb-now-head">
-                <span className="sb-now-dot" />
-                {current ? "Now" : "Next"}
+                <span className="sb-now-chip"><span className="sb-now-dot" />{current ? "Now" : "Next"}</span>
+                {!current && next.date !== todayISO && (
+                  <span className="sb-now-day">{next.date === tomorrowISO ? "Tomorrow" : next.s.toLocaleDateString([], { weekday: "long" })}</span>
+                )}
+                <span className="sb-now-eta">
+                  {current ? `${Math.max(0, Math.round((current.e - now) / 60000))}m left` : fmtWait(next.s - now)}
+                </span>
               </div>
               <div className="sb-now-name">{(current || next).name}</div>
               <div className="sb-now-meta">
-                <span>{(current || next).room || "TBA"}</span>
-                {current ? (
-                  <span>{Math.max(0, Math.round((current.e - now) / 60000))}m left</span>
-                ) : (
-                  <span>in {Math.max(0, Math.round((next.s - now) / 60000))}m</span>
-                )}
+                <span className="sb-now-loc"><MapPin size={11} />{(current || next).room || "TBA"}</span>
+                <span className="sb-now-time"><Clock size={11} />{(current || next).start}–{(current || next).end}</span>
               </div>
               {current && (
                 <div className="sb-now-progress">
@@ -1527,7 +1677,52 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         </div>
 
         <div className="sb-bottom">
-          <div className="sb-sep-line" />
+          <div className="sb-footer-card">
+            <div className="sb-avatar-wrap" onMouseEnter={(e) => showSbTip(e, "Profile", true)} onMouseLeave={hideSbTip}>
+              <button className="sb-avatar-btn" onClick={(e) => { e.stopPropagation(); setSbProfileOpen(o => !o); hideSbTip(); }} aria-label="Profile">
+                <div className="sb-avatar-img">
+                  {user?.imageUrl ? <img src={user.imageUrl} alt="" /> : (user?.firstName?.[0] || "?")}
+                </div>
+                <div className="sb-avatar-info">
+                  <span className="sb-avatar-name">
+                    {user?.firstName || user?.fullName || "Student"}
+                    {showAdminUI && <span className="admin-badge">Admin</span>}
+                  </span>
+                  <span className="sb-avatar-batch">PGP2 · 2025–27</span>
+                </div>
+              </button>
+              {sbProfileOpen && <div className="notif-backdrop" style={{ zIndex: 299 }} onClick={() => setSbProfileOpen(false)} />}
+              <div className={`sb-profile-pop ${sbProfileOpen ? "sb-open" : ""}`}>
+                <div className="sb-pop-head">
+                  <div className="sb-pop-ava">
+                    {user?.imageUrl ? <img src={user.imageUrl} alt="" /> : (user?.firstName?.[0] || "?")}
+                  </div>
+                  <div className="sb-pop-id">
+                    <div className="sb-pop-name">
+                      {user?.fullName || "Student"}
+                      {showAdminUI && <span className="admin-badge">Admin</span>}
+                    </div>
+                    <div className="sb-pop-email">{user?.primaryEmailAddress?.emailAddress || ""}</div>
+                  </div>
+                </div>
+                <div className="sb-pop-meta">
+                  <span className="sb-pop-batch">PGP2 · 2025–27</span>
+                  {termLabel && <span className="sb-pop-term">{termLabel}</span>}
+                </div>
+                <div className="sb-pop-sep" />
+                <div className="sb-pop-style">
+                  <span className="sb-pop-style-label">Sidebar</span>
+                  <div className="sb-pop-seg">
+                    <button className={sbStyle === "classic" ? "on" : ""} onClick={() => setSidebarStyle("classic")}>Classic</button>
+                    <button className={sbStyle === "aurora" ? "on" : ""} onClick={() => setSidebarStyle("aurora")}>Aurora</button>
+                  </div>
+                </div>
+                <button className="sb-pop-signout" onClick={() => signOut()}>
+                  <LogOut size={14} /> Sign out
+                </button>
+              </div>
+            </div>
+            <div className="sb-foot-sep" />
             <div className="sb-util-strip">
               <button className="sb-util-btn" onMouseEnter={e => showSbTip(e, "Edit setup", true)} onMouseLeave={hideSbTip} onClick={() => { setShowSetupEdit(true); hideSbTip(); }} aria-label="Edit setup">
                 <Settings2 size={16} />
@@ -1546,41 +1741,23 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                   {adminMode ? <Shield size={16} /> : <User size={16} />}
                 </button>
               )}
-              <button className="sb-util-btn sb-util-collapse" onMouseEnter={e => showSbTip(e, sidebarCollapsed ? "Expand" : "Collapse", true)} onMouseLeave={hideSbTip} onClick={toggleSidebar} aria-label="Toggle sidebar">
-                {sidebarCollapsed ? <ChevronsRight size={15} /> : <ChevronsLeft size={15} />}
-              </button>
             </div>
-            <div className="sb-avatar-wrap" onMouseEnter={(e) => showSbTip(e, "Profile", true)} onMouseLeave={hideSbTip}>
-              <button className="sb-avatar-btn" onClick={(e) => { e.stopPropagation(); setSbProfileOpen(o => !o); hideSbTip(); }} aria-label="Profile">
-                <div className="sb-avatar-img">
-                  {user?.imageUrl ? <img src={user.imageUrl} alt="" /> : (user?.firstName?.[0] || "?")}
-                </div>
-                <div className="sb-avatar-info">
-                  <span className="sb-avatar-name">
-                    {user?.firstName || user?.fullName || "Student"}
-                    {showAdminUI && <span className="admin-badge">Admin</span>}
-                  </span>
-                  <span className="sb-avatar-batch">PGP2 · 2025–27</span>
-                </div>
-              </button>
-              {sbProfileOpen && <div className="notif-backdrop" style={{ zIndex: 299 }} onClick={() => setSbProfileOpen(false)} />}
-              <div className={`sb-profile-pop ${sbProfileOpen ? "sb-open" : ""}`}>
-                <div className="sb-pop-name">
-                  {user?.fullName || "Student"}
-                  {showAdminUI && <span className="admin-badge">Admin</span>}
-                </div>
-                <div className="sb-pop-email">{user?.primaryEmailAddress?.emailAddress || ""}</div>
-                <span className="sb-pop-batch">PGP2 · 2025–27</span>
-                <div className="sb-pop-sep" />
-                <button className="sb-pop-btn" onClick={() => { setWhatsNewOpen(true); setSbProfileOpen(false); hideSbTip(); }}>
-                  <Sparkles size={14} /> What&rsquo;s New
-                </button>
-                <button className="sb-pop-signout" onClick={() => signOut()}>
-                  <LogOut size={14} /> Sign out
-                </button>
-              </div>
-            </div>
+            {!sidebarCollapsed && (
+              <div className="sb-sync-note"><span className="sb-sync-dot" />{syncing ? "Syncing…" : syncedAgo === 0 ? "Synced just now" : `Synced ${syncedAgo}m ago`}</div>
+            )}
           </div>
+        </div>
+
+        <button
+          className="sb-edge-handle sb-edge-tab"
+          onMouseEnter={e => showSbTip(e, sidebarCollapsed ? "Expand" : "Collapse")}
+          onMouseLeave={hideSbTip}
+          onClick={() => { toggleSidebar(); hideSbTip(); }}
+          aria-label="Toggle sidebar"
+          aria-expanded={!sidebarCollapsed}
+        >
+          {sidebarCollapsed ? <ChevronsRight size={12} /> : <ChevronsLeft size={12} />}
+        </button>
       </aside>
 
       {sbTip && createPortal(
@@ -1649,7 +1826,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                           <section className="rc">
                             <div className="rc-head">
                               <span className="rc-title"><Users size={14} /> Friends</span>
-                              <button className="rc-view-all" style={{ padding: "2px 8px", fontSize: 12 }} onClick={() => { setNotifOpen(false); setView("friends"); }}>Go to Friends</button>
+                              <button className="rc-view-all" style={{ padding: "2px 8px", fontSize: 12 }} onClick={() => { setNotifOpen(false); setView("friends"); }}>Go to Social</button>
                             </div>
                             <ul className="rc-list">
                               {friendNotifItems.map(item => (
@@ -1799,7 +1976,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           <main className="main-col">
             {showTopTabs && (
             <div className="tabs-wrapper">
-              <nav className={`tabs${showLeftScroll ? " tabs-scrolled" : ""}`} ref={tabsRef} onScroll={handleTabsScroll}>
+              <nav className={`tabs${showLeftScroll ? " tabs-scrolled" : ""}${showRightScroll ? " tabs-overflow-right" : ""}`} ref={tabsRef} onScroll={handleTabsScroll}>
                 <button className={`tab ${view === "today" ? "on" : ""}`} aria-label="Today" onClick={() => { setView("today"); setCompareTarget(null); }}>
                   <Clock size={15} /> <span className="tab-label">Today</span>
                 </button>
@@ -1827,8 +2004,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                   <BookOpenCheck size={15} /> <span className="tab-label">Assignments</span>
                 </button>
                 {enableFriends && (
-                  <button className={`tab ${view === "friends" ? "on" : ""}`} aria-label="Friends" onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); }}>
-                    <Users size={15} /> <span className="tab-label">Friends</span> <span className="beta-badge tab-label">Beta</span>
+                  <button className={`tab ${view === "friends" ? "on" : ""}`} aria-label="Social" onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); }}>
+                    <Users size={15} /> <span className="tab-label">Social</span> <span className="beta-badge tab-label">Beta</span>
                     {unreadFriendCount > 0 && <span className="nav-badge">{unreadFriendCount}</span>}
                   </button>
                 )}
@@ -2161,7 +2338,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                   </div>
                   <div className="fs-help-card">
                     <h3><Users size={16} color="var(--violet)" /> Friend Sync</h3>
-                    <p>Head to the Friends tab, add your squad, and compare schedules side-by-side to find overlapping free slots. You can even form custom Groups!</p>
+                    <p>Head to the Social tab, add your squad, and compare schedules side-by-side to find overlapping free slots. You can even form custom Groups!</p>
                   </div>
                   <div className="fs-help-card">
                     <h3><ClipboardList size={16} color="var(--violet)" /> Attendance Tracking</h3>
@@ -2219,7 +2396,14 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
         {/* ── Bottom nav (mobile) — floating glass dock, all views listed ── */}
         {showBottomNav && (
-          <nav className="bnav" aria-label="Main navigation">
+          <nav ref={bnavRef} className={`bnav${bnavCompact ? " bnav-compact" : ""}`} aria-label="Main navigation">
+            {bnavLens && (
+              <span
+                className="bnav-lens"
+                aria-hidden="true"
+                style={{ transform: `translateX(${bnavLens.x}px)`, width: bnavLens.w }}
+              />
+            )}
             <button className={`bnav-btn${view === "today" ? " on" : ""}`} aria-label="Today" aria-current={view === "today" ? "page" : undefined} onClick={() => { setView("today"); setCompareTarget(null); }}>
               <span className="bnav-icon"><Clock size={19} /></span>
             </button>
@@ -2249,7 +2433,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               <span className="bnav-icon"><BookOpenCheck size={19} /></span>
             </button>
             {enableFriends && (
-              <button className={`bnav-btn${view === "friends" ? " on" : ""}`} aria-label="Friends" aria-current={view === "friends" ? "page" : undefined} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); }}>
+              <button className={`bnav-btn${view === "friends" ? " on" : ""}`} aria-label="Social" aria-current={view === "friends" ? "page" : undefined} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); }}>
                 <span className="bnav-icon">
                   <Users size={19} />
                   {unreadFriendCount > 0 && <span className="bnav-dot" />}

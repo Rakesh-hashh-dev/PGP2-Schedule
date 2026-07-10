@@ -419,14 +419,100 @@
   box-shadow: 0 2px 8px rgba(21, 24, 43, 0.15);
 }
 
+/* ── Controls bar (view toggle + filter + date) ── */
+.cal-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+}
+
+.cal-controls-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+/* Pill action buttons — same height and surface as the view toggle */
+.cal-ctrl-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 99px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  font-family: var(--body);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s, transform 0.1s;
+}
+
+.cal-ctrl-btn:hover {
+  border-color: color-mix(in srgb, var(--ink) 22%, var(--border));
+  box-shadow: 0 3px 10px rgba(21, 24, 43, 0.08);
+}
+
+.cal-ctrl-btn:active {
+  transform: scale(0.96);
+}
+
+/* Filter button when subject filters are applied */
+.cal-ctrl-btn-on {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(21, 24, 43, 0.22);
+}
+
+.cal-ctrl-btn-on:hover {
+  border-color: var(--ink);
+  box-shadow: 0 6px 18px rgba(21, 24, 43, 0.28);
+}
+
+.cal-ctrl-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.22);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* Stack the action buttons full-width when the bar wraps on small screens */
+@media (max-width: 560px) {
+  .cal-controls-right {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .cal-ctrl-btn {
+    flex: 1;
+    justify-content: center;
+  }
+}
+
 /* ── Calendar Week View ── */
 .cal-view-toggle {
   display: inline-flex;
   align-items: center;
+  height: 38px;
   border: 1px solid var(--border);
   border-radius: 99px;
   overflow: hidden;
-  background: var(--surface);
+  background: var(--card);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
   padding: 3px;
   gap: 2px;
 }
@@ -435,7 +521,8 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 6px 14px;
+  height: 100%;
+  padding: 0 14px;
   font-family: var(--body);
   font-size: 12.5px;
   font-weight: 600;
@@ -445,6 +532,11 @@
   border-radius: 99px;
   cursor: pointer;
   transition: all 0.15s;
+}
+
+.cal-toggle-btn:hover:not(.cal-toggle-active) {
+  color: var(--text);
+  background: var(--surface);
 }
 
 .cal-toggle-active {
@@ -512,6 +604,9 @@
 /* Time-of-day header */
 .cal-h-head {
   display: flex;
+  /* Span the full scroll width, not just the visible viewport — otherwise
+     the sticky corner/day labels get pushed out with the row edge */
+  min-width: max-content;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
   background: color-mix(in srgb, var(--surface) 70%, transparent);
   backdrop-filter: blur(12px);
@@ -525,9 +620,7 @@
   position: sticky;
   left: 0;
   z-index: 22;
-  background: color-mix(in srgb, var(--surface) 70%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: var(--surface);
   border-right: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
   border-radius: 20px 0 0 0;
 }
@@ -564,6 +657,7 @@
 /* Day rows */
 .cal-h-row {
   display: flex;
+  min-width: max-content;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
 }
 
@@ -582,9 +676,8 @@
   position: sticky;
   left: 0;
   z-index: 10;
-  background: color-mix(in srgb, var(--card) 70%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  /* Opaque — events scroll underneath the stuck label */
+  background: var(--card);
   border-right: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
   display: flex;
   flex-direction: column;
@@ -596,7 +689,7 @@
 }
 
 .cal-h-row-today .cal-h-daylabel {
-  background: rgba(109, 91, 208, 0.06);
+  background: color-mix(in srgb, var(--violet) 6%, var(--card));
   border-left: 2.5px solid var(--violet);
 }
 
@@ -715,63 +808,88 @@
   border-radius: 4px;
 }
 
-/* Horizontal event blocks */
+/* Horizontal event blocks — Soft Elevated card (Soft-Elevated-Card-02):
+   flat subject-tinted fill, 1px tinted border, glowing accent dot beside a
+   tracked uppercase code, hover lifts with a soft colored shadow.
+   Colors come from the shared subject palette (subj-N sets --subj /
+   --subj-bg / --subj-border / --subj-deep in styles.css). */
 .cal-h-event {
   position: absolute;
-  border-radius: 12px;
-  padding: 6px 10px 4px;
+  border-radius: 16px;
+  padding: 5px 12px;
   overflow: hidden;
   cursor: default;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  justify-content: center;
+  gap: 4px;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s, border-color 0.2s;
+  background: var(--subj-bg, #EAF0FF);
+  border: 1px solid var(--subj-border, #D6E2FF);
+  color: var(--subj-deep, #1E3A8A);
 }
 
 .cal-h-event:hover {
-  transform: translateY(-2px) scale(1.02);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--subj-deep, #1E3A8A) 8%, transparent),
+    0 2px 8px color-mix(in srgb, var(--subj-deep, #1E3A8A) 6%, transparent);
+  border-color: color-mix(in srgb, var(--subj, #4A7CFF) 45%, var(--subj-border, #B8CCFF));
   z-index: 20;
 }
 
 /* Event text */
+.cal-ev-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cal-ev-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--subj, #4A7CFF);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--subj, #4A7CFF) 18%, transparent);
+}
+
 .cal-ev-code {
-  font-size: 10.5px;
-  font-weight: 900;
+  font-size: 10px;
+  font-weight: 600;
   line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--subj, #5B7ED6) 75%, var(--subj-deep, #1E3A8A));
 }
 
 .cal-ev-name {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
-  line-height: 1.3;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  opacity: 0.9;
+  color: var(--subj-deep, #1E3A8A);
 }
 
 .cal-ev-time {
-  font-size: 9px;
-  font-weight: 700;
-  opacity: 0.75;
+  font-size: 9.5px;
+  font-weight: 500;
+  line-height: 1;
   white-space: nowrap;
+  color: color-mix(in srgb, var(--subj-deep, #1E3A8A) 62%, transparent);
 }
 
-/* Event colors come from the shared subject palette (subj-N sets --subj /
-   --subj-deep in styles.css) — opaque enough for readable text, glass edge */
-.cal-h-event {
-  background: linear-gradient(135deg,
-      color-mix(in srgb, var(--subj, var(--violet)) 22%, transparent),
-      color-mix(in srgb, var(--subj, var(--violet)) 12%, transparent));
-  border: 1px solid color-mix(in srgb, var(--subj, var(--violet)) 25%, transparent);
-  border-left: 4px solid var(--subj, var(--violet));
-  color: var(--subj-deep, #2e1a80);
+/* When the time sits in the top row (wide blocks), push it to the right
+   edge like the card's time pill */
+.cal-ev-top .cal-ev-time {
+  margin-left: auto;
+  padding-left: 6px;
 }
 
 /* Styled scrollbar for the week calendar — minimal, on-brand */

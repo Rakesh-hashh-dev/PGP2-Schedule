@@ -202,7 +202,7 @@ function SwipeRow({ onSwipeRight, onSwipeLeft, extraAction, className = "", chil
   };
 
   return (
-    <div className={`notif-swipe-wrap${extraAction ? " has-snooze" : ""}`}>
+    <div className={`notif-swipe-wrap${extraAction ? " has-snooze" : ""}${dragging || dx !== 0 ? " swiping" : ""}`}>
       {(onSwipeRight || onSwipeLeft) && (
         <div className={`notif-swipe-bg ${dx > 0 ? 'show-read' : dx < 0 ? 'show-hide' : ''}`}>
           <span className="notif-swipe-ico read"><Check size={16} strokeWidth={3} /></span>
@@ -212,7 +212,7 @@ function SwipeRow({ onSwipeRight, onSwipeLeft, extraAction, className = "", chil
       <div
         ref={rowRef}
         className={className}
-        style={{ transform: `translateX(${dx}px)`, transition: dragging ? 'none' : 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)' }}
+        style={{ transform: dx ? `translateX(${dx}px)` : "none", transition: dragging ? 'none' : 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)' }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerEnd}
@@ -936,7 +936,7 @@ export default function NotificationsPage({ allChanges, myChanges, isAdmin, user
           {attnItems.length > 0 && (
             <div className="notif-group">
               <div className="notif-group-label notif-attn-label">
-                <AlertTriangle size={12} strokeWidth={2.5} /> Needs attention
+                <span><AlertTriangle size={12} strokeWidth={2.5} /> Needs attention</span>
               </div>
               <ul className="notif-pg-list">
                 {attnItems.map(it => renderItem(it, true))}

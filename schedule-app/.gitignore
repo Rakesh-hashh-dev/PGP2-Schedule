@@ -13,6 +13,9 @@ dist-ssr
 dev-dist
 *.local
 
+# Migration secrets (Clerk secret keys + Supabase service_role) — NEVER commit
+.env.migration
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

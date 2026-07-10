@@ -61,7 +61,7 @@ export default function CommandPalette({ isOpen, onClose, onViewChange, allClass
     { id: "attendance", label: "Attendance", icon: <ClipboardList size={16} /> },
     { id: "exams", label: "Exams", icon: <GraduationCap size={16} /> },
     { id: "notifications", label: "Announcements", icon: <Megaphone size={16} /> },
-    { id: "friends", label: "Friends", icon: <Users size={16} /> }
+    { id: "friends", label: "Social", icon: <Users size={16} /> }
   ].filter(i => i.label.toLowerCase().includes(q));
 
   const hasResults = navItems.length > 0 || classMatches.length > 0 || friendMatches.length > 0;

@@ -20,6 +20,17 @@ function unionIds(a, b, cap = 1000) {
   return merged.length > cap ? merged.slice(merged.length - cap) : merged;
 }
 
+// Denormalize the signed-in user's email onto their existing profile row —
+// insurance so the dev→prod bridge can be rebuilt from the data itself.
+// UPDATE (not upsert): a no-op if no row exists yet, so it never creates a
+// bare/empty profile row (which would risk the prod migration no-clobber race).
+export async function stampProfileEmail(userId, email) {
+  if (!userId || !email) return;
+  try {
+    await supabase.from("profiles").update({ email: email.toLowerCase().trim() }).eq("user_id", userId);
+  } catch { /* best-effort; retries next load */ }
+}
+
 export async function syncProfileFromCloud(userId) {
   const local = readLocal();
   if (!userId) return local;

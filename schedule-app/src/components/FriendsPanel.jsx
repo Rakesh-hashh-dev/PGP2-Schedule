@@ -266,18 +266,38 @@ export default function FriendsPanel({
 
   const myCodeDisplay = codeDisplayPart(myCode);
 
-  function copyCode() {
-    if (!myCode) return;
-    navigator.clipboard.writeText(myCode).then(() => {
-      showToast("Code copied!", "success");
-    }).catch(() => showToast("Failed to copy", "error"));
+  // In-app browsers (WhatsApp, Instagram, LinkedIn) often lack or block
+  // navigator.clipboard — fall back to the legacy textarea + execCommand path.
+  async function copyText(text) {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch { /* fall through to legacy path */ }
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand("copy"); } catch { }
+    ta.remove();
+    return ok;
   }
 
-  function copyLink() {
+  async function copyCode() {
     if (!myCode) return;
-    navigator.clipboard.writeText(buildShareUrl(myCode)).then(() => {
-      showToast("Link copied!", "success");
-    }).catch(() => showToast("Failed to copy", "error"));
+    const ok = await copyText(myCode);
+    showToast(ok ? "Code copied!" : "Failed to copy", ok ? "success" : "error");
+  }
+
+  async function copyLink() {
+    if (!myCode) return;
+    const ok = await copyText(buildShareUrl(myCode));
+    showToast(ok ? "Link copied!" : "Failed to copy", ok ? "success" : "error");
   }
 
   // codeOverride lets other UI (e.g. the group builder) reuse this flow with its
@@ -1175,7 +1195,7 @@ export default function FriendsPanel({
       {/* ── Page Header + Bell ── */}
       <div className="fr-page-hdr">
         <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-          <h2 className="fr-page-hdr-title">Friends</h2>
+          <h2 className="fr-page-hdr-title">Social</h2>
           {(friends.length > 0 || groups.length > 0) && (
             <span style={{ fontSize: 14, color: "var(--muted)", fontWeight: 500 }}>
               {friends.length} friend{friends.length !== 1 ? 's' : ''} · {groups.length} group{groups.length !== 1 ? 's' : ''}

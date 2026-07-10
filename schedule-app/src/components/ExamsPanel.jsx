@@ -502,11 +502,8 @@ export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, al
                     {e.days === 0 ? "0" : e.days}
                   </span>
                   <span className="exam-cd-days-unit">
-                    {e.days === 0 ? "Today" : e.days === 1 ? "day left" : "days"}
+                    {e.days === 0 ? "Today" : e.days === 1 ? "day left" : "days left"}
                   </span>
-                  {e.days > 1 && (
-                    <span className="exam-cd-days-unit">LEFT</span>
-                  )}
                 </div>
 
                 {/* Divider */}
@@ -543,8 +540,7 @@ export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, al
                     {/* Left: days ago */}
                     <div className="exam-cd-days">
                       <span className="exam-cd-days-num">{Math.abs(e.days)}</span>
-                      <span className="exam-cd-days-unit">{Math.abs(e.days) === 1 ? "day" : "days"}</span>
-                      <span className="exam-cd-days-unit">AGO</span>
+                      <span className="exam-cd-days-unit">{Math.abs(e.days) === 1 ? "day ago" : "days ago"}</span>
                     </div>
 
                     {/* Divider */}

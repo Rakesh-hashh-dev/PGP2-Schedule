@@ -48,14 +48,18 @@ export default defineConfig({
             handler: 'NetworkOnly',
           },
           {
-            // Supabase — network-first, short cache
+            // Supabase — network-first, short cache.
+            // cacheName bumped to -v2 so any empty ([]) responses cached during
+            // the dev→prod auth-cutover window are discarded when this SW activates.
+            // Shorter maxAge limits how long a stale/empty response can be served
+            // if the network is momentarily unreachable right after cutover.
             urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
             handler: 'NetworkFirst',
             options: {
-              cacheName: 'supabase-api',
+              cacheName: 'supabase-api-v2',
               networkTimeoutSeconds: 4,
-              expiration: { maxEntries: 20, maxAgeSeconds: 5 * 60 },
-              cacheableResponse: { statuses: [0, 200] },
+              expiration: { maxEntries: 20, maxAgeSeconds: 60 },
+              cacheableResponse: { statuses: [200] },
             },
           },
           {

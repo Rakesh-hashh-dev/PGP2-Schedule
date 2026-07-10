@@ -324,7 +324,7 @@ export default function AssignmentsPanel({ enrolled, legend, userId }) {
       <section className="assign-hero">
           <StatCard
             val={stats.pending}
-            label="Total open"
+            label="Open"
             colorClass="stat-total"
             isMuted={false}
             active={filter === "all"}
@@ -332,7 +332,7 @@ export default function AssignmentsPanel({ enrolled, legend, userId }) {
           />
           <StatCard
             val={stats.dueSoon}
-            label="Due this week"
+            label="Due soon"
             colorClass="stat-soon"
             isMuted={true}
             active={filter === "soon"}
@@ -348,7 +348,7 @@ export default function AssignmentsPanel({ enrolled, legend, userId }) {
           />
           <StatCard
             val={stats.submitted}
-            label="Submitted"
+            label="Done"
             colorClass="stat-submitted"
             isMuted={false}
             active={false}
@@ -377,7 +377,7 @@ export default function AssignmentsPanel({ enrolled, legend, userId }) {
         </div>
         {tab === "open" && filter !== "all" && (
           <button className="assign-filter-chip" onClick={() => setFilter("all")}>
-            {filter === "soon" ? "Due this week" : "Overdue"} <X size={13} strokeWidth={3} />
+            {filter === "soon" ? "Due soon" : "Overdue"} <X size={13} strokeWidth={3} />
           </button>
         )}
       </div>
@@ -390,23 +390,25 @@ export default function AssignmentsPanel({ enrolled, legend, userId }) {
               const urgency = getUrgencyState(task.dueDate);
               return (
                 <div key={task.id} className="upnext-row" onClick={() => openModal(course.code, task)}>
-                  <button
-                    className="assign-check"
-                    aria-label="Mark as done"
-                    onClick={(e) => { e.stopPropagation(); handleUpdateTask(course.code, task.id, "completed", true); }}
-                  >
-                    <Circle size={20} />
-                  </button>
-                  <span className="upnext-dot" style={{ background: course.color }} />
-                  <div className="upnext-content">
-                    <div className="upnext-task">{task.title || "Untitled Task"}</div>
-                    <div className="upnext-course">{course.name}</div>
+                  <div className="upnext-top">
+                    <span className="upnext-dot" style={{ background: course.color }} />
+                    <span className="upnext-course">{course.name}</span>
+                    {task.dueDate && (
+                      <div className={`assign-task-due due-${urgency}`}>
+                        {formatDueLabel(task.dueDate)}
+                      </div>
+                    )}
                   </div>
-                  {task.dueDate && (
-                    <div className={`assign-task-due due-${urgency}`}>
-                      {formatDueLabel(task.dueDate)}
-                    </div>
-                  )}
+                  <div className="upnext-main">
+                    <button
+                      className="assign-check"
+                      aria-label="Mark as done"
+                      onClick={(e) => { e.stopPropagation(); handleUpdateTask(course.code, task.id, "completed", true); }}
+                    >
+                      <Circle size={20} />
+                    </button>
+                    <div className="upnext-task">{task.title || "Untitled Task"}</div>
+                  </div>
                 </div>
               );
             })}
@@ -443,7 +445,7 @@ export default function AssignmentsPanel({ enrolled, legend, userId }) {
                   <span className="assign-course-name">{course.name}</span>
                   <div className="assign-card-actions">
                     <button className="assign-add-mini" onClick={(e) => { e.stopPropagation(); openModal(course.code); }}>
-                      <Plus size={14} strokeWidth={3} /> Add
+                      <Plus size={14} strokeWidth={3} /><span className="assign-add-label">Add</span>
                     </button>
                     <span className="assign-badge">
                       {tab === "open" ? `${course.pendingCount} open` : `${course.doneCount} done`}
