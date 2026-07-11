@@ -1,4 +1,12 @@
 {
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "pgp2-schedule.vercel.app" }],
+      "destination": "https://pgp2.termflow.tech/$1",
+      "permanent": false
+    }
+  ],
   "headers": [
     {
       "source": "/sw.js",

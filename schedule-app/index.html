@@ -3,6 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Legacy-domain guard: the old pgp2-schedule.vercel.app link was shared before
+         the custom domain existed. Clerk PROD keys only initialize on pgp2.termflow.tech,
+         so on the vercel.app host the app hangs at "Starting up…". Bounce to the real
+         domain before any app/Clerk code runs. (Also backstopped by a vercel.json redirect
+         for fresh loads; this covers service-worker-cached loads.) -->
+    <script>
+      if (location.hostname === "pgp2-schedule.vercel.app") {
+        location.replace("https://pgp2.termflow.tech" + location.pathname + location.search + location.hash);
+      }
+    </script>
     <meta name="google-site-verification" content="-n0rF29JoTYnculv2rShozCYa_YAszuv3ak-58v3PBY" />
 
     <!-- Preconnect to external origins to reduce latency -->
