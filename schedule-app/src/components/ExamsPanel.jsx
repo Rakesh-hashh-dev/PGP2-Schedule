@@ -308,7 +308,7 @@ export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, al
   // ── Exam entries ──
   const exams = useMemo(() => {
     if (!allClasses) return [];
-    return allClasses
+    const list = allClasses
       .filter(c => {
         // Is it an exam?
         const isExam = c.type === "exam" || (c.type === "class" && isExamSession(c));
@@ -330,6 +330,8 @@ export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, al
         return { ...c, dt, days, category: examCategory(c.name, c.session), tone: cdTone(days) };
       })
       .sort((a, b) => a.dt - b.dt);
+
+    return list;
   }, [allClasses, now, codes, examFilter, allCodes]);
 
   const upcoming = exams.filter(e => e.days >= 0);
