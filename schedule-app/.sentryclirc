@@ -1,0 +1,6 @@
+; Project defaults for sentry-cli (and @sentry/vite-plugin).
+; Keep this file token-free — run `npx sentry-cli login` once, which stores
+; your auth token in ~/.sentryclirc instead.
+[defaults]
+org = flames-corp
+project = termflow

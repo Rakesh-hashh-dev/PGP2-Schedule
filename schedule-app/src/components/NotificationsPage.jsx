@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { Megaphone, PlusCircle, MinusCircle, ArrowRightLeft, BookOpen, Info, ChevronDown, ChevronUp, ChevronRight, Bell, BellOff, Sunrise, CheckCheck, AlertTriangle, Check, EyeOff, Volume2, VolumeX, CheckCircle2, Clock, Search, X } from "lucide-react";
-import { pushSupported, pushConfigured, getPushSubscription, subscribeToPush, unsubscribeFromPush, getReminderPrefs, setReminderPrefs } from "../lib/push.js";
+import { Megaphone, PlusCircle, MinusCircle, ArrowRightLeft, BookOpen, Info, ChevronDown, ChevronUp, ChevronRight, Bell, BellOff, BellRing, Sunrise, CheckCheck, AlertTriangle, Check, EyeOff, Volume2, VolumeX, CheckCircle2, Clock, Search, Share, Smartphone, SquarePlus, X } from "lucide-react";
+import { pushSupported, pushConfigured, pushBlockReason, isIOS, getPushSubscription, subscribeToPush, unsubscribeFromPush, getReminderPrefs, setReminderPrefs, showTestNotification } from "../lib/push.js";
 import { getNotifPrefs, setNotifPrefs } from "../lib/profile.js";
 
 const DISMISSED_KEY = "pgp2.notif-dismissed-keys";
@@ -234,14 +234,18 @@ function SwipeRow({ onSwipeRight, onSwipeLeft, extraAction, className = "", chil
 // Shared push subscription state + toggle logic, reused by the announcements
 // header pill (PushToggle) and the mobile overflow menu (PushMenuItem).
 function usePushStatus(userId, onStatusChange) {
-  // 'unsupported' | 'denied' | 'off' | 'on' | 'busy'
+  // 'unsupported' | 'ios-install' | 'denied' | 'off' | 'on' | 'busy'
   const [status, setStatusRaw] = useState("busy");
   const setStatus = (s) => { setStatusRaw(s); onStatusChange?.(s); };
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      if (!pushSupported() || !pushConfigured()) return setStatus("unsupported");
+      if (!pushSupported() || !pushConfigured()) {
+        // iOS Safari tab: push works once installed to the Home Screen, so
+        // surface a guide instead of hiding the control entirely
+        return setStatus(pushBlockReason() === "ios-install" ? "ios-install" : "unsupported");
+      }
       if (Notification.permission === "denied") return setStatus("denied");
       const sub = await getPushSubscription().catch(() => null);
       if (!cancelled) setStatus(sub ? "on" : "off");
@@ -271,23 +275,97 @@ function usePushStatus(userId, onStatusChange) {
   return { status, toggle };
 }
 
+// Step-by-step help for the two "push is off and a toggle can't fix it"
+// cases on phones: iOS needs the app installed first, and a denied
+// permission can only be undone in system/browser settings.
+function PushHelpSheet({ mode, onClose }) {
+  const iosDevice = isIOS();
+  const steps =
+    mode === "ios-install"
+      ? [
+          { Icon: Share, text: <>Tap the <b>Share</b> button in Safari's toolbar</> },
+          { Icon: SquarePlus, text: <>Choose <b>Add to Home Screen</b>, then <b>Add</b></> },
+          { Icon: Smartphone, text: <>Open <b>TermFlow</b> from your Home Screen icon</> },
+          { Icon: Bell, text: <>Come back here and tap <b>Enable push</b></> },
+        ]
+      : iosDevice
+        ? [
+            { Icon: Smartphone, text: <>Open iPhone <b>Settings → Notifications</b></> },
+            { Icon: Bell, text: <>Find <b>TermFlow</b> and turn on <b>Allow Notifications</b></> },
+            { Icon: BellRing, text: <>Return here and tap <b>Enable push</b> again</> },
+          ]
+        : [
+            { Icon: Info, text: <>Tap the <b>lock / tune icon</b> next to the address bar</> },
+            { Icon: Bell, text: <>Open <b>Permissions → Notifications</b> and choose <b>Allow</b></> },
+            { Icon: BellRing, text: <>Reload the page and tap <b>Enable push</b> again</> },
+          ];
+
+  return (
+    <div className="push-help-overlay" onClick={onClose}>
+      <div className="push-help-sheet" role="dialog" aria-modal="true" aria-label="How to enable notifications" onClick={(e) => e.stopPropagation()}>
+        <div className="push-help-head">
+          <div className="push-help-ico"><BellRing size={17} /></div>
+          <h3>{mode === "ios-install" ? "Get notifications on iPhone" : "Notifications are blocked"}</h3>
+          <button className="push-help-close" aria-label="Close" onClick={onClose}><X size={15} /></button>
+        </div>
+        <p className="push-help-sub">
+          {mode === "ios-install"
+            ? "iPhones only deliver push alerts to installed web apps. Install TermFlow once (takes ~10 seconds) — no App Store needed."
+            : "Push was turned off for TermFlow on this device. Re-allow it in settings, then enable push here."}
+        </p>
+        <ol className="push-help-steps">
+          {steps.map(({ Icon, text }, i) => (
+            <li key={i}>
+              <span className="push-help-step-num">{i + 1}</span>
+              <Icon size={15} />
+              <span>{text}</span>
+            </li>
+          ))}
+        </ol>
+        {mode === "ios-install" && (
+          <p className="push-help-foot">Requires iOS 16.4 or newer. Class reminders, morning summaries and announcements all arrive on your lock screen once enabled.</p>
+        )}
+        <button className="push-help-done" onClick={onClose}>Got it</button>
+      </div>
+    </div>
+  );
+}
+
 function PushToggle({ userId, onStatusChange }) {
   const { status, toggle } = usePushStatus(userId, onStatusChange);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   if (status === "unsupported") return null;
 
-  const label = status === "on" ? "Push on" : status === "denied" ? "Push blocked" : "Enable push";
+  const needsHelp = status === "ios-install" || status === "denied";
+  const label =
+    status === "on" ? "Push on"
+    : status === "ios-install" ? "Get notifications"
+    : status === "denied" ? "Push blocked"
+    : "Enable push";
   return (
-    <button
-      className={`notif-push-toggle${status === "on" ? " notif-push-on" : ""}`}
-      onClick={toggle}
-      disabled={status === "busy" || status === "denied"}
-      aria-label={label}
-      title={status === "denied" ? "Notifications are blocked in your browser settings" : "Get push alerts for schedule changes and announcements"}
-    >
-      {status === "on" ? <Bell size={13} /> : <BellOff size={13} />}
-      <span className="notif-btn-label">{label}</span>
-    </button>
+    <>
+      <button
+        className={`notif-push-toggle${status === "on" ? " notif-push-on" : ""}`}
+        onClick={needsHelp ? () => setHelpOpen(true) : toggle}
+        disabled={status === "busy"}
+        aria-label={label}
+        title={
+          status === "ios-install" ? "See how to get TermFlow alerts on your iPhone"
+          : status === "denied" ? "See how to unblock notifications on this device"
+          : "Get push alerts for schedule changes and announcements"
+        }
+      >
+        {status === "on" ? <Bell size={13} /> : status === "ios-install" ? <Smartphone size={13} /> : <BellOff size={13} />}
+        <span className="notif-btn-label">{label}</span>
+      </button>
+      {helpOpen && (
+        <PushHelpSheet
+          mode={status === "ios-install" ? "ios-install" : "denied"}
+          onClose={() => setHelpOpen(false)}
+        />
+      )}
+    </>
   );
 }
 
@@ -296,14 +374,29 @@ const LEAD_OPTIONS = [15, 30, 60];
 function ReminderBar({ userId }) {
   const [prefs, setPrefs] = useState(null); // { enabled, leadMinutes }
   const [saving, setSaving] = useState(false);
+  const [testState, setTestState] = useState("idle"); // idle | busy | sent | failed
+  const testTimer = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
     getReminderPrefs(userId).then(p => { if (!cancelled) setPrefs(p); }).catch(() => {
       if (!cancelled) setPrefs({ enabled: true, leadMinutes: 30 });
     });
-    return () => { cancelled = true; };
+    return () => { cancelled = true; clearTimeout(testTimer.current); };
   }, [userId]);
+
+  async function sendTest() {
+    if (testState === "busy") return;
+    setTestState("busy");
+    try {
+      await showTestNotification();
+      setTestState("sent");
+    } catch {
+      setTestState("failed");
+    }
+    clearTimeout(testTimer.current);
+    testTimer.current = setTimeout(() => setTestState("idle"), 5000);
+  }
 
   if (!prefs) return null;
 
@@ -388,6 +481,22 @@ function ReminderBar({ userId }) {
         <span className="reminder-bar-hint">
           {prefs.dailySummary ? `Your day's classes, every morning at ${prefs.summaryTime}` : "No morning digest"}
         </span>
+      </div>
+      <div className="reminder-row">
+        <span className="reminder-bar-label">
+          <BellRing size={13} /> Delivery check
+        </span>
+        <button
+          className={`reminder-test-btn${testState === "sent" ? " reminder-test-sent" : ""}`}
+          disabled={testState === "busy"}
+          onClick={sendTest}
+        >
+          {testState === "sent" ? <><Check size={12} strokeWidth={3} /> Sent — check your notifications</>
+            : testState === "failed" ? "Couldn't show it — try re-enabling push"
+            : testState === "busy" ? "Sending…"
+            : "Send a test notification"}
+        </button>
+        <span className="reminder-bar-hint">Confirms alerts appear on this device</span>
       </div>
     </div>
   );

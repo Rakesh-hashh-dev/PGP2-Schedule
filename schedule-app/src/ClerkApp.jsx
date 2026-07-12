@@ -1,8 +1,17 @@
-import { ClerkProvider } from "@clerk/clerk-react";
+import { useEffect } from "react";
+import { ClerkProvider, useUser } from "@clerk/clerk-react";
 import { Analytics } from "@vercel/analytics/react";
-import { SpeedInsights } from "@vercel/speed-insights/react";
 import App from "./App.jsx";
 import SsoCallback from "./components/SsoCallback.jsx";
+import { setSentryUser } from "./lib/sentry.js";
+
+function SentryUserSync() {
+  const { isLoaded, user } = useUser();
+  useEffect(() => {
+    if (isLoaded) setSentryUser(user);
+  }, [isLoaded, user]);
+  return null;
+}
 
 const pk = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 if (!pk) console.error("Missing VITE_CLERK_PUBLISHABLE_KEY in .env.local");
@@ -17,8 +26,8 @@ export default function ClerkApp() {
     // ~430 KB prebuilt-UI bundle is dropped from the critical path.
     <ClerkProvider publishableKey={pk} afterSignOutUrl="/" clerkJSVariant="headless">
       {isCallback ? <SsoCallback /> : <App />}
+      <SentryUserSync />
       <Analytics />
-      <SpeedInsights />
     </ClerkProvider>
   );
 }

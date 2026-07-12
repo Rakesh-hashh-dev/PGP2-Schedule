@@ -84,31 +84,71 @@ Everything here ships to the live dev app but is a no-op or a background write.
       real users Amit / Vipin / Sagar / Rane / 1 unnamed — the latter group self-heals
       via sync-map on their next login, or via the Phase 1 export.
 
-### Clerk (prepare prod ahead — does NOT affect the running dev app)
-- [ ] Production instance created; custom domain `clerk.pgp2.termflow.tech` live + SSL.
-- [ ] Google OAuth **prod** client created (Google Cloud Console); prod redirect URIs
-      added; Client ID/Secret pasted into Clerk prod → Google connection.
-- [ ] ⭐ **Enable the Supabase integration on the PROD instance**
-      (Clerk Production → Integrations → Connect with Supabase).
-      *This is the historical #1 blocker (Cause A). Do it now.*
-- [ ] **Add an `email` claim to the PROD session token** (Clerk → Sessions → Customize
-      session token): `{ "email": "{{user.primary_email_address}}" }`.
-      Required by the hardened `migrate-user` (it reads email from the verified token).
-- [ ] Mirror dev settings to prod: session config, `@iimsambalpur.ac.in` restriction, etc.
+### Clerk (prepare prod ahead — does NOT affect the running dev app) — DONE 2026-07-12
+> **Why cutover became urgent:** the Clerk **dev** instance is hard-capped at **100 users**
+> (can't be raised). At ~100 users with a 300-student batch, new students can't sign up.
+> Prod (10,000 MAU free tier) is the only way out — this migration IS the fix. The 300 new
+> students carry NO data, so they don't touch the bridge; only the ~100 existing users migrate.
 
-### Pre-flight token check (once prod Supabase integration is on)
+- [x] Production instance created; custom domain `clerk.pgp2.termflow.tech` live + SSL.
+- [x] Google OAuth **prod** client created (Google Cloud Console); prod redirect URI
+      `https://clerk.pgp2.termflow.tech/v1/oauth_callback` added (alongside the dev callback
+      on the same client); Client ID/Secret pasted into Clerk prod → Google connection.
+- [x] ⭐ **Supabase integration ENABLED on the PROD instance** (Clerk Production →
+      Integrations → Supabase → Enabled). Clerk domain `https://clerk.pgp2.termflow.tech`
+      already registered in Supabase Third-Party Auth (done in Phase 0). *Historical #1 blocker (Cause A) — cleared.*
+- [x] **`email` claim added to the PROD session token** (Clerk → Sessions → Customize
+      session token), alongside the Supabase-managed `role` claim:
+      `{ "role": "authenticated", "email": "{{user.primary_email_address}}" }`.
+      Required by the hardened `migrate-user` (it reads email from the verified token).
+- [x] ⭐⭐ **Google OAuth consent screen PUBLISHED (`In production`, External).** This was a
+      *second* 100-user wall: while publishing status = `Testing`, Google caps the app at 100
+      users for its lifetime. Scopes are only `openid`/`email`/`profile` (non-sensitive), so
+      publishing was instant — **no verification review, no cap.** Do NOT upload a custom logo
+      (that would trigger Google brand verification; the text-only "TermFlow" consent screen is fine).
+- [x] Email restriction: enforced in **app code** (not Clerk allowlist), same as dev. Prod runs
+      the same deployed code → `@iimsambalpur.ac.in` lock applies automatically. Clerk prod
+      allowlist left OFF to match dev exactly. Nothing to configure.
+
+### Pre-flight token check — ✅ PASSED 2026-07-12
 Sign into the **prod** instance once, browser console:
 ```js
 const t = await window.Clerk.session.getToken();
 console.log(JSON.parse(atob(t.split('.')[1])));
-// MUST show:  role: "authenticated"  AND  iss ending in clerk.pgp2.termflow.tech
+// MUST show:  role: "authenticated"  AND  email  AND  iss = https://clerk.pgp2.termflow.tech
 ```
 If present, the #1 blocker is dead before cutover. If `t` is null → integration not
-enabled. If `role`/`iss` wrong → Cause B (claims/issuer mismatch).
+enabled. If `role`/`iss`/`email` wrong → Cause B (claims/issuer mismatch).
+
+> **Result 2026-07-12 (PASS):** decoded prod token showed all three —
+> `role: "authenticated"`, `email: "…@iimsambalpur.ac.in"`,
+> `iss: "https://clerk.pgp2.termflow.tech"`. Chain verified end-to-end.
+>
+> **How to capture the prod token before cutover** (the live app is still on `pk_test_`):
+> sign in at `https://accounts.pgp2.termflow.tech/sign-in`. Clerk redirects you to the app
+> (`pgp2.termflow.tech`, still dev) after sign-in — so DON'T read the token there. Instead
+> navigate the same browser back to `https://accounts.pgp2.termflow.tech/user` (you're already
+> authenticated on that domain → `window.Clerk` = the **prod** instance) and run the snippet there.
+> Reading it on `pgp2.termflow.tech` returns a **dev** token (`iss: quiet-mako-19…`, no `email`).
 
 ---
 
-## Phase 1 — Cutover day
+## Phase 1 — Cutover day — ✅ COMPLETE 2026-07-12
+
+> **Cutover executed 2026-07-12 — live and healthy.** Sequence run:
+> 1. Bridge refreshed via `export-dev-users.mjs` → **100 dev users** in `_migration_map`.
+> 2. Full backup `backup_20260712_0037.sql` (464 KB) — verified real row counts:
+>    attendance **1805**, profiles 91, friend_pings 45, share_codes 44,
+>    push_subscriptions 11, push_prefs 4, reminder_log 12, feedback 3, `_migration_map` 103.
+>    (`admin_audit_logs` + `daily_stats` empty by design.)
+> 3. Vercel `VITE_CLERK_PUBLISHABLE_KEY = pk_live_…` flipped (Production) + redeployed.
+> 4. Live-app auth verified on own account: prod token decoded to
+>    `iss: clerk.pgp2.termflow.tech`, `role: authenticated`, `email` present, `azp: pgp2.termflow.tech`;
+>    Supabase REST calls carried `Authorization: Bearer …` and returned real data (own data healed on-login).
+> 5. `migrate-batch.mjs --dry-run` reviewed → real run: **9 `refs.profiles` remapped, 0 failed.**
+>    (Only 1 prod user known at run time — the admin; other ~100 self-migrate on their own first prod login.)
+>
+> **Remaining work is the Day 2–7 aftercare loop (Phase 2), not a cutover step.**
 
 ### 0. Redeploy edge functions if the repo changed since Phase 0
 Vercel deploys the frontend only — **edge functions ship separately.** `9da1407`
@@ -132,7 +172,7 @@ This is the no-data-loss guarantee. Most tables migrate by **UPDATE (moving `use
 dev→prod)**, so after the batch a rollback to the dev key would leave a dev-id login
 unable to see rows now filed under the prod id. This backup is the restore point.
 
-- [ ] **Full data backup — TESTED, one command (needs Docker running):**
+- [x] **Full data backup — TESTED, one command (needs Docker running):** — done 2026-07-12 → `backup_20260712_0037.sql` (464 KB, 1805 attendance rows verified).
       ```bash
       cd schedule-app
       npx supabase db dump --linked --data-only -f "backup_$(date +%Y%m%d_%H%M).sql"
@@ -147,14 +187,14 @@ unable to see rows now filed under the prod id. This backup is the restore point
                profiles push_prefs push_subscriptions reminder_log schedule_cache share_codes \
                system_config; do echo "$t: $(grep -c "INSERT INTO \"public\".\"$t\"" backup_*.sql)"; done
       ```
-- [ ] Also take a Supabase → Database → Backups managed backup (belt + suspenders).
-- [ ] Export `_migration_map` to CSV and keep it off-Supabase.
-- [ ] Keep the backup file OFF this repo (contains user PII; never commit it).
+- [x] Keep the backup file OFF this repo (contains user PII; never commit it). — gitignored.
+- [ ] Also take a Supabase → Database → Backups managed backup (belt + suspenders). *(optional; local dump taken)*
+- [ ] Export `_migration_map` to CSV and keep it off-Supabase. *(optional; local dump covers it)*
 
 ### 3. Flip the key
-- [ ] Vercel → Env Vars → `VITE_CLERK_PUBLISHABLE_KEY = pk_live_…` (Production).
+- [x] Vercel → Env Vars → `VITE_CLERK_PUBLISHABLE_KEY = pk_live_…` (Production). — done 2026-07-12.
 - [x] Supabase Third-Party Auth — prod issuer ALREADY registered (done in prep). No change needed.
-- [ ] Vercel → redeploy.
+- [x] Vercel → redeploy. — done 2026-07-12.
 
 ### 4. Confirm the blocker is clear (FIRST, before migrating)
 Sign in on prod. Network tab: `attendance`/`profiles` requests carry
@@ -189,6 +229,28 @@ Spot-check 3–5 users incl. your own account and someone with friends + attenda
 
 ## Phase 2 — Aftercare
 
+### Day 2–15 — run the healer loop until everyone's across
+As students log back in over the next couple of weeks, each one **self-migrates their own data
+on first prod login** (`migrate-user`). Re-run the cross-user healer periodically to stitch
+references between people who've both logged in:
+```bash
+cd schedule-app
+set -a; source .env.migration; set +a
+node scripts/migrate-batch.mjs --dry-run   # eyeball the tally
+node scripts/migrate-batch.mjs             # then run for real (idempotent)
+```
+- [ ] **Day 2–3** — re-run healer; note `skipped (no prod id)` count (your progress bar → should shrink).
+- [ ] **Day 4–7** — re-run every day or two; spot-check a user with friends + attendance in SQL (see Phase 1.6).
+- [ ] **Day 8–15** — re-run every couple of days to catch stragglers (people who log in late).
+      When `skipped` ≈ 0 and stops shrinking for several days, migration is effectively
+      complete — stop running it.
+
+### One-off cleanup items
+- [ ] **Delete the old/unused Google OAuth client secret.** The web client `679799519431-…`
+      has TWO enabled secrets (`****Ht3l` Jun 18, `****lq7c` Jul 9). Clerk prod uses the newer
+      one. Left BOTH enabled during cutover on purpose (the dev callback shares this client, so
+      deleting mid-cutover risks breaking a live login). Once dev sessions have drained and prod
+      is confirmed stable, disable → verify → delete the stale secret.
 - [ ] Users who logged in during any broken window: have them clear the stale flag —
       console `localStorage.removeItem('pgp2.migration-v1')` then reload.
 - [ ] Push notifications: per-origin, so they reset. On next load, if

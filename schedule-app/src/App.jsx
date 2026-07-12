@@ -2284,14 +2284,14 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               </button>
               {showFriendsAgenda && (
                 <div className="fs-modal-overlay hide-mobile" onClick={() => setShowFriendsAgenda(false)}>
-                  <div className="fs-modal-content" style={{ width: 380, maxWidth: '90vw', padding: 0 }} onClick={e => e.stopPropagation()}>
+                  <div className="fs-modal-content" style={{ width: 'min(760px, 92vw)', maxWidth: '92vw', padding: 0 }} onClick={e => e.stopPropagation()}>
                     <div className="fs-modal-header" style={{ padding: "16px 20px" }}>
                       <h3 style={{ display: 'flex', alignItems: 'center', gap: 8, margin: 0, fontSize: 16 }}>
                         <Calendar size={18} color="var(--violet)" /> Schedule
                       </h3>
                       <button className="fs-modal-close" onClick={() => setShowFriendsAgenda(false)}><X size={18}/></button>
                     </div>
-                    <div className="fs-modal-body" style={{ padding: "16px", maxHeight: '80vh', overflowY: 'auto' }}>
+                    <div className="fs-modal-body" style={{ padding: "16px 20px", maxHeight: '82vh', overflowY: 'auto' }}>
                       <WeekAgenda visible={visible} now={now} offset={weekOffset} setOffset={setWeekOffset} todayISO={todayISO} onViewFullSchedule={(iso) => { setShowFriendsAgenda(false); setJumpToDate(iso); setView("fullSchedule"); }} />
                     </div>
                   </div>

@@ -9,5 +9,9 @@ dist/
 # Supabase CLI local state
 **/supabase/.temp/
 
+# Data backups (contain user PII) — NEVER commit
+backups/
+backup_*.sql
+
 .vercel
 .env*

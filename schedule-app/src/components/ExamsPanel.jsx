@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import "../styles/exams.css";
-import { GraduationCap, Clock, AlertTriangle, BookOpen, Trophy, CalendarDays, List, ChevronLeft, ChevronRight, Layers, FileText, CalendarClock } from "lucide-react";
+import { GraduationCap, Clock, BookOpen, Trophy, CalendarDays, List, ChevronLeft, ChevronRight, Layers, FileText, CalendarClock } from "lucide-react";
 import { sessionKey, isExamSession } from "../lib/attendance.js";
 import { subjectClass } from "../lib/subjectColors.js";
 import { EmptyState } from "./ui.jsx";

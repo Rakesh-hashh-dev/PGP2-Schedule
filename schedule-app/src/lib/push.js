@@ -14,6 +14,42 @@ export function pushConfigured() {
   return !!VAPID_PUBLIC_KEY;
 }
 
+export function isIOS() {
+  return (
+    /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+    // iPadOS 13+ reports as "MacIntel" but is touch-capable
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+  );
+}
+
+export function isStandalone() {
+  return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+}
+
+// Why push can't be enabled right now — null means it can.
+// "ios-install": iOS exposes PushManager only inside an installed PWA
+// (iOS 16.4+), so a Safari tab looks "unsupported" but is fixable by the
+// user via Add to Home Screen. Distinguishing it lets the UI show a guide
+// instead of silently hiding the toggle.
+export function pushBlockReason() {
+  if (!pushConfigured()) return "unconfigured";
+  if (pushSupported()) return null;
+  if (isIOS() && !isStandalone()) return "ios-install";
+  return "unsupported";
+}
+
+// Local render test — proves permission + notification display work on this
+// device. Doesn't exercise the server push path (that's the Admin test send).
+export async function showTestNotification() {
+  const reg = await navigator.serviceWorker.ready;
+  await reg.showNotification("TermFlow", {
+    body: "Test notification — you're all set on this device. 🔔",
+    icon: "/icon-push-bell.png",
+    badge: "/badge-72.png",
+    tag: "termflow-test",
+  });
+}
+
 function urlBase64ToUint8Array(base64String) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");

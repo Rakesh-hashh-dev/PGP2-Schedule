@@ -3,6 +3,9 @@ import ReactDOM from "react-dom/client";
 import "./styles.css";
 import { registerSW } from "virtual:pwa-register";
 import TermFlowLoader from "./components/TermFlowLoader.jsx";
+import { initSentry } from "./lib/sentry.js";
+
+initSentry();
 
 // Start fetching ClerkApp immediately so LCP isn't delayed by the lazy boundary
 const clerkAppPromise = import("./ClerkApp.jsx");

@@ -27,7 +27,7 @@ function normalizeSingleSection(c) {
   // The section is kept as-is: section-wise guests belong to their section;
   // combined guests already arrive from the feed as "Single" (merged cell).
   if (!c.session && /guest/i.test(c.code || "")) {
-    const m = c.code.replace(/\s+/g, " ").match(/^([A-Za-z]+)[\s\-]*(.*)$/);
+    const m = c.code.replace(/\s+/g, " ").match(/^([A-Za-z]+)[\s-]*(.*)$/);
     if (m) c = { ...c, code: m[1], session: m[2].trim(), name: m[0] };
   }
   if (SINGLE_SECTION_B.has(c.code) && c.section === "B") {

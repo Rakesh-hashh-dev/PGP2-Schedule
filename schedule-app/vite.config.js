@@ -1,9 +1,14 @@
+/* eslint-env node */
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import { sentryVitePlugin } from '@sentry/vite-plugin'
 import { writeFileSync } from 'node:fs'
 
 const BUILD_VERSION = Date.now();
+// Source maps are only generated + uploaded when a token is set (Vercel env),
+// and the .map files are deleted after upload so they never deploy.
+const SENTRY_UPLOAD = Boolean(process.env.SENTRY_AUTH_TOKEN);
 
 function generateMeta() {
   return {
@@ -133,8 +138,17 @@ export default defineConfig({
         ],
       },
     }),
-  ],
+    SENTRY_UPLOAD && sentryVitePlugin({
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
+      authToken: process.env.SENTRY_AUTH_TOKEN,
+      release: { name: String(BUILD_VERSION) },
+      sourcemaps: { filesToDeleteAfterUpload: ['dist/**/*.map'] },
+      telemetry: false,
+    }),
+  ].filter(Boolean),
   build: {
+    sourcemap: SENTRY_UPLOAD ? 'hidden' : false,
     target: 'esnext',
     minify: 'terser',
     terserOptions: {
@@ -147,6 +161,7 @@ export default defineConfig({
         manualChunks(id) {
           if (id.includes('node_modules')) {
             if (id.includes('lucide-react')) return 'lucide';
+            if (id.includes('@sentry')) return 'sentry';
             if (id.includes('@clerk')) return 'clerk';
             if (id.includes('react') || id.includes('react-dom')) return 'react-vendor';
             if (id.includes('@supabase')) return 'supabase';
