@@ -1,65 +1,75 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import "../styles/assignments.css";
-import { CheckCircle2, Circle, Plus, Trash2, X, ChevronDown, ChevronUp, Check } from "lucide-react";
+import { CheckCircle2, Circle, Plus, Trash2, X, ChevronDown, Check, Sparkles, BookOpen, Clock, AlertCircle } from "lucide-react";
 import { loadAssignments, pushAssignments } from "../lib/assignments.js";
-import { EmptyState, Button } from "./ui.jsx";
-import { Inbox } from "lucide-react";
 
 function daysUntil(dueDate) {
   if (!dueDate) return null;
-  const now = new Date();
-  now.setHours(0, 0, 0, 0); // compare dates only
-  const due = new Date(dueDate);
-  due.setHours(0, 0, 0, 0);
-  return Math.floor((due - now) / (1000 * 60 * 60 * 24));
+  const now = new Date(); now.setHours(0,0,0,0);
+  const due = new Date(dueDate); due.setHours(0,0,0,0);
+  return Math.floor((due - now) / 86400000);
 }
 
 function getUrgencyState(dueDate) {
-  const diffDays = daysUntil(dueDate);
-  if (diffDays === null) return "none";
-  if (diffDays < 0) return "overdue";
-  if (diffDays <= 2) return "danger";
-  if (diffDays <= 7) return "warning";
+  const d = daysUntil(dueDate);
+  if (d === null) return "none";
+  if (d < 0) return "overdue";
+  if (d <= 2) return "danger";
+  if (d <= 7) return "warning";
   return "good";
 }
 
 function formatShortDate(dateStr) {
   if (!dateStr) return "";
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 function formatDueLabel(dueDate) {
-  const diffDays = daysUntil(dueDate);
-  if (diffDays === null) return "";
-  if (diffDays < 0) return `${-diffDays}d overdue`;
-  if (diffDays === 0) return "Due today";
-  if (diffDays === 1) return "Due tomorrow";
-  if (diffDays <= 7) return `${diffDays}d left`;
+  const d = daysUntil(dueDate);
+  if (d === null) return "";
+  if (d < 0)  return `${-d}d overdue`;
+  if (d === 0) return "Due today";
+  if (d === 1) return "Due tomorrow";
+  if (d <= 7)  return `${d}d left`;
   return `Due ${formatShortDate(dueDate)}`;
 }
 
-const COLORS = [
-  'var(--violet)',
-  'var(--live)',
-  '#E67E22',
-  '#2980B9',
-  '#9B59B6',
-  '#E74C3C'
-];
-
+const COLORS = ["var(--violet)","var(--live)","#E67E22","#2980B9","#9B59B6","#E74C3C"];
 function getCourseColor(code) {
-  const hash = Array.from(code).reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+  const hash = Array.from(code).reduce((a, c) => a + c.charCodeAt(0), 0);
   return COLORS[hash % COLORS.length];
 }
 
-function StatCard({ val, label, colorClass, isMuted, active, onClick }) {
+function ProgressRing({ pct, color }) {
+  const r = 14, circ = 2 * Math.PI * r;
+  const dash = (pct / 100) * circ;
   return (
-    <button className={`assign-stat ${active ? 'stat-active' : ''}`} onClick={onClick}>
-      <span className={`assign-stat-val ${colorClass} ${isMuted && val === 0 ? 'stat-muted' : ''}`}>
-        {val}
-      </span>
-      <span className="assign-stat-label">{label}</span>
+    <div className="progress-ring-wrap">
+      <svg width="36" height="36" viewBox="0 0 36 36">
+        <circle cx="18" cy="18" r={r} fill="none" stroke="var(--border)" strokeWidth="2.5" />
+        <circle
+          cx="18" cy="18" r={r} fill="none"
+          stroke={color} strokeWidth="2.5"
+          strokeDasharray={`${dash} ${circ}`}
+          strokeLinecap="round"
+          transform="rotate(-90 18 18)"
+          style={{ transition: "stroke-dasharray 0.6s cubic-bezier(0.34,1.56,0.64,1)" }}
+        />
+      </svg>
+      <span className="progress-pct">{Math.round(pct)}%</span>
+    </div>
+  );
+}
+
+function StatTile({ val, label, icon: Icon, cls, active, pulse, onClick }) {
+  return (
+    <button
+      className={`stat-tile ${cls} ${active ? "stat-tile-active" : ""} ${pulse && val > 0 ? "stat-tile-pulse" : ""} ${val === 0 ? "stat-tile-zero" : ""}`}
+      onClick={onClick}
+    >
+      <div className="stat-tile-icon"><Icon size={16} /></div>
+      <div className="stat-tile-val">{val}</div>
+      <div className="stat-tile-label">{label}</div>
     </button>
   );
 }
@@ -97,13 +107,8 @@ function SwipeableTaskRow({ task, onToggle, onDelete, onOpen }) {
     dragRef.current = null;
     if (!d || !d.moved) return;
     justSwiped.current = true;
-    if (dx > SWIPE_THRESHOLD) {
-      onToggle();
-    } else if (dx < -SWIPE_THRESHOLD) {
-      setDx(0);
-      onDelete();
-      return;
-    }
+    if (dx > SWIPE_THRESHOLD)       { onToggle(); }
+    else if (dx < -SWIPE_THRESHOLD) { setDx(0); onDelete(); return; }
     setDx(0);
   };
 
@@ -113,41 +118,34 @@ function SwipeableTaskRow({ task, onToggle, onDelete, onOpen }) {
   };
 
   const urgency = task.completed ? "none" : getUrgencyState(task.dueDate);
-  const dragging = dx !== 0;
 
   return (
     <div className="assign-swipe-wrap">
-      <div className={`assign-swipe-bg ${dx > 0 ? 'show-complete' : dx < 0 ? 'show-delete' : ''}`}>
-        <span className="swipe-ico complete">
-          {task.completed ? <Circle size={18} /> : <Check size={18} strokeWidth={3} />}
-        </span>
-        <span className="swipe-ico delete"><Trash2 size={18} /></span>
+      <div className={`assign-swipe-bg ${dx > 0 ? "show-complete" : dx < 0 ? "show-delete" : ""}`}>
+        <span className="swipe-ico complete">{task.completed ? <Circle size={18}/> : <Check size={18} strokeWidth={3}/>}</span>
+        <span className="swipe-ico delete"><Trash2 size={18}/></span>
       </div>
       <div
         ref={rowRef}
-        className={`assign-task-row ${task.completed ? 'completed' : ''} ${dragging ? 'dragging' : ''}`}
-        style={{ transform: `translateX(${dx}px)`, transition: dragRef.current ? 'none' : 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)' }}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerEnd}
-        onPointerCancel={onPointerEnd}
+        className={`assign-task-row ${task.completed ? "completed" : ""} ${dx !== 0 ? "dragging" : ""}`}
+        style={{ transform: `translateX(${dx}px)`, transition: dragRef.current ? "none" : "transform 0.25s cubic-bezier(0.16,1,0.3,1)" }}
+        onPointerDown={onPointerDown} onPointerMove={onPointerMove}
+        onPointerUp={onPointerEnd} onPointerCancel={onPointerEnd}
         onClick={handleClick}
       >
         <button
-          className={`assign-check ${task.completed ? 'checked' : ''}`}
+          className={`assign-check ${task.completed ? "checked" : ""}`}
           aria-label={task.completed ? "Mark as not done" : "Mark as done"}
           onClick={(e) => { e.stopPropagation(); onToggle(); }}
         >
-          {task.completed ? <CheckCircle2 size={20} /> : <Circle size={20} />}
+          {task.completed ? <CheckCircle2 size={20}/> : <Circle size={20}/>}
         </button>
         <div className="assign-task-content">
           <div className="assign-task-title">{task.title || "Untitled Task"}</div>
           {task.description && <div className="assign-task-desc">{task.description}</div>}
         </div>
         {task.dueDate && !task.completed && (
-          <div className={`assign-task-due due-${urgency}`}>
-            {formatDueLabel(task.dueDate)}
-          </div>
+          <div className={`assign-task-due due-${urgency}`}>{formatDueLabel(task.dueDate)}</div>
         )}
       </div>
     </div>
@@ -160,41 +158,26 @@ export default function AssignmentsPanel({ enrolled, legend, userId }) {
   const [collapsedCards, setCollapsedCards] = useState({});
   const [modalData, setModalData] = useState({ id: "", code: "", title: "", description: "", dueDate: "" });
   const [tab, setTab] = useState("open");
-  const [filter, setFilter] = useState("all"); // all | soon | overdue
-  const [undoState, setUndoState] = useState(null); // { code, task }
+  const [filter, setFilter] = useState("all");
+  const [undoState, setUndoState] = useState(null);
   const undoTimer = useRef(null);
 
   useEffect(() => () => clearTimeout(undoTimer.current), []);
 
-  const updateAssignments = (newAssignments) => {
-    setAssignments(newAssignments);
-    pushAssignments(userId, newAssignments);
-  };
+  const updateAssignments = (next) => { setAssignments(next); pushAssignments(userId, next); };
 
   const courses = useMemo(() => {
     if (!enrolled || !legend) return [];
     return Object.keys(enrolled).map(code => {
       const info = legend[code] || {};
-      const subjectAssignments = assignments[code] || [];
-      const pending = subjectAssignments.filter(a => !a.completed);
-
-      return {
-        code,
-        name: info.name || code,
-        color: info.color || getCourseColor(code),
-        tasks: subjectAssignments,
-        pendingCount: pending.length,
-        doneCount: subjectAssignments.length - pending.length,
-      };
+      const tasks = assignments[code] || [];
+      const pending = tasks.filter(a => !a.completed);
+      return { code, name: info.name || code, color: info.color || getCourseColor(code), tasks, pendingCount: pending.length, doneCount: tasks.length - pending.length };
     }).sort((a, b) => a.code.localeCompare(b.code));
   }, [enrolled, legend, assignments]);
 
   const stats = useMemo(() => {
-    let pending = 0;
-    let dueSoon = 0;
-    let overdue = 0;
-    let submitted = 0;
-
+    let pending = 0, dueSoon = 0, overdue = 0, submitted = 0;
     courses.forEach(c => {
       pending += c.pendingCount;
       submitted += c.doneCount;
@@ -204,15 +187,12 @@ export default function AssignmentsPanel({ enrolled, legend, userId }) {
         else if (u === "danger" || u === "warning") dueSoon++;
       });
     });
-
     return { pending, dueSoon, overdue, submitted };
   }, [courses]);
 
   const upNext = useMemo(() => {
     const items = [];
-    courses.forEach(c => c.tasks.forEach(t => {
-      if (!t.completed) items.push({ task: t, course: c });
-    }));
+    courses.forEach(c => c.tasks.forEach(t => { if (!t.completed) items.push({ task: t, course: c }); }));
     items.sort((a, b) => {
       if (!a.task.dueDate && !b.task.dueDate) return 0;
       if (!a.task.dueDate) return 1;
@@ -229,20 +209,16 @@ export default function AssignmentsPanel({ enrolled, legend, userId }) {
   };
 
   const handleUpdateTask = (code, taskId, field, value) => {
-    const nextAssignments = { ...assignments };
-    const tasks = nextAssignments[code] || [];
+    const next = { ...assignments };
+    const tasks = [...(next[code] || [])];
     const idx = tasks.findIndex(t => t.id === taskId);
-    if (idx !== -1) {
-      tasks[idx] = { ...tasks[idx], [field]: value };
-      nextAssignments[code] = tasks;
-      updateAssignments(nextAssignments);
-    }
+    if (idx !== -1) { tasks[idx] = { ...tasks[idx], [field]: value }; next[code] = tasks; updateAssignments(next); }
   };
 
   const handleDeleteTask = (code, taskId) => {
-    const nextAssignments = { ...assignments };
-    nextAssignments[code] = (nextAssignments[code] || []).filter(t => t.id !== taskId);
-    updateAssignments(nextAssignments);
+    const next = { ...assignments };
+    next[code] = (next[code] || []).filter(t => t.id !== taskId);
+    updateAssignments(next);
   };
 
   const deleteWithUndo = (code, task) => {
@@ -254,209 +230,171 @@ export default function AssignmentsPanel({ enrolled, legend, userId }) {
 
   const undoDelete = () => {
     if (!undoState) return;
-    const nextAssignments = { ...assignments };
-    nextAssignments[undoState.code] = [...(nextAssignments[undoState.code] || []), undoState.task];
-    updateAssignments(nextAssignments);
+    const next = { ...assignments };
+    next[undoState.code] = [...(next[undoState.code] || []), undoState.task];
+    updateAssignments(next);
     setUndoState(null);
     clearTimeout(undoTimer.current);
   };
 
   const openModal = (code = "", taskToEdit = null) => {
-    if (taskToEdit) {
-      setModalData({ ...taskToEdit, code });
-    } else {
-      setModalData({ id: "", code: code || (courses.length > 0 ? courses[0].code : ""), title: "", description: "", dueDate: "" });
-    }
+    setModalData(taskToEdit
+      ? { ...taskToEdit, code }
+      : { id: "", code: code || (courses[0]?.code || ""), title: "", description: "", dueDate: "" }
+    );
     setModalOpen(true);
   };
 
   const saveModalTask = () => {
     if (!modalData.code) return;
-    const nextAssignments = { ...assignments };
-    const tasks = nextAssignments[modalData.code] || [];
-
+    const next = { ...assignments };
+    const tasks = [...(next[modalData.code] || [])];
     if (modalData.id) {
       const idx = tasks.findIndex(t => t.id === modalData.id);
-      if (idx !== -1) {
-        tasks[idx] = { ...tasks[idx], ...modalData };
-      }
+      if (idx !== -1) tasks[idx] = { ...tasks[idx], ...modalData };
     } else {
-      tasks.push({
-        id: Date.now().toString(),
-        title: modalData.title,
-        description: modalData.description,
-        dueDate: modalData.dueDate,
-        completed: false,
-        createdAt: new Date().toISOString()
-      });
+      tasks.push({ id: Date.now().toString(), title: modalData.title, description: modalData.description, dueDate: modalData.dueDate, completed: false, createdAt: new Date().toISOString() });
     }
-    nextAssignments[modalData.code] = tasks;
-    updateAssignments(nextAssignments);
+    next[modalData.code] = tasks;
+    updateAssignments(next);
     setModalOpen(false);
   };
 
   const deleteModalTask = () => {
-    if (modalData.id) {
-      handleDeleteTask(modalData.code, modalData.id);
-      setModalOpen(false);
-    }
+    if (modalData.id) { handleDeleteTask(modalData.code, modalData.id); setModalOpen(false); }
   };
 
   const allClear = stats.pending === 0;
-  const showUpNext = tab === "open" && filter === "all" && upNext.length > 0;
+  const showSpotlight = tab === "open" && filter === "all" && upNext.length > 0;
+  const [hero, ...rest] = upNext;
 
   return (
     <div className="assign-page">
+
       <div className="assign-head-wrapper">
         <div className="assign-head">
           <h1>Assignments</h1>
           <span className="assign-sub">
             {allClear
-              ? `${courses.length} subjects · all clear`
-              : <><b style={{color: 'var(--text)'}}>{stats.pending}</b> open across <b style={{color: 'var(--text)'}}>{courses.length}</b> subjects</>}
+              ? `${courses.length} subjects \u00b7 all clear`
+              : <><b style={{color:"var(--text)"}}>{stats.pending}</b> open across <b style={{color:"var(--text)"}}>{courses.length}</b> subjects</>}
           </span>
         </div>
-        <button className="assign-new-btn" onClick={() => openModal()}>
-          <Plus size={18} strokeWidth={2.5} /> New Assignment
-        </button>
       </div>
 
-      <section className="assign-hero">
-          <StatCard
-            val={stats.pending}
-            label="Open"
-            colorClass="stat-total"
-            isMuted={false}
-            active={filter === "all"}
-            onClick={() => { setTab("open"); setFilter("all"); }}
-          />
-          <StatCard
-            val={stats.dueSoon}
-            label="Due soon"
-            colorClass="stat-soon"
-            isMuted={true}
-            active={filter === "soon"}
-            onClick={() => { setTab("open"); setFilter(f => f === "soon" ? "all" : "soon"); }}
-          />
-          <StatCard
-            val={stats.overdue}
-            label="Overdue"
-            colorClass="stat-overdue"
-            isMuted={true}
-            active={filter === "overdue"}
-            onClick={() => { setTab("open"); setFilter(f => f === "overdue" ? "all" : "overdue"); }}
-          />
-          <StatCard
-            val={stats.submitted}
-            label="Done"
-            colorClass="stat-submitted"
-            isMuted={false}
-            active={false}
-            onClick={() => { setTab("done"); setFilter("all"); }}
-          />
-        </section>
+      <div className="assign-stats-grid">
+        <StatTile val={stats.pending}   label="Open"     icon={BookOpen}     cls="stat-open"    active={tab==="open" && filter==="all"}     onClick={() => { setTab("open"); setFilter("all"); }} />
+        <StatTile val={stats.dueSoon}   label="Due soon"  icon={Clock}        cls="stat-soon"    active={filter==="soon"}    pulse onClick={() => { setTab("open"); setFilter(f => f==="soon" ? "all" : "soon"); }} />
+        <StatTile val={stats.overdue}   label="Overdue"   icon={AlertCircle}  cls="stat-overdue" active={filter==="overdue"} pulse onClick={() => { setTab("open"); setFilter(f => f==="overdue" ? "all" : "overdue"); }} />
+        <StatTile val={stats.submitted} label="Done"      icon={CheckCircle2} cls="stat-done"    active={tab==="done"}              onClick={() => { setTab("done"); setFilter("all"); }} />
+      </div>
 
       <div className="assign-controls">
         <div className="assign-seg" role="tablist">
-          <button
-            role="tab"
-            aria-selected={tab === "open"}
-            className={tab === "open" ? "active" : ""}
-            onClick={() => setTab("open")}
-          >
+          <button role="tab" aria-selected={tab==="open"} className={tab==="open" ? "active" : ""} onClick={() => setTab("open")}>
             Open {stats.pending > 0 && <span className="seg-count">{stats.pending}</span>}
           </button>
-          <button
-            role="tab"
-            aria-selected={tab === "done"}
-            className={tab === "done" ? "active" : ""}
-            onClick={() => { setTab("done"); setFilter("all"); }}
-          >
+          <button role="tab" aria-selected={tab==="done"} className={tab==="done" ? "active" : ""} onClick={() => { setTab("done"); setFilter("all"); }}>
             Done {stats.submitted > 0 && <span className="seg-count">{stats.submitted}</span>}
           </button>
         </div>
         {tab === "open" && filter !== "all" && (
           <button className="assign-filter-chip" onClick={() => setFilter("all")}>
-            {filter === "soon" ? "Due soon" : "Overdue"} <X size={13} strokeWidth={3} />
+            {filter === "soon" ? "Due soon" : "Overdue"} <X size={13} strokeWidth={3}/>
           </button>
         )}
       </div>
 
-      {showUpNext && (
-        <section className="assign-upnext">
-          <div className="assign-upnext-title">Up next</div>
-          <div className="assign-upnext-list">
-            {upNext.map(({ task, course }) => {
-              const urgency = getUrgencyState(task.dueDate);
-              return (
-                <div key={task.id} className="upnext-row" onClick={() => openModal(course.code, task)}>
-                  <div className="upnext-top">
-                    <span className="upnext-dot" style={{ background: course.color }} />
-                    <span className="upnext-course">{course.name}</span>
-                    {task.dueDate && (
-                      <div className={`assign-task-due due-${urgency}`}>
-                        {formatDueLabel(task.dueDate)}
-                      </div>
-                    )}
-                  </div>
-                  <div className="upnext-main">
-                    <button
-                      className="assign-check"
-                      aria-label="Mark as done"
-                      onClick={(e) => { e.stopPropagation(); handleUpdateTask(course.code, task.id, "completed", true); }}
-                    >
-                      <Circle size={20} />
-                    </button>
-                    <div className="upnext-task">{task.title || "Untitled Task"}</div>
-                  </div>
-                </div>
-              );
-            })}
+      {showSpotlight && hero && (
+        <section className="assign-spotlight">
+          <div className="spotlight-label">Up next</div>
+          <div className="spotlight-hero">
+            <div className="spotlight-bar" style={{ background: hero.course.color }} />
+            <div className="spotlight-content">
+              <div className="spotlight-course" style={{ color: hero.course.color }}>{hero.course.name}</div>
+              <div className="spotlight-title">{hero.task.title || "Untitled Task"}</div>
+            </div>
+            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+              {hero.task.dueDate && (
+                <div className={`assign-task-due due-${getUrgencyState(hero.task.dueDate)}`}>{formatDueLabel(hero.task.dueDate)}</div>
+              )}
+              <button
+                className="assign-check"
+                aria-label="Mark as done"
+                onClick={() => handleUpdateTask(hero.course.code, hero.task.id, "completed", true)}
+                style={{ color: "var(--muted)" }}
+              >
+                <Circle size={22}/>
+              </button>
+            </div>
           </div>
+          {rest.length > 0 && (
+            <div className="spotlight-list">
+              {rest.map(({ task, course }) => (
+                <div key={task.id} className="spotlight-item" onClick={() => openModal(course.code, task)}>
+                  <div className="spotlight-dot" style={{ background: course.color }} />
+                  <span className="spotlight-item-title">{task.title || "Untitled Task"}</span>
+                  {task.dueDate && (
+                    <span className={`assign-task-due due-${getUrgencyState(task.dueDate)}`} style={{ fontSize:10 }}>{formatDueLabel(task.dueDate)}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </section>
       )}
 
-      {tab === "open" && allClear ? (
-        <EmptyState
-          icon={CheckCircle2}
-          title="You're all caught up"
-          sub={`Nothing due across your ${courses.length} subjects`}
-          action={stats.submitted > 0 && (
-            <Button variant="ghost" size="sm" onClick={() => setTab("done")}>
-              View submitted work
-            </Button>
+      {tab === "open" && allClear && (
+        <div className="assign-empty">
+          <Sparkles size={48} className="assign-empty-svg" />
+          <h3>All clear!</h3>
+          <p>Nothing due across your {courses.length} subjects</p>
+          {stats.submitted > 0 && (
+            <button className="assign-empty-action" onClick={() => setTab("done")}>View submitted work</button>
           )}
-        />
-      ) : (
+        </div>
+      )}
+
+      {tab === "done" && stats.submitted === 0 && (
+        <div className="assign-empty">
+          <CheckCircle2 size={48} style={{ color:"var(--green)", animation:"sparkle-float 3s ease-in-out infinite" }} />
+          <h3 style={{ background:"none", WebkitTextFillColor:"var(--muted)", color:"var(--muted)" }}>Nothing here yet</h3>
+          <p>Completed assignments will appear here</p>
+        </div>
+      )}
+
+      {!(tab === "open" && allClear) && !(tab === "done" && stats.submitted === 0) && (
         <section className="assign-grid">
-          {courses.map(course => {
+          {courses.map((course, i) => {
             const visibleTasks = tab === "open"
               ? course.tasks.filter(t => !t.completed && matchesFilter(t))
               : course.tasks.filter(t => t.completed);
             if (visibleTasks.length === 0) return null;
             const progress = course.tasks.length > 0 ? (course.doneCount / course.tasks.length) * 100 : 0;
+            const isOpen = !collapsedCards[course.code];
             return (
-              <div key={course.code} className="assign-card" style={{ '--course-color': course.color }}>
+              <div
+                key={course.code}
+                className="assign-card"
+                style={{ "--course-color": course.color, animationDelay: `${i * 60}ms` }}
+              >
                 <div
                   className="assign-card-header"
-                  onClick={() => setCollapsedCards(prev => ({ ...prev, [course.code]: !prev[course.code] }))}
-                  style={{ cursor: 'pointer' }}
+                  onClick={() => setCollapsedCards(p => ({ ...p, [course.code]: !p[course.code] }))}
                 >
+                  <span className="assign-course-chip">{course.code}</span>
                   <span className="assign-course-name">{course.name}</span>
-                  <div className="assign-card-actions">
+                  <div className="assign-card-meta">
                     <button className="assign-add-mini" onClick={(e) => { e.stopPropagation(); openModal(course.code); }}>
-                      <Plus size={14} strokeWidth={3} /><span className="assign-add-label">Add</span>
+                      <Plus size={13} strokeWidth={3}/><span className="assign-add-label">Add</span>
                     </button>
-                    <span className="assign-badge">
-                      {tab === "open" ? `${course.pendingCount} open` : `${course.doneCount} done`}
-                    </span>
-                    {collapsedCards[course.code] ? <ChevronDown size={18} color="var(--muted)" /> : <ChevronUp size={18} color="var(--muted)" />}
+                    <span className="assign-badge">{tab==="open" ? `${course.pendingCount} open` : `${course.doneCount} done`}</span>
+                    <ProgressRing pct={progress} color={course.color} />
+                    <ChevronDown size={16} className={`assign-chevron ${isOpen ? "open" : ""}`} />
                   </div>
                 </div>
-                <div className="assign-progress" role="progressbar" aria-valuenow={Math.round(progress)} aria-valuemin={0} aria-valuemax={100}>
-                  <div className="assign-progress-fill" style={{ width: `${progress}%` }} />
-                </div>
-                {!collapsedCards[course.code] && (
+
+                {isOpen && (
                   <div className="assign-tasks">
                     {visibleTasks.map(task => (
                       <SwipeableTaskRow
@@ -475,10 +413,6 @@ export default function AssignmentsPanel({ enrolled, legend, userId }) {
         </section>
       )}
 
-      {tab === "done" && stats.submitted === 0 && (
-        <EmptyState compact icon={Inbox} title="Nothing submitted yet" sub="Completed assignments will show up here" />
-      )}
-
       {undoState && (
         <div className="assign-undo-toast">
           <span>Deleted "{undoState.task.title || "Untitled Task"}"</span>
@@ -489,30 +423,30 @@ export default function AssignmentsPanel({ enrolled, legend, userId }) {
       {modalOpen && (
         <div className="assign-modal-overlay" onClick={() => setModalOpen(false)}>
           <div className="assign-modal" onClick={e => e.stopPropagation()}>
+            <span className="assign-modal-drag-handle" />
             <div className="assign-modal-head">
               <h2>{modalData.id ? "Edit Assignment" : "New Assignment"}</h2>
               <button className="assign-modal-close" aria-label="Close" onClick={() => setModalOpen(false)}>
-                <X size={18} />
+                <X size={16}/>
               </button>
             </div>
-
             <div className="assign-modal-body">
               <div className="assign-field">
                 <label>Title</label>
                 <input
                   type="text" className="assign-input"
                   placeholder="e.g. Brand Positioning Case Study"
-                  value={modalData.title} onChange={e => setModalData({...modalData, title: e.target.value})}
+                  value={modalData.title}
+                  onChange={e => setModalData({ ...modalData, title: e.target.value })}
                   autoFocus
                 />
               </div>
-
               <div className="assign-field">
                 <label>Subject</label>
                 <select
                   className="assign-select"
                   value={modalData.code}
-                  onChange={e => setModalData({...modalData, code: e.target.value})}
+                  onChange={e => setModalData({ ...modalData, code: e.target.value })}
                 >
                   <option value="" disabled>Select a subject...</option>
                   {courses.map(c => (
@@ -520,31 +454,30 @@ export default function AssignmentsPanel({ enrolled, legend, userId }) {
                   ))}
                 </select>
               </div>
-
               <div className="assign-field">
                 <label>Due Date</label>
                 <input
                   type="date" className="assign-input"
-                  value={modalData.dueDate} onChange={e => setModalData({...modalData, dueDate: e.target.value})}
+                  value={modalData.dueDate}
+                  onChange={e => setModalData({ ...modalData, dueDate: e.target.value })}
                 />
               </div>
-
               <div className="assign-field">
                 <label>Notes</label>
                 <textarea
                   className="assign-textarea"
                   placeholder="Submit via LMS, max 1500 words..."
-                  value={modalData.description} onChange={e => setModalData({...modalData, description: e.target.value})}
+                  value={modalData.description}
+                  onChange={e => setModalData({ ...modalData, description: e.target.value })}
                 />
               </div>
             </div>
-
             <div className="assign-modal-footer">
               {modalData.id ? (
                 <button className="assign-btn-delete" onClick={deleteModalTask}>
-                  <Trash2 size={16} /> Delete
+                  <Trash2 size={15}/> Delete
                 </button>
-              ) : <div></div>}
+              ) : <div />}
               <div className="assign-footer-actions">
                 <button className="assign-btn-cancel" onClick={() => setModalOpen(false)}>Cancel</button>
                 <button className="assign-btn-save" onClick={saveModalTask}>
@@ -555,6 +488,12 @@ export default function AssignmentsPanel({ enrolled, legend, userId }) {
           </div>
         </div>
       )}
+
+      {/* ── Floating Action Button ── */}
+      <button className="assign-fab" onClick={() => openModal()} aria-label="New Assignment">
+        <Plus size={24} strokeWidth={2.5} />
+      </button>
+
     </div>
   );
 }

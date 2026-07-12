@@ -16,6 +16,9 @@ dev-dist
 # Migration secrets (Clerk secret keys + Supabase service_role) — NEVER commit
 .env.migration
 
+# Local-only migration healer runbook (kept off the repo by choice)
+HEALER.md
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

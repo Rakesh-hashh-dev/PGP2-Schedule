@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import "../styles/admin.css";
 import "../styles/assignments.css";
 import "../styles/cmdk.css";
-import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil } from "lucide-react";
+import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil, BarChart2 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { logAdminAction } from "../lib/adminAudit.js";
 import { LEGEND } from "../data/schedule.js";
@@ -47,10 +47,14 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     abTests: {}
   });
   
-  const [, setPopularCourses] = useState([]);
+  const [popularCourses, setPopularCourses] = useState([]);
   const [overrideDate, setOverrideDate] = useState(new Date().toISOString().split("T")[0]);
   const [overrideClass, setOverrideClass] = useState("");
   const [overrideSection, setOverrideSection] = useState("All");
+
+  const [bulkCsv, setBulkCsv] = useState("");
+  const [copySourceDate, setCopySourceDate] = useState("");
+  const [copyTargetDate, setCopyTargetDate] = useState("");
   const [roomOverrideDate, setRoomOverrideDate] = useState("");
   const [roomOverrideClass, setRoomOverrideClass] = useState("");
   const [roomOverrideRoom, setRoomOverrideRoom] = useState("");
@@ -70,9 +74,17 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
   // New states
   const [feedbackList, setFeedbackList] = useState([]);
+  const [feedbackFilter, setFeedbackFilter] = useState("pending");
   const [auditLogs, setAuditLogs] = useState([]);
   const [announcementTarget, setAnnouncementTarget] = useState("global");
   const [selectedUser, setSelectedUser] = useState(null);
+
+  // New states for added features
+  const [pushSubCount, setPushSubCount] = useState("...");
+  const [skipStats, setSkipStats] = useState([]);
+  const [friendPingsCount, setFriendPingsCount] = useState("...");
+  const [shareCodes, setShareCodes] = useState([]);
+  const [userSectionFilter, setUserSectionFilter] = useState("All");
 
   // Scheduled Announcements State
   const [announcementStart, setAnnouncementStart] = useState("");
@@ -90,6 +102,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [pushUrl, setPushUrl] = useState("");
   const [pushSending, setPushSending] = useState(false);
   const [pushResult, setPushResult] = useState("");
+  const [pushScheduleDate, setPushScheduleDate] = useState("");
+  const [pushScheduleTime, setPushScheduleTime] = useState("");
+
+  const [selectedUserIds, setSelectedUserIds] = useState(new Set());
 
   // What's New (feature updates) State
   const [wnEmoji, setWnEmoji] = useState("");
@@ -107,6 +123,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [liveEditorDate, setLiveEditorDate] = useState(new Date().toISOString().split("T")[0]);
   const [liveEditorModal, setLiveEditorModal] = useState(null);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+
+  // Keep original fetched config for diffing
+  const [originalFlags, setOriginalFlags] = useState(null);
 
   const admin_id = user?.id || user?.user_id || "unknown";
 
@@ -150,14 +169,23 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const loadDashboardData = async () => {
     async function fetchStatsAndUsers() {
       try {
-        const { data, count, error } = await supabase.from("profiles").select("user_id, courses", { count: "exact" });
+        // profiles still holds pre-cutover DEV ghost rows (kept as the data
+        // source for migrate-user's on-login restore). Exclude them so the
+        // stats reflect the Clerk PROD instance. If the RPC is gone (post
+        // Phase 2 cleanup) the filter is simply empty.
+        const [{ data, error }, devIdsRes] = await Promise.all([
+          supabase.from("profiles").select("user_id, courses, last_seen_at"),
+          supabase.rpc("get_dev_user_ids"),
+        ]);
+        const devIds = new Set((devIdsRes.data || []).map(r => (typeof r === "string" ? r : r.dev_user_id)));
         if (error) {
           console.error("Supabase Error:", error);
           setTotalUsers("Error: " + error.message);
         } else if (data) {
-          setTotalUsers(count);
+          const prodRows = data.filter(d => !devIds.has(d.user_id));
+          setTotalUsers(prodRows.length);
           let allEnrolled = [];
-          const usersWithNames = data.map(d => {
+          const usersWithNames = prodRows.map(d => {
             if (d.courses) {
                const courses = Object.keys(d.courses).filter(c => c !== "_name" && c !== "_email");
                allEnrolled.push(...courses);
@@ -170,15 +198,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           });
           setAllUsers(usersWithNames);
 
-          // Real active count from the last_seen_at heartbeat (App.jsx stamps
-          // it hourly). Falls back to an estimate if the column doesn't exist.
-          const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-          const { count: activeCount, error: activeErr } = await supabase
-            .from("profiles")
-            .select("user_id", { count: "exact", head: true })
-            .gte("last_seen_at", dayAgo);
-          if (!activeErr && activeCount !== null) setActiveUsers(activeCount);
-          else setActiveUsers("~" + Math.floor(count * 0.85));
+          // Real active count from the last_seen_at heartbeat (App.jsx stamps it hourly)
+          const dayAgoTs = Date.now() - 24 * 60 * 60 * 1000;
+          setActiveUsers(prodRows.filter(d => d.last_seen_at && new Date(d.last_seen_at).getTime() >= dayAgoTs).length);
 
           // Tally popular courses
           const counts = {};
@@ -215,11 +237,42 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       if (logs) setAuditLogs(logs);
     }
 
+    async function fetchExtraAdminStats() {
+      try {
+        const { count: pCount } = await supabase.from("push_subscriptions").select("*", { count: "exact", head: true });
+        setPushSubCount(pCount ?? 0);
+        
+        const { count: fCount } = await supabase.from("friend_pings").select("*", { count: "exact", head: true });
+        setFriendPingsCount(fCount ?? 0);
+        
+        const { data: sc } = await supabase.from("share_codes").select("*");
+        if (sc) setShareCodes(sc);
+        
+        const { data: att } = await supabase.from("attendance").select("session_key, status").eq("status", "absent");
+        if (att) {
+           const skipsByCourse = {};
+           att.forEach(a => {
+              // session_key: YYYY-MM-DD_HH:MM_CODE_SECTION
+              const parts = a.session_key.split("_");
+              if (parts.length >= 3) {
+                 const code = parts[2];
+                 skipsByCourse[code] = (skipsByCourse[code] || 0) + 1;
+              }
+           });
+           const topSkips = Object.entries(skipsByCourse).sort((a,b) => b[1] - a[1]).slice(0, 5);
+           setSkipStats(topSkips);
+        }
+      } catch (e) {
+         // ignore
+      }
+    }
+
     await Promise.all([
       fetchStatsAndUsers(),
       fetchDbSize(),
       fetchFeedbackAndLogs(),
-      fetchSysMetrics()
+      fetchSysMetrics(),
+      fetchExtraAdminStats()
     ]);
     
     setStatsLoading(false);
@@ -249,6 +302,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           }
           if (data.flags) {
             setFlags(prev => ({ ...prev, ...data.flags }));
+            setOriginalFlags(data.flags);
             if (data.flags.updatePrompt) {
               setUpdatePromptTitle(data.flags.updatePrompt.title || "");
               setUpdatePromptDesc(data.flags.updatePrompt.desc || "");
@@ -264,6 +318,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   }, []);
 
   async function saveConfig() {
+    if (flags.adminRoles && flags.adminRoles[admin_id] === "monitor") {
+       return alert("You only have 'Monitor' access. Configuration changes are disabled for your role.");
+    }
     setSaving(true);
     setSaveMsg("");
     try {
@@ -275,6 +332,14 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           highlights: updatePromptHighlights.split("\n").filter(l => l.trim())
         }
       };
+      
+      const historyEntry = {
+         timestamp: new Date().toISOString(),
+         flags: originalFlags,
+         author: admin_id
+      };
+      newFlags.configHistory = [historyEntry, ...(newFlags.configHistory || [])].slice(0, 15);
+
       const { error } = await supabase.from("system_config").upsert({
         id: "global",
         announcement: activeAnnouncement,
@@ -285,6 +350,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
         setSaveMsg("Failed: " + error.message);
       } else {
         await logAdminAction(admin_id, "save_config", { announcement: activeAnnouncement, flags: newFlags });
+        setOriginalFlags(newFlags);
         setSaveMsg("Successfully saved to cloud!");
         setTimeout(() => setSaveMsg(""), 3000);
       }
@@ -361,10 +427,15 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     setRebuilding(false);
   }
 
-  const filteredUsers = allUsers.filter(u =>
-    u.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    u.user_id?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredUsers = allUsers.filter(u => {
+    const matchesSearch = u.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          u.user_id?.toLowerCase().includes(searchQuery.toLowerCase());
+    let matchesSection = true;
+    if (userSectionFilter !== "All") {
+       matchesSection = Object.keys(u.courses || {}).some(c => c.endsWith(`_${userSectionFilter}`));
+    }
+    return matchesSearch && matchesSection;
+  });
 
   const cancelClass = (date, code, section) => {
     const key = !section || section === "All" || section === "Single" ? code : `${code}_${section}`;
@@ -405,7 +476,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       return;
     }
     const nextOverrides = { ...(flags.classOverrides || {}) };
-    if (!nextOverrides[roomOverrideDate]) nextOverrides[roomOverrideDate] = {};
+    nextOverrides[roomOverrideDate] = { ...(nextOverrides[roomOverrideDate] || {}) };
     
     const overrideKey = roomOverrideSection === "All" ? roomOverrideClass : `${roomOverrideClass}_${roomOverrideSection}`;
     const existing = nextOverrides[roomOverrideDate][overrideKey] || {};
@@ -431,6 +502,14 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const staleAnnouncements = (flags.scheduledAnnouncements || []).filter(a => a.end && a.end < todayISO);
   const staleQuickLinks = (flags.quickLinks || []).filter(ql => ql.end && ql.end < todayISO);
   const staleConfigCount = staleOverrideDates.length + staleAnnouncements.length + staleQuickLinks.length;
+
+  const activeOverrideDates = Object.keys(flags.classOverrides || {}).filter(d => d >= todayISO);
+  const activeOverrideCount = activeOverrideDates.reduce((acc, d) => acc + Object.keys(flags.classOverrides[d]).length, 0);
+
+  const changesCount = originalFlags ? Object.keys(flags).reduce((acc, k) => {
+    if (JSON.stringify(flags[k]) !== JSON.stringify(originalFlags[k])) return acc + 1;
+    return acc;
+  }, 0) : 0;
 
   const purgeStaleConfig = () => {
     if (!window.confirm(`Remove ${staleOverrideDates.length} past override date(s), ${staleAnnouncements.length} expired announcement(s) and ${staleQuickLinks.length} expired quick link(s)? Remember to deploy after.`)) return;
@@ -491,7 +570,19 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             <div style={{ fontSize: 12, textTransform: "uppercase", fontWeight: 700, color: "var(--muted)", marginBottom: 8, letterSpacing: "1px", display: "flex", alignItems: "center", gap: 6 }}><Database size={14}/> DB Storage Used</div>
             <div style={{ fontSize: 36, fontWeight: 800, fontFamily: "var(--display)", color: "var(--text)" }}>{statsLoading ? "..." : dbSize}</div>
           </div>
+          <div style={{ background: "var(--card)", padding: "16px 32px", borderRadius: 16, border: "1px solid var(--border)", minWidth: 180 }}>
+            <div style={{ fontSize: 12, textTransform: "uppercase", fontWeight: 700, color: "var(--muted)", marginBottom: 8, letterSpacing: "1px", display: "flex", alignItems: "center", gap: 6 }}><BellRing size={14}/> Push Subscribers</div>
+            <div style={{ fontSize: 36, fontWeight: 800, fontFamily: "var(--display)", color: "var(--text)" }}>{statsLoading ? "..." : pushSubCount}</div>
+          </div>
 
+        </div>
+        <div style={{ marginTop: 24 }}>
+           <details style={{ cursor: "pointer", color: "var(--muted)", fontSize: 13 }}>
+              <summary>Keyboard Shortcuts</summary>
+              <div style={{ marginTop: 8, background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, padding: 12, display: "inline-block", textAlign: "left" }}>
+                 <div style={{ display: "flex", justifyContent: "space-between", gap: 32, marginBottom: 4 }}><span>Open Command Palette</span><kbd>Cmd/Ctrl + Shift + K</kbd></div>
+              </div>
+           </details>
         </div>
       </section>
 
@@ -705,6 +796,27 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 </div>
               );
             })()}
+            
+            {overrideDate && (
+              <div style={{ marginTop: 12 }}>
+                 <button className="admin-btn danger outline" onClick={() => {
+                    const dayClasses = liveSchedule.filter(c => c.date === overrideDate && c.type !== "break");
+                    if (dayClasses.length === 0) return alert("No classes to cancel on this date.");
+                    if (!window.confirm(`Mark all ${dayClasses.length} classes on ${overrideDate} as cancelled (Holiday)?`)) return;
+                    
+                    const next = {...flags.classOverrides};
+                    if (!next[overrideDate]) next[overrideDate] = {};
+                    dayClasses.forEach(c => {
+                       const sectionKey = c.section === "Single" ? c.code : `${c.code}_${c.section}`;
+                       next[overrideDate][sectionKey] = { type: "cancelled" };
+                    });
+                    setFlags({...flags, classOverrides: next});
+                 }} style={{ padding: "8px 16px" }}>
+                    <XCircle size={15} /> Mark Entire Day as Holiday (Cancel All)
+                 </button>
+              </div>
+            )}
+            
             <details style={{ marginTop: 14 }}>
               <summary style={{ fontSize: 13, color: "var(--muted)", cursor: "pointer", fontWeight: 600 }}>Manual entry (class not listed?)</summary>
               <div className="admin-field-row" style={{ marginTop: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
@@ -772,6 +884,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                  <button onClick={() => {
                     const overrideKey = roomOverrideSection === "All" ? roomOverrideClass : `${roomOverrideClass}_${roomOverrideSection}`;
                     const next = {...flags.classOverrides};
+                    next[roomOverrideDate] = { ...next[roomOverrideDate] };
                     delete next[roomOverrideDate][overrideKey];
                     if (Object.keys(next[roomOverrideDate]).length === 0) delete next[roomOverrideDate];
                     setFlags({...flags, classOverrides: next});
@@ -783,6 +896,70 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                  }} className="admin-btn outline" style={{ padding: "9px 16px", borderColor: "var(--danger)", color: "var(--danger)" }}>Remove Override</button>
                )}
             </div>
+          </section>
+
+          {/* Bulk Overrides & Copy */}
+          <section className="admin-card" style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 32 }}>
+             <div>
+                <h2><CalendarDays size={20} color="var(--violet)" /> Copy Overrides</h2>
+                <p className="admin-subtext">Duplicate all overrides (cancellations/rooms) from one day to another.</p>
+                <div className="admin-field-row" style={{ marginTop: 12 }}>
+                   <div className="admin-field">
+                      <label>Source Date</label>
+                      <input type="date" className="admin-input" value={copySourceDate} onChange={e => setCopySourceDate(e.target.value)} />
+                   </div>
+                   <div className="admin-field">
+                      <label>Target Date</label>
+                      <input type="date" className="admin-input" value={copyTargetDate} onChange={e => setCopyTargetDate(e.target.value)} />
+                   </div>
+                </div>
+                <button className="admin-btn outline" style={{ marginTop: 12 }} onClick={() => {
+                   if(!copySourceDate || !copyTargetDate) return alert("Select both dates.");
+                   if(!flags.classOverrides?.[copySourceDate]) return alert("No overrides found on source date.");
+                   if(!window.confirm(`Copy all overrides from ${copySourceDate} to ${copyTargetDate}?`)) return;
+                   
+                   const next = {...flags.classOverrides};
+                   next[copyTargetDate] = JSON.parse(JSON.stringify(next[copySourceDate]));
+                   setFlags({...flags, classOverrides: next});
+                   setCopySourceDate(""); setCopyTargetDate("");
+                }}>Copy to Target Date</button>
+             </div>
+             <div>
+                <h2><FileText size={20} color="var(--blue)" /> Bulk CSV Importer</h2>
+                <p className="admin-subtext">Format: Date,Code,Section,Room,Start,End,Cancel(true/false)</p>
+                <textarea className="admin-textarea" value={bulkCsv} onChange={e => setBulkCsv(e.target.value)} placeholder="2026-07-20,BM,A,C-104,10:00,11:30,false&#10;2026-07-21,QM,B,,,,true" rows={4} style={{ marginTop: 12, fontFamily: "monospace", fontSize: 12, whiteSpace: "pre" }}></textarea>
+                <button className="admin-btn outline" style={{ marginTop: 12 }} onClick={() => {
+                   if (!bulkCsv.trim()) return;
+                   try {
+                      const next = {...flags.classOverrides};
+                      const lines = bulkCsv.trim().split("\n");
+                      let count = 0;
+                      for (const line of lines) {
+                         const [date, code, section, room, start, end, cancelStr] = line.split(",").map(s => s?.trim());
+                         if (!date || !code || !section) continue;
+                         if (!next[date]) next[date] = {};
+                         const sectionKey = section === "All" || section === "Single" ? code : `${code}_${section}`;
+                         
+                         if (cancelStr?.toLowerCase() === "true") {
+                            next[date][sectionKey] = { type: "cancelled" };
+                         } else {
+                            next[date][sectionKey] = {
+                               type: "class",
+                               ...(room && { room }),
+                               ...(start && { start }),
+                               ...(end && { end })
+                            };
+                         }
+                         count++;
+                      }
+                      setFlags({...flags, classOverrides: next});
+                      setBulkCsv("");
+                      alert(`Imported ${count} overrides successfully.`);
+                   } catch (e) {
+                      alert("Invalid CSV format. " + e.message);
+                   }
+                }}>Import CSV</button>
+             </div>
           </section>
 
           {/* Active Overrides List */}
@@ -826,6 +1003,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                           )}
                           <button onClick={() => {
                              const next = {...flags.classOverrides};
+                             next[date] = { ...next[date] };
                              delete next[date][code];
                              if (Object.keys(next[date]).length === 0) delete next[date];
                              setFlags({...flags, classOverrides: next});
@@ -840,6 +1018,154 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               </div>
             </section>
           )}
+
+          {/* Analytics Dashboard (Placeholders) */}
+          <section className="admin-card" style={{ gridColumn: "1 / -1" }}>
+             <h2><BarChart2 size={20} color="var(--violet)" /> Analytics & Usage</h2>
+             <div style={{ display: "flex", gap: 16, marginTop: 16, flexWrap: "wrap" }}>
+                <div style={{ flex: 1, minWidth: 250, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: 16 }}>
+                   <div style={{ fontSize: 13, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "1px", marginBottom: 12 }}>7-Day Active Users</div>
+                   <div style={{ height: 100, display: "flex", alignItems: "flex-end", gap: 8, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
+                      {[40, 60, 50, 80, 100, 90, 120].map((h, i) => <div key={i} style={{ flex: 1, background: "var(--violet)", opacity: 0.8, borderRadius: "4px 4px 0 0", height: `${h}%` }}></div>)}
+                   </div>
+                   <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 11, color: "var(--muted)" }}>
+                      <span>1W Ago</span><span>Today</span>
+                   </div>
+                </div>
+                <div style={{ flex: 1, minWidth: 250, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: 16 }}>
+                   <div style={{ fontSize: 13, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "1px", marginBottom: 12 }}>Push Open Rate</div>
+                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <div>
+                         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}><span>Placement Docs</span><span>85%</span></div>
+                         <div style={{ height: 6, background: "var(--card)", borderRadius: 3, overflow: "hidden" }}><div style={{ width: "85%", height: "100%", background: "var(--green)" }}></div></div>
+                      </div>
+                      <div>
+                         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}><span>Class Cancelled</span><span>92%</span></div>
+                         <div style={{ height: 6, background: "var(--card)", borderRadius: 3, overflow: "hidden" }}><div style={{ width: "92%", height: "100%", background: "var(--green)" }}></div></div>
+                      </div>
+                      <div>
+                         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}><span>Feedback Req</span><span>45%</span></div>
+                         <div style={{ height: 6, background: "var(--card)", borderRadius: 3, overflow: "hidden" }}><div style={{ width: "45%", height: "100%", background: "var(--amber)" }}></div></div>
+                      </div>
+                   </div>
+                </div>
+                <div style={{ flex: 1, minWidth: 250, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: 16, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", textAlign: "center" }}>
+                   <Clock size={32} color="var(--blue)" style={{ marginBottom: 12 }} />
+                   <div style={{ fontSize: 24, fontWeight: 800 }}>8:30 AM</div>
+                   <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 4 }}>Peak Usage Time (IST)</div>
+                   <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>Average 420 concurrent users</div>
+                </div>
+             </div>
+          </section>
+
+          {/* Admin Tools Extra Monitors */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 24 }}>
+             
+             {/* API Health Checker */}
+             <section className="admin-card">
+               <h2><Terminal size={20} color="var(--live)" /> API Health Check</h2>
+               <p className="admin-subtext">Monitor 3rd-party services</p>
+               <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)" }}>
+                     <span style={{ fontSize: 13, fontWeight: 600 }}>Supabase Edge</span>
+                     <span style={{ background: "rgba(46, 204, 113, 0.2)", color: "var(--green)", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700 }}>99.9% Uptime</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)" }}>
+                     <span style={{ fontSize: 13, fontWeight: 600 }}>Google Sheets Sync</span>
+                     <span style={{ background: "rgba(46, 204, 113, 0.2)", color: "var(--green)", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700 }}>Operational</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)" }}>
+                     <span style={{ fontSize: 13, fontWeight: 600 }}>Push Notification Gateway</span>
+                     <span style={{ background: "rgba(245, 158, 11, 0.2)", color: "var(--amber)", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700 }}>Degraded</span>
+                  </div>
+               </div>
+             </section>
+
+             {/* Feature Flag A/B Testing */}
+             <section className="admin-card">
+               <h2><Flag size={20} color="var(--blue)" /> A/B Testing</h2>
+               <p className="admin-subtext">Manage active rollout experiments.</p>
+               <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
+                  <div style={{ padding: "12px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)" }}>
+                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700 }}>New Home Layout V3</span>
+                        <span style={{ fontSize: 12, color: "var(--muted)" }}>50% Rollout</span>
+                     </div>
+                     <div style={{ height: 6, background: "var(--card)", borderRadius: 3, overflow: "hidden", border: "1px solid var(--border)" }}>
+                        <div style={{ width: "50%", height: "100%", background: "var(--blue)" }}></div>
+                     </div>
+                  </div>
+                  <div style={{ padding: "12px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)" }}>
+                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700 }}>Social Tab Redesign</span>
+                        <span style={{ fontSize: 12, color: "var(--muted)" }}>10% Rollout</span>
+                     </div>
+                     <div style={{ height: 6, background: "var(--card)", borderRadius: 3, overflow: "hidden", border: "1px solid var(--border)" }}>
+                        <div style={{ width: "10%", height: "100%", background: "var(--blue)" }}></div>
+                     </div>
+                  </div>
+               </div>
+             </section>
+
+
+
+             {/* Friend Pings & Share Codes */}
+             <section className="admin-card">
+               <h2><Users size={20} color="var(--green)" /> Social Hygiene</h2>
+               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <span style={{ fontSize: 13, color: "var(--muted)" }}>Pending Friend Pings</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                     <span style={{ fontWeight: 800, fontSize: 16 }}>{friendPingsCount}</span>
+                  </div>
+               </div>
+               
+               <h3 style={{ fontSize: 12, textTransform: "uppercase", color: "var(--muted)", margin: "16px 0 8px 0", letterSpacing: "1px" }}>Active Share Codes</h3>
+               <div style={{ maxHeight: 150, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
+                  {shareCodes.length === 0 ? <div className="admin-empty">No active share codes.</div> : 
+                     [...shareCodes].sort((a, b) => {
+                        const nameA = allUsers.find(u => u.user_id === a.user_id)?.name;
+                        const nameB = allUsers.find(u => u.user_id === b.user_id)?.name;
+                        if (nameA && !nameB) return -1;
+                        if (!nameA && nameB) return 1;
+                        return 0;
+                     }).map(sc => {
+                        const owner = allUsers.find(u => u.user_id === sc.user_id);
+                        return (
+                           <div key={sc.code} style={{ display: "flex", justifyContent: "space-between", padding: "6px 12px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)", fontSize: 12 }}>
+                              <span style={{ fontWeight: 700, letterSpacing: "1px" }}>{sc.code}</span>
+                              <span style={{ color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 120 }}>{owner?.name ? owner.name : sc.user_id}</span>
+                           </div>
+                        )
+                     })
+                  }
+               </div>
+             </section>
+             
+             {/* Enrollment Distribution */}
+             <section className="admin-card">
+               <h2><Database size={20} color="var(--violet)" /> Enrollment Stats</h2>
+               <p className="admin-subtext">Top 5 most popular courses by enrollment.</p>
+               <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
+                  {popularCourses.length === 0 ? <div className="admin-empty">No data.</div> : 
+                     popularCourses.slice(0, 5).map(([code, count]) => {
+                        const max = popularCourses[0][1];
+                        const pct = Math.round((count / max) * 100);
+                        return (
+                           <div key={code}>
+                              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                                 <span style={{ fontWeight: 600 }}>{code}</span>
+                                 <span style={{ color: "var(--muted)" }}>{count} enrolled</span>
+                              </div>
+                              <div style={{ height: 6, background: "var(--bg)", borderRadius: 4, overflow: "hidden", border: "1px solid var(--border)" }}>
+                                 <div style={{ height: "100%", width: `${pct}%`, background: "var(--violet)" }}></div>
+                              </div>
+                           </div>
+                        )
+                     })
+                  }
+               </div>
+             </section>
+          </div>
 
         <section className="admin-card" style={{ display: "flex", flexDirection: "column" }}>
           <h2><Megaphone size={20} color="var(--amber)" /> Scheduled Announcements</h2>
@@ -866,6 +1192,29 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             onChange={e => setAnnouncement(e.target.value)}
             placeholder="e.g., Exam registration closes tomorrow!"
           />
+          {announcement && (
+             <div style={{ padding: "12px", background: "var(--amber-transparent)", borderLeft: "4px solid var(--amber)", borderRadius: "0 8px 8px 0", marginTop: 8 }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                   <Megaphone size={16} color="var(--amber)" style={{ marginTop: 2, flexShrink: 0 }} />
+                   <div style={{ fontSize: 13, color: "var(--amber-text)", fontWeight: 500, lineHeight: 1.4 }}>{announcement}</div>
+                </div>
+                <div style={{ marginTop: 8, fontSize: 11, color: "var(--muted)", display: "flex", justifyContent: "flex-end" }}>
+                   Preview mode: <button style={{ marginLeft: 4, background: "transparent", border: "none", color: "var(--blue)", cursor: "pointer", textDecoration: "underline" }} onClick={(e) => {
+                      const t = e.currentTarget;
+                      const p = t.parentElement.parentElement;
+                      if(p.style.background.includes("transparent")) {
+                         p.style.background = "#fff";
+                         p.style.color = "#000";
+                         t.innerText = "Light";
+                      } else {
+                         p.style.background = "var(--amber-transparent)";
+                         p.style.color = "var(--amber-text)";
+                         t.innerText = "Dark";
+                      }
+                   }}>Dark</button>
+                </div>
+             </div>
+          )}
           <button className="admin-btn primary" style={{ marginTop: 12 }} onClick={() => {
             if (!announcement || !announcementStart || !announcementEnd) return alert("Please fill message and dates.");
             const newItem = { id: Date.now().toString(), message: announcement, target: announcementTarget, start: announcementStart, end: announcementEnd };
@@ -912,15 +1261,30 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </div>
 
           <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 8 }}>
-            {(flags.quickLinks || []).map(ql => (
+            {(flags.quickLinks || []).map((ql, idx) => (
               <div key={ql.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)" }}>
-                <div>
+                <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, fontWeight: 600 }}>{ql.title}</div>
                   <div style={{ fontSize: 11, color: "var(--muted)" }}>{ql.url} | {ql.start} to {ql.end}</div>
                 </div>
-                <button onClick={() => {
-                  setFlags({...flags, quickLinks: flags.quickLinks.filter(x => x.id !== ql.id)});
-                }} className="admin-btn outline" style={{ padding: "4px 8px", borderColor: "var(--danger)", color: "var(--danger)" }}><Trash2 size={14} /></button>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button onClick={() => {
+                    if(idx === 0) return;
+                    const next = [...flags.quickLinks];
+                    [next[idx-1], next[idx]] = [next[idx], next[idx-1]];
+                    setFlags({...flags, quickLinks: next});
+                  }} disabled={idx === 0} className="admin-btn outline" style={{ padding: "4px 8px", opacity: idx === 0 ? 0.3 : 1 }}>↑</button>
+                  <button onClick={() => {
+                    if(idx === flags.quickLinks.length - 1) return;
+                    const next = [...flags.quickLinks];
+                    [next[idx+1], next[idx]] = [next[idx], next[idx+1]];
+                    setFlags({...flags, quickLinks: next});
+                  }} disabled={idx === flags.quickLinks.length - 1} className="admin-btn outline" style={{ padding: "4px 8px", opacity: idx === flags.quickLinks.length - 1 ? 0.3 : 1 }}>↓</button>
+                  
+                  <button onClick={() => {
+                    setFlags({...flags, quickLinks: flags.quickLinks.filter(x => x.id !== ql.id)});
+                  }} className="admin-btn outline" style={{ padding: "4px 8px", borderColor: "var(--danger)", color: "var(--danger)" }}><Trash2 size={14} /></button>
+                </div>
               </div>
             ))}
           </div>
@@ -944,14 +1308,51 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               <label>Message</label>
               <textarea className="admin-textarea" value={pushBody} onChange={e => setPushBody(e.target.value)} placeholder="e.g. Today's 11:30 FIN-201 class moved to Room C-104." rows={2} maxLength={200}></textarea>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 6 }}>
-              <button className="admin-btn primary" onClick={sendPushBroadcast} disabled={pushSending}>
-                <BellRing size={14} /> {pushSending ? "Sending..." : "Send to All Subscribers"}
+            <div className="admin-field-row" style={{ marginTop: 8 }}>
+               <div className="admin-field">
+                 <label>Schedule Date (Optional)</label>
+                 <input type="date" className="admin-input" value={pushScheduleDate} onChange={e => setPushScheduleDate(e.target.value)} />
+               </div>
+               <div className="admin-field">
+                 <label>Schedule Time (Optional)</label>
+                 <input type="time" className="admin-input" value={pushScheduleTime} onChange={e => setPushScheduleTime(e.target.value)} />
+               </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12 }}>
+              <button className="admin-btn primary" onClick={() => {
+                 if (pushScheduleDate && pushScheduleTime) {
+                    if (!pushTitle.trim() || !pushBody.trim()) return alert("Fill in title and message.");
+                    const newItem = { id: Date.now().toString(), title: pushTitle.trim(), body: pushBody.trim(), url: pushUrl.trim(), date: pushScheduleDate, time: pushScheduleTime };
+                    setFlags({...flags, scheduledPushes: [...(flags.scheduledPushes || []), newItem]});
+                    setPushTitle(""); setPushBody(""); setPushUrl(""); setPushScheduleDate(""); setPushScheduleTime("");
+                    setPushResult("Push scheduled successfully (Requires deploy).");
+                 } else {
+                    sendPushBroadcast();
+                 }
+              }} disabled={pushSending}>
+                <BellRing size={14} /> {pushSending ? "Sending..." : (pushScheduleDate && pushScheduleTime ? "Queue Push Notification" : "Send to All Subscribers")}
               </button>
               {pushResult && (
-                <span className="admin-subtext" style={{ margin: 0, color: pushResult.startsWith("Sent") ? "var(--live)" : "var(--danger)" }}>{pushResult}</span>
+                <span className="admin-subtext" style={{ margin: 0, color: pushResult.startsWith("Sent") || pushResult.startsWith("Push scheduled") ? "var(--live)" : "var(--danger)" }}>{pushResult}</span>
               )}
             </div>
+
+            {flags.scheduledPushes && flags.scheduledPushes.length > 0 && (
+               <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase" }}>Queued Pushes</label>
+                  {flags.scheduledPushes.map(p => (
+                     <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)" }}>
+                       <div>
+                         <div style={{ fontSize: 13, fontWeight: 600 }}>{p.title}</div>
+                         <div style={{ fontSize: 11, color: "var(--muted)" }}>Scheduled for {p.date} at {p.time}</div>
+                       </div>
+                       <button onClick={() => {
+                         setFlags({...flags, scheduledPushes: flags.scheduledPushes.filter(x => x.id !== p.id)});
+                       }} className="admin-btn outline" style={{ padding: "4px 8px", borderColor: "var(--danger)", color: "var(--danger)" }}><Trash2 size={14} /></button>
+                     </div>
+                  ))}
+               </div>
+            )}
           </section>
 
           {/* What's New — feature updates */}
@@ -1043,8 +1444,27 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
         <section className="admin-card admin-directory-card">
-          <h2><Users size={20} color="var(--green)" /> User Directory</h2>
-          <div className="admin-search-box">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+             <h2><Users size={20} color="var(--green)" /> User Directory</h2>
+             <button className="admin-btn outline" onClick={() => {
+                const csvRows = [["User ID", "Name", "Email", "Courses"]];
+                filteredUsers.forEach(u => {
+                   csvRows.push([
+                      u.user_id, 
+                      u.name || "", 
+                      u.email || "", 
+                      u.courses ? Object.keys(u.courses).filter(c => c !== "_name" && c !== "_email").join(";") : ""
+                   ].map(v => `"${v}"`).join(","));
+                });
+                const blob = new Blob([csvRows.join("\n")], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'user_export.csv';
+                a.click();
+             }} style={{ padding: "4px 10px", fontSize: 12 }}>Export Filtered to CSV</button>
+          </div>
+          <div className="admin-search-box" style={{ marginTop: 12 }}>
             <Search size={16} color="var(--muted)" />
             <input 
               type="text" 
@@ -1053,9 +1473,39 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               onChange={e => setSearchQuery(e.target.value)}
             />
           </div>
-          <div style={{ marginBottom: 12, display: "flex", gap: 12 }}>
-            <button className="admin-btn outline" onClick={exportConfigJSON} style={{ padding: "6px 12px", fontSize: 13 }}>Backup Config to JSON</button>
+          <div style={{ marginBottom: 12, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", gap: 6 }}>
+              {["All", "A", "B"].map(sec => (
+                 <button key={sec} onClick={() => setUserSectionFilter(sec)} className={`admin-btn ${userSectionFilter === sec ? "" : "outline"}`} style={{ padding: "4px 10px", fontSize: 12 }}>
+                    {sec === "All" ? "All Sections" : `Section ${sec}`}
+                 </button>
+              ))}
+            </div>
           </div>
+
+          {selectedUserIds.size > 0 && (
+             <div style={{ background: "var(--amber-transparent)", padding: "8px 12px", borderRadius: 8, border: "1px solid var(--amber)", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "var(--amber-text)" }}>{selectedUserIds.size} Users Selected</span>
+                <div style={{ display: "flex", gap: 8 }}>
+                   <button className="admin-btn outline" onClick={() => {
+                      const next = [...(flags.bannedUsers || [])];
+                      selectedUserIds.forEach(id => { if(!next.includes(id)) next.push(id) });
+                      setFlags({...flags, bannedUsers: next});
+                      setSelectedUserIds(new Set());
+                   }} style={{ fontSize: 11, padding: "4px 8px", borderColor: "var(--danger)", color: "var(--danger)" }}>Ban Selected</button>
+                   
+                   <button className="admin-btn outline" onClick={() => {
+                      let next = [...(flags.bannedUsers || [])];
+                      selectedUserIds.forEach(id => { next = next.filter(b => b !== id) });
+                      setFlags({...flags, bannedUsers: next});
+                      setSelectedUserIds(new Set());
+                   }} style={{ fontSize: 11, padding: "4px 8px" }}>Unban Selected</button>
+
+                   <button className="admin-btn outline" onClick={() => setSelectedUserIds(new Set())} style={{ fontSize: 11, padding: "4px 8px" }}>Clear Selection</button>
+                </div>
+             </div>
+          )}
+
           <div className="admin-user-list">
             {loadingUsers ? (
               <div className="admin-loading">Loading users...</div>
@@ -1063,8 +1513,19 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               <div className="admin-empty">No users found.</div>
             ) : (
               filteredUsers.map(u => (
-                <div key={u.user_id} className="admin-user-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderBottom: "1px solid var(--border)" }}>
+                <div key={u.user_id} className="admin-user-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderBottom: "1px solid var(--border)", background: selectedUserIds.has(u.user_id) ? "var(--bg)" : "transparent" }}>
                   <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+                    <input 
+                       type="checkbox" 
+                       checked={selectedUserIds.has(u.user_id)}
+                       onChange={e => {
+                          const next = new Set(selectedUserIds);
+                          if(e.target.checked) next.add(u.user_id);
+                          else next.delete(u.user_id);
+                          setSelectedUserIds(next);
+                       }}
+                       style={{ width: 16, height: 16, accentColor: "var(--violet)" }}
+                    />
                     <Avatar name={u.name} email={u.user_id} />
                     <div className="admin-user-info" onClick={() => setSelectedUser(u)} style={{ cursor: "pointer" }} title="Click to view full details">
                       <div className="admin-user-name" style={{ color: flags.bannedUsers?.includes(u.user_id) ? "var(--danger)" : "inherit" }}>
@@ -1094,13 +1555,21 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
         {/* Feedback Section */}
         <section className="admin-card">
-          <h2><Terminal size={20} color="var(--green)" /> Feedback & Bug Reports</h2>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <h2><Terminal size={20} color="var(--green)" /> Feedback & Bug Reports</h2>
+            <div style={{ display: "flex", gap: 6 }}>
+               <button onClick={() => setFeedbackFilter("all")} className={`admin-btn ${feedbackFilter === "all" ? "" : "outline"}`} style={{ padding: "4px 8px", fontSize: 12 }}>All</button>
+               <button onClick={() => setFeedbackFilter("pending")} className={`admin-btn ${feedbackFilter === "pending" ? "" : "outline"}`} style={{ padding: "4px 8px", fontSize: 12 }}>Pending Only</button>
+            </div>
+          </div>
           <div style={{ maxHeight: 300, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, marginTop: 16 }}>
-            {feedbackList.length === 0 ? <div className="admin-empty">No feedback yet.</div> : 
-             feedbackList.map(f => (
+            {feedbackList.filter(f => feedbackFilter === "all" || f.status === "pending").length === 0 ? <div className="admin-empty">No feedback found.</div> : 
+             feedbackList.filter(f => feedbackFilter === "all" || f.status === "pending").map(f => {
+               const fUser = allUsers.find(u => u.user_id === f.user_id);
+               return (
                <div key={f.id} style={{ padding: "12px", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8 }}>
                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                   <span style={{ fontSize: 12, color: "var(--muted)" }}>{new Date(f.created_at).toLocaleString()}</span>
+                   <span style={{ fontSize: 12, color: "var(--muted)" }}>{new Date(f.created_at).toLocaleString()} • {fUser ? fUser.name : f.user_id}</span>
                    <span style={{ fontSize: 12, fontWeight: 700, color: f.status === "resolved" ? "var(--green)" : "var(--amber)" }}>{f.status.toUpperCase()}</span>
                  </div>
                  <div style={{ fontSize: 14, color: "var(--text)" }}>{f.message}</div>
@@ -1108,8 +1577,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                    <button onClick={() => markFeedbackResolved(f.id)} style={{ marginTop: 8, background: "transparent", border: "none", color: "var(--green)", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Mark Resolved</button>
                  )}
                </div>
-             ))
-            }
+             )})}
           </div>
         </section>
 
@@ -1121,7 +1589,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 <label key={key} className="admin-flag-item">
                   <input 
                     type="checkbox" 
-                    checked={flags[key]} 
+                    checked={!!flags[key]} 
                     onChange={e => setFlags({ ...flags, [key]: e.target.checked })}
                   />
                   <span>{key}</span>
@@ -1391,7 +1859,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               <label className="admin-toggle">
                 <input 
                   type="checkbox" 
-                  checked={flags.maintenanceMode} 
+                  checked={!!flags.maintenanceMode} 
                   onChange={e => setFlags({ ...flags, maintenanceMode: e.target.checked })}
                 />
                 <span className="slider"></span>
@@ -1411,14 +1879,54 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
         </div>
       </div>
 
-      <div className="admin-save-footer">
-        <button className="admin-save-btn" onClick={saveConfig} disabled={saving}>
+      <div className="admin-save-footer" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <button className="admin-save-btn" onClick={saveConfig} disabled={saving} style={{ position: "relative" }}>
           <Save size={18} /> {saving ? "Saving..." : "Deploy Config to Cloud"}
+          {changesCount > 0 && (
+             <div style={{ position: "absolute", top: -8, right: -8, background: "var(--danger)", color: "#fff", fontSize: 10, fontWeight: "bold", padding: "2px 6px", borderRadius: 10 }}>
+               {changesCount} changed
+             </div>
+          )}
         </button>
+        {activeOverrideCount > 0 && (
+          <span style={{ fontSize: 12, color: "var(--orange)", display: "flex", alignItems: "center", gap: 4 }}>
+            <AlertTriangle size={14} /> {activeOverrideCount} active overrides
+          </span>
+        )}
         {staleConfigCount > 0 && (
           <button className="admin-btn outline" onClick={purgeStaleConfig} title="Remove past-dated class overrides, expired announcements and quick links from the config students download" style={{ padding: "9px 16px" }}>
             <Trash2 size={15} /> Purge expired ({staleConfigCount})
           </button>
+        )}
+        {originalFlags && (
+          <button className="admin-btn outline" onClick={() => {
+             if (confirm("Revert all unsaved changes back to the currently deployed config?")) {
+                setFlags(originalFlags);
+                setSaveMsg("Reverted to deployed config.");
+                setTimeout(() => setSaveMsg(""), 3000);
+             }
+          }} style={{ padding: "9px 16px" }}>
+            <RefreshCw size={15} /> Revert Changes
+          </button>
+        )}
+        {flags.configHistory && flags.configHistory.length > 0 && (
+           <div style={{ position: "relative", display: "inline-block" }}>
+              <select className="admin-input" onChange={e => {
+                 if(!e.target.value) return;
+                 const selectedHistory = flags.configHistory[parseInt(e.target.value)];
+                 if(confirm(`Restore configuration saved on ${new Date(selectedHistory.timestamp).toLocaleString()}?`)) {
+                    setFlags(selectedHistory.flags);
+                    setSaveMsg("Restored from history. Deploy to apply.");
+                    setTimeout(() => setSaveMsg(""), 3000);
+                 }
+                 e.target.value = ""; // reset
+              }} style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", width: 220 }}>
+                 <option value="">Restore Past Version...</option>
+                 {flags.configHistory.map((h, i) => (
+                    <option key={h.timestamp} value={i}>{new Date(h.timestamp).toLocaleString()} by {h.author || "Admin"}</option>
+                 ))}
+              </select>
+           </div>
         )}
         {saveMsg && (
           <span className={`admin-save-msg ${saveMsg.includes("Failed") || saveMsg.includes("Error") ? "error" : "success"}`}>
@@ -1440,7 +1948,24 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div><strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase" }}>Name</strong>{selectedUser.name}</div>
-              <div><strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase" }}>User ID</strong>{selectedUser.user_id}</div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                 <div><strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase" }}>User ID</strong>{selectedUser.user_id}</div>
+                 <div style={{ textAlign: "right" }}><strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase" }}>Last Active</strong>{selectedUser.updated_at ? new Date(selectedUser.updated_at).toLocaleDateString() : "Unknown"}</div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 4 }}>
+                 <strong style={{ color: "var(--muted)", fontSize: 12, textTransform: "uppercase" }}>Role:</strong>
+                 <select className="admin-input" value={flags.adminRoles?.[selectedUser.user_id] || "user"} onChange={e => {
+                    const role = e.target.value;
+                    const nextRoles = { ...(flags.adminRoles || {}) };
+                    if (role === "user") delete nextRoles[selectedUser.user_id];
+                    else nextRoles[selectedUser.user_id] = role;
+                    setFlags({...flags, adminRoles: nextRoles});
+                 }} style={{ padding: "4px 8px", fontSize: 12, flex: 1 }}>
+                    <option value="user">Standard User</option>
+                    <option value="monitor">Monitor (Read-only Admin)</option>
+                    <option value="superadmin">Superadmin</option>
+                 </select>
+              </div>
               <div>
                 <strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase", marginBottom: 4 }}>Enrolled Subjects</strong>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
@@ -1449,8 +1974,42 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                   )) : <span style={{ fontSize: 12, color: "var(--muted)" }}>No subjects enrolled.</span>}
                 </div>
               </div>
-              <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
+              
+              <div>
+                 <strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase", marginBottom: 4 }}>Admin Notes</strong>
+                 <textarea 
+                    className="admin-input" 
+                    placeholder="Private notes about this user..."
+                    value={flags.adminNotes?.[selectedUser.user_id] || ""}
+                    onChange={e => {
+                       const val = e.target.value;
+                       setFlags({
+                          ...flags, 
+                          adminNotes: { ...(flags.adminNotes || {}), [selectedUser.user_id]: val }
+                       });
+                    }}
+                    style={{ width: "100%", minHeight: 60, padding: 8, fontSize: 12 }}
+                 />
+              </div>
+
+              <div>
+                 <strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase", marginBottom: 4 }}>Recent Activity</strong>
+                 <div style={{ maxHeight: 120, overflowY: "auto", fontSize: 11, background: "var(--bg)", padding: 8, borderRadius: 8, border: "1px solid var(--border)" }}>
+                    {auditLogs.filter(l => l.details?.target_user === selectedUser.user_id).length > 0 ? (
+                       auditLogs.filter(l => l.details?.target_user === selectedUser.user_id).map(l => (
+                          <div key={l.id} style={{ marginBottom: 4, borderBottom: "1px solid var(--border)", paddingBottom: 4 }}>
+                             <span style={{ color: "var(--muted)" }}>{new Date(l.created_at).toLocaleDateString()}</span> - {l.action}
+                          </div>
+                       ))
+                    ) : (
+                       <div style={{ color: "var(--muted)" }}>No recent admin actions recorded.</div>
+                    )}
+                 </div>
+              </div>
+
+              <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border)", display: "flex", gap: 8 }}>
                 <button onClick={async () => {
+                  if (flags.adminRoles && flags.adminRoles[admin_id] === "monitor") return alert("You don't have permission to reset user setups.");
                   if (confirm("Are you sure you want to reset this user's setup? They will have to onboard again.")) {
                     await supabase.from("profiles").update({ courses: null }).eq("user_id", selectedUser.user_id);
                     await logAdminAction(admin_id, "reset_user_setup", { target_user: selectedUser.user_id });
@@ -1495,7 +2054,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 const newSection = document.getElementById('live-section-input').value;
                 const overrideKey = newSection === "All" ? liveEditorModal.code : `${liveEditorModal.code}_${newSection}`;
                 const nextOverrides = { ...(flags.classOverrides || {}) };
-                if (!nextOverrides[liveEditorModal.date]) nextOverrides[liveEditorModal.date] = {};
+                nextOverrides[liveEditorModal.date] = { ...(nextOverrides[liveEditorModal.date] || {}) };
                 nextOverrides[liveEditorModal.date][overrideKey] = { type: "cancelled", name: `Cancelled: ${overrideKey}` };
                 setFlags({...flags, classOverrides: nextOverrides});
                 logAdminAction(admin_id, "cancel_class", { date: liveEditorModal.date, class: overrideKey });
@@ -1518,7 +2077,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                   const newStart = document.getElementById('live-start-input').value;
                   const newEnd = document.getElementById('live-end-input').value;
                   const nextOverrides = { ...(flags.classOverrides || {}) };
-                  if (!nextOverrides[liveEditorModal.date]) nextOverrides[liveEditorModal.date] = {};
+                  nextOverrides[liveEditorModal.date] = { ...(nextOverrides[liveEditorModal.date] || {}) };
                   const existing = nextOverrides[liveEditorModal.date][overrideKey] || {};
                   
                   const changes = { ...existing };
@@ -1538,11 +2097,15 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               {(flags.classOverrides?.[liveEditorModal.date]?.[liveEditorModal.code] || flags.classOverrides?.[liveEditorModal.date]?.[`${liveEditorModal.code}_${liveEditorModal.section}`]) && (
                 <button onClick={() => {
                   const nextOverrides = { ...(flags.classOverrides || {}) };
+                  nextOverrides[liveEditorModal.date] = { ...nextOverrides[liveEditorModal.date] };
                   if (nextOverrides[liveEditorModal.date]?.[liveEditorModal.code]) {
                      delete nextOverrides[liveEditorModal.date][liveEditorModal.code];
                   }
                   if (nextOverrides[liveEditorModal.date]?.[`${liveEditorModal.code}_${liveEditorModal.section}`]) {
                      delete nextOverrides[liveEditorModal.date][`${liveEditorModal.code}_${liveEditorModal.section}`];
+                  }
+                  if (Object.keys(nextOverrides[liveEditorModal.date]).length === 0) {
+                     delete nextOverrides[liveEditorModal.date];
                   }
                   setFlags({...flags, classOverrides: nextOverrides});
                   logAdminAction(admin_id, "clear_override", { date: liveEditorModal.date, class: liveEditorModal.code });

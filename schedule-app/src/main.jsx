@@ -20,12 +20,15 @@ const updateSW = registerSW({
   },
   onRegisteredSW(_url, registration) {
     if (!registration) return;
+    // update() fetches sw.js and REJECTS on any network hiccup (offline,
+    // flaky Wi-Fi, tab waking) — swallow it, the next check retries anyway.
+    const checkForUpdate = () => registration.update().catch(() => {});
     // Force an immediate check for a new SW, then recheck every 60 s
-    registration.update();
-    setInterval(() => registration.update(), 60_000);
+    checkForUpdate();
+    setInterval(checkForUpdate, 60_000);
     // Also recheck when the user switches back to this tab
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") registration.update();
+      if (document.visibilityState === "visible") checkForUpdate();
     });
   },
 });

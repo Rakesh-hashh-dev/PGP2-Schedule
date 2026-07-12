@@ -13,6 +13,25 @@ import {
   avatarGradient,
 } from "../lib/friends.js";
 
+// profiles still holds pre-cutover DEV ghost rows (the data source for
+// migrate-user's on-login restore) — exclude them wherever we list students,
+// same as AdminDashboard. Once Phase 2 deletes the ghosts and drops the RPC,
+// this resolves to an empty set and the filter is a no-op.
+let devGhostIdsPromise = null;
+function fetchDevGhostIds(supabase) {
+  if (!devGhostIdsPromise) {
+    devGhostIdsPromise = (async () => {
+      try {
+        const { data } = await supabase.rpc("get_dev_user_ids");
+        return new Set((data || []).map(r => (typeof r === "string" ? r : r.dev_user_id)));
+      } catch {
+        return new Set();
+      }
+    })();
+  }
+  return devGhostIdsPromise;
+}
+
 const TOAST_META = {
   success: { Icon: CheckCircle, color: "#1FA971" },
   error:   { Icon: AlertCircle, color: "#e74c3c" },
@@ -212,9 +231,10 @@ export default function FriendsPanel({
       
       const { supabase } = await import("../lib/supabase.js");
       // No `name` column exists on profiles — display names live in courses._name
-      const { data, error } = await supabase.from("profiles")
-        .select("user_id, courses")
-        .neq("user_id", userId);
+      const [{ data, error }, devGhostIds] = await Promise.all([
+        supabase.from("profiles").select("user_id, courses").neq("user_id", userId),
+        fetchDevGhostIds(supabase),
+      ]);
 
       if (error || !data) {
         if (error) console.error("[matchmaker] fetch failed:", error.message);
@@ -224,6 +244,7 @@ export default function FriendsPanel({
       const friendCloudIds = new Set(friends.map(f => f.cloudId).filter(Boolean));
 
       const matches = data.map(profile => {
+        if (devGhostIds.has(profile.user_id)) return null; // Pre-cutover dev ghost row
         if (friendCloudIds.has(profile.user_id)) return null; // Already friends
         if (profile.courses?._hide_from_matchmaker) return null; // Opted out
 
@@ -584,9 +605,10 @@ export default function FriendsPanel({
     setShowDirectory(true);
     if (directory !== null) return; // fetched once per visit
     const { supabase } = await import("../lib/supabase.js");
-    const { data, error } = await supabase.from("profiles")
-      .select("user_id, courses")
-      .neq("user_id", userId);
+    const [{ data, error }, devGhostIds] = await Promise.all([
+      supabase.from("profiles").select("user_id, courses").neq("user_id", userId),
+      fetchDevGhostIds(supabase),
+    ]);
     if (error || !data) {
       setDirectory([]);
       showToast("Couldn't load students", "error");
@@ -594,6 +616,7 @@ export default function FriendsPanel({
     }
     const myCourseKeys = Object.keys(enrolled || {}).filter(k => !k.startsWith("_"));
     const list = data
+      .filter(p => !devGhostIds.has(p.user_id)) // pre-cutover dev ghost rows
       .filter(p => !p.courses?._hide_from_matchmaker) // respect discovery opt-out
       .map(p => {
         const theirs = Object.keys(p.courses || {}).filter(k => !k.startsWith("_"));

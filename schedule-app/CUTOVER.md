@@ -259,6 +259,37 @@ node scripts/migrate-batch.mjs             # then run for real (idempotent)
       the batch's cross-user cloudId pass handles this; re-run the batch if any lag.
 - [ ] (2–4 weeks, once `_migration_map.migrated_at IS NULL` count ≈ 0):
       remove the `useMigration` hook + `sync-map`, drop `_migration_map`, remove scripts.
+      Also: delete the DEV ghost rows from `profiles` (and any other leftover dev-keyed
+      rows), then `drop function get_dev_user_ids()` and remove the dev-id filter from
+      `AdminDashboard.jsx` `fetchStatsAndUsers` (added 2026-07-12 so admin stats show
+      prod-instance numbers; the dashboard tolerates the RPC being gone, but the filter
+      becomes dead code once ghosts are deleted).
+- [ ] **Study-buddies / directory ghost leak — FIXED 2026-07-12.** FriendsPanel's matchmaker
+      and student directory listed all `profiles` rows, so dev ghosts (dup names, "Student"
+      shells) appeared as suggested buddies. Two-part fix:
+      1. `FriendsPanel.jsx` now applies the same `get_dev_user_ids()` filter as the admin
+         dashboard (degrades to no-op once the RPC is dropped). *(uncommitted, needs deploy)*
+      2. The 7 stragglers the RPC can't see (in the map by neither id — see next item) got
+         `courses._hide_from_matchmaker = true` set directly in the DB, which the ALREADY
+         DEPLOYED app respects → hidden live immediately. Deliberately did NOT flag the 84
+         mapped dev ghosts this way: `migrate-user`'s `mergeCourses` is `{...dev, ...prod}`,
+         so the flag would leak into real users' prod profiles on first login and silently
+         opt them out of the matchmaker. ⚠️ Same caveat for **Amit**: if his row is ever
+         bridged (map row inserted), unset `_hide_from_matchmaker` after his merge.
+      Also backfilled `_name = 'Jabed'` on `user_3GNAQTxdB…` (both his dev + prod rows had
+      no `_name`, so he rendered as "Student"; self-corrects from Clerk on his next profile push).
+- [ ] **Admin "Total Users" reads ~7 higher than Clerk prod — KNOWN, user chose to LEAVE IT
+      (2026-07-12).** Reconciled against the live Clerk prod user list: all real prod users
+      have profile rows and count correctly (Smarak `user_3GOFW…` and Ketan `user_3GN6b…`
+      ARE real prod accounts). The 7 extras are in `_migration_map` by NEITHER id, so the
+      dashboard's dev-id filter can't hide them:
+      2× "Alpha" + "Rakesh" + "Rakesh Kumar" + 1 unnamed (test junk, deletable anytime);
+      **Amit (`user_3FKpF…`)** — no map row, null email, courses stranded; migrate-user will
+      treat him as new_user unless a map row is inserted (email findable in Clerk dev by id);
+      **Ketan orphan (`user_3GGjlu…`)** — map's `prod_user_id` points here but the account no
+      longer exists in Clerk prod; his migrated data is stranded on this row while his real
+      prod account (`user_3GN6b…`) started fresh. Fold this cleanup into the final Phase 2
+      ghost-row deletion.
 
 ---
 

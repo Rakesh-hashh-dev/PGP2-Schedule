@@ -361,19 +361,33 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       clearTimeout(idleTimer);
     };
   }, [showBottomNav]);
+  // Re-position the lens under the active button (used after view changes,
+  // resizes, and to snap back from a cancelled press)
+  const bnavMeasure = useCallback(() => {
+    const nav = bnavRef.current;
+    if (!nav) return;
+    const btn = nav.querySelector(".bnav-btn.on");
+    if (btn) setBnavLens({ x: btn.offsetLeft, w: btn.offsetWidth });
+    else setBnavLens(null);
+  }, []);
   useLayoutEffect(() => {
     if (!showBottomNav) return;
-    const measure = () => {
-      const nav = bnavRef.current;
-      if (!nav) return;
-      const btn = nav.querySelector(".bnav-btn.on");
-      if (btn) setBnavLens({ x: btn.offsetLeft, w: btn.offsetWidth });
-      else setBnavLens(null);
-    };
-    measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
-  }, [showBottomNav, view, sysConfig]);
+    bnavMeasure();
+    window.addEventListener("resize", bnavMeasure);
+    return () => window.removeEventListener("resize", bnavMeasure);
+  }, [showBottomNav, view, sysConfig, bnavMeasure]);
+  // Instagram-dock feel: start the lens glide on touch-down, before the tap's
+  // click renders the (possibly heavy) new view — the transform transition
+  // runs on the compositor, so it stays smooth even while React is busy
+  const onBnavPointerDown = (e) => {
+    const btn = e.target.closest?.(".bnav-btn");
+    if (btn) setBnavLens({ x: btn.offsetLeft, w: btn.offsetWidth });
+  };
+  // If the press never becomes a click (finger slid off), snap the lens back.
+  // click dispatches synchronously after pointerup, so by the time this
+  // timeout runs the view has either changed (measure is a no-op visually)
+  // or it hasn't (lens returns to the active button).
+  const onBnavPointerUp = () => { setTimeout(bnavMeasure, 0); };
 
   const [navMenuOpen, setNavMenuOpen] = useState(false);
   const [showFriendsAgenda, setShowFriendsAgenda] = useState(false);
@@ -2070,6 +2084,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       : view === "week" ? weekRangeLabel : prettyDate(view === "tomorrow" ? tomorrowISO : todayISO)}
                   </span>
                   <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                    <button className="desktop-only vdh-filter-btn" onClick={() => setFeedbackOpen(true)} style={{ color: "var(--amber-text)", background: "var(--amber-transparent)", border: "1px solid var(--amber)", display: "flex", alignItems: "center", gap: "6px", fontWeight: "600" }}>
+                      <MessageSquare size={14} /> Report Bug
+                    </button>
                     <button className="desktop-only vdh-filter-btn" onClick={() => setFilterModalOpen(true)}>
                       <SlidersHorizontal size={14} /> Filter subjects
                     </button>
@@ -2396,7 +2413,14 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
         {/* ── Bottom nav (mobile) — floating glass dock, all views listed ── */}
         {showBottomNav && (
-          <nav ref={bnavRef} className={`bnav${bnavCompact ? " bnav-compact" : ""}`} aria-label="Main navigation">
+          <nav
+            ref={bnavRef}
+            className={`bnav${bnavCompact ? " bnav-compact" : ""}`}
+            aria-label="Main navigation"
+            onPointerDown={onBnavPointerDown}
+            onPointerUp={onBnavPointerUp}
+            onPointerCancel={onBnavPointerUp}
+          >
             {bnavLens && (
               <span
                 className="bnav-lens"
