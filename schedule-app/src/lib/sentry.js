@@ -14,10 +14,6 @@ function loadSentry() {
         release: String(__APP_VERSION__),
         environment: import.meta.env.MODE,
         sendDefaultPii: false,
-        // Set to 1.0 to capture 100% of transactions for performance monitoring
-        tracesSampleRate: 1.0,
-        // Capture 100% of profiling data (requires tracesSampleRate to be set)
-        profilesSampleRate: 1.0,
         ignoreErrors: [
           // Benign browser/PWA noise
           "ResizeObserver loop",

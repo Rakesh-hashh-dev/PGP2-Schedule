@@ -14,6 +14,10 @@
   --violet: #6D5BD0;
   --violet-dim: rgba(109, 91, 208, .08);
   --blue: #3B82F6;
+  --danger: #C0392B;
+  /* used by Report Bug pill + admin announcement panels (JSX inline styles) */
+  --amber-text: #8A5A14;
+  --amber-transparent: rgba(201, 136, 43, .10);
 
 
   /* keep legacy names used in hero/logo */
@@ -29,6 +33,45 @@
   --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
 }
+
+/* ── Dark theme ──
+   Set via html[data-theme="dark"] (inline script in index.html pre-paint,
+   then useTheme() in App.jsx). Warm-neutral darks to match the ivory brand;
+   accents lifted in lightness, -dim tints raised in alpha to stay legible. */
+html[data-theme="dark"] {
+  --bg: #101216;
+  --surface: #16181E;
+  --card: #1C1F26;
+  --card-hi: #22252E;
+  --border: #2A2D36;
+  --border-hi: #3A3E4A;
+  --text: #E8E6DF;
+  --muted: #9BA0AE;
+  --live: #2FC68A;
+  --live-dim: rgba(47, 198, 138, .14);
+  --amber: #E0A044;
+  --amber-dim: rgba(224, 160, 68, .16);
+  --violet: #8B7AE8;
+  --violet-dim: rgba(139, 122, 232, .14);
+  --blue: #60A5FA;
+  --danger: #F87171;
+  --amber-text: #FCD34D;
+  --amber-transparent: rgba(224, 160, 68, .14);
+
+  --ink: #E8E6DF;
+  --bone: #101216;
+  --line: #2A2D36;
+
+  color-scheme: dark;
+}
+
+/* Dark contrast lifts — deep accent text tones tuned for light tinted chips
+   disappear on dark tints; swap for their pastel counterparts */
+html[data-theme="dark"] .tmrw-stat-badge-teal { color: #5EEAD4; }
+html[data-theme="dark"] .ob-sync-title { color: #A78BFA; }
+html[data-theme="dark"] .cva-card.cva-shared .cva-title { color: #FCD34D; }
+html[data-theme="dark"] .cv-sbs-name-pill.them2 { color: #2DD4BF; }
+html[data-theme="dark"] .cv-sbs-name-pill.them3 { color: #FB7185; }
 
 *,
 *::before,
@@ -85,6 +128,38 @@ body.theme-night {
   --bg-start: #E8EAF0;
   --bg-mid: #D5D9E5;
   --bg-end: #C2C8D8;
+}
+
+/* Dark-mode time-of-day gradients — same idea, subtle shifts on dark bases.
+   html[data-theme] scoping outranks the light body.theme-* rules above. */
+html[data-theme="dark"] body {
+  --bg-start: #101216;
+  --bg-mid: #0E1014;
+  --bg-end: #0B0D11;
+}
+
+html[data-theme="dark"] body.theme-morning {
+  --bg-start: #14120F;
+  --bg-mid: #100F0D;
+  --bg-end: #0C0B0A;
+}
+
+html[data-theme="dark"] body.theme-afternoon {
+  --bg-start: #101216;
+  --bg-mid: #0E1014;
+  --bg-end: #0B0D11;
+}
+
+html[data-theme="dark"] body.theme-evening {
+  --bg-start: #131017;
+  --bg-mid: #0F0D13;
+  --bg-end: #0B0A0F;
+}
+
+html[data-theme="dark"] body.theme-night {
+  --bg-start: #0D0F16;
+  --bg-mid: #0B0C12;
+  --bg-end: #08090E;
 }
 
 body {
@@ -144,6 +219,11 @@ button:not(:disabled) {
 }
 
 /* ── Header bar ── */
+/* Dark: bone glass → near-black glass (specificity outranks .bar below) */
+html[data-theme="dark"] .bar {
+  background: rgba(16, 18, 22, .92);
+}
+
 .bar {
   display: flex;
   align-items: center;
@@ -173,7 +253,7 @@ button:not(:disabled) {
   flex: none;
   background: var(--ink);
   border: 1px solid var(--ink);
-  color: #fff;
+  color: var(--bone);
   display: grid;
   place-items: center;
 }
@@ -565,7 +645,7 @@ button:not(:disabled) {
 .sync:hover {
   color: var(--violet);
   border-color: var(--border-hi);
-  background: #fff;
+  background: var(--card);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(109, 91, 208, .18);
 }
@@ -885,7 +965,7 @@ button:not(:disabled) {
   background: transparent;
   border-radius: 999px;
   padding: 5px 12px;
-  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-family: var(--body);
   font-size: 12px;
   font-weight: 500;
   color: var(--muted);
@@ -912,7 +992,7 @@ button:not(:disabled) {
 .sf-apill.on {
   background: var(--ink);
   border-color: var(--ink);
-  color: #fff;
+  color: var(--bone);
   font-weight: 600;
 }
 
@@ -1039,6 +1119,16 @@ button:not(:disabled) {
     }
 }
 
+/* Dark: bone tab-strip glass → near-black glass; kills the white top
+   hairline that reads as a glowing seam on dark. Covers both the solid
+   fallback and the @supports tier via specificity. */
+html[data-theme="dark"] .tabs-wrapper {
+  background: rgba(16, 18, 22, .94);
+  border-top: 1px solid rgba(255, 255, 255, .07);
+  border-bottom: 1px solid rgba(255, 255, 255, .04);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, .25);
+}
+
 .tabs {
   display: flex;
   align-items: center;
@@ -1119,7 +1209,7 @@ button:not(:disabled) {
       width: 28px;
       height: 28px;
       border-radius: 50%;
-      background: #ffffff;
+      background: var(--card);
       border: 1px solid var(--border);
       display: grid;
       place-items: center;
@@ -1172,12 +1262,12 @@ button:not(:disabled) {
 .tab.on {
   opacity: 1;
   background: var(--ink);
-  color: #fff;
+  color: var(--bone);
   border: 1px solid var(--ink);
 }
 
 .tab.on svg {
-  color: #fff;
+  color: var(--bone);
 }
 
 
@@ -1280,7 +1370,10 @@ button:not(:disabled) {
   border-radius: 16px;
   padding: 14px 16px 16px;
   box-shadow: 0 1px 2px rgba(20, 20, 30, .03), 0 8px 20px -12px rgba(20, 20, 30, .12);
-  overflow: hidden;
+  /* was overflow:hidden (to clip ::before's square corners to the card's
+     rounded ones) — that also clipped the rail's tap-to-reveal popover near
+     the card edges. The top bar now carries its own matching radius instead,
+     so the card can stay overflow:visible. */
 }
 
 .tmrw-summary-card::before {
@@ -1288,6 +1381,7 @@ button:not(:disabled) {
   position: absolute;
   inset: 0 0 auto 0;
   height: 2px;
+  border-radius: 16px 16px 0 0;
   background: linear-gradient(90deg, var(--violet), var(--blue), var(--live));
   opacity: .6;
 }
@@ -1341,7 +1435,10 @@ button:not(:disabled) {
   }
 }
 
-/* Slim timeline of tomorrow's shape: first class -> free, violet = class, amber = break */
+/* Slim timeline of tomorrow's shape: first class -> free, subject-colored
+   segments = class, amber = break. Segments are real buttons (tap-to-reveal
+   a name/room/time strip below the rail — hover-only tooltips never fire
+   on touch). */
 .tmrw-rail {
   position: relative;
   height: 6px;
@@ -1349,7 +1446,6 @@ button:not(:disabled) {
   border-radius: 99px;
   background: var(--surface);
   border: 1px solid var(--border);
-  overflow: hidden;
 }
 
 .tmrw-rail-seg {
@@ -1357,17 +1453,123 @@ button:not(:disabled) {
   top: 0;
   bottom: 0;
   min-width: 3px;
+  border: none;
   border-radius: 99px;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  transition: opacity .15s, transform .15s;
+}
+.tmrw-rail-seg:hover { opacity: 1; }
+/* Invisible hit-area extension: the rail is only 8px (5px on mobile) tall,
+   well under the 44px touch-target minimum — this pads the tappable box
+   without changing what's drawn. */
+.tmrw-rail-seg::before {
+  content: "";
+  position: absolute;
+  inset: -16px 0;
+}
+.tmrw-rail-seg:focus-visible {
+  outline: 2px solid var(--violet);
+  outline-offset: 2px;
+}
+.tmrw-rail-seg.is-open {
+  opacity: 1;
+  transform: scaleY(1.4);
+  z-index: 5;
 }
 
 .tmrw-rail-seg-class {
-  background: var(--violet);
-  opacity: .8;
+  background: var(--subj, var(--violet));
+  opacity: .82;
 }
 
 .tmrw-rail-seg-break {
   background: var(--amber);
   opacity: .55;
+}
+
+.tmrw-rail-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* Tapped-segment details — an inline strip in the card's own flow (not a
+   floating popover) so it can never overlap the header above or content
+   below, however short the card or however narrow the screen. */
+.tmrw-rail-detail {
+  margin-top: 12px;
+  padding: 13px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--card-hi);
+  animation: tmrw-detail-in .18s var(--ease-out-strong) both;
+}
+@keyframes tmrw-detail-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.tmrw-rail-detail-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tmrw-rail-detail-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--subj, var(--violet));
+  flex-shrink: 0;
+}
+.tmrw-rail-detail-code {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--text);
+}
+.tmrw-rail-detail-session {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.tmrw-rail-detail-name {
+  margin: 3px 0 0 17px; /* aligns under the code, past the dot */
+  font-size: 12px;
+  color: var(--subj, var(--violet));
+}
+.tmrw-rail-detail-sep {
+  margin: 11px 0;
+  border-top: 1px dashed var(--border-hi);
+}
+.tmrw-rail-detail-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.tmrw-rail-detail-row + .tmrw-rail-detail-row { margin-top: 8px; }
+.tmrw-rail-detail-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.tmrw-rail-detail-item svg { flex-shrink: 0; color: var(--subj, var(--violet)); }
+.tmrw-rail-detail-chip {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 10px;
 }
 
 .tmrw-stat {
@@ -1556,7 +1758,7 @@ button:not(:disabled) {
   position: absolute;
   height: 14px;
   border-radius: 99px;
-  background: rgba(255, 255, 255, 0.9);
+  background: color-mix(in srgb, var(--card) 90%, transparent);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
@@ -2900,7 +3102,7 @@ button:not(:disabled) {
   align-items: center;
   gap: 10px;
   margin-left: auto;
-  background: rgba(255, 255, 255, 0.5);
+  background: color-mix(in srgb, var(--card) 50%, transparent);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.8);
@@ -2915,7 +3117,7 @@ button:not(:disabled) {
 
 .att-weather:hover {
   border-color: rgba(0, 0, 0, 0.06);
-  background: rgba(255, 255, 255, 0.8);
+  background: color-mix(in srgb, var(--card) 80%, transparent);
   box-shadow: 0 8px 24px rgba(0, 0, 0, .06), inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
@@ -3093,6 +3295,20 @@ button:not(:disabled) {
 .subj-7 { --subj: #EA580C; --subj-bg: #FFEDD5; --subj-border: #FED7AA; --subj-deep: #7C2D12; }  /* orange */
 .subj-8 { --subj: #0284C7; --subj-bg: #E0F2FE; --subj-border: #BAE6FD; --subj-deep: #0C4A6E; }  /* sky */
 .subj-9 { --subj: #C026D3; --subj-bg: #FAE8FF; --subj-border: #F5D0FE; --subj-deep: #701A75; }  /* plum */
+
+/* Dark variants: same hues lifted for dark bg; --subj-bg/-border become
+   low-alpha tints of the hue; --subj-deep flips to a LIGHT tone since it's
+   rendered as text on the tinted chip (keep ≥4.5:1 on the tint). */
+html[data-theme="dark"] .subj-0 { --subj: #2DD4BF; --subj-bg: rgba(45, 212, 191, .16); --subj-border: rgba(45, 212, 191, .32); --subj-deep: #99F6E4; }  /* teal */
+html[data-theme="dark"] .subj-1 { --subj: #60A5FA; --subj-bg: rgba(96, 165, 250, .16); --subj-border: rgba(96, 165, 250, .32); --subj-deep: #BFDBFE; }  /* blue */
+html[data-theme="dark"] .subj-2 { --subj: #A78BFA; --subj-bg: rgba(167, 139, 250, .16); --subj-border: rgba(167, 139, 250, .32); --subj-deep: #DDD6FE; }  /* violet */
+html[data-theme="dark"] .subj-3 { --subj: #FB7185; --subj-bg: rgba(251, 113, 133, .16); --subj-border: rgba(251, 113, 133, .32); --subj-deep: #FECDD3; }  /* rose */
+html[data-theme="dark"] .subj-4 { --subj: #FBBF24; --subj-bg: rgba(251, 191, 36, .15); --subj-border: rgba(251, 191, 36, .30); --subj-deep: #FDE68A; }  /* amber */
+html[data-theme="dark"] .subj-5 { --subj: #818CF8; --subj-bg: rgba(129, 140, 248, .16); --subj-border: rgba(129, 140, 248, .32); --subj-deep: #C7D2FE; }  /* indigo */
+html[data-theme="dark"] .subj-6 { --subj: #4ADE80; --subj-bg: rgba(74, 222, 128, .15); --subj-border: rgba(74, 222, 128, .30); --subj-deep: #BBF7D0; }  /* green */
+html[data-theme="dark"] .subj-7 { --subj: #FB923C; --subj-bg: rgba(251, 146, 60, .16); --subj-border: rgba(251, 146, 60, .32); --subj-deep: #FED7AA; }  /* orange */
+html[data-theme="dark"] .subj-8 { --subj: #38BDF8; --subj-bg: rgba(56, 189, 248, .16); --subj-border: rgba(56, 189, 248, .32); --subj-deep: #BAE6FD; }  /* sky */
+html[data-theme="dark"] .subj-9 { --subj: #E879F9; --subj-bg: rgba(232, 121, 249, .16); --subj-border: rgba(232, 121, 249, .32); --subj-deep: #F5D0FE; }  /* plum */
 
 /* Timeline row edge bar — the existing .row-body left border takes the
    course color (state rules for cur/next-up/first-up/past still win on
@@ -3526,7 +3742,7 @@ button:not(:disabled) {
 
 .exam-vt-btn.on {
   background: var(--ink);
-  color: #fff;
+  color: var(--bone);
 }
 
 /* Countdown grid + animations */
@@ -4134,7 +4350,7 @@ button:not(:disabled) {
   left: 0;
   right: 0;
   z-index: 801;
-  background: #fff;
+  background: var(--card);
   border-radius: 24px 24px 0 0;
   padding: 28px 24px 36px;
   box-shadow: 0 -8px 40px rgba(0, 0, 0, .12);
@@ -5128,7 +5344,7 @@ button:not(:disabled) {
   font-weight: 700;
   font-size: 11px;
   background: var(--ink);
-  color: #fff;
+  color: var(--bone);
   border-radius: 6px;
   padding: 3px 7px;
   flex: none;
@@ -5187,7 +5403,7 @@ button:not(:disabled) {
 
 .att-skip-chip.skip-critical {
   background: rgba(192, 57, 43, 0.15);
-  color: #C0392B;
+  color: var(--danger);
   box-shadow: inset 0 0 0 1px rgba(192, 57, 43, 0.4);
   animation: skip-pulse 3s ease-in-out infinite;
 }
@@ -5221,7 +5437,7 @@ button:not(:disabled) {
 }
 
 .att-pct.tone-bad {
-  color: #C0392B;
+  color: var(--danger);
 }
 
 .att-pct.tone-none {
@@ -5231,7 +5447,7 @@ button:not(:disabled) {
 .att-bar {
   height: 6px;
   border-radius: 99px;
-  background: #E2DED4;
+  background: var(--border);
   margin: 7px 0 5px;
   overflow: hidden;
   display: flex;
@@ -5344,7 +5560,7 @@ button:not(:disabled) {
 }
 
 .exam-cc-att.att-bad {
-  color: #C0392B;
+  color: var(--danger);
 }
 
 /* Collapsible session editor — grid-rows keeps the height animation
@@ -5518,13 +5734,13 @@ button:not(:disabled) {
 
 .att-b.absent.active {
   border-color: rgba(192, 57, 43, .3);
-  color: #C0392B;
+  color: var(--danger);
   background: rgba(192, 57, 43, .09);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .att-b:hover {
-      background: #fff;
+      background: var(--card);
       box-shadow: 0 2px 6px rgba(21, 24, 43, .08);
     }
 
@@ -5536,7 +5752,7 @@ button:not(:disabled) {
 
   .att-b.absent:hover {
       border-color: rgba(192, 57, 43, .3);
-      color: #C0392B;
+      color: var(--danger);
       background: rgba(192, 57, 43, .09);
     }
 }
@@ -5580,7 +5796,7 @@ button:not(:disabled) {
   font-weight: 800;
   letter-spacing: .06em;
   background: rgba(192, 57, 43, .15);
-  color: #C0392B;
+  color: var(--danger);
   border-radius: 4px;
   padding: 2px 6px;
   flex: none;
@@ -5626,7 +5842,7 @@ button:not(:disabled) {
 }
 
 .att-undo:hover {
-  color: #C0392B;
+  color: var(--danger);
   opacity: 1;
 }
 
@@ -6152,7 +6368,7 @@ button:not(:disabled) {
 
 .notif-scope-active {
   background: var(--ink);
-  color: #fff;
+  color: var(--bone);
 }
 
 /* Empty state */
@@ -6272,7 +6488,7 @@ button:not(:disabled) {
 
 .nk-removed .notif-item-icon-wrap {
   background: rgba(192, 57, 43, .10);
-  color: #C0392B;
+  color: var(--danger);
 }
 
 .nk-moved .notif-item-icon-wrap {
@@ -6361,7 +6577,7 @@ button:not(:disabled) {
 
 .kind-removed {
   background: rgba(192, 57, 43, .12);
-  color: #C0392B;
+  color: var(--danger);
   border: 1px solid rgba(192, 57, 43, .25);
 }
 
@@ -6392,7 +6608,7 @@ button:not(:disabled) {
 .user-avatar-initials {
   border-radius: 50%;
   background: var(--ink);
-  color: #fff;
+  color: var(--bone);
   font-size: 11px;
   font-weight: 700;
   font-family: var(--body);
@@ -6498,7 +6714,7 @@ button:not(:disabled) {
 }
 
 .over-danger {
-  color: #C0392B !important;
+  color: var(--danger) !important;
 }
 
 .over-sep {
@@ -6617,6 +6833,17 @@ button:not(:disabled) {
 }
 
 /* Sliding lens — the one active-view indicator, glides between icons */
+/* Dark: white liquid-glass dock → charcoal glass. One rule covers both the
+   base .bnav and the @supports tier (attribute selector wins on specificity). */
+html[data-theme="dark"] .bnav {
+  background: rgba(28, 31, 38, .96);
+  border-color: rgba(255, 255, 255, .09);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, .55),
+    0 2px 10px rgba(0, 0, 0, .35),
+    inset 0 1px 0 rgba(255, 255, 255, .08);
+}
+
 .bnav-lens {
   position: absolute;
   left: 0;
@@ -7047,14 +7274,14 @@ button:not(:disabled) {
 
 .oc-seg {
   display: inline-flex;
-  background: rgba(255, 255, 255, .7);
+  background: color-mix(in srgb, var(--card) 70%, transparent);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 2px;
 }
 
 .oc.on .oc-seg {
-  background: rgba(255, 255, 255, .85);
+  background: color-mix(in srgb, var(--card) 85%, transparent);
   border-color: rgba(31, 169, 113, .25);
 }
 
@@ -7092,7 +7319,7 @@ button:not(:disabled) {
   text-transform: uppercase;
   letter-spacing: .05em;
   color: var(--muted);
-  background: rgba(255, 255, 255, .7);
+  background: color-mix(in srgb, var(--card) 70%, transparent);
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 4px 8px;
@@ -8358,6 +8585,28 @@ button:not(:disabled) {
   max-width: 100%;
 }
 
+.sb-pop-version {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  color: rgba(255, 255, 255, .45);
+  background: rgba(255, 255, 255, .06);
+  border: 1px solid rgba(255, 255, 255, .12);
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.over-version {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .04em;
+  color: var(--muted, rgba(128, 128, 128, .7));
+  text-align: center;
+  padding: 6px 0 2px;
+  user-select: none;
+}
+
 .sb-pop-sep {
   height: 1px;
   background: linear-gradient(90deg, rgba(255, 255, 255, .12), transparent);
@@ -8548,7 +8797,7 @@ button:not(:disabled) {
 }
 
 .fr-btn-secondary {
-  background: #fff;
+  background: var(--card);
   color: var(--ink);
   border: 1px solid var(--border);
   box-shadow: 0 2px 8px rgba(0, 0, 0, .02);
@@ -8761,12 +9010,12 @@ button:not(:disabled) {
 
 .cv-toggle-btn.on {
   background: var(--ink);
-  color: #fff;
+  color: var(--bone);
 }
 
 .cv-day-btn.on {
   background: var(--ink);
-  color: #fff;
+  color: var(--bone);
   border-color: var(--ink);
 }
 
@@ -8776,7 +9025,7 @@ button:not(:disabled) {
 
 .cv-range-opt.on {
   background: var(--ink);
-  color: #fff;
+  color: var(--bone);
 }
 
 .cv-range-apply.done {
@@ -9098,7 +9347,7 @@ button:not(:disabled) {
 }
 
 .tab.on .beta-badge {
-  background: #fff;
+  background: var(--bone);
   color: var(--ink);
 }
 
@@ -9635,7 +9884,7 @@ body.premium-mode .rail>li:nth-child(10) {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: rgba(255, 255, 255, 0.5);
+  background: color-mix(in srgb, var(--card) 50%, transparent);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.8);
@@ -9653,7 +9902,7 @@ body.premium-mode .rail>li:nth-child(10) {
 
 .vdh-filter-btn:hover {
   border-color: rgba(0, 0, 0, 0.06);
-  background: rgba(255, 255, 255, 0.8);
+  background: color-mix(in srgb, var(--card) 80%, transparent);
   box-shadow: 0 8px 24px rgba(0, 0, 0, .06), inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
@@ -9777,7 +10026,7 @@ body.premium-mode .rail>li:nth-child(10) {
   align-items: center;
   gap: 8px;
   background: var(--ink);
-  color: #fff;
+  color: var(--bone);
   font-size: 13.5px;
   font-weight: 600;
   padding: 10px 16px;
@@ -9926,6 +10175,11 @@ body.premium-mode .rail>li:nth-child(10) {
   transition: transform .16s var(--ease-out-strong), box-shadow .2s ease, filter .15s ease;
 }
 
+/* Keep the CTA ink-dark in dark mode (--ink flips light there) */
+html[data-theme="dark"] .install-banner-btn {
+  background: linear-gradient(180deg, #2A2E48 0%, #15182B 100%);
+}
+
 .install-banner-btn > span {
   position: relative;
   z-index: 1;
@@ -10059,7 +10313,7 @@ body.premium-mode .rail>li:nth-child(10) {
 
 .skip-hint-bad {
   background: rgba(192, 57, 43, .12);
-  color: #C0392B;
+  color: var(--danger);
 }
 
 .skip-hint-wrap {
@@ -10990,9 +11244,9 @@ a.sb-quicklink {
   z-index: 1;
   display: flex;
   padding: 7px;
-  border: 1px solid rgba(21, 24, 43, 0.08);
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
   border-radius: 10px;
-  background: #fff;
+  background: var(--card);
   color: var(--muted);
   cursor: pointer;
   box-shadow: 0 1px 4px rgba(21, 24, 43, 0.06);
@@ -11001,7 +11255,7 @@ a.sb-quicklink {
 
 .wn-close:hover {
   color: var(--text);
-  border-color: rgba(21, 24, 43, 0.16);
+  border-color: color-mix(in srgb, var(--text) 16%, transparent);
 }
 
 .wn-head {
@@ -11011,7 +11265,7 @@ a.sb-quicklink {
   gap: 12px;
   padding: 2px 2px 16px;
   margin-bottom: 14px;
-  border-bottom: 1px solid rgba(21, 24, 43, 0.06);
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
 }
 
 .wn-head-icon {
@@ -11083,8 +11337,8 @@ a.sb-quicklink {
   align-items: flex-start;
   gap: 12px;
   padding: 13px 14px;
-  background: #fff;
-  border: 1px solid rgba(21, 24, 43, 0.06);
+  background: var(--card);
+  border: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
   border-left: 2px solid var(--violet, #6d5bd0);
   border-radius: 12px;
   transition: background .15s ease, border-color .15s ease;
@@ -11099,7 +11353,7 @@ a.sb-quicklink {
 
 .wn-item:hover {
   background: var(--bg, #faf9fc);
-  border-color: rgba(21, 24, 43, 0.1);
+  border-color: color-mix(in srgb, var(--text) 10%, transparent);
 }
 
 .wn-item-icon {
@@ -11157,7 +11411,7 @@ a.sb-quicklink {
   gap: 10px;
   margin-top: 6px;
   padding: 12px 4px 2px;
-  border-top: 1px solid rgba(21, 24, 43, 0.06);
+  border-top: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
 }
 
 .wn-footer-icon {
@@ -11590,7 +11844,7 @@ a.sb-quicklink {
   padding: 10px 14px;
   border-radius: 12px;
   border: 1px solid var(--border);
-  background: #fff;
+  background: var(--card);
   color: var(--ink);
   box-shadow: 0 2px 8px rgba(0, 0, 0, .02);
   font-size: 13.5px;
@@ -12109,17 +12363,17 @@ a.sb-quicklink {
 /* Per-kind chip coloring — mirrors the row/badge palette so the filter a
    chip applies is legible from its color, not just its label */
 .notif-chip.nk-added   { background: color-mix(in srgb, var(--live) 12%, transparent);   border-color: color-mix(in srgb, var(--live) 30%, transparent);   color: var(--live); }
-.notif-chip.nk-removed { background: rgba(192, 57, 43, .10);                             border-color: rgba(192, 57, 43, .32);                             color: #C0392B; }
+.notif-chip.nk-removed { background: rgba(192, 57, 43, .10);                             border-color: rgba(192, 57, 43, .32);                             color: var(--danger); }
 .notif-chip.nk-moved   { background: color-mix(in srgb, var(--amber) 12%, transparent);  border-color: color-mix(in srgb, var(--amber) 30%, transparent);  color: var(--amber); }
 .notif-chip.nk-update  { background: color-mix(in srgb, var(--border-hi) 22%, transparent); border-color: var(--border); color: var(--text); }
 
 .notif-chip.nk-added:hover   { color: var(--live); }
-.notif-chip.nk-removed:hover { color: #C0392B; }
+.notif-chip.nk-removed:hover { color: var(--danger); }
 .notif-chip.nk-moved:hover   { color: var(--amber); }
 .notif-chip.nk-update:hover  { color: var(--text); }
 
 .notif-chip.nk-added.notif-chip-active   { background: var(--live);   border-color: var(--live);   color: #fff; }
-.notif-chip.nk-removed.notif-chip-active { background: #C0392B;       border-color: #C0392B;       color: #fff; }
+.notif-chip.nk-removed.notif-chip-active { background: #C0392B;       border-color: var(--danger);       color: #fff; }
 .notif-chip.nk-moved.notif-chip-active   { background: var(--amber);  border-color: var(--amber);  color: #fff; }
 .notif-chip.nk-update.notif-chip-active  { background: var(--text);   border-color: var(--text);   color: var(--bg); }
 
@@ -12305,7 +12559,7 @@ a.sb-quicklink {
 }
 
 .notif-group-label.notif-attn-label {
-  color: #C0392B;
+  color: var(--danger);
 }
 
 .notif-bundle {
@@ -12336,7 +12590,7 @@ a.sb-quicklink {
 }
 
 .nk-added .notif-bundle-pill   { background: color-mix(in srgb, var(--live) 11%, transparent);   color: var(--live); }
-.nk-removed .notif-bundle-pill { background: rgba(192, 57, 43, .10);                             color: #C0392B; }
+.nk-removed .notif-bundle-pill { background: rgba(192, 57, 43, .10);                             color: var(--danger); }
 .nk-moved .notif-bundle-pill   { background: color-mix(in srgb, var(--amber) 12%, transparent);  color: var(--amber); }
 .nk-course .notif-bundle-pill  { background: color-mix(in srgb, var(--violet) 12%, transparent); color: var(--violet); }
 
@@ -12358,7 +12612,7 @@ a.sb-quicklink {
 }
 
 .nk-added .notif-kind-badge   { background: color-mix(in srgb, var(--live) 11%, transparent);   color: var(--live); }
-.nk-removed .notif-kind-badge { background: rgba(192, 57, 43, .10);                             color: #C0392B; }
+.nk-removed .notif-kind-badge { background: rgba(192, 57, 43, .10);                             color: var(--danger); }
 .nk-moved .notif-kind-badge   { background: color-mix(in srgb, var(--amber) 12%, transparent);  color: var(--amber); }
 .nk-course .notif-kind-badge  { background: color-mix(in srgb, var(--violet) 12%, transparent); color: var(--violet); }
 
@@ -12438,7 +12692,7 @@ a.sb-quicklink {
 }
 
 .nk-added .notif-bundle-sub::before   { border-color: var(--live); }
-.nk-removed .notif-bundle-sub::before { border-color: #C0392B; }
+.nk-removed .notif-bundle-sub::before { border-color: var(--danger); }
 .nk-moved .notif-bundle-sub::before   { border-color: var(--amber); }
 .nk-course .notif-bundle-sub::before  { border-color: var(--violet); }
 
@@ -12504,7 +12758,7 @@ a.sb-quicklink {
   gap: 10px;
   padding: 6px 12px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, .55);
+  background: color-mix(in srgb, var(--card) 55%, transparent);
   backdrop-filter: blur(14px) saturate(1.15);
   -webkit-backdrop-filter: blur(14px) saturate(1.15);
   border: 1px solid rgba(255, 255, 255, .65);

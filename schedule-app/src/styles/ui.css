@@ -30,6 +30,13 @@
 .ui-badge-blue   { color: #1D4ED8; background: rgba(59, 130, 246, .09); border-color: rgba(59, 130, 246, .3); }
 .ui-badge-danger { color: #B4232A; background: rgba(220, 53, 69, .09);  border-color: rgba(220, 53, 69, .3); }
 
+/* Dark: the deep badge text tones vanish on dark tints — lift to pastels */
+html[data-theme="dark"] .ui-badge-live   { color: #6EE7B7; }
+html[data-theme="dark"] .ui-badge-amber  { color: #FCD34D; }
+html[data-theme="dark"] .ui-badge-violet { color: #C4B5FD; }
+html[data-theme="dark"] .ui-badge-blue   { color: #93C5FD; }
+html[data-theme="dark"] .ui-badge-danger { color: #FCA5A5; }
+
 /* ── Button ── */
 .ui-btn {
   display: inline-flex;
@@ -87,6 +94,8 @@
 .ui-btn-danger:hover:not(:disabled) {
   background: rgba(220, 53, 69, .14);
 }
+
+html[data-theme="dark"] .ui-btn-danger { color: #FCA5A5; }
 
 .ui-btn:disabled {
   opacity: .55;

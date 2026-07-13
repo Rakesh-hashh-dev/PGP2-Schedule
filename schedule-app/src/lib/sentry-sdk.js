@@ -14,8 +14,6 @@ import {
   functionToStringIntegration,
   inboundFiltersIntegration,
   httpContextIntegration,
-  browserTracingIntegration,
-  browserProfilingIntegration,
 } from "@sentry/react";
 
 export function initSdk(options) {
@@ -31,8 +29,6 @@ export function initSdk(options) {
       linkedErrorsIntegration(),
       dedupeIntegration(),
       httpContextIntegration(),
-      browserTracingIntegration(),
-      browserProfilingIntegration(),
     ],
   });
 }

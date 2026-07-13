@@ -490,9 +490,12 @@ export default function AssignmentsPanel({ enrolled, legend, userId }) {
       )}
 
       {/* ── Floating Action Button ── */}
-      <button className="assign-fab" onClick={() => openModal()} aria-label="New Assignment">
-        <Plus size={24} strokeWidth={2.5} />
-      </button>
+      {tab === "open" && (
+        <button className="assign-fab" onClick={() => openModal()} aria-label="New Assignment">
+          <div className="assign-fab-icon"><Plus size={24} strokeWidth={2.5} /></div>
+          <span className="assign-fab-text">New Assignment</span>
+        </button>
+      )}
 
     </div>
   );

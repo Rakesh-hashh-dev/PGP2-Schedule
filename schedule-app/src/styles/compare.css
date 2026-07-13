@@ -113,7 +113,7 @@
 
 .cv-toggle-btn.on {
   background: var(--ink);
-  color: #fff;
+  color: var(--bone);
 }
 
 .cv-back {
@@ -296,7 +296,7 @@
   white-space: nowrap;
   flex-shrink: 0;
   background: var(--ink);
-  color: #fff;
+  color: var(--bone);
   box-shadow: 0 3px 12px rgba(109, 91, 208, .28);
 }
 
@@ -425,7 +425,7 @@
   /* Near-opaque like .tabs-wrapper: Android Chrome/WebView often fails to
      blur behind sticky bars (or lacks backdrop-filter entirely), so a
      low-alpha bg reads as fully transparent there. Blur is a bonus. */
-  background: rgba(243, 241, 234, 0.96);
+  background: color-mix(in srgb, var(--bg) 96%, transparent);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   display: flex;
@@ -864,7 +864,7 @@
   font-weight: 600;
   padding: 4px 10px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, .7);
+  background: color-mix(in srgb, var(--card) 70%, transparent);
   border: 1px solid var(--border);
   color: var(--text);
 }

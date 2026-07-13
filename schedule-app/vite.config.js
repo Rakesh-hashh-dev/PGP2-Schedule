@@ -3,9 +3,18 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import { sentryVitePlugin } from '@sentry/vite-plugin'
-import { writeFileSync } from 'node:fs'
+import { writeFileSync, readFileSync } from 'node:fs'
+import { execSync } from 'node:child_process'
+import { visualizer } from 'rollup-plugin-visualizer'
 
-const BUILD_VERSION = Date.now();
+// Semver from package.json (bump with `npm version patch|minor|major`),
+// plus the git short hash so each deploy is uniquely identifiable and the
+// meta.json update check still fires on every new deploy.
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
+const gitSha =
+  process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ||
+  (() => { try { return execSync('git rev-parse --short HEAD').toString().trim(); } catch { return 'local'; } })();
+const BUILD_VERSION = `${pkg.version}+${gitSha}`;
 // Source maps are only generated + uploaded when a token is set (Vercel env),
 // and the .map files are deleted after upload so they never deploy.
 const SENTRY_UPLOAD = Boolean(process.env.SENTRY_AUTH_TOKEN);
@@ -21,7 +30,7 @@ function generateMeta() {
 
 export default defineConfig({
   define: {
-    __APP_VERSION__: BUILD_VERSION,
+    __APP_VERSION__: JSON.stringify(BUILD_VERSION),
   },
   plugins: [
     react(),
@@ -146,6 +155,7 @@ export default defineConfig({
       sourcemaps: { filesToDeleteAfterUpload: ['dist/**/*.map'] },
       telemetry: false,
     }),
+    visualizer({ filename: 'stats.html', open: false }),
   ].filter(Boolean),
   build: {
     sourcemap: SENTRY_UPLOAD ? 'hidden' : false,

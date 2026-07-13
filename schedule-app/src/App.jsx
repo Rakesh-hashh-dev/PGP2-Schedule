@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Suspense, lazy } from "react";
 import { createPortal } from "react-dom";
-import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, ChevronsLeft, ChevronsRight, ChevronRight, ChevronLeft, Megaphone, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Sparkles, Wand2, BellRing, CalendarDays, ExternalLink, Download, Share, WifiOff, Zap, PanelBottom, PanelTop, PanelsTopLeft, Check, ChevronDown, MapPin } from "lucide-react";
+import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, ChevronsLeft, ChevronsRight, ChevronRight, ChevronLeft, Megaphone, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Sparkles, Wand2, BellRing, CalendarDays, ExternalLink, Download, Share, WifiOff, Zap, PanelBottom, PanelTop, PanelsTopLeft, Check, ChevronDown, MapPin, Sun, Moon, Monitor } from "lucide-react";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
 import SemSummary from "./components/SemSummary.jsx";
@@ -12,6 +12,7 @@ import Login from "./components/Login.jsx";
 import Onboarding from "./components/Onboarding.jsx";
 import WeatherWidget from "./components/WeatherWidget.jsx";
 import TomorrowSummary from "./components/TomorrowSummary.jsx";
+import MessCard from "./components/MessCard.jsx";
 import { getSnapshot, fetchSchedule, sha256hex } from "./lib/sheet.js";
 import TermFlowLoader from "./components/TermFlowLoader.jsx";
 
@@ -298,6 +299,32 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     try { localStorage.setItem("pgp2.sidebar-style", s); } catch { }
   }
 
+  // Appearance — "light" | "dark" | "system". The pre-paint script in
+  // index.html applies the saved value before React mounts; this keeps
+  // <html data-theme> and the theme-color meta in sync from then on.
+  const [theme, setTheme] = useState(() => {
+    try {
+      const v = localStorage.getItem("pgp2.theme");
+      return v === "light" || v === "dark" || v === "system" ? v : "system";
+    } catch { return "system"; }
+  });
+  function pickTheme(t) {
+    setTheme(t);
+    try { localStorage.setItem("pgp2.theme", t); } catch { }
+  }
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const apply = () => {
+      const dark = theme === "dark" || (theme === "system" && mq.matches);
+      if (dark) document.documentElement.dataset.theme = "dark";
+      else delete document.documentElement.dataset.theme;
+      document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#101216" : "#15182B");
+    };
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, [theme]);
+
   const [sbTip, setSbTip] = useState(null);
   function showSbTip(e, label, always = false) {
     if (!sidebarCollapsed && !always) return;
@@ -390,6 +417,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const onBnavPointerUp = () => { setTimeout(bnavMeasure, 0); };
 
   const [navMenuOpen, setNavMenuOpen] = useState(false);
+  const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const [showFriendsAgenda, setShowFriendsAgenda] = useState(false);
   const [showRightScroll, setShowRightScroll] = useState(true);
   const [showLeftScroll, setShowLeftScroll] = useState(false);
@@ -1722,6 +1750,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 <div className="sb-pop-meta">
                   <span className="sb-pop-batch">PGP2 · 2025–27</span>
                   {termLabel && <span className="sb-pop-term">{termLabel}</span>}
+                  <span className="sb-pop-version">v{__APP_VERSION__.split("+")[0]}</span>
                 </div>
                 <div className="sb-pop-sep" />
                 <div className="sb-pop-style">
@@ -1879,6 +1908,27 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       </div>
                     </div>
                     <div className="over-sep" />
+                    <button aria-expanded={themeMenuOpen} onClick={() => setThemeMenuOpen(o => !o)}>
+                      {theme === "dark" ? <Moon size={14} /> : theme === "light" ? <Sun size={14} /> : <Monitor size={14} />} Appearance
+                      <ChevronDown size={13} className={`over-caret${themeMenuOpen ? " open" : ""}`} />
+                    </button>
+                    {themeMenuOpen && (
+                      <div className="over-sub">
+                        <button onClick={() => pickTheme("light")}>
+                          <Sun size={14} /> Light
+                          {theme === "light" && <Check size={14} className="over-check" />}
+                        </button>
+                        <button onClick={() => pickTheme("dark")}>
+                          <Moon size={14} /> Dark
+                          {theme === "dark" && <Check size={14} className="over-check" />}
+                        </button>
+                        <button onClick={() => pickTheme("system")}>
+                          <Monitor size={14} /> System
+                          {theme === "system" && <Check size={14} className="over-check" />}
+                        </button>
+                      </div>
+                    )}
+                    <div className="over-sep" />
                     <button onClick={() => { setWhatsNewOpen(true); setProfileOpen(false); }}>
                       <Sparkles size={14} /> What&rsquo;s New
                     </button>
@@ -1894,6 +1944,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                     <button className="over-danger" onClick={() => { signOut(); setProfileOpen(false); }}>
                       <LogOut size={14} /> Sign out
                     </button>
+                    <div className="over-version">v{__APP_VERSION__.split("+")[0]}</div>
                   </div>
                 </>
               )}
@@ -1937,6 +1988,27 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                         <button onClick={() => { pickNavMode("both"); setOverflowOpen(false); setNavMenuOpen(false); }}>
                           <PanelsTopLeft size={14} /> Show both
                           {mobileNavMode === "both" && <Check size={14} className="over-check" />}
+                        </button>
+                      </div>
+                    )}
+                    <div className="over-sep" />
+                    <button aria-expanded={themeMenuOpen} onClick={() => setThemeMenuOpen(o => !o)}>
+                      {theme === "dark" ? <Moon size={14} /> : theme === "light" ? <Sun size={14} /> : <Monitor size={14} />} Appearance
+                      <ChevronDown size={13} className={`over-caret${themeMenuOpen ? " open" : ""}`} />
+                    </button>
+                    {themeMenuOpen && (
+                      <div className="over-sub">
+                        <button onClick={() => pickTheme("light")}>
+                          <Sun size={14} /> Light
+                          {theme === "light" && <Check size={14} className="over-check" />}
+                        </button>
+                        <button onClick={() => pickTheme("dark")}>
+                          <Moon size={14} /> Dark
+                          {theme === "dark" && <Check size={14} className="over-check" />}
+                        </button>
+                        <button onClick={() => pickTheme("system")}>
+                          <Monitor size={14} /> System
+                          {theme === "system" && <Check size={14} className="over-check" />}
                         </button>
                       </div>
                     )}
@@ -2089,6 +2161,15 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                     </button>
                     <button className="desktop-only vdh-filter-btn" onClick={() => setFilterModalOpen(true)}>
                       <SlidersHorizontal size={14} /> Filter subjects
+                    </button>
+                    <button
+                      className="desktop-only vdh-filter-btn"
+                      onClick={() => pickTheme(theme === "light" ? "dark" : theme === "dark" ? "system" : "light")}
+                      aria-label={`Theme: ${theme} — click to change`}
+                      title="Cycle theme: light → dark → system"
+                    >
+                      {theme === "dark" ? <Moon size={14} /> : theme === "light" ? <Sun size={14} /> : <Monitor size={14} />}
+                      {theme === "system" ? "Auto" : theme === "dark" ? "Dark" : "Light"}
                     </button>
                     <WeatherWidget now={now} weather={weather} />
                   </div>
@@ -2286,6 +2367,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                       <Timeline list={todayList} current={current} now={now} dateLabel={prettyDate(todayISO)} attendance={attendance} markAttendance={markAttendance} skipInfo={skipInfo} syncStatus={<span className="live"><span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} />
                                     </>}
               </Suspense>
+              {view === "today" && !compareTarget && <MessCard now={now} />}
             </div>
           </main>
           <aside className={view !== "week" ? "side-col hide-mobile" : "side-col"} style={view === "friends" ? { display: "none" } : {}}>

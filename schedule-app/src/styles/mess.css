@@ -1,0 +1,530 @@
+/* ── Mess menu card (Today view, below the timeline) ── */
+
+.mess-card {
+  margin-top: 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px 16px;
+  animation: mess-in .45s var(--ease-out-strong) both;
+}
+@keyframes mess-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mess-card { animation: none; }
+}
+.mess-card.is-live { border-color: var(--live); }
+
+/* ── Open/close animation ──
+   Both states stay mounted; height animates via grid-template-rows 0fr↔1fr
+   with a cross-fade. Asymmetric timing: opening is quick (duration on the
+   .is-open rules), closing eases out slower (duration on the base rules). */
+.mess-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+.mess-clip { min-height: 0; overflow: hidden; }
+
+.mess-collapse-bar {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  /* closing: bar re-appears, slow */
+  transition: grid-template-rows .8s var(--ease-in-out-strong), opacity .55s ease .2s;
+}
+.mess-card.is-open .mess-collapse-bar {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  /* opening: bar tucks away, fast */
+  transition: grid-template-rows .5s var(--ease-in-out-strong), opacity .25s ease;
+}
+
+.mess-collapse-exp {
+  /* closing: dropdown folds up, slow */
+  transition: grid-template-rows .8s var(--ease-in-out-strong), opacity .5s ease;
+}
+.mess-card.is-open .mess-collapse-exp {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  /* opening: dropdown unfolds, fast */
+  transition: grid-template-rows .5s var(--ease-in-out-strong), opacity .35s ease .08s;
+}
+.mess-exp-inner { padding: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mess-collapse, .mess-card.is-open .mess-collapse { transition: none; }
+}
+
+/* Per-meal accent (set as vars, used by icon tile + panel wash) */
+.mess-acc-breakfast { --mess-acc: var(--amber); --mess-acc-dim: var(--amber-dim); }
+.mess-acc-lunch     { --mess-acc: var(--live);  --mess-acc-dim: var(--live-dim); }
+.mess-acc-snacks    { --mess-acc: var(--violet); --mess-acc-dim: var(--violet-dim); }
+.mess-acc-dinner    { --mess-acc: var(--blue);  --mess-acc-dim: rgba(59, 130, 246, .09); }
+html[data-theme="dark"] .mess-acc-dinner { --mess-acc-dim: rgba(96, 165, 250, .14); }
+
+/* ── Compact bar (collapsed state) ──
+   Three groups: head (icon+name+time), rail (item chips), status (state+arrow).
+   Desktop: one row, chips wrap in place. Mobile: head+status share the top
+   row, chips drop to their own horizontally-scrollable rail underneath —
+   avoids the awkward vertical chip stacking a plain flex-wrap produces. */
+.mess-bar {
+  display: grid;
+  /* Desktop: header (icon+name+time / status+chevron) on row 1, the chip
+     cloud spans full width on row 2 — keeps the row top-aligned instead of
+     vertically centering a short header against a tall multi-line chip
+     block (the old single flex row did this, and it looked lopsided
+     whenever a meal had enough items to wrap past one line). */
+  grid-template-columns: auto 1fr auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: 14px;
+  row-gap: 10px;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: transparent;
+  padding: 10px;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text);
+  font-family: var(--body);
+  transition: background-color .2s, border-color .2s;
+}
+.mess-bar:hover {
+  background: var(--card-hi);
+  border-color: var(--border);
+}
+.mess-bar:focus-visible {
+  outline: 2px solid var(--mess-acc, var(--violet));
+  outline-offset: 2px;
+}
+.mess-bar-head {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.mess-bar-name {
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.mess-bar-time {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  padding-right: 6px;
+  border-right: 1px solid var(--border);
+}
+.mess-bar-rail {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  min-width: 0;
+  /* Aligns the chip cloud under the meal name rather than the icon,
+     echoing the indent used in the "other meals" list below it
+     (icon width 32px + head gap 10px). */
+  padding: 8px 0 0 42px;
+  border-top: 1px dashed var(--border);
+}
+.mess-bar-chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap; /* all items stay visible; cloud grows downward if needed */
+  gap: 7px;
+}
+.mess-bar-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.mess-bar-status {
+  grid-column: 3;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.mess-chip-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--mess-acc, var(--violet));
+  flex-shrink: 0;
+}
+/* Cycle dot colors so the bar reads playful, not uniform */
+.mess-bar-chip:nth-child(3n+1) .mess-chip-dot { background: var(--amber); }
+.mess-bar-chip:nth-child(3n+2) .mess-chip-dot { background: var(--live); }
+.mess-bar-chip:nth-child(3n+3) .mess-chip-dot { background: var(--violet); }
+.mess-bar-serving {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--live);
+  background: var(--live-dim);
+  border: 1px solid color-mix(in srgb, var(--live) 30%, transparent);
+  border-radius: 999px;
+  padding: 4px 11px;
+  white-space: nowrap;
+}
+.mess-bar-serving .mess-chip-dot {
+  background: var(--live);
+  animation: mess-pulse 1.6s ease-in-out infinite;
+}
+.mess-bar-when {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+@keyframes mess-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .35; }
+}
+.mess-bar-arrow {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: none;
+  background: var(--ink);
+  color: var(--bone);
+  cursor: pointer;
+  transition: transform .3s var(--ease-out-strong), background-color .2s;
+}
+.mess-bar-arrow.is-open { transform: rotate(180deg); }
+.mess-bar-arrow:focus-visible {
+  outline: 2px solid var(--mess-acc, var(--violet));
+  outline-offset: 2px;
+}
+
+/* ── Mobile: head+status on the top line, chips become a swipeable rail ── */
+@media (max-width: 640px) {
+  .mess-bar {
+    grid-template-columns: 1fr auto;
+    row-gap: 10px;
+    padding: 8px 6px;
+  }
+  .mess-bar:hover { background: transparent; border-color: transparent; } /* no hover chrome on touch */
+  .mess-bar-head { grid-column: 1; }
+  .mess-bar-status { grid-column: 2; }
+  .mess-bar-time { display: none; }
+  .mess-bar-name { font-size: 15.5px; }
+  .mess-bar-arrow { width: 34px; height: 34px; }
+
+  .mess-bar-rail {
+    grid-column: 1 / -1;
+    padding: 0; /* no desktop name-indent/divider; full-bleed rail for max swipe room */
+    border-top: none;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x; /* claim horizontal drags for scroll, leave taps to the row */
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+    /* fade the right edge to hint there's more to swipe */
+    mask-image: linear-gradient(to right, #000 92%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, #000 92%, transparent 100%);
+  }
+  .mess-bar-rail::-webkit-scrollbar { display: none; }
+  .mess-bar-chips {
+    flex-wrap: nowrap;
+    padding-right: 18px; /* room for the fade so the last chip isn't clipped */
+  }
+  .mess-bar-chip {
+    flex-shrink: 0;
+    scroll-snap-align: start;
+  }
+}
+
+/* ── Expanded dropdown ── */
+.mess-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.mess-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.mess-bar-title {
+  padding: 2px 6px 8px;
+}
+.mess-head-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.mess-count-pill {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--bone);
+  background: var(--ink);
+  border-radius: 999px;
+  padding: 5px 12px;
+  white-space: nowrap;
+}
+
+/* Featured meal: tinted panel */
+.mess-featured {
+  border-radius: 12px;
+  padding: 14px;
+  background: linear-gradient(135deg, var(--mess-acc-dim), transparent 70%), var(--card-hi);
+  border: 1px solid var(--border);
+}
+.mess-featured-top {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 11px;
+}
+.mess-meal-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: var(--mess-acc-dim);
+  color: var(--mess-acc);
+  border: 1px solid color-mix(in srgb, var(--mess-acc) 25%, transparent);
+}
+.mess-bar .mess-meal-icon { width: 32px; height: 32px; border-radius: 10px; }
+.mess-meal-name {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-family: var(--display);
+  font-size: 16px;
+  font-weight: 650;
+  color: var(--text);
+}
+.mess-meal-time {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.mess-left {
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  white-space: nowrap;
+}
+.mess-left strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+.mess-left span:not(strong) {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--muted);
+}
+.mess-tomorrow-tag {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  color: var(--amber-text);
+  background: var(--amber-transparent);
+  border: 1px solid var(--amber);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+/* Serving progress (style-05 timeline) */
+.mess-progress { margin: 2px 0 12px; }
+.mess-progress-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+.mess-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--mess-acc, var(--ink));
+  transition: width .6s var(--ease-out-strong);
+}
+.mess-progress-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 5px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+}
+
+/* Item chips */
+.mess-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.mess-chip {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 11px;
+  line-height: 1.35;
+}
+.mess-chips.small .mess-chip {
+  font-size: 11.5px;
+  padding: 3px 9px;
+  color: var(--muted);
+}
+
+/* Other meals list */
+.mess-all {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 12px 2px 0;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.mess-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+}
+.mess-row.is-past { opacity: .5; }
+.mess-row .mess-meal-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+}
+.mess-row-body { min-width: 0; }
+.mess-row .mess-meal-name {
+  font-size: 13.5px;
+  margin-bottom: 6px;
+}
+
+/* ── "View full menu" trigger ── */
+.mess-viewfull {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  margin-top: 14px;
+  padding: 10px;
+  border: 1px dashed var(--border-hi);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: color .2s, border-color .2s, background .2s;
+}
+.mess-viewfull:hover {
+  color: var(--violet);
+  border-color: var(--violet);
+  border-style: solid;
+  background: var(--violet-dim);
+}
+.mess-viewfull:focus-visible {
+  outline: 2px solid var(--violet);
+  outline-offset: 2px;
+}
+
+/* ── Full menu modal ── */
+.mess-modal { max-width: 560px; }
+.mess-daytabs {
+  display: flex;
+  gap: 6px;
+  padding: 14px 24px 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.mess-daytabs::-webkit-scrollbar { display: none; }
+.mess-daytab {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: color .2s, border-color .2s, background .2s;
+}
+.mess-daytab:hover { color: var(--text); border-color: var(--border-hi); }
+.mess-daytab.on {
+  color: var(--bone);
+  background: var(--ink);
+  border-color: var(--ink);
+}
+.mess-daytab.is-today:not(.on) { color: var(--violet); border-color: var(--violet); }
+.mess-daytab-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.mess-daytab:focus-visible {
+  outline: 2px solid var(--violet);
+  outline-offset: 2px;
+}
+
+.mess-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.mess-modal-meal {
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, var(--mess-acc-dim), transparent 70%), var(--card-hi);
+  border: 1px solid var(--border);
+  transition: opacity .2s;
+}
+.mess-modal-meal.is-past { opacity: .55; }
+.mess-modal-meal-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.mess-modal-meal .mess-meal-icon { width: 30px; height: 30px; border-radius: 9px; }
+.mess-modal-meal .mess-meal-name { font-size: 14px; }
+.mess-modal-meal-head .mess-bar-serving { margin-left: auto; }

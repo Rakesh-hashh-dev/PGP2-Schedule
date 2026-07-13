@@ -388,6 +388,11 @@
   border-color: #E2DFD6;
 }
 
+html[data-theme="dark"] .exam-card-countdown {
+  background: linear-gradient(135deg, #1A1D25 0%, #14161C 100%);
+  border-color: var(--border);
+}
+
 .exam-card:nth-child(3) {
   animation-delay: .1s;
 }
@@ -694,7 +699,7 @@
 /* ── Desktop Ticket Layout Enhancements ── */
 @media (min-width: 768px) {
   .exam-cd {
-    background: rgba(255, 255, 255, 0.45);
+    background: color-mix(in srgb, var(--card) 45%, transparent);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border: 1px solid rgba(255,255,255,0.4);
@@ -710,7 +715,7 @@
   }
 
   .exam-cd:hover {
-    background: rgba(255, 255, 255, 0.7);
+    background: color-mix(in srgb, var(--card) 70%, transparent);
     box-shadow: 0 12px 24px rgba(0,0,0,0.08);
   }
 
@@ -1039,7 +1044,7 @@
   font-size: 11px;
   font-weight: 700;
   background: var(--ink);
-  color: #fff;
+  color: var(--bone);
   border: none;
   border-radius: 8px;
   padding: 6px 11px;
@@ -1106,12 +1111,12 @@
 .ecal-cell:nth-child(7n) .ecal-d { color: var(--muted); }
 
 /* exam-day number */
-.ecal-cell.ecal-exam .ecal-d { color: #C0392B; font-weight: 700; }
+.ecal-cell.ecal-exam .ecal-d { color: var(--danger); font-weight: 700; }
 
 /* today — filled circle (wins over weekend/exam) */
 .ecal-cell.ecal-today .ecal-d {
   background: var(--ink);
-  color: #fff;
+  color: var(--bone);
   font-weight: 700;
   box-shadow: 0 5px 14px -5px rgba(21, 24, 43, .55);
 }
@@ -1290,7 +1295,7 @@
 .exam-cc-card {
   padding: 12px;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.45);
+  background: color-mix(in srgb, var(--card) 45%, transparent);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255,255,255,0.4);
@@ -1310,7 +1315,7 @@
 
 .exam-cc-card:hover {
   transform: translateY(-2px);
-  background: rgba(255, 255, 255, 0.7);
+  background: color-mix(in srgb, var(--card) 70%, transparent);
   box-shadow: 0 12px 24px rgba(0,0,0,0.08);
 }
 
@@ -1457,7 +1462,7 @@
 
 /* Credits table (animated rows) */
 .exam-credits-card {
-  background: #E5E7EB;
+  background: var(--surface);
   border: none;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
   border-radius: 16px;
@@ -1471,7 +1476,7 @@
 }
 
 .exam-credits-card h2 {
-  color: #1E293B;
+  color: var(--text);
   font-size: 16px;
 }
 
@@ -1489,7 +1494,7 @@
 
 .exam-cr-badge {
   position: relative;
-  background: rgba(255, 255, 255, 0.5);
+  background: color-mix(in srgb, var(--card) 50%, transparent);
   border: 1px solid rgba(0,0,0,0.05);
   border-radius: 14px;
   padding: 12px;
@@ -1510,7 +1515,7 @@
 
 .exam-cr-badge:hover {
   transform: translateY(-3px);
-  background: rgba(255, 255, 255, 0.8);
+  background: color-mix(in srgb, var(--card) 80%, transparent);
   box-shadow: 0 12px 24px rgba(0,0,0,0.06);
   border-color: rgba(139, 92, 246, 0.5);
 }

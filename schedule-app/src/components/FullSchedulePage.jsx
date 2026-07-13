@@ -407,7 +407,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                   onClick={() => setFilterModalOpen(false)}
                   style={{
                     width: "100%", padding: "14px", borderRadius: "12px",
-                    background: "var(--ink)", color: "#fff",
+                    background: "var(--ink)", color: "var(--bone)",
                     fontFamily: "var(--body)", fontSize: "15px", fontWeight: "700",
                     border: "none", cursor: "pointer",
                     boxShadow: "0 4px 16px rgba(21,24,43,0.15)", transition: "transform 0.1s"

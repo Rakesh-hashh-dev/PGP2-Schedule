@@ -1,0 +1,18 @@
+config:
+  target: "https://fzhfbttlbfpnwhempyav.supabase.co"
+  phases:
+    - duration: 10
+      arrivalRate: 5
+      name: "Warm up"
+    - duration: 15
+      arrivalRate: 20
+      name: "Sustained load"
+  defaults:
+    headers:
+      apikey: "sb_publishable_GMeK4D3yy6SGNNcnd543vw_0bvxJETn"
+      Authorization: "Bearer sb_publishable_GMeK4D3yy6SGNNcnd543vw_0bvxJETn"
+scenarios:
+  - name: "Fetch classes"
+    flow:
+      - get:
+          url: "/rest/v1/classes?select=*"
