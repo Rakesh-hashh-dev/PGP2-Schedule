@@ -70,6 +70,37 @@ const MENU = {
   },
 };
 
+// ── Personal favourites + likes (local-first) ─────────────────────────────
+// Dishes the user stars are highlighted everywhere they appear in the menu,
+// and surfaced as a "favourites today" nudge on the mess card. Stored per
+// device in localStorage; keyed by the dish label so it survives menu updates
+// as long as the dish name is unchanged.
+const FAV_KEY = "pgp2.mess-favourites";
+const LIKE_KEY = "pgp2.mess-likes"; // dish -> 1 (liked) | -1 (disliked)
+
+export function loadMessFavourites() {
+  try { return new Set(JSON.parse(localStorage.getItem(FAV_KEY)) || []); } catch { return new Set(); }
+}
+export function saveMessFavourites(set) {
+  try { localStorage.setItem(FAV_KEY, JSON.stringify([...set])); } catch {}
+}
+export function loadMessLikes() {
+  try { return JSON.parse(localStorage.getItem(LIKE_KEY)) || {}; } catch { return {}; }
+}
+export function saveMessLikes(map) {
+  try { localStorage.setItem(LIKE_KEY, JSON.stringify(map)); } catch {}
+}
+
+// Count how many of `favourites` appear in a resolved day menu (any meal).
+export function favouritesInMenu(menu, favourites) {
+  if (!menu || !favourites || favourites.size === 0) return [];
+  const hits = new Set();
+  for (const meal of ["breakfast", "lunch", "snacks", "dinner"]) {
+    for (const item of menu[meal] || []) if (favourites.has(item)) hits.add(item);
+  }
+  return [...hits];
+}
+
 // Resolves the menu for a given weekday + calendar date (date picks the
 // Week 1&3 vs Week 2&4 snack rotation, counted from MENU_START).
 export function getMenuForDay(dayOfWeek, date) {

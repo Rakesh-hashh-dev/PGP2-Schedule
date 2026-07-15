@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Coffee, Utensils, Cookie, Moon, UtensilsCrossed, ChevronDown, CalendarDays, X } from "lucide-react";
-import { getMenuForDay, MEAL_TIMES } from "../data/messMenu.js";
+import { Coffee, Utensils, Cookie, Moon, UtensilsCrossed, ChevronDown, CalendarDays, X, Star, Heart } from "lucide-react";
+import { getMenuForDay, MEAL_TIMES, loadMessFavourites, saveMessFavourites, favouritesInMenu } from "../data/messMenu.js";
 import "./../styles/mess.css";
 
 const MEAL_ICONS = { breakfast: Coffee, lunch: Utensils, snacks: Cookie, dinner: Moon };
@@ -41,15 +41,38 @@ function mealStatus(meal, nowMin) {
   return "upcoming";
 }
 
-function ItemChips({ items, small }) {
+function ItemChips({ items, small, favourites, onToggleFav }) {
   return (
     <div className={`mess-chips${small ? " small" : ""}`}>
-      {items.map((it) => <span key={it} className="mess-chip">{it}</span>)}
+      {items.map((it) => {
+        const fav = favourites?.has(it);
+        if (onToggleFav) {
+          return (
+            <button
+              key={it}
+              type="button"
+              className={`mess-chip mess-chip-btn${fav ? " is-fav" : ""}`}
+              onClick={() => onToggleFav(it)}
+              aria-pressed={fav}
+              title={fav ? "Remove from favourites" : "Add to favourites"}
+            >
+              <Star size={11} className="mess-chip-star" fill={fav ? "currentColor" : "none"} />
+              {it}
+            </button>
+          );
+        }
+        return (
+          <span key={it} className={`mess-chip${fav ? " is-fav" : ""}`}>
+            {fav && <Star size={10} className="mess-chip-star" fill="currentColor" />}
+            {it}
+          </span>
+        );
+      })}
     </div>
   );
 }
 
-function FullMenuModal({ now, onClose }) {
+function FullMenuModal({ now, onClose, favourites, onToggleFav }) {
   const todayIdx = (now.getDay() + 6) % 7; // Mon=0 ... Sun=6
   const [dayIdx, setDayIdx] = useState(todayIdx);
   const nowMin = now.getHours() * 60 + now.getMinutes();
@@ -94,6 +117,7 @@ function FullMenuModal({ now, onClose }) {
         </div>
 
         <div className="fs-modal-body mess-modal-body">
+          <div className="mess-fav-hint"><Star size={11} /> Tap a dish to save it as a favourite</div>
           {MEAL_TIMES.map((m) => {
             const Icon = MEAL_ICONS[m.id];
             const st = isToday ? mealStatus(m, nowMin) : "upcoming";
@@ -107,7 +131,7 @@ function FullMenuModal({ now, onClose }) {
                   </span>
                   {st === "now" && <span className="mess-bar-serving"><span className="mess-chip-dot" />Serving</span>}
                 </div>
-                <ItemChips items={dayMenu[m.id] || []} />
+                <ItemChips items={dayMenu[m.id] || []} favourites={favourites} onToggleFav={onToggleFav} />
               </div>
             );
           })}
@@ -120,6 +144,15 @@ function FullMenuModal({ now, onClose }) {
 export default function MessCard({ now }) {
   const [expanded, setExpanded] = useState(false);
   const [fullMenuOpen, setFullMenuOpen] = useState(false);
+  const [favourites, setFavourites] = useState(loadMessFavourites);
+  const toggleFav = (dish) => {
+    setFavourites((prev) => {
+      const next = new Set(prev);
+      if (next.has(dish)) next.delete(dish); else next.add(dish);
+      saveMessFavourites(next);
+      return next;
+    });
+  };
   const nowMin = now.getHours() * 60 + now.getMinutes();
 
   // Featured meal: the one serving now, else the next one today,
@@ -134,6 +167,7 @@ export default function MessCard({ now }) {
   }
   const menu = getMenuForDay(menuDate.getDay(), menuDate);
   if (!menu) return null;
+  const favToday = favouritesInMenu(menu, favourites);
   const isTomorrow = dayLabel === "Tomorrow";
   const status = isTomorrow ? "upcoming" : mealStatus(featured, nowMin);
   const FeatIcon = MEAL_ICONS[featured.id];
@@ -199,6 +233,11 @@ export default function MessCard({ now }) {
             <div className="mess-head">
               <span className="mess-title"><UtensilsCrossed size={14} /> Mess Menu</span>
               <span className="mess-head-right">
+                {favToday.length > 0 && (
+                  <span className="mess-fav-pill" title={favToday.join(", ")}>
+                    <Heart size={11} fill="currentColor" /> {favToday.length} fav{favToday.length === 1 ? "" : "s"}
+                  </span>
+                )}
                 <span className="mess-count-pill">{dayWord} · {items.length} items</span>
                 <button
                   type="button"
@@ -244,7 +283,7 @@ export default function MessCard({ now }) {
                 </div>
               )}
 
-              <ItemChips items={items} />
+              <ItemChips items={items} favourites={favourites} />
             </div>
 
             <ul className="mess-all">
@@ -259,7 +298,7 @@ export default function MessCard({ now }) {
                         {m.label}
                         <span className="mess-meal-time">{fmt12(m.start)} – {fmt12(m.end)}</span>
                       </div>
-                      <ItemChips items={menu[m.id] || []} small />
+                      <ItemChips items={menu[m.id] || []} small favourites={favourites} />
                     </div>
                   </li>
                 );
@@ -273,7 +312,7 @@ export default function MessCard({ now }) {
         </div>
       </div>
 
-      {fullMenuOpen && <FullMenuModal now={now} onClose={() => setFullMenuOpen(false)} />}
+      {fullMenuOpen && <FullMenuModal now={now} onClose={() => setFullMenuOpen(false)} favourites={favourites} onToggleFav={toggleFav} />}
     </section>
   );
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Suspense, lazy } from "react";
 import { createPortal } from "react-dom";
-import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, ChevronsLeft, ChevronsRight, ChevronRight, ChevronLeft, Megaphone, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Sparkles, Wand2, BellRing, CalendarDays, ExternalLink, Download, Share, WifiOff, Zap, PanelBottom, PanelTop, PanelsTopLeft, Check, ChevronDown, MapPin, Sun, Moon, Monitor } from "lucide-react";
+import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, ChevronsLeft, ChevronsRight, ChevronRight, ChevronLeft, Megaphone, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Sparkles, Wand2, BellRing, CalendarDays, ExternalLink, Download, Share, WifiOff, Zap, PanelBottom, PanelTop, PanelsTopLeft, Check, ChevronDown, MapPin, Sun, Moon, Monitor, BookOpen, BarChart3 } from "lucide-react";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
 import SemSummary from "./components/SemSummary.jsx";
@@ -27,6 +27,10 @@ const FullSchedulePage = lazy(() => import("./components/FullSchedulePage.jsx"))
 const AdminDashboard = lazy(() => import("./components/AdminDashboard.jsx"));
 const CommandPalette = lazy(() => import("./components/CommandPalette.jsx"));
 const AssignmentsPanel = lazy(() => import("./components/AssignmentsPanel.jsx"));
+const CoursesPanel = lazy(() => import("./components/CoursesPanel.jsx"));
+const InsightsPanel = lazy(() => import("./components/InsightsPanel.jsx"));
+import DeadlineStrip from "./components/DeadlineStrip.jsx";
+import CancellationAlert from "./components/CancellationAlert.jsx";
 import { loadAttendance, saveAttendance, sessionKey, syncAttendanceFromCloud, pushMark, courseSkipStats } from "./lib/attendance.js";
 import { syncProfileFromCloud, pushProfile, pushReadState, stampProfileEmail } from "./lib/profile.js";
 import { syncMigrationMap } from "./lib/migrationMap.js";
@@ -480,6 +484,20 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     if (code) {
       try { localStorage.setItem(PENDING_INVITE_KEY, code); } catch { }
       window.history.replaceState({}, "", window.location.pathname);
+    }
+    // Deep-link support for PWA home-screen shortcuts (?view=today) and any
+    // shared link. Admin view is intentionally excluded.
+    const wanted = params.get("view");
+    const DEEP_LINK_VIEWS = new Set([
+      "today", "tomorrow", "week", "attendance", "exams", "assignments",
+      "courses", "insights", "notifications", "friends",
+    ]);
+    if (wanted && DEEP_LINK_VIEWS.has(wanted)) {
+      setView(wanted);
+      const rest = new URLSearchParams(window.location.search);
+      rest.delete("view");
+      const qs = rest.toString();
+      window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
     }
   }, []);
 
@@ -1657,6 +1675,12 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             <button className={`sb-link${view === "assignments" ? " on" : ""}`} aria-current={view === "assignments" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Assignments")} onMouseLeave={hideSbTip} onClick={() => { setView("assignments"); setCompareTarget(null); hideSbTip(); }}>
               <BookOpenCheck size={18} /><span className="sb-link-label">Assignments</span>
             </button>
+            <button className={`sb-link${view === "courses" ? " on" : ""}`} aria-current={view === "courses" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Courses")} onMouseLeave={hideSbTip} onClick={() => { setView("courses"); setCompareTarget(null); hideSbTip(); }}>
+              <BookOpen size={18} /><span className="sb-link-label">Courses</span>
+            </button>
+            <button className={`sb-link${view === "insights" ? " on" : ""}`} aria-current={view === "insights" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Insights")} onMouseLeave={hideSbTip} onClick={() => { setView("insights"); setCompareTarget(null); hideSbTip(); }}>
+              <BarChart3 size={18} /><span className="sb-link-label">Insights</span>
+            </button>
 
             <div className="sb-nav-label">Campus</div>
             <button className={`sb-link${view === "notifications" ? " on" : ""}`} aria-current={view === "notifications" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Announcements")} onMouseLeave={hideSbTip} onClick={() => { setView("notifications"); setCompareTarget(null); hideSbTip(); }}>
@@ -2017,6 +2041,13 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       <Bell size={14} /> Notification settings
                     </button>
                     <div className="over-sep" />
+                    <button onClick={() => { setView("courses"); setCompareTarget(null); setOverflowOpen(false); }}>
+                      <BookOpen size={14} /> Courses
+                    </button>
+                    <button onClick={() => { setView("insights"); setCompareTarget(null); setOverflowOpen(false); }}>
+                      <BarChart3 size={14} /> Insights
+                    </button>
+                    <div className="over-sep" />
                     <button onClick={() => { setShowSetupEdit(true); setOverflowOpen(false); }}>
                       <Settings2 size={14} /> Edit setup
                     </button>
@@ -2153,6 +2184,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 <div className="view-date-header">
                   <span className="vdh-label">
                     {view === "notifications" ? `${filteredChanges.length} update${filteredChanges.length !== 1 ? "s" : ""}`
+                      : view === "courses" ? "My Courses"
+                      : view === "insights" ? "My Insights"
                       : view === "week" ? weekRangeLabel : prettyDate(view === "tomorrow" ? tomorrowISO : todayISO)}
                   </span>
                   <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
@@ -2176,7 +2209,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 </div>
               </>
             )}
-            {view !== "attendance" && view !== "insights" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && !compareTarget && view !== "tomorrow" && (
+            {view !== "attendance" && view !== "insights" && view !== "courses" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && !compareTarget && view !== "tomorrow" && (
               view === "week"
                 ? <div className="hide-mobile"><Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} onMarkAttendance={markAttendance} attendance={attendance} sysConfig={sysConfig} /></div>
                 : <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} onMarkAttendance={markAttendance} attendance={attendance} sysConfig={sysConfig} />
@@ -2185,6 +2218,25 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               <div className="mobile-only">
                 <WeekGlance visible={visible} now={now} offset={weekOffset} todayISO={todayISO} collapsible />
               </div>
+            )}
+            {(view === "today" || view === "tomorrow") && !compareTarget && (
+              <CancellationAlert
+                allClasses={CLASSES}
+                enrolled={enrolled}
+                mine={mine}
+                legend={enrolledLegend}
+                now={now}
+                onOpen={(d) => { setJumpToSession({ date: d.date, code: d.code, start: d.time }); setView("fullSchedule"); }}
+              />
+            )}
+            {view === "today" && !compareTarget && (
+              <DeadlineStrip
+                visible={visible}
+                legend={enrolledLegend}
+                now={now}
+                onOpenAssignments={() => { setView("assignments"); setCompareTarget(null); }}
+                onOpenExams={enableExams ? () => { setView("exams"); setCompareTarget(null); } : undefined}
+              />
             )}
             {(view === "today" || view === "week") && !compareTarget && (
               <SemSummary
@@ -2343,6 +2395,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                               ? <FullSchedulePage allClasses={CLASSES} enrolled={enrolled} legend={enrolledLegend} termLabel={termLabel} onBack={() => setView("today")} jumpToDate={jumpToDate} setJumpToDate={setJumpToDate} jumpToSession={jumpToSession} setJumpToSession={setJumpToSession} />
                               : view === "assignments"
                                 ? <AssignmentsPanel enrolled={enrolled} legend={enrolledLegend} userId={userId} />
+                              : view === "courses"
+                                ? <CoursesPanel allClasses={CLASSES} enrolled={enrolled} legend={enrolledLegend} attendance={attendance} now={now} />
+                              : view === "insights"
+                                ? <InsightsPanel visible={visible} now={now} attendance={attendance} />
                               : view === "tomorrow"
                                 ? tomorrowList.length === 0 && premiumMode && syncing
                                   ? (

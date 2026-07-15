@@ -139,9 +139,21 @@ export default defineConfig({
             icons: [{ src: 'icon-192.png', sizes: '192x192' }],
           },
           {
+            name: 'This Week',
+            short_name: 'Week',
+            url: '/?view=week',
+            icons: [{ src: 'icon-192.png', sizes: '192x192' }],
+          },
+          {
             name: 'Attendance',
             short_name: 'Attendance',
             url: '/?view=attendance',
+            icons: [{ src: 'icon-192.png', sizes: '192x192' }],
+          },
+          {
+            name: 'Assignments',
+            short_name: 'Assignments',
+            url: '/?view=assignments',
             icons: [{ src: 'icon-192.png', sizes: '192x192' }],
           },
         ],

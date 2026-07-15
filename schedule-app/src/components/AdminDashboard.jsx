@@ -127,6 +127,27 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   // Keep original fetched config for diffing
   const [originalFlags, setOriginalFlags] = useState(null);
 
+  // API Health Check — live ping results
+  const [healthStatus, setHealthStatus] = useState({ supabase: null, sheets: null, push: null });
+  const [healthChecking, setHealthChecking] = useState(false);
+
+  // 7-day activity analytics (index 0 = 6 days ago, index 6 = today)
+  const [activityChartData, setActivityChartData] = useState(Array(7).fill(0));
+  const [peakHour, setPeakHour] = useState(null);
+
+  // Reactive flag — avoids stale localStorage.getItem() at render time
+  const [hasAdminKey, setHasAdminKey] = useState(() => !!localStorage.getItem("pgp2.push-admin-key"));
+
+  // Live Editor Modal — controlled input state (replaces document.getElementById anti-pattern)
+  const [modalSection, setModalSection] = useState("All");
+  const [modalRoom, setModalRoom] = useState("");
+  const [modalStart, setModalStart] = useState("");
+  const [modalEnd, setModalEnd] = useState("");
+
+  // A/B Test editor
+  const [abTestName, setAbTestName] = useState("");
+  const [abTestRollout, setAbTestRollout] = useState(50);
+
   const admin_id = user?.id || user?.user_id || "unknown";
 
   useEffect(() => {
@@ -160,6 +181,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     const key = prompt("Enter the Admin Secret Key (set as ADMIN_SECRET or PUSH_ADMIN_SECRET in Supabase):");
     if (key) {
       localStorage.setItem("pgp2.push-admin-key", key);
+      setHasAdminKey(true);
       fetchSysMetrics();
     }
   };
@@ -174,7 +196,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
         // stats reflect the Clerk PROD instance. If the RPC is gone (post
         // Phase 2 cleanup) the filter is simply empty.
         const [{ data, error }, devIdsRes] = await Promise.all([
-          supabase.from("profiles").select("user_id, courses, last_seen_at"),
+          supabase.from("profiles").select("user_id, courses, last_seen_at, updated_at"),
           supabase.rpc("get_dev_user_ids"),
         ]);
         const devIds = new Set((devIdsRes.data || []).map(r => (typeof r === "string" ? r : r.dev_user_id)));
@@ -267,12 +289,38 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       }
     }
 
+    async function fetchActivityData() {
+      try {
+        const { data: actData } = await supabase
+          .from("profiles")
+          .select("last_seen_at")
+          .not("last_seen_at", "is", null);
+        if (actData) {
+          // Build 7-day bar chart — index 6 = today, index 0 = 6 days ago
+          const counts = Array(7).fill(0);
+          const now = Date.now();
+          actData.forEach(row => {
+            const daysAgo = Math.floor((now - new Date(row.last_seen_at).getTime()) / 86400000);
+            if (daysAgo >= 0 && daysAgo < 7) counts[6 - daysAgo]++;
+          });
+          setActivityChartData(counts);
+
+          // Compute peak hour from all timestamps
+          const hourCounts = Array(24).fill(0);
+          actData.forEach(row => { hourCounts[new Date(row.last_seen_at).getHours()]++; });
+          const peak = hourCounts.indexOf(Math.max(...hourCounts));
+          setPeakHour(peak);
+        }
+      } catch (e) { /* non-critical, ignore */ }
+    }
+
     await Promise.all([
       fetchStatsAndUsers(),
       fetchDbSize(),
       fetchFeedbackAndLogs(),
       fetchSysMetrics(),
-      fetchExtraAdminStats()
+      fetchExtraAdminStats(),
+      fetchActivityData()
     ]);
     
     setStatsLoading(false);
@@ -316,6 +364,15 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     }
     fetchConfig();
   }, []);
+
+  // Warn on tab close when there are unsaved config changes
+  useEffect(() => {
+    if (changesCount === 0) return;
+    const handler = (e) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [changesCount]);
 
   async function saveConfig() {
     if (flags.adminRoles && flags.adminRoles[admin_id] === "monitor") {
@@ -540,6 +597,58 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     logAdminAction(admin_id, "export_config", {});
   };
 
+  // ── API Health Check: probes real services ──────────────────
+  const checkApiHealth = async () => {
+    setHealthChecking(true);
+    const next = { supabase: null, sheets: null, push: null };
+
+    // 1. Supabase DB latency
+    try {
+      const t = Date.now();
+      const { error } = await supabase.from("system_config").select("id").limit(1);
+      next.supabase = error ? "error" : `${Date.now() - t}ms`;
+    } catch (e) { next.supabase = "error"; }
+
+    // 2. Push Gateway — verify the edge function responds (sends no push)
+    try {
+      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          "x-push-key": localStorage.getItem("pgp2.push-admin-key") || "__health_check__",
+        },
+        body: JSON.stringify({ __healthcheck: true }),
+      });
+      // 400/401 = function is reachable (auth or bad body); 5xx = down
+      next.push = resp.status < 500 ? "ok" : "error";
+    } catch (e) { next.push = "error"; }
+
+    // 3. Google Sheets live feed — HEAD-like fetch with a short timeout
+    const FEED_URL = "https://script.google.com/macros/s/AKfycbwOCmpZAbzN7hRkb-xx6-SDejt3c45E5NBZ0NHuJW8CBRYO4ROJfwE_MI_g4aODwo08Gg/exec";
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 6000);
+      const resp = await fetch(`${FEED_URL}?action=ping`, { signal: ctrl.signal, redirect: "follow" });
+      clearTimeout(timer);
+      next.sheets = resp.ok ? "ok" : "error";
+    } catch (e) {
+      next.sheets = e.name === "AbortError" ? "timeout" : "error";
+    }
+
+    setHealthStatus(next);
+    setHealthChecking(false);
+  };
+
+  // Helper to open the Live Editor modal AND initialise controlled inputs
+  const openLiveEditorModal = (c) => {
+    setLiveEditorModal(c);
+    setModalSection(c.section === "Single" ? "All" : (c.section || "All"));
+    setModalRoom(c.room || "");
+    setModalStart(c.start || "");
+    setModalEnd(c.end || "");
+  };
+
   return (
     <div className="admin-page">
       
@@ -599,7 +708,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             </div>
             <p className="admin-subtext">Live performance metrics powered by Supabase Metrics API.</p>
             
-            {!localStorage.getItem("pgp2.push-admin-key") ? (
+            {!hasAdminKey ? (
               <div className="admin-empty" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
                 <div>Admin key required to view metrics.</div>
                 <button onClick={promptAdminKey} className="admin-btn">Enter Admin Key</button>
@@ -718,7 +827,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                   const displayStart = override?.start || c.start;
                   const displayEnd = override?.end || c.end;
                   return (
-                    <div key={i} onClick={() => setLiveEditorModal(c)} style={{ minWidth: 200, padding: 12, background: "var(--bg)", border: `1px solid ${isGuest ? "var(--violet)" : "var(--border)"}`, borderRadius: 12, cursor: "pointer", position: "relative", opacity: isCancelled ? 0.6 : 1 }}>
+                    <div key={i} onClick={() => openLiveEditorModal(c)} style={{ minWidth: 200, padding: 12, background: "var(--bg)", border: `1px solid ${isGuest ? "var(--violet)" : "var(--border)"}`, borderRadius: 12, cursor: "pointer", position: "relative", opacity: isCancelled ? 0.6 : 1 }}>
                       <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4, textDecoration: isCancelled ? "line-through" : "none" }}>
                         {displayStart} - {displayEnd} | Sec: {c.section === "Single" ? "All" : c.section}
                         {isGuest && <span style={{ marginLeft: 6, background: "var(--violet)", color: "#fff", padding: "1px 6px", borderRadius: 4, fontSize: 9.5, fontWeight: 800, letterSpacing: ".03em" }}>GUEST</span>}
@@ -1019,41 +1128,71 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             </section>
           )}
 
-          {/* Analytics Dashboard (Placeholders) */}
+          {/* Analytics Dashboard — real data from Supabase */}
           <section className="admin-card" style={{ gridColumn: "1 / -1" }}>
              <h2><BarChart2 size={20} color="var(--violet)" /> Analytics & Usage</h2>
              <div style={{ display: "flex", gap: 16, marginTop: 16, flexWrap: "wrap" }}>
+
+                {/* 7-Day Active Users — real last_seen_at buckets */}
                 <div style={{ flex: 1, minWidth: 250, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: 16 }}>
                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "1px", marginBottom: 12 }}>7-Day Active Users</div>
-                   <div style={{ height: 100, display: "flex", alignItems: "flex-end", gap: 8, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
-                      {[40, 60, 50, 80, 100, 90, 120].map((h, i) => <div key={i} style={{ flex: 1, background: "var(--violet)", opacity: 0.8, borderRadius: "4px 4px 0 0", height: `${h}%` }}></div>)}
-                   </div>
-                   <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 11, color: "var(--muted)" }}>
-                      <span>1W Ago</span><span>Today</span>
-                   </div>
+                   {(() => {
+                      const maxVal = Math.max(...activityChartData, 1);
+                      const dayLabels = Array.from({ length: 7 }, (_, i) => {
+                        const d = new Date(Date.now() - (6 - i) * 86400000);
+                        return d.toLocaleDateString("en-IN", { weekday: "short" });
+                      });
+                      return (
+                        <>
+                          <div style={{ height: 100, display: "flex", alignItems: "flex-end", gap: 6 }}>
+                            {activityChartData.map((v, i) => (
+                              <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", height: "100%", justifyContent: "flex-end", gap: 4 }}>
+                                <div title={`${v} users`} style={{ width: "100%", background: i === 6 ? "var(--violet)" : "rgba(109,91,208,0.45)", borderRadius: "4px 4px 0 0", height: `${Math.max(4, (v / maxVal) * 100)}%`, transition: "height 0.4s" }}></div>
+                              </div>
+                            ))}
+                          </div>
+                          <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                            {dayLabels.map((l, i) => <div key={i} style={{ flex: 1, fontSize: 9, color: "var(--muted)", textAlign: "center", fontWeight: i === 6 ? 800 : 400 }}>{l}</div>)}
+                          </div>
+                          <div style={{ marginTop: 10, fontSize: 12, color: "var(--muted)", borderTop: "1px solid var(--border)", paddingTop: 8 }}>
+                            Total past 7 days: <strong style={{ color: "var(--text)" }}>{activityChartData.reduce((a, b) => a + b, 0)}</strong> unique sessions
+                          </div>
+                        </>
+                      );
+                   })()}
                 </div>
+
+                {/* Most-Skipped Classes — from attendance table */}
                 <div style={{ flex: 1, minWidth: 250, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: 16 }}>
-                   <div style={{ fontSize: 13, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "1px", marginBottom: 12 }}>Push Open Rate</div>
+                   <div style={{ fontSize: 13, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "1px", marginBottom: 12 }}>Most Skipped Classes</div>
                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      <div>
-                         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}><span>Placement Docs</span><span>85%</span></div>
-                         <div style={{ height: 6, background: "var(--card)", borderRadius: 3, overflow: "hidden" }}><div style={{ width: "85%", height: "100%", background: "var(--green)" }}></div></div>
-                      </div>
-                      <div>
-                         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}><span>Class Cancelled</span><span>92%</span></div>
-                         <div style={{ height: 6, background: "var(--card)", borderRadius: 3, overflow: "hidden" }}><div style={{ width: "92%", height: "100%", background: "var(--green)" }}></div></div>
-                      </div>
-                      <div>
-                         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}><span>Feedback Req</span><span>45%</span></div>
-                         <div style={{ height: 6, background: "var(--card)", borderRadius: 3, overflow: "hidden" }}><div style={{ width: "45%", height: "100%", background: "var(--amber)" }}></div></div>
-                      </div>
+                      {skipStats.length === 0 ? (
+                         <div className="admin-empty" style={{ fontSize: 12 }}>No absence data yet.</div>
+                      ) : skipStats.map(([code, count]) => {
+                         const maxSkip = skipStats[0][1];
+                         return (
+                           <div key={code}>
+                             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}>
+                               <span style={{ fontWeight: 600 }}>{code}</span><span style={{ color: "var(--muted)" }}>{count} absences</span>
+                             </div>
+                             <div style={{ height: 6, background: "var(--card)", borderRadius: 3, overflow: "hidden" }}>
+                               <div style={{ width: `${Math.round((count / maxSkip) * 100)}%`, height: "100%", background: "var(--danger)" }}></div>
+                             </div>
+                           </div>
+                         );
+                      })}
                    </div>
                 </div>
+
+                {/* Peak Hour — computed from last_seen_at timestamps */}
                 <div style={{ flex: 1, minWidth: 250, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: 16, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", textAlign: "center" }}>
                    <Clock size={32} color="var(--blue)" style={{ marginBottom: 12 }} />
-                   <div style={{ fontSize: 24, fontWeight: 800 }}>8:30 AM</div>
-                   <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 4 }}>Peak Usage Time (IST)</div>
-                   <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>Average 420 concurrent users</div>
+                   <div style={{ fontSize: 28, fontWeight: 800 }}>
+                     {peakHour !== null ? `${peakHour % 12 || 12}:00 ${peakHour < 12 ? "AM" : "PM"}` : "—"}
+                   </div>
+                   <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 4 }}>Peak Usage Hour (IST)</div>
+                   <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>Based on last_seen_at heartbeats</div>
+                   {statsLoading && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>Loading...</div>}
                 </div>
              </div>
           </section>
@@ -1061,49 +1200,87 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           {/* Admin Tools Extra Monitors */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 24 }}>
              
-             {/* API Health Checker */}
+             {/* API Health Check — live pings */}
              <section className="admin-card">
-               <h2><Terminal size={20} color="var(--live)" /> API Health Check</h2>
-               <p className="admin-subtext">Monitor 3rd-party services</p>
-               <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)" }}>
-                     <span style={{ fontSize: 13, fontWeight: 600 }}>Supabase Edge</span>
-                     <span style={{ background: "rgba(46, 204, 113, 0.2)", color: "var(--green)", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700 }}>99.9% Uptime</span>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)" }}>
-                     <span style={{ fontSize: 13, fontWeight: 600 }}>Google Sheets Sync</span>
-                     <span style={{ background: "rgba(46, 204, 113, 0.2)", color: "var(--green)", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700 }}>Operational</span>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)" }}>
-                     <span style={{ fontSize: 13, fontWeight: 600 }}>Push Notification Gateway</span>
-                     <span style={{ background: "rgba(245, 158, 11, 0.2)", color: "var(--amber)", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700 }}>Degraded</span>
-                  </div>
+               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                 <h2><Terminal size={20} color="var(--live)" /> API Health Check</h2>
+                 <button onClick={checkApiHealth} disabled={healthChecking} className="admin-btn outline" style={{ padding: "4px 10px", fontSize: 12 }}>
+                   <RefreshCw size={13} className={healthChecking ? "spin-icon" : ""} /> {healthChecking ? "Checking…" : "Run Check"}
+                 </button>
+               </div>
+               <p className="admin-subtext">Click "Run Check" to probe all services live.</p>
+               <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
+                  {[
+                    { key: "supabase", label: "Supabase Database", icon: <Database size={14} /> },
+                    { key: "push",     label: "Push Notification Gateway", icon: <BellRing size={14} /> },
+                    { key: "sheets",   label: "Google Sheets Live Feed", icon: <FileText size={14} /> },
+                  ].map(({ key, label, icon }) => {
+                    const s = healthStatus[key];
+                    const isOk  = s && s !== "error" && s !== "timeout";
+                    const isErr = s === "error" || s === "timeout";
+                    const bg  = !s ? "var(--bg)" : isErr ? "rgba(231,76,60,0.08)" : "rgba(46,204,113,0.08)";
+                    const tag = !s ? (healthChecking ? "Checking…" : "Not checked") :
+                                isErr ? (s === "timeout" ? "Timeout" : "Error") :
+                                key === "supabase" ? s : "Operational";
+                    const tagColor = !s ? "var(--muted)" : isErr ? "var(--danger)" : "var(--green)";
+                    return (
+                      <div key={key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: bg, borderRadius: 8, border: `1px solid ${!s ? "var(--border)" : isErr ? "var(--danger)" : "var(--green)"}`, transition: "all 0.3s" }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>{icon} {label}</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: tagColor, padding: "2px 8px", borderRadius: 10, background: `${tagColor}22` }}>{tag}</span>
+                      </div>
+                    );
+                  })}
                </div>
              </section>
 
-             {/* Feature Flag A/B Testing */}
+             {/* A/B Testing — managed from flags.abTests */}
              <section className="admin-card">
                <h2><Flag size={20} color="var(--blue)" /> A/B Testing</h2>
-               <p className="admin-subtext">Manage active rollout experiments.</p>
-               <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
-                  <div style={{ padding: "12px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)" }}>
-                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                        <span style={{ fontSize: 13, fontWeight: 700 }}>New Home Layout V3</span>
-                        <span style={{ fontSize: 12, color: "var(--muted)" }}>50% Rollout</span>
+               <p className="admin-subtext">Rollout experiments stored in flags. Deploy config to apply changes.</p>
+
+               {/* Add new experiment */}
+               <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
+                 <div className="admin-field" style={{ flex: 2, minWidth: 140 }}>
+                   <label>Experiment Name</label>
+                   <input className="admin-input" value={abTestName} onChange={e => setAbTestName(e.target.value)} placeholder="e.g. new_home_v4" />
+                 </div>
+                 <div className="admin-field" style={{ flex: 1, minWidth: 80 }}>
+                   <label>Rollout %</label>
+                   <input type="number" min={0} max={100} className="admin-input" value={abTestRollout} onChange={e => setAbTestRollout(Number(e.target.value))} />
+                 </div>
+                 <button className="admin-btn primary" style={{ marginBottom: 10 }} onClick={() => {
+                   const key = abTestName.trim().toLowerCase().replace(/\s+/g, "_");
+                   if (!key) return alert("Enter an experiment name.");
+                   setFlags({ ...flags, abTests: { ...(flags.abTests || {}), [key]: { name: abTestName.trim(), rollout: abTestRollout, active: true } } });
+                   setAbTestName(""); setAbTestRollout(50);
+                 }}>Add</button>
+               </div>
+
+               {/* Existing experiments */}
+               <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 8 }}>
+                 {Object.keys(flags.abTests || {}).length === 0 ? (
+                   <div className="admin-empty">No experiments. Add one above.</div>
+                 ) : Object.entries(flags.abTests || {}).map(([key, exp]) => (
+                   <div key={key} style={{ padding: 12, background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)" }}>
+                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                       <div>
+                         <span style={{ fontSize: 13, fontWeight: 700 }}>{exp.name || key}</span>
+                         <span style={{ fontSize: 11, color: "var(--muted)", marginLeft: 8 }}>({key})</span>
+                       </div>
+                       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                         <input type="number" min={0} max={100} value={exp.rollout} onChange={e => setFlags({ ...flags, abTests: { ...flags.abTests, [key]: { ...exp, rollout: Number(e.target.value) } } })} style={{ width: 52, padding: "2px 6px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)", fontSize: 12, textAlign: "center" }} />
+                         <span style={{ fontSize: 11, color: "var(--muted)" }}>%</span>
+                         <button onClick={() => {
+                           const next = { ...flags.abTests }; delete next[key];
+                           setFlags({ ...flags, abTests: next });
+                         }} style={{ background: "transparent", border: "none", cursor: "pointer", padding: 2 }}><Trash2 size={14} color="var(--danger)" /></button>
+                       </div>
                      </div>
                      <div style={{ height: 6, background: "var(--card)", borderRadius: 3, overflow: "hidden", border: "1px solid var(--border)" }}>
-                        <div style={{ width: "50%", height: "100%", background: "var(--blue)" }}></div>
+                       <div style={{ width: `${Math.min(100, Math.max(0, exp.rollout))}%`, height: "100%", background: "var(--blue)", transition: "width 0.3s" }}></div>
                      </div>
-                  </div>
-                  <div style={{ padding: "12px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)" }}>
-                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                        <span style={{ fontSize: 13, fontWeight: 700 }}>Social Tab Redesign</span>
-                        <span style={{ fontSize: 12, color: "var(--muted)" }}>10% Rollout</span>
-                     </div>
-                     <div style={{ height: 6, background: "var(--card)", borderRadius: 3, overflow: "hidden", border: "1px solid var(--border)" }}>
-                        <div style={{ width: "10%", height: "100%", background: "var(--blue)" }}></div>
-                     </div>
-                  </div>
+                   </div>
+                 ))}
                </div>
              </section>
 
@@ -1950,7 +2127,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               <div><strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase" }}>Name</strong>{selectedUser.name}</div>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                  <div><strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase" }}>User ID</strong>{selectedUser.user_id}</div>
-                 <div style={{ textAlign: "right" }}><strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase" }}>Last Active</strong>{selectedUser.updated_at ? new Date(selectedUser.updated_at).toLocaleDateString() : "Unknown"}</div>
+                 <div style={{ textAlign: "right" }}><strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase" }}>Last Active</strong>{selectedUser.last_seen_at ? new Date(selectedUser.last_seen_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "Never"}</div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 4 }}>
                  <strong style={{ color: "var(--muted)", fontSize: 12, textTransform: "uppercase" }}>Role:</strong>
@@ -2026,7 +2203,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
         </>
       )}
 
-      {/* Live Editor Modal */}
+      {/* Live Editor Modal — uses controlled React state, no document.getElementById */}
       {liveEditorModal && (
         <>
           <div className="notif-backdrop" onClick={() => setLiveEditorModal(null)} style={{ zIndex: 10000 }} />
@@ -2035,82 +2212,84 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               <h2 style={{ margin: 0, fontSize: 18, display: "flex", gap: 8, alignItems: "center" }}><CalendarDays size={18} color="var(--blue)" /> Edit Class</h2>
               <button onClick={() => setLiveEditorModal(null)} style={{ background: "transparent", border: "none", color: "var(--muted)", cursor: "pointer" }}><XCircle size={18} /></button>
             </div>
-            
+
             <div style={{ marginBottom: 16 }}>
-              <div style={{ fontWeight: 700, color: "var(--text)" }}>{liveEditorModal.code}</div>
-              <div style={{ color: "var(--muted)", fontSize: 13 }}>{liveEditorModal.date} | {liveEditorModal.start} - {liveEditorModal.end} | Section {liveEditorModal.section}</div>
+              <div style={{ fontWeight: 700, color: "var(--text)" }}>{liveEditorModal.code} — {liveEditorModal.name || "Class"}</div>
+              <div style={{ color: "var(--muted)", fontSize: 13 }}>{liveEditorModal.date} | {liveEditorModal.start} – {liveEditorModal.end} | Section {liveEditorModal.section}</div>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <div style={{ display: "flex", gap: 8 }}>
-                <select id="live-section-input" className="admin-input" style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)" }} defaultValue={liveEditorModal.section}>
+              {/* Section selector */}
+              <div className="admin-field">
+                <label>Apply to Section</label>
+                <select className="admin-input" value={modalSection} onChange={e => setModalSection(e.target.value)}>
                   <option value="All">All Sections</option>
                   <option value="A">Section A</option>
                   <option value="B">Section B</option>
                 </select>
               </div>
 
+              {/* Cancel button */}
               <button onClick={() => {
-                const newSection = document.getElementById('live-section-input').value;
-                const overrideKey = newSection === "All" ? liveEditorModal.code : `${liveEditorModal.code}_${newSection}`;
+                const overrideKey = modalSection === "All" ? liveEditorModal.code : `${liveEditorModal.code}_${modalSection}`;
                 const nextOverrides = { ...(flags.classOverrides || {}) };
                 nextOverrides[liveEditorModal.date] = { ...(nextOverrides[liveEditorModal.date] || {}) };
                 nextOverrides[liveEditorModal.date][overrideKey] = { type: "cancelled", name: `Cancelled: ${overrideKey}` };
-                setFlags({...flags, classOverrides: nextOverrides});
+                setFlags({ ...flags, classOverrides: nextOverrides });
                 logAdminAction(admin_id, "cancel_class", { date: liveEditorModal.date, class: overrideKey });
                 setLiveEditorModal(null);
               }} className="admin-btn outline" style={{ color: "var(--danger)", borderColor: "var(--danger)" }}>
                 <Ban size={16} /> Cancel Class
               </button>
 
-              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                <input type="time" id="live-start-input" className="admin-input" style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)" }} defaultValue={liveEditorModal.start} />
-                <span style={{ display: "flex", alignItems: "center", color: "var(--muted)" }}>-</span>
-                <input type="time" id="live-end-input" className="admin-input" style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)" }} defaultValue={liveEditorModal.end} />
+              {/* Time range */}
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <div className="admin-field" style={{ flex: 1 }}>
+                  <label>New Start</label>
+                  <input type="time" className="admin-input" value={modalStart} onChange={e => setModalStart(e.target.value)} />
+                </div>
+                <span style={{ color: "var(--muted)", marginTop: 22 }}>–</span>
+                <div className="admin-field" style={{ flex: 1 }}>
+                  <label>New End</label>
+                  <input type="time" className="admin-input" value={modalEnd} onChange={e => setModalEnd(e.target.value)} />
+                </div>
               </div>
-              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                <input type="text" id="live-room-input" placeholder="New Room" className="admin-input" style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)" }} defaultValue={liveEditorModal.room} />
-                <button onClick={() => {
-                  const newSection = document.getElementById('live-section-input').value;
-                  const overrideKey = newSection === "All" ? liveEditorModal.code : `${liveEditorModal.code}_${newSection}`;
-                  const newRoom = document.getElementById('live-room-input').value;
-                  const newStart = document.getElementById('live-start-input').value;
-                  const newEnd = document.getElementById('live-end-input').value;
-                  const nextOverrides = { ...(flags.classOverrides || {}) };
-                  nextOverrides[liveEditorModal.date] = { ...(nextOverrides[liveEditorModal.date] || {}) };
-                  const existing = nextOverrides[liveEditorModal.date][overrideKey] || {};
-                  
-                  const changes = { ...existing };
-                  if (newRoom) changes.room = newRoom;
-                  if (newStart) changes.start = newStart;
-                  if (newEnd) changes.end = newEnd;
 
-                  nextOverrides[liveEditorModal.date][overrideKey] = changes;
-                  setFlags({...flags, classOverrides: nextOverrides});
-                  logAdminAction(admin_id, "edit_class", { date: liveEditorModal.date, class: overrideKey, room: newRoom, start: newStart, end: newEnd });
-                  setLiveEditorModal(null);
-                }} className="admin-btn primary">
-                  Save Changes
-                </button>
+              {/* Room + Save */}
+              <div className="admin-field">
+                <label>New Room</label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input type="text" placeholder="e.g. C-104" className="admin-input" style={{ flex: 1 }} value={modalRoom} onChange={e => setModalRoom(e.target.value)} />
+                  <button onClick={() => {
+                    const overrideKey = modalSection === "All" ? liveEditorModal.code : `${liveEditorModal.code}_${modalSection}`;
+                    const nextOverrides = { ...(flags.classOverrides || {}) };
+                    nextOverrides[liveEditorModal.date] = { ...(nextOverrides[liveEditorModal.date] || {}) };
+                    const existing = nextOverrides[liveEditorModal.date][overrideKey] || {};
+                    const changes = { ...existing };
+                    if (modalRoom)  changes.room  = modalRoom;
+                    if (modalStart) changes.start = modalStart;
+                    if (modalEnd)   changes.end   = modalEnd;
+                    if (!modalRoom && !modalStart && !modalEnd) return alert("Enter at least one change (room, start, or end time).");
+                    nextOverrides[liveEditorModal.date][overrideKey] = changes;
+                    setFlags({ ...flags, classOverrides: nextOverrides });
+                    logAdminAction(admin_id, "edit_class", { date: liveEditorModal.date, class: overrideKey, room: modalRoom, start: modalStart, end: modalEnd });
+                    setLiveEditorModal(null);
+                  }} className="admin-btn primary">Save</button>
+                </div>
               </div>
-              
+
+              {/* Remove existing override */}
               {(flags.classOverrides?.[liveEditorModal.date]?.[liveEditorModal.code] || flags.classOverrides?.[liveEditorModal.date]?.[`${liveEditorModal.code}_${liveEditorModal.section}`]) && (
                 <button onClick={() => {
                   const nextOverrides = { ...(flags.classOverrides || {}) };
                   nextOverrides[liveEditorModal.date] = { ...nextOverrides[liveEditorModal.date] };
-                  if (nextOverrides[liveEditorModal.date]?.[liveEditorModal.code]) {
-                     delete nextOverrides[liveEditorModal.date][liveEditorModal.code];
-                  }
-                  if (nextOverrides[liveEditorModal.date]?.[`${liveEditorModal.code}_${liveEditorModal.section}`]) {
-                     delete nextOverrides[liveEditorModal.date][`${liveEditorModal.code}_${liveEditorModal.section}`];
-                  }
-                  if (Object.keys(nextOverrides[liveEditorModal.date]).length === 0) {
-                     delete nextOverrides[liveEditorModal.date];
-                  }
-                  setFlags({...flags, classOverrides: nextOverrides});
+                  delete nextOverrides[liveEditorModal.date][liveEditorModal.code];
+                  delete nextOverrides[liveEditorModal.date][`${liveEditorModal.code}_${liveEditorModal.section}`];
+                  if (Object.keys(nextOverrides[liveEditorModal.date]).length === 0) delete nextOverrides[liveEditorModal.date];
+                  setFlags({ ...flags, classOverrides: nextOverrides });
                   logAdminAction(admin_id, "clear_override", { date: liveEditorModal.date, class: liveEditorModal.code });
                   setLiveEditorModal(null);
-                }} className="admin-btn outline" style={{ marginTop: 8 }}>
+                }} className="admin-btn outline" style={{ marginTop: 4 }}>
                   <Trash2 size={16} /> Remove Override
                 </button>
               )}
