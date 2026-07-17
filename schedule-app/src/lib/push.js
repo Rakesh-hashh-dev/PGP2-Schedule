@@ -156,3 +156,104 @@ export async function unsubscribeFromPush() {
   }
   await sub.unsubscribe();
 }
+
+// ── Full prefs matrix (Phase 5) ───────────────────────────────────────────
+// Reads the new `push_prefs.prefs` JSONB column + quiet_start / quiet_end.
+// Falls back to the legacy boolean columns if the new schema isn't deployed yet.
+//
+// Returned shape:
+//   {
+//     class_reminder:  { push: true, inapp: true, lead: 30 },
+//     class_cancelled: { push: true, inapp: true },
+//     daily_summary:   { push: false, time: "07:20" },
+//     schedule_change: { push: true, inapp: true },
+//     friend_request:  { push: true, inapp: true },
+//     quiet_start: "22:00",   // null = no quiet hours
+//     quiet_end:   "07:00",
+//   }
+
+const PREFS_DEFAULTS = {
+  class_reminder:  { push: true,  inapp: true,  lead: 30 },
+  class_cancelled: { push: true,  inapp: true },
+  daily_summary:   { push: false, inapp: false, time: "07:20" },
+  schedule_change: { push: true,  inapp: true },
+  friend_request:  { push: true,  inapp: true },
+};
+
+export async function getFullPrefs(userId) {
+  const { data } = await supabase
+    .from("push_prefs")
+    .select("*")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  // Base from legacy columns (always present)
+  const base = {
+    class_reminder:  { push: data?.class_reminders ?? true,  inapp: true, lead: data?.lead_minutes ?? 30 },
+    class_cancelled: { push: data?.cancellation_alerts ?? true, inapp: true },
+    daily_summary:   { push: data?.daily_summary ?? false, inapp: false, time: data?.summary_time || "07:20" },
+    schedule_change: { push: true, inapp: true },
+    friend_request:  { push: true, inapp: true },
+    quiet_start: null,
+    quiet_end:   null,
+  };
+
+  // Overlay with new prefs JSONB if it exists
+  if (data?.prefs && typeof data.prefs === "object") {
+    const p = data.prefs;
+    if (p.class_reminder)  base.class_reminder  = { ...base.class_reminder,  ...p.class_reminder };
+    if (p.class_cancelled) base.class_cancelled = { ...base.class_cancelled, ...p.class_cancelled };
+    if (p.daily_summary)   base.daily_summary   = { ...base.daily_summary,   ...p.daily_summary };
+    if (p.schedule_change) base.schedule_change = { ...base.schedule_change, ...p.schedule_change };
+    if (p.friend_request)  base.friend_request  = { ...base.friend_request,  ...p.friend_request };
+  }
+  if (data?.quiet_start) base.quiet_start = data.quiet_start;
+  if (data?.quiet_end)   base.quiet_end   = data.quiet_end;
+
+  return base;
+}
+
+export async function setFullPrefs(userId, prefs) {
+  // Always mirror into the legacy columns for backward compat with class-reminders edge fn
+  const legacyRow = {
+    user_id: userId,
+    class_reminders:     prefs.class_reminder?.push  ?? true,
+    lead_minutes:        prefs.class_reminder?.lead  ?? 30,
+    cancellation_alerts: prefs.class_cancelled?.push ?? true,
+    daily_summary:       prefs.daily_summary?.push   ?? false,
+    summary_time:        prefs.daily_summary?.time   || "07:20",
+    updated_at: new Date().toISOString(),
+  };
+
+  // Build the new prefs JSONB (omit quiet hours — those are top-level columns)
+  const prefsJsonb = {
+    class_reminder:  { push: prefs.class_reminder?.push  ?? true,  inapp: prefs.class_reminder?.inapp  ?? true,  lead: prefs.class_reminder?.lead ?? 30 },
+    class_cancelled: { push: prefs.class_cancelled?.push ?? true,  inapp: prefs.class_cancelled?.inapp ?? true },
+    daily_summary:   { push: prefs.daily_summary?.push   ?? false, inapp: false, time: prefs.daily_summary?.time || "07:20" },
+    schedule_change: { push: prefs.schedule_change?.push ?? true,  inapp: prefs.schedule_change?.inapp ?? true },
+    friend_request:  { push: prefs.friend_request?.push  ?? true,  inapp: prefs.friend_request?.inapp  ?? true },
+  };
+
+  const fullRow = {
+    ...legacyRow,
+    prefs: prefsJsonb,
+    quiet_start: prefs.quiet_start || null,
+    quiet_end:   prefs.quiet_end   || null,
+  };
+
+  const { error } = await supabase
+    .from("push_prefs")
+    .upsert(fullRow, { onConflict: "user_id" });
+
+  if (!error) return;
+
+  // Pre-migration fallback: new columns may not exist yet — retry with only legacy columns
+  if (error.code === "PGRST204" || error.message?.includes("column")) {
+    const { error: retryErr } = await supabase
+      .from("push_prefs")
+      .upsert({ ...legacyRow, cancellation_alerts: legacyRow.cancellation_alerts }, { onConflict: "user_id" });
+    if (!retryErr) return;
+    throw new Error("Could not save preferences: " + retryErr.message);
+  }
+  throw new Error("Could not save preferences: " + error.message);
+}

@@ -23,6 +23,7 @@ const CompareView = lazy(() => import("./components/CompareView.jsx"));
 const RecentChanges = lazy(() => import("./components/RecentChanges.jsx"));
 const ExamsPanel = lazy(() => import("./components/ExamsPanel.jsx"));
 const FeedbackWidget = lazy(() => import("./components/FeedbackWidget.jsx"));
+const FeedbackFlashToast = lazy(() => import("./components/FeedbackFlashToast.jsx"));
 const NotificationsPage = lazy(() => import("./components/NotificationsPage.jsx"));
 const FullSchedulePage = lazy(() => import("./components/FullSchedulePage.jsx"));
 const AdminDashboard = lazy(() => import("./components/AdminDashboard.jsx"));
@@ -35,7 +36,7 @@ import { syncProfileFromCloud, pushProfile, pushReadState, stampProfileEmail } f
 import { syncMigrationMap } from "./lib/migrationMap.js";
 import { useMigration } from "./lib/useMigration.js";
 import MigrationBanner from "./components/MigrationBanner.jsx";
-import { decodeSchedule, saveFriend, loadFriends, loadGroups, syncFriendsAndGroupsFromCloud, pushFriendsToCloud, deleteAllFriendPings, removeFriendByCloudId, sendFriendPing, hasPendingFriendRequest, getOrCreateShareCode } from "./lib/friends.js";
+import { decodeSchedule, saveFriend, loadFriends, loadGroups, syncFriendsAndGroupsFromCloud, pushFriendsToCloud, deleteAllFriendPings, deleteFriendPing, removeFriendByCloudId, sendFriendPing, hasPendingFriendRequest, getOrCreateShareCode } from "./lib/friends.js";
 import { supabase } from "./lib/supabase.js";
 import { fetchNotifications, subscribeToNotifications, markNotificationRead, markAllNotificationsRead } from "./lib/notifications.js";
 import { assignSubjectColors, subjectClass } from "./lib/subjectColors.js";
@@ -56,6 +57,23 @@ function fmtWait(ms) {
 function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
 function clsDate(c, which) { const [Y, Mo, D] = c.date.split("-").map(Number); const [h, m] = c[which].split(":").map(Number); return new Date(Y, Mo - 1, D, h, m); }
 function prettyDate(iso) { const [Y, M, D] = iso.split("-").map(Number); return new Date(Y, M - 1, D).toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" }); }
+// Alert type → rc-dot colour, mirroring the Recent-changes kind palette
+const ALERT_DOT = {
+  class_cancelled: "rc-removed",
+  class_reminder: "rc-alert",
+  schedule_change: "rc-moved",
+  admin_broadcast: "rc-course",
+  daily_summary: "rc-update",
+};
+
+function timeAgo(iso) {
+  const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
 
 function UserAvatar({ user, size = 30 }) {
   const initials = `${user?.firstName?.[0] ?? ""}${user?.lastName?.[0] ?? ""}` || "?";
@@ -186,6 +204,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [seenWhatsNewIds, setSeenWhatsNewIds] = useState(() => {
     try { return new Set(JSON.parse(localStorage.getItem("pgp2.seen-whatsnew") || "[]")); } catch { return new Set(); }
   });
+  const [feedbackFlashTriggered, setFeedbackFlashTriggered] = useState(false);
+  const [feedbackFlashConfig, setFeedbackFlashConfig] = useState(null);
   function closeWhatsNew(items) {
     setWhatsNewOpen(false);
     setSeenWhatsNewIds(prev => {
@@ -257,6 +277,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [showSetupEdit, setShowSetupEdit] = useState(false);
   const [syncedAt, setSyncedAt] = useState(new Date());
   const [notifOpen, setNotifOpen] = useState(false);
+  const [notifFilter, setNotifFilter] = useState("all"); // all | social | classes
   const notifOpenedAt = useRef(0);
   const [, setLastSeenTs] = useState(() => loadLastSeen());
   const [readPingIds, setReadPingIds] = useState(() => loadReadPingIds());
@@ -300,6 +321,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // Unified notifications feed (class reminders, cancellations, summaries, admin
   // broadcasts) from the `notifications` table — the redesigned event store.
   const [alerts, setAlerts] = useState([]);
+  // Bumped when "Notification settings" is chosen from the menu → auto-opens the
+  // prefs dropdown on the Announcements page.
+  const [notifPrefsSignal, setNotifPrefsSignal] = useState(0);
   const [seenRecvGroupIds, setSeenRecvGroupIds] = useState(() => {
     try { return new Set(JSON.parse(localStorage.getItem("pgp2.seen-recv-groups") || "[]")); }
     catch { return new Set(); }
@@ -651,6 +675,71 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     })();
     return () => { alive = false; };
   }, [userId]);
+
+  const checkFeedbackFlashes = useCallback(() => {
+    if (!sysConfig?.flags?.feedbackFlashes) return;
+    const flashes = sysConfig.flags.feedbackFlashes;
+    
+    const userEnrolled = Object.keys(enrolled || {});
+    const legendData = getSnapshot()?.LEGEND || {};
+    const currentMs = Date.now();
+    const ONE_HOUR = 60 * 60 * 1000;
+
+    for (const config of flashes) {
+      if (!config.enabled || !config.deadline) continue;
+
+      // Subject check
+      const targets = config.subjects || [];
+      const matchedSubjectCode = targets.length ? targets.find(c => userEnrolled.includes(c)) : null;
+      const isTargeted = !targets.length || !!matchedSubjectCode;
+      if (!isTargeted) continue;
+
+      const subjectName = matchedSubjectCode && legendData[matchedSubjectCode] 
+        ? legendData[matchedSubjectCode].name 
+        : null;
+
+      const deadlineMs = new Date(config.deadline).getTime();
+      if (currentMs > deadlineMs) continue; // deadline passed
+      
+      // Compute triggers
+      const triggers = [];
+      if (config.announcedAt) {
+        triggers.push({ id: 'announced', time: new Date(config.announcedAt).getTime() });
+      }
+      triggers.push({ id: '2h', time: deadlineMs - 2 * ONE_HOUR });
+      triggers.push({ id: '20m', time: deadlineMs - 20 * 60 * 1000 });
+      
+      for (const t of triggers) {
+        if (currentMs >= t.time && currentMs <= t.time + ONE_HOUR) {
+          const sessionKey = `pgp2.ff.dismissed.${config.id}.${config.deadline}.${t.id}`;
+          if (!sessionStorage.getItem(sessionKey)) {
+            // Flash found! Return the first active one.
+            setFeedbackFlashConfig({ ...config, currentTriggerId: t.id, sessionKey, subjectName });
+            setFeedbackFlashTriggered(true);
+            return;
+          }
+        }
+      }
+    }
+  }, [sysConfig, enrolled]);
+
+  useEffect(() => {
+    checkFeedbackFlashes();
+    const interval = setInterval(checkFeedbackFlashes, 60000); // Check every minute
+    return () => clearInterval(interval);
+  }, [checkFeedbackFlashes]);
+
+  const handleFeedbackFlashClose = () => {
+    if (feedbackFlashConfig?.sessionKey) {
+      sessionStorage.setItem(feedbackFlashConfig.sessionKey, 'true');
+    }
+    setFeedbackFlashTriggered(false);
+    setFeedbackFlashConfig(null);
+    // Give a short delay for the close animation, then check for the next one immediately
+    setTimeout(() => {
+      checkFeedbackFlashes();
+    }, 500);
+  };
 
   useEffect(() => {
     fetch("https://api.open-meteo.com/v1/forecast?latitude=21.4669&longitude=83.9812&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&temperature_unit=celsius&timezone=Asia%2FKolkata&forecast_days=2")
@@ -1107,10 +1196,23 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         const sec = enrolled[c.code];
         return sec !== undefined && (c.section === sec || c.section === "Single" || c.section === "All") && mine.has(c.code);
       }
+      // Exams: the feed leaves `code` blank; try to infer the course code from
+      // the entry name (e.g. "SAPM MID Term Exam" → "SAPM") and gate on enrollment.
+      // If the name doesn't start with a recognisable enrolled code, show the
+      // event to everyone (Term Registration, holidays, breaks, etc.).
+      if (c.type === "exam") {
+        const key = c.date + c.slot + c.name;
+        if (seen.has(key)) return false;
+        const code = c.code || (c.name || "").match(/^([A-Za-z]{2,8})\b/)?.[1]?.toUpperCase();
+        if (code && Object.keys(LEGEND || {}).includes(code)) {
+          if (!mine.has(code)) return false;
+        }
+        seen.add(key); return true;
+      }
       const key = c.date + c.slot + c.name;
       if (seen.has(key)) return false; seen.add(key); return true;
     });
-  }, [CLASSES, enrolled, mine]);
+  }, [CLASSES, enrolled, mine, LEGEND]);
 
   const enrolledLegend = useMemo(() => {
     const out = {};
@@ -1247,8 +1349,14 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   ];
   const unreadFriendCount = friendNotifItems.filter(item => !item.isRead).length;
   const unreadChangeCount = filteredChanges.filter(c => !readChangeKeys.has(changeKey(c))).length;
-  const unreadAlertCount = alerts.filter(a => !a.read_at).length;
-  const hasUnread = unreadChangeCount > 0 || unreadFriendCount > 0 || unreadAlertCount > 0;
+  // Schedule moves (schedule_change) are shown by the "Changes" section (client
+  // CHANGES, same source the Announcements page uses), so keep them OUT of the
+  // Alerts section to avoid showing the same event twice in the bell. The rows
+  // still exist in `notifications` for opt-in push.
+  const alertItems = alerts.filter(a => a.type !== "schedule_change");
+  const unreadAlertCount = alertItems.filter(a => !a.read_at).length;
+  const unreadTotal = unreadChangeCount + unreadFriendCount + unreadAlertCount;
+  const hasUnread = unreadTotal > 0;
 
   // Surface unread count on the tab title + installed-PWA app icon badge
   useEffect(() => {
@@ -1353,6 +1461,51 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     }
 
     pushReadState(userId, nextPings, newIds, nextChanges);
+  }
+
+  function flashFriendToast(msg) {
+    setFriendToast(msg);
+    setTimeout(() => setFriendToast(null), 4000);
+  }
+
+  // Drop a ping row everywhere it lives: server table + local list state
+  function removePingEverywhere(pingId) {
+    markNotificationRead(pingId);
+    setPings(prev => prev.filter(p => p.id !== pingId));
+  }
+
+  async function handleAcceptFriendRequest(item) {
+    const senderName = user?.firstName || user?.username || "Student";
+    if (!item.meta?.fromCode) { flashFriendToast("Request data missing"); return; }
+    const decoded = await decodeSchedule(item.meta.fromCode);
+    if (!decoded) { flashFriendToast("Could not fetch friend's schedule"); return; }
+    const updated = saveFriend(decoded.name, decoded.courses, decoded.id);
+    setFriends(updated);
+    pushFriendsToCloud(userId, updated);
+    const myCode = await getOrCreateShareCode(userId, senderName);
+    if (myCode) await sendFriendPing(item.fromId, userId, senderName, { type: "friend_accepted", fromCode: myCode });
+    deleteFriendPing(item.pingId);
+    removePingEverywhere(item.pingId);
+    flashFriendToast(`You're now friends with ${decoded.name}!`);
+  }
+
+  function handleDeclineFriendRequest(item) {
+    deleteFriendPing(item.pingId);
+    removePingEverywhere(item.pingId);
+  }
+
+  function clearAllFriendNotifs() {
+    deleteAllFriendPings(userId);          // drain any legacy friend_pings
+    pings.forEach(p => markNotificationRead(p.id)); // durably clear social rows
+    setPings([]);
+    setReadPingIds(new Set());
+    try { localStorage.removeItem(READ_PINGS_KEY); } catch { }
+    markGroupsSeen();
+    setClearedGroupIds(prev => {
+      const next = new Set([...prev, ...allRecvGroups.map(g => g.id)]);
+      try { localStorage.setItem(CLEARED_GROUPS_KEY, JSON.stringify([...next])); } catch { }
+      return next;
+    });
   }
 
   function handleOpenNotif() {
@@ -1892,63 +2045,117 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               </button>
               <span className="tooltip" role="tooltip">Search (Cmd+K)</span>
             </div>
-            {/* Bell — always visible */}
+            {/* Bell — always visible; single notification center */}
             <div className="tb-wrap notif-wrap">
-              <button className="sync" onClick={handleOpenNotif} aria-label="Notifications" aria-expanded={notifOpen}>
+              <button className="sync" onClick={handleOpenNotif} aria-label={hasUnread ? `Notifications, ${unreadTotal} unread` : "Notifications"} aria-expanded={notifOpen}>
                 <Bell size={15} />
-                {hasUnread && <span className="notif-dot" />}
+                {hasUnread && <span className="notif-badge">{unreadTotal > 9 ? "9+" : unreadTotal}</span>}
               </button>
               <span className="tooltip" role="tooltip">Notifications</span>
               {notifOpen && (
                 <>
                   <div className="notif-backdrop" onClick={() => setNotifOpen(false)} />
-                  <div className="notif-panel">
-                    {friendNotifItems.length === 0 && filteredChanges.length === 0 && alerts.length === 0 ? (
-                      <p className="notif-empty">No new notifications</p>
-                    ) : (
-                      <>
-                        <div className="notif-panel-header">
-                          {hasUnread
-                            ? <button className="rc-mark-all" onClick={markAllRead}>Mark all read</button>
-                            : <span className="rc-all-read">All caught up</span>
-                          }
-                        </div>
-                        {alerts.length > 0 && (
-                          <section className="rc">
-                            <div className="rc-head">
-                              <span className="rc-title"><BellRing size={14} /> Alerts</span>
-                            </div>
-                            <ul className="rc-list">
-                              {alerts.slice(0, 6).map(a => (
-                                <li key={a.id} className={`rc-item rc-item-clickable${a.read_at ? " rc-item-read" : ""}`} onClick={() => markAlertRead(a.id)}>
-                                  <span className="rc-dot rc-alert" />
-                                  <span className="rc-text">{a.title}</span>
-                                  {a.read_at && <span className="rc-read-check">✓</span>}
-                                </li>
-                              ))}
-                            </ul>
-                          </section>
-                        )}
-                        {friendNotifItems.length > 0 && (
-                          <section className="rc">
-                            <div className="rc-head">
-                              <span className="rc-title"><Users size={14} /> Friends</span>
-                              <button className="rc-view-all" style={{ padding: "2px 8px", fontSize: 12 }} onClick={() => { setNotifOpen(false); setView("friends"); }}>Go to Social</button>
-                            </div>
-                            <ul className="rc-list">
-                              {friendNotifItems.map(item => (
-                                <li key={item.id} className={`rc-item rc-item-clickable${item.isRead ? " rc-item-read" : ""}`} onClick={() => markPingRead(item.pingId)}>
-                                  <span className="rc-dot rc-friend" />
-                                  <span className="rc-text">{item.text}</span>
-                                  {item.isRead && <span className="rc-read-check">✓</span>}
-                                </li>
-                              ))}
-                            </ul>
-                          </section>
-                        )}
-                        {filteredChanges.length > 0 && <RecentChanges changes={filteredChanges} readKeys={readChangeKeys} onMarkRead={markChangeRead} onViewAll={handleViewAllNotifs} />}
-                      </>
-                    )}
+                  <div className="notif-panel" role="dialog" aria-label="Notifications">
+                    <div className="notif-panel-top">
+                      <div className="bell-chips" role="tablist" aria-label="Filter notifications">
+                        {[["all", "All"], ["social", "Social"], ["classes", "Classes"]].map(([id, label]) => (
+                          <button
+                            key={id}
+                            role="tab"
+                            aria-selected={notifFilter === id}
+                            className={`bell-chip${notifFilter === id ? " on" : ""}`}
+                            onClick={() => setNotifFilter(id)}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      {hasUnread
+                        ? <button className="rc-mark-all" onClick={markAllRead}>Mark all read</button>
+                        : <span className="rc-all-read">All caught up</span>
+                      }
+                    </div>
+                    {(() => {
+                      const showSocial = notifFilter !== "classes";
+                      const showClasses = notifFilter !== "social";
+                      const socialEmpty = friendNotifItems.length === 0;
+                      const classesEmpty = alertItems.length === 0 && filteredChanges.length === 0;
+                      if ((!showSocial || socialEmpty) && (!showClasses || classesEmpty)) {
+                        return <p className="notif-empty">No new notifications</p>;
+                      }
+                      return (
+                        <>
+                          {showSocial && !socialEmpty && (
+                            <section className="rc">
+                              <div className="rc-head">
+                                <span className="rc-title"><Users size={14} /> Friends</span>
+                              </div>
+                              <div className="np-ping-list">
+                                {friendNotifItems.map(item => (
+                                  <div
+                                    key={item.id}
+                                    className={`np-ping${item.isRead ? " np-ping-read" : ""}`}
+                                    onClick={() => item.kind !== "friend_request" && markPingRead(item.pingId)}
+                                    style={{ cursor: item.kind !== "friend_request" ? "pointer" : "default" }}
+                                  >
+                                    <div className="np-ping-avatar">{(item.name || "?")[0].toUpperCase()}</div>
+                                    <div className="np-ping-body">
+                                      <span className="np-ping-text">{item.text}</span>
+                                      {item.kind === "friend_request" && (
+                                        <div className="np-ping-actions">
+                                          <button className="np-btn-accept" onClick={e => { e.stopPropagation(); handleAcceptFriendRequest(item); }}>
+                                            <Check size={13} strokeWidth={2.8} /> Accept
+                                          </button>
+                                          <button className="np-btn-decline" onClick={e => { e.stopPropagation(); handleDeclineFriendRequest(item); }}>
+                                            <X size={13} strokeWidth={2.8} /> Decline
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="np-ping-side">
+                                      <span className="np-ping-time">{timeAgo(item.ts)}</span>
+                                      {item.isRead && <span className="rc-read-check">✓</span>}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="np-sec-foot">
+                                <button className="np-link" onClick={() => { setNotifOpen(false); setView("friends"); }}>Go to Social</button>
+                                <button className="np-link np-link-danger" onClick={clearAllFriendNotifs}>Clear all</button>
+                              </div>
+                            </section>
+                          )}
+                          {showClasses && alertItems.length > 0 && (
+                            <section className="rc">
+                              <div className="rc-head">
+                                <span className="rc-title"><BellRing size={14} /> Alerts</span>
+                              </div>
+                              <ul className="rc-list">
+                                {alertItems.slice(0, 6).map(a => {
+                                  const code = a.data?.code;
+                                  const titleText = code ? a.title.replace(code, "").replace(/\s{2,}/g, " ").trim() : a.title;
+                                  return (
+                                  <li key={a.id} className={`rc-item rc-item-clickable${a.read_at ? " rc-item-read" : ""}`} onClick={() => markAlertRead(a.id)}>
+                                    <span className={`rc-dot ${ALERT_DOT[a.type] || "rc-alert"}`} />
+                                    <span className="rc-text">
+                                      <span className="rc-alert-title">
+                                        {code && <span className={`ses rc-alert-pill ${subjectClass(code)}`}>{code}</span>}
+                                        {titleText}
+                                      </span>
+                                      {a.body && <span className="rc-alert-sub">{a.body.replace(/\n/g, "  ·  ")}</span>}
+                                    </span>
+                                    {a.created_at && <span className="rc-time">{timeAgo(a.created_at)}</span>}
+                                    {a.read_at && <span className="rc-read-check">✓</span>}
+                                  </li>
+                                  );
+                                })}
+                              </ul>
+                            </section>
+                          )}
+                          {showClasses && filteredChanges.length > 0 && <RecentChanges changes={filteredChanges} readKeys={readChangeKeys} onMarkRead={markChangeRead} onViewAll={handleViewAllNotifs} />}
+                        </>
+                      );
+                    })()}
                   </div>
                 </>
               )}
@@ -2077,7 +2284,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       </div>
                     )}
                     <div className="over-sep" />
-                    <button onClick={() => { setView("notifications"); setCompareTarget(null); setOverflowOpen(false); }}>
+                    <button onClick={() => { setView("notifications"); setCompareTarget(null); setOverflowOpen(false); setNotifPrefsSignal(n => n + 1); }}>
                       <Bell size={14} /> Notification settings
                     </button>
                     <div className="over-sep" />
@@ -2366,24 +2573,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                         }
                         setCompareTarget({ mode: "group", groupData: { name: g.name, members } });
                       }}
-                      notifications={friendNotifItems}
-                      onDismissNotifs={() => markAllRead()}
-                      onMarkRead={pingId => markPingRead(pingId)}
-                      onMarkAllRead={() => markAllRead()}
-                      onRemovePing={pingId => { markNotificationRead(pingId); setPings(prev => prev.filter(p => p.id !== pingId)); }}
-                      onClearAllPings={() => {
-                        deleteAllFriendPings(userId);          // drain any legacy friend_pings
-                        pings.forEach(p => markNotificationRead(p.id)); // durably clear social rows
-                        setPings([]);
-                        setReadPingIds(new Set());
-                        try { localStorage.removeItem(READ_PINGS_KEY); } catch { }
-                        markGroupsSeen();
-                        setClearedGroupIds(prev => {
-                          const next = new Set([...prev, ...allRecvGroups.map(g => g.id)]);
-                          try { localStorage.setItem(CLEARED_GROUPS_KEY, JSON.stringify([...next])); } catch { }
-                          return next;
-                        });
-                      }}
                     />
                     : view === "exams"
                       ? <ExamsPanel
@@ -2420,6 +2609,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                               onMarkReadMany={markChangesRead}
                               onMarkAllRead={markAllChangesRead}
                               onOpenDate={(c) => { setJumpToSession({ date: c.date, code: c.code, start: c.start }); setView("fullSchedule"); }}
+                              openPrefsSignal={notifPrefsSignal}
                             />
                           : view === "admin" && isAdmin
                             ? <AdminDashboard user={user} startImpersonation={startImpersonation} syncLogs={syncLogs} timeOverride={timeOverride} setTimeOverride={setTimeOverride} allChanges={CHANGES} />
@@ -2573,6 +2763,19 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         {feedbackOpen && (
           <Suspense fallback={null}>
             <FeedbackWidget user={user} onClose={() => setFeedbackOpen(false)} />
+          </Suspense>
+        )}
+
+        {feedbackFlashTriggered && feedbackFlashConfig && (
+          <Suspense fallback={null}>
+            <FeedbackFlashToast 
+              config={feedbackFlashConfig} 
+              onClose={handleFeedbackFlashClose}
+              onOpenFeedback={() => {
+                handleFeedbackFlashClose();
+                setFeedbackOpen(true);
+              }}
+            />
           </Suspense>
         )}
 

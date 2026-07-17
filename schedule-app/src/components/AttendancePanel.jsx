@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Check, X, Clock, AlertTriangle, ChevronDown, Flame } from "lucide-react";
+import { Check, X, Clock, AlertTriangle, ChevronDown, Flame, Activity } from "lucide-react";
 import { sessionKey, courseSkipStats, isExamSession } from "../lib/attendance.js";
 import { subjectClass } from "../lib/subjectColors.js";
 import { EmptyState } from "./ui.jsx";
@@ -199,7 +199,35 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
         <WeatherWidget now={now} weather={weather} />
       </div>
 
-      {/* ── Overall hero (tap to toggle subject-wise chart) ── */}
+      {/* ── Compact bar (mobile only — replaces the full hero on small screens) ── */}
+      {!noData && (
+        <button
+          className={`att-hero-bar tone-${overall_tone}${showChart ? " att-hero-bar-open" : ""}`}
+          onClick={() => setShowChart(s => !s)}
+          aria-expanded={showChart}
+          aria-label={`Overall attendance ${overall.pct}%, tap to ${showChart ? "collapse" : "show subject breakdown"}`}
+        >
+          {/* % pill */}
+          <span className="att-bar-pct">{overall.pct ?? "—"}%</span>
+          {/* stats */}
+          <span className="att-bar-sum">
+            <b>{overall.present}</b> attended · <b>{overall.absent}</b> missed
+          </span>
+          {/* skip budget */}
+          {overallSkipBudget.hasPenalty ? (
+            <span className="att-bar-chip att-bar-chip-bad"><AlertTriangle size={10} /> Penalty</span>
+          ) : overallSkipBudget.allowed > 0 ? (
+            <span className="att-bar-chip att-bar-chip-hi"><Flame size={10} /> {overallSkipBudget.remaining}/{overallSkipBudget.allowed}</span>
+          ) : null}
+          {/* decorative icon */}
+          <span className="att-bar-spark" aria-hidden="true">
+            <Activity size={13} strokeWidth={1.5} />
+          </span>
+          <ChevronDown size={14} className={`att-bar-chev${showChart ? " open" : ""}`} />
+        </button>
+      )}
+
+      {/* ── Full hero (desktop only — hidden on mobile via CSS) ── */}
       <section
         className={`att-hero tone-${overall_tone}${noData ? "" : " att-hero-clickable"}${showChart ? " att-hero-open" : ""}`}
         onClick={noData ? undefined : () => setShowChart(s => !s)}

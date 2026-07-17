@@ -4,7 +4,7 @@ import { useNotificationState } from "../hooks/useNotificationState.js";
 import { useNotificationFeed, FEED_PAGE_SIZE } from "../hooks/useNotificationFeed.js";
 import { SwipeRow } from "./notifications/SwipeRow.jsx";
 import { PushToggle } from "./notifications/PushToggle.jsx";
-import { ReminderBar } from "./notifications/ReminderBar.jsx";
+import { NotificationPrefsPanel } from "./notifications/NotificationPrefsPanel.jsx";
 
 const SWIPE_HINT_KEY = "pgp2.notif-swipe-hint-seen";
 const LOAD_TS = Date.now();
@@ -34,7 +34,7 @@ function relTime(iso) {
   return Math.floor(hrs / 24) + "d ago";
 }
 
-export default function NotificationsPage({ allChanges, myChanges, isAdmin, userId, legend, readChangeKeys, changeKeyOf, onMarkReadMany, onMarkAllRead, onOpenDate }) {
+export default function NotificationsPage({ allChanges, myChanges, isAdmin, userId, legend, readChangeKeys, changeKeyOf, onMarkReadMany, onMarkAllRead, onOpenDate, openPrefsSignal }) {
   const [pushStatus, setPushStatus] = useState("busy");
   const [showAll, setShowAll] = useState(false);
   const [kindFilter, setKindFilter] = useState("all");
@@ -253,7 +253,7 @@ export default function NotificationsPage({ allChanges, myChanges, isAdmin, user
           </div>
           <div style={{ marginLeft: "auto" }}><PushToggle userId={userId} onStatusChange={setPushStatus} /></div>
         </div>
-        {pushStatus === "on" && <ReminderBar userId={userId} />}
+        {pushStatus === "on" && <NotificationPrefsPanel userId={userId} openSignal={openPrefsSignal} />}
         <div className="notif-pg-empty">
           <div className="notif-empty-ico"><CheckCircle2 size={26} /></div>
           <p>You're all caught up</p>
@@ -308,7 +308,7 @@ export default function NotificationsPage({ allChanges, myChanges, isAdmin, user
         </div>
       </div>
 
-      {pushStatus === "on" && <ReminderBar userId={userId} />}
+      {pushStatus === "on" && <NotificationPrefsPanel userId={userId} />}
 
       {newPillCount > 0 && (
         <button

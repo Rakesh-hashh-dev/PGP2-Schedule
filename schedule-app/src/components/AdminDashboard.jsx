@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import "../styles/admin.css";
 import "../styles/assignments.css";
 import "../styles/cmdk.css";
-import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil, BarChart2, UtensilsCrossed } from "lucide-react";
+import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil, BarChart2, UtensilsCrossed, GraduationCap, MessageSquare } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { logAdminAction } from "../lib/adminAudit.js";
 import { LEGEND } from "../data/schedule.js";
@@ -11,6 +11,7 @@ import snapshotMeta from "../data/snapshot-meta.json";
 import { getSnapshot } from "../lib/sheet.js";
 import AdminCommandPalette from "./AdminCommandPalette";
 import Hero from "./Hero.jsx";
+import FeedbackFlashToast from "./FeedbackFlashToast.jsx";
 
 // Frozen clock for the Hero backdrop preview — computed once at module load so
 // render stays pure (react-hooks/purity)
@@ -132,6 +133,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [updatePromptDesc, setUpdatePromptDesc] = useState("");
   const [updatePromptHighlights, setUpdatePromptHighlights] = useState("");
 
+  // Feedback Flash Config
+  const [feedbackFlashes, setFeedbackFlashes] = useState([]);
+  const [previewFlashId, setPreviewFlashId] = useState(null);
+
   // Live Editor State
   const [liveSchedule] = useState(() => getSnapshot().CLASSES || []);
   const [liveEditorDate, setLiveEditorDate] = useState(new Date().toISOString().split("T")[0]);
@@ -158,6 +163,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [modalRoom, setModalRoom] = useState("");
   const [modalStart, setModalStart] = useState("");
   const [modalEnd, setModalEnd] = useState("");
+  const [modalCode, setModalCode] = useState("");
+  const [modalName, setModalName] = useState("");
+  const [modalIsNew, setModalIsNew] = useState(false);
 
   // A/B Test editor
   const [abTestName, setAbTestName] = useState("");
@@ -389,6 +397,11 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               setUpdatePromptDesc(data.flags.updatePrompt.desc || "");
               setUpdatePromptHighlights(data.flags.updatePrompt.highlights?.join("\n") || "");
             }
+            if (data.flags.feedbackFlashes) {
+              setFeedbackFlashes(data.flags.feedbackFlashes);
+            } else if (data.flags.feedbackFlash) {
+              setFeedbackFlashes([{ ...data.flags.feedbackFlash, id: Date.now().toString() }]);
+            }
           }
         }
       } catch (e) {
@@ -419,14 +432,30 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     setSaving(true);
     setSaveMsg("");
     try {
+      // Ensure announcedAt is set for newly enabled flashes
+      const updatedFlashes = feedbackFlashes.map(ff => {
+        const originalFf = originalFlags?.feedbackFlashes?.find(o => o.id === ff.id) || 
+                           (originalFlags?.feedbackFlash && originalFlags.feedbackFlash.id === ff.id ? originalFlags.feedbackFlash : null);
+        
+        let announcedAt = ff.announcedAt;
+        if (ff.enabled && (!originalFf?.enabled || originalFf?.deadline !== ff.deadline)) {
+            announcedAt = new Date().toISOString();
+        }
+        return { ...ff, announcedAt };
+      });
+
       const newFlags = {
         ...flags,
         updatePrompt: {
           title: updatePromptTitle,
           desc: updatePromptDesc,
           highlights: updatePromptHighlights.split("\n").filter(l => l.trim())
-        }
+        },
+        feedbackFlashes: updatedFlashes
       };
+      
+      // Clean up legacy flag
+      delete newFlags.feedbackFlash;
       
       const historyEntry = {
          timestamp: new Date().toISOString(),
@@ -709,8 +738,11 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   };
 
   // Helper to open the Live Editor modal AND initialise controlled inputs
-  const openLiveEditorModal = (c) => {
+  const openLiveEditorModal = (c, isNew = false) => {
     setLiveEditorModal(c);
+    setModalIsNew(isNew);
+    setModalCode(c.code || "");
+    setModalName(c.name || "");
     setModalSection(c.section === "Single" ? "All" : (c.section || "All"));
     setModalRoom(c.room || "");
     setModalStart(c.start || "");
@@ -766,45 +798,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       {/* ── Linear Layout ── */}
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
 
-          {/* Database Health & Metrics */}
-          <section className="admin-card" style={{ gridColumn: "1 / -1" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <h2><Database size={20} color="var(--blue)" /> Database Health & Metrics</h2>
-              <button onClick={fetchSysMetrics} disabled={sysMetricsLoading} className="admin-btn outline" style={{ padding: "4px 8px" }}>
-                <RefreshCw size={14} className={sysMetricsLoading ? "spin-icon" : ""} /> Refresh
-              </button>
-            </div>
-            <p className="admin-subtext">Live performance metrics powered by Supabase Metrics API.</p>
-            
-            {!hasAdminKey ? (
-              <div className="admin-empty" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-                <div>Admin key required to view metrics.</div>
-                <button onClick={promptAdminKey} className="admin-btn">Enter Admin Key</button>
-              </div>
-            ) : sysMetricsError ? (
-              <div className="admin-empty" style={{ color: "var(--danger)" }}>{sysMetricsError}</div>
-            ) : sysMetricsLoading && !sysMetrics ? (
-              <div className="admin-empty">Loading metrics...</div>
-            ) : sysMetrics ? (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16, marginTop: 16 }}>
-                {[
-                  { key: "pg_stat_activity_count", label: "Active Connections" },
-                  { key: "pg_stat_database_xact_commit", label: "Transactions (Commit)" },
-                  { key: "pg_stat_database_blks_hit", label: "Blocks Hit" },
-                  { key: "pg_stat_database_blks_read", label: "Blocks Read" },
-                  { key: "node_cpu_seconds_total", label: "CPU Seconds" }
-                ].map((m, i) => {
-                  const val = sysMetrics.find(x => x.name === m.key)?.value;
-                  return (
-                    <div key={i} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: 16 }}>
-                      <div style={{ fontSize: 12, color: "var(--muted)", textTransform: "uppercase", fontWeight: 700 }}>{m.label}</div>
-                      <div style={{ fontSize: 24, fontWeight: 800, marginTop: 4 }}>{val !== undefined ? val.toLocaleString(undefined, {maximumFractionDigits: 1}) : "N/A"}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : null}
-          </section>
+
 
           {/* Interactive Live Schedule Editor */}
           <section className="admin-card" style={{ gridColumn: "1 / -1" }}>
@@ -812,6 +806,12 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             <p className="admin-subtext">Click on a class slot to visually change the room or cancel the class.</p>
             <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
               <input type="date" className="admin-input" value={liveEditorDate} onChange={e => setLiveEditorDate(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)" }} />
+              <button 
+                className="admin-btn primary"
+                onClick={() => openLiveEditorModal({ date: liveEditorDate, code: "", name: "", type: "class", section: "All" }, true)}
+              >
+                + Add Class
+              </button>
             </div>
             <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 16 }}>
               {(() => {
@@ -1869,6 +1869,178 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </div>
         </section>
 
+        {/* Feedback Flash Scheduler */}
+        <section className="admin-card">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <h2><MessageSquare size={20} color="var(--amber)" /> Feedback Flash Scheduler</h2>
+            <button 
+              onClick={() => setFeedbackFlashes([...feedbackFlashes, { id: Date.now().toString(), enabled: false, deadline: "", link: "", subjects: [] }])} 
+              className="admin-btn outline" style={{ fontSize: 12, padding: "4px 8px" }}
+            >
+              + Add Flash
+            </button>
+          </div>
+          <p className="admin-sub">
+            Each enabled flash nudges targeted users up to 3 times: on announce (first save), 2 hours before and 20 minutes
+            before the deadline. Each nudge shows for 1 hour and users can dismiss it once per session.
+          </p>
+
+          <div className="admin-form" style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 16 }}>
+            {feedbackFlashes.map((ff, index) => {
+              const HOUR = 60 * 60 * 1000;
+              const now = Date.now();
+              const deadlineMs = ff.deadline ? new Date(ff.deadline).getTime() : null;
+
+              const fmtAbs = ms => new Date(ms).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+              const fmtRel = ms => {
+                const diff = ms - now;
+                const mins = Math.round(Math.abs(diff) / 60000);
+                const txt = mins < 60 ? `${mins}m` : mins < 1440 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${Math.floor(mins / 1440)}d ${Math.floor((mins % 1440) / 60)}h`;
+                return diff >= 0 ? `in ${txt}` : `${txt} ago`;
+              };
+
+              const triggers = deadlineMs ? [
+                { key: "announced", name: "Announce", time: ff.announcedAt ? new Date(ff.announcedAt).getTime() : null, pendingNote: "on first save" },
+                { key: "2h", name: "2h before", time: deadlineMs - 2 * HOUR },
+                { key: "20m", name: "20m before", time: deadlineMs - 20 * 60 * 1000 },
+              ] : [];
+              const inWindow = t => t != null && now >= t && now <= t + HOUR;
+
+              const status = !ff.enabled
+                ? { label: "Draft", color: "var(--muted)", bg: "color-mix(in srgb, var(--muted) 14%, transparent)" }
+                : !deadlineMs
+                  ? { label: "Needs deadline", color: "var(--amber)", bg: "rgba(234, 179, 8, .14)" }
+                  : now > deadlineMs
+                    ? { label: "Expired", color: "var(--red)", bg: "rgba(225, 29, 72, .10)" }
+                    : triggers.some(t => inWindow(t.time))
+                      ? { label: "Live now", color: "var(--live)", bg: "rgba(31, 169, 113, .14)" }
+                      : { label: "Scheduled", color: "var(--violet)", bg: "rgba(109, 91, 208, .12)" };
+
+              return (
+                <div key={ff.id} style={{ display: "flex", flexDirection: "column", gap: 14, padding: 18, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, position: "relative", opacity: ff.enabled ? 1 : .72 }}>
+
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                      <input type="checkbox" checked={ff.enabled} onChange={e => setFeedbackFlashes(feedbackFlashes.map(f => f.id === ff.id ? { ...f, enabled: e.target.checked } : f))} />
+                      <span style={{ fontWeight: 600 }}>Flash #{index + 1}</span>
+                    </label>
+                    <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: status.color, background: status.bg, padding: "3px 10px", borderRadius: 20 }}>
+                      {status.label}
+                    </span>
+                    <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
+                      <button onClick={() => setPreviewFlashId(ff.id)} disabled={!ff.enabled} className="admin-btn" style={{ padding: "4px 8px", fontSize: 12 }}>
+                        Preview
+                      </button>
+                      <button onClick={() => setFeedbackFlashes(feedbackFlashes.filter(f => f.id !== ff.id))} className="admin-btn outline" style={{ padding: "4px 8px", fontSize: 12, color: "var(--red)", borderColor: "var(--red)" }}>
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* At-a-glance summary — visible even when the flash is disabled */}
+                  <div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.5 }}>
+                    {deadlineMs ? (
+                      <>
+                        Deadline <strong style={{ color: "var(--text)" }}>{fmtAbs(deadlineMs)}</strong> ({fmtRel(deadlineMs)})
+                        {" · "}{(ff.subjects || []).length ? `Targets ${ff.subjects.join(", ")}` : "All users"}
+                        {" · "}{ff.link ? "External form" : "In-app widget"}
+                      </>
+                    ) : (
+                      "No deadline set — this flash will never fire."
+                    )}
+                  </div>
+
+                  {ff.enabled && (
+                    <>
+                      {deadlineMs && now > deadlineMs && (
+                        <div style={{ fontSize: 12.5, color: "var(--red)", background: "rgba(225, 29, 72, .07)", border: "1px solid rgba(225, 29, 72, .18)", borderRadius: 10, padding: "8px 12px" }}>
+                          Deadline has passed — users no longer see this flash. Set a new deadline to reuse it, or remove it to keep the list clean.
+                        </div>
+                      )}
+
+                      {/* Trigger timeline: when users will actually see this flash */}
+                      {deadlineMs && now <= deadlineMs && (
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          {triggers.map(t => {
+                            const live = inWindow(t.time);
+                            const fired = t.time != null && now > t.time + HOUR;
+                            const color = live ? "var(--live)" : fired ? "var(--muted)" : "var(--violet)";
+                            return (
+                              <div key={t.key} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 600, color, background: "var(--card)", border: `1px solid ${live ? "rgba(31, 169, 113, .35)" : "var(--border)"}`, borderRadius: 20, padding: "4px 10px" }}>
+                                <span style={{ width: 7, height: 7, borderRadius: "50%", background: color, flexShrink: 0 }} />
+                                {t.name}: {t.time == null ? t.pendingNote : live ? "live now" : fired ? "shown" : fmtRel(t.time)}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                        <div className="admin-field">
+                          <label>Deadline <span className="admin-optional">(Nudges fire before this)</span></label>
+                          <input type="datetime-local" className="admin-input" value={ff.deadline || ""} onChange={e => setFeedbackFlashes(feedbackFlashes.map(f => f.id === ff.id ? { ...f, deadline: e.target.value } : f))} />
+                        </div>
+
+                        <div className="admin-field">
+                          <label>Form Link <span className="admin-optional">(If blank, opens in-app widget)</span></label>
+                          <input type="url" className="admin-input" value={ff.link || ""} onChange={e => setFeedbackFlashes(feedbackFlashes.map(f => f.id === ff.id ? { ...f, link: e.target.value } : f))} placeholder="https://forms.gle/..." />
+                        </div>
+                      </div>
+
+                      <div className="admin-field">
+                        <label>Target Subjects <span className="admin-optional">(Only enrolled users are nudged. None selected = everyone)</span></label>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+                          {Object.keys(LEGEND).map(code => {
+                            const isSelected = (ff.subjects || []).includes(code);
+                            return (
+                              <button
+                                key={code}
+                                type="button"
+                                onClick={() => {
+                                  const newSubjects = isSelected ? (ff.subjects || []).filter(c => c !== code) : [...(ff.subjects || []), code];
+                                  setFeedbackFlashes(feedbackFlashes.map(f => f.id === ff.id ? { ...f, subjects: newSubjects } : f));
+                                }}
+                                className={`admin-btn ${isSelected ? "primary" : "outline"}`}
+                                style={{ padding: "4px 10px", fontSize: 12, borderRadius: 20 }}
+                                title={LEGEND[code].name}
+                              >
+                                {code}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+
+            {feedbackFlashes.length === 0 && (
+              <div style={{ padding: 24, textAlign: "center", color: "var(--muted)", background: "var(--bg)", borderRadius: 12, border: "1px dashed var(--border)" }}>
+                No feedback flashes scheduled. Add one and users get nudged automatically as its deadline approaches.
+              </div>
+            )}
+            
+            <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
+              <button onClick={saveConfig} disabled={saving} className="admin-btn primary">
+                <Save size={16} /> Save Scheduler Config
+              </button>
+            </div>
+
+            {previewFlashId && (
+              <FeedbackFlashToast 
+                config={{ 
+                  deadline: feedbackFlashes.find(f => f.id === previewFlashId)?.deadline, 
+                  link: feedbackFlashes.find(f => f.id === previewFlashId)?.link,
+                  subjectName: (feedbackFlashes.find(f => f.id === previewFlashId)?.subjects || []).length > 0 ? LEGEND[feedbackFlashes.find(f => f.id === previewFlashId).subjects[0]]?.name : null
+                }} 
+                onClose={() => setPreviewFlashId(null)} 
+              />
+            )}
+          </div>
+        </section>
+
         {/* Feedback Section */}
         <section className="admin-card">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -2370,8 +2542,23 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             </div>
 
             <div style={{ marginBottom: 16 }}>
-              <div style={{ fontWeight: 700, color: "var(--text)" }}>{liveEditorModal.code} — {liveEditorModal.name || "Class"}</div>
-              <div style={{ color: "var(--muted)", fontSize: 13 }}>{liveEditorModal.date} | {liveEditorModal.start} – {liveEditorModal.end} | Section {liveEditorModal.section}</div>
+              {modalIsNew ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div className="admin-field">
+                    <label>Course Code</label>
+                    <input type="text" className="admin-input" value={modalCode} onChange={e => setModalCode(e.target.value)} placeholder="e.g. WAI" />
+                  </div>
+                  <div className="admin-field">
+                    <label>Title</label>
+                    <input type="text" className="admin-input" value={modalName} onChange={e => setModalName(e.target.value)} placeholder="e.g. WAI End Term" />
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div style={{ fontWeight: 700, color: "var(--text)" }}>{liveEditorModal.code} — {liveEditorModal.name || "Class"}</div>
+                  <div style={{ color: "var(--muted)", fontSize: 13 }}>{liveEditorModal.date} | {liveEditorModal.start} – {liveEditorModal.end} | Section {liveEditorModal.section}</div>
+                </>
+              )}
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -2398,6 +2585,38 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 <Ban size={16} /> Cancel Class
               </button>
 
+              {/* Mark as Exam toggle */}
+              {(() => {
+                const overrideKey = modalSection === "All" ? liveEditorModal.code : `${liveEditorModal.code}_${modalSection}`;
+                const existing = flags.classOverrides?.[liveEditorModal.date]?.[overrideKey];
+                const isExamOverride = existing?.type === "exam";
+                return (
+                  <button onClick={() => {
+                    const nextOverrides = { ...(flags.classOverrides || {}) };
+                    nextOverrides[liveEditorModal.date] = { ...(nextOverrides[liveEditorModal.date] || {}) };
+                    if (isExamOverride) {
+                      // Remove only the exam type flag, keep other overrides intact
+                      const rest = { ...existing };
+                      delete rest.type;
+                      if (Object.keys(rest).length === 0) {
+                        delete nextOverrides[liveEditorModal.date][overrideKey];
+                        if (Object.keys(nextOverrides[liveEditorModal.date]).length === 0) delete nextOverrides[liveEditorModal.date];
+                      } else {
+                        nextOverrides[liveEditorModal.date][overrideKey] = rest;
+                      }
+                      logAdminAction(admin_id, "clear_exam_flag", { date: liveEditorModal.date, class: overrideKey });
+                    } else {
+                      nextOverrides[liveEditorModal.date][overrideKey] = { ...existing, type: "exam" };
+                      logAdminAction(admin_id, "mark_as_exam", { date: liveEditorModal.date, class: overrideKey });
+                    }
+                    setFlags({ ...flags, classOverrides: nextOverrides });
+                    setLiveEditorModal(null);
+                  }} className="admin-btn outline" style={{ color: isExamOverride ? "var(--warning)" : "var(--violet)", borderColor: isExamOverride ? "var(--warning)" : "var(--violet)" }}>
+                    <GraduationCap size={16} /> {isExamOverride ? "Remove Exam Flag" : "Mark as Exam"}
+                  </button>
+                );
+              })()}
+
               {/* Time range */}
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <div className="admin-field" style={{ flex: 1 }}>
@@ -2417,7 +2636,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 <div style={{ display: "flex", gap: 8 }}>
                   <input type="text" placeholder="e.g. C-104" className="admin-input" style={{ flex: 1 }} value={modalRoom} onChange={e => setModalRoom(e.target.value)} />
                   <button onClick={() => {
-                    const overrideKey = modalSection === "All" ? liveEditorModal.code : `${liveEditorModal.code}_${modalSection}`;
+                    const codeToUse = modalIsNew ? modalCode : liveEditorModal.code;
+                    if (modalIsNew && !codeToUse) return alert("Course Code is required.");
+                    const overrideKey = modalSection === "All" ? codeToUse : `${codeToUse}_${modalSection}`;
                     const nextOverrides = { ...(flags.classOverrides || {}) };
                     nextOverrides[liveEditorModal.date] = { ...(nextOverrides[liveEditorModal.date] || {}) };
                     const existing = nextOverrides[liveEditorModal.date][overrideKey] || {};
@@ -2425,10 +2646,15 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     if (modalRoom)  changes.room  = modalRoom;
                     if (modalStart) changes.start = modalStart;
                     if (modalEnd)   changes.end   = modalEnd;
-                    if (!modalRoom && !modalStart && !modalEnd) return alert("Enter at least one change (room, start, or end time).");
+                    if (modalIsNew) {
+                      changes.name = modalName;
+                      changes.type = "class"; // base type, can be marked as exam later
+                    } else {
+                      if (!modalRoom && !modalStart && !modalEnd) return alert("Enter at least one change (room, start, or end time).");
+                    }
                     nextOverrides[liveEditorModal.date][overrideKey] = changes;
                     setFlags({ ...flags, classOverrides: nextOverrides });
-                    logAdminAction(admin_id, "edit_class", { date: liveEditorModal.date, class: overrideKey, room: modalRoom, start: modalStart, end: modalEnd });
+                    logAdminAction(admin_id, "edit_class", { date: liveEditorModal.date, class: overrideKey, room: modalRoom, start: modalStart, end: modalEnd, name: modalName });
                     setLiveEditorModal(null);
                   }} className="admin-btn primary">Save</button>
                 </div>

@@ -361,19 +361,32 @@ chat** (`type:'group_chat'`). Split by concern:
   split chat in a follow-up.
 - Once social + chat are off `friend_pings`, drop the table.
 
-### Phase 4 — server-side schedule diff  ⚙️ producer code done 2026-07-17 (added/moved); Announcements UI migration still stretch
+### Phase 4 — server-side schedule diff  ⚠️ deployed then DISABLED after an incident 2026-07-17; bounded + fixed, cron off pending re-verify
 
-**Code done:** migration `20260717130000_schedule_snapshots.sql`
-(`schedule_snapshots` single-row store) + new producer
-`supabase/functions/schedule-diff/index.ts` (cron `*/10`). Each run diffs the live
-feed against the prior snapshot; for each **added** or **moved** (start/end/room
-changed) class on a today-or-future date it inserts a `schedule_change`
-notification for every enrolled student (`dedup_key:'change:<kind>:<date|code|section>:<sig>'`),
-then stores the fresh snapshot. First run seeds only (no notifications).
-**Removals/cancellations are intentionally NOT emitted** — they already flow through
-`class-reminders` as `class_cancelled`; emitting `schedule_change:removed` too would
-double-notify. Full `CancellationAlert`/Announcements-UI reconciliation is the
-stretch below. Original design:
+**INCIDENT (2026-07-17):** the first cron rollout produced **3,867 in-app
+`schedule_change` rows** in ~2h. Cause: the morning schedule feed was republished
+repeatedly during finalization, and the producer notified **every enrolled user
+(208)** for **every moved class**, with a signature-based `dedup_key` so each
+re-move made a *new* row. No push went out (`schedule_change` push defaults off →
+`dispatch` suppressed), but it flooded in-app bells. Mitigated by unscheduling the
+cron and deleting the rows. See memory `pgp2-notification-redesign`.
+
+**Fixes applied (code done, function redeployed, cron still OFF):**
+- **Subscribed users only** — fan-out now targets users with a push subscription
+  (~8), mirroring `class-reminders`, instead of the full 208-user cohort.
+- **Per-class-per-day dedup** — `dedup_key:'change:<date|code|section>'` (dropped
+  the signature): a class shuffled several times yields ONE row per user, not one
+  per intermediate move. This is what stops feed churn from multiplying.
+- **Near-term only** — today+tomorrow, not all future dates (matches the
+  cancellation window; a move three weeks out isn't actionable).
+- **Circuit-breaker** — if >12 near-term classes change in one run (feed-wide
+  representation change / bulk reshuffle), skip notifying and just re-snapshot.
+
+**Design (unchanged):** diffs the live feed vs the prior snapshot
+(`schedule_snapshots`), emits **added/moved** `schedule_change` rows; first run
+seeds only. **Removals/cancellations NOT emitted** — they flow through
+`class-reminders` as `class_cancelled` (avoids double-notify). Re-enable the cron
+only after verifying the bounded version behaves on a churny feed day. Original:
 
 Today `CHANGES` (Announcements) and `CancellationAlert` are **client-derived** by
 diffing the schedule on load, so two devices can disagree and read-state is a

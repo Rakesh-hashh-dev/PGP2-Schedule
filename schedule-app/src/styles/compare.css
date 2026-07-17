@@ -643,6 +643,8 @@
 .cv-sbs-card {
   margin: 0;
   height: 100%;
+  /* Cards stretch to the tallest in the row — keep content centered, not top-pinned */
+  justify-content: center;
 }
 
 .cv-sbs-emptycell {
@@ -651,6 +653,7 @@
   min-height: 64px;
   background: var(--surface);
   border: 1px dashed var(--border-hi);
+  box-shadow: none;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1071,6 +1074,78 @@
    and the window-scroll-driven date chip doesn't apply */
 .cv-more-modal .cv-sbs-sticky-header {
   top: 0;
+  padding: 6px 4px 8px;
+  gap: 6px;
+}
+
+/* Compact type + spacing inside the modal so more of the range fits on screen */
+.cv-more-body {
+  padding: 10px 12px calc(20px + env(safe-area-inset-bottom, 0px));
+}
+
+.cv-more-modal .cv-side-agenda {
+  padding: 6px 2px 14px;
+}
+
+.cv-more-modal .cv-sbs-body {
+  gap: 12px;
+}
+
+.cv-more-modal .cv-sbs-day,
+.cv-more-modal .cv-sbs-row {
+  gap: 8px;
+}
+
+.cv-more-modal .cv-day-heading {
+  font-size: 11px;
+}
+
+.cv-more-modal .cv-sbs-name-pill {
+  font-size: 10px;
+  padding: 4px 8px;
+}
+
+.cv-more-modal .cva-card {
+  padding: 9px 12px;
+  gap: 3px;
+  border-radius: 12px;
+}
+
+.cv-more-modal .cva-title {
+  font-size: 12.5px;
+}
+
+.cv-more-modal .cva-time-sm {
+  font-size: 10px;
+}
+
+.cv-more-modal .cv-sbs-emptycell {
+  min-height: 48px;
+}
+
+.cv-more-modal .cv-sbs-emptycell span {
+  font-size: 10px;
+}
+
+.cv-more-modal .cv-sbs-freepill {
+  font-size: 11px;
+  padding: 6px 10px;
+}
+
+.cv-more-modal .cv-sbs-freepill-tag {
+  font-size: 9px;
+}
+
+.cv-more-modal .cv-sbs-freeday {
+  padding: 8px 12px;
+}
+
+.cv-more-modal .cv-sbs-freeday-badge {
+  font-size: 9.5px;
+}
+
+.cv-more-modal .cv-sbs-freeday-text {
+  font-size: 11.5px;
 }
 
 .cv-more-modal .cv-sbs-datebar {

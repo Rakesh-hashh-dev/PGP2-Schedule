@@ -1,26 +1,20 @@
 // Supabase Edge Function: schedule-diff
-// Phase 4 producer. Diffs the current live schedule feed against the previous
-// snapshot and, for each class that was ADDED or MOVED (time/room changed) on a
-// today-or-future date, inserts a `schedule_change` notification row for every
-// enrolled student. This is the SERVER source of truth for schedule changes, so
-// devices agree and read state syncs via notifications.read_at — replacing the
-// per-device client diff behind the Announcements feed.
+// Phase 4 producer. Turns the feed's pre-computed CHANGES log (the SAME schedule
+// diff that powers the in-app Announcements page — added/moved/removed, produced
+// by the Google Apps Script) into `schedule_change` notifications for enrolled,
+// subscribed students. Reading the shared CHANGES log — instead of independently
+// re-diffing CLASSES against a snapshot — keeps the bell and the Announcements
+// page consistent (one source of truth) and avoids the multi-session keying bug.
 //
-// Removals/cancellations are intentionally NOT emitted here: admin cancellations
-// already flow through class-reminders as `class_cancelled`, and emitting a
-// `schedule_change:removed` too would double-notify. Full CancellationAlert
-// reconciliation is the Phase 4 stretch (see docs/notification-architecture.md).
+// Only added/moved are emitted (removals/cancellations flow through
+// class-reminders as `class_cancelled`; admin_only announcements go via send-push).
+// Dedup is by the Apps Script's stable change id, so re-runs never duplicate.
 //
-// Auth: header  x-push-key: <PUSH_ADMIN_SECRET>
+// Auth: header x-push-key (PUSH_ADMIN_SECRET) or a service-role bearer (cron).
 // Secrets: PUSH_ADMIN_SECRET, FEED_URL
-// Tables: schedule_snapshots, profiles, notifications
+// Tables: profiles, push_subscriptions, notifications
 //
-// Cron (every ~10 min is plenty; it only reacts to feed edits):
-//   select cron.schedule('termflow-schedule-diff', '*/10 * * * *', $$
-//     select net.http_post(
-//       url := 'https://<ref>.supabase.co/functions/v1/schedule-diff',
-//       headers := jsonb_build_object('Content-Type','application/json','x-push-key','<secret>'),
-//       body := '{}'::jsonb) $$);
+// Cron: select cron.schedule('termflow-schedule-diff','*/10 * * * *', $$ ... $$);
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -41,7 +35,6 @@ function json(status: number, payload: unknown) {
 function todayIST() {
   return new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
 }
-
 // An IST wall-clock date+time as a UTC ISO instant, for push-expiry.
 function istToUTCISO(dateISO: string, hhmm?: string) {
   if (!hhmm || !/^\d{1,2}:\d{2}$/.test(hhmm)) return null;
@@ -49,15 +42,17 @@ function istToUTCISO(dateISO: string, hhmm?: string) {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
-type Cls = {
-  date: string; code: string; section: string; name?: string;
-  room?: string; start?: string; end?: string; type?: string;
+// One entry in the feed's CHANGES log (Google Apps Script shape).
+type ChangeItem = {
+  id: string; ts?: string; date?: string; start?: string;
+  kind?: string; text?: string; code?: string; admin_only?: boolean;
 };
 
-// Identity of a schedule slot (which class, when, which section) vs. its mutable
-// attributes (start/end/room). Same key + changed sig = "moved".
-const keyOf = (c: Cls) => `${c.date}|${c.code}|${c.section}`;
-const sigOf = (c: Cls) => `${c.start || ""}|${c.end || ""}|${c.room || ""}`;
+// Only notify about changes logged this recently — avoids re-announcing the whole
+// historical log on first run; dedup by id covers overlap between runs.
+const RECENT_MS = 3 * 3600_000;
+// A single feed edit that flips many near-term classes at once is churn, not news.
+const CHANGE_CAP = 12;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -88,98 +83,67 @@ Deno.serve(async (req) => {
 });
 
 async function runDiff(supabase: ReturnType<typeof createClient>) {
-  // 1. Current live feed
+  // 1. Pull the feed's shared CHANGES log.
   const feedUrl = Deno.env.get("FEED_URL");
   if (!feedUrl) return { skipped: "no FEED_URL" };
-  let current: Cls[] | null = null;
+  let log: ChangeItem[] | null = null;
   try {
     const res = await fetch(feedUrl, { redirect: "follow", signal: AbortSignal.timeout(8_000) });
     if (res.ok) {
       const data = await res.json();
-      if (Array.isArray(data?.CLASSES)) current = data.CLASSES;
+      if (Array.isArray(data?.CHANGES)) log = data.CHANGES;
     }
-  } catch { /* feed down — skip this run, don't overwrite snapshot */ }
-  if (!current) return { skipped: "feed unavailable" };
-
-  // 2. Previous snapshot
-  const { data: snap } = await supabase
-    .from("schedule_snapshots").select("payload").eq("id", "latest").maybeSingle();
-  const previous: Cls[] | null = snap?.payload?.CLASSES ?? null;
-
-  // Always store the fresh snapshot so the next run diffs against this one.
-  const saveSnapshot = supabase.from("schedule_snapshots").upsert({
-    id: "latest", payload: { CLASSES: current }, updated_at: new Date().toISOString(),
-  });
-
-  // First ever run (no prior snapshot): seed only, don't notify — every class
-  // would look "added".
-  if (!previous) {
-    await saveSnapshot;
-    return { seeded: true, classes: current.length };
-  }
+  } catch { /* feed down — skip this run */ }
+  if (!log) return { skipped: "no CHANGES in feed" };
 
   const today = todayIST();
-  const isClass = (c: Cls) => !c.type || c.type === "class";
-  const future = (c: Cls) => c.date >= today;
+  const tomorrow = new Date(Date.parse(`${today}T00:00:00Z`) + 86400_000).toISOString().slice(0, 10);
+  const nearTerm = (d?: string) => d === today || d === tomorrow;
+  const now = Date.now();
 
-  const prevMap = new Map<string, Cls>();
-  for (const c of previous) if (isClass(c)) prevMap.set(keyOf(c), c);
+  // 2. Relevant = added/moved, near-term class date, recently logged, has a code,
+  //    not an admin-only announcement.
+  const relevant = log.filter((ch) =>
+    (ch.kind === "added" || ch.kind === "moved") &&
+    !ch.admin_only && !!ch.code && nearTerm(ch.date) &&
+    (!ch.ts || (now - Date.parse(ch.ts)) <= RECENT_MS)
+  );
+  if (relevant.length === 0) return { changes: 0 };
+  if (relevant.length > CHANGE_CAP) return { skipped: "too many recent changes — likely churn", changes: relevant.length };
 
-  // 3. Detect added + moved on today-or-future dates
-  type Change = { kind: "added" | "moved"; cls: Cls; prev?: Cls };
-  const changes: Change[] = [];
-  for (const c of current) {
-    if (!isClass(c) || !future(c)) continue;
-    const before = prevMap.get(keyOf(c));
-    if (!before) {
-      changes.push({ kind: "added", cls: c });
-    } else if (sigOf(before) !== sigOf(c)) {
-      changes.push({ kind: "moved", cls: c, prev: before });
-    }
-  }
-  if (changes.length === 0) {
-    await saveSnapshot;
-    return { changes: 0 };
-  }
+  // 3. Enrolled + subscribed students per affected course. CHANGES carries no
+  //    section, so notify everyone enrolled in the code (bounded to subscribers).
+  const [{ data: profiles }, { data: subs }] = await Promise.all([
+    supabase.from("profiles").select("user_id, courses"),
+    supabase.from("push_subscriptions").select("user_id"),
+  ]);
+  const subscribed = new Set((subs || []).map((s) => s.user_id));
+  const enrolledInCode = (code: string) =>
+    (profiles || []).filter((p) => subscribed.has(p.user_id) && p.courses?.[code] !== undefined);
 
-  // 4. Enrolled students per affected course
-  const { data: profiles } = await supabase.from("profiles").select("user_id, courses");
-  const enrolledIn = (code: string, section: string) =>
-    (profiles || []).filter((p) => {
-      const sec = p.courses?.[code];
-      return sec !== undefined && (section === "Single" || section === "All" || sec === section);
-    });
-
-  // 5. Build notification rows
+  // 4. Build one row per (user, change). Body reuses the feed's own change text so
+  //    the bell reads identically to the Announcements page.
+  const dayLabel = (d?: string) => (d === today ? "Today" : d === tomorrow ? "Tomorrow" : d || "");
   const rows: Record<string, unknown>[] = [];
-  for (const ch of changes) {
-    const c = ch.cls;
-    const when = [c.start, c.end].filter(Boolean).join(" – ");
-    const title = ch.kind === "added"
-      ? `🆕 ${c.code} added`
-      : `🔀 ${c.code} rescheduled`;
-    const bodyParts = [
-      when || null,
-      c.room ? `Room ${c.room}` : null,
-    ].filter(Boolean).join("  ·  ");
-    for (const p of enrolledIn(c.code, c.section)) {
+  for (const ch of relevant) {
+    const title = ch.kind === "added" ? `🆕 ${ch.code} added` : `🔀 ${ch.code} rescheduled`;
+    const body = ch.text || `${dayLabel(ch.date)}${ch.start ? "  ·  " + ch.start : ""}`;
+    for (const p of enrolledInCode(ch.code!)) {
       rows.push({
         user_id: p.user_id,
         type: "schedule_change",
         title,
-        body: c.name ? `${bodyParts}\n${c.name}` : bodyParts,
+        body,
         url: "/?view=notifications",
         icon: "/icon-push-bell.png",
         data: {
-          kind: ch.kind, code: c.code, section: c.section, date: c.date,
-          start: c.start, end: c.end, room: c.room,
+          kind: ch.kind, code: ch.code, date: ch.date, start: ch.start,
           urgency: "normal", ttl: 6 * 3600,
-          expires_at: istToUTCISO(c.date, c.start) || istToUTCISO(c.date, "23:59"),
+          expires_at: istToUTCISO(ch.date!, ch.start) || istToUTCISO(ch.date!, "23:59"),
         },
-        // Change signature is baked into the key so a genuinely new change (a
-        // second reschedule of the same slot) produces a fresh row, while a
-        // repeated diff of the same state dedups.
-        dedup_key: `change:${ch.kind}:${keyOf(c)}:${sigOf(c)}`,
+        // Stable Apps Script change id → one row per change per user, forever
+        // idempotent across runs.
+        dedup_key: `change:${ch.id}`,
       });
     }
   }
@@ -190,16 +154,9 @@ async function runDiff(supabase: ReturnType<typeof createClient>) {
       .from("notifications")
       .upsert(rows, { onConflict: "user_id,dedup_key", ignoreDuplicates: true })
       .select("id");
-    if (error) { await saveSnapshot; return { error: error.message, candidates: rows.length }; }
+    if (error) return { error: error.message, candidates: rows.length };
     created = inserted?.length ?? 0;
   }
 
-  await saveSnapshot;
-  return {
-    changes: changes.length,
-    added: changes.filter((c) => c.kind === "added").length,
-    moved: changes.filter((c) => c.kind === "moved").length,
-    candidates: rows.length,
-    created,
-  };
+  return { changes: relevant.length, candidates: rows.length, created };
 }

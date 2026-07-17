@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import "../styles/friends.css";
-import { Copy, Link2, UserPlus, Users, Trash2, ArrowRight, Plus, X, Check, ChevronDown, ChevronUp, RefreshCw, Bell, Globe, Lock, CheckCircle, AlertCircle, Info, AlertTriangle, Star } from "lucide-react";
+import { Copy, Link2, UserPlus, Users, Trash2, ArrowRight, Plus, X, Check, ChevronDown, ChevronUp, RefreshCw, Globe, Lock, CheckCircle, AlertCircle, Info, AlertTriangle, Star } from "lucide-react";
 import { SkeletonText } from "./ui.jsx";
 
 import {
@@ -8,8 +8,9 @@ import {
   saveFriend, removeFriend as removeFriendFromStore, updateFriend, writeFriends,
   loadGroups, createGroup, removeGroup as removeGroupFromStore, updateGroup,
   getOrCreateShareCode, pushFriendsToCloud, pushGroupsToCloud,
-  refreshFriendCoursesFromCloud, sendFriendPing, hasPendingFriendRequest, deleteFriendPing, deletePingsBetween,
-  shareGroupWithMembers, unshareGroupFromMembers, sendGroupMessage, fetchGroupMessages,
+  refreshFriendCoursesFromCloud, sendFriendPing, hasPendingFriendRequest, deletePingsBetween,
+  shareGroupWithMembers, unshareGroupFromMembers,
+  sendGroupChatMessage, fetchGroupChatMessages,
   avatarGradient,
 } from "../lib/friends.js";
 
@@ -92,28 +93,26 @@ function GroupChat({ group, userId, userName }) {
     let channel;
     async function load() {
       setLoading(true);
-      const msgs = await fetchGroupMessages(group.id);
+      // Phase 3: read from group_messages (not friend_pings)
+      const msgs = await fetchGroupChatMessages(group.id);
       setMessages(msgs);
       setLoading(false);
-      
+
       const { supabase } = await import("../lib/supabase.js");
+      // Phase 3: subscribe to group_messages INSERTs
       channel = supabase.channel(`group-chat-${group.id}`)
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'friend_pings', filter: `target_id=eq.${group.id}` }, payload => {
-           const p = payload.new;
-           let meta = {};
-           try { meta = JSON.parse(p.from_name); } catch { meta = { name: p.from_name }; }
-           if (meta.type === 'group_chat') {
-             setMessages(prev => {
-                if (prev.some(m => m.id === p.id)) return prev;
-                return [...prev, {
-                  id: p.id,
-                  from_id: p.from_id,
-                  name: meta.name || p.from_name,
-                  text: meta.text || "",
-                  created_at: p.created_at
-                }];
-             });
-           }
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'group_messages', filter: `group_id=eq.${group.id}` }, payload => {
+          const p = payload.new;
+          setMessages(prev => {
+            if (prev.some(m => m.id === p.id)) return prev;
+            return [...prev, {
+              id: p.id,
+              from_id: p.from_id,
+              name: p.from_name || "Someone",
+              text: p.text || "",
+              created_at: p.created_at
+            }];
+          });
         })
         .subscribe();
     }
@@ -126,7 +125,8 @@ function GroupChat({ group, userId, userName }) {
     if (!text.trim()) return;
     const txt = text.trim();
     setText("");
-    await sendGroupMessage(group.id, userId, userName, txt);
+    // Phase 3: write to group_messages (not friend_pings)
+    await sendGroupChatMessage(group.id, userId, userName, txt);
   }
 
   return (
@@ -153,20 +153,9 @@ function GroupChat({ group, userId, userName }) {
 
 function toMinFP(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function ymdFP(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
-function timeAgo(iso) {
-  const diff = Date.now() - new Date(iso).getTime();
-  const m = Math.floor(diff / 60000);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
-}
-
 export default function FriendsPanel({
   userId, userName, enrolled, friends, setFriends,
   groups, setGroups, allClasses, now, onCompare, onGroupCompare,
-  notifications = [], onMarkRead, onMarkAllRead, onRemovePing, onClearAllPings,
 }) {
   const [addCode, setAddCode] = useState("");
   const [addError, setAddError] = useState("");
@@ -177,8 +166,6 @@ export default function FriendsPanel({
   const [showNewGroup, setShowNewGroup] = useState(false);
   const [expandedGroup, setExpandedGroup] = useState(null);
 
-  const [notifOpen, setNotifOpen] = useState(false);
-  const [showAllNotifs, setShowAllNotifs] = useState(false);
   const [myCode, setMyCode] = useState(null);
   const isGenerating = !!userId && !myCode; // code still being fetched/created
   const [isAdding, setIsAdding] = useState(false);
@@ -375,28 +362,6 @@ export default function FriendsPanel({
     }
   }
 
-  async function handleAcceptRequest(item) {
-    if (!item.meta?.fromCode) { showToast("Request data missing", "error"); return; }
-    const decoded = await decodeSchedule(item.meta.fromCode);
-    if (!decoded) { showToast("Could not fetch friend's schedule", "error"); return; }
-    const updated = saveFriend(decoded.name, decoded.courses, decoded.id);
-    setFriends(updated);
-    pushFriendsToCloud(userId, updated);
-    if (myCode) {
-      await sendFriendPing(item.fromId, userId, userName, { type: "friend_accepted", fromCode: myCode });
-    }
-    deleteFriendPing(item.pingId);
-    onRemovePing?.(item.pingId);
-    showToast(`You're now friends with ${decoded.name}!`, "success");
-    setNotifOpen(false);
-  }
-
-  function handleDeclineRequest(item) {
-    deleteFriendPing(item.pingId);
-    onRemovePing?.(item.pingId);
-    setNotifOpen(false);
-  }
-
   function handleRemoveFriend(id) {
     const friend = friends.find(f => f.id === id);
     const updated = removeFriendFromStore(id);
@@ -590,7 +555,7 @@ export default function FriendsPanel({
   const [requestedIds, setRequestedIds] = useState(() => new Set());
 
   useEffect(() => {
-    const isModalOpen = showAllFriendsModal || showAllGroupsModal || showAllBuddiesModal || showDirectory || notifOpen;
+    const isModalOpen = showAllFriendsModal || showAllGroupsModal || showAllBuddiesModal || showDirectory;
     if (isModalOpen) {
       document.body.style.overflow = "hidden";
     } else {
@@ -599,7 +564,7 @@ export default function FriendsPanel({
     return () => {
       document.body.style.overflow = "";
     };
-  }, [showAllFriendsModal, showAllGroupsModal, showAllBuddiesModal, showDirectory, notifOpen]);
+  }, [showAllFriendsModal, showAllGroupsModal, showAllBuddiesModal, showDirectory]);
 
   async function openDirectory() {
     setShowDirectory(true);
@@ -1215,7 +1180,7 @@ export default function FriendsPanel({
         </div>
       )}
 
-      {/* ── Page Header + Bell ── */}
+      {/* ── Page Header ── */}
       <div className="fr-page-hdr">
         <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
           <h2 className="fr-page-hdr-title">Social</h2>
@@ -1236,73 +1201,6 @@ export default function FriendsPanel({
               <span className="desk-only">Sync all</span>
             </button>
           )}
-          <div className="fr-bell-wrap">
-            <button
-              className={`fr-bell-btn${notifOpen ? " open" : ""}`}
-              onClick={() => setNotifOpen(o => !o)}
-              aria-label="Friend notifications"
-            >
-              <Bell size={17} />
-              {notifications.some(n => !n.isRead) && <span className="fr-bell-dot" />}
-            </button>
-            {notifOpen && (
-            <>
-            <div className="notif-backdrop" onClick={() => { setNotifOpen(false); setShowAllNotifs(false); }} />
-            <div className="fr-bell-panel">
-              <div className="fr-bell-panel-head">
-                <span className="fr-bell-panel-title">Notifications</span>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  {notifications.some(n => !n.isRead)
-                    ? <button className="rc-mark-all" onClick={() => onMarkAllRead?.()}>Mark all read</button>
-                    : notifications.length > 0 && <span className="rc-all-read">All caught up</span>
-                  }
-                  <button className="fr-btn-icon" onClick={() => setNotifOpen(false)} aria-label="Close"><X size={13} /></button>
-                </div>
-              </div>
-
-              {notifications.length === 0 ? (
-                <p className="fr-bell-empty">No new notifications</p>
-              ) : (
-                <>
-                  {(showAllNotifs ? notifications : notifications.slice(0, 3)).map(item => (
-                    <div
-                      key={item.id}
-                      className={`fr-ping-card${item.isRead ? " fr-ping-read" : ""}`}
-                      onClick={() => item.kind !== "friend_request" && onMarkRead?.(item.pingId)}
-                      style={{ cursor: item.kind !== "friend_request" ? "pointer" : "default" }}
-                    >
-                      <div className="fr-ping-avatar">{(item.name || "?")[0].toUpperCase()}</div>
-                      <div className="fr-ping-text">
-                        <span className="fr-ping-name">{item.text}</span>
-                        {item.kind === "friend_request" && (
-                          <div className="fr-ping-actions">
-                            <button className="fr-btn fr-btn-accept" onClick={e => { e.stopPropagation(); handleAcceptRequest(item); }}><Check size={13} strokeWidth={2.8} />Accept</button>
-                            <button className="fr-btn fr-btn-decline" onClick={e => { e.stopPropagation(); handleDeclineRequest(item); }}><X size={13} strokeWidth={2.8} />Decline</button>
-                          </div>
-                        )}
-                      </div>
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flex: "none" }}>
-                        <span className="fr-ping-time">{timeAgo(item.ts)}</span>
-                        {item.isRead && <span className="rc-read-check">✓</span>}
-                      </div>
-                    </div>
-                  ))}
-
-                  {notifications.length > 3 && (
-                    <button className="fr-notif-view-more" onClick={() => setShowAllNotifs(v => !v)}>
-                      {showAllNotifs ? "Show less" : `View ${notifications.length - 3} more`}
-                    </button>
-                  )}
-
-                  <button className="fr-notif-clear-all" onClick={() => { onClearAllPings?.(); setNotifOpen(false); setShowAllNotifs(false); }}>
-                    Clear all notifications
-                  </button>
-                </>
-              )}
-            </div>
-            </>
-          )}
-          </div>
         </div>
       </div>
 

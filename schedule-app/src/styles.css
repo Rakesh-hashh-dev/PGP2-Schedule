@@ -70,6 +70,8 @@ html[data-theme="dark"] {
 html[data-theme="dark"] .tmrw-stat-badge-teal { color: #5EEAD4; }
 html[data-theme="dark"] .ob-sync-title { color: #A78BFA; }
 html[data-theme="dark"] .cva-card.cva-shared .cva-title { color: #FCD34D; }
+html[data-theme="dark"] .cva-shared .cva-time-sm,
+html[data-theme="dark"] .cva-card.cva-shared .cva-time-sm { color: #FCD34D; }
 html[data-theme="dark"] .cv-sbs-name-pill.them2 { color: #2DD4BF; }
 html[data-theme="dark"] .cv-sbs-name-pill.them3 { color: #FB7185; }
 
@@ -4834,6 +4836,30 @@ html[data-theme="dark"] .subj-9 { --subj: #E879F9; --subj-bg: rgba(232, 121, 249
   min-width: 0;
 }
 
+/* Alert rows show a title line + a details subline (time · room · subject) */
+.rc-alert-title {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Subject pill leading the alert title — reuses the .ses palette chip but flips
+   the margin to the right so it sits before the text. */
+.rc-alert-pill {
+  margin: 0 6px 0 0;
+  vertical-align: baseline;
+}
+.rc-alert-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .rc-time {
   font-family: var(--mono);
   font-size: 11px;
@@ -4847,16 +4873,24 @@ html[data-theme="dark"] .subj-9 { --subj: #E879F9; --subj-bg: rgba(232, 121, 249
   position: relative;
 }
 
-.notif-dot {
+.notif-badge {
   position: absolute;
-  top: 5px;
-  right: 5px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+  top: 1px;
+  right: 1px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 8px;
   background: #E84545;
   border: 2px solid var(--bone);
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 800;
+  line-height: 11px;
+  display: grid;
+  place-items: center;
   pointer-events: none;
+  font-family: var(--display);
 }
 
 .notif-backdrop {
@@ -4869,13 +4903,15 @@ html[data-theme="dark"] .subj-9 { --subj: #E879F9; --subj-bg: rgba(232, 121, 249
   position: absolute;
   right: 0;
   top: calc(100% + 8px);
-  width: 320px;
+  width: 340px;
+  max-height: min(72vh, 560px);
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 16px;
   box-shadow: 0 8px 32px -8px rgba(21, 24, 43, .18);
   z-index: 100;
-  overflow: hidden;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
 }
 
 .notif-panel .rc {
@@ -6221,11 +6257,192 @@ html[data-theme="dark"] .subj-9 { --subj: #E879F9; --subj-bg: rgba(232, 121, 249
   text-align: center;
 }
 
-.notif-panel-header {
+.notif-panel-top {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  padding: 10px 16px 2px;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 16px 8px;
+  position: sticky;
+  top: 0;
+  background: var(--card);
+  z-index: 2;
+  border-bottom: 1px solid var(--line);
+}
+
+.bell-chips {
+  display: flex;
+  gap: 4px;
+}
+
+.bell-chip {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--body);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 11px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background .12s, color .12s, border-color .12s;
+}
+
+.bell-chip:hover {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.bell-chip.on {
+  background: var(--violet);
+  border-color: var(--violet);
+  color: #fff;
+}
+
+/* ── Friend notification cards (ported from Social bell) ── */
+.np-ping-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.np-ping {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 9px 12px;
+  transition: opacity .15s;
+}
+
+.np-ping-read {
+  opacity: .5;
+}
+
+.np-ping-read .np-ping-avatar {
+  filter: grayscale(1);
+}
+
+.np-ping-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #F59E0B 0%, #EF4444 100%);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  flex: none;
+  font-family: var(--display);
+}
+
+.np-ping-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.np-ping-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.35;
+}
+
+.np-ping-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex: none;
+}
+
+.np-ping-time {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+  white-space: nowrap;
+  margin-top: 1px;
+}
+
+.np-ping-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.np-btn-accept,
+.np-btn-decline {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 11px;
+  font-family: var(--body);
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+
+.np-btn-accept {
+  background: rgba(34, 197, 94, .12);
+  color: #16a34a;
+  border: 1px solid rgba(34, 197, 94, .28);
+}
+
+.np-btn-accept:hover {
+  background: #16a34a;
+  color: #fff;
+}
+
+.np-btn-decline {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+
+.np-btn-decline:hover {
+  background: rgba(224, 82, 82, .1);
+  color: #e05252;
+  border-color: rgba(224, 82, 82, .3);
+}
+
+.np-sec-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+}
+
+.np-link {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--body);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--violet);
+  padding: 3px 8px;
+  border-radius: 6px;
+  transition: background .12s;
+}
+
+.np-link:hover {
+  background: var(--surface);
+}
+
+.np-link-danger {
+  color: #e05252;
+}
+
+.np-link-danger:hover {
+  background: rgba(224, 82, 82, .08);
 }
 
 .rc-mark-all {
@@ -9124,11 +9341,14 @@ html[data-theme="dark"] .bnav {
 .cva-card {
   flex: 1;
   margin: 10px 0;
-  padding: 14px 18px;
-  border-radius: 16px;
+  padding: 12px 14px;
+  border-radius: 14px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 3px rgba(21, 24, 43, .05);
 }
 
 .cva-title {
@@ -9161,22 +9381,21 @@ html[data-theme="dark"] .bnav {
   background: var(--violet);
 }
 
-.cva-mine .cva-card,
-.cva-card.cva-mine {
-  background: rgba(109, 91, 208, .14);
-  border: 1px solid rgba(109, 91, 208, .30);
-  border-left: 3px solid var(--violet);
+/* Neutral card surfaces — the person's color lives in the time chip only */
+.cva-mine .cva-time-sm,
+.cva-card.cva-mine .cva-time-sm {
+  color: var(--violet);
+  background: rgba(109, 91, 208, .12);
 }
 
 .cva-theirs .cva-dot {
   background: var(--blue);
 }
 
-.cva-theirs .cva-card,
-.cva-card.cva-theirs {
-  background: rgba(59, 130, 246, .14);
-  border: 1px solid rgba(59, 130, 246, .30);
-  border-left: 3px solid var(--blue);
+.cva-theirs .cva-time-sm,
+.cva-card.cva-theirs .cva-time-sm {
+  color: var(--blue);
+  background: rgba(59, 130, 246, .12);
 }
 
 /* Second friend: teal */
@@ -9184,10 +9403,9 @@ html[data-theme="dark"] .bnav {
   background: #0D9488;
 }
 
-.cva-card.cva-friend2 {
-  background: rgba(13, 148, 136, .14);
-  border: 1px solid rgba(13, 148, 136, .30);
-  border-left: 3px solid #0D9488;
+.cva-card.cva-friend2 .cva-time-sm {
+  color: #0D9488;
+  background: rgba(13, 148, 136, .12);
 }
 
 /* Third friend: rose */
@@ -9195,10 +9413,9 @@ html[data-theme="dark"] .bnav {
   background: #E11D48;
 }
 
-.cva-card.cva-friend3 {
-  background: rgba(225, 29, 72, .12);
-  border: 1px solid rgba(225, 29, 72, .28);
-  border-left: 3px solid #E11D48;
+.cva-card.cva-friend3 .cva-time-sm {
+  color: #E11D48;
+  background: rgba(225, 29, 72, .10);
 }
 
 .cva-shared .cva-dot {
@@ -9207,9 +9424,14 @@ html[data-theme="dark"] .bnav {
 
 .cva-shared .cva-card,
 .cva-card.cva-shared {
+  border-style: dashed;
+  border-color: rgba(234, 179, 8, .45);
+}
+
+.cva-shared .cva-time-sm,
+.cva-card.cva-shared .cva-time-sm {
+  color: #9A6400;
   background: rgba(234, 179, 8, .14);
-  border: 1px dashed rgba(234, 179, 8, .55);
-  border-left: 3px solid #EAB308;
 }
 
 .cva-shared .cva-title,
@@ -9263,12 +9485,37 @@ html[data-theme="dark"] .bnav {
 }
 
 .cva-time-sm {
+  display: block;
+  align-self: flex-start;
+  width: fit-content;
+  max-width: 100%;
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
-  color: var(--text);
-  opacity: 0.55;
-  margin-bottom: 4px;
+  letter-spacing: .01em;
+  color: var(--muted);
+  background: var(--surface);
+  padding: 2.5px 8px;
+  border-radius: 7px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Mobile: side-by-side columns get narrow — scale the chip text down with
+   the column width so the full time range fits, instead of ellipsizing.
+   Ellipsis on the base rule stays as a last-resort fallback for browsers
+   without container-query support. */
+@media (max-width: 599px) {
+  .cv-sbs-col {
+    container-type: inline-size;
+  }
+
+  .cv-sbs-col .cva-card .cva-time-sm {
+    font-size: clamp(8px, 6cqw, 10.5px);
+    padding: 2px 5px;
+    letter-spacing: 0;
+  }
 }
 
 /* Staggered card entrance */
@@ -11114,6 +11361,81 @@ a.sb-quicklink {
   }
 }
 
+/* NotificationPrefsPanel — collapsible dropdown */
+.npp-dropdown {
+  margin-bottom: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card, var(--bg));
+  overflow: hidden;
+}
+
+.npp-trigger {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text);
+}
+
+.npp-trigger-icon {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.npp-trigger-label {
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.npp-trigger-summary {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-left: 2px;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.npp-trigger-chev {
+  flex-shrink: 0;
+  color: var(--muted);
+  transition: transform 0.2s ease;
+}
+.npp-trigger-chev.open {
+  transform: rotate(180deg);
+}
+
+.npp-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 2px 14px 12px;
+  border-top: 1px solid var(--border);
+}
+
+/* Extras for rows inside the panel */
+.npp-lead {
+  flex-shrink: 0;
+}
+.npp-quiet-range {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.npp-quiet-sep {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
 /* Mobile quick-link chips (rendered under announcement banners) */
 .ql-chips {
   display: flex;
@@ -12139,6 +12461,114 @@ a.sb-quicklink {
 
 .att-hero-open .att-hero-chev {
   transform: rotate(180deg);
+}
+
+/* ── Attendance compact bar (mobile collapsed state) ── */
+/* Hidden on desktop — shown only on mobile via the media query below */
+.att-hero-bar {
+  display: none;
+}
+
+/* On mobile (≤640px): show the bar, hide the full hero when collapsed */
+@media (max-width: 640px) {
+  .att-hero-bar {
+    --att-accent: 31, 169, 113;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, .07);
+    background:
+      radial-gradient(circle at top right, rgba(var(--att-accent), .18), transparent 55%),
+      linear-gradient(135deg, #10121f 0%, #14172a 55%, #17142c 100%);
+    color: #fff;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    margin-bottom: 10px;
+    box-shadow:
+      0 8px 24px -12px rgba(10, 12, 24, .7),
+      0 0 24px -12px rgba(var(--att-accent), .4);
+    text-align: left;
+    animation: hero-in .22s cubic-bezier(.4, 0, .2, 1) both;
+  }
+
+  .tone-warn.att-hero-bar { --att-accent: 245, 158, 11; }
+  .tone-bad.att-hero-bar  { --att-accent: 239, 68, 68; }
+
+  .att-hero-bar:focus-visible {
+    outline: 2px solid rgba(var(--att-accent), .7);
+    outline-offset: 2px;
+  }
+
+  /* Percentage pill */
+  .att-bar-pct {
+    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: -.5px;
+    font-variant-numeric: tabular-nums;
+    background: rgba(var(--att-accent), .22);
+    border: 1px solid rgba(var(--att-accent), .45);
+    color: #fff;
+    padding: 3px 9px;
+    border-radius: 999px;
+  }
+
+  /* attended · missed text */
+  .att-bar-sum {
+    flex: 1;
+    font-size: 12px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, .78);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .att-bar-sum b {
+    color: #fff;
+    font-weight: 800;
+  }
+
+  /* skip chip */
+  .att-bar-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+    font-size: 10.5px;
+    font-weight: 700;
+    padding: 3px 7px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, .08);
+    color: rgba(255, 255, 255, .7);
+  }
+  .att-bar-chip-hi  { background: rgba(var(--att-accent), .18); color: rgba(255,255,255,.88); }
+  .att-bar-chip-bad { background: rgba(239, 68, 68, .18); color: #fca5a5; }
+
+  /* decorative icon */
+  .att-bar-spark {
+    flex-shrink: 0;
+    color: rgba(var(--att-accent), .7);
+    margin-left: auto;
+  }
+
+  /* chevron */
+  .att-bar-chev {
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, .5);
+    transition: transform .22s cubic-bezier(.4, 0, .2, 1);
+  }
+  .att-bar-chev.open {
+    transform: rotate(180deg);
+  }
+
+  /* Full hero card always hidden on mobile — the compact bar takes its place */
+  .att-hero {
+    display: none;
+  }
 }
 
 .att-chart-reveal {
@@ -13823,4 +14253,130 @@ a.sb-quicklink {
 @keyframes sb-bar-sheen {
   0%, 55% { transform: translateX(-100%); }
   85%, 100% { transform: translateX(100%); }
+}
+
+/* ── Feedback Flash Toast ── */
+.feedback-flash-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 10000;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.feedback-flash-toast.show {
+  pointer-events: auto;
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.4s var(--ease-out-strong), transform 0.4s var(--ease-out-strong);
+}
+
+.feedback-flash-toast.hide {
+  opacity: 0;
+  transform: translateY(20px) scale(0.95);
+  transition: opacity 0.3s ease-in, transform 0.3s ease-in;
+  pointer-events: none;
+}
+
+.feedback-flash-inner {
+  position: relative;
+  background: var(--card);
+  border: 1px solid var(--amber);
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 8px 32px var(--amber-dim);
+  max-width: calc(100vw - 48px);
+  width: 380px;
+  overflow: hidden;
+}
+
+.feedback-flash-inner::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(135deg, var(--amber-dim) 0%, transparent 100%);
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.feedback-flash-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  z-index: 2;
+}
+
+.feedback-flash-close:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.feedback-flash-icon {
+  background: var(--amber-dim);
+  padding: 10px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.feedback-flash-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.feedback-flash-title {
+  color: var(--text);
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+.feedback-flash-btn {
+  background: var(--amber);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  align-self: flex-start;
+  transition: background 0.2s;
+}
+
+.feedback-flash-btn:hover {
+  background: #B47924;
+}
+
+@media (max-width: 600px) {
+  .feedback-flash-toast {
+    bottom: max(24px, env(safe-area-inset-bottom, 24px) + 80px);
+    right: 16px;
+    left: 16px;
+  }
+  .feedback-flash-inner {
+    width: 100%;
+    max-width: none;
+  }
 }

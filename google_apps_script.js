@@ -26,23 +26,23 @@ const CACHE_MINUTES = 10;      // <-- your acceptable delay
 // Change tracking: which entry types are worth recording as changes.
 const CHANGES_ENABLED = true;
 const ALERT_TYPES = { class: true, exam: true, holiday: true, break: false };
-const MAX_CHANGES = 60;        // keep the most recent N change events
+const MAX_CHANGES = 200;       // keep the most recent N change events
 
 const SLOTS = [
-  ['08:00','09:30'], ['10:00','11:30'], ['12:00','13:30'], ['13:30','14:30'],
-  ['14:30','16:00'], ['16:30','18:00'], ['18:30','20:00'], ['20:30','22:00']
+  ['08:00', '09:30'], ['10:00', '11:30'], ['12:00', '13:30'], ['13:30', '14:30'],
+  ['14:30', '16:00'], ['16:30', '18:00'], ['18:30', '20:00'], ['20:30', '22:00']
 ];
 const SECTION_MAP = {
-  'section a':      'A',
-  'section b':      'B',
+  'section a': 'A',
+  'section b': 'B',
   'single section': 'Single',
   // Joint sessions — both sections attend the same slot:
-  'section a/b':    'AB',
-  'section ab':     'AB',
-  'a/b':            'AB',
-  'ab':             'AB',
+  'section a/b': 'AB',
+  'section ab': 'AB',
+  'a/b': 'AB',
+  'ab': 'AB',
 };
-const MONTHS = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+const MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
 
 const FORCE_TOKEN = "admin_force_123";
 
@@ -50,13 +50,13 @@ function doGet(e) {
   const lastTs = PropertiesService.getScriptProperties().getProperty('last_build_ts');
 
   if (e && e.parameter && e.parameter.force === FORCE_TOKEN) {
-    try { 
-      const json = refresh(); 
+    try {
+      const json = refresh();
       return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
-    } catch (err) { 
-      return ContentService.createTextOutput(JSON.stringify({ error: String(err) })).setMimeType(ContentService.MimeType.JSON); 
+    } catch (err) {
+      return ContentService.createTextOutput(JSON.stringify({ error: String(err) })).setMimeType(ContentService.MimeType.JSON);
     }
-  } 
+  }
 
   if (e && e.parameter && e.parameter.since && lastTs && parseInt(e.parameter.since) >= parseInt(lastTs)) {
     return ContentService.createTextOutput(JSON.stringify({ unchanged: true })).setMimeType(ContentService.MimeType.JSON);
@@ -90,10 +90,10 @@ function refresh() {
     saveChunked('baseline', current);             // becomes next run's baseline
     data.CHANGES = loadChanges();                 // recent log → into the feed
   }
-  
+
   data.buildTs = Date.now();
   PropertiesService.getScriptProperties().setProperty('last_build_ts', data.buildTs.toString());
-  
+
   const json = JSON.stringify(data);
   putCache(json);   // gzipped — the raw payload is larger than CacheService allows per entry
   return json;
@@ -237,8 +237,8 @@ function loadChunked(prefix) {
 }
 function isoToLabel(iso) {
   const p = iso.split('-'), d = new Date(+p[0], +p[1] - 1, +p[2]);
-  const wd = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];
-  const mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
+  const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()];
+  const mo = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()];
   return wd + ' ' + (+p[2]) + ' ' + mo;
 }
 /** Run once if you ever want to wipe the baseline + change log and start fresh. */
@@ -261,19 +261,19 @@ function buildSchedule() {
   const dates = classes.map(c => c.date).sort();
   const LEGEND = {};
   Object.keys(legend).forEach(k => { LEGEND[k] = { name: legend[k].name, credits: legend[k].credits }; });
-  
+
   // Parse students and sections from the individual course tabs!
   const students = parseStudentEnrollments(ss);
-  
+
   const sanitizedData = sanitize({
     TERM: { start: dates[0] || '', end: dates[dates.length - 1] || '' },
     LEGEND,
     CLASSES: classes
   });
-  
+
   // Bypass sanitize for STUDENTS so we don't accidentally strip out student email addresses!
   sanitizedData.STUDENTS = students;
-  
+
   return sanitizedData;
 }
 
@@ -344,8 +344,10 @@ function parseTimetable(ss, legend) {
       const sectionsToEmit = combinedGuest ? ['Single']
         : section === 'AB' ? ['A', 'B'] : [section];
       for (const sec of sectionsToEmit) {
-        out.push({ date: curDate, day: curDay, section: sec, slot: s,
-          start: SLOTS[s][0], end: end, type, code, session, name, faculty, room });
+        out.push({
+          date: curDate, day: curDay, section: sec, slot: s,
+          start: SLOTS[s][0], end: end, type, code, session, name, faculty, room
+        });
       }
     }
   }
@@ -360,9 +362,9 @@ function parseLegend(ss) {
       const header = rows[i].map(c => String(c).trim().toLowerCase());
       const codeCol = header.findIndex(h => h === 'course code' || h === 'code');
       if (codeCol === -1) continue;
-      const nameCol = header.findIndex(h => ['elective details','course name','course','elective'].indexOf(h) > -1);
-      const facCol  = header.findIndex(h => ['professor','faculty','professor name','faculty name'].indexOf(h) > -1);
-      const roomCol = header.findIndex(h => ['classroom','class room','room','venue'].some(x => h.includes(x)));
+      const nameCol = header.findIndex(h => ['elective details', 'course name', 'course', 'elective'].indexOf(h) > -1);
+      const facCol = header.findIndex(h => ['professor', 'faculty', 'professor name', 'faculty name'].indexOf(h) > -1);
+      const roomCol = header.findIndex(h => ['classroom', 'class room', 'room', 'venue'].some(x => h.includes(x)));
       const credCol = header.findIndex(h => h.includes('credit'));
       // read rows under this header until the code cell goes blank
       let consecutiveBlanks = 0;
@@ -377,9 +379,9 @@ function parseLegend(ss) {
         consecutiveBlanks = 0;
         if (!/^[A-Za-z]{1,8}$/.test(code)) continue;
         const e = legend[code] || { name: '', faculty: '', room: '', credits: '' };
-        if (nameCol > -1 && r[nameCol] && !e.name)  e.name = String(r[nameCol]).trim();
-        if (facCol  > -1 && r[facCol]  && !e.faculty) e.faculty = stripPII(String(r[facCol]).trim());
-        if (roomCol > -1 && r[roomCol] && !e.room)  e.room = String(r[roomCol]).trim();
+        if (nameCol > -1 && r[nameCol] && !e.name) e.name = String(r[nameCol]).trim();
+        if (facCol > -1 && r[facCol] && !e.faculty) e.faculty = stripPII(String(r[facCol]).trim());
+        if (roomCol > -1 && r[roomCol] && !e.room) e.room = String(r[roomCol]).trim();
         if (credCol > -1 && r[credCol] && !e.credits) e.credits = String(r[credCol]).trim();
         legend[code] = e;
       }
@@ -393,36 +395,36 @@ function parseLegend(ss) {
 function parseStudentEnrollments(ss) {
   const sheets = ss.getSheets();
   const students = {}; // Format: { "email@example.com": { "BM": "A", "CS": "B" } }
-  
+
   // Names of tabs that should be completely ignored (not course tabs)
-  const ignoreSheets = ["Master", "CHANGES", "TERM", "LEGEND", "Schedule", "Changes", "Term", "Legend"]; 
-  
+  const ignoreSheets = ["Master", "CHANGES", "TERM", "LEGEND", "Schedule", "Changes", "Term", "Legend"];
+
   for (let i = 0; i < sheets.length; i++) {
     const sheet = sheets[i];
     const sheetName = sheet.getName().trim();
-    
+
     // Skip non-course sheets
     if (ignoreSheets.includes(sheetName)) continue;
-    
+
     // Read the whole sheet
     const data = sheet.getDataRange().getValues();
     if (data.length === 0) continue;
-    
+
     // Find the header row (assume it's in the first 10 rows, looking for "Student Email" and "Section")
     let headerRowIdx = -1;
     let emailColIdx = -1;
     let sectionColIdx = -1;
-    
+
     for (let r = 0; r < Math.min(10, data.length); r++) {
       for (let c = 0; c < data[r].length; c++) {
         const cellText = String(data[r][c]).trim().toLowerCase();
-        
+
         // Find the email column
         if (cellText.includes("student email") || cellText === "email") {
           headerRowIdx = r;
           emailColIdx = c;
         }
-        
+
         // Find the section column
         if (cellText === "section" || cellText === "sec") {
           sectionColIdx = c;
@@ -430,7 +432,7 @@ function parseStudentEnrollments(ss) {
       }
       if (emailColIdx !== -1) break; // We found the header row
     }
-    
+
     // Fallback for tabs with no header row (e.g. WAI): detect the email column
     // by content — the column where most "@"-containing cells live — and the
     // section column as the one whose values are A/B/Single on those same rows.
@@ -464,18 +466,18 @@ function parseStudentEnrollments(ss) {
       Object.keys(colScore).forEach(c => { if (colScore[c] > secN) { secN = colScore[c]; secBest = +c; } });
       if (secBest !== -1 && secN >= bestN / 2) sectionColIdx = secBest;
     }
-    
+
     // Loop through the data rows below the header
     for (let r = headerRowIdx + 1; r < data.length; r++) {
       const email = String(data[r][emailColIdx]).trim().toLowerCase();
       if (!email || !email.includes("@")) continue; // Skip empty rows or malformed emails
-      
+
       // If there is no section column found, default to "Single" (e.g. for BBM if they don't add a column)
       let section = "Single";
       if (sectionColIdx !== -1) {
         section = String(data[r][sectionColIdx]).trim();
       }
-      
+
       // Only record valid sections
       if (section) {
         const hash = sha256(email);
@@ -484,7 +486,7 @@ function parseStudentEnrollments(ss) {
       }
     }
   }
-  
+
   return students;
 }
 
@@ -499,7 +501,7 @@ function parseDate(rawVal, dispVal) {
   if (rawVal instanceof Date) {
     const y = rawVal.getFullYear() > 2000 ? rawVal.getFullYear() : TERM_YEAR;
     const iso = y + '-' + pad(rawVal.getMonth() + 1) + '-' + pad(rawVal.getDate());
-    return { iso, day: ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][rawVal.getDay()] };
+    return { iso, day: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][rawVal.getDay()] };
   }
   const m = String(dispVal || '').trim().match(/^(\d{1,2})[\s\-\/]([A-Za-z]{3})/);
   if (m) {
@@ -527,3 +529,4 @@ function sanitize(obj) {
   if (obj && typeof obj === 'object') { const o = {}; for (const k in obj) o[k] = sanitize(obj[k]); return o; }
   return obj;
 }
+
