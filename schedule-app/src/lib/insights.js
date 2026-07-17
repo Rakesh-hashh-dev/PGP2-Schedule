@@ -1,5 +1,6 @@
-// Client-side analytics + course-info derivations, shared by CoursesPanel,
-// InsightsPanel and DeadlineStrip. Everything here is computed from the
+// Client-side analytics + course-info derivations, shared by InsightsPanel,
+// DeadlineStrip, the Exams "Course Progress" cards and CancellationAlert.
+// Everything here is computed from the
 // already-loaded schedule (CLASSES), the user's enrollment and their local
 // attendance/assignment stores — no extra network calls.
 import { courseSkipStats, isExamSession, sessionKey } from "./attendance.js";

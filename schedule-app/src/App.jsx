@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Suspense, lazy } from "react";
 import { createPortal } from "react-dom";
-import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, ChevronsLeft, ChevronsRight, ChevronRight, ChevronLeft, Megaphone, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Sparkles, Wand2, BellRing, CalendarDays, ExternalLink, Download, Share, WifiOff, Zap, PanelBottom, PanelTop, PanelsTopLeft, Check, ChevronDown, MapPin, Sun, Moon, Monitor, BookOpen, BarChart3 } from "lucide-react";
+import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, ChevronsLeft, ChevronsRight, ChevronRight, ChevronLeft, Megaphone, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Sparkles, Wand2, BellRing, CalendarDays, ExternalLink, Download, Share, WifiOff, Zap, PanelBottom, PanelTop, PanelsTopLeft, Check, ChevronDown, MapPin, Sun, Moon, Monitor } from "lucide-react";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
 import SemSummary from "./components/SemSummary.jsx";
@@ -13,6 +13,7 @@ import Onboarding from "./components/Onboarding.jsx";
 import WeatherWidget from "./components/WeatherWidget.jsx";
 import TomorrowSummary from "./components/TomorrowSummary.jsx";
 import MessCard from "./components/MessCard.jsx";
+import { setMessMenuOverrides } from "./data/messMenu.js";
 import { getSnapshot, fetchSchedule, sha256hex } from "./lib/sheet.js";
 import TermFlowLoader from "./components/TermFlowLoader.jsx";
 
@@ -27,8 +28,6 @@ const FullSchedulePage = lazy(() => import("./components/FullSchedulePage.jsx"))
 const AdminDashboard = lazy(() => import("./components/AdminDashboard.jsx"));
 const CommandPalette = lazy(() => import("./components/CommandPalette.jsx"));
 const AssignmentsPanel = lazy(() => import("./components/AssignmentsPanel.jsx"));
-const CoursesPanel = lazy(() => import("./components/CoursesPanel.jsx"));
-const InsightsPanel = lazy(() => import("./components/InsightsPanel.jsx"));
 import DeadlineStrip from "./components/DeadlineStrip.jsx";
 import CancellationAlert from "./components/CancellationAlert.jsx";
 import { loadAttendance, saveAttendance, sessionKey, syncAttendanceFromCloud, pushMark, courseSkipStats } from "./lib/attendance.js";
@@ -36,8 +35,9 @@ import { syncProfileFromCloud, pushProfile, pushReadState, stampProfileEmail } f
 import { syncMigrationMap } from "./lib/migrationMap.js";
 import { useMigration } from "./lib/useMigration.js";
 import MigrationBanner from "./components/MigrationBanner.jsx";
-import { decodeSchedule, saveFriend, loadFriends, loadGroups, syncFriendsAndGroupsFromCloud, fetchFriendPings, pushFriendsToCloud, deleteAllFriendPings, removeFriendByCloudId, deleteFriendPing, sendFriendPing, hasPendingFriendRequest, getOrCreateShareCode } from "./lib/friends.js";
+import { decodeSchedule, saveFriend, loadFriends, loadGroups, syncFriendsAndGroupsFromCloud, pushFriendsToCloud, deleteAllFriendPings, removeFriendByCloudId, sendFriendPing, hasPendingFriendRequest, getOrCreateShareCode } from "./lib/friends.js";
 import { supabase } from "./lib/supabase.js";
+import { fetchNotifications, subscribeToNotifications, markNotificationRead, markAllNotificationsRead } from "./lib/notifications.js";
 import { assignSubjectColors, subjectClass } from "./lib/subjectColors.js";
 import MarkPrompt from "./components/MarkPrompt.jsx";
 import { WhatsNewPill, WhatsNewModal } from "./components/WhatsNew.jsx";
@@ -98,6 +98,20 @@ const READ_PINGS_KEY = "pgp2.read-ping-ids";
 function loadReadPingIds() { try { return new Set(JSON.parse(localStorage.getItem(READ_PINGS_KEY) || "[]")); } catch { return new Set(); } }
 const READ_CHANGES_KEY = "pgp2.read-change-keys";
 function loadReadChangeKeys() { try { return new Set(JSON.parse(localStorage.getItem(READ_CHANGES_KEY) || "[]")); } catch { return new Set(); } }
+
+// Phase 3: social events now live in the unified `notifications` store (types
+// below) instead of friend_pings. These are routed to the bell's Friends section;
+// all other notification types go to the Alerts section.
+const SOCIAL_TYPES = new Set(["friend_request", "friend_accepted", "group_invite", "friend_removed"]);
+// Map a notifications social row into the legacy "ping" shape the bell already
+// renders (it parses from_name as JSON), so the display layer stays untouched.
+function socialRowToPing(row) {
+  const d = row.data || {};
+  const meta = { name: d.from_name || "Someone" };
+  if (row.type === "group_invite") meta.group = d.group;
+  else { meta.type = row.type; if (d.from_code) meta.fromCode = d.from_code; }
+  return { id: row.id, from_id: d.from_id, from_name: JSON.stringify(meta), created_at: row.created_at, read_at: row.read_at };
+}
 const CLEARED_GROUPS_KEY = "pgp2.cleared-groups";
 function loadClearedGroups() { try { return new Set(JSON.parse(localStorage.getItem(CLEARED_GROUPS_KEY) || "[]")); } catch { return new Set(); } }
 const ADMIN_EMAILS = [
@@ -219,7 +233,14 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [realNow, setRealNow] = useState(new Date());
   const [timeOverride, setTimeOverride] = useState(null);
   const now = timeOverride ? new Date(timeOverride) : realNow;
-  const [view, setView] = useState(() => { try { return localStorage.getItem(VIEW_KEY) || "today"; } catch { return "today"; } });
+  const [view, setView] = useState(() => {
+    try {
+      const v = localStorage.getItem(VIEW_KEY) || "today";
+      if (v === "courses") return "exams"; // retired view → its new home
+      if (v === "insights") return "today"; // retired view
+      return v;
+    } catch { return "today"; }
+  });
   useEffect(() => { try { localStorage.setItem(VIEW_KEY, view); } catch { } }, [view]);
   useEffect(() => {
     if (!showAdminUI) {
@@ -270,11 +291,15 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [groups, setGroups] = useState(() => loadGroups());
   const [compareTarget, setCompareTarget] = useState(null); // { mode, friendData?, groupData? }
   const [friendToast, setFriendToast] = useState(null);
+  const [pendingInvite, setPendingInvite] = useState(null);
   const [jumpToDate, setJumpToDate] = useState(null);
   const [jumpToSession, setJumpToSession] = useState(null); // { date, code, start } — highlights the specific class row
 
   // Received groups badge: track how many received groups were seen when Friends tab was last opened
   const [pings, setPings] = useState([]);
+  // Unified notifications feed (class reminders, cancellations, summaries, admin
+  // broadcasts) from the `notifications` table — the redesigned event store.
+  const [alerts, setAlerts] = useState([]);
   const [seenRecvGroupIds, setSeenRecvGroupIds] = useState(() => {
     try { return new Set(JSON.parse(localStorage.getItem("pgp2.seen-recv-groups") || "[]")); }
     catch { return new Set(); }
@@ -474,44 +499,65 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     return () => window.removeEventListener("resize", handleTabsScroll);
   }, []);
 
-  // Invite links (?f=CODE): stash the code before anything else can drop it —
-  // this effect also runs while signed out (the <Login/> gate is a return in
-  // this same component), so the code survives the Clerk OAuth redirect,
-  // which lands back on the bare origin.
+  // Invite links (?f=CODE): capture the code from the URL and stash it so it
+  // survives the Clerk OAuth redirect (which lands back on the bare origin) and
+  // is consumed once we're signed in. This runs while signed out too — the
+  // <Login/> gate is a return further down in this same component.
+  //
+  // We re-check on focus / visibility / popstate as well as on mount, so a link
+  // tapped while the app is already open (PWA or an existing tab, where the
+  // mount effect never re-runs) still gets picked up.
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get("f");
-    if (code) {
-      try { localStorage.setItem(PENDING_INVITE_KEY, code); } catch { }
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-    // Deep-link support for PWA home-screen shortcuts (?view=today) and any
-    // shared link. Admin view is intentionally excluded.
-    const wanted = params.get("view");
     const DEEP_LINK_VIEWS = new Set([
       "today", "tomorrow", "week", "attendance", "exams", "assignments",
-      "courses", "insights", "notifications", "friends",
+      "notifications", "friends",
     ]);
-    if (wanted && DEEP_LINK_VIEWS.has(wanted)) {
-      setView(wanted);
+    const captureFromUrl = () => {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get("f");
+      const wanted = params.get("view");
+      if (!code && !(wanted && DEEP_LINK_VIEWS.has(wanted))) return;
+
+      if (code) {
+        try { localStorage.setItem(PENDING_INVITE_KEY, code); } catch { }
+        setPendingInvite(code);
+      }
+      if (wanted && DEEP_LINK_VIEWS.has(wanted)) setView(wanted);
+
+      // Strip the consumed params, preserving anything else on the URL.
       const rest = new URLSearchParams(window.location.search);
+      rest.delete("f");
       rest.delete("view");
       const qs = rest.toString();
       window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
-    }
+    };
+
+    // Seed from a code stashed on a previous load (survives the OAuth redirect).
+    try {
+      const stashed = localStorage.getItem(PENDING_INVITE_KEY);
+      if (stashed) setPendingInvite(stashed);
+    } catch { }
+
+    captureFromUrl();
+    const onVisible = () => { if (!document.hidden) captureFromUrl(); };
+    window.addEventListener("popstate", captureFromUrl);
+    window.addEventListener("focus", captureFromUrl);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("popstate", captureFromUrl);
+      window.removeEventListener("focus", captureFromUrl);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
 
-  // Consume a stashed invite once signed in, through the same friend-request
+  // Consume a captured invite once signed in, through the same friend-request
   // flow as manual code entry (request + accept), instead of the old silent
   // one-way local add that the cloud sync immediately clobbered.
   useEffect(() => {
-    if (!userId) return;
-    let code = null;
-    try {
-      code = localStorage.getItem(PENDING_INVITE_KEY);
-      if (code) localStorage.removeItem(PENDING_INVITE_KEY);
-    } catch { }
-    if (!code) return;
+    if (!userId || !pendingInvite) return;
+    const code = pendingInvite;
+    setPendingInvite(null);
+    try { localStorage.removeItem(PENDING_INVITE_KEY); } catch { }
     const inviteToast = (msg) => {
       setFriendToast(msg);
       setTimeout(() => setFriendToast(null), 4000);
@@ -541,7 +587,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       }
       setView("friends");
     })();
-  }, [userId]);
+  }, [userId, pendingInvite]);
 
   useEffect(() => {
     if (!userId) return;
@@ -555,6 +601,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       ]);
       if (alive) {
         if (sysConfigRes?.data) {
+          // Apply mess menu overrides before the state update so the re-render
+          // it triggers already sees the merged menu (module-level, see messMenu.js)
+          setMessMenuOverrides(sysConfigRes.data.flags?.messMenuOverrides);
           setSysConfig(sysConfigRes.data);
         }
         if (p?.courses) {
@@ -602,53 +651,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     })();
     return () => { alive = false; };
   }, [userId]);
-
-  // Shared pings refresh — used on mount, polling, and tab-focus
-  const refreshPings = useCallback(async (uid) => {
-    const data = await fetchFriendPings(uid);
-    if (!data.length) return;
-    const visiblePings = [];
-    for (const p of data) {
-      try {
-        const meta = JSON.parse(p.from_name);
-        if (meta.type === "friend_accepted" && meta.fromCode) {
-          const decoded = await decodeSchedule(meta.fromCode);
-          if (decoded) {
-            const current = loadFriends();
-            if (!current.some(f => f.cloudId === decoded.id)) {
-              const updated = saveFriend(decoded.name, decoded.courses, decoded.id);
-              setFriends(updated);
-              pushFriendsToCloud(uid, updated);
-            }
-          }
-          visiblePings.push(p);
-        } else if (meta.type === "friend_removed") {
-          // Silently remove the sender from this user's friends list
-          const current = loadFriends();
-          if (current.some(f => f.cloudId === p.from_id)) {
-            const updated = removeFriendByCloudId(p.from_id);
-            setFriends(updated);
-            pushFriendsToCloud(uid, updated);
-          }
-          deleteFriendPing(p.id);
-          // Not added to visiblePings — this is an internal signal
-        } else {
-          visiblePings.push(p);
-        }
-      } catch {
-        visiblePings.push(p);
-      }
-    }
-    setPings(visiblePings);
-  }, []);
-
-  // Initial fetch + 30-second poll (realtime fallback)
-  useEffect(() => {
-    if (!userId) return;
-    refreshPings(userId);
-    const id = setInterval(() => refreshPings(userId), 30_000);
-    return () => clearInterval(id);
-  }, [userId, refreshPings]);
 
   useEffect(() => {
     fetch("https://api.open-meteo.com/v1/forecast?latitude=21.4669&longitude=83.9812&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&temperature_unit=celsius&timezone=Asia%2FKolkata&forecast_days=2")
@@ -742,61 +744,73 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     return () => { supabase.removeChannel(channel); };
   }, [userId]);
 
-  // Supabase Realtime: live friend pings (group invites, friend-add notifications)
+  // Phase 3: side-effects a social notification row triggers (the logic that used
+  // to live in the friend_pings handlers). Keyed on row.type; idempotent.
+  const handleSocialRow = useCallback(async (row) => {
+    const d = row.data || {};
+    if (row.type === "friend_accepted" && d.from_code) {
+      // They accepted — pull their schedule and add them locally.
+      const decoded = await decodeSchedule(d.from_code);
+      if (decoded) {
+        const current = loadFriends();
+        if (!current.some(f => f.cloudId === decoded.id)) {
+          const updated = saveFriend(decoded.name, decoded.courses, decoded.id);
+          setFriends(updated);
+          pushFriendsToCloud(userId, updated);
+        }
+      }
+    } else if (row.type === "friend_removed") {
+      // Silent control signal — drop the sender from friends, mark it resolved.
+      const current = loadFriends();
+      if (current.some(f => f.cloudId === d.from_id)) {
+        const updated = removeFriendByCloudId(d.from_id);
+        setFriends(updated);
+        pushFriendsToCloud(userId, updated);
+      }
+      markNotificationRead(row.id);
+    } else if (row.type === "group_invite") {
+      // Re-sync so the newly-shared group shows up immediately.
+      const result = await syncFriendsAndGroupsFromCloud(userId);
+      if (result) { setGroups(result.groups); setFriends(result.friends); }
+    }
+  }, [userId]);
+
+  // Notifications event store: initial fetch + live stream, split by type — social
+  // events drive the bell's Friends section (mapped to the legacy ping shape),
+  // everything else drives Alerts. friend_removed is silent (side-effect only).
+  const loadNotifications = useCallback(async (uid) => {
+    if (!uid) return;
+    const rows = await fetchNotifications(uid);
+    const social = rows.filter(r => SOCIAL_TYPES.has(r.type));
+    setAlerts(rows.filter(r => !SOCIAL_TYPES.has(r.type)));
+    for (const r of social) await handleSocialRow(r);
+    setPings(social.filter(r => r.type !== "friend_removed").map(socialRowToPing));
+  }, [handleSocialRow]);
+
   useEffect(() => {
     if (!userId) return;
-    const channel = supabase
-      .channel(`pings-realtime-${userId}`)
-      .on("postgres_changes", {
-        event: "INSERT",
-        schema: "public",
-        table: "friend_pings",
-        filter: `target_id=eq.${userId}`,
-      }, async (payload) => {
-        if (!payload.new) return;
-        let isInternalSignal = false;
-        try {
-          const meta = JSON.parse(payload.new.from_name);
-          if (meta.type === "friend_accepted" && meta.fromCode) {
-            const decoded = await decodeSchedule(meta.fromCode);
-            if (decoded) {
-              const current = loadFriends();
-              if (!current.some(f => f.cloudId === decoded.id)) {
-                const updated = saveFriend(decoded.name, decoded.courses, decoded.id);
-                setFriends(updated);
-                pushFriendsToCloud(userId, updated);
-              }
-            }
+    loadNotifications(userId);
+    const unsub = subscribeToNotifications(userId, {
+      onInsert: (row) => {
+        if (SOCIAL_TYPES.has(row.type)) {
+          handleSocialRow(row);
+          if (row.type !== "friend_removed") {
+            setPings(prev => prev.some(p => p.id === row.id) ? prev : [socialRowToPing(row), ...prev]);
           }
-          if (meta.type === "friend_removed") {
-            isInternalSignal = true;
-            const current = loadFriends();
-            if (current.some(f => f.cloudId === payload.new.from_id)) {
-              const updated = removeFriendByCloudId(payload.new.from_id);
-              setFriends(updated);
-              pushFriendsToCloud(userId, updated);
-            }
-            deleteFriendPing(payload.new.id);
-          }
-          if (meta.group) {
-            // Group invite: re-fetch profile to get the new group immediately
-            const result = await syncFriendsAndGroupsFromCloud(userId);
-            if (result) {
-              setGroups(result.groups);
-              setFriends(result.friends);
-            }
-          }
-        } catch { }
-        if (!isInternalSignal) {
-          setPings(prev => {
-            if (prev.some(p => p.id === payload.new.id)) return prev;
-            return [payload.new, ...prev];
-          });
+        } else {
+          setAlerts(prev => prev.some(a => a.id === row.id) ? prev : [row, ...prev]);
         }
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [userId]);
+      },
+      onUpdate: (row) => {
+        if (SOCIAL_TYPES.has(row.type)) {
+          setPings(prev => prev.map(p => p.id === row.id ? { ...p, read_at: row.read_at } : p));
+        } else {
+          setAlerts(prev => prev.map(a => a.id === row.id ? { ...a, ...row } : a));
+        }
+      },
+    });
+    return () => { unsub(); };
+  }, [userId, loadNotifications, handleSocialRow]);
 
   useEffect(() => {
     // Catch updates that fired before React mounted
@@ -917,7 +931,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     updateRef();
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
-        if (userId) refreshPings(userId);
+        if (userId) loadNotifications(userId);
         checkAppVersion(triggerHardRefresh);
         const elapsed = Date.now() - syncedAtRef.current.getTime();
         if (elapsed > 5 * 60 * 1000) handleSync();
@@ -926,7 +940,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     document.addEventListener("visibilitychange", handleVisibility);
     return () => document.removeEventListener("visibilitychange", handleVisibility);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSignedIn, syncedAt, userId, refreshPings]);
+  }, [isSignedIn, syncedAt, userId, loadNotifications]);
 
   useEffect(() => {
     const hour = now.getHours();
@@ -1225,7 +1239,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           else { text = `${name} added you as a friend`; }
         } catch { }
         const pingId = p.id || p.from_id;
-        return { id: `ping-${pingId}`, pingId, text, ts: p.created_at, kind, name, meta, fromId: p.from_id, isRead: readPingIds.has(pingId) };
+        return { id: `ping-${pingId}`, pingId, text, ts: p.created_at, kind, name, meta, fromId: p.from_id, isRead: readPingIds.has(pingId) || !!p.read_at };
       }),
     ...allRecvGroups
       .filter(g => !clearedGroupIds.has(g.id))
@@ -1233,17 +1247,18 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   ];
   const unreadFriendCount = friendNotifItems.filter(item => !item.isRead).length;
   const unreadChangeCount = filteredChanges.filter(c => !readChangeKeys.has(changeKey(c))).length;
-  const hasUnread = unreadChangeCount > 0 || unreadFriendCount > 0;
+  const unreadAlertCount = alerts.filter(a => !a.read_at).length;
+  const hasUnread = unreadChangeCount > 0 || unreadFriendCount > 0 || unreadAlertCount > 0;
 
   // Surface unread count on the tab title + installed-PWA app icon badge
   useEffect(() => {
-    const total = unreadChangeCount + unreadFriendCount;
+    const total = unreadChangeCount + unreadFriendCount + unreadAlertCount;
     document.title = total > 0 ? `(${total}) TermFlow` : "TermFlow | IIM Sambalpur | PGP2";
     if ("setAppBadge" in navigator) {
       if (total > 0) navigator.setAppBadge(total).catch(() => {});
       else navigator.clearAppBadge?.().catch(() => {});
     }
-  }, [unreadChangeCount, unreadFriendCount]);
+  }, [unreadChangeCount, unreadFriendCount, unreadAlertCount]);
 
   // Unread changes that specifically name a course happening on tomorrow's list
   const tomorrowChangeCount = useMemo(() => {
@@ -1285,6 +1300,14 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     pushReadState(userId, nextPingIds, seenRecvGroupIds, readChangeKeys);
   }
 
+  // Notifications-table read state lives server-side (read_at). Optimistically
+  // flip it locally, then persist — realtime UPDATE reconciles other devices.
+  function markAlertRead(id) {
+    if (!id) return;
+    setAlerts(prev => prev.map(a => a.id === id && !a.read_at ? { ...a, read_at: new Date().toISOString() } : a));
+    markNotificationRead(id);
+  }
+
   function markChangeRead(c) {
     const key = changeKey(c);
     if (readChangeKeys.has(key)) return;
@@ -1321,6 +1344,13 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     const newIds = new Set([...seenRecvGroupIds, ...newRecvGroups.map(g => g.id)]);
     setSeenRecvGroupIds(newIds);
     try { localStorage.setItem("pgp2.seen-recv-groups", JSON.stringify([...newIds])); } catch { }
+
+    // Notifications-table rows: optimistic local flip + one server call.
+    if (unreadAlertCount > 0) {
+      const now = new Date().toISOString();
+      setAlerts(prev => prev.map(a => a.read_at ? a : { ...a, read_at: now }));
+      markAllNotificationsRead(userId);
+    }
 
     pushReadState(userId, nextPings, newIds, nextChanges);
   }
@@ -1675,12 +1705,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             <button className={`sb-link${view === "assignments" ? " on" : ""}`} aria-current={view === "assignments" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Assignments")} onMouseLeave={hideSbTip} onClick={() => { setView("assignments"); setCompareTarget(null); hideSbTip(); }}>
               <BookOpenCheck size={18} /><span className="sb-link-label">Assignments</span>
             </button>
-            <button className={`sb-link${view === "courses" ? " on" : ""}`} aria-current={view === "courses" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Courses")} onMouseLeave={hideSbTip} onClick={() => { setView("courses"); setCompareTarget(null); hideSbTip(); }}>
-              <BookOpen size={18} /><span className="sb-link-label">Courses</span>
-            </button>
-            <button className={`sb-link${view === "insights" ? " on" : ""}`} aria-current={view === "insights" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Insights")} onMouseLeave={hideSbTip} onClick={() => { setView("insights"); setCompareTarget(null); hideSbTip(); }}>
-              <BarChart3 size={18} /><span className="sb-link-label">Insights</span>
-            </button>
 
             <div className="sb-nav-label">Campus</div>
             <button className={`sb-link${view === "notifications" ? " on" : ""}`} aria-current={view === "notifications" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Announcements")} onMouseLeave={hideSbTip} onClick={() => { setView("notifications"); setCompareTarget(null); hideSbTip(); }}>
@@ -1879,7 +1903,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 <>
                   <div className="notif-backdrop" onClick={() => setNotifOpen(false)} />
                   <div className="notif-panel">
-                    {friendNotifItems.length === 0 && filteredChanges.length === 0 ? (
+                    {friendNotifItems.length === 0 && filteredChanges.length === 0 && alerts.length === 0 ? (
                       <p className="notif-empty">No new notifications</p>
                     ) : (
                       <>
@@ -1889,6 +1913,22 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                             : <span className="rc-all-read">All caught up</span>
                           }
                         </div>
+                        {alerts.length > 0 && (
+                          <section className="rc">
+                            <div className="rc-head">
+                              <span className="rc-title"><BellRing size={14} /> Alerts</span>
+                            </div>
+                            <ul className="rc-list">
+                              {alerts.slice(0, 6).map(a => (
+                                <li key={a.id} className={`rc-item rc-item-clickable${a.read_at ? " rc-item-read" : ""}`} onClick={() => markAlertRead(a.id)}>
+                                  <span className="rc-dot rc-alert" />
+                                  <span className="rc-text">{a.title}</span>
+                                  {a.read_at && <span className="rc-read-check">✓</span>}
+                                </li>
+                              ))}
+                            </ul>
+                          </section>
+                        )}
                         {friendNotifItems.length > 0 && (
                           <section className="rc">
                             <div className="rc-head">
@@ -2041,13 +2081,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       <Bell size={14} /> Notification settings
                     </button>
                     <div className="over-sep" />
-                    <button onClick={() => { setView("courses"); setCompareTarget(null); setOverflowOpen(false); }}>
-                      <BookOpen size={14} /> Courses
-                    </button>
-                    <button onClick={() => { setView("insights"); setCompareTarget(null); setOverflowOpen(false); }}>
-                      <BarChart3 size={14} /> Insights
-                    </button>
-                    <div className="over-sep" />
                     <button onClick={() => { setShowSetupEdit(true); setOverflowOpen(false); }}>
                       <Settings2 size={14} /> Edit setup
                     </button>
@@ -2152,7 +2185,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             </div>
             )}
 
-            {view !== "attendance" && view !== "insights" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && !compareTarget && (
+            {view !== "attendance" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && !compareTarget && (
               <>
                 {unseenWhatsNew.length > 0 && (
                   <WhatsNewPill item={unseenWhatsNew[0]} count={unseenWhatsNew.length} onOpen={() => setWhatsNewOpen(true)} />
@@ -2184,8 +2217,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 <div className="view-date-header">
                   <span className="vdh-label">
                     {view === "notifications" ? `${filteredChanges.length} update${filteredChanges.length !== 1 ? "s" : ""}`
-                      : view === "courses" ? "My Courses"
-                      : view === "insights" ? "My Insights"
                       : view === "week" ? weekRangeLabel : prettyDate(view === "tomorrow" ? tomorrowISO : todayISO)}
                   </span>
                   <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
@@ -2209,7 +2240,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 </div>
               </>
             )}
-            {view !== "attendance" && view !== "insights" && view !== "courses" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && !compareTarget && view !== "tomorrow" && (
+            {view !== "attendance" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && !compareTarget && view !== "tomorrow" && (
               view === "week"
                 ? <div className="hide-mobile"><Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} onMarkAttendance={markAttendance} attendance={attendance} sysConfig={sysConfig} /></div>
                 : <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} onMarkAttendance={markAttendance} attendance={attendance} sysConfig={sysConfig} />
@@ -2339,9 +2370,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       onDismissNotifs={() => markAllRead()}
                       onMarkRead={pingId => markPingRead(pingId)}
                       onMarkAllRead={() => markAllRead()}
-                      onRemovePing={pingId => setPings(prev => prev.filter(p => p.id !== pingId))}
+                      onRemovePing={pingId => { markNotificationRead(pingId); setPings(prev => prev.filter(p => p.id !== pingId)); }}
                       onClearAllPings={() => {
-                        deleteAllFriendPings(userId);
+                        deleteAllFriendPings(userId);          // drain any legacy friend_pings
+                        pings.forEach(p => markNotificationRead(p.id)); // durably clear social rows
                         setPings([]);
                         setReadPingIds(new Set());
                         try { localStorage.removeItem(READ_PINGS_KEY); } catch { }
@@ -2395,10 +2427,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                               ? <FullSchedulePage allClasses={CLASSES} enrolled={enrolled} legend={enrolledLegend} termLabel={termLabel} onBack={() => setView("today")} jumpToDate={jumpToDate} setJumpToDate={setJumpToDate} jumpToSession={jumpToSession} setJumpToSession={setJumpToSession} />
                               : view === "assignments"
                                 ? <AssignmentsPanel enrolled={enrolled} legend={enrolledLegend} userId={userId} />
-                              : view === "courses"
-                                ? <CoursesPanel allClasses={CLASSES} enrolled={enrolled} legend={enrolledLegend} attendance={attendance} now={now} />
-                              : view === "insights"
-                                ? <InsightsPanel visible={visible} now={now} attendance={attendance} />
                               : view === "tomorrow"
                                 ? tomorrowList.length === 0 && premiumMode && syncing
                                   ? (
@@ -2423,7 +2451,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                       <Timeline list={todayList} current={current} now={now} dateLabel={prettyDate(todayISO)} attendance={attendance} markAttendance={markAttendance} skipInfo={skipInfo} syncStatus={<span className="live"><span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} />
                                     </>}
               </Suspense>
-              {view === "today" && !compareTarget && <MessCard now={now} />}
+              {view === "today" && !compareTarget && <MessCard now={now} userId={userId} />}
             </div>
           </main>
           <aside className={view !== "week" ? "side-col hide-mobile" : "side-col"} style={view === "friends" ? { display: "none" } : {}}>

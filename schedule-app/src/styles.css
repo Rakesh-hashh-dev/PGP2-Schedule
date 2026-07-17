@@ -224,6 +224,13 @@ html[data-theme="dark"] .bar {
   background: rgba(16, 18, 22, .92);
 }
 
+/* Dark: --ink flips light, turning the logo tile into a bright box behind the
+   dark icon — use the sidebar brand's translucent treatment instead */
+html[data-theme="dark"] .bar .logo {
+  background: rgba(255, 255, 255, .06);
+  border-color: rgba(255, 255, 255, .14);
+}
+
 .bar {
   display: flex;
   align-items: center;
@@ -4816,6 +4823,10 @@ html[data-theme="dark"] .subj-9 { --subj: #E879F9; --subj-bg: rgba(232, 121, 249
 
 .rc-friend {
   background: #6366f1;
+}
+
+.rc-alert {
+  background: #f59e0b;
 }
 
 .rc-text {

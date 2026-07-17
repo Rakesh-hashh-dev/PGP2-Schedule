@@ -14,11 +14,11 @@ export const MEAL_TIMES = [
 const MENU_START = new Date(2026, 5, 22);
 
 // Served every day alongside the day's breakfast mains
-const DAILY_BREAKFAST = [
+export const DAILY_BREAKFAST = [
   "Bread + Butter + Jam", "Cornflakes + Milk", "Sprouts", "Boiled Egg", "Fruits",
 ];
 
-const MENU = {
+export const BASE_MENU = {
   0: { // Sunday
     breakfast: ["Dosa", "Sambhar", "Coconut Chutney"],
     lunch: ["Plain Rice", "Jeera Aloo with Amchur", "Dal Makhani", "Dahi Tidkari", "Plain Curd", "Green Salad"],
@@ -70,6 +70,16 @@ const MENU = {
   },
 };
 
+// ── Admin overrides (from system_config.flags.messMenuOverrides) ──────────
+// Shape mirrors BASE_MENU but sparse: { [dayOfWeek]: { [meal]: [items] } }.
+// Only the meals present override; everything else falls through to the
+// bundled menu. App.jsx applies these once the cloud config loads.
+let MENU_OVERRIDES = {};
+
+export function setMessMenuOverrides(overrides) {
+  MENU_OVERRIDES = overrides && typeof overrides === "object" ? overrides : {};
+}
+
 // ── Personal favourites + likes (local-first) ─────────────────────────────
 // Dishes the user stars are highlighted everywhere they appear in the menu,
 // and surfaced as a "favourites today" nudge on the mess card. Stored per
@@ -104,11 +114,12 @@ export function favouritesInMenu(menu, favourites) {
 // Resolves the menu for a given weekday + calendar date (date picks the
 // Week 1&3 vs Week 2&4 snack rotation, counted from MENU_START).
 export function getMenuForDay(dayOfWeek, date) {
-  const d = MENU[dayOfWeek];
-  if (!d) return null;
+  const base = BASE_MENU[dayOfWeek];
+  if (!base) return null;
+  const d = { ...base, ...(MENU_OVERRIDES[dayOfWeek] || {}) };
   const weeks = Math.floor((date - MENU_START) / (7 * 86400000));
   const isWeek24 = ((weeks % 2) + 2) % 2 === 1;
-  const snacks = isWeek24 && d.snacksW24.length ? d.snacksW24 : d.snacksW13;
+  const snacks = isWeek24 && (d.snacksW24 || []).length ? d.snacksW24 : (d.snacksW13 || []);
   return {
     breakfast: [...d.breakfast, ...DAILY_BREAKFAST, "Milk + Tea + Coffee"],
     lunch: d.lunch,

@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from "react";
 import "../styles/exams.css";
-import { GraduationCap, Clock, BookOpen, Trophy, CalendarDays, List, ChevronLeft, ChevronRight, Layers, FileText, CalendarClock } from "lucide-react";
-import { sessionKey, isExamSession } from "../lib/attendance.js";
+import { GraduationCap, Clock, BookOpen, Trophy, CalendarDays, List, ChevronLeft, ChevronRight, Layers, FileText, CalendarClock, ChevronDown, User, MapPin, AlertTriangle, BookOpenCheck } from "lucide-react";
+import { sessionKey, isExamSession, courseSkipStats } from "../lib/attendance.js";
+import { loadAssignments } from "../lib/assignments.js";
 import { subjectClass } from "../lib/subjectColors.js";
 import { EmptyState } from "./ui.jsx";
 
@@ -171,15 +172,88 @@ function CourseDotTrail({ sessions, attendance, now }) {
 }
 
 // ── Per-course countdown ──
+// Expanded "course page" detail shown inside a card's dropdown: the richer
+// info (faculty, room, area, skip budget, upcoming sessions, assignments) that
+// used to live in the standalone Courses view.
+function CourseDetail({ c }) {
+  const skip = c.skip;
+  return (
+    <div className="ecc-detail">
+      <div className="ecc-detail-meta">
+        {c.faculty.length > 0 && (
+          <div className="ecc-detail-row"><User size={13} /><span>{c.faculty.join(", ")}</span></div>
+        )}
+        {c.rooms.length > 0 && (
+          <div className="ecc-detail-row"><MapPin size={13} /><span>{c.rooms.join(" · ")}</span></div>
+        )}
+        <div className="ecc-detail-row"><Layers size={13} /><span>{c.area || "—"} · {c.credits} credits</span></div>
+      </div>
+
+      {skip && skip.totalScheduled > 0 && (
+        <div className={`ecc-skip${skip.penaltyHit ? " is-bad" : skip.skipsRemaining === 0 ? " is-warn" : ""}`}>
+          <AlertTriangle size={13} />
+          <span>
+            {skip.penaltyHit
+              ? "Attendance below the required minimum"
+              : skip.skipsRemaining > 0
+                ? `${skip.skipsRemaining} skip${skip.skipsRemaining === 1 ? "" : "s"} left before you drop below the minimum`
+                : "No skips left — every remaining class counts"}
+          </span>
+        </div>
+      )}
+
+      {c.upcoming.length > 0 && (
+        <div className="ecc-detail-block">
+          <div className="ecc-detail-label">Upcoming</div>
+          <ul className="ecc-upcoming">
+            {c.upcoming.map((s, i) => (
+              <li key={i} className={`ecc-up-item${s.soon ? " is-soon" : ""}`}>
+                <span className="ecc-up-cal">
+                  <span className="ecc-up-dow">{s.dow}</span>
+                  <span className="ecc-up-dnum">{s.dnum}</span>
+                </span>
+                <span className="ecc-up-main">
+                  <span className="ecc-up-rel">{s.rel}</span>
+                  <span className="ecc-up-meta">
+                    <Clock size={11} />{s.start}–{s.end}
+                    {s.room && <><MapPin size={11} className="ecc-up-sep" />{s.room}</>}
+                  </span>
+                </span>
+              </li>
+            ))}
+            {c.upcomingMore > 0 && (
+              <li className="ecc-up-more">+{c.upcomingMore} more session{c.upcomingMore === 1 ? "" : "s"}</li>
+            )}
+          </ul>
+        </div>
+      )}
+
+      <div className="ecc-detail-foot">
+        <span className="ecc-detail-tag"><BookOpenCheck size={12} /> {c.assignmentsOpen} assignment{c.assignmentsOpen === 1 ? "" : "s"} open</span>
+      </div>
+    </div>
+  );
+}
+
 function CourseCountdown({ courses, allClasses, enrolled, attendance, now }) {
+  const [openCodes, setOpenCodes] = useState(() => new Set());
+  const toggle = (code) =>
+    setOpenCodes(prev => {
+      const next = new Set(prev);
+      if (next.has(code)) next.delete(code); else next.add(code);
+      return next;
+    });
+
   const courseTimeline = useMemo(() => {
     if (!enrolled || !allClasses) return [];
+    const assignmentStore = loadAssignments();
 
     return courses.map(c => {
+      const section = enrolled[c.code] || "";
       const sessions = allClasses
         .filter(cl => {
           if (cl.type !== "class" || cl.code !== c.code) return false;
-          if (cl.section !== "Single" && cl.section !== (enrolled[c.code] || "")) return false;
+          if (cl.section !== "Single" && cl.section !== section) return false;
           const s = (cl.session || "").toLowerCase();
           if (s.includes("mid term") || s.includes("end term") || s.includes("quiz")) return false;
           return true;
@@ -200,10 +274,23 @@ function CourseCountdown({ courses, allClasses, enrolled, attendance, now }) {
       const markedCount = presentCount + absentCount;
       const attPct = markedCount > 0 ? Math.round((presentCount / markedCount) * 100) : null;
 
-      const nextSession = sessions.find(s => {
+      const upcomingAll = sessions.filter(s => {
         const [Y, M, D] = s.date.split("-").map(Number);
         return new Date(Y, M - 1, D) >= now;
       });
+      const fmtUpcoming = (s) => {
+        const [Y, M, D] = s.date.split("-").map(Number);
+        const d = new Date(Y, M - 1, D);
+        const diff = daysBetween(now, d);
+        const rel = diff === 0 ? "Today" : diff === 1 ? "Tomorrow"
+          : diff < 7 ? d.toLocaleDateString([], { weekday: "long" })
+          : d.toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" });
+        return {
+          dow: d.toLocaleDateString([], { weekday: "short" }),
+          dnum: D, rel, start: s.start, end: s.end, room: s.room, soon: diff <= 1,
+        };
+      };
+      const nextSession = upcomingAll[0];
       const lastSession = sessions[sessions.length - 1];
       const lastDate = lastSession ? (() => {
         const [Y, M, D] = lastSession.date.split("-").map(Number);
@@ -211,7 +298,18 @@ function CourseCountdown({ courses, allClasses, enrolled, attendance, now }) {
       })() : null;
       const daysToLast = lastDate ? daysBetween(now, lastDate) : null;
 
-      return { ...c, total, past, remaining: total - past, pct, daysToLast, nextSession, sessions, attPct };
+      // Expanded-detail extras (faculty/rooms from all class rows, incl. exams)
+      const allRows = allClasses.filter(cl => cl.code === c.code && (cl.section === "Single" || cl.section === section));
+      const faculty = [...new Set(allRows.map(r => r.faculty).filter(Boolean))];
+      const rooms = [...new Set(allRows.map(r => r.room).filter(Boolean))];
+      const skip = courseSkipStats(allClasses, c.code, section, attendance, { zeroCredit: c.credits === 0 });
+      const assignmentsOpen = (assignmentStore?.[c.code] || []).filter(t => !t.completed).length;
+
+      return {
+        ...c, total, past, remaining: total - past, pct, daysToLast, nextSession, sessions, attPct,
+        faculty, rooms, skip, assignmentsOpen,
+        upcoming: upcomingAll.slice(0, 3).map(fmtUpcoming), upcomingMore: Math.max(0, upcomingAll.length - 3),
+      };
     }).sort((a, b) => (a.daysToLast ?? 999) - (b.daysToLast ?? 999));
   }, [courses, allClasses, enrolled, attendance, now]);
 
@@ -219,60 +317,72 @@ function CourseCountdown({ courses, allClasses, enrolled, attendance, now }) {
     <div className="exam-cc-grid">
       {courseTimeline.map((c, i) => {
         const attTone = c.attPct == null ? "" : c.attPct >= 80 ? " att-good" : c.attPct >= 75 ? " att-warn" : " att-bad";
-        
+        const isOpen = openCodes.has(c.code);
+
         // SVG Ring calculations
         const radius = 22;
         const circumference = 2 * Math.PI * radius;
         const strokeDashoffset = circumference - (c.pct / 100) * circumference;
 
         return (
-          <div key={c.code} className="exam-cc-card" style={{ animationDelay: `${i * 60}ms` }}>
-            <div className="ecc-top">
-              <div className="ecc-ring-wrap">
-                <svg className="ecc-ring-svg" width="56" height="56">
-                  <circle className="ecc-ring-bg" cx="28" cy="28" r={radius} />
-                  <circle 
-                    className="ecc-ring-fg" 
-                    cx="28" 
-                    cy="28" 
-                    r={radius} 
-                    strokeDasharray={circumference}
-                    strokeDashoffset={strokeDashoffset}
-                  />
-                </svg>
-                <div className="ecc-ring-pct">{c.pct}%</div>
-              </div>
-              <div className="ecc-info">
-                <div className="ecc-head">
-                  <span className={`ses ${subjectClass(c.code)}`}>
-                    {c.code}
-                  </span>
-                  <span className="ecc-cr">{c.credits}cr</span>
+          <div key={c.code} className={`exam-cc-card${isOpen ? " is-open" : ""}`} style={{ animationDelay: `${i * 60}ms` }}>
+            <button
+              type="button"
+              className="ecc-toggle"
+              onClick={() => toggle(c.code)}
+              aria-expanded={isOpen}
+              aria-label={`${isOpen ? "Collapse" : "Expand"} ${c.name} details`}
+            >
+              <div className="ecc-top">
+                <div className="ecc-ring-wrap">
+                  <svg className="ecc-ring-svg" width="56" height="56">
+                    <circle className="ecc-ring-bg" cx="28" cy="28" r={radius} />
+                    <circle
+                      className="ecc-ring-fg"
+                      cx="28"
+                      cy="28"
+                      r={radius}
+                      strokeDasharray={circumference}
+                      strokeDashoffset={strokeDashoffset}
+                    />
+                  </svg>
+                  <div className="ecc-ring-pct">{c.pct}%</div>
                 </div>
-                <div className="ecc-name">{c.name}</div>
-                <CourseDotTrail sessions={c.sessions} attendance={attendance} now={now} />
+                <div className="ecc-info">
+                  <div className="ecc-head">
+                    <span className={`ses ${subjectClass(c.code)}`}>
+                      {c.code}
+                    </span>
+                    <span className="ecc-cr">{c.credits}cr</span>
+                  </div>
+                  <div className="ecc-name">{c.name}</div>
+                  <CourseDotTrail sessions={c.sessions} attendance={attendance} now={now} />
+                </div>
               </div>
-            </div>
 
-            <div className="ecc-bot">
-              <div className="ecc-pill ecc-pill-done">
-                <span>{c.past}/{c.total}</span> sessions
+              <div className="ecc-bot">
+                <div className="ecc-pill ecc-pill-done">
+                  <span>{c.past}/{c.total}</span> sessions
+                </div>
+                {c.attPct !== null && (
+                  <div className={`ecc-pill ecc-pill-att${attTone}`}>
+                    {c.attPct}% att
+                  </div>
+                )}
+                {c.nextSession && c.remaining > 0 ? (
+                  <div className="ecc-pill ecc-pill-next">
+                    Next: {fmtDate(c.nextSession.date)}
+                  </div>
+                ) : c.daysToLast != null && c.daysToLast >= 0 && c.remaining === 0 ? (
+                  <div className="ecc-pill ecc-pill-ended">
+                    Ended
+                  </div>
+                ) : null}
+                <ChevronDown size={16} className="ecc-caret" />
               </div>
-              {c.attPct !== null && (
-                <div className={`ecc-pill ecc-pill-att${attTone}`}>
-                  {c.attPct}% att
-                </div>
-              )}
-              {c.nextSession && c.remaining > 0 ? (
-                <div className="ecc-pill ecc-pill-next">
-                  Next: {fmtDate(c.nextSession.date)}
-                </div>
-              ) : c.daysToLast != null && c.daysToLast >= 0 && c.remaining === 0 ? (
-                <div className="ecc-pill ecc-pill-ended">
-                  Ended
-                </div>
-              ) : null}
-            </div>
+            </button>
+
+            {isOpen && <CourseDetail c={c} />}
           </div>
         );
       })}

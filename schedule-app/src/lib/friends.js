@@ -556,6 +556,8 @@ export async function hasPendingFriendRequest(fromUserId, toUserId) {
 export async function sendFriendPing(targetUserId, fromUserId, fromName, fromMeta = null) {
   if (!targetUserId || !fromUserId || targetUserId === fromUserId) return;
   try {
+    // Legacy plane — still written so clients on the old (friend_pings) read path
+    // keep receiving during the Phase 3 transition. New clients read notifications.
     const { error } = await supabase.from("friend_pings").insert({
       target_id: targetUserId,
       from_id: fromUserId,
@@ -565,6 +567,17 @@ export async function sendFriendPing(targetUserId, fromUserId, fromName, fromMet
   } catch (e) {
     console.error("[sendFriendPing] catch:", e);
   }
+  // Dual-write to the unified notifications store (Phase 3). Doing it here means
+  // every sendFriendPing call site (friend request / accept / removal / group
+  // invite) is covered without changing each one.
+  const type = fromMeta?.group
+    ? "group_invite"
+    : (fromMeta?.type === "friend_accepted" || fromMeta?.type === "friend_removed")
+      ? fromMeta.type
+      : "friend_request";
+  await sendSocialNotification(targetUserId, type, {
+    fromId: fromUserId, fromName, fromCode: fromMeta?.fromCode, group: fromMeta?.group,
+  });
 }
 
 export async function fetchFriendPings(userId) {
@@ -601,7 +614,99 @@ export async function deleteAllFriendPings(userId) {
   await supabase.from("friend_pings").delete().eq("target_id", userId);
 }
 
+// ── Social notifications (Phase 3: notifications store) ──────────
+//
+// The unified `notifications` table replaces the friend_pings social plane.
+// The sender inserts a row targeting the recipient; the scoped RLS policy
+// (notif_social_insert) pins data.from_id to the caller so it can't be spoofed.
+// This gains push coverage + a cross-device inbox + read state for free.
+// See docs/notification-architecture.md §Phase 3.
+
+const SOCIAL_COPY = {
+  friend_request:  (name) => ({ title: "New friend request", body: `${name} wants to compare schedules` }),
+  friend_accepted: (name) => ({ title: "Friend request accepted", body: `${name} accepted your request` }),
+  group_invite:    (name, group) => ({ title: "Added to a group", body: `${name} added you to "${group}"` }),
+  friend_removed:  (name) => ({ title: "Friend removed", body: `${name} removed you` }),
+};
+
+/**
+ * Insert a social notification for another user.
+ * @param type one of friend_request | friend_accepted | group_invite | friend_removed
+ * @param meta { fromId, fromCode, fromName, group?, silent? }
+ * friend_removed is inserted silent:true — the realtime handler processes the
+ * removal but the bell filters it out.
+ */
+export async function sendSocialNotification(targetUserId, type, meta = {}) {
+  if (!targetUserId || !type || !meta.fromId || targetUserId === meta.fromId) return;
+  const name = meta.fromName || "Someone";
+  const copy = SOCIAL_COPY[type]?.(name, meta.group) || { title: name, body: "" };
+  const dedupKey =
+    type === "group_invite"
+      ? `social:group_invite:${meta.group || ""}:${meta.fromId}`
+      : `social:${type}:${meta.fromId}`;
+  try {
+    const { error } = await supabase.from("notifications").insert({
+      user_id: targetUserId,
+      type,
+      title: copy.title,
+      body: copy.body,
+      url: "/?view=friends",
+      icon: "/icon-push-bell.png",
+      data: {
+        from_id: meta.fromId,          // pinned to caller by RLS — do not change key
+        from_code: meta.fromCode || null,
+        from_name: name,
+        group: meta.group || null,
+        silent: type === "friend_removed" || !!meta.silent,
+        urgency: "normal",
+        ttl: 3 * 24 * 3600,
+      },
+      dedup_key: dedupKey,
+    });
+    if (error) console.error("[sendSocialNotification] error:", error.message, error.details, error.hint);
+  } catch (e) {
+    console.error("[sendSocialNotification] catch:", e);
+  }
+}
+
 // ── Group Chat (Persistent) ─────────────────────────────────────
+
+// Phase 3: chat lives in its own `group_messages` table (out of the notification
+// path). from_id is pinned to the caller by the group_msg_insert RLS policy.
+export async function sendGroupChatMessage(groupId, fromUserId, fromName, text) {
+  if (!groupId || !fromUserId || !text) return;
+  try {
+    const { error } = await supabase.from("group_messages").insert({
+      group_id: groupId,
+      from_id: fromUserId,
+      from_name: fromName || "Someone",
+      text,
+    });
+    if (error) console.error("[sendGroupChatMessage] error:", error.message);
+  } catch (e) {
+    console.error("[sendGroupChatMessage] catch:", e);
+  }
+}
+
+export async function fetchGroupChatMessages(groupId) {
+  if (!groupId) return [];
+  try {
+    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    supabase.from("group_messages").delete().eq("group_id", groupId).lt("created_at", cutoff).then(() => {});
+    const { data } = await supabase
+      .from("group_messages")
+      .select("*")
+      .eq("group_id", groupId)
+      .gte("created_at", cutoff)
+      .order("created_at", { ascending: true });
+    return (data || []).map((m) => ({
+      id: m.id, from_id: m.from_id, name: m.from_name || "Someone",
+      text: m.text || "", created_at: m.created_at,
+    }));
+  } catch { return []; }
+}
+
+// ── Group Chat (legacy friend_pings — kept until Phase 3 read-path swap) ─────
 
 export async function sendGroupMessage(groupId, fromUserId, fromName, text) {
   if (!groupId || !fromUserId || !text) return;

@@ -98,9 +98,12 @@ export async function subscribeToPush(userId) {
 // lead_minutes: 15 | 30 | 60, class_reminders: on/off. Defaults (no row): on, 30.
 
 export async function getReminderPrefs(userId) {
+  // select("*") rather than naming columns so this keeps working before the
+  // cancellation_alerts migration is applied (the column is simply absent →
+  // defaults to true below).
   const { data } = await supabase
     .from("push_prefs")
-    .select("class_reminders, lead_minutes, daily_summary, summary_time")
+    .select("*")
     .eq("user_id", userId)
     .maybeSingle();
   return {
@@ -108,22 +111,39 @@ export async function getReminderPrefs(userId) {
     leadMinutes: data?.lead_minutes ?? 30,
     dailySummary: data?.daily_summary ?? false,
     summaryTime: data?.summary_time || "07:20",
+    cancellationAlerts: data?.cancellation_alerts ?? true,
   };
 }
 
-export async function setReminderPrefs(userId, { enabled, leadMinutes, dailySummary, summaryTime }) {
+// Missing-column error (PostgREST) — the cancellation_alerts migration hasn't
+// been applied yet. We retry the write without that field so the existing
+// reminder settings still save.
+function isMissingColumn(error, column) {
+  const msg = (error?.message || "").toLowerCase();
+  return error?.code === "PGRST204" || (msg.includes(column) && msg.includes("column"));
+}
+
+export async function setReminderPrefs(userId, { enabled, leadMinutes, dailySummary, summaryTime, cancellationAlerts }) {
+  const base = {
+    user_id: userId,
+    class_reminders: enabled,
+    lead_minutes: leadMinutes,
+    daily_summary: dailySummary ?? false,
+    summary_time: summaryTime || "07:20",
+    updated_at: new Date().toISOString(),
+  };
   const { error } = await supabase.from("push_prefs").upsert(
-    {
-      user_id: userId,
-      class_reminders: enabled,
-      lead_minutes: leadMinutes,
-      daily_summary: dailySummary ?? false,
-      summary_time: summaryTime || "07:20",
-      updated_at: new Date().toISOString(),
-    },
+    { ...base, cancellation_alerts: cancellationAlerts ?? true },
     { onConflict: "user_id" }
   );
-  if (error) throw new Error("Could not save reminder settings: " + error.message);
+  if (!error) return;
+  // Pre-migration fallback: save everything except the not-yet-existing column.
+  if (isMissingColumn(error, "cancellation_alerts")) {
+    const { error: retryError } = await supabase.from("push_prefs").upsert(base, { onConflict: "user_id" });
+    if (!retryError) return;
+    throw new Error("Could not save reminder settings: " + retryError.message);
+  }
+  throw new Error("Could not save reminder settings: " + error.message);
 }
 
 export async function unsubscribeFromPush() {

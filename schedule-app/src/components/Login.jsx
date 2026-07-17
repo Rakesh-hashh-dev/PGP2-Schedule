@@ -16,10 +16,21 @@ export default function Login() {
   async function handleSignIn() {
     if (!isLoaded) return;
     setLoading(true);
+    // If the user arrived via an invite link (?f=CODE), the App stashed the code
+    // in localStorage and cleaned the URL before this screen rendered. Carry it
+    // through the OAuth round-trip so the invite still resolves even when the
+    // sign-in happens in a storage context that doesn't share our localStorage
+    // (e.g. an in-app browser, or a handoff to the system browser) — we land back
+    // on /?f=CODE and the App re-captures it.
+    let complete = window.location.origin;
+    try {
+      const pending = localStorage.getItem("pgp2.pending-invite");
+      if (pending) complete = `${window.location.origin}/?f=${encodeURIComponent(pending)}`;
+    } catch { }
     await signIn.authenticateWithRedirect({
       strategy: "oauth_google",
       redirectUrl: `${window.location.origin}/sso-callback`,
-      redirectUrlComplete: window.location.origin,
+      redirectUrlComplete: complete,
     });
   }
 

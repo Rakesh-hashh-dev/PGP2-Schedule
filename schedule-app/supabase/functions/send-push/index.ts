@@ -1,15 +1,22 @@
 // Supabase Edge Function: send-push
-// Sends Web Push notifications to subscribers stored in `push_subscriptions`.
+// Immediate admin broadcast. Phase 2b: this is now a PRODUCER — it fans out one
+// `notifications` row per user and lets `dispatch` deliver the push. It no longer
+// talks to web-push directly, so `dispatch` is the single delivery path and every
+// broadcast also lands in the in-app inbox with per-user read state.
 //
 // Auth: requests must carry header  x-push-key: <PUSH_ADMIN_SECRET>
 // Secrets required (supabase secrets set ...):
-//   VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT (mailto:...), PUSH_ADMIN_SECRET
+//   PUSH_ADMIN_SECRET
 // SB_URL / SB_SERVICE_ROLE_KEY fall back to the platform-injected SUPABASE_* vars.
 //
-// Body: { title, body, url?, tag?, mode? }
+// Body: { title, body, url?, icon?, tag?, mode? }
 //   mode: "digest" fills in a default morning-digest title/body when omitted.
+//
+// Behaviour note: the broadcast now gains up to ~1 min latency (it is delivered on
+// the next `dispatch` cron tick) and each broadcast creates one 30-day inbox row
+// per user. The admin health-check still relies on the "title and body required"
+// 400 and a fast 2xx, so both are preserved.
 
-import webpush from "npm:web-push@3.6.7";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const CORS = {
@@ -34,14 +41,6 @@ Deno.serve(async (req) => {
     return json(401, { error: "Unauthorized" });
   }
 
-  const vapidPublic = Deno.env.get("VAPID_PUBLIC_KEY");
-  const vapidPrivate = Deno.env.get("VAPID_PRIVATE_KEY");
-  const vapidSubject = Deno.env.get("VAPID_SUBJECT") || "mailto:admin@example.com";
-  if (!vapidPublic || !vapidPrivate) {
-    return json(500, { error: "VAPID keys not configured" });
-  }
-  webpush.setVapidDetails(vapidSubject, vapidPublic, vapidPrivate);
-
   let body: Record<string, string> = {};
   try {
     body = await req.json();
@@ -49,13 +48,12 @@ Deno.serve(async (req) => {
     return json(400, { error: "Invalid JSON body" });
   }
 
-  let { title, body: message, url, tag, mode } = body as {
-    title?: string; body?: string; url?: string; tag?: string; mode?: string;
+  let { title, body: message, url, icon, mode } = body as {
+    title?: string; body?: string; url?: string; icon?: string; mode?: string;
   };
   if (mode === "digest") {
     title = title || "Good morning ☀️";
     message = message || "Check today's classes and plan your day on TermFlow.";
-    tag = tag || "daily-digest";
     url = url || "/?view=today";
   }
   if (!title || !message) return json(400, { error: "title and body are required" });
@@ -65,43 +63,32 @@ Deno.serve(async (req) => {
     Deno.env.get("SB_SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
-  const { data: subs, error } = await supabase
-    .from("push_subscriptions")
-    .select("endpoint, p256dh, auth");
+  // Fan out to every known user — not just current push subscribers — so a user
+  // without a live push subscription still gets the in-app inbox entry; `dispatch`
+  // simply skips the push for them.
+  const { data: users, error } = await supabase.from("profiles").select("user_id");
   if (error) return json(500, { error: error.message });
-  if (!subs || subs.length === 0) return json(200, { sent: 0, failed: 0, pruned: 0 });
+  if (!users || users.length === 0) return json(200, { queued: 0 });
 
-  const payload = JSON.stringify({
+  // One dedup_key for the whole broadcast, shared across all user rows: it makes
+  // (user_id, dedup_key) unique per user and lets a retried insert be idempotent.
+  const dedupKey = "broadcast:" + crypto.randomUUID();
+  const rows = users.map((u) => ({
+    user_id: u.user_id,
+    type: "admin_broadcast",
     title,
     body: message,
     url: url || "/",
-    tag,
-    icon: (body as { icon?: string }).icon || undefined, // SW falls back to bell tile
-  });
+    icon: icon || null,
+    data: { urgency: "normal", ttl: 12 * 3600 },
+    dedup_key: dedupKey,
+  }));
 
-  let sent = 0;
-  const dead: string[] = [];
-  await Promise.all(
-    subs.map(async (s) => {
-      try {
-        await webpush.sendNotification(
-          { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
-          payload,
-          // high urgency wakes dozing/idle phones instead of batching; 12h TTL
-          { urgency: "high", TTL: 12 * 3600 },
-        );
-        sent++;
-      } catch (e) {
-        const status = (e as { statusCode?: number }).statusCode;
-        // 404/410 = subscription expired or unsubscribed — prune it
-        if (status === 404 || status === 410) dead.push(s.endpoint);
-      }
-    }),
-  );
+  const { data: inserted, error: insErr } = await supabase
+    .from("notifications")
+    .upsert(rows, { onConflict: "user_id,dedup_key", ignoreDuplicates: true })
+    .select("id");
+  if (insErr) return json(500, { error: insErr.message });
 
-  if (dead.length > 0) {
-    await supabase.from("push_subscriptions").delete().in("endpoint", dead);
-  }
-
-  return json(200, { sent, failed: subs.length - sent, pruned: dead.length });
+  return json(200, { queued: inserted?.length ?? 0 });
 });

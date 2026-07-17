@@ -463,71 +463,97 @@ html[data-theme="dark"] .mess-acc-dinner { --mess-acc-dim: rgba(96, 165, 250, .1
 }
 
 /* ── Full menu modal ── */
-.mess-modal { max-width: 560px; }
-.mess-daytabs {
-  display: flex;
-  gap: 6px;
-  padding: 14px 24px 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.mess-daytabs::-webkit-scrollbar { display: none; }
-.mess-daytab {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 7px 14px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--card);
-  color: var(--muted);
-  font-family: var(--mono);
-  font-size: 12px;
-  font-weight: 650;
-  cursor: pointer;
-  transition: color .2s, border-color .2s, background .2s;
-}
-.mess-daytab:hover { color: var(--text); border-color: var(--border-hi); }
-.mess-daytab.on {
-  color: var(--bone);
-  background: var(--ink);
-  border-color: var(--ink);
-}
-.mess-daytab.is-today:not(.on) { color: var(--violet); border-color: var(--violet); }
-.mess-daytab-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: currentColor;
-}
-.mess-daytab:focus-visible {
-  outline: 2px solid var(--violet);
-  outline-offset: 2px;
-}
+.mess-modal { max-width: 720px; }
 
-.mess-modal-body {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+/* Header */
+.mess-modal-header { padding: 18px 22px 15px; }
+.mess-modal-title { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.mess-modal-title-ico {
+  flex-shrink: 0; width: 38px; height: 38px; border-radius: 12px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--violet-dim); color: var(--violet);
 }
-.mess-modal-meal {
-  border-radius: 12px;
-  padding: 12px 14px;
-  background: linear-gradient(135deg, var(--mess-acc-dim), transparent 70%), var(--card-hi);
+.mess-modal-title-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.mess-modal-title-text h3 { margin: 0; font-size: 15px; font-weight: 800; color: var(--text); }
+.mess-modal-sub { font-size: 11px; color: var(--muted); font-weight: 500; }
+
+/* Weekly day picker */
+.mess-weekstrip {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px;
+  padding: 2px 22px 4px;
+}
+.mess-day {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 7px 0 10px;
+  border: 1px solid var(--border); border-radius: 12px;
+  background: var(--card); color: var(--muted); cursor: pointer;
+  transition: color .18s, border-color .18s, background .18s, transform .1s;
+}
+.mess-day:hover { color: var(--text); border-color: var(--border-hi); }
+.mess-day:active { transform: scale(.95); }
+.mess-day-dow { font-size: 9.5px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; }
+.mess-day-num { font-family: var(--mono); font-size: 14px; font-weight: 700; line-height: 1; color: var(--text); }
+.mess-day.on { background: var(--ink); border-color: var(--ink); }
+.mess-day.on .mess-day-dow { color: rgba(255, 255, 255, .68); }
+.mess-day.on .mess-day-num { color: var(--bone); }
+html[data-theme="dark"] .mess-day.on { background: var(--violet); border-color: var(--violet); }
+html[data-theme="dark"] .mess-day.on .mess-day-dow { color: rgba(255, 255, 255, .85); }
+html[data-theme="dark"] .mess-day.on .mess-day-num { color: #fff; }
+.mess-day.is-today:not(.on) { border-color: var(--violet); }
+.mess-day.is-today:not(.on) .mess-day-num { color: var(--violet); }
+.mess-day-dot { position: absolute; bottom: 4px; width: 4px; height: 4px; border-radius: 50%; background: var(--violet); }
+.mess-day.on .mess-day-dot { background: var(--bone); }
+html[data-theme="dark"] .mess-day.on .mess-day-dot { background: #fff; }
+.mess-day:focus-visible { outline: 2px solid var(--violet); outline-offset: 2px; }
+
+.mess-modal-body { display: flex; flex-direction: column; gap: 12px; overscroll-behavior: contain; }
+
+/* Meal cards */
+.mess-meal-card {
+  position: relative; overflow: hidden; flex-shrink: 0;
+  border-radius: 14px; padding: 13px 15px 14px 18px;
+  background: linear-gradient(135deg, var(--mess-acc-dim), transparent 62%), var(--card-hi);
   border: 1px solid var(--border);
-  transition: opacity .2s;
+  transition: opacity .2s, box-shadow .2s, border-color .2s;
 }
-.mess-modal-meal.is-past { opacity: .55; }
-.mess-modal-meal-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
+.mess-meal-spine { position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--mess-acc); }
+.mess-meal-card.is-now {
+  border-color: color-mix(in srgb, var(--mess-acc) 42%, var(--border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--mess-acc) 26%, transparent);
 }
-.mess-modal-meal .mess-meal-icon { width: 30px; height: 30px; border-radius: 9px; }
-.mess-modal-meal .mess-meal-name { font-size: 14px; }
-.mess-modal-meal-head .mess-bar-serving { margin-left: auto; }
+.mess-meal-card.is-past { opacity: .55; }
+
+.mess-meal-card-head { display: flex; align-items: center; gap: 11px; }
+.mess-meal-card .mess-meal-icon { width: 32px; height: 32px; border-radius: 10px; flex-shrink: 0; }
+.mess-meal-heading { display: flex; flex-direction: column; gap: 1px; min-width: 0; margin-right: auto; }
+.mess-meal-card .mess-meal-name { font-size: 13.5px; font-weight: 700; color: var(--text); }
+.mess-meal-card .mess-meal-time { font-size: 11px; color: var(--muted); font-weight: 500; }
+.mess-meal-card .mess-chip { font-size: 12px; padding: 3px 10px; }
+
+.mess-meal-status { flex-shrink: 0; }
+.mess-status-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 10.5px; font-weight: 700; color: var(--muted);
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 999px; padding: 3px 9px; white-space: nowrap;
+}
+.mess-status-pill.is-live {
+  color: var(--mess-acc);
+  background: var(--mess-acc-dim);
+  border-color: color-mix(in srgb, var(--mess-acc) 38%, transparent);
+}
+.mess-status-pill.is-live .mess-chip-dot { background: var(--mess-acc); animation: mess-pulse 1.6s ease-in-out infinite; }
+.mess-status-pill.is-done { opacity: .75; }
+@keyframes mess-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+
+.mess-meal-rate-row { margin-top: 11px; }
+.mess-meal-card .mess-chips { margin-top: 11px; }
+.mess-meal-empty { margin-top: 11px; font-size: 12px; color: var(--muted); font-style: italic; opacity: .8; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mess-status-pill.is-live .mess-chip-dot { animation: none; }
+}
 
 /* ── Favourites (local-first) ─────────────────────────────────────────── */
 .mess-chip.is-fav {
@@ -552,7 +578,26 @@ html[data-theme="dark"] .mess-acc-dinner { --mess-acc-dim: rgba(96, 165, 250, .1
 .mess-fav-pill svg { color: var(--amber); }
 
 .mess-fav-hint {
-  display: flex; align-items: center; gap: 6px;
-  font-size: 11.5px; color: var(--muted); margin-bottom: 10px;
+  display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+  font-size: 11px; color: var(--muted); margin: 0 0 2px;
 }
 .mess-fav-hint svg { color: var(--amber); }
+
+/* ── Cohort meal ratings ──────────────────────────────────────────────── */
+.mess-rate { display: inline-flex; align-items: center; gap: 6px; }
+.mess-rate-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 24px; border-radius: 7px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--card); color: var(--muted);
+  transition: background .12s, color .12s, border-color .12s;
+}
+.mess-rate-btn:hover { color: var(--text); border-color: var(--border-hi); }
+.mess-rate-btn.on { background: var(--live-dim); border-color: var(--live); color: var(--live); }
+.mess-rate-btn.down.on { background: color-mix(in srgb, var(--danger) 12%, transparent); border-color: var(--danger); color: var(--danger); }
+.mess-rate-stat { font-size: 11px; color: var(--muted); font-weight: 600; white-space: nowrap; }
+
+.mess-featured-rate {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border);
+}
+.mess-rate-label { font-size: 12px; color: var(--muted); font-weight: 600; }

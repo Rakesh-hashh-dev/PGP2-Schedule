@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
-import { Coffee, Utensils, Cookie, Moon, UtensilsCrossed, ChevronDown, CalendarDays, X, Star, Heart } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Coffee, Utensils, Cookie, Moon, UtensilsCrossed, ChevronDown, CalendarDays, X, Star, Heart, ThumbsUp, ThumbsDown } from "lucide-react";
 import { getMenuForDay, MEAL_TIMES, loadMessFavourites, saveMessFavourites, favouritesInMenu } from "../data/messMenu.js";
+import { fetchMealStats, fetchMyRatings, setMealRating } from "../lib/messRatings.js";
 import "./../styles/mess.css";
 
 const MEAL_ICONS = { breakfast: Coffee, lunch: Utensils, snacks: Cookie, dinner: Moon };
@@ -72,7 +74,43 @@ function ItemChips({ items, small, favourites, onToggleFav }) {
   );
 }
 
-function FullMenuModal({ now, onClose, favourites, onToggleFav }) {
+// Compact cohort rating control for one meal. Hidden entirely when ratings
+// aren't available (migration not applied / signed out) via the parent guard.
+function MealRating({ mealId, stats, mine, onRate }) {
+  const s = stats?.[mealId] || { up: 0, down: 0 };
+  const total = s.up + s.down;
+  const pct = total ? Math.round((s.up / total) * 100) : null;
+  const my = mine?.[mealId];
+  return (
+    <div className="mess-rate" onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        className={`mess-rate-btn${my === 1 ? " on" : ""}`}
+        onClick={() => onRate(mealId, my === 1 ? null : 1)}
+        aria-pressed={my === 1}
+        aria-label="Thumbs up"
+      >
+        <ThumbsUp size={13} />
+      </button>
+      <button
+        type="button"
+        className={`mess-rate-btn down${my === -1 ? " on" : ""}`}
+        onClick={() => onRate(mealId, my === -1 ? null : -1)}
+        aria-pressed={my === -1}
+        aria-label="Thumbs down"
+      >
+        <ThumbsDown size={13} />
+      </button>
+      {total > 0 && (
+        <span className="mess-rate-stat" title={`${s.up} up · ${s.down} down`}>
+          {pct}% liked · {total}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function FullMenuModal({ now, onClose, favourites, onToggleFav, ratings }) {
   const todayIdx = (now.getDay() + 6) % 7; // Mon=0 ... Sun=6
   const [dayIdx, setDayIdx] = useState(todayIdx);
   const nowMin = now.getHours() * 60 + now.getMinutes();
@@ -80,7 +118,19 @@ function FullMenuModal({ now, onClose, favourites, onToggleFav }) {
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    // Lock background scroll while the modal is open. The page scrolls on the
+    // document element (html), so we lock both html and body — locking body
+    // alone leaves the background scrollable (and its hover states live).
+    const html = document.documentElement;
+    const prevHtml = html.style.overflow;
+    const prevBody = document.body.style.overflow;
+    html.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      html.style.overflow = prevHtml;
+      document.body.style.overflow = prevBody;
+    };
   }, [onClose]);
 
   const monday = mondayOf(now);
@@ -90,58 +140,90 @@ function FullMenuModal({ now, onClose, favourites, onToggleFav }) {
     return { label, date, menu: getMenuForDay(date.getDay(), date) };
   });
   const isToday = dayIdx === todayIdx;
-  const dayMenu = weekDays[dayIdx].menu;
+  const selected = weekDays[dayIdx];
+  const dayMenu = selected.menu;
+  const totalItems = MEAL_TIMES.reduce((n, m) => n + (dayMenu[m.id]?.length || 0), 0);
+  const dateSub = isToday
+    ? `Today · ${selected.date.toLocaleDateString([], { day: "numeric", month: "short" })}`
+    : selected.date.toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" });
 
-  return (
+  return createPortal(
     <div className="fs-modal-overlay" onClick={onClose}>
-      <div className="fs-modal-content mess-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="fs-modal-header">
-          <h3><UtensilsCrossed size={18} color="var(--violet)" /> Full Mess Menu</h3>
+      <div className="fs-modal-content mess-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Full mess menu">
+        <div className="fs-modal-header mess-modal-header">
+          <div className="mess-modal-title">
+            <span className="mess-modal-title-ico"><UtensilsCrossed size={17} /></span>
+            <span className="mess-modal-title-text">
+              <h3>Mess Menu</h3>
+              <span className="mess-modal-sub">{dateSub} · {totalItems} items</span>
+            </span>
+          </div>
           <button type="button" className="fs-modal-close" onClick={onClose} aria-label="Close"><X size={16} /></button>
         </div>
 
-        <div className="mess-daytabs" role="tablist" aria-label="Choose a day">
+        <div className="mess-weekstrip" role="tablist" aria-label="Choose a day">
           {weekDays.map((d, i) => (
             <button
               key={d.label}
               type="button"
               role="tab"
               aria-selected={i === dayIdx}
-              className={`mess-daytab${i === dayIdx ? " on" : ""}${i === todayIdx ? " is-today" : ""}`}
+              aria-label={`${d.label} ${d.date.getDate()}${i === todayIdx ? " (today)" : ""}`}
+              className={`mess-day${i === dayIdx ? " on" : ""}${i === todayIdx ? " is-today" : ""}`}
               onClick={() => setDayIdx(i)}
             >
-              {d.label}
-              {i === todayIdx && <span className="mess-daytab-dot" />}
+              <span className="mess-day-dow">{d.label}</span>
+              <span className="mess-day-num">{d.date.getDate()}</span>
+              {i === todayIdx && <span className="mess-day-dot" aria-hidden="true" />}
             </button>
           ))}
         </div>
 
         <div className="fs-modal-body mess-modal-body">
-          <div className="mess-fav-hint"><Star size={11} /> Tap a dish to save it as a favourite</div>
+          <p className="mess-fav-hint"><Star size={11} /> Tap a dish to save it as a favourite</p>
           {MEAL_TIMES.map((m) => {
             const Icon = MEAL_ICONS[m.id];
+            const items = dayMenu[m.id] || [];
             const st = isToday ? mealStatus(m, nowMin) : "upcoming";
+            const startMin = toMin(m.start);
             return (
-              <div key={m.id} className={`mess-modal-meal mess-acc-${m.id}${st === "past" ? " is-past" : ""}`}>
-                <div className="mess-modal-meal-head">
+              <section key={m.id} className={`mess-meal-card mess-acc-${m.id} is-${st}${st === "past" ? " is-past" : ""}`}>
+                <span className="mess-meal-spine" aria-hidden="true" />
+                <div className="mess-meal-card-head">
                   <span className="mess-meal-icon"><Icon size={16} /></span>
-                  <span className="mess-meal-name">
-                    {m.label}
-                    <span className="mess-meal-time">{fmt12(m.start)} – {fmt12(m.end)}</span>
+                  <span className="mess-meal-heading">
+                    <span className="mess-meal-name">{m.label}</span>
+                    <span className="mess-meal-time">{fmt12(m.start)} – {fmt12(m.end)} · {items.length} item{items.length === 1 ? "" : "s"}</span>
                   </span>
-                  {st === "now" && <span className="mess-bar-serving"><span className="mess-chip-dot" />Serving</span>}
+                  <span className="mess-meal-status">
+                    {isToday && st === "now"
+                      ? <span className="mess-status-pill is-live"><span className="mess-chip-dot" />Serving now</span>
+                      : isToday && st === "upcoming"
+                        ? <span className="mess-status-pill">{fmtIn(startMin - nowMin)}</span>
+                        : isToday && st === "past"
+                          ? <span className="mess-status-pill is-done">Served</span>
+                          : null}
+                  </span>
                 </div>
-                <ItemChips items={dayMenu[m.id] || []} favourites={favourites} onToggleFav={onToggleFav} />
-              </div>
+                {ratings && isToday && (
+                  <div className="mess-meal-rate-row">
+                    <MealRating mealId={m.id} stats={ratings.stats} mine={ratings.mine} onRate={ratings.onRate} />
+                  </div>
+                )}
+                {items.length > 0
+                  ? <ItemChips items={items} favourites={favourites} onToggleFav={onToggleFav} />
+                  : <div className="mess-meal-empty">Not served</div>}
+              </section>
             );
           })}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
-export default function MessCard({ now }) {
+export default function MessCard({ now, userId }) {
   const [expanded, setExpanded] = useState(false);
   const [fullMenuOpen, setFullMenuOpen] = useState(false);
   const [favourites, setFavourites] = useState(loadMessFavourites);
@@ -153,6 +235,56 @@ export default function MessCard({ now }) {
       return next;
     });
   };
+
+  // Cohort meal ratings for today. `ratingsAvailable` stays false until the
+  // stats RPC succeeds, so the controls are hidden if the migration isn't
+  // applied yet or the user is signed out.
+  const [mealStats, setMealStats] = useState({});
+  const [myRatings, setMyRatings] = useState({});
+  const [ratingsAvailable, setRatingsAvailable] = useState(false);
+  const todayKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    const day = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    (async () => {
+      const [stats, mine] = await Promise.all([fetchMealStats(day), fetchMyRatings(userId, day)]);
+      if (cancelled) return;
+      setRatingsAvailable(stats !== null);
+      if (stats === null) return;
+      setMealStats(stats);
+      setMyRatings(mine);
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, todayKey]);
+
+  const handleRate = (mealId, rating) => {
+    const prevMine = myRatings[mealId] ?? null;
+    if (prevMine === rating) return;
+    // Optimistic: adjust my vote + the aggregate, roll back if the write fails.
+    setMyRatings((m) => { const n = { ...m }; if (rating === null) delete n[mealId]; else n[mealId] = rating; return n; });
+    setMealStats((s) => {
+      const cur = { up: 0, down: 0, ...(s[mealId] || {}) };
+      if (prevMine === 1) cur.up--; else if (prevMine === -1) cur.down--;
+      if (rating === 1) cur.up++; else if (rating === -1) cur.down++;
+      return { ...s, [mealId]: cur };
+    });
+    const day = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    setMealRating(userId, day, mealId, rating).then((ok) => {
+      if (!ok) { // revert both on failure
+        setMyRatings((m) => { const n = { ...m }; if (prevMine === null) delete n[mealId]; else n[mealId] = prevMine; return n; });
+        setMealStats((s) => {
+          const cur = { up: 0, down: 0, ...(s[mealId] || {}) };
+          if (rating === 1) cur.up--; else if (rating === -1) cur.down--;
+          if (prevMine === 1) cur.up++; else if (prevMine === -1) cur.down++;
+          return { ...s, [mealId]: cur };
+        });
+      }
+    });
+  };
+  const ratings = (userId && ratingsAvailable) ? { stats: mealStats, mine: myRatings, onRate: handleRate } : null;
+
   const nowMin = now.getHours() * 60 + now.getMinutes();
 
   // Featured meal: the one serving now, else the next one today,
@@ -177,7 +309,9 @@ export default function MessCard({ now }) {
   const dayWord = isTomorrow ? "Tomorrow" : featured.id === "dinner" ? "Tonight" : "Today";
   const pct = Math.min(100, Math.max(0, ((nowMin - startMin) / (endMin - startMin)) * 100));
 
-  const hoverProps = CAN_HOVER
+  // Disable hover-to-expand while the full-menu modal is open, so the card
+  // behind the overlay doesn't react to the pointer.
+  const hoverProps = CAN_HOVER && !fullMenuOpen
     ? { onMouseEnter: () => setExpanded(true), onMouseLeave: () => setExpanded(false) }
     : {};
 
@@ -284,6 +418,12 @@ export default function MessCard({ now }) {
               )}
 
               <ItemChips items={items} favourites={favourites} />
+              {ratings && !isTomorrow && (
+                <div className="mess-featured-rate">
+                  <span className="mess-rate-label">Rate today&rsquo;s {featured.label.toLowerCase()}</span>
+                  <MealRating mealId={featured.id} stats={ratings.stats} mine={ratings.mine} onRate={ratings.onRate} />
+                </div>
+              )}
             </div>
 
             <ul className="mess-all">
@@ -312,7 +452,7 @@ export default function MessCard({ now }) {
         </div>
       </div>
 
-      {fullMenuOpen && <FullMenuModal now={now} onClose={() => setFullMenuOpen(false)} favourites={favourites} onToggleFav={toggleFav} />}
+      {fullMenuOpen && <FullMenuModal now={now} onClose={() => setFullMenuOpen(false)} favourites={favourites} onToggleFav={toggleFav} ratings={ratings} />}
     </section>
   );
 }

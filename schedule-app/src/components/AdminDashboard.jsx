@@ -2,10 +2,11 @@ import { useState, useEffect } from "react";
 import "../styles/admin.css";
 import "../styles/assignments.css";
 import "../styles/cmdk.css";
-import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil, BarChart2 } from "lucide-react";
+import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil, BarChart2, UtensilsCrossed } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { logAdminAction } from "../lib/adminAudit.js";
 import { LEGEND } from "../data/schedule.js";
+import { BASE_MENU } from "../data/messMenu.js";
 import snapshotMeta from "../data/snapshot-meta.json";
 import { getSnapshot } from "../lib/sheet.js";
 import AdminCommandPalette from "./AdminCommandPalette";
@@ -17,6 +18,18 @@ const PREVIEW_NOW = Date.now();
 const PREVIEW_TODAY_ISO = new Date(PREVIEW_NOW).toISOString().split("T")[0];
 const PREVIEW_TOMORROW_ISO = new Date(PREVIEW_NOW + 86400000).toISOString().split("T")[0];
 
+
+// Mess Menu Editor — meal slots as stored in data/messMenu.js
+const MESS_MEALS = [
+  { key: "breakfast", label: "Breakfast Mains", hint: "Daily items (bread, cornflakes, sprouts, egg, fruits, beverages) are appended automatically." },
+  { key: "lunch", label: "Lunch" },
+  { key: "snacksW13", label: "Snacks — Week 1 & 3" },
+  { key: "snacksW24", label: "Snacks — Week 2 & 4", hint: "Leave empty to serve the Week 1 & 3 snacks on those weeks too." },
+  { key: "dinner", label: "Dinner" },
+];
+// Date#getDay() indices in Monday-first display order
+const MESS_DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
+const MESS_DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 function Avatar({ name, email }) {
   const init = name ? name[0] : (email ? email[0] : "?");
@@ -44,7 +57,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     maintenanceMode: false,
     bannedUsers: [],
     classOverrides: {},
-    abTests: {}
+    abTests: {},
+    dispatchEnabled: true
   });
   
   const [popularCourses, setPopularCourses] = useState([]);
@@ -135,6 +149,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [activityChartData, setActivityChartData] = useState(Array(7).fill(0));
   const [peakHour, setPeakHour] = useState(null);
 
+
   // Reactive flag — avoids stale localStorage.getItem() at render time
   const [hasAdminKey, setHasAdminKey] = useState(() => !!localStorage.getItem("pgp2.push-admin-key"));
 
@@ -147,6 +162,11 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   // A/B Test editor
   const [abTestName, setAbTestName] = useState("");
   const [abTestRollout, setAbTestRollout] = useState(50);
+
+  // Mess Menu Editor — drafts hold only meals the admin has typed in; anything
+  // else falls through to the staged override (flags) or the bundled menu.
+  const [messEditDay, setMessEditDay] = useState(() => new Date().getDay());
+  const [messDrafts, setMessDrafts] = useState({});
 
   const admin_id = user?.id || user?.user_id || "unknown";
 
@@ -261,15 +281,28 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
     async function fetchExtraAdminStats() {
       try {
-        const { count: pCount } = await supabase.from("push_subscriptions").select("*", { count: "exact", head: true });
-        setPushSubCount(pCount ?? 0);
-        
-        const { count: fCount } = await supabase.from("friend_pings").select("*", { count: "exact", head: true });
-        setFriendPingsCount(fCount ?? 0);
-        
         const { data: sc } = await supabase.from("share_codes").select("*");
         if (sc) setShareCodes(sc);
-        
+
+        // push_subscriptions / friend_pings / attendance are RLS-locked to the
+        // requesting user, so counting them client-side only sees the admin's
+        // own rows. get_admin_stats() (SECURITY DEFINER) returns true
+        // cohort-wide aggregates; fall back to the clipped counts if the RPC
+        // is ever dropped.
+        const { data: stats, error: statsErr } = await supabase.rpc("get_admin_stats");
+        if (!statsErr && stats) {
+          setPushSubCount(stats.push_subscriptions ?? 0);
+          setFriendPingsCount(stats.friend_pings ?? 0);
+          setSkipStats(stats.skips_by_course || []);
+          return;
+        }
+
+        const { count: pCount } = await supabase.from("push_subscriptions").select("*", { count: "exact", head: true });
+        setPushSubCount(pCount ?? 0);
+
+        const { count: fCount } = await supabase.from("friend_pings").select("*", { count: "exact", head: true });
+        setFriendPingsCount(fCount ?? 0);
+
         const { data: att } = await supabase.from("attendance").select("session_key, status").eq("status", "absent");
         if (att) {
            const skipsByCourse = {};
@@ -365,13 +398,18 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     fetchConfig();
   }, []);
 
+  const changesCount = originalFlags ? Object.keys(flags).reduce((acc, k) => {
+    if (JSON.stringify(flags[k]) !== JSON.stringify(originalFlags[k])) return acc + 1;
+    return acc;
+  }, 0) : 0;
+
   // Warn on tab close when there are unsaved config changes
   useEffect(() => {
     if (changesCount === 0) return;
     const handler = (e) => { e.preventDefault(); e.returnValue = ""; };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [changesCount]);
 
   async function saveConfig() {
@@ -563,10 +601,6 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const activeOverrideDates = Object.keys(flags.classOverrides || {}).filter(d => d >= todayISO);
   const activeOverrideCount = activeOverrideDates.reduce((acc, d) => acc + Object.keys(flags.classOverrides[d]).length, 0);
 
-  const changesCount = originalFlags ? Object.keys(flags).reduce((acc, k) => {
-    if (JSON.stringify(flags[k]) !== JSON.stringify(originalFlags[k])) return acc + 1;
-    return acc;
-  }, 0) : 0;
 
   const purgeStaleConfig = () => {
     if (!window.confirm(`Remove ${staleOverrideDates.length} past override date(s), ${staleAnnouncements.length} expired announcement(s) and ${staleQuickLinks.length} expired quick link(s)? Remember to deploy after.`)) return;
@@ -586,7 +620,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     setFeedbackList(feedbackList.map(f => f.id === id ? { ...f, status: "resolved" } : f));
   };
 
-  const exportConfigJSON = () => {
+  const _exportConfigJSON = () => {
     const json = JSON.stringify({ announcement: activeAnnouncement, flags }, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -638,6 +672,40 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
     setHealthStatus(next);
     setHealthChecking(false);
+  };
+
+  // ── Mess Menu Editor helpers ─────────────────────────────────
+  // Textarea value: unsaved draft → staged override → bundled default
+  const messMealText = (meal) => {
+    if (messDrafts[meal] !== undefined) return messDrafts[meal];
+    const staged = flags.messMenuOverrides?.[messEditDay]?.[meal];
+    return (staged ?? BASE_MENU[messEditDay][meal] ?? []).join("\n");
+  };
+
+  const stageMessMenuEdits = () => {
+    const dayOverride = {};
+    MESS_MEALS.forEach(({ key }) => {
+      const items = messMealText(key).split("\n").map(s => s.trim()).filter(Boolean);
+      // Only store meals that differ from the bundled menu
+      if (JSON.stringify(items) !== JSON.stringify(BASE_MENU[messEditDay][key] ?? [])) {
+        dayOverride[key] = items;
+      }
+    });
+    const next = { ...(flags.messMenuOverrides || {}) };
+    if (Object.keys(dayOverride).length === 0) delete next[messEditDay];
+    else next[messEditDay] = dayOverride;
+    setFlags({ ...flags, messMenuOverrides: next });
+    setMessDrafts({});
+    logAdminAction(admin_id, "edit_mess_menu", { day: MESS_DAY_NAMES[messEditDay], meals: Object.keys(dayOverride) });
+  };
+
+  const resetMessMenuDay = () => {
+    if (!window.confirm(`Reset ${MESS_DAY_NAMES[messEditDay]} to the bundled menu (discard the override)?`)) return;
+    const next = { ...(flags.messMenuOverrides || {}) };
+    delete next[messEditDay];
+    setFlags({ ...flags, messMenuOverrides: next });
+    setMessDrafts({});
+    logAdminAction(admin_id, "reset_mess_menu_day", { day: MESS_DAY_NAMES[messEditDay] });
   };
 
   // Helper to open the Live Editor modal AND initialise controlled inputs
@@ -1128,6 +1196,76 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             </section>
           )}
 
+          {/* Mess Menu Editor */}
+          <section className="admin-card" style={{ gridColumn: "1 / -1" }}>
+            <h2><UtensilsCrossed size={20} color="var(--amber)" /> Mess Menu Editor</h2>
+            <p className="admin-subtext">Edit the weekly mess menu shown on the Mess Card — one dish per line. Stage a day, then publish with "Deploy Config to Cloud".</p>
+
+            {/* Day picker (Mon-first) */}
+            <div style={{ display: "flex", gap: 8, marginTop: 12, marginBottom: 16, flexWrap: "wrap" }}>
+              {MESS_DAY_ORDER.map(d => {
+                const isOverridden = !!flags.messMenuOverrides?.[d];
+                const on = d === messEditDay;
+                return (
+                  <button
+                    key={d}
+                    className={`admin-btn ${on ? "primary" : "outline"}`}
+                    onClick={() => {
+                      if (d === messEditDay) return;
+                      if (Object.keys(messDrafts).length > 0 && !window.confirm("Discard unstaged edits on this day?")) return;
+                      setMessDrafts({});
+                      setMessEditDay(d);
+                    }}
+                    style={{ padding: "7px 14px", fontSize: 13, position: "relative" }}
+                  >
+                    {MESS_DAY_NAMES[d].slice(0, 3)}
+                    {isOverridden && <span title="Menu overridden for this day" style={{ position: "absolute", top: -4, right: -4, width: 10, height: 10, borderRadius: "50%", background: "var(--amber)", border: "2px solid var(--card)" }} />}
+                  </button>
+                );
+              })}
+            </div>
+
+            {flags.messMenuOverrides?.[messEditDay] && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, fontSize: 13, color: "var(--amber-text, var(--amber))", background: "var(--amber-transparent, rgba(240,180,41,0.1))", border: "1px solid var(--amber)", borderRadius: 8, padding: "8px 12px" }}>
+                <AlertTriangle size={14} /> {MESS_DAY_NAMES[messEditDay]} is overridden — meals below show the overridden menu, not the bundled default.
+              </div>
+            )}
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
+              {MESS_MEALS.map(({ key, label, hint }) => (
+                <div key={key} className="admin-field" style={{ marginBottom: 0 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    {label}
+                    {flags.messMenuOverrides?.[messEditDay]?.[key] && <span style={{ background: "var(--amber)", color: "#000", padding: "1px 6px", borderRadius: 4, fontSize: 9.5, fontWeight: 800, letterSpacing: ".03em" }}>OVERRIDDEN</span>}
+                  </label>
+                  <textarea
+                    className="admin-textarea"
+                    rows={6}
+                    value={messMealText(key)}
+                    onChange={e => setMessDrafts({ ...messDrafts, [key]: e.target.value })}
+                    placeholder="One dish per line"
+                    style={{ fontSize: 13, lineHeight: 1.5 }}
+                  />
+                  {hint && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>{hint}</div>}
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap", alignItems: "center" }}>
+              <button className="admin-btn primary" onClick={stageMessMenuEdits} style={{ padding: "9px 16px" }}>
+                <Check size={15} /> Stage {MESS_DAY_NAMES[messEditDay]}&apos;s Menu
+              </button>
+              {(flags.messMenuOverrides?.[messEditDay] || Object.keys(messDrafts).length > 0) && (
+                <button className="admin-btn outline" onClick={resetMessMenuDay} style={{ padding: "9px 16px", borderColor: "var(--danger)", color: "var(--danger)" }}>
+                  <RefreshCw size={15} /> Reset Day to Default
+                </button>
+              )}
+              {Object.keys(messDrafts).length > 0 && (
+                <span style={{ fontSize: 12, color: "var(--amber-text, var(--amber))", fontWeight: 600 }}>Unstaged edits — stage them, then deploy config.</span>
+              )}
+            </div>
+          </section>
+
           {/* Analytics Dashboard — real data from Supabase */}
           <section className="admin-card" style={{ gridColumn: "1 / -1" }}>
              <h2><BarChart2 size={20} color="var(--violet)" /> Analytics & Usage</h2>
@@ -1139,6 +1277,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                    {(() => {
                       const maxVal = Math.max(...activityChartData, 1);
                       const dayLabels = Array.from({ length: 7 }, (_, i) => {
+                        // eslint-disable-next-line react-hooks/purity
                         const d = new Date(Date.now() - (6 - i) * 86400000);
                         return d.toLocaleDateString("en-IN", { weekday: "short" });
                       });
@@ -1216,7 +1355,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     { key: "sheets",   label: "Google Sheets Live Feed", icon: <FileText size={14} /> },
                   ].map(({ key, label, icon }) => {
                     const s = healthStatus[key];
-                    const isOk  = s && s !== "error" && s !== "timeout";
+                    const _isOk  = s && s !== "error" && s !== "timeout";
                     const isErr = s === "error" || s === "timeout";
                     const bg  = !s ? "var(--bg)" : isErr ? "rgba(231,76,60,0.08)" : "rgba(46,204,113,0.08)";
                     const tag = !s ? (healthChecking ? "Checking…" : "Not checked") :
@@ -1762,7 +1901,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           <section className="admin-card">
             <h2><Flag size={20} color="var(--violet)" /> Feature Flags</h2>
             <div className="admin-flag-list">
-              {Object.keys(flags).filter(k => k !== "maintenanceMode" && k !== "bannedUsers" && k !== "classOverrides" && k !== "abTests" && k !== "scheduledAnnouncements" && k !== "quickLinks" && k !== "heroBackdrop" && k !== "whatsNew" && k !== "updatePrompt").map(key => (
+              {Object.keys(flags).filter(k => k !== "maintenanceMode" && k !== "bannedUsers" && k !== "classOverrides" && k !== "abTests" && k !== "scheduledAnnouncements" && k !== "quickLinks" && k !== "heroBackdrop" && k !== "whatsNew" && k !== "updatePrompt" && k !== "dispatchEnabled").map(key => (
                 <label key={key} className="admin-flag-item">
                   <input 
                     type="checkbox" 
@@ -2034,10 +2173,27 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 <span className="admin-subtext" style={{ margin: 0 }}>Locks out all non-admin users immediately.</span>
               </div>
               <label className="admin-toggle">
-                <input 
-                  type="checkbox" 
-                  checked={!!flags.maintenanceMode} 
+                <input
+                  type="checkbox"
+                  checked={!!flags.maintenanceMode}
                   onChange={e => setFlags({ ...flags, maintenanceMode: e.target.checked })}
+                />
+                <span className="slider"></span>
+              </label>
+            </div>
+
+            <div className="admin-danger-row">
+              <div>
+                <strong style={{ display: "block", marginBottom: 4 }}>Push Dispatcher</strong>
+                <span className="admin-subtext" style={{ margin: 0 }}>
+                  ON: the notifications system delivers push. OFF: pauses all outgoing push within a minute (the in-app inbox still updates; queued events resume when re-enabled). Kill-switch if the new push system misbehaves — flip OFF, then redeploy the legacy functions to fully fall back.
+                </span>
+              </div>
+              <label className="admin-toggle">
+                <input
+                  type="checkbox"
+                  checked={flags.dispatchEnabled !== false}
+                  onChange={e => setFlags({ ...flags, dispatchEnabled: e.target.checked })}
                 />
                 <span className="slider"></span>
               </label>

@@ -40,7 +40,9 @@ export default defineConfig({
       devOptions: { enabled: true },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,webp,jpg}'],
-        globIgnores: ['**/*.unused.*', '**/push-sw.js'],
+        // shortcut-*.png are only read by the OS at PWA install time —
+        // precaching them just bloats every user's SW download
+        globIgnores: ['**/*.unused.*', '**/push-sw.js', '**/shortcut-*.png'],
         // Web Push handlers live in public/push-sw.js (imported, not precached)
         importScripts: ['push-sw.js'],
         runtimeCaching: [
@@ -100,7 +102,9 @@ export default defineConfig({
         short_name: 'TermFlow',
         description: 'PGP2 timetable & attendance tracker — IIM Sambalpur',
         theme_color: '#15182B',
-        background_color: '#F3F1EA',
+        // Android paints the launch splash with this — dark matches the icon
+        // tile and avoids a bright flash for dark-mode users at night
+        background_color: '#15182B',
         display: 'standalone',
         start_url: '/',
         scope: '/',
@@ -131,30 +135,40 @@ export default defineConfig({
             purpose: 'any',
           },
         ],
+        // Android surfaces at most 4 shortcuts in the long-press menu, in
+        // order — Today / Announcements / Attendance / Assignments made the
+        // cut; This Week is kept 5th for launchers that show more.
+        // Icons are full-bleed maskable tiles (glyph in the 60% safe zone).
         shortcuts: [
           {
             name: 'Today',
             short_name: 'Today',
             url: '/?view=today',
-            icons: [{ src: 'icon-192.png', sizes: '192x192' }],
+            icons: [{ src: 'shortcut-today.png', sizes: '192x192', purpose: 'any maskable' }],
           },
           {
-            name: 'This Week',
-            short_name: 'Week',
-            url: '/?view=week',
-            icons: [{ src: 'icon-192.png', sizes: '192x192' }],
+            name: 'Announcements',
+            short_name: 'Announcements',
+            url: '/?view=notifications',
+            icons: [{ src: 'shortcut-announcements.png', sizes: '192x192', purpose: 'any maskable' }],
           },
           {
             name: 'Attendance',
             short_name: 'Attendance',
             url: '/?view=attendance',
-            icons: [{ src: 'icon-192.png', sizes: '192x192' }],
+            icons: [{ src: 'shortcut-attendance.png', sizes: '192x192', purpose: 'any maskable' }],
           },
           {
             name: 'Assignments',
             short_name: 'Assignments',
             url: '/?view=assignments',
-            icons: [{ src: 'icon-192.png', sizes: '192x192' }],
+            icons: [{ src: 'shortcut-assignments.png', sizes: '192x192', purpose: 'any maskable' }],
+          },
+          {
+            name: 'This Week',
+            short_name: 'Week',
+            url: '/?view=week',
+            icons: [{ src: 'shortcut-week.png', sizes: '192x192', purpose: 'any maskable' }],
           },
         ],
       },
