@@ -63,10 +63,13 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json(405, { error: "POST only" });
 
+  // Auth: x-push-key (PUSH_ADMIN_SECRET) OR a service-role bearer (pg_cron caller).
   const adminSecret = Deno.env.get("PUSH_ADMIN_SECRET");
-  if (!adminSecret || req.headers.get("x-push-key") !== adminSecret) {
-    return json(401, { error: "Unauthorized" });
-  }
+  const serviceKey  = Deno.env.get("SB_SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const authHeader  = req.headers.get("authorization") || "";
+  const authorized  = (adminSecret && req.headers.get("x-push-key") === adminSecret)
+                   || (serviceKey && authHeader.includes(serviceKey));
+  if (!authorized) return json(401, { error: "Unauthorized" });
 
   const supabase = createClient(
     Deno.env.get("SB_URL") ?? Deno.env.get("SUPABASE_URL")!,
