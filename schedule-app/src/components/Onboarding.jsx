@@ -5,9 +5,10 @@ import { subjectClass } from "../lib/subjectColors.js";
 const AREA_LABEL = { "F&A": "Finance & Accounting", MKTG: "Marketing", ISM: "Information Systems", STM: "Strategy", OPS: "Operations", "OB&HR": "OB & HR", Other: "Other" };
 const AREA_ORDER = ["F&A", "MKTG", "ISM", "STM", "OPS", "OB&HR", "Other"];
 
-export default function Onboarding({ legend, sectionsByCode, onDone, initialPicked, onCancel, termLabel, onPullFromSheet, prefill, cloudChecked, waitingForAllocation }) {
+export default function Onboarding({ legend, sectionsByCode, onDone, initialPicked, onCancel, termLabel, onPullFromSheet, prefill, cloudChecked, waitingForAllocation, needsName }) {
   const isEditing = !!initialPicked;
   const [picked, setPicked] = useState(() => initialPicked || {});
+  const [name, setName] = useState("");
   const [pulling, setPulling] = useState(false);
   const [pullMsg, setPullMsg] = useState(null);
   const prefillApplied = useRef(false);
@@ -86,6 +87,23 @@ export default function Onboarding({ legend, sectionsByCode, onDone, initialPick
         <p className="ob-sub">Pick your courses — and your section for each. We'll show only your classes, with no clashes.</p>
         <div className="ob-hint"><Info size={14} /> Your section can differ per course — choose A or B on each.</div>
 
+        {needsName && (
+          <div className="ob-name">
+            <label className="ob-name-label" htmlFor="ob-name-input">Your name</label>
+            <input
+              id="ob-name-input"
+              className="ob-name-input"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Riya Sharma"
+              maxLength={40}
+              autoComplete="name"
+            />
+            <span className="ob-name-hint">So classmates can recognise you when you connect as friends.</span>
+          </div>
+        )}
+
         {!isEditing && !cloudChecked && (
           <div className="ob-sync-notice">
             <span className="ob-sync-dot" />
@@ -160,7 +178,7 @@ export default function Onboarding({ legend, sectionsByCode, onDone, initialPick
       <div className="ob-foot">
         <div className="ob-foot-inner">
           <span className="ob-count">{count} {count === 1 ? "subject" : "subjects"} selected</span>
-          <button className="ob-cta" disabled={count === 0} onClick={() => onDone({ ...picked })}>
+          <button className="ob-cta" disabled={count === 0 || (needsName && !name.trim())} onClick={() => onDone({ ...picked }, name)}>
             {isEditing ? "Save changes" : "Show my schedule"} <ArrowRight size={18} />
           </button>
         </div>

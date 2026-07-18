@@ -139,7 +139,7 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
       const section = enrolled[code];
       const rawCredit = legend[code]?.credits;
       const zeroCredit = rawCredit === "0" || rawCredit === 0;
-      const budget = courseSkipStats(allClasses, code, section, attendance, { zeroCredit });
+      const budget = courseSkipStats(allClasses, code, section, attendance, { zeroCredit, credits: rawCredit });
 
       const st = stat(list);
       return {

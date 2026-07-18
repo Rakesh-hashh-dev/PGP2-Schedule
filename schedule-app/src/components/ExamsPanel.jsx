@@ -302,7 +302,7 @@ function CourseCountdown({ courses, allClasses, enrolled, attendance, now }) {
       const allRows = allClasses.filter(cl => cl.code === c.code && (cl.section === "Single" || cl.section === section));
       const faculty = [...new Set(allRows.map(r => r.faculty).filter(Boolean))];
       const rooms = [...new Set(allRows.map(r => r.room).filter(Boolean))];
-      const skip = courseSkipStats(allClasses, c.code, section, attendance, { zeroCredit: c.credits === 0 });
+      const skip = courseSkipStats(allClasses, c.code, section, attendance, { zeroCredit: c.credits === 0, credits: c.credits });
       const assignmentsOpen = (assignmentStore?.[c.code] || []).filter(t => !t.completed).length;
 
       return {

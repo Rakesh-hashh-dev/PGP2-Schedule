@@ -136,6 +136,12 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   // Feedback Flash Config
   const [feedbackFlashes, setFeedbackFlashes] = useState([]);
   const [previewFlashId, setPreviewFlashId] = useState(null);
+  // Minute tick so flash status badges/countdowns stay current while the page sits open
+  const [flashNow, setFlashNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setFlashNow(Date.now()), 60000);
+    return () => clearInterval(t);
+  }, []);
 
   // Live Editor State
   const [liveSchedule] = useState(() => getSnapshot().CLASSES || []);
@@ -1888,7 +1894,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           <div className="admin-form" style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 16 }}>
             {feedbackFlashes.map((ff, index) => {
               const HOUR = 60 * 60 * 1000;
-              const now = Date.now();
+              const now = flashNow;
               const deadlineMs = ff.deadline ? new Date(ff.deadline).getTime() : null;
 
               const fmtAbs = ms => new Date(ms).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });

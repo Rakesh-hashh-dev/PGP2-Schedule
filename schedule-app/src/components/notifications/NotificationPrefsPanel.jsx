@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
-import { Bell, Sunrise, CalendarX, ArrowRightLeft, Users, Moon, Check, BellRing, Settings2, ChevronDown } from "lucide-react";
+import { Bell, Sunrise, CalendarX, ArrowRightLeft, Users, Moon, Check, BellRing, Settings2, ChevronDown, Vibrate } from "lucide-react";
 import { getFullPrefs, setFullPrefs, showTestNotification } from "../../lib/push.js";
+import { hapticsSupported, hapticsEnabled, setHapticsEnabled, haptic } from "../../lib/haptics.js";
 
 const LEAD_OPTIONS = [15, 30, 60];
 
@@ -49,6 +50,7 @@ export function NotificationPrefsPanel({ userId, openSignal }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testState, setTestState] = useState("idle"); // idle | busy | sent | failed
+  const [haptics, setHaptics] = useState(hapticsEnabled); // local device setting
   const testTimer = useRef(null);
   const rootRef = useRef(null);
 
@@ -243,6 +245,34 @@ export function NotificationPrefsPanel({ userId, openSignal }) {
                 : "Pushes may arrive any time"}
             </span>
           </div>
+
+          {/* Haptic feedback — local device setting, not synced (the ring/silent
+              switch isn't readable from the web, so this is the manual control) */}
+          {hapticsSupported() && (
+            <div className="reminder-row npp-row">
+              <span className="reminder-bar-label">
+                <Vibrate size={13} />
+                Haptic feedback
+              </span>
+              <div className="reminder-seg" role="radiogroup" aria-label="Haptic feedback">
+                <button
+                  className={`reminder-seg-btn${!haptics ? " reminder-seg-active" : ""}`}
+                  onClick={() => { setHaptics(false); setHapticsEnabled(false); }}
+                >
+                  Off
+                </button>
+                <button
+                  className={`reminder-seg-btn${haptics ? " reminder-seg-active" : ""}`}
+                  onClick={() => { setHaptics(true); setHapticsEnabled(true); haptic(10); }}
+                >
+                  On
+                </button>
+              </div>
+              <span className="reminder-bar-hint">
+                Vibrate on taps &amp; actions. Turn off if you keep your phone on silent.
+              </span>
+            </div>
+          )}
 
           {/* Delivery check */}
           <div className="reminder-row npp-row">

@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Suspense, lazy } from "react";
 import { createPortal } from "react-dom";
-import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, ChevronsLeft, ChevronsRight, ChevronRight, ChevronLeft, Megaphone, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Sparkles, Wand2, BellRing, CalendarDays, ExternalLink, Download, Share, WifiOff, Zap, PanelBottom, PanelTop, PanelsTopLeft, Check, ChevronDown, MapPin, Sun, Moon, Monitor } from "lucide-react";
+import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, ChevronsLeft, ChevronsRight, Megaphone, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Sparkles, Wand2, BellRing, CalendarDays, ExternalLink, Download, Share, WifiOff, Zap, PanelBottom, PanelTop, PanelsTopLeft, Check, ChevronDown, MapPin, Sun, Moon, Monitor, CalendarOff, CalendarRange, UtensilsCrossed } from "lucide-react";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
 import SemSummary from "./components/SemSummary.jsx";
@@ -13,11 +13,13 @@ import Onboarding from "./components/Onboarding.jsx";
 import WeatherWidget from "./components/WeatherWidget.jsx";
 import TomorrowSummary from "./components/TomorrowSummary.jsx";
 import MessCard from "./components/MessCard.jsx";
+import { MessMenuStandalone } from "./components/MessMenuModal.jsx";
 import { setMessMenuOverrides } from "./data/messMenu.js";
 import { getSnapshot, fetchSchedule, sha256hex } from "./lib/sheet.js";
 import TermFlowLoader from "./components/TermFlowLoader.jsx";
 
 const AttendancePanel = lazy(() => import("./components/AttendancePanel.jsx"));
+const LeavePlanner = lazy(() => import("./components/LeavePlanner.jsx"));
 const FriendsPanel = lazy(() => import("./components/FriendsPanel.jsx"));
 const CompareView = lazy(() => import("./components/CompareView.jsx"));
 const RecentChanges = lazy(() => import("./components/RecentChanges.jsx"));
@@ -40,6 +42,7 @@ import { decodeSchedule, saveFriend, loadFriends, loadGroups, syncFriendsAndGrou
 import { supabase } from "./lib/supabase.js";
 import { fetchNotifications, subscribeToNotifications, markNotificationRead, markAllNotificationsRead } from "./lib/notifications.js";
 import { assignSubjectColors, subjectClass } from "./lib/subjectColors.js";
+import { haptic } from "./lib/haptics.js";
 import MarkPrompt from "./components/MarkPrompt.jsx";
 import { WhatsNewPill, WhatsNewModal } from "./components/WhatsNew.jsx";
 
@@ -334,6 +337,19 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try { return localStorage.getItem("pgp2.sidebar") === "collapsed"; } catch { return false; }
   });
+  // Tablet tier (768–1023px): sidebar is forced to the collapsed icon rail —
+  // there isn't room for the expanded panel next to content, so the user's
+  // stored expand/collapse preference only applies from 1024px up.
+  const [isTablet, setIsTablet] = useState(() =>
+    typeof window !== "undefined" && window.matchMedia("(min-width: 768px) and (max-width: 1023px)").matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px) and (max-width: 1023px)");
+    const onChange = (e) => setIsTablet(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  const sbCollapsed = sidebarCollapsed || isTablet;
   function toggleSidebar() {
     setSidebarCollapsed(prev => {
       const next = !prev;
@@ -380,7 +396,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
   const [sbTip, setSbTip] = useState(null);
   function showSbTip(e, label, always = false) {
-    if (!sidebarCollapsed && !always) return;
+    if (!sbCollapsed && !always) return;
     const r = e.currentTarget.getBoundingClientRect();
     setSbTip({ label, top: r.top + r.height / 2, left: r.right + 10 });
   }
@@ -461,7 +477,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // runs on the compositor, so it stays smooth even while React is busy
   const onBnavPointerDown = (e) => {
     const btn = e.target.closest?.(".bnav-btn");
-    if (btn) setBnavLens({ x: btn.offsetLeft, w: btn.offsetWidth });
+    if (btn) {
+      setBnavLens({ x: btn.offsetLeft, w: btn.offsetWidth });
+      haptic(10);
+    }
   };
   // If the press never becomes a click (finger slid off), snap the lens back.
   // click dispatches synchronously after pointerup, so by the time this
@@ -471,6 +490,12 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
   const [navMenuOpen, setNavMenuOpen] = useState(false);
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
+  // Overflow-menu collapsible sections (mobile ⋯ menu)
+  const [toolsSecOpen, setToolsSecOpen] = useState(false);
+  const [prefsSecOpen, setPrefsSecOpen] = useState(false);
+  const [messMenuOpen, setMessMenuOpen] = useState(false);
+  const [aboutSecOpen, setAboutSecOpen] = useState(false);
+  const [adminSecOpen, setAdminSecOpen] = useState(false);
   const [showFriendsAgenda, setShowFriendsAgenda] = useState(false);
   const [showRightScroll, setShowRightScroll] = useState(true);
   const [showLeftScroll, setShowLeftScroll] = useState(false);
@@ -534,7 +559,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   useEffect(() => {
     const DEEP_LINK_VIEWS = new Set([
       "today", "tomorrow", "week", "attendance", "exams", "assignments",
-      "notifications", "friends",
+      "notifications", "friends", "leave",
     ]);
     const captureFromUrl = () => {
       const params = new URLSearchParams(window.location.search);
@@ -1236,6 +1261,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       const rawCredit = LEGEND[code]?.credits;
       out[code] = courseSkipStats(CLASSES, code, section, attendance, {
         zeroCredit: rawCredit === "0" || rawCredit === 0,
+        credits: rawCredit,
       });
     }
     return out;
@@ -1292,10 +1318,18 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     return Object.keys(courses).length > 0 ? courses : null;
   }
 
-  function handleOnboardingDone(courses) {
+  async function handleOnboardingDone(courses, enteredName) {
     const s = { courses };
     saveSetup(s);
-    pushProfile(userId, courses, user?.firstName || user?.username || "Student");
+    const trimmed = (enteredName || "").trim();
+    // If the user typed a name (they had none from Clerk), persist it to Clerk so
+    // it flows everywhere, and use it directly for this push (user.firstName won't
+    // update synchronously). Otherwise fall back to whatever Clerk already has.
+    if (trimmed && user && !user.firstName) {
+      try { await user.update({ firstName: trimmed }); } catch { /* non-blocking */ }
+    }
+    const name = trimmed || user?.firstName || user?.username || "Student";
+    pushProfile(userId, courses, name);
     setEnrolled(courses);
     setMine(new Set(Object.keys(courses)));
     setSetup(s);
@@ -1547,7 +1581,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   }, [userId]);
 
   const markAttendance = async (c, status) => {
-    if (premiumMode && navigator.vibrate) navigator.vibrate([10]);
+    haptic([10]);
     const key = sessionKey(c);
     setAttendance(prev => {
       const next = { ...prev };
@@ -1559,7 +1593,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   }
 
   const handleSync = async () => {
-    if (premiumMode && navigator.vibrate) navigator.vibrate([10]);
+    haptic([10]);
     setSyncing(true);
     try {
       const data = await fetchSchedule(true);
@@ -1567,9 +1601,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       setSyncedAt(new Date());
       setRealNow(new Date());
       if (data._meta) setSyncLogs(prev => [data._meta, ...prev].slice(0, 1000));
-      if (premiumMode && navigator.vibrate) navigator.vibrate([10, 40, 10]);
+      haptic([10, 40, 10]);
     } catch (e) {
-      if (premiumMode && navigator.vibrate) navigator.vibrate([50, 100, 50]);
+      haptic([50, 100, 50]);
       setSyncLogs(prev => [{ ts: Date.now(), status: "error", message: `Manual sync failed: ${e.message || "Network Error"}` }, ...prev].slice(0, 1000));
     } finally {
       setSyncing(false);
@@ -1622,8 +1656,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       <p className="loading-sub">Fetching your class schedule</p>
     </main>
   );
-  if (!setup) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} termLabel={termLabel} onPullFromSheet={buildAllocationFromSheet} prefill={prefillPicked} cloudChecked={cloudChecked} waitingForAllocation={waitingForAllocation} />;
-  if (showSetupEdit) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} initialPicked={enrolled} onCancel={() => setShowSetupEdit(false)} termLabel={termLabel} onPullFromSheet={buildAllocationFromSheet} />;
+  const needsName = !(user?.firstName || user?.username);
+  if (!setup) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} termLabel={termLabel} onPullFromSheet={buildAllocationFromSheet} prefill={prefillPicked} cloudChecked={cloudChecked} waitingForAllocation={waitingForAllocation} needsName={needsName} />;
+  if (showSetupEdit) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} initialPicked={enrolled} onCancel={() => setShowSetupEdit(false)} termLabel={termLabel} onPullFromSheet={buildAllocationFromSheet} needsName={needsName} />;
 
   // Banned User Lockout
   if (sysConfig?.flags?.bannedUsers?.includes(userId) && !isAdmin) {
@@ -1796,7 +1831,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       )}
 
       {/* ── Desktop Sidebar ── */}
-      <aside className={`sidebar${sidebarCollapsed ? " collapsed" : ""}${sbStyle === "aurora" ? " sb-aurora" : ""}`}>
+      <aside className={`sidebar${sbCollapsed ? " collapsed" : ""}${sbStyle === "aurora" ? " sb-aurora" : ""}`}>
         {sbStyle === "aurora" && (
           <div className="sb-fx" aria-hidden="true"><i /><i /><span className="sb-grain" /></div>
         )}
@@ -1821,8 +1856,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         </div>
 
         {isOffline && (
-          <div style={{ margin: "0 16px 12px 16px", padding: "6px 8px", background: "rgba(231, 76, 60, 0.1)", border: "1px solid var(--danger)", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: sidebarCollapsed ? "center" : "flex-start", gap: "8px", color: "var(--danger)", fontSize: "11px", fontWeight: 700 }}>
-            <CloudOff size={14} style={{ flexShrink: 0 }} /> {!sidebarCollapsed && <span>Offline Mode (Cached)</span>}
+          <div style={{ margin: "0 16px 12px 16px", padding: "6px 8px", background: "rgba(231, 76, 60, 0.1)", border: "1px solid var(--danger)", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: sbCollapsed ? "center" : "flex-start", gap: "8px", color: "var(--danger)", fontSize: "11px", fontWeight: 700 }}>
+            <CloudOff size={14} style={{ flexShrink: 0 }} /> {!sbCollapsed && <span>Offline Mode (Cached)</span>}
           </div>
         )}
 
@@ -1883,7 +1918,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             </div>
           )}
 
-          {!sidebarCollapsed && (current || next) && (
+          {!sbCollapsed && (current || next) && (
             <div className={`sb-now-card${current ? " sb-now-live" : (next.s - now <= 15 * 60000 ? " sb-now-soon" : "")}`} role="button" tabIndex={0} onClick={() => { setView(current || (next && next.date === todayISO) ? "today" : "tomorrow"); setCompareTarget(null); }} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setView(current || (next && next.date === todayISO) ? "today" : "tomorrow"); setCompareTarget(null); } }}>
               <div className="sb-now-head">
                 <span className="sb-now-chip"><span className="sb-now-dot" />{current ? "Now" : "Next"}</span>
@@ -1986,22 +2021,24 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 </button>
               )}
             </div>
-            {!sidebarCollapsed && (
+            {!sbCollapsed && (
               <div className="sb-sync-note"><span className="sb-sync-dot" />{syncing ? "Syncing…" : syncedAgo === 0 ? "Synced just now" : `Synced ${syncedAgo}m ago`}</div>
             )}
           </div>
         </div>
 
-        <button
-          className="sb-edge-handle sb-edge-tab"
-          onMouseEnter={e => showSbTip(e, sidebarCollapsed ? "Expand" : "Collapse")}
-          onMouseLeave={hideSbTip}
-          onClick={() => { toggleSidebar(); hideSbTip(); }}
-          aria-label="Toggle sidebar"
-          aria-expanded={!sidebarCollapsed}
-        >
-          {sidebarCollapsed ? <ChevronsRight size={12} /> : <ChevronsLeft size={12} />}
-        </button>
+        {!isTablet && (
+          <button
+            className="sb-edge-handle sb-edge-tab"
+            onMouseEnter={e => showSbTip(e, sidebarCollapsed ? "Expand" : "Collapse")}
+            onMouseLeave={hideSbTip}
+            onClick={() => { toggleSidebar(); hideSbTip(); }}
+            aria-label="Toggle sidebar"
+            aria-expanded={!sidebarCollapsed}
+          >
+            {sidebarCollapsed ? <ChevronsRight size={12} /> : <ChevronsLeft size={12} />}
+          </button>
+        )}
       </aside>
 
       {sbTip && createPortal(
@@ -2237,82 +2274,134 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                         <span className="over-profile-batch">PGP2 · 2025–27</span>
                       </div>
                     </div>
+                    {/* ── Schedule ── */}
                     <div className="over-sep" />
+                    <div className="over-section-label">Schedule</div>
                     <button className="mobile-only" onClick={() => { setFilterModalOpen(true); setOverflowOpen(false); }}>
                       <SlidersHorizontal size={14} /> Filter subjects
                     </button>
-                    <div className="over-sep mobile-only" />
-                    <button className="mobile-only" aria-expanded={navMenuOpen} onClick={() => setNavMenuOpen(o => !o)}>
-                      <PanelsTopLeft size={14} /> Navigation
-                      <ChevronDown size={13} className={`over-caret${navMenuOpen ? " open" : ""}`} />
-                    </button>
-                    {navMenuOpen && (
-                      <div className="over-sub mobile-only">
-                        <button onClick={() => { pickNavMode("bottom"); setOverflowOpen(false); setNavMenuOpen(false); }}>
-                          <PanelBottom size={14} /> Show bottom nav
-                          {mobileNavMode === "bottom" && <Check size={14} className="over-check" />}
-                        </button>
-                        <button onClick={() => { pickNavMode("top"); setOverflowOpen(false); setNavMenuOpen(false); }}>
-                          <PanelTop size={14} /> Show top nav
-                          {mobileNavMode === "top" && <Check size={14} className="over-check" />}
-                        </button>
-                        <button onClick={() => { pickNavMode("both"); setOverflowOpen(false); setNavMenuOpen(false); }}>
-                          <PanelsTopLeft size={14} /> Show both
-                          {mobileNavMode === "both" && <Check size={14} className="over-check" />}
-                        </button>
-                      </div>
-                    )}
-                    <div className="over-sep" />
-                    <button aria-expanded={themeMenuOpen} onClick={() => setThemeMenuOpen(o => !o)}>
-                      {theme === "dark" ? <Moon size={14} /> : theme === "light" ? <Sun size={14} /> : <Monitor size={14} />} Appearance
-                      <ChevronDown size={13} className={`over-caret${themeMenuOpen ? " open" : ""}`} />
-                    </button>
-                    {themeMenuOpen && (
-                      <div className="over-sub">
-                        <button onClick={() => pickTheme("light")}>
-                          <Sun size={14} /> Light
-                          {theme === "light" && <Check size={14} className="over-check" />}
-                        </button>
-                        <button onClick={() => pickTheme("dark")}>
-                          <Moon size={14} /> Dark
-                          {theme === "dark" && <Check size={14} className="over-check" />}
-                        </button>
-                        <button onClick={() => pickTheme("system")}>
-                          <Monitor size={14} /> System
-                          {theme === "system" && <Check size={14} className="over-check" />}
-                        </button>
-                      </div>
-                    )}
-                    <div className="over-sep" />
-                    <button onClick={() => { setView("notifications"); setCompareTarget(null); setOverflowOpen(false); setNotifPrefsSignal(n => n + 1); }}>
-                      <Bell size={14} /> Notification settings
-                    </button>
-                    <div className="over-sep" />
                     <button onClick={() => { setShowSetupEdit(true); setOverflowOpen(false); }}>
                       <Settings2 size={14} /> Edit setup
                     </button>
-                    <button onClick={() => { handleSync(); setOverflowOpen(false); }}>
-                      <RefreshCw size={14} className={syncing ? "spin-icon" : ""} />
-                      {syncing ? "Syncing…" : "Refresh"}
-                    </button>
+
+                    {/* ── Tools ── */}
                     <div className="over-sep" />
-                    <button onClick={() => { setWhatsNewOpen(true); setOverflowOpen(false); }}>
-                      <Sparkles size={14} /> What&rsquo;s New
+                    <button className="over-section-toggle" aria-expanded={toolsSecOpen} onClick={() => setToolsSecOpen(o => !o)}>
+                      <span className="over-section-label">Tools</span>
+                      <ChevronDown size={13} className={`over-caret${toolsSecOpen ? " open" : ""}`} />
                     </button>
-                    <button onClick={() => { setFeedbackOpen(true); setProfileOpen(false); setOverflowOpen(false); }}>
-                      <MessageSquare size={14} /> Submit Feedback
+                    {toolsSecOpen && (
+                      <div className="over-section-body">
+                        <button onClick={() => { setView("fullSchedule"); setCompareTarget(null); setOverflowOpen(false); }}>
+                          <CalendarRange size={14} /> Full timetable
+                        </button>
+                        <button onClick={() => { setMessMenuOpen(true); setOverflowOpen(false); }}>
+                          <UtensilsCrossed size={14} /> Mess menu
+                        </button>
+                        <button onClick={() => { setView("leave"); setCompareTarget(null); setOverflowOpen(false); }}>
+                          <CalendarOff size={14} /> Leave planner
+                        </button>
+                      </div>
+                    )}
+
+                    {/* ── Preferences ── */}
+                    <div className="over-sep" />
+                    <button className="over-section-toggle" aria-expanded={prefsSecOpen} onClick={() => setPrefsSecOpen(o => !o)}>
+                      <span className="over-section-label">Preferences</span>
+                      <ChevronDown size={13} className={`over-caret${prefsSecOpen ? " open" : ""}`} />
                     </button>
-                    {showAdminUI && (
-                      <button onClick={() => { setView("admin"); setCompareTarget(null); setOverflowOpen(false); }} style={{ color: "var(--live)" }}>
-                        <Shield size={14} color="var(--live)" /> Admin Dashboard
-                      </button>
+                    {prefsSecOpen && (
+                      <div className="over-section-body">
+                        <button aria-expanded={themeMenuOpen} onClick={() => setThemeMenuOpen(o => !o)}>
+                          {theme === "dark" ? <Moon size={14} /> : theme === "light" ? <Sun size={14} /> : <Monitor size={14} />} Appearance
+                          <ChevronDown size={13} className={`over-caret${themeMenuOpen ? " open" : ""}`} />
+                        </button>
+                        {themeMenuOpen && (
+                          <div className="over-sub">
+                            <button onClick={() => pickTheme("light")}>
+                              <Sun size={14} /> Light
+                              {theme === "light" && <Check size={14} className="over-check" />}
+                            </button>
+                            <button onClick={() => pickTheme("dark")}>
+                              <Moon size={14} /> Dark
+                              {theme === "dark" && <Check size={14} className="over-check" />}
+                            </button>
+                            <button onClick={() => pickTheme("system")}>
+                              <Monitor size={14} /> System
+                              {theme === "system" && <Check size={14} className="over-check" />}
+                            </button>
+                          </div>
+                        )}
+                        <button className="mobile-only" aria-expanded={navMenuOpen} onClick={() => setNavMenuOpen(o => !o)}>
+                          <PanelsTopLeft size={14} /> Navigation
+                          <ChevronDown size={13} className={`over-caret${navMenuOpen ? " open" : ""}`} />
+                        </button>
+                        {navMenuOpen && (
+                          <div className="over-sub mobile-only">
+                            <button onClick={() => { pickNavMode("bottom"); setOverflowOpen(false); setNavMenuOpen(false); }}>
+                              <PanelBottom size={14} /> Show bottom nav
+                              {mobileNavMode === "bottom" && <Check size={14} className="over-check" />}
+                            </button>
+                            <button onClick={() => { pickNavMode("top"); setOverflowOpen(false); setNavMenuOpen(false); }}>
+                              <PanelTop size={14} /> Show top nav
+                              {mobileNavMode === "top" && <Check size={14} className="over-check" />}
+                            </button>
+                            <button onClick={() => { pickNavMode("both"); setOverflowOpen(false); setNavMenuOpen(false); }}>
+                              <PanelsTopLeft size={14} /> Show both
+                              {mobileNavMode === "both" && <Check size={14} className="over-check" />}
+                            </button>
+                          </div>
+                        )}
+                        <button onClick={() => { setView("notifications"); setCompareTarget(null); setOverflowOpen(false); setNotifPrefsSignal(n => n + 1); }}>
+                          <Bell size={14} /> Notification settings
+                        </button>
+                      </div>
                     )}
-                    {isAdmin && (
-                      <button onClick={() => { setAdminMode(!adminMode); setOverflowOpen(false); }}>
-                        {adminMode ? <User size={14} /> : <Shield size={14} />}
-                        {adminMode ? "Exit Admin Mode" : "Enter Admin Mode"}
-                      </button>
+
+                    {/* ── About ── */}
+                    <div className="over-sep" />
+                    <button className="over-section-toggle" aria-expanded={aboutSecOpen} onClick={() => setAboutSecOpen(o => !o)}>
+                      <span className="over-section-label">About</span>
+                      <ChevronDown size={13} className={`over-caret${aboutSecOpen ? " open" : ""}`} />
+                    </button>
+                    {aboutSecOpen && (
+                      <div className="over-section-body">
+                        <button onClick={() => { setWhatsNewOpen(true); setOverflowOpen(false); }}>
+                          <Sparkles size={14} /> What&rsquo;s New
+                        </button>
+                        <button onClick={() => { setFeedbackOpen(true); setProfileOpen(false); setOverflowOpen(false); }}>
+                          <MessageSquare size={14} /> Submit Feedback
+                        </button>
+                      </div>
                     )}
+
+                    {/* ── Admin (admins only) ── */}
+                    {(showAdminUI || isAdmin) && (
+                      <>
+                        <div className="over-sep" />
+                        <button className="over-section-toggle" aria-expanded={adminSecOpen} onClick={() => setAdminSecOpen(o => !o)}>
+                          <span className="over-section-label">Admin</span>
+                          <ChevronDown size={13} className={`over-caret${adminSecOpen ? " open" : ""}`} />
+                        </button>
+                        {adminSecOpen && (
+                          <div className="over-section-body">
+                            {showAdminUI && (
+                              <button onClick={() => { setView("admin"); setCompareTarget(null); setOverflowOpen(false); }} style={{ color: "var(--live)" }}>
+                                <Shield size={14} color="var(--live)" /> Admin Dashboard
+                              </button>
+                            )}
+                            {isAdmin && (
+                              <button onClick={() => { setAdminMode(!adminMode); setOverflowOpen(false); }}>
+                                {adminMode ? <User size={14} /> : <Shield size={14} />}
+                                {adminMode ? "Exit Admin Mode" : "Enter Admin Mode"}
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    <div className="over-sep" />
                     <button className="over-danger" onClick={() => { signOut(); setOverflowOpen(false); }}>
                       <LogOut size={14} /> Sign out
                     </button>
@@ -2367,32 +2456,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                   </button>
                 )}
               </nav>
-              {showLeftScroll && (
-                <button
-                  className="tabs-scroll-btn left mobile-only"
-                  onClick={() => tabsRef.current?.scrollBy({ left: -180, behavior: "smooth" })}
-                  aria-label="Scroll left"
-                >
-                  <div className="tsb-icon-wrap">
-                    <ChevronLeft size={14} />
-                  </div>
-                </button>
-              )}
-              {showRightScroll && (
-                <button
-                  className="tabs-scroll-btn right mobile-only"
-                  onClick={() => tabsRef.current?.scrollBy({ left: 180, behavior: "smooth" })}
-                  aria-label="Scroll right"
-                >
-                  <div className="tsb-icon-wrap">
-                    <ChevronRight size={14} />
-                  </div>
-                </button>
-              )}
             </div>
             )}
 
-            {view !== "attendance" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && !compareTarget && (
+            {view !== "attendance" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && view !== "leave" && !compareTarget && (
               <>
                 {unseenWhatsNew.length > 0 && (
                   <WhatsNewPill item={unseenWhatsNew[0]} count={unseenWhatsNew.length} onOpen={() => setWhatsNewOpen(true)} />
@@ -2447,7 +2514,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 </div>
               </>
             )}
-            {view !== "attendance" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && !compareTarget && view !== "tomorrow" && (
+            {view !== "attendance" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && view !== "leave" && !compareTarget && view !== "tomorrow" && (
               view === "week"
                 ? <div className="hide-mobile"><Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} onMarkAttendance={markAttendance} attendance={attendance} sysConfig={sysConfig} /></div>
                 : <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} onMarkAttendance={markAttendance} attendance={attendance} sysConfig={sysConfig} />
@@ -2559,6 +2626,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       myClasses={visible}
                       allClasses={CLASSES}
                       now={now}
+                      onOpenLeave={() => { setView("leave"); setCompareTarget(null); }}
                       onCompare={(f) => setCompareTarget({ mode: "friend", friendData: f })}
                       onGroupCompare={(g) => {
                         let members;
@@ -2615,6 +2683,18 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                             ? <AdminDashboard user={user} startImpersonation={startImpersonation} syncLogs={syncLogs} timeOverride={timeOverride} setTimeOverride={setTimeOverride} allChanges={CHANGES} />
                             : view === "fullSchedule"
                               ? <FullSchedulePage allClasses={CLASSES} enrolled={enrolled} legend={enrolledLegend} termLabel={termLabel} onBack={() => setView("today")} jumpToDate={jumpToDate} setJumpToDate={setJumpToDate} jumpToSession={jumpToSession} setJumpToSession={setJumpToSession} />
+                              : view === "leave"
+                                ? <LeavePlanner
+                                    allClasses={CLASSES}
+                                    enrolled={enrolled}
+                                    legend={enrolledLegend}
+                                    attendance={attendance}
+                                    now={now}
+                                    termStart={TERM?.start}
+                                    termEnd={TERM?.end}
+                                    onBack={() => { setView("today"); setCompareTarget(null); }}
+                                    onOpenAttendance={enableAttendance ? () => { setView("attendance"); setCompareTarget(null); } : undefined}
+                                  />
                               : view === "assignments"
                                 ? <AssignmentsPanel enrolled={enrolled} legend={enrolledLegend} userId={userId} />
                               : view === "tomorrow"
@@ -2765,6 +2845,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             <FeedbackWidget user={user} onClose={() => setFeedbackOpen(false)} />
           </Suspense>
         )}
+
+        {messMenuOpen && <MessMenuStandalone now={now} userId={userId} onClose={() => setMessMenuOpen(false)} />}
 
         {feedbackFlashTriggered && feedbackFlashConfig && (
           <Suspense fallback={null}>

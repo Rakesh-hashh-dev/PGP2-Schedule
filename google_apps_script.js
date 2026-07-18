@@ -42,6 +42,11 @@ const SECTION_MAP = {
   'a/b': 'AB',
   'ab': 'AB',
 };
+// Known typos in the live sheet — normalize so legend lookup and student
+// enrollment matching don't silently miss (e.g. "MBP - 6 Guest" is MPB).
+const CODE_ALIASES = {
+  MBP: 'MPB',
+};
 const MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
 
 const FORCE_TOKEN = "admin_force_123";
@@ -318,6 +323,7 @@ function parseTimetable(ss, legend) {
         // and `.` won't cross the newline, making the match fail entirely.
         const m = cell.replace(/\s+/g, ' ').match(/^([A-Za-z]+)[\s\-]*(.*)$/);
         code = m ? m[1] : cell;
+        code = CODE_ALIASES[code.toUpperCase()] || code;
         session = m ? m[2].trim() : '';
         const info = legend[code];
         if (info) {
@@ -334,7 +340,8 @@ function parseTimetable(ss, legend) {
         // Room is often written inline, e.g. "BM 6 &7 Guest Session ( Seminar Hall)"
         const rm = (session.match(/\(([^)]*)\)/g) || [])
           .map(x => x.slice(1, -1).trim())
-          .find(x => x && !/guest/i.test(x));
+          // A parenthetical like "( 11:30 AM - 1:00 PM)" is a time note, not a room
+          .find(x => x && !/guest/i.test(x) && !/\d{1,2}[:.]\d{2}|\b[ap]m\b/i.test(x));
         if (rm) room = rm;
       }
       // Two guest types: merged across the section rows = combined (everyone

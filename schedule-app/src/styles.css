@@ -1143,7 +1143,7 @@ html[data-theme="dark"] .tabs-wrapper {
   align-items: center;
   gap: 6px;
   padding-left: 16px;
-  padding-right: 70px;
+  padding-right: 16px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
@@ -1155,12 +1155,12 @@ html[data-theme="dark"] .tabs-wrapper {
 }
 
 /* Edge fades only exist while there ARE more tabs in that direction — at
-   either extreme the mask (and arrow) would otherwise clip a fully-scrolled
-   tab for no reason. Fade widths cover the arrow buttons so text dissolves
-   before passing under them rather than being cut mid-letter. */
+   either extreme the mask would otherwise clip a fully-scrolled tab for no
+   reason. The dissolving edge itself is the overflow affordance; scrolling
+   is by swipe (snap points keep tabs settling cleanly). */
 .tabs.tabs-overflow-right {
-  -webkit-mask-image: linear-gradient(to right, black, black calc(100% - 84px), transparent calc(100% - 64px));
-  mask-image: linear-gradient(to right, black, black calc(100% - 84px), transparent calc(100% - 64px));
+  -webkit-mask-image: linear-gradient(to right, black, black calc(100% - 56px), transparent calc(100% - 8px));
+  mask-image: linear-gradient(to right, black, black calc(100% - 56px), transparent calc(100% - 8px));
 }
 
 .tabs.tabs-scrolled {
@@ -1169,73 +1169,20 @@ html[data-theme="dark"] .tabs-wrapper {
 }
 
 .tabs.tabs-scrolled.tabs-overflow-right {
-  -webkit-mask-image: linear-gradient(to right, transparent 8px, black 56px, black calc(100% - 84px), transparent calc(100% - 64px));
-  mask-image: linear-gradient(to right, transparent 8px, black 56px, black calc(100% - 84px), transparent calc(100% - 64px));
+  -webkit-mask-image: linear-gradient(to right, transparent 8px, black 56px, black calc(100% - 56px), transparent calc(100% - 8px));
+  mask-image: linear-gradient(to right, transparent 8px, black 56px, black calc(100% - 56px), transparent calc(100% - 8px));
 }
 
 @media (max-width: 600px) {
   .tabs {
       padding-left: 12px;
+      padding-right: 12px;
       scroll-padding-left: 12px;
     }
 }
 
 .tabs::-webkit-scrollbar {
   display: none;
-}
-
-@media (max-width: 599px) {
-  .tabs-scroll-btn {
-      position: absolute;
-      right: 0;
-      top: 0;
-      bottom: 0;
-      width: 64px;
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      padding-right: 8px;
-      background: transparent;
-      border: none;
-      z-index: 10;
-      cursor: pointer;
-    }
-
-  .tabs-scroll-btn.left {
-      right: auto;
-      left: 0;
-      justify-content: flex-start;
-      padding-right: 0;
-      padding-left: 8px;
-      background: transparent;
-    }
-
-  .tabs-scroll-btn:active .tsb-icon-wrap {
-      transform: scale(.9);
-    }
-
-  .tsb-icon-wrap {
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      background: var(--card);
-      border: 1px solid var(--border);
-      display: grid;
-      place-items: center;
-      color: var(--violet);
-      box-shadow: 0 4px 12px rgba(21, 24, 43, .06);
-      transition: transform .15s ease;
-    }
-}
-
-@media (min-width: 600px) {
-  .tabs-scroll-btn {
-      display: none !important;
-    }
-}
-
-.tsb-text {
-  margin-bottom: 1px;
 }
 
 .tab {
@@ -3076,6 +3023,47 @@ html[data-theme="dark"] .tabs-wrapper {
   border-radius: 18px;
   padding: 16px;
   margin-top: 12px;
+}
+
+/* ── Pull-to-refresh indicator (mobile Timeline) ── */
+.ptr {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+  margin-top: -8px;
+  pointer-events: none;
+}
+
+/* While the finger is down we track it 1:1 (no transition); on release the
+   height animates back to 0 (or down to the held spinner size) */
+.ptr:not(.ptr-dragging) {
+  transition: height .3s var(--ease-out-strong);
+}
+
+.ptr-ind {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin-bottom: 6px;
+  border-radius: 50%;
+  color: var(--muted);
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 12px rgba(21, 24, 43, .06);
+  transition: color .2s ease, border-color .2s ease, transform .2s var(--ease-out-strong);
+}
+
+.ptr-armed .ptr-ind {
+  color: var(--violet);
+  border-color: var(--violet);
+  transform: scale(1.08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ptr:not(.ptr-dragging) { transition: none; }
+  .ptr-ind { transition: none; }
 }
 
 .panel-head {
@@ -6951,6 +6939,36 @@ html[data-theme="dark"] .subj-9 { --subj: #E879F9; --subj-bg: rgba(232, 121, 249
   margin: 4px 6px;
 }
 
+/* Section header — a collapsible toggle grouping the menu into labeled
+   buckets. The whole row is the button; the label + caret sit inside it. */
+.over-section-toggle {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.over-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  user-select: none;
+}
+
+.over-section-toggle .over-caret {
+  color: var(--muted);
+  margin-left: auto;
+}
+
+/* The expanded body — indented rail, mirrors .over-sub so nested toggles
+   (Appearance / Navigation) still read as one level deeper */
+.over-section-body {
+  display: flex;
+  flex-direction: column;
+}
+
 .over-check {
   margin-left: auto;
   color: var(--violet);
@@ -7101,7 +7119,7 @@ html[data-theme="dark"] .bnav {
   background: transparent;
   color: var(--muted);
   padding: 11px;
-  min-width: 42px;
+  min-width: 44px;
   min-height: 44px;
   cursor: pointer;
   transition: color .25s ease, transform .12s ease;
@@ -7169,10 +7187,11 @@ html[data-theme="dark"] .bnav {
   }
 }
 
-/* Very narrow phones: tighten so all 8 icons fit without clipping */
+/* Very narrow phones: tighten so all 8 icons fit without clipping.
+   40px is the floor — 8 × 44px physically can't fit inside 360px. */
 @media (max-width: 379px) {
   .bnav-btn {
-    min-width: 38px;
+    min-width: 40px;
     padding: 11px 9px;
   }
 }
@@ -7261,6 +7280,46 @@ html[data-theme="dark"] .bnav {
 .ob-hint svg {
   color: var(--live);
   flex: none;
+}
+
+.ob-name {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 22px;
+}
+
+.ob-name-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.ob-name-input {
+  width: 100%;
+  max-width: 360px;
+  font-size: 15px;
+  color: var(--text);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 11px 14px;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.ob-name-input::placeholder { color: var(--muted); opacity: .7; }
+
+.ob-name-input:focus {
+  outline: none;
+  border-color: var(--live);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--live) 22%, transparent);
+}
+
+.ob-name-hint {
+  font-size: 12px;
+  color: var(--muted);
 }
 
 .ob-sync-notice {
@@ -7782,7 +7841,7 @@ html[data-theme="dark"] .bnav {
     }
 }
 
-@media (min-width: 900px) {
+@media (min-width: 768px) {
   .mobile-only {
       display: none !important;
     }
@@ -7793,7 +7852,7 @@ html[data-theme="dark"] .bnav {
 }
 
 /* Mobile: hide-mobile toggles views based on current tab */
-@media (max-width: 899px) {
+@media (max-width: 767px) {
   .hide-mobile {
       display: none;
     }
@@ -7825,18 +7884,18 @@ html[data-theme="dark"] .bnav {
   min-height: 100vh;
 }
 
-@media (min-width: 900px) {
+@media (min-width: 768px) {
   .app-shell {
       display: flex;
     }
 }
 
-/* ── Sidebar (desktop only) ── */
+/* ── Sidebar (desktop + tablet rail) ── */
 .sidebar {
   display: none;
 }
 
-@media (min-width: 900px) {
+@media (min-width: 768px) {
   .sidebar {
       display: flex;
       flex-direction: column;
@@ -8887,8 +8946,8 @@ html[data-theme="dark"] .bnav {
   border-color: rgba(239, 68, 68, .45);
 }
 
-/* Desktop: full layout with sidebar */
-@media (min-width: 900px) {
+/* Desktop + tablet: full layout with sidebar (icon rail on tablet) */
+@media (min-width: 768px) {
   .app {
       flex: 1;
       min-width: 0;
@@ -8948,6 +9007,20 @@ html[data-theme="dark"] .bnav {
   /* Restore room column in week agenda */
   .ag-r {
       display: block;
+    }
+}
+
+/* Tablet tier (768–1023): the sidebar is a 68px icon rail (forced collapsed
+   in App.jsx), so tighten page padding and slim the week rail to keep the
+   main column usable at iPad-portrait widths */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .app {
+      padding: 24px 24px 64px;
+    }
+
+  .desk-layout {
+      grid-template-columns: 1fr 292px;
+      gap: 20px;
     }
 }
 
@@ -13886,7 +13959,6 @@ a.sb-quicklink {
 /* Touch-target safety net for small icon controls on touch devices */
 @media (pointer: coarse) {
   .sync,
-  .tabs-scroll-btn,
   .sf-chip,
   .oc-main,
   .done-mark-btn,
@@ -13925,7 +13997,7 @@ a.sb-quicklink {
   display: none;
 }
 
-@media (min-width: 900px) {
+@media (min-width: 768px) {
   .fr-agenda-fab {
     position: fixed;
     bottom: 30px;
@@ -14055,7 +14127,7 @@ a.sb-quicklink {
    Floating glass panel, animated: aurora drift, entrance cascade,
    breathing active pill, progress sheens. Same DOM as classic.
    ═══════════════════════════════════════════════════════════════════ */
-@media (min-width: 900px) {
+@media (min-width: 768px) {
   .sidebar.sb-aurora {
     top: 12px;
     width: 284px;
@@ -14379,4 +14451,523 @@ a.sb-quicklink {
     width: 100%;
     max-width: none;
   }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Leave Planner
+   ══════════════════════════════════════════════════════════════ */
+.lp-page {
+  padding-bottom: 12px;
+}
+.lp-page > * {
+  animation: att-rise 380ms var(--ease-out-strong) both;
+}
+.lp-page > *:nth-child(2) { animation-delay: 40ms; }
+.lp-page > *:nth-child(3) { animation-delay: 90ms; }
+.lp-page > *:nth-child(n+4) { animation-delay: 140ms; }
+
+.lp-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.lp-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--text);
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.lp-back:hover { background: var(--card-hi); border-color: var(--muted); }
+.lp-head-txt { display: flex; flex-direction: column; gap: 4px; }
+.lp-head h1 {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 22px;
+  margin: 0;
+  letter-spacing: -.5px;
+  line-height: 1;
+}
+.lp-sub { font-size: 13px; color: var(--muted); line-height: 1; }
+
+.lp-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex-shrink: 0;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 13px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--text);
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.lp-copy:hover { background: var(--card-hi); border-color: var(--muted); }
+.lp-copy.is-done {
+  color: var(--live);
+  border-color: var(--live);
+  background: var(--live-dim);
+}
+
+/* ── Date picker ── */
+.lp-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  margin-bottom: 14px;
+}
+.lp-dates {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+.lp-dates-arrow { color: var(--muted); flex-shrink: 0; margin-bottom: 11px; }
+.lp-field { display: flex; flex-direction: column; gap: 7px; flex: 1; min-width: 0; }
+.lp-field label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--muted);
+}
+.lp-field input {
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--card-hi);
+  color: var(--text);
+  /* inherit color-scheme from <html> so the native picker + its icon follow the
+     app theme (light glyph in dark mode, dark glyph in light mode) */
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
+}
+.lp-field input:hover { border-color: var(--muted); }
+.lp-field input:focus-visible {
+  outline: none;
+  border-color: var(--live);
+  box-shadow: 0 0 0 3px var(--live-dim);
+}
+/* Make the calendar picker icon clearly visible + tappable in both themes */
+.lp-field input::-webkit-calendar-picker-indicator {
+  opacity: .65;
+  cursor: pointer;
+  padding: 3px;
+  margin-left: 4px;
+  border-radius: 5px;
+  transition: opacity .15s, background .15s;
+}
+.lp-field input::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--muted) 22%, transparent);
+}
+html[data-theme="dark"] .lp-field input::-webkit-calendar-picker-indicator {
+  /* dark-mode UA icon is near-black; invert to a light glyph */
+  filter: invert(1) brightness(1.6);
+  opacity: .7;
+}
+
+.lp-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.lp-quick { display: flex; gap: 7px; flex: 1; flex-wrap: wrap; }
+.lp-quick button {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card-hi);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all .15s;
+}
+.lp-quick button:hover { color: var(--text); border-color: var(--muted); }
+.lp-quick button.on {
+  background: var(--live-dim);
+  border-color: var(--live);
+  color: var(--live);
+}
+
+.lp-apply {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-shrink: 0;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 10px 18px;
+  border: 1px solid var(--live);
+  border-radius: 11px;
+  background: var(--live);
+  color: #fff;
+  cursor: pointer;
+  transition: opacity .15s, background .15s, transform .1s;
+}
+.lp-apply:hover:not(:disabled) { filter: brightness(1.05); }
+.lp-apply:active:not(:disabled) { transform: scale(.97); }
+.lp-apply:disabled {
+  background: transparent;
+  color: var(--muted);
+  border-color: var(--line);
+  cursor: default;
+}
+
+/* ── Summary strip ── */
+/* ── Summary card: reuses .wglance from the Week view; only the breach
+      accent + inline warning icon are Leave-Planner specific. ── */
+.lp-page .wglance { margin-bottom: 14px; }
+.lp-glance-bad { --wg-accent: 201, 136, 43; }
+html[data-theme="dark"] .lp-glance-bad { --wg-accent: 224, 160, 68; }
+.lp-glance-warn { color: var(--amber); flex-shrink: 0; margin-left: 2px; }
+.wglance-mini .lp-glance-warn { margin-left: auto; }
+
+/* ── Sticky mini-recap (mobile): shows once the summary scrolls off ── */
+.lp-page > .lp-sticky { animation: none; } /* opt out of the page entrance so it stays hidden */
+.lp-sticky {
+  display: none;
+  position: fixed;
+  left: 8px; right: 8px;
+  top: 60px;
+  z-index: 150;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--card) 88%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 8px 26px -14px rgba(0, 0, 0, .5);
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(-8px);
+  pointer-events: none;
+  transition: opacity .22s var(--ease-out-strong), transform .22s var(--ease-out-strong);
+}
+.lp-sticky.is-visible { opacity: 1; transform: none; pointer-events: auto; }
+.lp-sticky-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  color: var(--live);
+}
+.lp-glance-bad.lp-sticky .lp-sticky-tag { color: var(--amber); }
+.lp-sticky-tag svg { flex-shrink: 0; }
+.lp-sticky-sum { font-size: 13px; color: var(--text); }
+.lp-sticky-sum strong { font-weight: 800; }
+.lp-sticky-chev { margin-left: auto; color: var(--muted); flex-shrink: 0; }
+.lp-sticky .lp-glance-warn { margin-left: auto; }
+.lp-sticky .lp-glance-warn + .lp-sticky-chev { margin-left: 0; }
+@media (max-width: 767px) {
+  .lp-sticky { display: flex; }
+}
+
+/* ── Skip-limit alert ── */
+.lp-alert {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 12px 14px;
+  margin-bottom: 18px;
+  border-radius: 13px;
+  background: var(--amber-dim);
+  border: 1px solid var(--amber);
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--amber-text, var(--text));
+}
+.lp-alert-ico { color: var(--amber); flex-shrink: 0; }
+.lp-alert strong { font-weight: 800; }
+
+/* ── Sections ── */
+.lp-section { margin-bottom: 22px; }
+.lp-section-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--muted);
+  margin: 0 0 12px;
+}
+.lp-section-title svg { color: var(--muted); }
+
+/* ── Impact cards ── */
+.lp-impact-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+.lp-impact {
+  position: relative;
+  padding: 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  overflow: hidden;
+  transition: border-color .15s, box-shadow .15s, transform .15s;
+  animation: att-rise 400ms var(--ease-out-strong) both;
+}
+.lp-impact:nth-child(1) { animation-delay: 30ms; }
+.lp-impact:nth-child(2) { animation-delay: 75ms; }
+.lp-impact:nth-child(3) { animation-delay: 120ms; }
+.lp-impact:nth-child(4) { animation-delay: 165ms; }
+.lp-impact:nth-child(5) { animation-delay: 210ms; }
+.lp-impact:nth-child(n+6) { animation-delay: 250ms; }
+.lp-impact:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 8px 22px -14px rgba(0, 0, 0, .4),
+    0 6px 20px -12px color-mix(in srgb, var(--subj, var(--muted)) 40%, transparent);
+  border-color: color-mix(in srgb, var(--subj, var(--muted)) 45%, var(--line));
+}
+.lp-impact-bad { border-color: var(--amber); background: var(--amber-dim); }
+.lp-impact-top { display: flex; align-items: center; gap: 9px; margin-bottom: 4px; }
+.lp-impact-code { font-weight: 800; font-size: 15px; letter-spacing: -.2px; }
+.lp-impact .lp-dot { margin-top: 0; }
+.lp-impact-miss {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 13%, transparent);
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.lp-impact-name {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 11px;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lp-verdict {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px 3px 7px;
+  border-radius: 999px;
+  margin-bottom: 11px;
+  line-height: 1;
+}
+.lp-verdict svg { flex-shrink: 0; }
+.lp-verdict-ok {
+  color: var(--live);
+  background: var(--live-dim);
+}
+.lp-verdict-warn {
+  color: var(--amber-text, var(--amber));
+  background: var(--amber-dim);
+}
+.lp-verdict-bad {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 13%, transparent);
+}
+
+.lp-impact-pct {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.lp-pct-block { display: flex; flex-direction: column; gap: 1px; }
+.lp-pct-val { font-size: 22px; font-weight: 800; letter-spacing: -.6px; line-height: 1; font-variant-numeric: tabular-nums; }
+.lp-pct-val.good { color: var(--live); }
+.lp-pct-val.bad { color: var(--danger); }
+.lp-pct-cap { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+.lp-pct-arrow { color: var(--muted); margin-bottom: 5px; }
+
+/* before → after mini bar */
+.lp-impact-bar {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--card-hi);
+  overflow: hidden;
+  margin-bottom: 11px;
+}
+.lp-impact-fill {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  border-radius: 3px;
+  background: var(--live);
+  transition: width .5s var(--ease-out-strong);
+}
+.lp-impact-fill.bad { background: var(--danger); }
+.lp-impact-lost {
+  position: absolute;
+  top: 0; bottom: 0;
+  background: repeating-linear-gradient(45deg,
+    color-mix(in srgb, var(--danger) 55%, transparent) 0 3px,
+    color-mix(in srgb, var(--danger) 22%, transparent) 3px 6px);
+}
+.lp-impact-thresh {
+  position: absolute;
+  top: -1px; bottom: -1px;
+  width: 2px;
+  background: var(--muted);
+  opacity: .55;
+  z-index: 2;
+}
+.lp-impact-skips { font-size: 12px; color: var(--muted); }
+.lp-impact-skips b { color: var(--text); font-weight: 800; }
+.lp-skip-bad {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.lp-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 11px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--live);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+.lp-link:hover { text-decoration: underline; }
+
+/* ── Missed / upcoming lists ── */
+.lp-day { margin-bottom: 16px; }
+.lp-day-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+.lp-day-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--card-hi);
+  border: 1px solid var(--line);
+  padding: 2px 9px;
+  border-radius: 999px;
+}
+.lp-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.lp-row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 12px 13px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: border-color .2s, background .2s, transform .28s var(--ease-out-strong), box-shadow .28s var(--ease-out-strong);
+}
+.lp-row:hover {
+  border-color: color-mix(in srgb, var(--subj, var(--muted)) 40%, var(--line));
+  background: var(--card-hi);
+  transform: translateX(4px);
+  box-shadow: -4px 4px 14px -10px color-mix(in srgb, var(--subj, var(--muted)) 55%, transparent);
+}
+.lp-row-back { background: var(--card-hi); }
+.lp-row-back:hover { background: var(--card); }
+.lp-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-top: 5px;
+  flex-shrink: 0;
+  background: var(--subj, var(--muted));
+  /* soft halo replaces the old left-edge colour spine as the subject cue */
+  box-shadow: 0 0 0 3.5px color-mix(in srgb, var(--subj, var(--muted)) 18%, transparent);
+  transition: box-shadow .28s var(--ease-out-strong), transform .28s var(--ease-out-strong);
+}
+/* Halo breathes open + dot swells slightly when its card/row is hovered */
+.lp-impact:hover .lp-dot,
+.lp-row:hover .lp-dot {
+  transform: scale(1.18);
+  box-shadow: 0 0 0 5.5px color-mix(in srgb, var(--subj, var(--muted)) 26%, transparent);
+}
+.lp-row-main { min-width: 0; flex: 1; }
+.lp-row-title { font-size: 14px; font-weight: 600; line-height: 1.3; }
+.lp-row-sess { font-weight: 500; color: var(--muted); }
+.lp-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.lp-row-meta span { display: inline-flex; align-items: center; gap: 4px; }
+
+@media (max-width: 640px) {
+  .lp-head h1 { font-size: 20px; }
+  .lp-picker { padding: 14px; gap: 14px; }
+  .lp-dates { gap: 8px; }
+  .lp-dates-arrow { margin-bottom: 12px; }
+  .lp-field input { padding: 12px 12px; font-size: 16px; } /* 16px avoids iOS zoom-on-focus */
+  .lp-picker-row { flex-direction: column; align-items: stretch; }
+  .lp-quick { width: 100%; }
+  .lp-quick button { flex: 1; padding: 10px 8px; text-align: center; }
+  .lp-apply { width: 100%; padding: 13px; }
+
+  .lp-impact-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 360px) {
+  .lp-impact-grid { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-page > *,
+  .lp-impact,
+  .lp-row,
+  .lp-dot,
+  .lp-impact-fill { animation: none !important; transition: none !important; }
+  .lp-impact:hover,
+  .lp-row:hover,
+  .lp-impact:hover .lp-dot,
+  .lp-row:hover .lp-dot { transform: none; }
 }

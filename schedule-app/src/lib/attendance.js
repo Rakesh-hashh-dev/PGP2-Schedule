@@ -18,10 +18,14 @@ export function isExamSession(c) {
 /**
  * Skip-budget math for one course — single source of truth shared by the
  * Attendance panel and the Timeline "what if I skip" hint.
- * 80% minimum attendance (90% for zero-credit courses) over ALL scheduled
+ * Skip allowance is credit-based: 1.5-credit courses get 2 skips, 3-credit
+ * courses get 4. Other credit values fall back to the percentage rule (80%
+ * minimum attendance, 90% for zero-credit courses) over ALL scheduled
  * sessions; pct is computed over marked sessions only.
  */
-export function courseSkipStats(allClasses, code, section, attendance, { zeroCredit = false } = {}) {
+const SKIPS_BY_CREDIT = { 1.5: 2, 3: 4 };
+
+export function courseSkipStats(allClasses, code, section, attendance, { zeroCredit = false, credits = null } = {}) {
   const sessions = allClasses.filter(
     (c) => c.type === "class" && !isExamSession(c) && c.code === code && (c.section === "Single" || c.section === section)
   );
@@ -32,9 +36,16 @@ export function courseSkipStats(allClasses, code, section, attendance, { zeroCre
     if (st === "present") present++;
     else if (st === "absent") absent++;
   });
-  const minPct = zeroCredit ? 0.90 : 0.80;
-  const minAttend = Math.ceil(totalScheduled * minPct);
-  const totalAllowedSkips = Math.max(0, totalScheduled - minAttend);
+  const cr = credits == null || credits === "" ? null : parseFloat(credits);
+  const fixedSkips = cr != null && !Number.isNaN(cr) ? SKIPS_BY_CREDIT[cr] : undefined;
+  let totalAllowedSkips;
+  if (fixedSkips !== undefined) {
+    totalAllowedSkips = Math.min(fixedSkips, totalScheduled);
+  } else {
+    const minPct = zeroCredit || cr === 0 ? 0.90 : 0.80;
+    const minAttend = Math.ceil(totalScheduled * minPct);
+    totalAllowedSkips = Math.max(0, totalScheduled - minAttend);
+  }
   const skipsRemaining = Math.max(0, totalAllowedSkips - absent);
   const penaltyHit = absent > totalAllowedSkips;
   const marked = present + absent;

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import "../styles/friends.css";
-import { Copy, Link2, UserPlus, Users, Trash2, ArrowRight, Plus, X, Check, ChevronDown, ChevronUp, RefreshCw, Globe, Lock, CheckCircle, AlertCircle, Info, AlertTriangle, Star } from "lucide-react";
+import { Copy, Link2, UserPlus, Users, Trash2, ArrowRight, Plus, X, Check, ChevronDown, ChevronUp, ChevronRight, RefreshCw, Globe, Lock, CheckCircle, AlertCircle, Info, AlertTriangle, Star, CalendarOff } from "lucide-react";
 import { SkeletonText } from "./ui.jsx";
 
 import {
@@ -155,7 +155,7 @@ function toMinFP(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m
 function ymdFP(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
 export default function FriendsPanel({
   userId, userName, enrolled, friends, setFriends,
-  groups, setGroups, allClasses, now, onCompare, onGroupCompare,
+  groups, setGroups, allClasses, now, onCompare, onGroupCompare, onOpenLeave,
 }) {
   const [addCode, setAddCode] = useState("");
   const [addError, setAddError] = useState("");
@@ -1370,6 +1370,22 @@ export default function FriendsPanel({
           </div>
         </div>
       </section>
+
+      {/* ── Leave Planner entry (desktop only) ── */}
+      {onOpenLeave && (
+        <button
+          type="button"
+          className="fr-leave-cta desktop-only"
+          onClick={onOpenLeave}
+        >
+          <span className="fr-leave-cta-icon"><CalendarOff size={18} /></span>
+          <span className="fr-leave-cta-text">
+            <span className="fr-leave-cta-title">Leave Planner</span>
+            <span className="fr-leave-cta-sub">See what you&rsquo;ll miss before you go</span>
+          </span>
+          <ChevronRight size={18} className="fr-leave-cta-chev" />
+        </button>
+      )}
 
       {/* ── Suggested Study Buddies ── */}
       <section className="fr-friends-section fr-sec-buddies" style={{ marginBottom: 24 }}>

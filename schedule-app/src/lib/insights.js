@@ -46,6 +46,7 @@ export function courseStats(allClasses, enrolled, legend, attendance, now) {
       const rawCredit = meta.credits;
       const skip = courseSkipStats(allClasses, code, section, attendance, {
         zeroCredit: rawCredit === "0" || rawCredit === 0,
+        credits: rawCredit,
       });
       return {
         code,

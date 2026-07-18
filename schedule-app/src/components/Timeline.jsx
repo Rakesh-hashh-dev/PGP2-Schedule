@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { MapPin, CheckCircle2, XCircle, AlertTriangle, TrendingDown } from "lucide-react";
 import { sessionKey, isExamSession } from "../lib/attendance.js";
 import { subjectClass } from "../lib/subjectColors.js";
+import { haptic } from "../lib/haptics.js";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function fmtClock(d) { return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }); }
@@ -86,10 +87,110 @@ function SkipHint({ info, name }) {
   );
 }
 
+// Pull-to-refresh (touch devices): drag down from the top of the page to
+// trigger onRefresh. Native listeners because React's root touch handlers are
+// passive — preventDefault() there can't stop the browser's own overscroll.
+function usePullToRefresh(onRefresh, isSyncing) {
+  const [pull, setPull] = useState(0);       // indicator height in px
+  const [armed, setArmed] = useState(false); // past release threshold
+  const [dragging, setDragging] = useState(false);
+  const holdRef = useRef(false);             // spinner held open while syncing
+  const onRefreshRef = useRef(onRefresh);
+  useEffect(() => { onRefreshRef.current = onRefresh; });
+
+  const enabled = !!onRefresh && typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
+
+  useEffect(() => {
+    if (!enabled) return;
+    const THRESHOLD = 64;
+    let startY = 0, pulling = false, hijacked = false, dist = 0, raf = 0, wasArmed = false;
+
+    const reset = () => { dist = 0; hijacked = false; setPull(0); setArmed(false); wasArmed = false; };
+    const onStart = (e) => {
+      if (window.scrollY > 0 || holdRef.current) return;
+      startY = e.touches[0].clientY;
+      pulling = true;
+      hijacked = false;
+      dist = 0;
+    };
+    const onMove = (e) => {
+      if (!pulling) return;
+      const dy = e.touches[0].clientY - startY;
+      // Only take over once it's clearly a downward pull from the very top
+      if (!hijacked) {
+        if (dy < 8 || window.scrollY > 0) { if (dy < 0) pulling = false; return; }
+        hijacked = true;
+        setDragging(true);
+      }
+      if (e.cancelable) e.preventDefault();
+      dist = Math.min(96, (dy - 8) * 0.45);
+      if (!raf) raf = requestAnimationFrame(() => {
+        raf = 0;
+        setPull(dist);
+        const a = dist >= THRESHOLD;
+        if (a !== wasArmed) {
+          wasArmed = a;
+          setArmed(a);
+          if (a) haptic(10);
+        }
+      });
+    };
+    const onEnd = () => {
+      if (!pulling) return;
+      pulling = false;
+      setDragging(false);
+      if (raf) { cancelAnimationFrame(raf); raf = 0; }
+      if (hijacked && dist >= THRESHOLD) {
+        // Hold the spinner open; the isSyncing effect below collapses it
+        holdRef.current = true;
+        dist = 0; hijacked = false;
+        setPull(48);
+        setArmed(true);
+        onRefreshRef.current?.();
+      } else reset();
+    };
+    document.addEventListener("touchstart", onStart, { passive: true });
+    document.addEventListener("touchmove", onMove, { passive: false });
+    document.addEventListener("touchend", onEnd);
+    document.addEventListener("touchcancel", onEnd);
+    return () => {
+      document.removeEventListener("touchstart", onStart);
+      document.removeEventListener("touchmove", onMove);
+      document.removeEventListener("touchend", onEnd);
+      document.removeEventListener("touchcancel", onEnd);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [enabled]);
+
+  useEffect(() => {
+    if (!isSyncing && holdRef.current) {
+      holdRef.current = false;
+      setPull(0);
+      setArmed(false);
+    }
+  }, [isSyncing]);
+
+  return { pull, armed, dragging, holding: holdRef.current };
+}
+
+function PullIndicator({ ptr, isSyncing }) {
+  if (ptr.pull <= 0) return null;
+  const spinning = isSyncing && ptr.holding;
+  return (
+    <div className={`ptr${ptr.dragging ? " ptr-dragging" : ""}${ptr.armed ? " ptr-armed" : ""}`} style={{ height: ptr.pull }} aria-hidden="true">
+      <span className="ptr-ind">
+        <RefreshCw size={16} className={spinning ? "spin-icon" : ""} style={spinning ? undefined : { transform: `rotate(${ptr.pull * 2.4}deg)` }} />
+      </span>
+    </div>
+  );
+}
+
 export default React.memo(function Timeline({ list, current, now, showNowLine = true, label = "Today", dateLabel, attendance = {}, markAttendance, skipInfo, syncStatus, onRefresh, isSyncing }) {
+  const ptr = usePullToRefresh(onRefresh, isSyncing);
   if (!list.length)
     return (
       <section className="panel">
+        <PullIndicator ptr={ptr} isSyncing={isSyncing} />
         <div className="panel-head">
           <div className="panel-head-left">
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -118,6 +219,7 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
 
   return (
     <section className="panel">
+      <PullIndicator ptr={ptr} isSyncing={isSyncing} />
       <div className="panel-head">
         <div className="panel-head-left">
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
