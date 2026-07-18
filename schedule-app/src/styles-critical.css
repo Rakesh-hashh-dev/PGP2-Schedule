@@ -1,0 +1,142 @@
+/* ── Critical CSS — inlined into index.html at build time ──
+   Covers ONLY what is needed before the first paint:
+   - CSS custom properties (tokens)
+   - html/body background so there is no white flash
+   - .loading-screen and .loading-label for the static boot splash
+   Everything else is in styles.css, loaded asynchronously. */
+
+/* ── CSS custom properties (Houdini @property for animated gradients) ── */
+@property --bg-start {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: #F3F1EA;
+}
+
+@property --bg-mid {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: #F0EDE4;
+}
+
+@property --bg-end {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: #E8E5DA;
+}
+
+/* ── Design tokens ── */
+:root {
+  --bg: #F3F1EA;
+  --surface: #ECEAE2;
+  --card: #FFFFFF;
+  --card-hi: #F7F5EF;
+  --border: #E4E0D5;
+  --border-hi: #CCC8BC;
+  --text: #1A1C2A;
+  --muted: #6A6E7E;
+  --live: #1FA971;
+  --live-dim: rgba(31, 169, 113, .08);
+  --amber: #C9882B;
+  --amber-dim: rgba(201, 136, 43, .13);
+  --violet: #6D5BD0;
+  --violet-dim: rgba(109, 91, 208, .08);
+  --blue: #3B82F6;
+  --danger: #C0392B;
+  --amber-text: #8A5A14;
+  --amber-transparent: rgba(201, 136, 43, .10);
+  --ink: #15182B;
+  --bone: #F3F1EA;
+  --line: #E4E0D5;
+  --display: 'Bricolage Grotesque', system-ui, sans-serif;
+  --body: 'Inter', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
+}
+
+/* ── Dark theme tokens ── */
+html[data-theme="dark"] {
+  --bg: #101216;
+  --surface: #16181E;
+  --card: #1C1F26;
+  --card-hi: #22252E;
+  --border: #2A2D36;
+  --border-hi: #3A3E4A;
+  --text: #E8E6DF;
+  --muted: #9BA0AE;
+  --live: #2FC68A;
+  --live-dim: rgba(47, 198, 138, .14);
+  --amber: #E0A044;
+  --amber-dim: rgba(224, 160, 68, .16);
+  --violet: #8B7AE8;
+  --violet-dim: rgba(139, 122, 232, .14);
+  --blue: #60A5FA;
+  --danger: #F87171;
+  --amber-text: #FCD34D;
+  --amber-transparent: rgba(224, 160, 68, .14);
+  --ink: #E8E6DF;
+  --bone: #101216;
+  --line: #2A2D36;
+  color-scheme: dark;
+}
+
+/* ── Reset ── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--bone);
+  overscroll-behavior-y: contain;
+}
+
+/* ── Body background gradient (prevents white/ivory flash) ── */
+body {
+  margin: 0;
+  --bg-start: #F3F1EA;
+  --bg-mid: #F0EDE4;
+  --bg-end: #E8E5DA;
+  background: linear-gradient(150deg, var(--bg-start) 0%, var(--bg-mid) 50%, var(--bg-end) 100%);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+html[data-theme="dark"] body {
+  --bg-start: #101216;
+  --bg-mid: #0E1014;
+  --bg-end: #0B0D11;
+}
+
+/* ── Boot splash (used by static HTML in index.html AND React Suspense fallback) ── */
+.loading-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  min-height: 100vh;
+  background: var(--bone);
+}
+
+.loading-label {
+  margin: 18px 0 4px;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--ink);
+  letter-spacing: -0.2px;
+  animation: loading-fadein .5s ease .3s both;
+}
+
+@keyframes loading-fadein {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

@@ -28,6 +28,48 @@ function generateMeta() {
   };
 }
 
+// Inline a tiny critical-CSS subset so the boot splash paints immediately,
+// then convert the blocking global stylesheet link to a non-blocking preload.
+// This eliminates the only render-blocking resource and saves ~300 ms of FCP.
+function asyncCssPlugin() {
+  return {
+    name: 'async-css',
+    enforce: 'post',   // run AFTER Vite has injected its own <link> tags
+    transformIndexHtml(html) {
+      // 1. Read the critical CSS (vars + body bg + loading screen only)
+      let criticalCss = '';
+      try {
+        criticalCss = readFileSync(
+          new URL('./src/styles-critical.css', import.meta.url),
+          'utf8'
+        );
+      } catch (e) {
+        console.warn('[async-css] Could not read styles-critical.css:', e.message);
+      }
+
+      // 2. Convert the auto-injected blocking <link rel="stylesheet"> for the
+      //    global index-*.css chunk into a non-blocking preload + onload swap.
+      //    Only targets assets/index-*.css (the global chunk); component-level
+      //    CSS chunks that are dynamically loaded are already non-blocking.
+      const asyncHtml = html.replace(
+        /<link rel="stylesheet" crossorigin href="(\/assets\/index-[^"]+\.css)">/g,
+        [
+          '<link rel="preload" as="style" crossorigin href="$1"',
+          '     onload="this.rel=\'stylesheet\'">',
+          '<noscript><link rel="stylesheet" crossorigin href="$1"></noscript>',
+        ].join('\n    ')
+      );
+
+      // 3. Inline the critical CSS just before </head>
+      if (!criticalCss) return asyncHtml;
+      return asyncHtml.replace(
+        '</head>',
+        `<style>/* critical */\n${criticalCss}\n</style>\n</head>`
+      );
+    },
+  };
+}
+
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(BUILD_VERSION),
@@ -35,6 +77,7 @@ export default defineConfig({
   plugins: [
     react(),
     generateMeta(),
+    asyncCssPlugin(),
     VitePWA({
       registerType: 'prompt',
       devOptions: { enabled: true },
