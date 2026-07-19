@@ -601,3 +601,13 @@ html[data-theme="dark"] .mess-day.on .mess-day-dot { background: #fff; }
   margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border);
 }
 .mess-rate-label { font-size: 12px; color: var(--muted); font-weight: 600; }
+
+/* Friends who set the "Heading to mess" status */
+.mess-friends-pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 700; color: var(--live);
+  background: color-mix(in srgb, var(--live) 12%, transparent);
+  border-radius: 99px; padding: 2px 8px;
+  white-space: nowrap;
+}
+.mess-friends-pill svg { color: var(--live); }

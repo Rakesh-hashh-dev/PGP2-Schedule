@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { MapPin, Bell, GraduationCap, Coffee, Sunset, Clock } from "lucide-react";
-import { wIcon } from "./WeatherWidget.jsx";
+import { wIcon } from "../lib/weather.js";
 import { subjectClass } from "../lib/subjectColors.js";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }

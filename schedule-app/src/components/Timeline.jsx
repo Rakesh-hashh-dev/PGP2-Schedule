@@ -95,6 +95,7 @@ function usePullToRefresh(onRefresh, isSyncing) {
   const [armed, setArmed] = useState(false); // past release threshold
   const [dragging, setDragging] = useState(false);
   const holdRef = useRef(false);             // spinner held open while syncing
+  const [holding, setHolding] = useState(false); // render mirror of holdRef
   const onRefreshRef = useRef(onRefresh);
   useEffect(() => { onRefreshRef.current = onRefresh; });
 
@@ -143,6 +144,7 @@ function usePullToRefresh(onRefresh, isSyncing) {
       if (hijacked && dist >= THRESHOLD) {
         // Hold the spinner open; the isSyncing effect below collapses it
         holdRef.current = true;
+        setHolding(true);
         dist = 0; hijacked = false;
         setPull(48);
         setArmed(true);
@@ -165,12 +167,13 @@ function usePullToRefresh(onRefresh, isSyncing) {
   useEffect(() => {
     if (!isSyncing && holdRef.current) {
       holdRef.current = false;
+      setHolding(false);
       setPull(0);
       setArmed(false);
     }
   }, [isSyncing]);
 
-  return { pull, armed, dragging, holding: holdRef.current };
+  return { pull, armed, dragging, holding };
 }
 
 function PullIndicator({ ptr, isSyncing }) {

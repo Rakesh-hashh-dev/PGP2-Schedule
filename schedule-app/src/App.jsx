@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Suspense, lazy } from "react";
 import { createPortal } from "react-dom";
-import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, ChevronsLeft, ChevronsRight, Megaphone, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Sparkles, Wand2, BellRing, CalendarDays, ExternalLink, Download, Share, WifiOff, Zap, PanelBottom, PanelTop, PanelsTopLeft, Check, ChevronDown, MapPin, Sun, Moon, Monitor, CalendarOff, CalendarRange, UtensilsCrossed } from "lucide-react";
+import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, ChevronsLeft, ChevronsRight, Megaphone, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Sparkles, Wand2, BellRing, CalendarDays, ExternalLink, Download, Share, WifiOff, Zap, PanelBottom, PanelTop, PanelsTopLeft, Check, ChevronDown, MapPin, Sun, Moon, Monitor, CalendarOff, CalendarRange, UtensilsCrossed, Package } from "lucide-react";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
 import SemSummary from "./components/SemSummary.jsx";
@@ -13,6 +13,8 @@ import Onboarding from "./components/Onboarding.jsx";
 import WeatherWidget from "./components/WeatherWidget.jsx";
 import TomorrowSummary from "./components/TomorrowSummary.jsx";
 import MessCard from "./components/MessCard.jsx";
+import GlanceView from "./components/GlanceView.jsx";
+import "./styles/wrapped.css"; // Wrapped entry-banner styles must exist on Today before the lazy view loads
 import { MessMenuStandalone } from "./components/MessMenuModal.jsx";
 import { setMessMenuOverrides } from "./data/messMenu.js";
 import { getSnapshot, fetchSchedule, sha256hex } from "./lib/sheet.js";
@@ -31,8 +33,11 @@ const FullSchedulePage = lazy(() => import("./components/FullSchedulePage.jsx"))
 const AdminDashboard = lazy(() => import("./components/AdminDashboard.jsx"));
 const CommandPalette = lazy(() => import("./components/CommandPalette.jsx"));
 const AssignmentsPanel = lazy(() => import("./components/AssignmentsPanel.jsx"));
+const WrappedView = lazy(() => import("./components/WrappedView.jsx"));
+const BoardPage = lazy(() => import("./components/BoardPage.jsx"));
 import DeadlineStrip from "./components/DeadlineStrip.jsx";
 import CancellationAlert from "./components/CancellationAlert.jsx";
+import { loadMyAway, isAwayNow, fmtAwayEnd } from "./lib/status.js";
 import { loadAttendance, saveAttendance, sessionKey, syncAttendanceFromCloud, pushMark, courseSkipStats } from "./lib/attendance.js";
 import { syncProfileFromCloud, pushProfile, pushReadState, stampProfileEmail } from "./lib/profile.js";
 import { syncMigrationMap } from "./lib/migrationMap.js";
@@ -261,10 +266,13 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       const v = localStorage.getItem(VIEW_KEY) || "today";
       if (v === "courses") return "exams"; // retired view → its new home
       if (v === "insights") return "today"; // retired view
+      if (v === "glance") return "today"; // peek surface, never sticky
       return v;
     } catch { return "today"; }
   });
-  useEffect(() => { try { localStorage.setItem(VIEW_KEY, view); } catch { } }, [view]);
+  // Glance is a shortcut peek, not a destination — don't make it the view the
+  // app re-opens on next launch.
+  useEffect(() => { if (view !== "glance") { try { localStorage.setItem(VIEW_KEY, view); } catch { } } }, [view]);
   useEffect(() => {
     if (!showAdminUI) {
       if (view === "admin") setView("today");
@@ -314,6 +322,15 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [friends, setFriends] = useState(() => loadFriends());
   const [groups, setGroups] = useState(() => loadGroups());
   const [compareTarget, setCompareTarget] = useState(null); // { mode, friendData?, groupData? }
+  // A free slot picked in CompareView, waiting to prefill the meetup modal on
+  // the Social page: { title?, date, start, memberCloudIds, groupId?, groupName? }
+  // (Lives up here with the other hooks — declaring it below the login/
+  // maintenance early returns made the hook order conditional.)
+  const [planDraft, setPlanDraft] = useState(null);
+  // Leave window booked via LeavePlanner's "Book leave" action — { from, to }
+  // or null. Same source of truth friends read (profiles._away); kept here
+  // too so the user sees their own on-leave state, not just friends.
+  const [myAway, setMyAway] = useState(() => loadMyAway());
   const [friendToast, setFriendToast] = useState(null);
   const [pendingInvite, setPendingInvite] = useState(null);
   const [jumpToDate, setJumpToDate] = useState(null);
@@ -337,14 +354,16 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try { return localStorage.getItem("pgp2.sidebar") === "collapsed"; } catch { return false; }
   });
-  // Tablet tier (768–1023px): sidebar is forced to the collapsed icon rail —
-  // there isn't room for the expanded panel next to content, so the user's
-  // stored expand/collapse preference only applies from 1024px up.
+  // Tablet tier (768–1023px landscape): sidebar is forced to the collapsed icon
+  // rail — there isn't room for the expanded panel next to content, so the
+  // user's stored expand/collapse preference only applies from 1024px up.
+  // Portrait tablets (e.g. iPad portrait) get the mobile view instead, matching
+  // the orientation-aware breakpoints in styles.css.
   const [isTablet, setIsTablet] = useState(() =>
-    typeof window !== "undefined" && window.matchMedia("(min-width: 768px) and (max-width: 1023px)").matches
+    typeof window !== "undefined" && window.matchMedia("(min-width: 768px) and (max-width: 1023px) and (orientation: landscape)").matches
   );
   useEffect(() => {
-    const mq = window.matchMedia("(min-width: 768px) and (max-width: 1023px)");
+    const mq = window.matchMedia("(min-width: 768px) and (max-width: 1023px) and (orientation: landscape)");
     const onChange = (e) => setIsTablet(e.matches);
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
@@ -559,7 +578,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   useEffect(() => {
     const DEEP_LINK_VIEWS = new Set([
       "today", "tomorrow", "week", "attendance", "exams", "assignments",
-      "notifications", "friends", "leave",
+      "notifications", "friends", "leave", "glance", "board",
     ]);
     const captureFromUrl = () => {
       const params = new URLSearchParams(window.location.search);
@@ -1270,6 +1289,16 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const todayISO = ymd(now);
   const tomorrowISO = ymd(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
 
+  // TermFlow Wrapped release gate: hidden from EVERYONE — admins included —
+  // until the admin explicitly pushes it (Admin Tools → Feature Flags →
+  // flags.wrappedReleaseDate), and never before 27 Aug 2026, the hard floor
+  // below. No QA bypass: to preview it, an admin sets/pushes a release date
+  // like anyone else, then unschedules it afterwards. todayISO honours the
+  // admin time-override so a launch can still be rehearsed.
+  const WRAPPED_MIN_DATE = "2026-08-27";
+  const wrappedRelease = sysConfig?.flags?.wrappedReleaseDate;
+  const wrappedActive = !!wrappedRelease && todayISO >= wrappedRelease && todayISO >= WRAPPED_MIN_DATE;
+
   const weekRangeLabel = useMemo(() => {
     const monday = new Date(now);
     const dow = (monday.getDay() + 6) % 7;
@@ -1691,6 +1720,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const enableExams = sysConfig?.flags?.enableExams !== false;
   const enableFriends = sysConfig?.flags?.enableFriends !== false;
   const enableAttendance = sysConfig?.flags?.enableAttendance !== false;
+  const enableStatus = sysConfig?.flags?.enableStatus !== false;
+  const enableMeetups = sysConfig?.flags?.enableMeetups !== false;
+  const enableFreeNudge = sysConfig?.flags?.enableFreeNudge !== false;
+  const enableAwayShare = sysConfig?.flags?.enableAwayShare !== false;
 
   const announcementTargetMatches = (target) => {
     if (!target || target === "global") return true;
@@ -1903,6 +1936,26 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               <button className={`sb-link${view === "friends" ? " on" : ""}`} aria-current={view === "friends" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Social")} onMouseLeave={hideSbTip} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); hideSbTip(); }}>
                 <Users size={18} /><span className="sb-link-label">Social</span> <span className="beta-badge">Beta</span>
                 {unreadFriendCount > 0 && <span className="nav-badge">{unreadFriendCount > 9 ? "9+" : unreadFriendCount}</span>}
+              </button>
+            )}
+            <button className={`sb-link${view === "board" ? " on" : ""}`} aria-current={view === "board" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Campus Board")} onMouseLeave={hideSbTip} onClick={() => { setView("board"); setCompareTarget(null); hideSbTip(); }}>
+              <Package size={18} /><span className="sb-link-label">Campus Board</span> <span className="beta-badge">New</span>
+            </button>
+
+            {/* Mirrors the mobile ⋯ menu's Tools section — these had no desktop home before */}
+            <div className="sb-nav-label">Tools</div>
+            <button className={`sb-link${view === "fullSchedule" ? " on" : ""}`} aria-current={view === "fullSchedule" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Full timetable")} onMouseLeave={hideSbTip} onClick={() => { setView("fullSchedule"); setCompareTarget(null); hideSbTip(); }}>
+              <CalendarRange size={18} /><span className="sb-link-label">Full timetable</span>
+            </button>
+            <button className="sb-link" onMouseEnter={e => showSbTip(e, "Mess menu")} onMouseLeave={hideSbTip} onClick={() => { setMessMenuOpen(true); hideSbTip(); }}>
+              <UtensilsCrossed size={18} /><span className="sb-link-label">Mess menu</span>
+            </button>
+            <button className={`sb-link${view === "leave" ? " on" : ""}`} aria-current={view === "leave" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Leave planner")} onMouseLeave={hideSbTip} onClick={() => { setView("leave"); setCompareTarget(null); hideSbTip(); }}>
+              <CalendarOff size={18} /><span className="sb-link-label">Leave planner</span>
+            </button>
+            {wrappedActive && (
+              <button className={`sb-link${view === "wrapped" ? " on" : ""}`} aria-current={view === "wrapped" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Term Wrapped")} onMouseLeave={hideSbTip} onClick={() => { setView("wrapped"); setCompareTarget(null); hideSbTip(); }}>
+                <Sparkles size={18} /><span className="sb-link-label">Term Wrapped</span>
               </button>
             )}
           </nav>
@@ -2301,6 +2354,14 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                         <button onClick={() => { setView("leave"); setCompareTarget(null); setOverflowOpen(false); }}>
                           <CalendarOff size={14} /> Leave planner
                         </button>
+                        <button onClick={() => { setView("board"); setCompareTarget(null); setOverflowOpen(false); }}>
+                          <Package size={14} /> Campus Board
+                        </button>
+                        {wrappedActive && (
+                          <button onClick={() => { setView("wrapped"); setCompareTarget(null); setOverflowOpen(false); }}>
+                            <Sparkles size={14} /> Term Wrapped
+                          </button>
+                        )}
                       </div>
                     )}
 
@@ -2418,7 +2479,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           </span>
         </div>
 
-        <div className="desk-layout" style={view === "friends" ? { gridTemplateColumns: "1fr" } : {}}>
+        <div className="desk-layout" style={view === "friends" || view === "admin" ? { gridTemplateColumns: "1fr" } : {}}>
           <main className="main-col">
             {showTopTabs && (
             <div className="tabs-wrapper">
@@ -2514,7 +2575,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 </div>
               </>
             )}
-            {view !== "attendance" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && view !== "leave" && !compareTarget && view !== "tomorrow" && (
+            {view !== "attendance" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && view !== "leave" && view !== "glance" && view !== "wrapped" && view !== "board" && !compareTarget && view !== "tomorrow" && (
               view === "week"
                 ? <div className="hide-mobile"><Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} onMarkAttendance={markAttendance} attendance={attendance} sysConfig={sysConfig} /></div>
                 : <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} onMarkAttendance={markAttendance} attendance={attendance} sysConfig={sysConfig} />
@@ -2534,14 +2595,25 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 onOpen={(d) => { setJumpToSession({ date: d.date, code: d.code, start: d.time }); setView("fullSchedule"); }}
               />
             )}
-            {view === "today" && !compareTarget && (
-              <DeadlineStrip
-                visible={visible}
-                legend={enrolledLegend}
-                now={now}
-                onOpenAssignments={() => { setView("assignments"); setCompareTarget(null); }}
-                onOpenExams={enableExams ? () => { setView("exams"); setCompareTarget(null); } : undefined}
-              />
+            {(view === "today" || view === "tomorrow") && !compareTarget && isAwayNow(myAway, now) && (
+              <button type="button" className="away-banner" onClick={() => { setView("leave"); setCompareTarget(null); }}>
+                <CalendarOff size={16} />
+                <span>
+                  <strong>You&rsquo;re on leave</strong>
+                  <span>Back on {fmtAwayEnd(myAway.to)} · friends can see this too</span>
+                </span>
+                <span className="away-banner-go">Manage →</span>
+              </button>
+            )}
+            {view === "today" && !compareTarget && wrappedActive && (
+              <button type="button" className="wrapped-banner" onClick={() => { setView("wrapped"); setCompareTarget(null); }}>
+                <Sparkles size={18} />
+                <span>
+                  <strong>Your Term, Wrapped</strong>
+                  <span>Your semester in numbers — see your recap</span>
+                </span>
+                <span className="wrapped-banner-go">Open →</span>
+              </button>
             )}
             {(view === "today" || view === "week") && !compareTarget && (
               <SemSummary
@@ -2612,6 +2684,29 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                     legend={enrolledLegend}
                     now={now}
                     onExit={() => setCompareTarget(null)}
+                    onPlanSlot={enableMeetups ? (slot) => {
+                      // Resolve invitee cloud ids from the compare target, then
+                      // land on Social with the meetup modal prefilled
+                      let memberCloudIds = [];
+                      let groupId = null, groupName = null;
+                      if (compareTarget.mode === "friend") {
+                        if (compareTarget.friendData?.cloudId) memberCloudIds = [compareTarget.friendData.cloudId];
+                      } else if (compareTarget.group) {
+                        const g = compareTarget.group;
+                        groupId = g.id; groupName = g.name;
+                        memberCloudIds = g.isReceived
+                          ? (g.cloudMemberIds || []).filter(cid => cid !== userId)
+                          : (g.memberIds || []).map(id => friends.find(f => f.id === id)?.cloudId).filter(Boolean);
+                      }
+                      setPlanDraft({
+                        date: slot.date || todayISO,
+                        start: slot.start,
+                        memberCloudIds,
+                        groupId, groupName,
+                      });
+                      setCompareTarget(null);
+                      setView("friends");
+                    } : undefined}
                   />
                   : view === "friends"
                     ? <FriendsPanel
@@ -2626,6 +2721,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       myClasses={visible}
                       allClasses={CLASSES}
                       now={now}
+                      statusEnabled={enableStatus}
                       onOpenLeave={() => { setView("leave"); setCompareTarget(null); }}
                       onCompare={(f) => setCompareTarget({ mode: "friend", friendData: f })}
                       onGroupCompare={(g) => {
@@ -2639,8 +2735,13 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                         } else {
                           members = (g.memberIds || []).map(id => friends.find(f => f.id === id)).filter(Boolean).map(f => ({ name: f.name, courses: f.courses }));
                         }
-                        setCompareTarget({ mode: "group", groupData: { name: g.name, members } });
+                        setCompareTarget({ mode: "group", groupData: { name: g.name, members }, group: g });
                       }}
+                      meetupsEnabled={enableMeetups}
+                      nudgeEnabled={enableFreeNudge}
+                      awayEnabled={enableAwayShare}
+                      planDraft={planDraft}
+                      onPlanDraftConsumed={() => setPlanDraft(null)}
                     />
                     : view === "exams"
                       ? <ExamsPanel
@@ -2671,6 +2772,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                               myChanges={filteredChanges}
                               isAdmin={isAdmin}
                               userId={userId}
+                              userName={user?.firstName || user?.username || "Student"}
                               legend={LEGEND}
                               readChangeKeys={readChangeKeys}
                               changeKeyOf={changeKey}
@@ -2694,9 +2796,40 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                     termEnd={TERM?.end}
                                     onBack={() => { setView("today"); setCompareTarget(null); }}
                                     onOpenAttendance={enableAttendance ? () => { setView("attendance"); setCompareTarget(null); } : undefined}
+                                    userId={userId}
+                                    awayEnabled={enableAwayShare}
+                                    onAwayChange={setMyAway}
                                   />
                               : view === "assignments"
                                 ? <AssignmentsPanel enrolled={enrolled} legend={enrolledLegend} userId={userId} />
+                              : view === "board"
+                                ? <BoardPage
+                                    userId={userId}
+                                    userName={user?.firstName || user?.username || "Student"}
+                                    isAdmin={isAdmin}
+                                  />
+                              : view === "wrapped"
+                                ? <WrappedView
+                                    visible={visible}
+                                    legend={enrolledLegend}
+                                    attendance={attendance}
+                                    now={now}
+                                    termLabel={termLabel}
+                                    userName={user?.firstName || user?.username || "Student"}
+                                    onBack={() => { setView("today"); setCompareTarget(null); }}
+                                  />
+                              : view === "glance"
+                                ? <GlanceView
+                                    current={current}
+                                    next={next}
+                                    todayList={todayList}
+                                    now={now}
+                                    todayISO={todayISO}
+                                    tomorrowISO={tomorrowISO}
+                                    visible={visible}
+                                    legend={enrolledLegend}
+                                    onNavigate={(v) => { setView(v); setCompareTarget(null); }}
+                                  />
                               : view === "tomorrow"
                                 ? tomorrowList.length === 0 && premiumMode && syncing
                                   ? (
@@ -2721,16 +2854,26 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                       <Timeline list={todayList} current={current} now={now} dateLabel={prettyDate(todayISO)} attendance={attendance} markAttendance={markAttendance} skipInfo={skipInfo} syncStatus={<span className="live"><span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} />
                                     </>}
               </Suspense>
-              {view === "today" && !compareTarget && <MessCard now={now} userId={userId} />}
+              {view === "today" && !compareTarget && <MessCard now={now} userId={userId} friends={enableStatus ? friends : []} />}
+              {view === "tomorrow" && !compareTarget && (
+                <DeadlineStrip
+                  visible={visible}
+                  legend={enrolledLegend}
+                  now={now}
+                  onOpenAssignments={() => { setView("assignments"); setCompareTarget(null); }}
+                  onOpenExams={enableExams ? () => { setView("exams"); setCompareTarget(null); } : undefined}
+                />
+              )}
             </div>
           </main>
-          <aside className={view !== "week" ? "side-col hide-mobile" : "side-col"} style={view === "friends" ? { display: "none" } : {}}>
+          <aside className={view !== "week" ? "side-col hide-mobile" : "side-col"} style={view === "friends" || view === "admin" ? { display: "none" } : {}}>
             <WeekAgenda visible={visible} now={now} offset={weekOffset} setOffset={setWeekOffset} todayISO={todayISO} onViewFullSchedule={(iso) => { setJumpToDate(iso); setView("fullSchedule"); }} />
           </aside>
 
-          {/* Floating Schedule button & Modal for Friends view — desktop only
-              (.fr-agenda-fab is display:none below 900px) */}
-          {view === "friends" && (
+          {/* Floating Schedule button & Modal for the Friends and Admin views —
+              the docked agenda is hidden there so the wide content gets the full
+              row; desktop only (.fr-agenda-fab is display:none below 900px) */}
+          {(view === "friends" || view === "admin") && (
             <>
               <button className="fr-agenda-fab" onClick={() => setShowFriendsAgenda(true)} title="View Schedule">
                 <Calendar size={22} />

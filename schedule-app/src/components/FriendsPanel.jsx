@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import "../styles/friends.css";
-import { Copy, Link2, UserPlus, Users, Trash2, ArrowRight, Plus, X, Check, ChevronDown, ChevronUp, ChevronRight, RefreshCw, Globe, Lock, CheckCircle, AlertCircle, Info, AlertTriangle, Star, CalendarOff } from "lucide-react";
+import { Copy, Link2, UserPlus, Users, Trash2, ArrowRight, Plus, X, Check, ChevronDown, ChevronUp, ChevronRight, RefreshCw, Globe, Lock, CheckCircle, AlertCircle, Info, AlertTriangle, Star, CalendarOff, Smile, BarChart3, CalendarPlus, BellRing } from "lucide-react";
 import { SkeletonText } from "./ui.jsx";
+import MeetupsStrip from "./Meetups.jsx";
+import { fetchMyNudges, scheduleNudge, cancelNudge } from "../lib/nudges.js";
 
 import {
   decodeSchedule, codeDisplayPart, buildShareUrl,
@@ -11,8 +13,11 @@ import {
   refreshFriendCoursesFromCloud, sendFriendPing, hasPendingFriendRequest, deletePingsBetween,
   shareGroupWithMembers, unshareGroupFromMembers,
   sendGroupChatMessage, fetchGroupChatMessages,
+  sendSocialNotification,
   avatarGradient,
 } from "../lib/friends.js";
+import { createPoll, POLL_MARKER } from "../lib/polls.js";
+import PollCard, { PollComposer } from "./PollCard.jsx";
 
 // profiles still holds pre-cutover DEV ghost rows (the data source for
 // migrate-user's on-login restore) — exclude them wherever we list students,
@@ -55,6 +60,85 @@ function Toast({ message, type = "info", action, onDone }) {
   );
 }
 
+import {
+  STATUS_PRESETS, STATUS_DURATIONS, statusUntil,
+  fmtStatusUntil, loadMyStatus, setMyStatus,
+  fetchFriendPresence, isAwayNow, fmtAwayEnd,
+} from "../lib/status.js";
+
+function StatusModal({ current, onSave, onClose }) {
+  const [presetId, setPresetId] = useState(current?.id || null);
+  const [customText, setCustomText] = useState(current && !current.id ? current.text : "");
+  const [durationIdx, setDurationIdx] = useState(1); // default 1 hr
+
+  const preset = STATUS_PRESETS.find(p => p.id === presetId) || null;
+  const text = preset ? preset.text : customText.trim();
+  const canSet = !!text;
+
+  const handleSet = () => {
+    if (!canSet) return;
+    onSave({
+      id: preset?.id || null,
+      emoji: preset?.emoji || "💬",
+      text,
+      until: statusUntil(STATUS_DURATIONS[durationIdx].mins),
+    });
+  };
+
+  return (
+    <div className="fr-modal-backdrop" onClick={onClose}>
+      <div className="fr-status-modal" onClick={e => e.stopPropagation()}>
+        <div className="fr-friends-modal-title-row">
+          <h2 className="fr-friends-modal-title">Set a status</h2>
+          <button className="fr-modal-close" onClick={onClose}><X size={18} /></button>
+        </div>
+        <div className="fr-status-presets">
+          {STATUS_PRESETS.map(p => (
+            <button
+              key={p.id}
+              className={`fr-status-preset ${presetId === p.id ? "is-active" : ""}`}
+              onClick={() => { setPresetId(prev => prev === p.id ? null : p.id); setCustomText(""); }}
+            >
+              <span className="fr-status-preset-emoji">{p.emoji}</span> {p.text}
+            </button>
+          ))}
+        </div>
+        <input
+          className="fr-add-input"
+          type="text"
+          placeholder="Or write your own…"
+          maxLength={40}
+          value={customText}
+          onChange={e => { setCustomText(e.target.value); if (e.target.value) setPresetId(null); }}
+          onKeyDown={e => e.key === "Enter" && handleSet()}
+        />
+        <div className="fr-status-durations">
+          <span className="fr-status-durations-label">Clear after</span>
+          {STATUS_DURATIONS.map((d, i) => (
+            <button
+              key={d.label}
+              className={`fr-status-duration ${durationIdx === i ? "is-active" : ""}`}
+              onClick={() => setDurationIdx(i)}
+            >
+              {d.label}
+            </button>
+          ))}
+        </div>
+        <div className="fr-status-modal-foot">
+          {current && (
+            <button className="fr-btn fr-btn-secondary fr-btn-small" onClick={() => onSave(null)}>
+              Clear status
+            </button>
+          )}
+          <button className="fr-btn fr-btn-primary" style={{ marginLeft: "auto" }} onClick={handleSet} disabled={!canSet}>
+            <Check size={14} /> Set status
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, arrayMove, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -88,6 +172,8 @@ function GroupChat({ group, userId, userName }) {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(true);
+  const [showPollComposer, setShowPollComposer] = useState(false);
+  const [pollBusy, setPollBusy] = useState(false);
 
   useEffect(() => {
     let channel;
@@ -129,11 +215,33 @@ function GroupChat({ group, userId, userName }) {
     await sendGroupChatMessage(group.id, userId, userName, txt);
   }
 
+  async function handleCreatePoll({ question, options, multi, closesAt }) {
+    setPollBusy(true);
+    const poll = await createPoll({ scope: "group", groupId: group.id, userId, userName, question, options, multi, closesAt });
+    setPollBusy(false);
+    if (!poll) return;
+    setShowPollComposer(false);
+    // Announce in the stream: the marker row is what everyone's chat renders
+    // as a PollCard (see the POLL_MARKER check below).
+    await sendGroupChatMessage(group.id, userId, userName, `${POLL_MARKER}${poll.id}`);
+    // Best-effort heads-up for cloud-linked members (in-app alert + opt-in push)
+    for (const memberId of group.cloudMemberIds || []) {
+      if (memberId === userId) continue;
+      sendSocialNotification(memberId, "group_poll", { fromId: userId, fromName: userName, group: group.name, pollId: poll.id });
+    }
+  }
+
   return (
     <div className="fr-chat-box" style={{ marginTop: 16 }}>
       <p className="fr-group-body-label">Group Chat</p>
       <div className="fr-chat-msgs" style={{ maxHeight: 250, overflowY: "auto", padding: "12px", background: "rgba(0,0,0,0.02)", border: "1px solid rgba(0,0,0,0.05)", borderRadius: 12, marginBottom: 8, display: "flex", flexDirection: "column" }}>
          {loading ? <SkeletonText lines={3} /> : messages.length === 0 ? <div className="fr-empty">No messages yet. Say hi!</div> : messages.map(m => (
+            m.text.startsWith(POLL_MARKER) ? (
+              <div key={m.id} style={{ display: "flex", gap: 8, marginBottom: 12, flexDirection: m.from_id === userId ? "row-reverse" : "row" }}>
+                 <div className="fr-group-avatar-dot" style={{ background: avatarGradient(m.name)[0], flexShrink: 0 }}>{m.name[0]?.toUpperCase()}</div>
+                 <PollCard pollId={m.text.slice(POLL_MARKER.length)} userId={userId} userName={userName} />
+              </div>
+            ) : (
             <div key={m.id} style={{ display: "flex", gap: 8, marginBottom: 12, flexDirection: m.from_id === userId ? "row-reverse" : "row" }}>
                <div className="fr-group-avatar-dot" style={{ background: avatarGradient(m.name)[0], flexShrink: 0 }}>{m.name[0]?.toUpperCase()}</div>
                <div style={{ background: m.from_id === userId ? "var(--live)" : "#fff", color: m.from_id === userId ? "#fff" : "#000", padding: "8px 12px", borderRadius: 12, fontSize: 13, maxWidth: "85%", wordBreak: "break-word", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
@@ -141,9 +249,18 @@ function GroupChat({ group, userId, userName }) {
                   {m.text}
                </div>
             </div>
+            )
          ))}
       </div>
+      {showPollComposer && (
+        <div style={{ marginBottom: 8 }}>
+          <PollComposer onSubmit={handleCreatePoll} onCancel={() => setShowPollComposer(false)} busy={pollBusy} />
+        </div>
+      )}
       <form onSubmit={handleSend} style={{ display: "flex", gap: 6 }}>
+         <button type="button" className="fr-btn fr-btn-secondary" title="Start a poll" aria-label="Start a poll" onClick={() => setShowPollComposer(o => !o)} style={{ borderRadius: 20, padding: "0 12px" }}>
+            <BarChart3 size={15} />
+         </button>
          <input type="text" className="fr-add-input" placeholder="Message group..." value={text} onChange={e => setText(e.target.value)} style={{ flex: 1, padding: "8px 14px", borderRadius: 20, border: "1px solid rgba(0,0,0,0.1)", background: "#fff", fontSize: 13 }} />
          <button type="submit" className="fr-btn fr-btn-primary" style={{ borderRadius: 20, padding: "0 16px" }}>Send</button>
       </form>
@@ -156,6 +273,8 @@ function ymdFP(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart
 export default function FriendsPanel({
   userId, userName, enrolled, friends, setFriends,
   groups, setGroups, allClasses, now, onCompare, onGroupCompare, onOpenLeave,
+  statusEnabled = true, meetupsEnabled = true, nudgeEnabled = true, awayEnabled = true,
+  planDraft = null, onPlanDraftConsumed,
 }) {
   const [addCode, setAddCode] = useState("");
   const [addError, setAddError] = useState("");
@@ -234,6 +353,7 @@ export default function FriendsPanel({
         if (devGhostIds.has(profile.user_id)) return null; // Pre-cutover dev ghost row
         if (friendCloudIds.has(profile.user_id)) return null; // Already friends
         if (profile.courses?._hide_from_matchmaker) return null; // Opted out
+        if (isAwayNow(profile.courses?._away)) return null; // Off campus right now
 
         const theirCourses = Object.keys(profile.courses || {}).filter(k => !k.startsWith("_"));
         if (theirCourses.length === 0) return null;
@@ -255,6 +375,74 @@ export default function FriendsPanel({
   }, [userId, enrolled, friends, optOutMatchmaker]);
 
   const showToast = (message, type = "success", action = null) => setToast({ message, type, action });
+
+  const [myStatus, setMyStatusState] = useState(() => loadMyStatus());
+  const [showStatusModal, setShowStatusModal] = useState(false);
+
+  const handleSaveStatus = (status) => {
+    setMyStatusState(status);
+    setShowStatusModal(false);
+    setMyStatus(userId, status); // localStorage + cloud, fire-and-forget
+    showToast(status ? "Status set — friends can see it now" : "Status cleared", "success");
+  };
+
+  // Friends' statuses come from a fresh fetch, not the local friends cache —
+  // the cache strips `_` keys and can be minutes stale, too old for a 30-min
+  // status. Keyed by cloudId; expired entries drop out at render time.
+  const [friendStatuses, setFriendStatuses] = useState({});
+  const friendCloudKey = friends.map(f => f.cloudId).filter(Boolean).sort().join(",");
+  useEffect(() => {
+    // No clearing branch needed: renders gate on statusEnabled, and a fetch
+    // replaces the whole map whenever the friend list changes.
+    if ((!statusEnabled && !awayEnabled) || !friendCloudKey) return;
+    let alive = true;
+    fetchFriendPresence(friendCloudKey.split(",")).then(map => { if (alive) setFriendStatuses(map); });
+    return () => { alive = false; };
+  }, [statusEnabled, awayEnabled, friendCloudKey]);
+
+  // "Ping me when free" (Phase C): pending nudges keyed by the friend's id
+  const [myNudges, setMyNudges] = useState({});
+  useEffect(() => {
+    if (!nudgeEnabled || !userId) return;
+    fetchMyNudges(userId).then(setMyNudges);
+  }, [nudgeEnabled, userId]);
+
+  const handleToggleNudge = async (f, endHHMM) => {
+    const key = f.cloudId || f.id;
+    const existing = myNudges[key];
+    if (existing) {
+      await cancelNudge(existing.id);
+      setMyNudges(prev => { const next = { ...prev }; delete next[key]; return next; });
+      showToast("Free-time nudge cancelled", "info");
+      return;
+    }
+    const [h, m] = endHHMM.split(":").map(Number);
+    const fireAt = new Date(now);
+    fireAt.setHours(h, m, 0, 0);
+    const row = await scheduleNudge(userId, f, fireAt.toISOString());
+    if (row) {
+      setMyNudges(prev => ({ ...prev, [key]: row }));
+      showToast(`We'll nudge you around ${fmtStatusUntil(row.fire_at)} when ${f.name.split(" ")[0]} is free`, "success");
+    } else {
+      showToast("Couldn't schedule the nudge", "error");
+    }
+  };
+
+  // Plan drafts from a group card (CompareView drafts arrive via planDraft prop)
+  const [groupPlanDraft, setGroupPlanDraft] = useState(null);
+  const openGroupPlan = (group) => {
+    const memberCloudIds = group.isReceived
+      ? (group.cloudMemberIds || []).filter(cid => cid !== userId)
+      : (group.memberIds || [])
+          .map(id => friends.find(f => f.id === id)?.cloudId)
+          .filter(Boolean);
+    setGroupPlanDraft({
+      title: group.name,
+      groupId: group.id,
+      groupName: group.name,
+      memberCloudIds,
+    });
+  };
 
   useEffect(() => {
     if (!userId) return;
@@ -518,17 +706,18 @@ export default function FriendsPanel({
 
   const courseCount = enrolled ? Object.keys(enrolled).length : 0;
 
+  // { state: "busy", end: "HH:MM" } | { state: "free" } | null
   function getFriendStatusNow(friend) {
     if (!allClasses || !now) return null;
     const todayISO = ymdFP(now);
     const nowMin = now.getHours() * 60 + now.getMinutes();
-    const inClass = allClasses.some(c => {
+    const current = allClasses.find(c => {
       if (c.date !== todayISO || (c.type !== "class" && c.type !== "exam") || !c.code) return false;
       const sec = friend.courses?.[c.code];
       return sec !== undefined && (c.section === "Single" || c.section === sec) &&
         toMinFP(c.start) <= nowMin && nowMin < toMinFP(c.end);
     });
-    return inClass ? "busy" : "free";
+    return current ? { state: "busy", end: current.end } : { state: "free" };
   }
 
   const sortedFriends = [...friends].sort((a, b) => {
@@ -665,6 +854,9 @@ export default function FriendsPanel({
     const fCourseCount = Object.keys(f.courses || {}).length;
     const [c1, c2] = avatarGradient(f.name);
     const status = getFriendStatusNow(f);
+    const presence = f.cloudId ? friendStatuses[f.cloudId] : null;
+    const selfStatus = statusEnabled ? presence?.status || null : null;
+    const away = awayEnabled && isAwayNow(presence?.away) ? presence.away : null;
     return (
       <div key={f.id} className={`fr-friend-card ${isCompact ? "compact" : ""} ${f.isFavourite && !isCompact ? "favourite-glow" : ""}`} style={{ '--accent': c1 }}>
         <div className="fr-friend-avatar" style={{ background: `linear-gradient(135deg, ${c1} 0%, ${c2} 100%)`, boxShadow: `0 4px 16px ${c1}66` }}>
@@ -675,10 +867,31 @@ export default function FriendsPanel({
           <div className="fr-friend-meta-row">
             <span className="fr-friend-meta">{fCourseCount} course{fCourseCount !== 1 ? "s" : ""}</span>
           </div>
-          {status && (
-            <span className={`fr-friend-status fr-friend-status-${status}`}>
+          {away && (
+            <span className="fr-friend-status fr-friend-away">
+              <CalendarOff size={11} /> Away till {fmtAwayEnd(away.to)}
+            </span>
+          )}
+          {!away && status && (
+            <span className={`fr-friend-status fr-friend-status-${status.state}`}>
               <span className="fr-friend-status-dot" />
-              {status === "free" ? "Free now" : "In class"}
+              {status.state === "free" ? "Free now" : `In class till ${status.end || "?"}`}
+              {nudgeEnabled && status.state === "busy" && status.end && (
+                <button
+                  className={`fr-nudge-btn ${myNudges[f.cloudId || f.id] ? "is-active" : ""}`}
+                  title={myNudges[f.cloudId || f.id] ? "Cancel the free-time nudge" : "Notify me when they're free"}
+                  onClick={() => handleToggleNudge(f, status.end)}
+                >
+                  <BellRing size={11} />
+                </button>
+              )}
+            </span>
+          )}
+          {selfStatus && (
+            <span className="fr-friend-selfstatus" title={`till ${fmtStatusUntil(selfStatus.until)}`}>
+              <span className="fr-friend-selfstatus-emoji">{selfStatus.emoji}</span>
+              {selfStatus.text}
+              <span className="fr-friend-selfstatus-till">· till {fmtStatusUntil(selfStatus.until)}</span>
             </span>
           )}
         </div>
@@ -769,6 +982,11 @@ export default function FriendsPanel({
             {(memberCount >= 1 || group.isReceived) && (
               <button className="fr-btn fr-btn-compare" onClick={e => { e.stopPropagation(); onGroupCompare(group); }}>
                 Compare <ArrowRight size={13} />
+              </button>
+            )}
+            {meetupsEnabled && (memberCount >= 1 || group.isReceived) && !isCompact && (
+              <button className="fr-btn fr-btn-icon" title="Plan something with this group" onClick={e => { e.stopPropagation(); openGroupPlan(group); }}>
+                <CalendarPlus size={14} />
               </button>
             )}
             {!group.isReceived && !isCompact && (
@@ -1159,6 +1377,11 @@ export default function FriendsPanel({
         </div>
       )}
 
+      {/* ── Status Modal ── */}
+      {showStatusModal && (
+        <StatusModal current={myStatus} onSave={handleSaveStatus} onClose={() => setShowStatusModal(false)} />
+      )}
+
       {/* ── Suggested Buddies Modal ── */}
       {showAllBuddiesModal && (
         <div className="fr-modal-backdrop" onClick={() => setShowAllBuddiesModal(false)}>
@@ -1191,6 +1414,17 @@ export default function FriendsPanel({
           )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {statusEnabled && (
+            <button
+              className={`fr-btn fr-btn-secondary fr-btn-small fr-status-chip ${myStatus ? "has-status" : ""}`}
+              onClick={() => setShowStatusModal(true)}
+              title={myStatus ? `${myStatus.text} · till ${fmtStatusUntil(myStatus.until)}` : "Set a status your friends can see"}
+            >
+              {myStatus
+                ? <><span className="fr-status-chip-emoji">{myStatus.emoji}</span><span className="desk-only">{myStatus.text}</span></>
+                : <><Smile size={14} /><span className="desk-only">Set status</span></>}
+            </button>
+          )}
           {friends.length > 0 && (
             <button
               className="fr-btn fr-btn-secondary fr-btn-small"
@@ -1203,6 +1437,18 @@ export default function FriendsPanel({
           )}
         </div>
       </div>
+
+      {/* ── Plans (meetups) ── */}
+      {meetupsEnabled && (
+        <MeetupsStrip
+          userId={userId}
+          userName={userName}
+          friends={friends}
+          draft={planDraft || groupPlanDraft}
+          onDraftConsumed={() => { setGroupPlanDraft(null); onPlanDraftConsumed?.(); }}
+          showToast={showToast}
+        />
+      )}
 
       <div className="fr-layout">
       <div className="fr-left-col">

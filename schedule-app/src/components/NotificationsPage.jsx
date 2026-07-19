@@ -5,6 +5,7 @@ import { useNotificationFeed, FEED_PAGE_SIZE } from "../hooks/useNotificationFee
 import { SwipeRow } from "./notifications/SwipeRow.jsx";
 import { PushToggle } from "./notifications/PushToggle.jsx";
 import { NotificationPrefsPanel } from "./notifications/NotificationPrefsPanel.jsx";
+import CohortPolls from "./notifications/CohortPolls.jsx";
 
 const SWIPE_HINT_KEY = "pgp2.notif-swipe-hint-seen";
 const LOAD_TS = Date.now();
@@ -34,7 +35,7 @@ function relTime(iso) {
   return Math.floor(hrs / 24) + "d ago";
 }
 
-export default function NotificationsPage({ allChanges, myChanges, isAdmin, userId, legend, readChangeKeys, changeKeyOf, onMarkReadMany, onMarkAllRead, onOpenDate, openPrefsSignal }) {
+export default function NotificationsPage({ allChanges, myChanges, isAdmin, userId, userName, legend, readChangeKeys, changeKeyOf, onMarkReadMany, onMarkAllRead, onOpenDate, openPrefsSignal }) {
   const [pushStatus, setPushStatus] = useState("busy");
   const [showAll, setShowAll] = useState(false);
   const [kindFilter, setKindFilter] = useState("all");
@@ -254,6 +255,7 @@ export default function NotificationsPage({ allChanges, myChanges, isAdmin, user
           <div style={{ marginLeft: "auto" }}><PushToggle userId={userId} onStatusChange={setPushStatus} /></div>
         </div>
         {pushStatus === "on" && <NotificationPrefsPanel userId={userId} openSignal={openPrefsSignal} />}
+        <CohortPolls userId={userId} userName={userName} isAdmin={isAdmin} />
         <div className="notif-pg-empty">
           <div className="notif-empty-ico"><CheckCircle2 size={26} /></div>
           <p>You're all caught up</p>
@@ -309,6 +311,8 @@ export default function NotificationsPage({ allChanges, myChanges, isAdmin, user
       </div>
 
       {pushStatus === "on" && <NotificationPrefsPanel userId={userId} />}
+
+      <CohortPolls userId={userId} userName={userName} isAdmin={isAdmin} />
 
       {newPillCount > 0 && (
         <button

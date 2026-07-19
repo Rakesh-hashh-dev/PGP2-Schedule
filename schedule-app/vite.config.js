@@ -1,4 +1,3 @@
-/* eslint-env node */
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
@@ -179,10 +178,17 @@ export default defineConfig({
           },
         ],
         // Android surfaces at most 4 shortcuts in the long-press menu, in
-        // order — Today / Announcements / Attendance / Assignments made the
-        // cut; This Week is kept 5th for launchers that show more.
+        // order — Glance / Today / Announcements / Attendance made the cut
+        // (Glance replaced This Week: it IS the quick-look use case shortcuts
+        // exist for); Assignments is kept 5th for launchers that show more.
         // Icons are full-bleed maskable tiles (glyph in the 60% safe zone).
         shortcuts: [
+          {
+            name: 'Glance',
+            short_name: 'Glance',
+            url: '/?view=glance',
+            icons: [{ src: 'shortcut-glance.png', sizes: '192x192', purpose: 'any maskable' }],
+          },
           {
             name: 'Today',
             short_name: 'Today',
@@ -206,12 +212,6 @@ export default defineConfig({
             short_name: 'Assignments',
             url: '/?view=assignments',
             icons: [{ src: 'shortcut-assignments.png', sizes: '192x192', purpose: 'any maskable' }],
-          },
-          {
-            name: 'This Week',
-            short_name: 'Week',
-            url: '/?view=week',
-            icons: [{ src: 'shortcut-week.png', sizes: '192x192', purpose: 'any maskable' }],
           },
         ],
       },

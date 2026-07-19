@@ -4,6 +4,7 @@ import "../styles/assignments.css";
 import "../styles/cmdk.css";
 import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil, BarChart2, UtensilsCrossed, GraduationCap, MessageSquare } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import * as XLSX from "xlsx";
 import { logAdminAction } from "../lib/adminAudit.js";
 import { LEGEND } from "../data/schedule.js";
 import { BASE_MENU } from "../data/messMenu.js";
@@ -37,14 +38,110 @@ function Avatar({ name, email }) {
   return <div className="admin-avatar">{init.toUpperCase()}</div>;
 }
 
+// ── Pre-deploy config review ─────────────────────────────────────────────────
+// Human-readable diff of the local flag edits vs the last-loaded cloud config,
+// shown by the "Review changes" button next to Deploy Config to Cloud.
+
+const FLAG_LABELS = {
+  enableFriends: "Social / Friends",
+  enableExams: "Exams view",
+  enableAttendance: "Attendance view",
+  enableStatus: "Friend statuses",
+  enableMeetups: "Meetup plans",
+  maintenanceMode: "Maintenance mode",
+  dispatchEnabled: "Push dispatch",
+  wrappedReleaseDate: "TermFlow Wrapped release",
+  heroBackdrop: "Hero backdrop strategy",
+  classOverrides: "Class overrides",
+  bannedUsers: "Banned users",
+  scheduledAnnouncements: "Scheduled announcements",
+  feedbackFlashes: "Feedback flashes",
+  quickLinks: "Quick links",
+  messMenuOverrides: "Mess menu overrides",
+  adminRoles: "Admin roles",
+  abTests: "A/B tests",
+  whatsNew: "What's New",
+  updatePrompt: "Update prompt",
+};
+
+function describeVal(v) {
+  if (v === undefined || v === null) return "not set";
+  if (typeof v === "boolean") return v ? "ON" : "OFF";
+  if (typeof v === "string") return v === "" ? "empty" : `“${v.length > 60 ? v.slice(0, 57) + "…" : v}”`;
+  if (typeof v === "number") return String(v);
+  if (Array.isArray(v)) return `${v.length} item${v.length === 1 ? "" : "s"}`;
+  const n = Object.keys(v).length;
+  return `${n} entr${n === 1 ? "y" : "ies"}`;
+}
+
+// Best-effort display name for an item inside an array flag
+function itemLabel(item) {
+  if (item == null || typeof item !== "object") return String(item);
+  return item.title || item.name || item.label
+    || (typeof item.message === "string" ? `“${item.message.slice(0, 40)}${item.message.length > 40 ? "…" : ""}”` : null)
+    || item.id || "(item)";
+}
+
+function diffFlagKey(key, before, after) {
+  const details = [];
+  const bothArrays = Array.isArray(before) && Array.isArray(after);
+  const bothObjects = !bothArrays && before && after
+    && typeof before === "object" && typeof after === "object"
+    && !Array.isArray(before) && !Array.isArray(after);
+
+  if (bothArrays) {
+    const keyOf = (it, i) => (it && typeof it === "object" && it.id != null) ? `id:${it.id}` : JSON.stringify(it) || `#${i}`;
+    const beforeMap = new Map(before.map((it, i) => [keyOf(it, i), it]));
+    const afterMap = new Map(after.map((it, i) => [keyOf(it, i), it]));
+    for (const [k, it] of afterMap) {
+      if (!beforeMap.has(k)) details.push(`+ added ${itemLabel(it)}`);
+      else if (JSON.stringify(beforeMap.get(k)) !== JSON.stringify(it)) details.push(`~ edited ${itemLabel(it)}`);
+    }
+    for (const [k, it] of beforeMap) {
+      if (!afterMap.has(k)) details.push(`− removed ${itemLabel(it)}`);
+    }
+  } else if (bothObjects) {
+    const subKeys = [...new Set([...Object.keys(before), ...Object.keys(after)])];
+    for (const sk of subKeys) {
+      const b = before[sk], a = after[sk];
+      if (JSON.stringify(b) === JSON.stringify(a)) continue;
+      if (b === undefined) details.push(`+ ${sk}: ${describeVal(a)}`);
+      else if (a === undefined) details.push(`− ${sk} (was ${describeVal(b)})`);
+      else details.push(`~ ${sk}: ${describeVal(b)} → ${describeVal(a)}`);
+    }
+  }
+
+  return {
+    key,
+    label: FLAG_LABELS[key] || key,
+    summary: `${describeVal(before)} → ${describeVal(after)}`,
+    details: details.slice(0, 12),
+    extra: details.length > 12 ? details.length - 12 : 0,
+  };
+}
+
+function summarizeConfigChanges(orig, cur) {
+  if (!orig) return [];
+  const keys = [...new Set([...Object.keys(cur || {}), ...Object.keys(orig)])]
+    .filter(k => k !== "configHistory");
+  const out = [];
+  for (const k of keys) {
+    if (JSON.stringify(cur?.[k]) === JSON.stringify(orig[k])) continue;
+    out.push(diffFlagKey(k, orig[k], cur?.[k]));
+  }
+  return out.sort((a, b) => a.label.localeCompare(b.label));
+}
+
 export default function AdminDashboard({ user, startImpersonation, syncLogs = [], timeOverride, setTimeOverride, allChanges = [] }) {
   const [totalUsers, setTotalUsers] = useState(null);
   const [activeUsers, setActiveUsers] = useState(0);
   const [statsLoading, setStatsLoading] = useState(true);
   const [dbSize, setDbSize] = useState("...");
-  const [sysMetrics, setSysMetrics] = useState(null);
-  const [sysMetricsLoading, setSysMetricsLoading] = useState(false);
-  const [sysMetricsError, setSysMetricsError] = useState("");
+  // Metrics fetch stays live (loadDashboardData); the display card was removed,
+  // so the read halves are intentionally unused for now.
+  const [_sysMetrics, setSysMetrics] = useState(null);
+  const [_sysMetricsLoading, setSysMetricsLoading] = useState(false);
+  const [_sysMetricsError, setSysMetricsError] = useState("");
   
   const [announcement, setAnnouncement] = useState("");
   const [activeAnnouncement, setActiveAnnouncement] = useState(null);
@@ -82,6 +179,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
+  const [reviewOpen, setReviewOpen] = useState(false);
 
   const [allUsers, setAllUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -137,7 +235,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [feedbackFlashes, setFeedbackFlashes] = useState([]);
   const [previewFlashId, setPreviewFlashId] = useState(null);
   // Minute tick so flash status badges/countdowns stay current while the page sits open
-  const [flashNow, setFlashNow] = useState(Date.now());
+  const [flashNow, setFlashNow] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setFlashNow(Date.now()), 60000);
     return () => clearInterval(t);
@@ -162,7 +260,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
 
   // Reactive flag — avoids stale localStorage.getItem() at render time
-  const [hasAdminKey, setHasAdminKey] = useState(() => !!localStorage.getItem("pgp2.push-admin-key"));
+  const [_hasAdminKey, setHasAdminKey] = useState(() => !!localStorage.getItem("pgp2.push-admin-key"));
 
   // Live Editor Modal — controlled input state (replaces document.getElementById anti-pattern)
   const [modalSection, setModalSection] = useState("All");
@@ -211,7 +309,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     setSysMetricsLoading(false);
   };
 
-  const promptAdminKey = () => {
+  // Kept for the (currently unwired) metrics card — underscore keeps lint quiet.
+  const _promptAdminKey = () => {
     const key = prompt("Enter the Admin Secret Key (set as ADMIN_SECRET or PUSH_ADMIN_SECRET in Supabase):");
     if (key) {
       localStorage.setItem("pgp2.push-admin-key", key);
@@ -743,6 +842,73 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     logAdminAction(admin_id, "reset_mess_menu_day", { day: MESS_DAY_NAMES[messEditDay] });
   };
 
+  const handleExcelUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const data = new Uint8Array(evt.target.result);
+        const workbook = XLSX.read(data, { type: "array" });
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        
+        const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+        if (jsonData.length < 20) throw new Error("Excel file doesn't have enough rows.");
+
+        const newOverrides = {};
+        const colToDayIndex = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 7: 6, 8: 0 };
+        const getCellStr = (row, col) => {
+           const val = jsonData[row]?.[col];
+           return val ? String(val).trim().replace(/\n/g, "") : "";
+        };
+
+        for (let col = 2; col <= 8; col++) {
+           const dayIdx = colToDayIndex[col];
+           const dayMeals = { breakfast: [], lunch: [], snacksW13: [], snacksW24: [], dinner: [] };
+
+           const bMain = getCellStr(3, col);
+           const bExtra = getCellStr(4, col);
+           if (bMain) dayMeals.breakfast.push(bMain);
+           if (bExtra) dayMeals.breakfast.push(...bExtra.split('+').map(s => s.trim()).filter(Boolean));
+
+           for (let r = 6; r <= 11; r++) {
+              const item = getCellStr(r, col);
+              if (item) dayMeals.lunch.push(item);
+           }
+
+           const sW13 = getCellStr(13, col);
+           const sW24 = getCellStr(14, col);
+           const sBev = getCellStr(15, col);
+           
+           if (sW13) dayMeals.snacksW13.push(sW13);
+           if (sW13 && sBev) dayMeals.snacksW13.push(sBev);
+           if (sW24) {
+              dayMeals.snacksW24.push(sW24);
+              if (sBev) dayMeals.snacksW24.push(sBev);
+           }
+
+           for (let r = 17; r <= 23; r++) {
+              const item = getCellStr(r, col);
+              if (item) dayMeals.dinner.push(item);
+           }
+           newOverrides[dayIdx] = dayMeals;
+        }
+
+        setFlags({ ...flags, messMenuOverrides: newOverrides });
+        setMessDrafts({});
+        logAdminAction(admin_id, "upload_mess_menu_excel", {});
+        alert("Menu successfully parsed and staged! Please deploy to cloud to apply.");
+      } catch (err) {
+        console.error("Excel parse error", err);
+        alert("Failed to parse Excel file: " + err.message);
+      }
+      e.target.value = null;
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
   // Helper to open the Live Editor modal AND initialise controlled inputs
   const openLiveEditorModal = (c, isNew = false) => {
     setLiveEditorModal(c);
@@ -801,13 +967,13 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
         </div>
       </section>
 
-      {/* ── Linear Layout ── */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      {/* ── Card flow: 2-col masonry ≥1200px, single column below ── */}
+      <div className="admin-masonry">
 
 
 
           {/* Interactive Live Schedule Editor */}
-          <section className="admin-card" style={{ gridColumn: "1 / -1" }}>
+          <section className="admin-card admin-span-all" style={{ gridColumn: "1 / -1" }}>
             <h2><CalendarDays size={20} color="var(--blue)" /> Live Schedule Editor</h2>
             <p className="admin-subtext">Click on a class slot to visually change the room or cancel the class.</p>
             <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
@@ -933,7 +1099,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
           {/* Class Cancellation Board */}
-          <section className="admin-card" style={{ gridColumn: "1 / -1" }}>
+          <section className="admin-card admin-span-all" style={{ gridColumn: "1 / -1" }}>
             <h2><XCircle size={20} color="var(--danger)" /> Class Cancellation Board</h2>
             <p className="admin-subtext">Globally cancel a class for all students on a specific date. Pick a date, then cancel directly from that day's schedule. Changes go live after "Deploy Config to Cloud".</p>
             <div className="admin-field" style={{ maxWidth: 220 }}>
@@ -1026,7 +1192,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
           {/* Class Editor */}
-          <section className="admin-card" style={{ gridColumn: "1 / -1" }}>
+          <section className="admin-card admin-span-all" style={{ gridColumn: "1 / -1" }}>
             <h2><CalendarDays size={20} color="var(--blue)" /> Class Editor</h2>
             <p className="admin-subtext">Globally change the classroom or timings for a specific class on a given date.</p>
             <div className="admin-field-row" style={{ marginTop: 10 }}>
@@ -1082,7 +1248,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
           {/* Bulk Overrides & Copy */}
-          <section className="admin-card" style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 32 }}>
+          <section className="admin-card admin-span-all" style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 32 }}>
              <div>
                 <h2><CalendarDays size={20} color="var(--violet)" /> Copy Overrides</h2>
                 <p className="admin-subtext">Duplicate all overrides (cancellations/rooms) from one day to another.</p>
@@ -1147,7 +1313,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
           {/* Active Overrides List */}
           {flags.classOverrides && Object.keys(flags.classOverrides).length > 0 && (
-            <section className="admin-card" style={{ gridColumn: "1 / -1" }}>
+            <section className="admin-card admin-span-all" style={{ gridColumn: "1 / -1" }}>
               <h2>Active Class Overrides</h2>
               <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
                 {Object.entries(flags.classOverrides).map(([date, classes]) => 
@@ -1203,9 +1369,17 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           )}
 
           {/* Mess Menu Editor */}
-          <section className="admin-card" style={{ gridColumn: "1 / -1" }}>
+          <section className="admin-card admin-span-all" style={{ gridColumn: "1 / -1" }}>
             <h2><UtensilsCrossed size={20} color="var(--amber)" /> Mess Menu Editor</h2>
             <p className="admin-subtext">Edit the weekly mess menu shown on the Mess Card — one dish per line. Stage a day, then publish with "Deploy Config to Cloud".</p>
+
+            <div style={{ marginTop: 12, display: "flex", gap: 10, alignItems: "center" }}>
+              <label className="admin-btn outline" style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 16px" }}>
+                <FileText size={16} /> Upload Excel Menu
+                <input type="file" accept=".xlsx, .xls" onChange={handleExcelUpload} style={{ display: "none" }} />
+              </label>
+              <span style={{ fontSize: 12, color: "var(--muted)" }}>Automatically stages overrides for all 7 days</span>
+            </div>
 
             {/* Day picker (Mon-first) */}
             <div style={{ display: "flex", gap: 8, marginTop: 12, marginBottom: 16, flexWrap: "wrap" }}>
@@ -1273,7 +1447,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
           {/* Analytics Dashboard — real data from Supabase */}
-          <section className="admin-card" style={{ gridColumn: "1 / -1" }}>
+          <section className="admin-card admin-span-all" style={{ gridColumn: "1 / -1" }}>
              <h2><BarChart2 size={20} color="var(--violet)" /> Analytics & Usage</h2>
              <div style={{ display: "flex", gap: 16, marginTop: 16, flexWrap: "wrap" }}>
 
@@ -1343,7 +1517,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
           {/* Admin Tools Extra Monitors */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 24 }}>
+          <div className="admin-span-all" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 24 }}>
              
              {/* API Health Check — live pings */}
              <section className="admin-card">
@@ -1765,7 +1939,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             </div>
           </section>
 
-        <section className="admin-card admin-directory-card">
+        <section className="admin-card admin-directory-card admin-span-all">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
              <h2><Users size={20} color="var(--green)" /> User Directory</h2>
              <button className="admin-btn outline" onClick={() => {
@@ -2075,11 +2249,11 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </div>
         </section>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(300px, 100%), 1fr))", gap: 24 }}>
+        <div className="admin-span-all" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(300px, 100%), 1fr))", gap: 24 }}>
           <section className="admin-card">
             <h2><Flag size={20} color="var(--violet)" /> Feature Flags</h2>
             <div className="admin-flag-list">
-              {Object.keys(flags).filter(k => k !== "maintenanceMode" && k !== "bannedUsers" && k !== "classOverrides" && k !== "abTests" && k !== "scheduledAnnouncements" && k !== "quickLinks" && k !== "heroBackdrop" && k !== "whatsNew" && k !== "updatePrompt" && k !== "dispatchEnabled").map(key => (
+              {Object.keys(flags).filter(k => k !== "maintenanceMode" && k !== "bannedUsers" && k !== "classOverrides" && k !== "abTests" && k !== "scheduledAnnouncements" && k !== "quickLinks" && k !== "heroBackdrop" && k !== "whatsNew" && k !== "updatePrompt" && k !== "dispatchEnabled" && k !== "wrappedReleaseDate" && k !== "wrappedTerm").map(key => (
                 <label key={key} className="admin-flag-item">
                   <input 
                     type="checkbox" 
@@ -2091,6 +2265,51 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               ))}
             </div>
             
+            <div className="admin-field" style={{ marginTop: 16 }}>
+              <label style={{ display: "block", marginBottom: 8, fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "1px" }}>TermFlow Wrapped Release</label>
+              {(() => {
+                const WRAPPED_MIN_DATE = "2026-08-27"; // hard floor — mirrored in App.jsx gating
+                const todayStr = new Date().toISOString().split("T")[0];
+                const rel = flags.wrappedReleaseDate || "";
+                const effective = rel && rel < WRAPPED_MIN_DATE ? WRAPPED_MIN_DATE : rel;
+                const status = !rel
+                  ? "Not scheduled — students can't see Wrapped yet."
+                  : todayStr >= effective
+                    ? `🟢 LIVE for the cohort since ${effective}.`
+                    : `Scheduled — goes live on ${effective}.`;
+                return (
+                  <>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                      <input
+                        type="date"
+                        className="admin-input"
+                        min={WRAPPED_MIN_DATE}
+                        value={rel}
+                        onChange={e => setFlags({ ...flags, wrappedReleaseDate: e.target.value || null })}
+                        style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)" }}
+                      />
+                      <button
+                        type="button"
+                        className="admin-btn"
+                        onClick={() => setFlags({ ...flags, wrappedReleaseDate: todayStr > WRAPPED_MIN_DATE ? todayStr : WRAPPED_MIN_DATE })}
+                        title="Release immediately (or on 27 Aug 2026 if that hasn't arrived yet)"
+                      >
+                        Push now
+                      </button>
+                      {rel && (
+                        <button type="button" className="admin-btn" onClick={() => setFlags({ ...flags, wrappedReleaseDate: null })}>
+                          Unschedule
+                        </button>
+                      )}
+                    </div>
+                    <div className="admin-subtext" style={{ marginTop: 6 }}>
+                      {status} Earliest allowed release is 27 Aug 2026 (dates before it are clamped). Hidden from everyone — including admins — until this date arrives; there's no QA bypass, so preview it by scheduling a date and unscheduling after. Remember to hit <b>Deploy Config to Cloud</b>.
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+
             <div className="admin-field" style={{ marginTop: 16 }}>
               <label style={{ display: "block", marginBottom: 8, fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "1px" }}>Hero Backdrop Strategy</label>
               <select 
@@ -2219,7 +2438,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
 
           {/* Time Machine */}
-          <section className="admin-card" style={{ gridColumn: "1 / -1" }}>
+          <section className="admin-card admin-span-all" style={{ gridColumn: "1 / -1" }}>
             <h2><Clock size={20} color="var(--amber)" /> Time Machine</h2>
             <p className="admin-subtext">Override the application's current time to test the timeline, agenda, and UI states.</p>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12, alignItems: "center" }}>
@@ -2237,7 +2456,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
           {/* Live Sync Logs */}
-          <section className="admin-card" style={{ gridColumn: "1 / -1" }}>
+          <section className="admin-card admin-span-all" style={{ gridColumn: "1 / -1" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 <h2 style={{ margin: 0, padding: 0 }}><Terminal size={20} color="var(--violet)" /> Live Sync Logs</h2>
@@ -2265,7 +2484,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
           {/* Audit Logs */}
-          <section className="admin-card" style={{ gridColumn: "1 / -1" }}>
+          <section className="admin-card admin-span-all" style={{ gridColumn: "1 / -1" }}>
             <h2><Terminal size={20} color="var(--violet)" /> Admin Audit Logs</h2>
             <p className="admin-subtext">Recent administrative actions performed by all admins.</p>
             <div style={{ padding: 16, marginTop: 16 }}>
@@ -2342,7 +2561,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             )}
           </section>
 
-          <section className="admin-card danger-zone">
+          <section className="admin-card danger-zone admin-span-all">
             <h2><AlertTriangle size={20} color="var(--danger, #e74c3c)" /> Danger Zone</h2>
             
             <div className="admin-danger-row">
@@ -2391,6 +2610,11 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       </div>
 
       <div className="admin-save-footer" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        {changesCount > 0 && (
+          <button className="admin-btn" onClick={() => setReviewOpen(true)} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <FileText size={16} /> Review {changesCount} change{changesCount > 1 ? "s" : ""}
+          </button>
+        )}
         <button className="admin-save-btn" onClick={saveConfig} disabled={saving} style={{ position: "relative" }}>
           <Save size={18} /> {saving ? "Saving..." : "Deploy Config to Cloud"}
           {changesCount > 0 && (
@@ -2446,6 +2670,61 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </span>
         )}
       </div>
+
+      {/* Pre-deploy review modal */}
+      {reviewOpen && (() => {
+        const changes = summarizeConfigChanges(originalFlags, flags);
+        return (
+          <>
+            <div className="notif-backdrop" onClick={() => setReviewOpen(false)} style={{ zIndex: 10000 }} />
+            <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "var(--card)", padding: 24, borderRadius: 16, width: "92%", maxWidth: 520, maxHeight: "85vh", overflowY: "auto", zIndex: 10001, border: "1px solid var(--border)", boxShadow: "0 10px 40px rgba(0,0,0,0.2)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                <h2 style={{ margin: 0, fontSize: 18, display: "flex", gap: 8, alignItems: "center" }}>
+                  <FileText size={18} color="var(--violet)" /> Review changes
+                </h2>
+                <button onClick={() => setReviewOpen(false)} style={{ background: "transparent", border: "none", color: "var(--muted)", cursor: "pointer" }} aria-label="Close"><XCircle size={18} /></button>
+              </div>
+              <div className="admin-subtext" style={{ marginBottom: 14 }}>
+                Local edits vs the config currently in the cloud. Nothing is live until you deploy.
+              </div>
+
+              {changes.length === 0 ? (
+                <div style={{ padding: 20, textAlign: "center", color: "var(--muted)", background: "var(--bg)", borderRadius: 10, border: "1px dashed var(--border)" }}>
+                  No pending changes — everything matches the cloud config.
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {changes.map(c => (
+                    <div key={c.key} style={{ padding: "10px 14px", background: "var(--bg)", borderRadius: 10, border: "1px solid var(--border)", borderLeft: "3px solid var(--violet)" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 13.5, fontWeight: 700, color: "var(--text)" }}>{c.label}</span>
+                        <span style={{ fontSize: 12, color: "var(--muted)", fontVariantNumeric: "tabular-nums" }}>{c.summary}</span>
+                      </div>
+                      {c.details.length > 0 && (
+                        <ul style={{ margin: "6px 0 0", paddingLeft: 16, display: "flex", flexDirection: "column", gap: 2 }}>
+                          {c.details.map((d, i) => (
+                            <li key={i} style={{ fontSize: 12, color: d.startsWith("+") ? "var(--live)" : d.startsWith("−") ? "var(--danger)" : "var(--muted)", listStyle: "none", marginLeft: -16 }}>{d}</li>
+                          ))}
+                          {c.extra > 0 && <li style={{ fontSize: 12, color: "var(--muted)", listStyle: "none", marginLeft: -16 }}>…and {c.extra} more</li>}
+                        </ul>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: 10, marginTop: 16, justifyContent: "flex-end" }}>
+                <button className="admin-btn" onClick={() => setReviewOpen(false)}>Keep editing</button>
+                {changes.length > 0 && (
+                  <button className="admin-btn primary" disabled={saving} onClick={async () => { await saveConfig(); setReviewOpen(false); }}>
+                    <Save size={15} /> {saving ? "Deploying…" : "Looks good — Deploy"}
+                  </button>
+                )}
+              </div>
+            </div>
+          </>
+        );
+      })()}
 
       {/* User X-Ray Modal */}
       {selectedUser && (

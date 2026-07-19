@@ -3,10 +3,38 @@
 /* ── Admin Dashboard CSS ── */
 .admin-page {
   padding: 32px 40px;
-  max-width: 1100px;
+  /* The week-agenda aside is hidden on the admin view, so the dashboard gets
+     the full content row — wide enough for the two-column card flow below */
+  max-width: 1500px;
   margin: 0 auto;
   width: 100%;
   animation: fade-in 0.3s ease;
+}
+
+/* Card flow: single column on narrow screens; from 1200px, cards pack into two
+   masonry columns. Sections tagged .admin-span-all (wide editors, tables,
+   nested grids) span the full row and act as natural section breaks. */
+.admin-masonry {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+@media (min-width: 1200px) {
+  .admin-masonry {
+    display: block;
+    columns: 2;
+    column-gap: 24px;
+  }
+
+  .admin-masonry > * {
+    break-inside: avoid;
+    margin-bottom: 24px;
+  }
+
+  .admin-masonry > .admin-span-all {
+    column-span: all;
+  }
 }
 
 .admin-head {

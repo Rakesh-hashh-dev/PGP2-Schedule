@@ -2142,3 +2142,318 @@ html[data-theme="dark"] .fr-friend-card.favourite-glow {
 html[data-theme="dark"] .fr-friend-card.favourite-glow:hover {
   background: linear-gradient(135deg, rgba(251, 191, 36, 0.18) 0%, var(--card-hi) 100%) !important;
 }
+
+/* ── Status line (self-set, auto-expiring) ─────────────────────── */
+
+.fr-status-chip.has-status {
+  border-color: color-mix(in srgb, var(--violet) 35%, transparent);
+  background: color-mix(in srgb, var(--violet) 8%, var(--card));
+  color: var(--text);
+}
+
+.fr-status-chip-emoji {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.fr-friend-selfstatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  justify-self: start;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fr-friend-selfstatus-emoji {
+  font-size: 13px;
+  line-height: 1;
+  flex: none;
+}
+
+.fr-friend-selfstatus-till {
+  opacity: .75;
+  flex: none;
+}
+
+.fr-status-modal {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 22px 24px;
+  width: min(420px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, .18);
+}
+
+.fr-status-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.fr-status-preset {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease;
+}
+
+.fr-status-preset:hover {
+  border-color: var(--border-hi);
+}
+
+.fr-status-preset.is-active {
+  border-color: var(--violet);
+  background: color-mix(in srgb, var(--violet) 10%, transparent);
+  color: var(--violet);
+}
+
+.fr-status-preset-emoji {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.fr-status-durations {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.fr-status-durations-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-right: 4px;
+}
+
+.fr-status-duration {
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  cursor: pointer;
+}
+
+.fr-status-duration.is-active {
+  border-color: var(--violet);
+  background: color-mix(in srgb, var(--violet) 10%, transparent);
+  color: var(--violet);
+}
+
+.fr-status-modal-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+/* ── Plans (meetups) strip ─────────────────────────────────────── */
+
+.fr-plans-section {
+  margin-bottom: 22px;
+}
+
+.fr-plans-empty {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 4px 0 0;
+}
+
+.fr-plan-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fr-plan-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: color-mix(in srgb, var(--card) 70%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 12px 16px;
+}
+
+.fr-plan-card.is-declined {
+  opacity: .55;
+}
+
+.fr-plan-when {
+  flex: none;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--violet);
+  background: color-mix(in srgb, var(--violet) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--violet) 25%, transparent);
+  border-radius: 10px;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
+.fr-plan-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fr-plan-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fr-plan-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.fr-plan-stack {
+  display: flex;
+  flex: none;
+}
+
+.fr-plan-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  border: 2px solid var(--card);
+  margin-left: -6px;
+}
+
+.fr-plan-avatar:first-child {
+  margin-left: 0;
+}
+
+.fr-plan-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.fr-plan-btn-go.is-active {
+  border-color: rgba(31, 169, 113, .4);
+  background: rgba(31, 169, 113, .12);
+  color: var(--live);
+}
+
+.fr-plan-btn-no.is-active {
+  border-color: rgba(231, 76, 60, .35);
+  background: rgba(231, 76, 60, .08);
+  color: #e74c3c;
+}
+
+.fr-meetup-modal {
+  width: min(460px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+
+.fr-meetup-when {
+  display: flex;
+  gap: 10px;
+}
+
+.fr-meetup-when .fr-add-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.fr-meetup-invitees {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fr-meetup-invitee-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.fr-meetup-invitee-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.fr-meetup-empty-invitees {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0;
+}
+
+.fr-meetup-error {
+  font-size: 12px;
+  color: #e74c3c;
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .fr-plan-card {
+    flex-wrap: wrap;
+    gap: 8px 10px;
+  }
+  .fr-plan-stack { display: none; }
+  .fr-plan-actions { margin-left: auto; }
+}
+
+/* ── "Ping me when free" nudge (inside the busy chip) ──────────── */
+.fr-nudge-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 4px;
+  padding: 2px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.fr-nudge-btn:hover {
+  color: var(--violet);
+  background: color-mix(in srgb, var(--violet) 10%, transparent);
+}
+.fr-nudge-btn.is-active {
+  color: var(--violet);
+  background: color-mix(in srgb, var(--violet) 14%, transparent);
+}

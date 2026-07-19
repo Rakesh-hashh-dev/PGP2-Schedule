@@ -1283,6 +1283,33 @@ html[data-theme="dark"] .tabs-wrapper {
   outline-offset: 2px;
 }
 
+/* Self on-leave banner (Today/Tomorrow) — violet accent, links back to
+   the Leave Planner so it can be cancelled. */
+.away-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--violet) 40%, transparent);
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin-top: 14px;
+  cursor: pointer;
+  transition: box-shadow .15s, transform .1s;
+  font-size: 13px;
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--violet) 10%, transparent);
+}
+.away-banner:hover { transform: translateY(-1px); }
+.away-banner:active { transform: scale(.99); }
+.away-banner svg { color: var(--violet); flex-shrink: 0; }
+.away-banner strong { display: block; font-size: 13.5px; }
+.away-banner > span > span:last-child { font-size: 12px; color: var(--muted); }
+.away-banner-go { margin-left: auto; font-weight: 700; font-size: 12.5px; color: var(--violet); flex-shrink: 0; }
+
 /* Up-next state: amber accent (green is reserved for "live/now") */
 .now-banner.is-next {
   border-color: rgba(245, 158, 11, .4);
@@ -2209,7 +2236,7 @@ html[data-theme="dark"] .tabs-wrapper {
   -webkit-mask-image: linear-gradient(to right, transparent 0%, transparent 50%, black 90%);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 768px), (max-width: 1024px) and (orientation: portrait) {
   .hero-img-bg {
       opacity: 0.25;
       mask-image: linear-gradient(to right, transparent 0%, transparent 45%, rgba(0, 0, 0, 0.3) 60%, black 100%);
@@ -5277,7 +5304,7 @@ html[data-theme="dark"] .subj-9 { --subj: #E879F9; --subj-bg: rgba(232, 121, 249
   gap: 10px;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1025px), (min-width: 768px) and (orientation: landscape) {
   .att-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -7841,7 +7868,7 @@ html[data-theme="dark"] .bnav {
     }
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1025px), (min-width: 768px) and (orientation: landscape) {
   .mobile-only {
       display: none !important;
     }
@@ -7852,7 +7879,7 @@ html[data-theme="dark"] .bnav {
 }
 
 /* Mobile: hide-mobile toggles views based on current tab */
-@media (max-width: 767px) {
+@media (max-width: 767px), (min-width: 768px) and (max-width: 1024px) and (orientation: portrait) {
   .hide-mobile {
       display: none;
     }
@@ -7884,7 +7911,7 @@ html[data-theme="dark"] .bnav {
   min-height: 100vh;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1025px), (min-width: 768px) and (orientation: landscape) {
   .app-shell {
       display: flex;
     }
@@ -7895,7 +7922,7 @@ html[data-theme="dark"] .bnav {
   display: none;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1025px), (min-width: 768px) and (orientation: landscape) {
   .sidebar {
       display: flex;
       flex-direction: column;
@@ -8947,7 +8974,7 @@ html[data-theme="dark"] .bnav {
 }
 
 /* Desktop + tablet: full layout with sidebar (icon rail on tablet) */
-@media (min-width: 768px) {
+@media (min-width: 1025px), (min-width: 768px) and (orientation: landscape) {
   .app {
       flex: 1;
       min-width: 0;
@@ -9012,8 +9039,9 @@ html[data-theme="dark"] .bnav {
 
 /* Tablet tier (768–1023): the sidebar is a 68px icon rail (forced collapsed
    in App.jsx), so tighten page padding and slim the week rail to keep the
-   main column usable at iPad-portrait widths */
-@media (min-width: 768px) and (max-width: 1023px) {
+   main column usable at narrow-landscape widths (iPad portrait now gets the
+   mobile view via the orientation-aware breakpoints) */
+@media (min-width: 768px) and (max-width: 1023px) and (orientation: landscape) {
   .app {
       padding: 24px 24px 64px;
     }
@@ -10368,7 +10396,7 @@ body.premium-mode .rail>li:nth-child(10) {
   white-space: nowrap;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1025px), (min-width: 768px) and (orientation: landscape) {
   .app-toast {
     bottom: 32px;
   }
@@ -10567,7 +10595,7 @@ html[data-theme="dark"] .install-banner-btn {
   transform: rotate(90deg);
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1025px), (min-width: 768px) and (orientation: landscape) {
   .install-banner {
     bottom: 32px;
     left: auto;
@@ -13920,7 +13948,7 @@ a.sb-quicklink {
 
 /* ── Subject-wise chart: clamp edge tooltips on phones ──
    Centered tooltips on the first/last bar run off the screen edges. */
-@media (max-width: 768px) {
+@media (max-width: 768px), (max-width: 1024px) and (orientation: portrait) {
   .att-chart-col:first-child .att-ctip {
     left: -6px;
     transform: translateX(0) translateY(4px) scale(.96);
@@ -13997,7 +14025,7 @@ a.sb-quicklink {
   display: none;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1025px), (min-width: 768px) and (orientation: landscape) {
   .fr-agenda-fab {
     position: fixed;
     bottom: 30px;
@@ -14127,7 +14155,7 @@ a.sb-quicklink {
    Floating glass panel, animated: aurora drift, entrance cascade,
    breathing active pill, progress sheens. Same DOM as classic.
    ═══════════════════════════════════════════════════════════════════ */
-@media (min-width: 768px) {
+@media (min-width: 1025px), (min-width: 768px) and (orientation: landscape) {
   .sidebar.sb-aurora {
     top: 12px;
     width: 284px;
@@ -14638,6 +14666,36 @@ html[data-theme="dark"] .lp-field input::-webkit-calendar-picker-indicator {
   cursor: default;
 }
 
+.lp-picker-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+/* Book Leave — commits the drafted range and marks it on-leave for the user
+   (self + friends), distinct from Apply which only previews attendance impact. */
+.lp-book {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-shrink: 0;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 10px 18px;
+  border: 1px solid var(--violet);
+  border-radius: 11px;
+  background: var(--violet);
+  color: #fff;
+  cursor: pointer;
+  transition: opacity .15s, background .15s, transform .1s;
+}
+.lp-book:hover:not(:disabled) { filter: brightness(1.05); }
+.lp-book:active:not(:disabled) { transform: scale(.97); }
+.lp-book:disabled { opacity: .7; cursor: default; }
+.lp-book.is-done {
+  background: var(--violet-dim);
+  color: var(--violet);
+  border-color: var(--violet);
+}
+
 /* ── Summary strip ── */
 /* ── Summary card: reuses .wglance from the Week view; only the breach
       accent + inline warning icon are Leave-Planner specific. ── */
@@ -14688,7 +14746,7 @@ html[data-theme="dark"] .lp-glance-bad { --wg-accent: 224, 160, 68; }
 .lp-sticky-chev { margin-left: auto; color: var(--muted); flex-shrink: 0; }
 .lp-sticky .lp-glance-warn { margin-left: auto; }
 .lp-sticky .lp-glance-warn + .lp-sticky-chev { margin-left: 0; }
-@media (max-width: 767px) {
+@media (max-width: 767px), (min-width: 768px) and (max-width: 1024px) and (orientation: portrait) {
   .lp-sticky { display: flex; }
 }
 
@@ -14952,7 +15010,8 @@ html[data-theme="dark"] .lp-glance-bad { --wg-accent: 224, 160, 68; }
   .lp-picker-row { flex-direction: column; align-items: stretch; }
   .lp-quick { width: 100%; }
   .lp-quick button { flex: 1; padding: 10px 8px; text-align: center; }
-  .lp-apply { width: 100%; padding: 13px; }
+  .lp-picker-actions { width: 100%; }
+  .lp-apply, .lp-book { flex: 1; padding: 13px; }
 
   .lp-impact-grid { grid-template-columns: 1fr 1fr; }
 }
@@ -14970,4 +15029,89 @@ html[data-theme="dark"] .lp-glance-bad { --wg-accent: 224, 160, 68; }
   .lp-row:hover,
   .lp-impact:hover .lp-dot,
   .lp-row:hover .lp-dot { transform: none; }
+}
+
+/* Glowing Gradient Dividers */
+.glowing-divider {
+  height: 1px;
+  width: 100%;
+  border: none;
+  margin: 32px 0;
+  opacity: 0.8;
+}
+
+.glowing-divider.blue {
+  background: linear-gradient(90deg, transparent 0%, var(--blue, #3B82F6) 100%);
+  box-shadow: 0 0 12px 1px rgba(59, 130, 246, 0.5);
+}
+
+.glowing-divider.purple {
+  background: linear-gradient(90deg, transparent 0%, var(--violet, #6D5BD0) 100%);
+  box-shadow: 0 0 12px 1px rgba(109, 91, 208, 0.5);
+}
+
+.glowing-divider.pink {
+  background: linear-gradient(90deg, transparent 0%, #FF4785 100%);
+  box-shadow: 0 0 12px 1px rgba(255, 71, 133, 0.5);
+}
+
+/* ── Leave Planner: optional away sharing (social plan Phase E) ── */
+.lp-share-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 10px 0 14px;
+  padding: 10px 14px;
+  background: color-mix(in srgb, var(--violet) 6%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--violet) 20%, transparent);
+  border-radius: 12px;
+}
+
+.lp-share-hint {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.lp-share-on {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--violet);
+}
+
+.lp-share-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--violet);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--violet) 35%, transparent);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.lp-share-btn:hover {
+  background: color-mix(in srgb, var(--violet) 10%, transparent);
+}
+
+.lp-share-btn:disabled {
+  opacity: .6;
+  cursor: default;
+}
+
+/* Away chip on friend cards (Social page) */
+.fr-friend-away {
+  background: color-mix(in srgb, var(--amber) 12%, transparent);
+  color: var(--amber-text, var(--amber));
+  border: 1px solid color-mix(in srgb, var(--amber) 28%, transparent);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }

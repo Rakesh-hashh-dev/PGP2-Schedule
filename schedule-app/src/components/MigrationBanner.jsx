@@ -13,18 +13,17 @@
 import { useEffect, useState } from "react";
 
 export default function MigrationBanner({ state }) {
-  const [visible, setVisible] = useState(true);
-
-  // Auto-dismiss "done" banner after 2.5 seconds
+  // Auto-dismiss the "done" banner after 2.5s. Visibility is derived: it only
+  // hides while state is still "done" after the timer fired, so any state
+  // change (e.g. a retry flipping back to "restoring") re-shows it naturally.
+  const [doneDismissed, setDoneDismissed] = useState(false);
   useEffect(() => {
-    if (state === "done") {
-      const t = setTimeout(() => setVisible(false), 2500);
-      return () => clearTimeout(t);
-    }
-    setVisible(true);
+    if (state !== "done") return;
+    const t = setTimeout(() => setDoneDismissed(true), 2500);
+    return () => { clearTimeout(t); setDoneDismissed(false); };
   }, [state]);
 
-  if (!visible) return null;
+  if (state === "done" && doneDismissed) return null;
 
   const config = {
     restoring: {

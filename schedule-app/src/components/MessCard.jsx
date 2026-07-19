@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { UtensilsCrossed, ChevronDown, CalendarDays, Heart } from "lucide-react";
+import { useState, useEffect } from "react";
+import { UtensilsCrossed, ChevronDown, CalendarDays, Heart, Users } from "lucide-react";
+import { fetchFriendStatuses } from "../lib/status.js";
 import { getMenuForDay, MEAL_TIMES, favouritesInMenu } from "../data/messMenu.js";
 import FullMenuModal, { ItemChips, MealRating } from "./MessMenuModal.jsx";
 import { useMessData, MEAL_ICONS, toMin, fmt12, fmtIn, mealStatus } from "../lib/messView.js";
@@ -12,10 +13,26 @@ function fmt12min(min) {
   return fmt12(`${Math.floor(min / 60)}:${String(min % 60).padStart(2, "0")}`);
 }
 
-export default function MessCard({ now, userId }) {
+export default function MessCard({ now, userId, friends = [] }) {
   const [expanded, setExpanded] = useState(false);
   const [fullMenuOpen, setFullMenuOpen] = useState(false);
   const { favourites, toggleFav, ratings } = useMessData(now, userId);
+
+  // Friends who set the "Heading to mess" quick status (fresh fetch — the
+  // local friends cache is too stale for a 30-min status). The effect only
+  // stores the raw status map; names derive at render so the list empties
+  // naturally when friends change.
+  const [statusMap, setStatusMap] = useState({});
+  const friendCloudKey = friends.map(f => f.cloudId).filter(Boolean).sort().join(",");
+  useEffect(() => {
+    if (!friendCloudKey) return;
+    let alive = true;
+    fetchFriendStatuses(friendCloudKey.split(",")).then(map => { if (alive) setStatusMap(map); });
+    return () => { alive = false; };
+  }, [friendCloudKey]);
+  const messMates = friends
+    .filter(f => f.cloudId && statusMap[f.cloudId]?.id === "mess")
+    .map(f => f.name.split(" ")[0]);
 
   const nowMin = now.getHours() * 60 + now.getMinutes();
 
@@ -99,6 +116,11 @@ export default function MessCard({ now, userId }) {
             <div className="mess-head">
               <span className="mess-title"><UtensilsCrossed size={14} /> Mess Menu</span>
               <span className="mess-head-right">
+                {messMates.length > 0 && (
+                  <span className="mess-friends-pill" title={`Heading to mess: ${messMates.join(", ")}`}>
+                    <Users size={11} /> {messMates[0]}{messMates.length > 1 ? ` +${messMates.length - 1}` : ""} heading over
+                  </span>
+                )}
                 {favToday.length > 0 && (
                   <span className="mess-fav-pill" title={favToday.join(", ")}>
                     <Heart size={11} fill="currentColor" /> {favToday.length} fav{favToday.length === 1 ? "" : "s"}

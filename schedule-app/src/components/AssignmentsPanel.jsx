@@ -128,7 +128,7 @@ function SwipeableTaskRow({ task, onToggle, onDelete, onOpen }) {
       <div
         ref={rowRef}
         className={`assign-task-row ${task.completed ? "completed" : ""} ${dx !== 0 ? "dragging" : ""}`}
-        style={{ transform: `translateX(${dx}px)`, transition: dragRef.current ? "none" : "transform 0.25s cubic-bezier(0.16,1,0.3,1)" }}
+        style={{ transform: `translateX(${dx}px)`, transition: dx !== 0 ? "none" : "transform 0.25s cubic-bezier(0.16,1,0.3,1)" }}
         onPointerDown={onPointerDown} onPointerMove={onPointerMove}
         onPointerUp={onPointerEnd} onPointerCancel={onPointerEnd}
         onClick={handleClick}

@@ -21,17 +21,17 @@ export const DAILY_BREAKFAST = [
 export const BASE_MENU = {
   0: { // Sunday
     breakfast: ["Dosa", "Sambhar", "Coconut Chutney"],
-    lunch: ["Plain Rice", "Jeera Aloo with Amchur", "Dal Makhani", "Dahi Tidkari", "Plain Curd", "Green Salad"],
+    lunch: ["Plain Rice", "Aloo Capsicum", "Dal Makhani", "Dahi Tidkari", "Plain Curd", "Green Salad"],
     snacksW13: ["Pani Puri", "Coffee"],
     snacksW24: [], // sheet leaves Week 2&4 Sunday blank → falls back to Week 1&3
     dinner: ["Plain Rice", "Paneer Butter Masala", "Chicken Kolhapuri", "Black Masoor Daal", "Roti", "Onion Laccha Salad", "Ice Cream"],
   },
   1: { // Monday
     breakfast: ["Uttapam", "Coconut Chutney", "Red Chutney"],
-    lunch: ["Plain Rice", "Rajma Masala", "Daal Bukhara", "Kaddu Chatpata", "Boondi Raita", "Green Salad"],
+    lunch: ["Onion Rice", "Rajma Masala", "Daal Bukhara", "Kaddu Chatpata", "Boondi Raita", "Green Salad"],
     snacksW13: ["Kachori + Tamarind & Green Chutney", "Tea"],
     snacksW24: ["Papdi Chaat with Dahi & Chutney", "Tea"],
-    dinner: ["Plain Rice", "Mix Veg", "Red Masoor Daal", "Besan Ke Gatte", "Roti", "Green Salad"],
+    dinner: ["Plain Rice", "Mix Veg", "Red Masoor Daal", "Black Chana Masala Dry", "Roti", "Green Salad"],
   },
   2: { // Tuesday
     breakfast: ["Paneer Paratha", "Curd"],
@@ -41,8 +41,8 @@ export const BASE_MENU = {
     dinner: ["Plain Rice", "Chole Curry", "Navratan Dal", "Cabbage Matar", "Roti", "Green Salad", "Kheer"],
   },
   3: { // Wednesday
-    breakfast: ["Tarri Poha", "Matar Sabji + Sev"],
-    lunch: ["Plain Rice", "Kadhi Pakore", "Red Masoor Daal", "Kundru / Parwal Masala", "Boondi Raita", "Green Salad"],
+    breakfast: ["Tarri Poha", "Matar Sabji + Sev", "Omelette"],
+    lunch: ["Plain Rice", "Kadhi Pakore", "Red Masoor Daal", "Jeera Aloo with Amchur", "Boondi Raita", "Green Salad"],
     snacksW13: ["Chole Kulche + Onion & Lemon", "Coffee"],
     snacksW24: ["Fried Idli", "Coffee"],
     dinner: ["Veg Biryani", "Chicken Biryani", "Matar Paneer", "Roti", "Vinegar Onion & Raita", "Gulab Jamun"],
@@ -51,12 +51,12 @@ export const BASE_MENU = {
     breakfast: ["Poori", "Aloo Tomato Sabzi"],
     lunch: ["Onion Rice", "Mix Veg Masala", "Chana Dal Fry", "Sambhar", "Plain Curd", "Green Salad"],
     snacksW13: ["Samosa + Tamarind Chutney", "Tea"],
-    snacksW24: ["Onion Bhajji", "Tea"],
-    dinner: ["Jeera Rice", "Mushroom Do Pyaza", "Dal Makhani", "Veg Manchurian", "Roti", "Onion Salad", "Hot n Sour Soup"],
+    snacksW24: ["Vermicelli Upma", "Tea"],
+    dinner: ["Jeera Rice", "Mushroom Do Pyaza", "Dal Makhani", "Veg Manchurian", "Roti", "Onion Salad", "Sweet Corn Soup"],
   },
   5: { // Friday
     breakfast: ["Idly + Vada", "Sambhar", "Coconut Chutney"],
-    lunch: ["Plain Rice", "Kurkuri Bhindi", "Dal Lehsuni", "Aloo Soyabean", "Lemon Water", "Green Salad"],
+    lunch: ["Plain Rice", "Kurkuri Bhindi", "Dal Lehsuni", "Aloo Soyabean", "Masala Buttermilk", "Green Salad"],
     snacksW13: ["Pav Bhaji", "Coffee"],
     snacksW24: ["Vada Pav", "Coffee"],
     dinner: ["Plain Rice", "Kadhai Paneer (Red Gravy)", "Butter Chicken", "Green Moong Daal", "Roti", "Green Salad", "Fruit Custard"],
@@ -66,7 +66,7 @@ export const BASE_MENU = {
     lunch: ["Chole Bhature", "Jeera Rice", "Black Masoor Daal", "Lassi", "Green Salad"],
     snacksW13: ["Red Sauce Pasta", "Tea"],
     snacksW24: ["Vegetable Macaroni", "Tea"],
-    dinner: ["Veg Fried Rice", "Chilly Potato", "Mix Daal", "Mix Veg Kofta", "Roti", "Green Salad", "Sweet Corn Soup"],
+    dinner: ["Veg Fried Rice", "Chilly Potato", "Mix Daal", "Mix Veg Kofta", "Roti", "Green Salad", "Hot n Sour Soup"],
   },
 };
 

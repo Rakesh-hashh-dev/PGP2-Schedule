@@ -627,6 +627,8 @@ const SOCIAL_COPY = {
   friend_accepted: (name) => ({ title: "Friend request accepted", body: `${name} accepted your request` }),
   group_invite:    (name, group) => ({ title: "Added to a group", body: `${name} added you to "${group}"` }),
   friend_removed:  (name) => ({ title: "Friend removed", body: `${name} removed you` }),
+  group_poll:      (name, group) => ({ title: "📊 New poll", body: `${name} started a poll in "${group}"` }),
+  board_contact:   (name, title) => ({ title: "📦 Campus Board", body: `${name} is interested in "${title}"` }),
 };
 
 /**
@@ -643,14 +645,18 @@ export async function sendSocialNotification(targetUserId, type, meta = {}) {
   const dedupKey =
     type === "group_invite"
       ? `social:group_invite:${meta.group || ""}:${meta.fromId}`
-      : `social:${type}:${meta.fromId}`;
+      : type === "group_poll"
+        ? `social:group_poll:${meta.pollId || ""}:${meta.fromId}`
+        : type === "board_contact"
+          ? `social:board_contact:${meta.postId || ""}:${meta.fromId}`
+          : `social:${type}:${meta.fromId}`;
   try {
     const { error } = await supabase.from("notifications").insert({
       user_id: targetUserId,
       type,
       title: copy.title,
       body: copy.body,
-      url: "/?view=friends",
+      url: type === "board_contact" ? "/?view=board" : "/?view=friends",
       icon: "/icon-push-bell.png",
       data: {
         from_id: meta.fromId,          // pinned to caller by RLS — do not change key

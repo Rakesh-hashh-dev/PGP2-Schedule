@@ -21,6 +21,12 @@ const SIZE = 192;
 // node_modules/lucide-react/dist/esm/icons/*.mjs (calendar-check,
 // calendar-days, megaphone, user-check, clipboard-list)
 const ICONS = {
+  glance: {
+    accent: ["#CFF7FF", "#22D3EE"],
+    nodes: [
+      ["path", { d: "M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z" }],
+    ],
+  },
   today: {
     accent: ["#EBD9FF", "#A855F7"],
     nodes: [

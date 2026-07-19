@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import "../styles/compare.css";
-import { ArrowLeft, Columns, Layers, Clock, BookOpen, UserCheck, Sparkles, ChevronDown, Copy, Check, CalendarDays, ArrowRight as ArrowRightIcon, Flame, X, CalendarX2, PartyPopper } from "lucide-react";
+import { ArrowLeft, Columns, Layers, Clock, BookOpen, UserCheck, Sparkles, ChevronDown, Copy, Check, CalendarDays, ArrowRight as ArrowRightIcon, Flame, X, CalendarX2, PartyPopper, CalendarPlus } from "lucide-react";
 import { EmptyState } from "./ui.jsx";
 import { findFreeSlots, findGroupFreeSlots, scheduleInsights, friendVisibleClasses, avatarGradient } from "../lib/friends.js";
 
@@ -101,7 +101,7 @@ function HeaderIdentity({ mode, label, targets }) {
   return <Avatar name={label} size={32} />;
 }
 
-function FreeSlotGroups({ groups, isMultiDay, longestFreeIdx, maxFreeDuration, totalSlots }) {
+function FreeSlotGroups({ groups, isMultiDay, longestFreeIdx, maxFreeDuration, totalSlots, onPlanSlot }) {
   return (
     <>
       {groups.map((group, gi) => (
@@ -123,6 +123,11 @@ function FreeSlotGroups({ groups, isMultiDay, longestFreeIdx, maxFreeDuration, t
                   )}
                   {fmtDuration(slot.durationMin)} free
                 </span>
+                {onPlanSlot && (
+                  <button className="cv-plan-btn" onClick={() => onPlanSlot(slot)} title="Turn this slot into a plan">
+                    <CalendarPlus size={12} /> Plan
+                  </button>
+                )}
               </div>
               <div className="cv-free-bar">
                 <div
@@ -154,7 +159,7 @@ function FreeSlotGroups({ groups, isMultiDay, longestFreeIdx, maxFreeDuration, t
  */
 export default function CompareView({
   mode, friendData, groupData,
-  myClasses, mine, allClasses, enrolled, legend, now, onExit,
+  myClasses, mine, allClasses, enrolled, legend, now, onExit, onPlanSlot,
 }) {
   const [viewMode, setViewMode] = useState("merged"); // "merged" | "side"
   const [dayFilter, setDayFilter] = useState("today"); // "today", "tomorrow", "week"
@@ -594,6 +599,7 @@ export default function CompareView({
                   longestFreeIdx={longestFreeIdx}
                   maxFreeDuration={maxFreeDuration}
                   totalSlots={freeSlots.length}
+                  onPlanSlot={onPlanSlot}
                 />
                 {canTruncate && groupedFreeSlots.length > PREVIEW_DAYS && (
                   <button className="cv-show-more" onClick={() => setMoreModal("free")}>
@@ -710,6 +716,7 @@ export default function CompareView({
                     longestFreeIdx={longestFreeIdx}
                     maxFreeDuration={maxFreeDuration}
                     totalSlots={freeSlots.length}
+                    onPlanSlot={onPlanSlot}
                   />
                 </div>
               )}

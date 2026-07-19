@@ -96,6 +96,13 @@ export async function pushProfile(userId, courses, userName, optionalLastSeenNot
     const asgn = Object.keys(localAsgn).length ? localAsgn : (remote._assignments || {});
     if (Object.keys(asgn).length) dbCourses._assignments = asgn;
 
+    // Carry over cloud meta keys this write path doesn't own (_status,
+    // _hide_from_matchmaker, _dismissedChangeKeys, _mutedCourses, …) so a
+    // profile push from this device doesn't wipe them
+    for (const [k, v] of Object.entries(remote)) {
+      if (k.startsWith("_") && !(k in dbCourses)) dbCourses[k] = v;
+    }
+
     await supabase.from("profiles").upsert(
       { user_id: userId, courses: dbCourses, updated_at: new Date().toISOString() },
       { onConflict: "user_id" }

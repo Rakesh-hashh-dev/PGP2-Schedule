@@ -3,9 +3,10 @@ import {
   CalendarOff, ArrowLeft, AlertTriangle, TrendingDown, Clock,
   MapPin, CalendarCheck2, PartyPopper, ChevronRight, ArrowRight, Check,
   ChevronDown, ChevronUp, CalendarRange, CalendarCheck, Flame,
-  Copy, ShieldCheck, AlertCircle,
+  Copy, ShieldCheck, AlertCircle, Users, X,
 } from "lucide-react";
 import { sessionKey, courseSkipStats, isExamSession } from "../lib/attendance.js";
+import { loadMyAway, setMyAway, fmtAwayEnd } from "../lib/status.js";
 import { subjectClass } from "../lib/subjectColors.js";
 import { EmptyState } from "./ui.jsx";
 
@@ -69,7 +70,7 @@ function durHours(c) {
   return ((eh * 60 + em) - (sh * 60 + sm)) / 60;
 }
 
-export default function LeavePlanner({ allClasses, enrolled, legend, attendance, now, termStart, termEnd, onBack, onOpenAttendance }) {
+export default function LeavePlanner({ allClasses, enrolled, legend, attendance, now, termStart, termEnd, onBack, onOpenAttendance, userId, awayEnabled = true, onAwayChange }) {
   const todayISO = ymd(now);
   const minDate = termStart && termStart > todayISO ? termStart : todayISO;
   const maxDate = termEnd || undefined;
@@ -99,6 +100,34 @@ export default function LeavePlanner({ allClasses, enrolled, legend, attendance,
   const draftDays = dayDiff(draftFrom, draftTo);
 
   const codes = Object.keys(enrolled || {});
+
+  // Away sharing (social plan Phase E) — strictly opt-in: nothing is published
+  // until the user taps Share; friends then see an "Away till …" chip instead
+  // of free/busy on the Social page while the window is current.
+  const [sharedAway, setSharedAway] = useState(() => loadMyAway());
+  const [shareBusy, setShareBusy] = useState(false);
+  const stopSharingAway = async () => {
+    if (shareBusy) return;
+    setShareBusy(true);
+    await setMyAway(userId, null);
+    setSharedAway(null);
+    onAwayChange?.(null);
+    setShareBusy(false);
+  };
+  // "Book Leave" — the one-tap version: applies the drafted dates (so the
+  // impact preview below reflects it) and marks the window on leave in the
+  // same action, using the draft values directly rather than waiting on
+  // `from`/`to` state so there's no race with the Apply click.
+  const isBooked = sharedAway && sharedAway.from === draftFrom && sharedAway.to === draftTo;
+  const bookLeave = async () => {
+    if (shareBusy) return;
+    setFrom(draftFrom); setTo(draftTo);
+    setShareBusy(true);
+    await setMyAway(userId, { from: draftFrom, to: draftTo });
+    setSharedAway({ from: draftFrom, to: draftTo });
+    onAwayChange?.({ from: draftFrom, to: draftTo });
+    setShareBusy(false);
+  };
 
   // Every enrolled, attendance-counting session that falls inside the leave window.
   const missed = useMemo(() => {
@@ -308,11 +337,39 @@ export default function LeavePlanner({ allClasses, enrolled, legend, attendance,
             <button className={draftDays === 3 ? "on" : ""} onClick={() => setSpan(3)}>3 days</button>
             <button className={draftDays === 7 ? "on" : ""} onClick={() => setSpan(7)}>1 week</button>
           </div>
-          <button className="lp-apply" onClick={apply} disabled={!dirty}>
-            <Check size={15} /> {dirty ? "Apply" : "Applied"}
-          </button>
+          <div className="lp-picker-actions">
+            <button className="lp-apply" onClick={apply} disabled={!dirty}>
+              <Check size={15} /> {dirty ? "Apply" : "Applied"}
+            </button>
+            {awayEnabled && userId && (
+              <button
+                className={`lp-book${isBooked ? " is-done" : ""}`}
+                onClick={isBooked ? stopSharingAway : bookLeave}
+                disabled={shareBusy}
+                title={isBooked ? "You're marked on leave for these dates — tap to cancel" : "Mark these dates as leave — visible to you and your friends"}
+              >
+                {shareBusy
+                  ? "Booking…"
+                  : isBooked
+                    ? <><CalendarOff size={15} /> On leave</>
+                    : <><CalendarOff size={15} /> Book leave</>}
+              </button>
+            )}
+          </div>
         </div>
       </section>
+
+      {/* ── Confirmation once a leave window is booked ── */}
+      {awayEnabled && userId && sharedAway && (
+        <div className="lp-share-row">
+          <span className="lp-share-on">
+            <Users size={13} /> You and your friends can see you&rsquo;re away till {fmtAwayEnd(sharedAway.to)}
+          </span>
+          <button className="lp-share-btn" onClick={stopSharingAway} disabled={shareBusy}>
+            <X size={13} /> Cancel leave
+          </button>
+        </div>
+      )}
 
       {!applied ? (
         <EmptyState icon={CalendarRange} title="Plan your leave"

@@ -1388,3 +1388,22 @@
     }
 }
 
+
+/* "Turn this free slot into a plan" (meetups) */
+.cv-plan-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--violet);
+  background: color-mix(in srgb, var(--violet) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--violet) 28%, transparent);
+  border-radius: 8px;
+  padding: 3px 8px;
+  cursor: pointer;
+  flex: none;
+}
+.cv-plan-btn:hover {
+  background: color-mix(in srgb, var(--violet) 15%, transparent);
+}

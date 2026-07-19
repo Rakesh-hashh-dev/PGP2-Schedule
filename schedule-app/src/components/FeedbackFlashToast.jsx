@@ -5,10 +5,18 @@ export default function FeedbackFlashToast({ config, onOpenFeedback, onClose }) 
   const [visible, setVisible] = useState(false);
   const [closing, setClosing] = useState(false);
 
+  const handleClose = () => {
+    setClosing(true);
+    setTimeout(() => {
+      setVisible(false);
+      if (onClose) onClose();
+    }, 300); // Wait for slide-out animation to finish
+  };
+
   useEffect(() => {
     // Small delay to allow the slide-in animation to trigger after mount
     const timer = setTimeout(() => setVisible(true), 100);
-    
+
     // Auto-dismiss after 15 seconds unless they interact
     const autoDismiss = setTimeout(() => {
       handleClose();
@@ -18,15 +26,8 @@ export default function FeedbackFlashToast({ config, onOpenFeedback, onClose }) 
       clearTimeout(timer);
       clearTimeout(autoDismiss);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const handleClose = () => {
-    setClosing(true);
-    setTimeout(() => {
-      setVisible(false);
-      if (onClose) onClose();
-    }, 300); // Wait for slide-out animation to finish
-  };
 
   const handleClickSubmit = () => {
     handleClose();

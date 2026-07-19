@@ -1,0 +1,326 @@
+/* ── Glance view (?view=glance) — the PWA-shortcut quick read ── */
+
+.glance {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 560px;
+  animation: glance-in .28s var(--ease-out-strong) both;
+}
+
+@keyframes glance-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+.glance-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0 2px;
+}
+
+.glance-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 17px;
+  color: var(--text);
+  letter-spacing: -0.2px;
+}
+
+.glance-title svg { color: var(--violet); }
+
+.glance-date {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ── Now / Next hero ── */
+.glance-hero {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px 16px;
+  cursor: pointer;
+  font: inherit;
+  color: var(--text);
+  transition: border-color .15s ease, transform .15s ease;
+}
+
+.glance-hero:active { transform: scale(.985); }
+.glance-hero.is-live { border-color: var(--live); box-shadow: 0 0 0 3px var(--live-dim); }
+
+.glance-hero-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.glance-hero-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--live);
+}
+
+.glance-hero:not(.is-live) .glance-hero-chip { color: var(--violet); }
+
+.glance-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: glance-pulse 1.6s ease infinite;
+}
+
+@keyframes glance-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .35; }
+}
+
+.glance-hero-day { font-size: 11px; color: var(--muted); }
+.glance-hero-eta { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+.glance-hero.is-live .glance-hero-eta { color: var(--live); }
+
+.glance-hero-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 16.5px;
+  letter-spacing: -0.2px;
+  margin-bottom: 6px;
+}
+
+.glance-hero-meta {
+  display: flex;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.glance-hero-meta span { display: inline-flex; align-items: center; gap: 4px; }
+
+.glance-progress {
+  margin-top: 10px;
+  height: 4px;
+  border-radius: 99px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.glance-progress-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: var(--live);
+  transition: width .6s ease;
+}
+
+.glance-hero-empty {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: default;
+  color: var(--muted);
+}
+
+.glance-hero-empty svg { color: var(--amber); flex-shrink: 0; }
+.glance-hero-empty strong { display: block; color: var(--text); font-size: 14px; }
+.glance-hero-empty span { font-size: 12px; }
+
+/* ── Sections ── */
+.glance-sec {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 10px 14px 12px;
+}
+
+.glance-sec-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 4px 0;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
+.glance-sec-head > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted);
+}
+
+.glance-sec-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--violet);
+}
+
+.glance-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.glance-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 13px;
+  border-top: 1px solid var(--line);
+  min-width: 0;
+}
+
+.glance-row:first-child { border-top: 0; }
+
+.glance-row-time {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  width: 40px;
+}
+
+.glance-row-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.glance-row-room {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.glance-row-more {
+  justify-content: center;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.glance-kind {
+  display: inline-flex;
+  color: var(--blue);
+  flex-shrink: 0;
+}
+
+.glance-kind.is-exam { color: var(--danger); }
+
+/* ── Mess meal strip ── */
+.glance-meal {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+  min-width: 0;
+}
+
+.glance-meal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--amber);
+  flex-shrink: 0;
+}
+
+.glance-acc-dinner .glance-meal-icon { color: var(--violet); }
+.glance-acc-lunch .glance-meal-icon { color: var(--live); }
+
+.glance-meal-body { flex: 1; min-width: 0; }
+
+.glance-meal-name {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.glance-meal-time { font-size: 11px; font-weight: 400; color: var(--muted); }
+
+.glance-meal-tag {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--amber-text);
+  background: var(--amber-dim);
+  border-radius: 5px;
+  padding: 1px 5px;
+}
+
+.glance-meal-items {
+  font-size: 11.5px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.glance-meal-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--live);
+  flex-shrink: 0;
+}
+
+.glance-meal-when { font-size: 11.5px; color: var(--muted); flex-shrink: 0; }
+
+.glance-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 11px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--ink);
+  color: var(--bone);
+  font: 600 13.5px var(--body);
+  cursor: pointer;
+  transition: transform .15s ease, opacity .15s ease;
+}
+
+html[data-theme="dark"] .glance-open { background: var(--violet); color: #fff; }
+.glance-open:active { transform: scale(.985); }

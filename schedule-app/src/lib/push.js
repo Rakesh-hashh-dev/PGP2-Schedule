@@ -172,7 +172,9 @@ export async function unsubscribeFromPush() {
 //     quiet_end:   "07:00",
 //   }
 
-const PREFS_DEFAULTS = {
+// Documented target shape for the prefs matrix — getFullPrefs currently builds
+// its base from legacy columns, so this stays as reference until the swap.
+const _PREFS_DEFAULTS = {
   class_reminder:  { push: true,  inapp: true,  lead: 30 },
   class_cancelled: { push: true,  inapp: true },
   daily_summary:   { push: false, inapp: false, time: "07:20" },

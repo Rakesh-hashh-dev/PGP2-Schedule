@@ -39,4 +39,9 @@ export default defineConfig([
     files: ['src/main.jsx'],
     rules: { 'react-refresh/only-export-components': 'off' },
   },
+  {
+    // Build config runs under Node, not the browser
+    files: ['vite.config.js'],
+    languageOptions: { globals: { ...globals.node } },
+  },
 ])
