@@ -93,8 +93,18 @@ create index if not exists meetups_members_idx on public.meetups using gin (memb
 create index if not exists meetup_rsvps_meetup_idx on public.meetup_rsvps (meetup_id);
 
 -- Live RSVP counts + cancellations for subscribed clients
-alter publication supabase_realtime add table public.meetups;
-alter publication supabase_realtime add table public.meetup_rsvps;
+-- Idempotent add to the realtime publication (a plain `add table` errors if the
+-- table is already a member — this whole file is safe to re-run in the SQL Editor).
+do $$ begin
+  if not exists (select 1 from pg_publication_tables
+                 where pubname='supabase_realtime' and schemaname='public' and tablename='meetups') then
+    alter publication supabase_realtime add table public.meetups;
+  end if;
+  if not exists (select 1 from pg_publication_tables
+                 where pubname='supabase_realtime' and schemaname='public' and tablename='meetup_rsvps') then
+    alter publication supabase_realtime add table public.meetup_rsvps;
+  end if;
+end $$;
 
 -- ── Client-inserted meetup notifications ─────────────────────────────────────
 -- meetup_invite (creator → each invitee), meetup_rsvp (invitee → creator),

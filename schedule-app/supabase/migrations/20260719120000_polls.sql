@@ -91,10 +91,15 @@ alter publication supabase_realtime add table public.poll_votes;
 -- (client-side, same trust model as friend_request). Extend the scoped social
 -- INSERT policy from 20260717120000 to allow the new type; data.from_id stays
 -- pinned to the caller.
+--
+-- NOTE: polls (this file), meetups (20260719140000) and board (20260720120000)
+-- all recreate this policy. Each carries the FULL union of client-insertable
+-- types so the three migrations are safe to run/re-run in any order.
 drop policy if exists notif_social_insert on public.notifications;
 create policy notif_social_insert on public.notifications
   for insert
   with check (
-    type in ('friend_request','friend_accepted','group_invite','friend_removed','group_poll')
+    type in ('friend_request','friend_accepted','group_invite','friend_removed','group_poll',
+             'board_contact','meetup_invite','meetup_rsvp','meetup_cancelled')
     and (data->>'from_id') = (auth.jwt()->>'sub')
   );
