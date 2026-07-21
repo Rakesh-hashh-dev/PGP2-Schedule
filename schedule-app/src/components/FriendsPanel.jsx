@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import "../styles/friends.css";
-import { Copy, Link2, UserPlus, Users, Trash2, ArrowRight, Plus, X, Check, ChevronDown, ChevronUp, ChevronRight, RefreshCw, Globe, Lock, CheckCircle, AlertCircle, Info, AlertTriangle, Star, CalendarOff, Smile, BarChart3, CalendarPlus, BellRing } from "lucide-react";
+import { Copy, Link2, UserPlus, Users, Trash2, ArrowRight, Plus, X, Check, ChevronDown, ChevronUp, ChevronRight, RefreshCw, Globe, Lock, CheckCircle, AlertCircle, Info, AlertTriangle, Star, CalendarOff, Smile, BarChart3, CalendarPlus, BellRing, Coffee, BookOpen, Utensils, Dumbbell, Moon, MessageSquare, Pencil } from "lucide-react";
 import { SkeletonText } from "./ui.jsx";
 import MeetupsStrip from "./Meetups.jsx";
 import { fetchMyNudges, scheduleNudge, cancelNudge } from "../lib/nudges.js";
@@ -12,7 +12,7 @@ import {
   getOrCreateShareCode, pushFriendsToCloud, pushGroupsToCloud,
   refreshFriendCoursesFromCloud, sendFriendPing, hasPendingFriendRequest, deletePingsBetween,
   shareGroupWithMembers, unshareGroupFromMembers,
-  sendGroupChatMessage, fetchGroupChatMessages,
+  sendGroupChatMessage, fetchGroupChatMessages, deleteGroupChatMessage, editGroupChatMessage,
   sendSocialNotification,
   avatarGradient,
 } from "../lib/friends.js";
@@ -66,6 +66,19 @@ import {
   fetchFriendPresence, isAwayNow, fmtAwayEnd,
 } from "../lib/status.js";
 
+const STATUS_ICONS = {
+  chai: Coffee,
+  library: BookOpen,
+  mess: Utensils,
+  sports: Dumbbell,
+  resting: Moon,
+};
+
+function StatusIcon({ id, size = 14, className = "" }) {
+  const Icon = STATUS_ICONS[id] || MessageSquare;
+  return <Icon size={size} className={className} />;
+}
+
 function StatusModal({ current, onSave, onClose }) {
   const [presetId, setPresetId] = useState(current?.id || null);
   const [customText, setCustomText] = useState(current && !current.id ? current.text : "");
@@ -99,7 +112,7 @@ function StatusModal({ current, onSave, onClose }) {
               className={`fr-status-preset ${presetId === p.id ? "is-active" : ""}`}
               onClick={() => { setPresetId(prev => prev === p.id ? null : p.id); setCustomText(""); }}
             >
-              <span className="fr-status-preset-emoji">{p.emoji}</span> {p.text}
+              <span className="fr-status-preset-emoji" style={{ display: 'inline-flex', verticalAlign: '-3px' }}><StatusIcon id={p.id} size={15} /></span> {p.text}
             </button>
           ))}
         </div>
@@ -174,18 +187,19 @@ function GroupChat({ group, userId, userName }) {
   const [loading, setLoading] = useState(true);
   const [showPollComposer, setShowPollComposer] = useState(false);
   const [pollBusy, setPollBusy] = useState(false);
+  const [editingMsg, setEditingMsg] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+  const messagesEndRef = useState(null)[0];
 
   useEffect(() => {
     let channel;
     async function load() {
       setLoading(true);
-      // Phase 3: read from group_messages (not friend_pings)
       const msgs = await fetchGroupChatMessages(group.id);
       setMessages(msgs);
       setLoading(false);
 
       const { supabase } = await import("../lib/supabase.js");
-      // Phase 3: subscribe to group_messages INSERTs
       channel = supabase.channel(`group-chat-${group.id}`)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'group_messages', filter: `group_id=eq.${group.id}` }, payload => {
           const p = payload.new;
@@ -200,6 +214,12 @@ function GroupChat({ group, userId, userName }) {
             }];
           });
         })
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'group_messages', filter: `group_id=eq.${group.id}` }, payload => {
+          setMessages(prev => prev.filter(m => m.id !== payload.old.id));
+        })
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'group_messages', filter: `group_id=eq.${group.id}` }, payload => {
+          setMessages(prev => prev.map(m => m.id === payload.new.id ? { ...m, text: payload.new.text } : m));
+        })
         .subscribe();
     }
     load();
@@ -211,8 +231,19 @@ function GroupChat({ group, userId, userName }) {
     if (!text.trim()) return;
     const txt = text.trim();
     setText("");
-    // Phase 3: write to group_messages (not friend_pings)
-    await sendGroupChatMessage(group.id, userId, userName, txt);
+    if (editingMsg) {
+      if (txt !== editingMsg.text) await editGroupChatMessage(editingMsg.id, userId, txt);
+      setEditingMsg(null);
+    } else {
+      await sendGroupChatMessage(group.id, userId, userName, txt);
+    }
+  }
+
+  async function handleDeleteMsg(msgId) {
+    setDeletingId(msgId);
+    const ok = await deleteGroupChatMessage(msgId, userId);
+    if (ok) setMessages(prev => prev.filter(m => m.id !== msgId));
+    setDeletingId(null);
   }
 
   async function handleCreatePoll({ question, options, multi, closesAt }) {
@@ -221,10 +252,7 @@ function GroupChat({ group, userId, userName }) {
     setPollBusy(false);
     if (!poll) return;
     setShowPollComposer(false);
-    // Announce in the stream: the marker row is what everyone's chat renders
-    // as a PollCard (see the POLL_MARKER check below).
     await sendGroupChatMessage(group.id, userId, userName, `${POLL_MARKER}${poll.id}`);
-    // Best-effort heads-up for cloud-linked members (in-app alert + opt-in push)
     for (const memberId of group.cloudMemberIds || []) {
       if (memberId === userId) continue;
       sendSocialNotification(memberId, "group_poll", { fromId: userId, fromName: userName, group: group.name, pollId: poll.id });
@@ -232,37 +260,69 @@ function GroupChat({ group, userId, userName }) {
   }
 
   return (
-    <div className="fr-chat-box" style={{ marginTop: 16 }}>
+    <div className="fr-chat-box">
       <p className="fr-group-body-label">Group Chat</p>
-      <div className="fr-chat-msgs" style={{ maxHeight: 250, overflowY: "auto", padding: "12px", background: "rgba(0,0,0,0.02)", border: "1px solid rgba(0,0,0,0.05)", borderRadius: 12, marginBottom: 8, display: "flex", flexDirection: "column" }}>
-         {loading ? <SkeletonText lines={3} /> : messages.length === 0 ? <div className="fr-empty">No messages yet. Say hi!</div> : messages.map(m => (
-            m.text.startsWith(POLL_MARKER) ? (
-              <div key={m.id} style={{ display: "flex", gap: 8, marginBottom: 12, flexDirection: m.from_id === userId ? "row-reverse" : "row" }}>
-                 <div className="fr-group-avatar-dot" style={{ background: avatarGradient(m.name)[0], flexShrink: 0 }}>{m.name[0]?.toUpperCase()}</div>
-                 <PollCard pollId={m.text.slice(POLL_MARKER.length)} userId={userId} userName={userName} />
-              </div>
-            ) : (
-            <div key={m.id} style={{ display: "flex", gap: 8, marginBottom: 12, flexDirection: m.from_id === userId ? "row-reverse" : "row" }}>
+      <div className="fr-chat-msgs">
+         {loading ? <SkeletonText lines={3} /> : messages.length === 0 ? <div className="fr-empty">No messages yet. Say hi!</div> : messages.map(m => {
+           const isMine = m.from_id === userId;
+           const canDelete = isMine;
+           return m.text.startsWith(POLL_MARKER) ? (
+             <div key={m.id} style={{ display: "flex", gap: 8, marginBottom: 12, flexDirection: isMine ? "row-reverse" : "row" }}>
                <div className="fr-group-avatar-dot" style={{ background: avatarGradient(m.name)[0], flexShrink: 0 }}>{m.name[0]?.toUpperCase()}</div>
-               <div style={{ background: m.from_id === userId ? "var(--live)" : "#fff", color: m.from_id === userId ? "#fff" : "#000", padding: "8px 12px", borderRadius: 12, fontSize: 13, maxWidth: "85%", wordBreak: "break-word", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
-                  {m.from_id !== userId && <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 4, fontWeight: 700 }}>{m.name}</div>}
-                  {m.text}
+               <PollCard pollId={m.text.slice(POLL_MARKER.length)} userId={userId} userName={userName} />
+             </div>
+           ) : (
+             <div
+               key={m.id}
+               className="fr-chat-msg-row"
+               style={{ flexDirection: isMine ? "row-reverse" : "row" }}
+             >
+               <div className="fr-group-avatar-dot" style={{ background: avatarGradient(m.name)[0], flexShrink: 0 }}>{m.name[0]?.toUpperCase()}</div>
+               <div className={`fr-chat-msg-bubble ${isMine ? "fr-chat-msg-mine" : "fr-chat-msg-theirs"}`}>
+                 {!isMine && <div className="fr-chat-msg-name">{m.name}</div>}
+                 {m.text}
+                 {m.id === editingMsg?.id && <span style={{ fontSize: 10, opacity: 0.6, marginLeft: 8, fontStyle: "italic" }}>(Editing)</span>}
                </div>
-            </div>
-            )
-         ))}
+               {canDelete && (
+                 <div style={{ display: "flex", gap: 4 }}>
+                   <button
+                     className="fr-chat-del-btn"
+                     style={{ color: "var(--violet)", background: "rgba(124, 58, 237, 0.12)" }}
+                     onClick={() => { setEditingMsg({ id: m.id, text: m.text }); setText(m.text); }}
+                     title="Edit message"
+                     aria-label="Edit message"
+                   >
+                     <Pencil size={12} />
+                   </button>
+                   <button
+                     className="fr-chat-del-btn"
+                     onClick={() => handleDeleteMsg(m.id)}
+                     disabled={deletingId === m.id}
+                     title="Delete message"
+                     aria-label="Delete message"
+                   >
+                     <Trash2 size={12} />
+                   </button>
+                 </div>
+               )}
+             </div>
+           );
+         })}
       </div>
       {showPollComposer && (
         <div style={{ marginBottom: 8 }}>
           <PollComposer onSubmit={handleCreatePoll} onCancel={() => setShowPollComposer(false)} busy={pollBusy} />
         </div>
       )}
-      <form onSubmit={handleSend} style={{ display: "flex", gap: 6 }}>
+      <form onSubmit={handleSend} className="fr-chat-form">
          <button type="button" className="fr-btn fr-btn-secondary" title="Start a poll" aria-label="Start a poll" onClick={() => setShowPollComposer(o => !o)} style={{ borderRadius: 20, padding: "0 12px" }}>
             <BarChart3 size={15} />
          </button>
-         <input type="text" className="fr-add-input" placeholder="Message group..." value={text} onChange={e => setText(e.target.value)} style={{ flex: 1, padding: "8px 14px", borderRadius: 20, border: "1px solid rgba(0,0,0,0.1)", background: "#fff", fontSize: 13 }} />
-         <button type="submit" className="fr-btn fr-btn-primary" style={{ borderRadius: 20, padding: "0 16px" }}>Send</button>
+         <input type="text" className="fr-chat-input" placeholder={editingMsg ? "Edit message..." : "Message group..."} value={text} onChange={e => setText(e.target.value)} />
+         {editingMsg ? (
+           <button type="button" className="fr-btn fr-btn-secondary" onClick={() => { setEditingMsg(null); setText(""); }} style={{ borderRadius: 20, padding: "0 12px" }}>Cancel</button>
+         ) : null}
+         <button type="submit" className="fr-btn fr-btn-primary" style={{ borderRadius: 20, padding: "0 16px" }}>{editingMsg ? "Save" : "Send"}</button>
       </form>
     </div>
   );
@@ -275,6 +335,7 @@ export default function FriendsPanel({
   groups, setGroups, allClasses, now, onCompare, onGroupCompare, onOpenLeave,
   statusEnabled = true, meetupsEnabled = true, nudgeEnabled = true, awayEnabled = true,
   planDraft = null, onPlanDraftConsumed,
+  friendNotifItems = [], onAcceptFriend, onDeclineFriend, onMarkPingRead,
 }) {
   const [addCode, setAddCode] = useState("");
   const [addError, setAddError] = useState("");
@@ -860,7 +921,7 @@ export default function FriendsPanel({
     return (
       <div key={f.id} className={`fr-friend-card ${isCompact ? "compact" : ""} ${f.isFavourite && !isCompact ? "favourite-glow" : ""}`} style={{ '--accent': c1 }}>
         <div className="fr-friend-avatar" style={{ background: `linear-gradient(135deg, ${c1} 0%, ${c2} 100%)`, boxShadow: `0 4px 16px ${c1}66` }}>
-          {f.name[0]?.toUpperCase()}
+          {f.imageUrl ? <img src={f.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : f.name[0]?.toUpperCase()}
         </div>
         <div className="fr-friend-info">
           <span className="fr-friend-name">{f.name}</span>
@@ -889,7 +950,7 @@ export default function FriendsPanel({
           )}
           {selfStatus && (
             <span className="fr-friend-selfstatus" title={`till ${fmtStatusUntil(selfStatus.until)}`}>
-              <span className="fr-friend-selfstatus-emoji">{selfStatus.emoji}</span>
+              <span className="fr-friend-selfstatus-emoji" style={{ display: 'inline-flex', verticalAlign: '-3px' }}><StatusIcon id={selfStatus.id} size={13} /></span>
               {selfStatus.text}
               <span className="fr-friend-selfstatus-till">· till {fmtStatusUntil(selfStatus.until)}</span>
             </span>
@@ -969,7 +1030,7 @@ export default function FriendsPanel({
                 const [c1] = avatarGradient(f.name);
                 return (
                   <div key={f.id} className="fr-group-avatar-dot" style={{ background: c1, zIndex: 10 - fi }}>
-                    {f.name[0]?.toUpperCase()}
+                    {f.imageUrl ? <img src={f.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : f.name[0]?.toUpperCase()}
                   </div>
                 );
               })}
@@ -1008,8 +1069,8 @@ export default function FriendsPanel({
                 ) : (
                   <div className="fr-group-members">
                     {displayMembers.map(f => (
-                      <div key={f.id} className="fr-member-chip in" style={{ cursor: "default" }}>
-                        <span className="fr-member-initial">{f.name[0]}</span>
+                      <div key={f.id} className="fr-member-chip in" style={{ cursor: "default", overflow: 'hidden' }}>
+                        {f.imageUrl ? <img src={f.imageUrl} alt="" className="fr-member-initial" style={{ width: 24, height: 24, padding: 0, objectFit: 'cover' }} /> : <span className="fr-member-initial">{f.name[0]}</span>}
                         {f.name}
                       </div>
                     ))}
@@ -1421,7 +1482,7 @@ export default function FriendsPanel({
               title={myStatus ? `${myStatus.text} · till ${fmtStatusUntil(myStatus.until)}` : "Set a status your friends can see"}
             >
               {myStatus
-                ? <><span className="fr-status-chip-emoji">{myStatus.emoji}</span><span className="desk-only">{myStatus.text}</span></>
+                ? <><span className="fr-status-chip-emoji" style={{ display: 'inline-flex', verticalAlign: '-2px' }}><StatusIcon id={myStatus.id} size={14} /></span><span className="desk-only">{myStatus.text}</span></>
                 : <><Smile size={14} /><span className="desk-only">Set status</span></>}
             </button>
           )}
@@ -1452,6 +1513,7 @@ export default function FriendsPanel({
 
       <div className="fr-layout">
       <div className="fr-left-col">
+
       {/* ── Groups ── */}
       <section className="fr-groups-section fr-sec-groups">
         <div className="fr-section-header">
@@ -1504,6 +1566,27 @@ export default function FriendsPanel({
           </button>
         )}
       </section>
+
+      {/* ── Incoming Requests (Desktop-only, compact) ── */}
+      {friendNotifItems?.filter(i => i.kind === "friend_request").length > 0 && (
+        <div className="fr-incoming-requests desktop-only">
+          <div className="fr-incoming-label"><UserPlus size={12} /> Incoming Requests</div>
+          {friendNotifItems.filter(i => i.kind === "friend_request").map(item => (
+            <div key={item.id} className="fr-incoming-row">
+              <div className="fr-incoming-avatar">{(item.name || "?")[0].toUpperCase()}</div>
+              <span className="fr-incoming-name">{item.name}</span>
+              <div className="fr-incoming-actions">
+                <button className="fr-incoming-btn fr-incoming-accept" onClick={e => { e.stopPropagation(); onAcceptFriend?.(item); }} title="Accept">
+                  <Check size={12} strokeWidth={2.8} />
+                </button>
+                <button className="fr-incoming-btn fr-incoming-decline" onClick={e => { e.stopPropagation(); onDeclineFriend?.(item); }} title="Decline">
+                  <X size={12} strokeWidth={2.8} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* ── Saved Friends ── */}
       <section className="fr-friends-section fr-sec-friends">

@@ -4754,10 +4754,12 @@ html[data-theme="dark"] .subj-9 { --subj: #E879F9; --subj-bg: rgba(232, 121, 249
 .rc-title {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  font-family: var(--display);
-  font-weight: 700;
+  gap: 8px;
+  font-family: var(--body);
+  font-weight: 800;
   font-size: 15px;
+  letter-spacing: -0.01em;
+  color: var(--ink);
 }
 
 .rc-count {
@@ -4775,20 +4777,26 @@ html[data-theme="dark"] .subj-9 { --subj: #E879F9; --subj-bg: rgba(232, 121, 249
 .rc-item {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 8px 0;
-  border-top: 1px solid var(--line);
-  font-size: 13.5px;
-  transition: background .12s, opacity .15s;
-  border-radius: 6px;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-bottom: 4px;
+  background: var(--surface);
+  border: 1px solid transparent;
+  border-radius: 12px;
+  font-size: 13px;
+  font-family: var(--body);
+  transition: all .2s cubic-bezier(.16,1,.3,1);
 }
 
 .rc-item:hover {
-  background: var(--surface);
+  background: var(--card);
+  border-color: var(--line);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.03);
 }
 
 .rc-item:first-child {
-  border-top: none;
+  /* no special first-child rules needed for cards */
 }
 
 .rc-item-clickable {
@@ -4796,11 +4804,19 @@ html[data-theme="dark"] .subj-9 { --subj: #E879F9; --subj-bg: rgba(232, 121, 249
 }
 
 .rc-item-read {
-  opacity: 0.45;
+  opacity: 0.55;
+  background: transparent;
+}
+.rc-item-read:hover {
+  background: var(--surface);
+  opacity: 0.8;
+  border-color: transparent;
+  transform: none;
+  box-shadow: none;
 }
 
 .rc-item-read .rc-dot {
-  background: var(--muted) !important;
+  background: var(--border-hi) !important;
 }
 
 .rc-read-check {
@@ -4854,6 +4870,9 @@ html[data-theme="dark"] .subj-9 { --subj: #E879F9; --subj-bg: rgba(232, 121, 249
 /* Alert rows show a title line + a details subline (time · room · subject) */
 .rc-alert-title {
   display: block;
+  font-family: var(--body);
+  font-weight: 600;
+  color: var(--ink);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -4863,6 +4882,10 @@ html[data-theme="dark"] .subj-9 { --subj: #E879F9; --subj-bg: rgba(232, 121, 249
 .rc-alert-pill {
   margin: 0 6px 0 0;
   vertical-align: baseline;
+  font-weight: 700;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 9.5px;
 }
 .rc-alert-sub {
   display: block;
@@ -4917,16 +4940,43 @@ html[data-theme="dark"] .subj-9 { --subj: #E879F9; --subj-bg: rgba(232, 121, 249
 .notif-panel {
   position: absolute;
   right: 0;
-  top: calc(100% + 8px);
-  width: 340px;
-  max-height: min(72vh, 560px);
+  top: calc(100% + 10px);
+  width: 370px;
+  max-height: min(74vh, 600px);
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 16px;
-  box-shadow: 0 8px 32px -8px rgba(21, 24, 43, .18);
+  border-radius: 20px;
+  box-shadow:
+    0 4px 6px -1px rgba(0,0,0,.06),
+    0 20px 60px -12px rgba(21,24,43,.22),
+    0 0 0 1px rgba(255,255,255,.04) inset;
   z-index: 100;
   overflow: hidden auto;
   overscroll-behavior: contain;
+  transform-origin: top right;
+  scrollbar-width: none;
+  animation: notif-in 160ms cubic-bezier(.16,1,.3,1) both;
+}
+.notif-panel::-webkit-scrollbar { display: none; }
+
+@keyframes notif-in {
+  from { opacity:0; transform: scale(.96) translateY(-6px); }
+  to   { opacity:1; transform: scale(1)  translateY(0); }
+}
+
+.sb-util-strip .notif-panel {
+  top: auto;
+  bottom: -40px;
+  left: calc(100% + 14px);
+  right: auto;
+  transform-origin: bottom left;
+  z-index: 200;
+}
+
+/* Collapse handle hides behind the notification panel when it is open */
+.app-shell:has(.sb-util-strip .notif-panel) .sb-edge-handle {
+  z-index: 0;
+  pointer-events: none;
 }
 
 .notif-panel .rc {
@@ -4935,6 +4985,13 @@ html[data-theme="dark"] .subj-9 { --subj: #E879F9; --subj-bg: rgba(232, 121, 249
   border-radius: 0;
   background: transparent;
   padding: 14px 16px;
+}
+
+/* Wrapper that creates a visual break between Tomorrow timeline and the 7-day strip */
+.dl-section-wrap {
+  margin-top: 6px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
 }
 
 /* ── Attendance toggle (Timeline rows) ── */
@@ -6277,7 +6334,7 @@ html[data-theme="dark"] .subj-9 { --subj: #E879F9; --subj-bg: rgba(232, 121, 249
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 12px 16px 8px;
+  padding: 14px 16px 10px;
   position: sticky;
   top: 0;
   background: var(--card);
@@ -6288,6 +6345,7 @@ html[data-theme="dark"] .subj-9 { --subj: #E879F9; --subj-bg: rgba(232, 121, 249
 .bell-chips {
   display: flex;
   gap: 4px;
+  flex-wrap: wrap;
 }
 
 .bell-chip {
@@ -6295,12 +6353,13 @@ html[data-theme="dark"] .subj-9 { --subj: #E879F9; --subj-bg: rgba(232, 121, 249
   background: transparent;
   color: var(--muted);
   font-family: var(--body);
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
-  padding: 4px 11px;
+  padding: 4px 12px;
   border-radius: 999px;
   cursor: pointer;
-  transition: background .12s, color .12s, border-color .12s;
+  transition: background .12s, color .12s, border-color .12s, box-shadow .12s;
+  letter-spacing: .01em;
 }
 
 .bell-chip:hover {
@@ -6312,13 +6371,14 @@ html[data-theme="dark"] .subj-9 { --subj: #E879F9; --subj-bg: rgba(232, 121, 249
   background: var(--violet);
   border-color: var(--violet);
   color: #fff;
+  box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--violet) 45%, transparent);
 }
 
 /* ── Friend notification cards (ported from Social bell) ── */
 .np-ping-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   margin-top: 8px;
 }
 
@@ -6327,10 +6387,18 @@ html[data-theme="dark"] .subj-9 { --subj: #E879F9; --subj-bg: rgba(232, 121, 249
   align-items: flex-start;
   gap: 10px;
   background: var(--surface);
-  border: 1px solid var(--line);
+  border: 1px solid transparent;
   border-radius: 12px;
-  padding: 9px 12px;
-  transition: opacity .15s;
+  padding: 10px 12px;
+  transition: all .2s cubic-bezier(.16,1,.3,1);
+  cursor: default;
+}
+
+.np-ping:hover {
+  background: var(--card);
+  border-color: var(--line);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.03);
 }
 
 .np-ping-read {
@@ -6364,6 +6432,7 @@ html[data-theme="dark"] .subj-9 { --subj: #E879F9; --subj-bg: rgba(232, 121, 249
 }
 
 .np-ping-text {
+  font-family: var(--body);
   font-size: 13px;
   font-weight: 600;
   color: var(--ink);
@@ -6503,17 +6572,27 @@ html[data-theme="dark"] .subj-9 { --subj: #E879F9; --subj-bg: rgba(232, 121, 249
   background: var(--surface);
 }
 
+.notif-empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 /* Mobile: fix as a sheet anchored just below the bar */
 @media (max-width: 600px) {
   .notif-panel {
-      position: fixed;
-      top: 64px;
-      left: 12px;
-      right: 12px;
-      width: auto;
-      max-height: 70vh;
-      overflow-y: auto;
-    }
+    position: fixed;
+    top: 64px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-height: 70vh;
+    overflow-y: auto;
+    scrollbar-width: none;
+    animation: none;
+  }
+  .notif-panel::-webkit-scrollbar { display: none; }
 }
 
 /* ── Notifications tab dot ── */
@@ -8829,6 +8908,52 @@ html[data-theme="dark"] .bnav {
   font-size: 14px;
   color: #fff;
   box-shadow: 0 0 0 2px rgba(167, 139, 250, .4), 0 2px 12px rgba(109, 91, 208, .45);
+  position: relative;
+  cursor: pointer;
+}
+
+.sb-pop-ava::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  transition: opacity 0.2s;
+  border-radius: 50%;
+  z-index: 2;
+}
+
+.sb-pop-ava:hover::after,
+.sb-pop-ava.is-uploading::after {
+  opacity: 1;
+}
+
+.sb-pop-ava-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.2s, transform 0.2s;
+  transform: scale(0.85);
+  z-index: 10;
+}
+
+.sb-pop-ava:hover .sb-pop-ava-overlay,
+.sb-pop-ava.is-uploading .sb-pop-ava-overlay {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.spin-icon {
+  animation: spin-anim 1s linear infinite;
+}
+
+@keyframes spin-anim {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .sb-pop-ava img {
@@ -8836,6 +8961,8 @@ html[data-theme="dark"] .bnav {
   height: 100%;
   object-fit: cover;
   border-radius: 50%;
+  position: relative;
+  z-index: 1;
 }
 
 .sb-pop-id {
@@ -14498,7 +14625,7 @@ a.sb-quicklink {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 16px;
+  margin-bottom: 24px;
 }
 .lp-back {
   display: inline-flex;

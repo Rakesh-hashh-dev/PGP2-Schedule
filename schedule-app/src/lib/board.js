@@ -44,7 +44,7 @@ export async function createBoardPost({ userId, userName, kind, title, body, pri
   let imagePath = null;
   try {
     if (imageFile) {
-      const blob = await resizeImage(imageFile);
+      const blob = imageFile.type === "image/webp" ? imageFile : await resizeImage(imageFile);
       imagePath = `${userId}/${Date.now()}.webp`;
       const { error: upErr } = await supabase.storage
         .from("board-images")

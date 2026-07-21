@@ -353,14 +353,31 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           });
           setAllUsers(usersWithNames);
 
-          // Real active count from the last_seen_at heartbeat (App.jsx stamps it hourly)
-          const dayAgoTs = Date.now() - 24 * 60 * 60 * 1000;
-          setActiveUsers(prodRows.filter(d => d.last_seen_at && new Date(d.last_seen_at).getTime() >= dayAgoTs).length);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const todayTs = today.getTime();
+
+          // True DAU (active since midnight local time)
+          setActiveUsers(prodRows.filter(d => d.last_seen_at && new Date(d.last_seen_at).getTime() >= todayTs).length);
+
+          // Build 7-day calendar bar chart and peak hour using prod users only
+          const counts = Array(7).fill(0);
+          const hourCounts = Array(24).fill(0);
+          prodRows.forEach(row => {
+             if (!row.last_seen_at) return;
+             const rowDate = new Date(row.last_seen_at);
+             hourCounts[rowDate.getHours()]++;
+             rowDate.setHours(0, 0, 0, 0);
+             const daysAgo = Math.round((todayTs - rowDate.getTime()) / 86400000);
+             if (daysAgo >= 0 && daysAgo < 7) counts[6 - daysAgo]++;
+          });
+          setActivityChartData(counts);
+          setPeakHour(hourCounts.indexOf(Math.max(...hourCounts, 0)));
 
           // Tally popular courses
-          const counts = {};
-          allEnrolled.forEach(c => { counts[c] = (counts[c] || 0) + 1; });
-          const topCourses = Object.entries(counts).sort((a,b) => b[1] - a[1]).slice(0, 3);
+          const courseCounts = {};
+          allEnrolled.forEach(c => { courseCounts[c] = (courseCounts[c] || 0) + 1; });
+          const topCourses = Object.entries(courseCounts).sort((a,b) => b[1] - a[1]).slice(0, 3);
           setPopularCourses(topCourses);
         } else {
           setTotalUsers("No data returned");
@@ -435,38 +452,12 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       }
     }
 
-    async function fetchActivityData() {
-      try {
-        const { data: actData } = await supabase
-          .from("profiles")
-          .select("last_seen_at")
-          .not("last_seen_at", "is", null);
-        if (actData) {
-          // Build 7-day bar chart — index 6 = today, index 0 = 6 days ago
-          const counts = Array(7).fill(0);
-          const now = Date.now();
-          actData.forEach(row => {
-            const daysAgo = Math.floor((now - new Date(row.last_seen_at).getTime()) / 86400000);
-            if (daysAgo >= 0 && daysAgo < 7) counts[6 - daysAgo]++;
-          });
-          setActivityChartData(counts);
-
-          // Compute peak hour from all timestamps
-          const hourCounts = Array(24).fill(0);
-          actData.forEach(row => { hourCounts[new Date(row.last_seen_at).getHours()]++; });
-          const peak = hourCounts.indexOf(Math.max(...hourCounts));
-          setPeakHour(peak);
-        }
-      } catch (e) { /* non-critical, ignore */ }
-    }
-
     await Promise.all([
       fetchStatsAndUsers(),
       fetchDbSize(),
       fetchFeedbackAndLogs(),
       fetchSysMetrics(),
-      fetchExtraAdminStats(),
-      fetchActivityData()
+      fetchExtraAdminStats()
     ]);
     
     setStatsLoading(false);
@@ -1367,302 +1358,6 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               </div>
             </section>
           )}
-
-          {/* Mess Menu Editor */}
-          <section className="admin-card admin-span-all" style={{ gridColumn: "1 / -1" }}>
-            <h2><UtensilsCrossed size={20} color="var(--amber)" /> Mess Menu Editor</h2>
-            <p className="admin-subtext">Edit the weekly mess menu shown on the Mess Card — one dish per line. Stage a day, then publish with "Deploy Config to Cloud".</p>
-
-            <div style={{ marginTop: 12, display: "flex", gap: 10, alignItems: "center" }}>
-              <label className="admin-btn outline" style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 16px" }}>
-                <FileText size={16} /> Upload Excel Menu
-                <input type="file" accept=".xlsx, .xls" onChange={handleExcelUpload} style={{ display: "none" }} />
-              </label>
-              <span style={{ fontSize: 12, color: "var(--muted)" }}>Automatically stages overrides for all 7 days</span>
-            </div>
-
-            {/* Day picker (Mon-first) */}
-            <div style={{ display: "flex", gap: 8, marginTop: 12, marginBottom: 16, flexWrap: "wrap" }}>
-              {MESS_DAY_ORDER.map(d => {
-                const isOverridden = !!flags.messMenuOverrides?.[d];
-                const on = d === messEditDay;
-                return (
-                  <button
-                    key={d}
-                    className={`admin-btn ${on ? "primary" : "outline"}`}
-                    onClick={() => {
-                      if (d === messEditDay) return;
-                      if (Object.keys(messDrafts).length > 0 && !window.confirm("Discard unstaged edits on this day?")) return;
-                      setMessDrafts({});
-                      setMessEditDay(d);
-                    }}
-                    style={{ padding: "7px 14px", fontSize: 13, position: "relative" }}
-                  >
-                    {MESS_DAY_NAMES[d].slice(0, 3)}
-                    {isOverridden && <span title="Menu overridden for this day" style={{ position: "absolute", top: -4, right: -4, width: 10, height: 10, borderRadius: "50%", background: "var(--amber)", border: "2px solid var(--card)" }} />}
-                  </button>
-                );
-              })}
-            </div>
-
-            {flags.messMenuOverrides?.[messEditDay] && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, fontSize: 13, color: "var(--amber-text, var(--amber))", background: "var(--amber-transparent, rgba(240,180,41,0.1))", border: "1px solid var(--amber)", borderRadius: 8, padding: "8px 12px" }}>
-                <AlertTriangle size={14} /> {MESS_DAY_NAMES[messEditDay]} is overridden — meals below show the overridden menu, not the bundled default.
-              </div>
-            )}
-
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
-              {MESS_MEALS.map(({ key, label, hint }) => (
-                <div key={key} className="admin-field" style={{ marginBottom: 0 }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    {label}
-                    {flags.messMenuOverrides?.[messEditDay]?.[key] && <span style={{ background: "var(--amber)", color: "#000", padding: "1px 6px", borderRadius: 4, fontSize: 9.5, fontWeight: 800, letterSpacing: ".03em" }}>OVERRIDDEN</span>}
-                  </label>
-                  <textarea
-                    className="admin-textarea"
-                    rows={6}
-                    value={messMealText(key)}
-                    onChange={e => setMessDrafts({ ...messDrafts, [key]: e.target.value })}
-                    placeholder="One dish per line"
-                    style={{ fontSize: 13, lineHeight: 1.5 }}
-                  />
-                  {hint && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>{hint}</div>}
-                </div>
-              ))}
-            </div>
-
-            <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap", alignItems: "center" }}>
-              <button className="admin-btn primary" onClick={stageMessMenuEdits} style={{ padding: "9px 16px" }}>
-                <Check size={15} /> Stage {MESS_DAY_NAMES[messEditDay]}&apos;s Menu
-              </button>
-              {(flags.messMenuOverrides?.[messEditDay] || Object.keys(messDrafts).length > 0) && (
-                <button className="admin-btn outline" onClick={resetMessMenuDay} style={{ padding: "9px 16px", borderColor: "var(--danger)", color: "var(--danger)" }}>
-                  <RefreshCw size={15} /> Reset Day to Default
-                </button>
-              )}
-              {Object.keys(messDrafts).length > 0 && (
-                <span style={{ fontSize: 12, color: "var(--amber-text, var(--amber))", fontWeight: 600 }}>Unstaged edits — stage them, then deploy config.</span>
-              )}
-            </div>
-          </section>
-
-          {/* Analytics Dashboard — real data from Supabase */}
-          <section className="admin-card admin-span-all" style={{ gridColumn: "1 / -1" }}>
-             <h2><BarChart2 size={20} color="var(--violet)" /> Analytics & Usage</h2>
-             <div style={{ display: "flex", gap: 16, marginTop: 16, flexWrap: "wrap" }}>
-
-                {/* 7-Day Active Users — real last_seen_at buckets */}
-                <div style={{ flex: 1, minWidth: 250, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: 16 }}>
-                   <div style={{ fontSize: 13, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "1px", marginBottom: 12 }}>7-Day Active Users</div>
-                   {(() => {
-                      const maxVal = Math.max(...activityChartData, 1);
-                      const dayLabels = Array.from({ length: 7 }, (_, i) => {
-                        // eslint-disable-next-line react-hooks/purity
-                        const d = new Date(Date.now() - (6 - i) * 86400000);
-                        return d.toLocaleDateString("en-IN", { weekday: "short" });
-                      });
-                      return (
-                        <>
-                          <div style={{ height: 100, display: "flex", alignItems: "flex-end", gap: 6 }}>
-                            {activityChartData.map((v, i) => (
-                              <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", height: "100%", justifyContent: "flex-end", gap: 4 }}>
-                                <div title={`${v} users`} style={{ width: "100%", background: i === 6 ? "var(--violet)" : "rgba(109,91,208,0.45)", borderRadius: "4px 4px 0 0", height: `${Math.max(4, (v / maxVal) * 100)}%`, transition: "height 0.4s" }}></div>
-                              </div>
-                            ))}
-                          </div>
-                          <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-                            {dayLabels.map((l, i) => <div key={i} style={{ flex: 1, fontSize: 9, color: "var(--muted)", textAlign: "center", fontWeight: i === 6 ? 800 : 400 }}>{l}</div>)}
-                          </div>
-                          <div style={{ marginTop: 10, fontSize: 12, color: "var(--muted)", borderTop: "1px solid var(--border)", paddingTop: 8 }}>
-                            Total past 7 days: <strong style={{ color: "var(--text)" }}>{activityChartData.reduce((a, b) => a + b, 0)}</strong> unique sessions
-                          </div>
-                        </>
-                      );
-                   })()}
-                </div>
-
-                {/* Most-Skipped Classes — from attendance table */}
-                <div style={{ flex: 1, minWidth: 250, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: 16 }}>
-                   <div style={{ fontSize: 13, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "1px", marginBottom: 12 }}>Most Skipped Classes</div>
-                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      {skipStats.length === 0 ? (
-                         <div className="admin-empty" style={{ fontSize: 12 }}>No absence data yet.</div>
-                      ) : skipStats.map(([code, count]) => {
-                         const maxSkip = skipStats[0][1];
-                         return (
-                           <div key={code}>
-                             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}>
-                               <span style={{ fontWeight: 600 }}>{code}</span><span style={{ color: "var(--muted)" }}>{count} absences</span>
-                             </div>
-                             <div style={{ height: 6, background: "var(--card)", borderRadius: 3, overflow: "hidden" }}>
-                               <div style={{ width: `${Math.round((count / maxSkip) * 100)}%`, height: "100%", background: "var(--danger)" }}></div>
-                             </div>
-                           </div>
-                         );
-                      })}
-                   </div>
-                </div>
-
-                {/* Peak Hour — computed from last_seen_at timestamps */}
-                <div style={{ flex: 1, minWidth: 250, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: 16, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", textAlign: "center" }}>
-                   <Clock size={32} color="var(--blue)" style={{ marginBottom: 12 }} />
-                   <div style={{ fontSize: 28, fontWeight: 800 }}>
-                     {peakHour !== null ? `${peakHour % 12 || 12}:00 ${peakHour < 12 ? "AM" : "PM"}` : "—"}
-                   </div>
-                   <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 4 }}>Peak Usage Hour (IST)</div>
-                   <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>Based on last_seen_at heartbeats</div>
-                   {statsLoading && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>Loading...</div>}
-                </div>
-             </div>
-          </section>
-
-          {/* Admin Tools Extra Monitors */}
-          <div className="admin-span-all" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 24 }}>
-             
-             {/* API Health Check — live pings */}
-             <section className="admin-card">
-               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                 <h2><Terminal size={20} color="var(--live)" /> API Health Check</h2>
-                 <button onClick={checkApiHealth} disabled={healthChecking} className="admin-btn outline" style={{ padding: "4px 10px", fontSize: 12 }}>
-                   <RefreshCw size={13} className={healthChecking ? "spin-icon" : ""} /> {healthChecking ? "Checking…" : "Run Check"}
-                 </button>
-               </div>
-               <p className="admin-subtext">Click "Run Check" to probe all services live.</p>
-               <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
-                  {[
-                    { key: "supabase", label: "Supabase Database", icon: <Database size={14} /> },
-                    { key: "push",     label: "Push Notification Gateway", icon: <BellRing size={14} /> },
-                    { key: "sheets",   label: "Google Sheets Live Feed", icon: <FileText size={14} /> },
-                  ].map(({ key, label, icon }) => {
-                    const s = healthStatus[key];
-                    const _isOk  = s && s !== "error" && s !== "timeout";
-                    const isErr = s === "error" || s === "timeout";
-                    const bg  = !s ? "var(--bg)" : isErr ? "rgba(231,76,60,0.08)" : "rgba(46,204,113,0.08)";
-                    const tag = !s ? (healthChecking ? "Checking…" : "Not checked") :
-                                isErr ? (s === "timeout" ? "Timeout" : "Error") :
-                                key === "supabase" ? s : "Operational";
-                    const tagColor = !s ? "var(--muted)" : isErr ? "var(--danger)" : "var(--green)";
-                    return (
-                      <div key={key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: bg, borderRadius: 8, border: `1px solid ${!s ? "var(--border)" : isErr ? "var(--danger)" : "var(--green)"}`, transition: "all 0.3s" }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>{icon} {label}</span>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: tagColor, padding: "2px 8px", borderRadius: 10, background: `${tagColor}22` }}>{tag}</span>
-                      </div>
-                    );
-                  })}
-               </div>
-             </section>
-
-             {/* A/B Testing — managed from flags.abTests */}
-             <section className="admin-card">
-               <h2><Flag size={20} color="var(--blue)" /> A/B Testing</h2>
-               <p className="admin-subtext">Rollout experiments stored in flags. Deploy config to apply changes.</p>
-
-               {/* Add new experiment */}
-               <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
-                 <div className="admin-field" style={{ flex: 2, minWidth: 140 }}>
-                   <label>Experiment Name</label>
-                   <input className="admin-input" value={abTestName} onChange={e => setAbTestName(e.target.value)} placeholder="e.g. new_home_v4" />
-                 </div>
-                 <div className="admin-field" style={{ flex: 1, minWidth: 80 }}>
-                   <label>Rollout %</label>
-                   <input type="number" min={0} max={100} className="admin-input" value={abTestRollout} onChange={e => setAbTestRollout(Number(e.target.value))} />
-                 </div>
-                 <button className="admin-btn primary" style={{ marginBottom: 10 }} onClick={() => {
-                   const key = abTestName.trim().toLowerCase().replace(/\s+/g, "_");
-                   if (!key) return alert("Enter an experiment name.");
-                   setFlags({ ...flags, abTests: { ...(flags.abTests || {}), [key]: { name: abTestName.trim(), rollout: abTestRollout, active: true } } });
-                   setAbTestName(""); setAbTestRollout(50);
-                 }}>Add</button>
-               </div>
-
-               {/* Existing experiments */}
-               <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 8 }}>
-                 {Object.keys(flags.abTests || {}).length === 0 ? (
-                   <div className="admin-empty">No experiments. Add one above.</div>
-                 ) : Object.entries(flags.abTests || {}).map(([key, exp]) => (
-                   <div key={key} style={{ padding: 12, background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)" }}>
-                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                       <div>
-                         <span style={{ fontSize: 13, fontWeight: 700 }}>{exp.name || key}</span>
-                         <span style={{ fontSize: 11, color: "var(--muted)", marginLeft: 8 }}>({key})</span>
-                       </div>
-                       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                         <input type="number" min={0} max={100} value={exp.rollout} onChange={e => setFlags({ ...flags, abTests: { ...flags.abTests, [key]: { ...exp, rollout: Number(e.target.value) } } })} style={{ width: 52, padding: "2px 6px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)", fontSize: 12, textAlign: "center" }} />
-                         <span style={{ fontSize: 11, color: "var(--muted)" }}>%</span>
-                         <button onClick={() => {
-                           const next = { ...flags.abTests }; delete next[key];
-                           setFlags({ ...flags, abTests: next });
-                         }} style={{ background: "transparent", border: "none", cursor: "pointer", padding: 2 }}><Trash2 size={14} color="var(--danger)" /></button>
-                       </div>
-                     </div>
-                     <div style={{ height: 6, background: "var(--card)", borderRadius: 3, overflow: "hidden", border: "1px solid var(--border)" }}>
-                       <div style={{ width: `${Math.min(100, Math.max(0, exp.rollout))}%`, height: "100%", background: "var(--blue)", transition: "width 0.3s" }}></div>
-                     </div>
-                   </div>
-                 ))}
-               </div>
-             </section>
-
-
-
-             {/* Friend Pings & Share Codes */}
-             <section className="admin-card">
-               <h2><Users size={20} color="var(--green)" /> Social Hygiene</h2>
-               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                  <span style={{ fontSize: 13, color: "var(--muted)" }}>Pending Friend Pings</span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                     <span style={{ fontWeight: 800, fontSize: 16 }}>{friendPingsCount}</span>
-                  </div>
-               </div>
-               
-               <h3 style={{ fontSize: 12, textTransform: "uppercase", color: "var(--muted)", margin: "16px 0 8px 0", letterSpacing: "1px" }}>Active Share Codes</h3>
-               <div style={{ maxHeight: 150, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
-                  {shareCodes.length === 0 ? <div className="admin-empty">No active share codes.</div> : 
-                     [...shareCodes].sort((a, b) => {
-                        const nameA = allUsers.find(u => u.user_id === a.user_id)?.name;
-                        const nameB = allUsers.find(u => u.user_id === b.user_id)?.name;
-                        if (nameA && !nameB) return -1;
-                        if (!nameA && nameB) return 1;
-                        return 0;
-                     }).map(sc => {
-                        const owner = allUsers.find(u => u.user_id === sc.user_id);
-                        return (
-                           <div key={sc.code} style={{ display: "flex", justifyContent: "space-between", padding: "6px 12px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)", fontSize: 12 }}>
-                              <span style={{ fontWeight: 700, letterSpacing: "1px" }}>{sc.code}</span>
-                              <span style={{ color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 120 }}>{owner?.name ? owner.name : sc.user_id}</span>
-                           </div>
-                        )
-                     })
-                  }
-               </div>
-             </section>
-             
-             {/* Enrollment Distribution */}
-             <section className="admin-card">
-               <h2><Database size={20} color="var(--violet)" /> Enrollment Stats</h2>
-               <p className="admin-subtext">Top 5 most popular courses by enrollment.</p>
-               <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
-                  {popularCourses.length === 0 ? <div className="admin-empty">No data.</div> : 
-                     popularCourses.slice(0, 5).map(([code, count]) => {
-                        const max = popularCourses[0][1];
-                        const pct = Math.round((count / max) * 100);
-                        return (
-                           <div key={code}>
-                              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
-                                 <span style={{ fontWeight: 600 }}>{code}</span>
-                                 <span style={{ color: "var(--muted)" }}>{count} enrolled</span>
-                              </div>
-                              <div style={{ height: 6, background: "var(--bg)", borderRadius: 4, overflow: "hidden", border: "1px solid var(--border)" }}>
-                                 <div style={{ height: "100%", width: `${pct}%`, background: "var(--violet)" }}></div>
-                              </div>
-                           </div>
-                        )
-                     })
-                  }
-               </div>
-             </section>
-          </div>
-
         <section className="admin-card" style={{ display: "flex", flexDirection: "column" }}>
           <h2><Megaphone size={20} color="var(--amber)" /> Scheduled Announcements</h2>
           <p className="admin-subtext">Schedule targeted announcements. Active ones will appear as banners to matched users.</p>
@@ -1730,57 +1425,6 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 <button onClick={() => {
                   setFlags({...flags, scheduledAnnouncements: flags.scheduledAnnouncements.filter(x => x.id !== a.id)});
                 }} className="admin-btn outline" style={{ padding: "4px 8px", borderColor: "var(--danger)", color: "var(--danger)" }}><Trash2 size={14} /></button>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="admin-card" style={{ display: "flex", flexDirection: "column" }}>
-          <h2><Flag size={20} color="var(--violet)" /> Dynamic Quick Links</h2>
-          <p className="admin-subtext">Push temporary important links to the sidebar (e.g. Exam Portal).</p>
-          
-          <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
-            <input type="text" placeholder="Link Title" value={qlTitle} onChange={e => setQlTitle(e.target.value)} className="admin-input" style={{ flex: 1, padding: "8px", borderRadius: 8, border: "1px solid var(--border)", minWidth: 150 }} />
-            <input type="url" placeholder="https://..." value={qlUrl} onChange={e => setQlUrl(e.target.value)} className="admin-input" style={{ flex: 2, padding: "8px", borderRadius: 8, border: "1px solid var(--border)", minWidth: 200 }} />
-          </div>
-          <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
-            <input type="date" value={qlStart} onChange={e => setQlStart(e.target.value)} className="admin-input" style={{ flex: "1 1 130px", padding: "8px", borderRadius: 8, border: "1px solid var(--border)" }} title="Start Date" />
-            <input type="date" value={qlEnd} onChange={e => setQlEnd(e.target.value)} className="admin-input" style={{ flex: "1 1 130px", padding: "8px", borderRadius: 8, border: "1px solid var(--border)" }} title="End Date (Inclusive)" />
-            <button className="admin-btn primary" style={{ flex: "1 1 130px" }} onClick={() => {
-              if (!qlTitle || !qlUrl || !qlStart || !qlEnd) return alert("Fill all fields.");
-              const newItem = { id: Date.now().toString(), title: qlTitle, url: qlUrl, start: qlStart, end: qlEnd };
-              setFlags({...flags, quickLinks: [...(flags.quickLinks || []), newItem]});
-              setQlTitle(""); setQlUrl(""); setQlStart(""); setQlEnd("");
-            }}>
-              Add Quick Link
-            </button>
-          </div>
-
-          <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 8 }}>
-            {(flags.quickLinks || []).map((ql, idx) => (
-              <div key={ql.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)" }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>{ql.title}</div>
-                  <div style={{ fontSize: 11, color: "var(--muted)" }}>{ql.url} | {ql.start} to {ql.end}</div>
-                </div>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <button onClick={() => {
-                    if(idx === 0) return;
-                    const next = [...flags.quickLinks];
-                    [next[idx-1], next[idx]] = [next[idx], next[idx-1]];
-                    setFlags({...flags, quickLinks: next});
-                  }} disabled={idx === 0} className="admin-btn outline" style={{ padding: "4px 8px", opacity: idx === 0 ? 0.3 : 1 }}>↑</button>
-                  <button onClick={() => {
-                    if(idx === flags.quickLinks.length - 1) return;
-                    const next = [...flags.quickLinks];
-                    [next[idx+1], next[idx]] = [next[idx], next[idx+1]];
-                    setFlags({...flags, quickLinks: next});
-                  }} disabled={idx === flags.quickLinks.length - 1} className="admin-btn outline" style={{ padding: "4px 8px", opacity: idx === flags.quickLinks.length - 1 ? 0.3 : 1 }}>↓</button>
-                  
-                  <button onClick={() => {
-                    setFlags({...flags, quickLinks: flags.quickLinks.filter(x => x.id !== ql.id)});
-                  }} className="admin-btn outline" style={{ padding: "4px 8px", borderColor: "var(--danger)", color: "var(--danger)" }}><Trash2 size={14} /></button>
-                </div>
               </div>
             ))}
           </div>
@@ -1921,131 +1565,54 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             </div>
           </section>
 
-          {/* Software Update Prompt Config */}
-          <section className="admin-card">
-            <h2><RefreshCw size={20} color="var(--violet)" /> Update Prompt Text</h2>
-            <p className="admin-subtext">Configure what users see when a new app version is available.</p>
-            <div className="admin-field">
-              <label>Title</label>
-              <input className="admin-input" value={updatePromptTitle} onChange={e => setUpdatePromptTitle(e.target.value)} placeholder="TermFlow just got better" />
-            </div>
-            <div className="admin-field">
-              <label>Description</label>
-              <textarea className="admin-textarea" value={updatePromptDesc} onChange={e => setUpdatePromptDesc(e.target.value)} placeholder="A fresh version is cached..." rows={2}></textarea>
-            </div>
-            <div className="admin-field">
-              <label>Highlights (one per line)</label>
-              <textarea className="admin-textarea" value={updatePromptHighlights} onChange={e => setUpdatePromptHighlights(e.target.value)} placeholder="Faster load times&#10;New features..." rows={3}></textarea>
-            </div>
-          </section>
-
-        <section className="admin-card admin-directory-card admin-span-all">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-             <h2><Users size={20} color="var(--green)" /> User Directory</h2>
-             <button className="admin-btn outline" onClick={() => {
-                const csvRows = [["User ID", "Name", "Email", "Courses"]];
-                filteredUsers.forEach(u => {
-                   csvRows.push([
-                      u.user_id, 
-                      u.name || "", 
-                      u.email || "", 
-                      u.courses ? Object.keys(u.courses).filter(c => c !== "_name" && c !== "_email").join(";") : ""
-                   ].map(v => `"${v}"`).join(","));
-                });
-                const blob = new Blob([csvRows.join("\n")], { type: 'text/csv' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'user_export.csv';
-                a.click();
-             }} style={{ padding: "4px 10px", fontSize: 12 }}>Export Filtered to CSV</button>
+        <section className="admin-card" style={{ display: "flex", flexDirection: "column" }}>
+          <h2><Flag size={20} color="var(--violet)" /> Dynamic Quick Links</h2>
+          <p className="admin-subtext">Push temporary important links to the sidebar (e.g. Exam Portal).</p>
+          
+          <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+            <input type="text" placeholder="Link Title" value={qlTitle} onChange={e => setQlTitle(e.target.value)} className="admin-input" style={{ flex: 1, padding: "8px", borderRadius: 8, border: "1px solid var(--border)", minWidth: 150 }} />
+            <input type="url" placeholder="https://..." value={qlUrl} onChange={e => setQlUrl(e.target.value)} className="admin-input" style={{ flex: 2, padding: "8px", borderRadius: 8, border: "1px solid var(--border)", minWidth: 200 }} />
           </div>
-          <div className="admin-search-box" style={{ marginTop: 12 }}>
-            <Search size={16} color="var(--muted)" />
-            <input 
-              type="text" 
-              placeholder="Search users..." 
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-            />
-          </div>
-          <div style={{ marginBottom: 12, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ display: "flex", gap: 6 }}>
-              {["All", "A", "B"].map(sec => (
-                 <button key={sec} onClick={() => setUserSectionFilter(sec)} className={`admin-btn ${userSectionFilter === sec ? "" : "outline"}`} style={{ padding: "4px 10px", fontSize: 12 }}>
-                    {sec === "All" ? "All Sections" : `Section ${sec}`}
-                 </button>
-              ))}
-            </div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+            <input type="date" value={qlStart} onChange={e => setQlStart(e.target.value)} className="admin-input" style={{ flex: "1 1 130px", padding: "8px", borderRadius: 8, border: "1px solid var(--border)" }} title="Start Date" />
+            <input type="date" value={qlEnd} onChange={e => setQlEnd(e.target.value)} className="admin-input" style={{ flex: "1 1 130px", padding: "8px", borderRadius: 8, border: "1px solid var(--border)" }} title="End Date (Inclusive)" />
+            <button className="admin-btn primary" style={{ flex: "1 1 130px" }} onClick={() => {
+              if (!qlTitle || !qlUrl || !qlStart || !qlEnd) return alert("Fill all fields.");
+              const newItem = { id: Date.now().toString(), title: qlTitle, url: qlUrl, start: qlStart, end: qlEnd };
+              setFlags({...flags, quickLinks: [...(flags.quickLinks || []), newItem]});
+              setQlTitle(""); setQlUrl(""); setQlStart(""); setQlEnd("");
+            }}>
+              Add Quick Link
+            </button>
           </div>
 
-          {selectedUserIds.size > 0 && (
-             <div style={{ background: "var(--amber-transparent)", padding: "8px 12px", borderRadius: 8, border: "1px solid var(--amber)", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "var(--amber-text)" }}>{selectedUserIds.size} Users Selected</span>
-                <div style={{ display: "flex", gap: 8 }}>
-                   <button className="admin-btn outline" onClick={() => {
-                      const next = [...(flags.bannedUsers || [])];
-                      selectedUserIds.forEach(id => { if(!next.includes(id)) next.push(id) });
-                      setFlags({...flags, bannedUsers: next});
-                      setSelectedUserIds(new Set());
-                   }} style={{ fontSize: 11, padding: "4px 8px", borderColor: "var(--danger)", color: "var(--danger)" }}>Ban Selected</button>
-                   
-                   <button className="admin-btn outline" onClick={() => {
-                      let next = [...(flags.bannedUsers || [])];
-                      selectedUserIds.forEach(id => { next = next.filter(b => b !== id) });
-                      setFlags({...flags, bannedUsers: next});
-                      setSelectedUserIds(new Set());
-                   }} style={{ fontSize: 11, padding: "4px 8px" }}>Unban Selected</button>
-
-                   <button className="admin-btn outline" onClick={() => setSelectedUserIds(new Set())} style={{ fontSize: 11, padding: "4px 8px" }}>Clear Selection</button>
+          <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 8 }}>
+            {(flags.quickLinks || []).map((ql, idx) => (
+              <div key={ql.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)" }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{ql.title}</div>
+                  <div style={{ fontSize: 11, color: "var(--muted)" }}>{ql.url} | {ql.start} to {ql.end}</div>
                 </div>
-             </div>
-          )}
-
-          <div className="admin-user-list">
-            {loadingUsers ? (
-              <div className="admin-loading">Loading users...</div>
-            ) : filteredUsers.length === 0 ? (
-              <div className="admin-empty">No users found.</div>
-            ) : (
-              filteredUsers.map(u => (
-                <div key={u.user_id} className="admin-user-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderBottom: "1px solid var(--border)", background: selectedUserIds.has(u.user_id) ? "var(--bg)" : "transparent" }}>
-                  <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
-                    <input 
-                       type="checkbox" 
-                       checked={selectedUserIds.has(u.user_id)}
-                       onChange={e => {
-                          const next = new Set(selectedUserIds);
-                          if(e.target.checked) next.add(u.user_id);
-                          else next.delete(u.user_id);
-                          setSelectedUserIds(next);
-                       }}
-                       style={{ width: 16, height: 16, accentColor: "var(--violet)" }}
-                    />
-                    <Avatar name={u.name} email={u.user_id} />
-                    <div className="admin-user-info" onClick={() => setSelectedUser(u)} style={{ cursor: "pointer" }} title="Click to view full details">
-                      <div className="admin-user-name" style={{ color: flags.bannedUsers?.includes(u.user_id) ? "var(--danger)" : "inherit" }}>
-                         {u.name || "Student"} {flags.bannedUsers?.includes(u.user_id) && "(Banned)"}
-                      </div>
-                      <div className="admin-user-id">{u.user_id}</div>
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button onClick={() => startImpersonation(u)} className="admin-btn-icon" title="Impersonate User" style={{ background: "transparent", border: "none", cursor: "pointer", padding: 6 }}>
-                      <VenetianMask size={20} color="var(--amber)" />
-                    </button>
-                    <button onClick={() => {
-                       const isBanned = flags.bannedUsers?.includes(u.user_id);
-                       const next = isBanned ? flags.bannedUsers.filter(id => id !== u.user_id) : [...(flags.bannedUsers || []), u.user_id];
-                       setFlags({...flags, bannedUsers: next});
-                       logAdminAction(admin_id, isBanned ? "unban_user" : "ban_user", { target_user: u.user_id });
-                    }} className="admin-btn-icon" title={flags.bannedUsers?.includes(u.user_id) ? "Unban User" : "Ban User"} style={{ background: "transparent", border: "none", cursor: "pointer", padding: 6 }}>
-                      <Ban size={20} color={flags.bannedUsers?.includes(u.user_id) ? "var(--danger)" : "var(--muted)"} />
-                    </button>
-                  </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button onClick={() => {
+                    if(idx === 0) return;
+                    const next = [...flags.quickLinks];
+                    [next[idx-1], next[idx]] = [next[idx], next[idx-1]];
+                    setFlags({...flags, quickLinks: next});
+                  }} disabled={idx === 0} className="admin-btn outline" style={{ padding: "4px 8px", opacity: idx === 0 ? 0.3 : 1 }}>↑</button>
+                  <button onClick={() => {
+                    if(idx === flags.quickLinks.length - 1) return;
+                    const next = [...flags.quickLinks];
+                    [next[idx+1], next[idx]] = [next[idx], next[idx+1]];
+                    setFlags({...flags, quickLinks: next});
+                  }} disabled={idx === flags.quickLinks.length - 1} className="admin-btn outline" style={{ padding: "4px 8px", opacity: idx === flags.quickLinks.length - 1 ? 0.3 : 1 }}>↓</button>
+                  
+                  <button onClick={() => {
+                    setFlags({...flags, quickLinks: flags.quickLinks.filter(x => x.id !== ql.id)});
+                  }} className="admin-btn outline" style={{ padding: "4px 8px", borderColor: "var(--danger)", color: "var(--danger)" }}><Trash2 size={14} /></button>
                 </div>
-              ))
-            )}
+              </div>
+            ))}
           </div>
         </section>
 
@@ -2221,6 +1788,372 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </div>
         </section>
 
+          {/* Software Update Prompt Config */}
+          <section className="admin-card">
+            <h2><RefreshCw size={20} color="var(--violet)" /> Update Prompt Text</h2>
+            <p className="admin-subtext">Configure what users see when a new app version is available.</p>
+            <div className="admin-field">
+              <label>Title</label>
+              <input className="admin-input" value={updatePromptTitle} onChange={e => setUpdatePromptTitle(e.target.value)} placeholder="TermFlow just got better" />
+            </div>
+            <div className="admin-field">
+              <label>Description</label>
+              <textarea className="admin-textarea" value={updatePromptDesc} onChange={e => setUpdatePromptDesc(e.target.value)} placeholder="A fresh version is cached..." rows={2}></textarea>
+            </div>
+            <div className="admin-field">
+              <label>Highlights (one per line)</label>
+              <textarea className="admin-textarea" value={updatePromptHighlights} onChange={e => setUpdatePromptHighlights(e.target.value)} placeholder="Faster load times&#10;New features..." rows={3}></textarea>
+            </div>
+          </section>
+
+          {/* Mess Menu Editor */}
+          <section className="admin-card admin-span-all" style={{ gridColumn: "1 / -1" }}>
+            <h2><UtensilsCrossed size={20} color="var(--amber)" /> Mess Menu Editor</h2>
+            <p className="admin-subtext">Edit the weekly mess menu shown on the Mess Card — one dish per line. Stage a day, then publish with "Deploy Config to Cloud".</p>
+
+            <div style={{ marginTop: 12, display: "flex", gap: 10, alignItems: "center" }}>
+              <label className="admin-btn outline" style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 16px" }}>
+                <FileText size={16} /> Upload Excel Menu
+                <input type="file" accept=".xlsx, .xls" onChange={handleExcelUpload} style={{ display: "none" }} />
+              </label>
+              <span style={{ fontSize: 12, color: "var(--muted)" }}>Automatically stages overrides for all 7 days</span>
+            </div>
+
+            {/* Day picker (Mon-first) */}
+            <div style={{ display: "flex", gap: 8, marginTop: 12, marginBottom: 16, flexWrap: "wrap" }}>
+              {MESS_DAY_ORDER.map(d => {
+                const isOverridden = !!flags.messMenuOverrides?.[d];
+                const on = d === messEditDay;
+                return (
+                  <button
+                    key={d}
+                    className={`admin-btn ${on ? "primary" : "outline"}`}
+                    onClick={() => {
+                      if (d === messEditDay) return;
+                      if (Object.keys(messDrafts).length > 0 && !window.confirm("Discard unstaged edits on this day?")) return;
+                      setMessDrafts({});
+                      setMessEditDay(d);
+                    }}
+                    style={{ padding: "7px 14px", fontSize: 13, position: "relative" }}
+                  >
+                    {MESS_DAY_NAMES[d].slice(0, 3)}
+                    {isOverridden && <span title="Menu overridden for this day" style={{ position: "absolute", top: -4, right: -4, width: 10, height: 10, borderRadius: "50%", background: "var(--amber)", border: "2px solid var(--card)" }} />}
+                  </button>
+                );
+              })}
+            </div>
+
+            {flags.messMenuOverrides?.[messEditDay] && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, fontSize: 13, color: "var(--amber-text, var(--amber))", background: "var(--amber-transparent, rgba(240,180,41,0.1))", border: "1px solid var(--amber)", borderRadius: 8, padding: "8px 12px" }}>
+                <AlertTriangle size={14} /> {MESS_DAY_NAMES[messEditDay]} is overridden — meals below show the overridden menu, not the bundled default.
+              </div>
+            )}
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
+              {MESS_MEALS.map(({ key, label, hint }) => (
+                <div key={key} className="admin-field" style={{ marginBottom: 0 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    {label}
+                    {flags.messMenuOverrides?.[messEditDay]?.[key] && <span style={{ background: "var(--amber)", color: "#000", padding: "1px 6px", borderRadius: 4, fontSize: 9.5, fontWeight: 800, letterSpacing: ".03em" }}>OVERRIDDEN</span>}
+                  </label>
+                  <textarea
+                    className="admin-textarea"
+                    rows={6}
+                    value={messMealText(key)}
+                    onChange={e => setMessDrafts({ ...messDrafts, [key]: e.target.value })}
+                    placeholder="One dish per line"
+                    style={{ fontSize: 13, lineHeight: 1.5 }}
+                  />
+                  {hint && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>{hint}</div>}
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap", alignItems: "center" }}>
+              <button className="admin-btn primary" onClick={stageMessMenuEdits} style={{ padding: "9px 16px" }}>
+                <Check size={15} /> Stage {MESS_DAY_NAMES[messEditDay]}&apos;s Menu
+              </button>
+              {(flags.messMenuOverrides?.[messEditDay] || Object.keys(messDrafts).length > 0) && (
+                <button className="admin-btn outline" onClick={resetMessMenuDay} style={{ padding: "9px 16px", borderColor: "var(--danger)", color: "var(--danger)" }}>
+                  <RefreshCw size={15} /> Reset Day to Default
+                </button>
+              )}
+              {Object.keys(messDrafts).length > 0 && (
+                <span style={{ fontSize: 12, color: "var(--amber-text, var(--amber))", fontWeight: 600 }}>Unstaged edits — stage them, then deploy config.</span>
+              )}
+            </div>
+          </section>
+
+        <section className="admin-card admin-directory-card admin-span-all">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+             <h2><Users size={20} color="var(--green)" /> User Directory</h2>
+             <button className="admin-btn outline" onClick={() => {
+                const csvRows = [["User ID", "Name", "Email", "Courses"]];
+                filteredUsers.forEach(u => {
+                   csvRows.push([
+                      u.user_id, 
+                      u.name || "", 
+                      u.email || "", 
+                      u.courses ? Object.keys(u.courses).filter(c => c !== "_name" && c !== "_email").join(";") : ""
+                   ].map(v => `"${v}"`).join(","));
+                });
+                const blob = new Blob([csvRows.join("\n")], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'user_export.csv';
+                a.click();
+             }} style={{ padding: "4px 10px", fontSize: 12 }}>Export Filtered to CSV</button>
+          </div>
+          <div className="admin-search-box" style={{ marginTop: 12 }}>
+            <Search size={16} color="var(--muted)" />
+            <input 
+              type="text" 
+              placeholder="Search users..." 
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <div style={{ marginBottom: 12, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", gap: 6 }}>
+              {["All", "A", "B"].map(sec => (
+                 <button key={sec} onClick={() => setUserSectionFilter(sec)} className={`admin-btn ${userSectionFilter === sec ? "" : "outline"}`} style={{ padding: "4px 10px", fontSize: 12 }}>
+                    {sec === "All" ? "All Sections" : `Section ${sec}`}
+                 </button>
+              ))}
+            </div>
+          </div>
+
+          {selectedUserIds.size > 0 && (
+             <div style={{ background: "var(--amber-transparent)", padding: "8px 12px", borderRadius: 8, border: "1px solid var(--amber)", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "var(--amber-text)" }}>{selectedUserIds.size} Users Selected</span>
+                <div style={{ display: "flex", gap: 8 }}>
+                   <button className="admin-btn outline" onClick={() => {
+                      const next = [...(flags.bannedUsers || [])];
+                      selectedUserIds.forEach(id => { if(!next.includes(id)) next.push(id) });
+                      setFlags({...flags, bannedUsers: next});
+                      setSelectedUserIds(new Set());
+                   }} style={{ fontSize: 11, padding: "4px 8px", borderColor: "var(--danger)", color: "var(--danger)" }}>Ban Selected</button>
+                   
+                   <button className="admin-btn outline" onClick={() => {
+                      let next = [...(flags.bannedUsers || [])];
+                      selectedUserIds.forEach(id => { next = next.filter(b => b !== id) });
+                      setFlags({...flags, bannedUsers: next});
+                      setSelectedUserIds(new Set());
+                   }} style={{ fontSize: 11, padding: "4px 8px" }}>Unban Selected</button>
+
+                   <button className="admin-btn outline" onClick={() => setSelectedUserIds(new Set())} style={{ fontSize: 11, padding: "4px 8px" }}>Clear Selection</button>
+                </div>
+             </div>
+          )}
+
+          <div className="admin-user-list">
+            {loadingUsers ? (
+              <div className="admin-loading">Loading users...</div>
+            ) : filteredUsers.length === 0 ? (
+              <div className="admin-empty">No users found.</div>
+            ) : (
+              filteredUsers.map(u => (
+                <div key={u.user_id} className="admin-user-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderBottom: "1px solid var(--border)", background: selectedUserIds.has(u.user_id) ? "var(--bg)" : "transparent" }}>
+                  <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+                    <input 
+                       type="checkbox" 
+                       checked={selectedUserIds.has(u.user_id)}
+                       onChange={e => {
+                          const next = new Set(selectedUserIds);
+                          if(e.target.checked) next.add(u.user_id);
+                          else next.delete(u.user_id);
+                          setSelectedUserIds(next);
+                       }}
+                       style={{ width: 16, height: 16, accentColor: "var(--violet)" }}
+                    />
+                    <Avatar name={u.name} email={u.user_id} />
+                    <div className="admin-user-info" onClick={() => setSelectedUser(u)} style={{ cursor: "pointer" }} title="Click to view full details">
+                      <div className="admin-user-name" style={{ color: flags.bannedUsers?.includes(u.user_id) ? "var(--danger)" : "inherit" }}>
+                         {u.name || "Student"} {flags.bannedUsers?.includes(u.user_id) && "(Banned)"}
+                      </div>
+                      <div className="admin-user-id">{u.user_id}</div>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={() => startImpersonation(u)} className="admin-btn-icon" title="Impersonate User" style={{ background: "transparent", border: "none", cursor: "pointer", padding: 6 }}>
+                      <VenetianMask size={20} color="var(--amber)" />
+                    </button>
+                    <button onClick={() => {
+                       const isBanned = flags.bannedUsers?.includes(u.user_id);
+                       const next = isBanned ? flags.bannedUsers.filter(id => id !== u.user_id) : [...(flags.bannedUsers || []), u.user_id];
+                       setFlags({...flags, bannedUsers: next});
+                       logAdminAction(admin_id, isBanned ? "unban_user" : "ban_user", { target_user: u.user_id });
+                    }} className="admin-btn-icon" title={flags.bannedUsers?.includes(u.user_id) ? "Unban User" : "Ban User"} style={{ background: "transparent", border: "none", cursor: "pointer", padding: 6 }}>
+                      <Ban size={20} color={flags.bannedUsers?.includes(u.user_id) ? "var(--danger)" : "var(--muted)"} />
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+
+             {/* Friend Pings & Share Codes */}
+             <section className="admin-card">
+               <h2><Users size={20} color="var(--green)" /> Social Hygiene</h2>
+               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <span style={{ fontSize: 13, color: "var(--muted)" }}>Pending Friend Pings</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                     <span style={{ fontWeight: 800, fontSize: 16 }}>{friendPingsCount}</span>
+                  </div>
+               </div>
+               
+               <h3 style={{ fontSize: 12, textTransform: "uppercase", color: "var(--muted)", margin: "16px 0 8px 0", letterSpacing: "1px" }}>Active Share Codes</h3>
+               <div style={{ maxHeight: 150, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
+                  {shareCodes.length === 0 ? <div className="admin-empty">No active share codes.</div> : 
+                     [...shareCodes].sort((a, b) => {
+                        const nameA = allUsers.find(u => u.user_id === a.user_id)?.name;
+                        const nameB = allUsers.find(u => u.user_id === b.user_id)?.name;
+                        if (nameA && !nameB) return -1;
+                        if (!nameA && nameB) return 1;
+                        return 0;
+                     }).map(sc => {
+                        const owner = allUsers.find(u => u.user_id === sc.user_id);
+                        return (
+                           <div key={sc.code} style={{ display: "flex", justifyContent: "space-between", padding: "6px 12px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)", fontSize: 12 }}>
+                              <span style={{ fontWeight: 700, letterSpacing: "1px" }}>{sc.code}</span>
+                              <span style={{ color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 120 }}>{owner?.name ? owner.name : sc.user_id}</span>
+                           </div>
+                        )
+                     })
+                  }
+               </div>
+             </section>
+             
+             {/* Enrollment Distribution */}
+             <section className="admin-card">
+               <h2><Database size={20} color="var(--violet)" /> Enrollment Stats</h2>
+               <p className="admin-subtext">Top 5 most popular courses by enrollment.</p>
+               <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
+                  {popularCourses.length === 0 ? <div className="admin-empty">No data.</div> : 
+                     popularCourses.slice(0, 5).map(([code, count]) => {
+                        const max = popularCourses[0][1];
+                        const pct = Math.round((count / max) * 100);
+                        return (
+                           <div key={code}>
+                              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                                 <span style={{ fontWeight: 600 }}>{code}</span>
+                                 <span style={{ color: "var(--muted)" }}>{count} enrolled</span>
+                              </div>
+                              <div style={{ height: 6, background: "var(--bg)", borderRadius: 4, overflow: "hidden", border: "1px solid var(--border)" }}>
+                                 <div style={{ height: "100%", width: `${pct}%`, background: "var(--violet)" }}></div>
+                              </div>
+                           </div>
+                        )
+                     })
+                  }
+               </div>
+             </section>
+
+          {/* Analytics Dashboard — real data from Supabase */}
+          <section className="admin-card admin-span-all" style={{ gridColumn: "1 / -1" }}>
+             <h2><BarChart2 size={20} color="var(--violet)" /> Analytics & Usage</h2>
+             <div style={{ display: "flex", gap: 16, marginTop: 16, flexWrap: "wrap" }}>
+
+                {/* 7-Day Active Users — real last_seen_at buckets */}
+                <div style={{ flex: 1, minWidth: 250, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: 16 }}>
+                   <div style={{ fontSize: 13, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "1px", marginBottom: 12 }}>7-Day Active Users</div>
+                   {(() => {
+                      const maxVal = Math.max(...activityChartData, 1);
+                      const dayLabels = Array.from({ length: 7 }, (_, i) => {
+                        // eslint-disable-next-line react-hooks/purity
+                        const d = new Date(Date.now() - (6 - i) * 86400000);
+                        return d.toLocaleDateString("en-IN", { weekday: "short" });
+                      });
+                      return (
+                        <>
+                          <div style={{ height: 100, display: "flex", alignItems: "flex-end", gap: 6 }}>
+                            {activityChartData.map((v, i) => (
+                              <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", height: "100%", justifyContent: "flex-end", gap: 4 }}>
+                                <div title={`${v} users`} style={{ width: "100%", background: i === 6 ? "var(--violet)" : "rgba(109,91,208,0.45)", borderRadius: "4px 4px 0 0", height: `${Math.max(4, (v / maxVal) * 100)}%`, transition: "height 0.4s" }}></div>
+                              </div>
+                            ))}
+                          </div>
+                          <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                            {dayLabels.map((l, i) => <div key={i} style={{ flex: 1, fontSize: 9, color: "var(--muted)", textAlign: "center", fontWeight: i === 6 ? 800 : 400 }}>{l}</div>)}
+                          </div>
+                          <div style={{ marginTop: 10, fontSize: 12, color: "var(--muted)", borderTop: "1px solid var(--border)", paddingTop: 8 }}>
+                            Total past 7 days: <strong style={{ color: "var(--text)" }}>{activityChartData.reduce((a, b) => a + b, 0)}</strong> unique sessions
+                          </div>
+                        </>
+                      );
+                   })()}
+                </div>
+
+                {/* Most-Skipped Classes — from attendance table */}
+                <div style={{ flex: 1, minWidth: 250, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: 16 }}>
+                   <div style={{ fontSize: 13, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "1px", marginBottom: 12 }}>Most Skipped Classes</div>
+                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {skipStats.length === 0 ? (
+                         <div className="admin-empty" style={{ fontSize: 12 }}>No absence data yet.</div>
+                      ) : skipStats.map(([code, count]) => {
+                         const maxSkip = skipStats[0][1];
+                         return (
+                           <div key={code}>
+                             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}>
+                               <span style={{ fontWeight: 600 }}>{code}</span><span style={{ color: "var(--muted)" }}>{count} absences</span>
+                             </div>
+                             <div style={{ height: 6, background: "var(--card)", borderRadius: 3, overflow: "hidden" }}>
+                               <div style={{ width: `${Math.round((count / maxSkip) * 100)}%`, height: "100%", background: "var(--danger)" }}></div>
+                             </div>
+                           </div>
+                         );
+                      })}
+                   </div>
+                </div>
+
+                {/* Peak Hour — computed from last_seen_at timestamps */}
+                <div style={{ flex: 1, minWidth: 250, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: 16, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", textAlign: "center" }}>
+                   <Clock size={32} color="var(--blue)" style={{ marginBottom: 12 }} />
+                   <div style={{ fontSize: 28, fontWeight: 800 }}>
+                     {peakHour !== null ? `${peakHour % 12 || 12}:00 ${peakHour < 12 ? "AM" : "PM"}` : "—"}
+                   </div>
+                   <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 4 }}>Peak Usage Hour (IST)</div>
+                   <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>Based on last_seen_at heartbeats</div>
+                   {statsLoading && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>Loading...</div>}
+                </div>
+             </div>
+          </section>
+             
+             {/* API Health Check — live pings */}
+             <section className="admin-card">
+               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                 <h2><Terminal size={20} color="var(--live)" /> API Health Check</h2>
+                 <button onClick={checkApiHealth} disabled={healthChecking} className="admin-btn outline" style={{ padding: "4px 10px", fontSize: 12 }}>
+                   <RefreshCw size={13} className={healthChecking ? "spin-icon" : ""} /> {healthChecking ? "Checking…" : "Run Check"}
+                 </button>
+               </div>
+               <p className="admin-subtext">Click "Run Check" to probe all services live.</p>
+               <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
+                  {[
+                    { key: "supabase", label: "Supabase Database", icon: <Database size={14} /> },
+                    { key: "push",     label: "Push Notification Gateway", icon: <BellRing size={14} /> },
+                    { key: "sheets",   label: "Google Sheets Live Feed", icon: <FileText size={14} /> },
+                  ].map(({ key, label, icon }) => {
+                    const s = healthStatus[key];
+                    const _isOk  = s && s !== "error" && s !== "timeout";
+                    const isErr = s === "error" || s === "timeout";
+                    const bg  = !s ? "var(--bg)" : isErr ? "rgba(231,76,60,0.08)" : "rgba(46,204,113,0.08)";
+                    const tag = !s ? (healthChecking ? "Checking…" : "Not checked") :
+                                isErr ? (s === "timeout" ? "Timeout" : "Error") :
+                                key === "supabase" ? s : "Operational";
+                    const tagColor = !s ? "var(--muted)" : isErr ? "var(--danger)" : "var(--green)";
+                    return (
+                      <div key={key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: bg, borderRadius: 8, border: `1px solid ${!s ? "var(--border)" : isErr ? "var(--danger)" : "var(--green)"}`, transition: "all 0.3s" }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>{icon} {label}</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: tagColor, padding: "2px 8px", borderRadius: 10, background: `${tagColor}22` }}>{tag}</span>
+                      </div>
+                    );
+                  })}
+               </div>
+             </section>
+
         {/* Feedback Section */}
         <section className="admin-card">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -2249,8 +2182,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </div>
         </section>
 
-        <div className="admin-span-all" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(300px, 100%), 1fr))", gap: 24 }}>
-          <section className="admin-card">
+                    <div className="admin-grid admin-span-all">
+<section className="admin-card">
             <h2><Flag size={20} color="var(--violet)" /> Feature Flags</h2>
             <div className="admin-flag-list">
               {Object.keys(flags).filter(k => k !== "maintenanceMode" && k !== "bannedUsers" && k !== "classOverrides" && k !== "abTests" && k !== "scheduledAnnouncements" && k !== "quickLinks" && k !== "heroBackdrop" && k !== "whatsNew" && k !== "updatePrompt" && k !== "dispatchEnabled" && k !== "wrappedReleaseDate" && k !== "wrappedTerm").map(key => (
@@ -2342,7 +2275,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             </div>
           </section>
 
-          <section className="admin-card">
+             {/* A/B Testing — managed from flags.abTests */}
+
+<section className="admin-card">
             <h2><Megaphone size={20} color="var(--amber)" /> All Announcements</h2>
             <div className="admin-subtext" style={{ marginBottom: 16 }}>Live feed of all schedule changes (including admin-only data quality issues).</div>
             
@@ -2435,6 +2370,57 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               </div>
             </div>
           )}
+          </div>
+
+          <section className="admin-card">
+               <h2><Flag size={20} color="var(--blue)" /> A/B Testing</h2>
+               <p className="admin-subtext">Rollout experiments stored in flags. Deploy config to apply changes.</p>
+
+               {/* Add new experiment */}
+               <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
+                 <div className="admin-field" style={{ flex: 2, minWidth: 140 }}>
+                   <label>Experiment Name</label>
+                   <input className="admin-input" value={abTestName} onChange={e => setAbTestName(e.target.value)} placeholder="e.g. new_home_v4" />
+                 </div>
+                 <div className="admin-field" style={{ flex: 1, minWidth: 80 }}>
+                   <label>Rollout %</label>
+                   <input type="number" min={0} max={100} className="admin-input" value={abTestRollout} onChange={e => setAbTestRollout(Number(e.target.value))} />
+                 </div>
+                 <button className="admin-btn primary" style={{ marginBottom: 10 }} onClick={() => {
+                   const key = abTestName.trim().toLowerCase().replace(/\s+/g, "_");
+                   if (!key) return alert("Enter an experiment name.");
+                   setFlags({ ...flags, abTests: { ...(flags.abTests || {}), [key]: { name: abTestName.trim(), rollout: abTestRollout, active: true } } });
+                   setAbTestName(""); setAbTestRollout(50);
+                 }}>Add</button>
+               </div>
+
+               {/* Existing experiments */}
+               <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 8 }}>
+                 {Object.keys(flags.abTests || {}).length === 0 ? (
+                   <div className="admin-empty">No experiments. Add one above.</div>
+                 ) : Object.entries(flags.abTests || {}).map(([key, exp]) => (
+                   <div key={key} style={{ padding: 12, background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)" }}>
+                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                       <div>
+                         <span style={{ fontSize: 13, fontWeight: 700 }}>{exp.name || key}</span>
+                         <span style={{ fontSize: 11, color: "var(--muted)", marginLeft: 8 }}>({key})</span>
+                       </div>
+                       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                         <input type="number" min={0} max={100} value={exp.rollout} onChange={e => setFlags({ ...flags, abTests: { ...flags.abTests, [key]: { ...exp, rollout: Number(e.target.value) } } })} style={{ width: 52, padding: "2px 6px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)", fontSize: 12, textAlign: "center" }} />
+                         <span style={{ fontSize: 11, color: "var(--muted)" }}>%</span>
+                         <button onClick={() => {
+                           const next = { ...flags.abTests }; delete next[key];
+                           setFlags({ ...flags, abTests: next });
+                         }} style={{ background: "transparent", border: "none", cursor: "pointer", padding: 2 }}><Trash2 size={14} color="var(--danger)" /></button>
+                       </div>
+                     </div>
+                     <div style={{ height: 6, background: "var(--card)", borderRadius: 3, overflow: "hidden", border: "1px solid var(--border)" }}>
+                       <div style={{ width: `${Math.min(100, Math.max(0, exp.rollout))}%`, height: "100%", background: "var(--blue)", transition: "width 0.3s" }}></div>
+                     </div>
+                   </div>
+                 ))}
+               </div>
+             </section>
 
 
           {/* Time Machine */}
@@ -2524,89 +2510,84 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             </div>
           </section>
 
-          <section className="admin-card">
-            <h2><Database size={20} color="var(--violet)" /> Bundled Snapshot</h2>
-            <p className="admin-subtext">
-              Fallback timetable baked into the app at build time. Regenerated automatically from the live sheet on every deploy.
-            </p>
+          {/* Bundled Snapshot + Danger Zone — one row at the bottom */}
+          <div className="admin-grid admin-span-all">
 
-            <div className="admin-danger-row">
-              <div>
-                <strong style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                  {snapshotMeta.status === "success" ? (
-                    <><Check size={15} color="var(--live, #2ecc71)" /> Automation passed</>
-                  ) : (
-                    <><AlertTriangle size={15} color="var(--danger, #e74c3c)" /> Automation failed</>
-                  )}
-                </strong>
-                <span className="admin-subtext" style={{ margin: 0 }}>
-                  {snapshotMeta.status === "success" ? (
-                    <>Generated {new Date(snapshotMeta.ts).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} · {snapshotMeta.classes} classes · {snapshotMeta.courses} courses · term {snapshotMeta.termStart} → {snapshotMeta.termEnd}</>
-                  ) : (
-                    <>
-                      {snapshotMeta.error || "Feed unreachable at build time"} — serving snapshot from{" "}
-                      {snapshotMeta.lastSuccessTs ? new Date(snapshotMeta.lastSuccessTs).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "an older build"}
-                    </>
-                  )}
+            <section className="admin-card">
+              <h2><Database size={20} color="var(--violet)" /> Bundled Snapshot</h2>
+              <p className="admin-subtext">
+                Fallback timetable baked into the app at build time. Regenerated automatically from the live sheet on every deploy.
+              </p>
+              <div className="admin-danger-row">
+                <div>
+                  <strong style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                    {snapshotMeta.status === "success" ? (
+                      <><Check size={15} color="var(--live, #2ecc71)" /> Automation passed</>
+                    ) : (
+                      <><AlertTriangle size={15} color="var(--danger, #e74c3c)" /> Automation failed</>
+                    )}
+                  </strong>
+                  <span className="admin-subtext" style={{ margin: 0 }}>
+                    {snapshotMeta.status === "success" ? (
+                      <>Generated {new Date(snapshotMeta.ts).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} · {snapshotMeta.classes} classes · {snapshotMeta.courses} courses · term {snapshotMeta.termStart} → {snapshotMeta.termEnd}</>
+                    ) : (
+                      <>
+                        {snapshotMeta.error || "Feed unreachable at build time"} — serving snapshot from{" "}
+                        {snapshotMeta.lastSuccessTs ? new Date(snapshotMeta.lastSuccessTs).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "an older build"}
+                      </>
+                    )}
+                  </span>
+                </div>
+                <button className="admin-btn outline" onClick={triggerSnapshotRebuild} disabled={rebuilding}>
+                  <RefreshCw size={14} className={rebuilding ? "spin-icon" : ""} /> Rebuild
+                </button>
+              </div>
+              {rebuildMsg && (
+                <span className={`admin-save-msg ${rebuildMsg.startsWith("Failed") ? "error" : "success"}`} style={{ display: "block", marginTop: 8 }}>
+                  {rebuildMsg}
                 </span>
-              </div>
-              <button className="admin-btn outline" onClick={triggerSnapshotRebuild} disabled={rebuilding}>
-                <RefreshCw size={14} className={rebuilding ? "spin-icon" : ""} /> Rebuild
-              </button>
-            </div>
-            {rebuildMsg && (
-              <span className={`admin-save-msg ${rebuildMsg.startsWith("Failed") ? "error" : "success"}`} style={{ display: "block", marginTop: 8 }}>
-                {rebuildMsg}
-              </span>
-            )}
-          </section>
+              )}
+            </section>
 
-          <section className="admin-card danger-zone admin-span-all">
-            <h2><AlertTriangle size={20} color="var(--danger, #e74c3c)" /> Danger Zone</h2>
-            
-            <div className="admin-danger-row">
-              <div>
-                <strong style={{ display: "block", marginBottom: 4 }}>Maintenance Mode</strong>
-                <span className="admin-subtext" style={{ margin: 0 }}>Locks out all non-admin users immediately.</span>
-              </div>
-              <label className="admin-toggle">
-                <input
-                  type="checkbox"
-                  checked={!!flags.maintenanceMode}
-                  onChange={e => setFlags({ ...flags, maintenanceMode: e.target.checked })}
-                />
-                <span className="slider"></span>
-              </label>
-            </div>
+            <section className="admin-card danger-zone">
+              <h2><AlertTriangle size={20} color="var(--danger, #e74c3c)" /> Danger Zone</h2>
 
-            <div className="admin-danger-row">
-              <div>
-                <strong style={{ display: "block", marginBottom: 4 }}>Push Dispatcher</strong>
-                <span className="admin-subtext" style={{ margin: 0 }}>
-                  ON: the notifications system delivers push. OFF: pauses all outgoing push within a minute (the in-app inbox still updates; queued events resume when re-enabled). Kill-switch if the new push system misbehaves — flip OFF, then redeploy the legacy functions to fully fall back.
-                </span>
+              <div className="admin-danger-row">
+                <div>
+                  <strong style={{ display: "block", marginBottom: 4 }}>Maintenance Mode</strong>
+                  <span className="admin-subtext" style={{ margin: 0 }}>Locks out all non-admin users immediately.</span>
+                </div>
+                <label className="admin-toggle">
+                  <input type="checkbox" checked={!!flags.maintenanceMode} onChange={e => setFlags({ ...flags, maintenanceMode: e.target.checked })} />
+                  <span className="slider"></span>
+                </label>
               </div>
-              <label className="admin-toggle">
-                <input
-                  type="checkbox"
-                  checked={flags.dispatchEnabled !== false}
-                  onChange={e => setFlags({ ...flags, dispatchEnabled: e.target.checked })}
-                />
-                <span className="slider"></span>
-              </label>
-            </div>
 
-            <div className="admin-danger-row">
-              <div>
-                <strong style={{ display: "block", marginBottom: 4 }}>Force Global Refresh</strong>
-                <span className="admin-subtext" style={{ margin: 0 }}>Force all clients to re-sync from cloud.</span>
+              <div className="admin-danger-row">
+                <div>
+                  <strong style={{ display: "block", marginBottom: 4 }}>Push Dispatcher</strong>
+                  <span className="admin-subtext" style={{ margin: 0 }}>
+                    ON: the notifications system delivers push. OFF: pauses all outgoing push within a minute (the in-app inbox still updates; queued events resume when re-enabled). Kill-switch if the new push system misbehaves — flip OFF, then redeploy the legacy functions to fully fall back.
+                  </span>
+                </div>
+                <label className="admin-toggle">
+                  <input type="checkbox" checked={flags.dispatchEnabled !== false} onChange={e => setFlags({ ...flags, dispatchEnabled: e.target.checked })} />
+                  <span className="slider"></span>
+                </label>
               </div>
-              <button className="admin-btn outline" onClick={forceRefresh}>
-                <RefreshCw size={14} /> Force Sync
-              </button>
-            </div>
-          </section>
-        </div>
+
+              <div className="admin-danger-row">
+                <div>
+                  <strong style={{ display: "block", marginBottom: 4 }}>Force Global Refresh</strong>
+                  <span className="admin-subtext" style={{ margin: 0 }}>Force all clients to re-sync from cloud.</span>
+                </div>
+                <button className="admin-btn outline" onClick={forceRefresh}>
+                  <RefreshCw size={14} /> Force Sync
+                </button>
+              </div>
+            </section>
+
+          </div>
       </div>
 
       <div className="admin-save-footer" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>

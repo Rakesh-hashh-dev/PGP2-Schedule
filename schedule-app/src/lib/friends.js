@@ -182,8 +182,9 @@ export async function decodeSchedule(code) {
     
     const fullName = profileData.courses?._name || namePart;
     const cleanCourses = Object.fromEntries(Object.entries(profileData.courses).filter(([k]) => !k.startsWith('_')));
+    const imageUrl = profileData.courses?._imageUrl || null;
 
-    return { id: userId, name: fullName, courses: cleanCourses };
+    return { id: userId, name: fullName, courses: cleanCourses, imageUrl };
   } catch (e) {
     console.error("Decode error:", e);
     return null;
@@ -712,6 +713,38 @@ export async function fetchGroupChatMessages(groupId) {
   } catch { return []; }
 }
 
+export async function deleteGroupChatMessage(messageId, fromUserId) {
+  if (!messageId || !fromUserId) return false;
+  try {
+    const { error } = await supabase
+      .from("group_messages")
+      .delete()
+      .eq("id", messageId)
+      .eq("from_id", fromUserId); // row-level: only deletes if you own it
+    if (error) { console.error("[deleteGroupChatMessage] error:", error.message); return false; }
+    return true;
+  } catch (e) {
+    console.error("[deleteGroupChatMessage] catch:", e);
+    return false;
+  }
+}
+
+export async function editGroupChatMessage(messageId, fromUserId, text) {
+  if (!messageId || !fromUserId || !text) return false;
+  try {
+    const { error } = await supabase
+      .from("group_messages")
+      .update({ text })
+      .eq("id", messageId)
+      .eq("from_id", fromUserId);
+    if (error) { console.error("[editGroupChatMessage] error:", error.message); return false; }
+    return true;
+  } catch (e) {
+    console.error("[editGroupChatMessage] catch:", e);
+    return false;
+  }
+}
+
 // ── Group Chat (legacy friend_pings — kept until Phase 3 read-path swap) ─────
 
 export async function sendGroupMessage(groupId, fromUserId, fromName, text) {
@@ -860,14 +893,15 @@ export async function refreshFriendCoursesFromCloud(friends, onlyCloudIds = null
     if (!f.cloudId || !profileMap[f.cloudId]) return f;
     const rawProfile = profileMap[f.cloudId];
     const freshName = rawProfile._name || f.name;
+    const freshImageUrl = rawProfile._imageUrl || f.imageUrl;
     const raw = Object.fromEntries(Object.entries(rawProfile).filter(([k]) => !k.startsWith('_')));
 
     const coursesChanged =
-      JSON.stringify(raw) !== JSON.stringify(f.courses) || freshName !== f.name;
+      JSON.stringify(raw) !== JSON.stringify(f.courses) || freshName !== f.name || freshImageUrl !== f.imageUrl;
     if (!coursesChanged) return f;
 
     changed = true;
-    return { ...f, name: freshName, courses: raw, updatedAt: new Date().toISOString() };
+    return { ...f, name: freshName, imageUrl: freshImageUrl, courses: raw, updatedAt: new Date().toISOString() };
   });
 
   if (!changed) return null;

@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Suspense, lazy } from "react";
 import { createPortal } from "react-dom";
-import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, ChevronsLeft, ChevronsRight, Megaphone, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Sparkles, Wand2, BellRing, CalendarDays, ExternalLink, Download, Share, WifiOff, Zap, PanelBottom, PanelTop, PanelsTopLeft, Check, ChevronDown, MapPin, Sun, Moon, Monitor, CalendarOff, CalendarRange, UtensilsCrossed, Package } from "lucide-react";
+import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, ChevronsLeft, ChevronsRight, Megaphone, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Sparkles, Wand2, BellRing, CalendarDays, ExternalLink, Download, Share, WifiOff, Zap, PanelBottom, PanelTop, PanelsTopLeft, Check, ChevronDown, MapPin, Sun, Moon, Monitor, CalendarOff, CalendarRange, UtensilsCrossed, Package, Camera, Loader2, Wallet } from "lucide-react";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
 import SemSummary from "./components/SemSummary.jsx";
@@ -35,6 +35,7 @@ const CommandPalette = lazy(() => import("./components/CommandPalette.jsx"));
 const AssignmentsPanel = lazy(() => import("./components/AssignmentsPanel.jsx"));
 const WrappedView = lazy(() => import("./components/WrappedView.jsx"));
 const BoardPage = lazy(() => import("./components/BoardPage.jsx"));
+const SplitPage = lazy(() => import("./components/SplitPage.jsx"));
 import DeadlineStrip from "./components/DeadlineStrip.jsx";
 import CancellationAlert from "./components/CancellationAlert.jsx";
 import { loadMyAway, isAwayNow, fmtAwayEnd } from "./lib/status.js";
@@ -50,7 +51,7 @@ import { assignSubjectColors, subjectClass } from "./lib/subjectColors.js";
 import { haptic } from "./lib/haptics.js";
 import MarkPrompt from "./components/MarkPrompt.jsx";
 import { WhatsNewPill, WhatsNewModal } from "./components/WhatsNew.jsx";
-
+import { resizeImage } from "./lib/board.js";
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent || "");
 
@@ -251,8 +252,32 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       setMine(originalStateRef.current.mine);
       setSetup(originalStateRef.current.setup);
       setAttendance(originalStateRef.current.attendance);
+      originalStateRef.current = null;
     }
     setImpersonatedUser(null);
+  };
+
+  const avaInputRef = useRef(null);
+  const [isUploadingAva, setIsUploadingAva] = useState(false);
+
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    try {
+      setIsUploadingAva(true);
+      const compressedBlob = await resizeImage(file, 400, 400, 0.8);
+      await user.setProfileImage({ file: compressedBlob });
+      await user.reload(); // fetch updated user.imageUrl
+      if (enrolled) {
+        pushProfile(userId, enrolled, user.firstName || user.username || "Student", undefined, user.imageUrl);
+      }
+    } catch (err) {
+      console.error("Avatar upload failed:", err);
+      alert("Failed to upload photo. Please try again.");
+    } finally {
+      setIsUploadingAva(false);
+      if (avaInputRef.current) avaInputRef.current.value = "";
+    }
   };
   // -------------------------------
 
@@ -514,6 +539,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [prefsSecOpen, setPrefsSecOpen] = useState(false);
   const [messMenuOpen, setMessMenuOpen] = useState(false);
   const [aboutSecOpen, setAboutSecOpen] = useState(false);
+  // Split deep-link: a group id from a notification URL (?view=split&g=…)
+  const [splitDeepLink, setSplitDeepLink] = useState(null);
+  // Split invite: a group id to join from a shared link (?view=split&join=…)
+  const [splitJoinLink, setSplitJoinLink] = useState(null);
   const [adminSecOpen, setAdminSecOpen] = useState(false);
   const [showFriendsAgenda, setShowFriendsAgenda] = useState(false);
   const [showRightScroll, setShowRightScroll] = useState(true);
@@ -578,7 +607,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   useEffect(() => {
     const DEEP_LINK_VIEWS = new Set([
       "today", "tomorrow", "week", "attendance", "exams", "assignments",
-      "notifications", "friends", "leave", "glance", "board",
+      "notifications", "friends", "leave", "glance", "board", "split",
     ]);
     const captureFromUrl = () => {
       const params = new URLSearchParams(window.location.search);
@@ -591,11 +620,19 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         setPendingInvite(code);
       }
       if (wanted && DEEP_LINK_VIEWS.has(wanted)) setView(wanted);
+      if (wanted === "split") {
+        const g = params.get("g");
+        if (g) setSplitDeepLink(g);
+        const join = params.get("join");
+        if (join) setSplitJoinLink(join);
+      }
 
       // Strip the consumed params, preserving anything else on the URL.
       const rest = new URLSearchParams(window.location.search);
       rest.delete("f");
       rest.delete("view");
+      rest.delete("g");
+      rest.delete("join");
       const qs = rest.toString();
       window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
     };
@@ -678,6 +715,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           setEnrolled(p.courses);
           setMine(new Set(Object.keys(p.courses)));
           setSetup(p);
+
+          if (user?.imageUrl && p.imageUrl !== user.imageUrl) {
+            pushProfile(userId, p.courses, user.firstName || user.username || "Student", undefined, user.imageUrl);
+          }
 
           // Auto-sync notification read state from cloud
           if (p.lastSeenNotif) {
@@ -1117,7 +1158,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             setMine(new Set(Object.keys(nextEnrolled)));
             const newSetup = { ...setup, courses: nextEnrolled };
             setSetup(newSetup);
-            pushProfile(userId, nextEnrolled);
+            pushProfile(userId, nextEnrolled, user?.firstName || user?.username || "Student", undefined, user?.imageUrl);
           }
         }
       })();
@@ -1358,7 +1399,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       try { await user.update({ firstName: trimmed }); } catch { /* non-blocking */ }
     }
     const name = trimmed || user?.firstName || user?.username || "Student";
-    pushProfile(userId, courses, name);
+    pushProfile(userId, courses, name, undefined, user?.imageUrl);
     setEnrolled(courses);
     setMine(new Set(Object.keys(courses)));
     setSetup(s);
@@ -1576,7 +1617,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       const latest = Math.max(...filteredChanges.map(c => new Date(c.ts).getTime()));
       setLastSeenTs(latest);
       try { localStorage.setItem(NOTIF_KEY, String(latest)); } catch { }
-      pushProfile(userId, enrolled, user?.firstName || user?.username || "Student", latest);
+      pushProfile(userId, enrolled, user?.firstName || user?.username || "Student", latest, user?.imageUrl);
     }
     if (!notifOpen) notifOpenedAt.current = Date.now();
     setNotifOpen(o => !o);
@@ -1761,6 +1802,198 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // What's New feature announcements (admin flags.whatsNew, newest first)
   const whatsNewItems = (sysConfig?.flags?.whatsNew || []).filter(w => w?.id && w.title);
   const unseenWhatsNew = whatsNewItems.filter(w => !seenWhatsNewIds.has(w.id));
+
+  const renderNotificationBell = (variant = "topbar") => (
+    <div className="tb-wrap notif-wrap">
+      <button className={variant === "sidebar" ? "sb-util-btn" : "sync"} onClick={handleOpenNotif} aria-label={hasUnread ? `Notifications, ${unreadTotal} unread` : "Notifications"} aria-expanded={notifOpen}>
+        <Bell size={variant === "sidebar" ? 16 : 15} />
+        {hasUnread && <span className="notif-badge">{unreadTotal > 9 ? "9+" : unreadTotal}</span>}
+      </button>
+      <span className="tooltip" role="tooltip">Notifications</span>
+      {notifOpen && (
+        <>
+          <div className="notif-backdrop" onClick={() => setNotifOpen(false)} />
+          <div className="notif-panel" role="dialog" aria-label="Notifications">
+            <div className="notif-panel-top">
+              <div className="bell-chips" role="tablist" aria-label="Filter notifications">
+                {[["all", "All"], ["social", "Social"], ["classes", "Classes"]].map(([id, label]) => (
+                  <button
+                    key={id}
+                    role="tab"
+                    aria-selected={notifFilter === id}
+                    className={`bell-chip${notifFilter === id ? " on" : ""}`}
+                    onClick={() => setNotifFilter(id)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {hasUnread
+                ? <button className="rc-mark-all" onClick={markAllRead}>Mark all read</button>
+                : <span className="rc-all-read">All caught up</span>
+              }
+            </div>
+            {(() => {
+              const showSocial = notifFilter !== "classes";
+              const showClasses = notifFilter !== "social";
+              const socialEmpty = friendNotifItems.length === 0;
+              const classesEmpty = alertItems.length === 0 && filteredChanges.length === 0;
+              if ((!showSocial || socialEmpty) && (!showClasses || classesEmpty)) {
+                return <p className="notif-empty">No new notifications</p>;
+              }
+              return (
+                <>
+                  {showSocial && !socialEmpty && (
+                    <section className="rc">
+                      <div className="rc-head">
+                        <span className="rc-title"><Users size={14} /> Friends</span>
+                      </div>
+                      <div className="np-ping-list">
+                        {friendNotifItems.map(item => (
+                          <div
+                            key={item.id}
+                            className={`np-ping${item.isRead ? " np-ping-read" : ""}`}
+                            onClick={() => item.kind !== "friend_request" && markPingRead(item.pingId)}
+                            style={{ cursor: item.kind !== "friend_request" ? "pointer" : "default" }}
+                          >
+                            <div className="np-ping-avatar">{(item.name || "?")[0].toUpperCase()}</div>
+                            <div className="np-ping-body">
+                              <span className="np-ping-text">{item.text}</span>
+                              {item.kind === "friend_request" && (
+                                <div className="np-ping-actions">
+                                  <button className="np-btn-accept" onClick={e => { e.stopPropagation(); handleAcceptFriendRequest(item); }}>
+                                    <Check size={13} strokeWidth={2.8} /> Accept
+                                  </button>
+                                  <button className="np-btn-decline" onClick={e => { e.stopPropagation(); handleDeclineFriendRequest(item); }}>
+                                    <X size={13} strokeWidth={2.8} /> Decline
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                            <div className="np-ping-side">
+                              <span className="np-ping-time">{timeAgo(item.ts)}</span>
+                              {item.isRead && <span className="rc-read-check">✓</span>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="np-sec-foot">
+                        <button className="np-link" onClick={() => { setNotifOpen(false); setView("friends"); }}>Go to Social</button>
+                        <button className="np-link np-link-danger" onClick={clearAllFriendNotifs}>Clear all</button>
+                      </div>
+                    </section>
+                  )}
+                  {showClasses && alertItems.length > 0 && (
+                    <section className="rc">
+                      <div className="rc-head">
+                        <span className="rc-title"><BellRing size={14} /> Alerts</span>
+                      </div>
+                      <ul className="rc-list">
+                        {alertItems.slice(0, 6).map(a => {
+                          const code = a.data?.code;
+                          const titleText = code ? a.title.replace(code, "").replace(/\s{2,}/g, " ").trim() : a.title;
+                          return (
+                          <li key={a.id} className={`rc-item rc-item-clickable${a.read_at ? " rc-item-read" : ""}`} onClick={() => markAlertRead(a.id)}>
+                            <span className={`rc-dot ${ALERT_DOT[a.type] || "rc-alert"}`} />
+                            <span className="rc-text">
+                              <span className="rc-alert-title">
+                                {code && <span className={`ses rc-alert-pill ${subjectClass(code)}`}>{code}</span>}
+                                {titleText}
+                              </span>
+                              {a.body && <span className="rc-alert-sub">{a.body.replace(/\n/g, "  ·  ")}</span>}
+                            </span>
+                            {a.created_at && <span className="rc-time">{timeAgo(a.created_at)}</span>}
+                            {a.read_at && <span className="rc-read-check">✓</span>}
+                          </li>
+                          );
+                        })}
+                      </ul>
+                    </section>
+                  )}
+                  {showClasses && filteredChanges.length > 0 && <RecentChanges changes={filteredChanges} readKeys={readChangeKeys} onMarkRead={markChangeRead} onViewAll={handleViewAllNotifs} />}
+                </>
+              );
+            })()}
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  const renderSbAvatarWrap = () => (
+    <div className="sb-avatar-wrap" onMouseEnter={(e) => showSbTip(e, "Profile", true)} onMouseLeave={hideSbTip}>
+      <button className="sb-avatar-btn" onClick={(e) => { e.stopPropagation(); setSbProfileOpen(o => !o); hideSbTip(); }} aria-label="Profile">
+        <div className="sb-avatar-img">
+          {user?.imageUrl ? <img src={user.imageUrl} alt="" /> : (user?.firstName?.[0] || "?")}
+        </div>
+        <div className="sb-avatar-info">
+          <span className="sb-avatar-name">
+            {user?.firstName || user?.fullName || "Student"}
+            {showAdminUI && <span className="admin-badge">Admin</span>}
+          </span>
+          <span className="sb-avatar-batch">PGP2 · 2025–27</span>
+        </div>
+      </button>
+      {sbProfileOpen && <div className="notif-backdrop" style={{ zIndex: 299 }} onClick={() => setSbProfileOpen(false)} />}
+      <div className={`sb-profile-pop ${sbProfileOpen ? "sb-open" : ""}`}>
+        <div className="sb-pop-head">
+          <div className={`sb-pop-ava ${isUploadingAva ? "is-uploading" : ""}`} onClick={() => !isUploadingAva && avaInputRef.current?.click()}>
+            <input type="file" ref={avaInputRef} accept="image/*" style={{ display: 'none' }} onChange={handleAvatarUpload} />
+            {user?.imageUrl ? <img src={user.imageUrl} alt="" /> : (user?.firstName?.[0] || "?")}
+            <div className="sb-pop-ava-overlay">
+              {isUploadingAva ? <Loader2 size={18} className="spin-icon" /> : <Camera size={18} />}
+            </div>
+          </div>
+          <div className="sb-pop-id">
+            <div className="sb-pop-name">
+              {user?.fullName || "Student"}
+              {showAdminUI && <span className="admin-badge">Admin</span>}
+            </div>
+            <div className="sb-pop-email">{user?.primaryEmailAddress?.emailAddress || ""}</div>
+          </div>
+        </div>
+        <div className="sb-pop-meta">
+          <span className="sb-pop-batch">PGP2 · 2025–27</span>
+          {termLabel && <span className="sb-pop-term">{termLabel}</span>}
+          <span className="sb-pop-version">v{__APP_VERSION__.split("+")[0]}</span>
+        </div>
+        <div className="sb-pop-sep" />
+        <div className="sb-pop-style">
+          <span className="sb-pop-style-label">Sidebar</span>
+          <div className="sb-pop-seg">
+            <button className={sbStyle === "classic" ? "on" : ""} onClick={() => setSidebarStyle("classic")}>Classic</button>
+            <button className={sbStyle === "aurora" ? "on" : ""} onClick={() => setSidebarStyle("aurora")}>Aurora</button>
+          </div>
+        </div>
+        <button className="sb-pop-signout" onClick={() => signOut()}>
+          <LogOut size={14} /> Sign out
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderSbUtilStrip = () => (
+    <div className="sb-util-strip">
+      {renderNotificationBell("sidebar")}
+      <button className="sb-util-btn" onMouseEnter={e => showSbTip(e, "Edit setup", true)} onMouseLeave={hideSbTip} onClick={() => { setShowSetupEdit(true); hideSbTip(); }} aria-label="Edit setup">
+        <Settings2 size={16} />
+      </button>
+      <button className="sb-util-btn" disabled={isOffline} onMouseEnter={e => showSbTip(e, isOffline ? "Offline" : syncing ? "Syncing…" : "Refresh", true)} onMouseLeave={hideSbTip} onClick={handleSync} aria-label="Refresh" style={{ opacity: isOffline ? 0.3 : 1 }}>
+        <RefreshCw size={16} className={syncing ? "spin-icon" : ""} />
+      </button>
+      {isAdmin && (
+        <button
+          className={`sb-util-btn${adminMode ? " sb-util-admin-on" : ""}`}
+          onMouseEnter={e => showSbTip(e, adminMode ? "Exit Admin" : "Admin Mode", true)}
+          onMouseLeave={hideSbTip}
+          onClick={() => setAdminMode(!adminMode)}
+          aria-label={adminMode ? "Exit Admin" : "Admin Mode"}
+        >
+          {adminMode ? <Shield size={16} /> : <User size={16} />}
+        </button>
+      )}
+    </div>
+  );
 
   return (
     <div className="app-shell">
@@ -1950,6 +2183,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             <button className="sb-link" onMouseEnter={e => showSbTip(e, "Mess menu")} onMouseLeave={hideSbTip} onClick={() => { setMessMenuOpen(true); hideSbTip(); }}>
               <UtensilsCrossed size={18} /><span className="sb-link-label">Mess menu</span>
             </button>
+            <button className={`sb-link${view === "split" ? " on" : ""}`} aria-current={view === "split" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Split expenses")} onMouseLeave={hideSbTip} onClick={() => { setView("split"); setCompareTarget(null); hideSbTip(); }}>
+              <Wallet size={18} /><span className="sb-link-label">Split</span> <span className="beta-badge">New</span>
+            </button>
             <button className={`sb-link${view === "leave" ? " on" : ""}`} aria-current={view === "leave" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Leave planner")} onMouseLeave={hideSbTip} onClick={() => { setView("leave"); setCompareTarget(null); hideSbTip(); }}>
               <CalendarOff size={18} /><span className="sb-link-label">Leave planner</span>
             </button>
@@ -2009,73 +2245,22 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
         <div className="sb-bottom">
           <div className="sb-footer-card">
-            <div className="sb-avatar-wrap" onMouseEnter={(e) => showSbTip(e, "Profile", true)} onMouseLeave={hideSbTip}>
-              <button className="sb-avatar-btn" onClick={(e) => { e.stopPropagation(); setSbProfileOpen(o => !o); hideSbTip(); }} aria-label="Profile">
-                <div className="sb-avatar-img">
-                  {user?.imageUrl ? <img src={user.imageUrl} alt="" /> : (user?.firstName?.[0] || "?")}
+            {sbCollapsed ? (
+              <>
+                {renderSbUtilStrip()}
+                <div className="sb-foot-sep" style={{ margin: "4px 8px" }} />
+                {renderSbAvatarWrap()}
+              </>
+            ) : (
+              <>
+                {renderSbAvatarWrap()}
+                <div className="sb-foot-sep" />
+                {renderSbUtilStrip()}
+                <div className="sb-sync-note">
+                  <span className="sb-sync-dot" />
+                  {syncing ? "Syncing…" : syncedAgo === 0 ? "Synced just now" : `Synced ${syncedAgo}m ago`}
                 </div>
-                <div className="sb-avatar-info">
-                  <span className="sb-avatar-name">
-                    {user?.firstName || user?.fullName || "Student"}
-                    {showAdminUI && <span className="admin-badge">Admin</span>}
-                  </span>
-                  <span className="sb-avatar-batch">PGP2 · 2025–27</span>
-                </div>
-              </button>
-              {sbProfileOpen && <div className="notif-backdrop" style={{ zIndex: 299 }} onClick={() => setSbProfileOpen(false)} />}
-              <div className={`sb-profile-pop ${sbProfileOpen ? "sb-open" : ""}`}>
-                <div className="sb-pop-head">
-                  <div className="sb-pop-ava">
-                    {user?.imageUrl ? <img src={user.imageUrl} alt="" /> : (user?.firstName?.[0] || "?")}
-                  </div>
-                  <div className="sb-pop-id">
-                    <div className="sb-pop-name">
-                      {user?.fullName || "Student"}
-                      {showAdminUI && <span className="admin-badge">Admin</span>}
-                    </div>
-                    <div className="sb-pop-email">{user?.primaryEmailAddress?.emailAddress || ""}</div>
-                  </div>
-                </div>
-                <div className="sb-pop-meta">
-                  <span className="sb-pop-batch">PGP2 · 2025–27</span>
-                  {termLabel && <span className="sb-pop-term">{termLabel}</span>}
-                  <span className="sb-pop-version">v{__APP_VERSION__.split("+")[0]}</span>
-                </div>
-                <div className="sb-pop-sep" />
-                <div className="sb-pop-style">
-                  <span className="sb-pop-style-label">Sidebar</span>
-                  <div className="sb-pop-seg">
-                    <button className={sbStyle === "classic" ? "on" : ""} onClick={() => setSidebarStyle("classic")}>Classic</button>
-                    <button className={sbStyle === "aurora" ? "on" : ""} onClick={() => setSidebarStyle("aurora")}>Aurora</button>
-                  </div>
-                </div>
-                <button className="sb-pop-signout" onClick={() => signOut()}>
-                  <LogOut size={14} /> Sign out
-                </button>
-              </div>
-            </div>
-            <div className="sb-foot-sep" />
-            <div className="sb-util-strip">
-              <button className="sb-util-btn" onMouseEnter={e => showSbTip(e, "Edit setup", true)} onMouseLeave={hideSbTip} onClick={() => { setShowSetupEdit(true); hideSbTip(); }} aria-label="Edit setup">
-                <Settings2 size={16} />
-              </button>
-              <button className="sb-util-btn" disabled={isOffline} onMouseEnter={e => showSbTip(e, isOffline ? "Offline" : syncing ? "Syncing…" : "Refresh", true)} onMouseLeave={hideSbTip} onClick={handleSync} aria-label="Refresh" style={{ opacity: isOffline ? 0.3 : 1 }}>
-                <RefreshCw size={16} className={syncing ? "spin-icon" : ""} />
-              </button>
-              {isAdmin && (
-                <button
-                  className={`sb-util-btn${adminMode ? " sb-util-admin-on" : ""}`}
-                  onMouseEnter={e => showSbTip(e, adminMode ? "Exit Admin" : "Admin Mode", true)}
-                  onMouseLeave={hideSbTip}
-                  onClick={() => setAdminMode(!adminMode)}
-                  aria-label={adminMode ? "Exit Admin" : "Admin Mode"}
-                >
-                  {adminMode ? <Shield size={16} /> : <User size={16} />}
-                </button>
-              )}
-            </div>
-            {!sbCollapsed && (
-              <div className="sb-sync-note"><span className="sb-sync-dot" />{syncing ? "Syncing…" : syncedAgo === 0 ? "Synced just now" : `Synced ${syncedAgo}m ago`}</div>
+              </>
             )}
           </div>
         </div>
@@ -2136,120 +2321,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               <span className="tooltip" role="tooltip">Search (Cmd+K)</span>
             </div>
             {/* Bell — always visible; single notification center */}
-            <div className="tb-wrap notif-wrap">
-              <button className="sync" onClick={handleOpenNotif} aria-label={hasUnread ? `Notifications, ${unreadTotal} unread` : "Notifications"} aria-expanded={notifOpen}>
-                <Bell size={15} />
-                {hasUnread && <span className="notif-badge">{unreadTotal > 9 ? "9+" : unreadTotal}</span>}
-              </button>
-              <span className="tooltip" role="tooltip">Notifications</span>
-              {notifOpen && (
-                <>
-                  <div className="notif-backdrop" onClick={() => setNotifOpen(false)} />
-                  <div className="notif-panel" role="dialog" aria-label="Notifications">
-                    <div className="notif-panel-top">
-                      <div className="bell-chips" role="tablist" aria-label="Filter notifications">
-                        {[["all", "All"], ["social", "Social"], ["classes", "Classes"]].map(([id, label]) => (
-                          <button
-                            key={id}
-                            role="tab"
-                            aria-selected={notifFilter === id}
-                            className={`bell-chip${notifFilter === id ? " on" : ""}`}
-                            onClick={() => setNotifFilter(id)}
-                          >
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-                      {hasUnread
-                        ? <button className="rc-mark-all" onClick={markAllRead}>Mark all read</button>
-                        : <span className="rc-all-read">All caught up</span>
-                      }
-                    </div>
-                    {(() => {
-                      const showSocial = notifFilter !== "classes";
-                      const showClasses = notifFilter !== "social";
-                      const socialEmpty = friendNotifItems.length === 0;
-                      const classesEmpty = alertItems.length === 0 && filteredChanges.length === 0;
-                      if ((!showSocial || socialEmpty) && (!showClasses || classesEmpty)) {
-                        return <p className="notif-empty">No new notifications</p>;
-                      }
-                      return (
-                        <>
-                          {showSocial && !socialEmpty && (
-                            <section className="rc">
-                              <div className="rc-head">
-                                <span className="rc-title"><Users size={14} /> Friends</span>
-                              </div>
-                              <div className="np-ping-list">
-                                {friendNotifItems.map(item => (
-                                  <div
-                                    key={item.id}
-                                    className={`np-ping${item.isRead ? " np-ping-read" : ""}`}
-                                    onClick={() => item.kind !== "friend_request" && markPingRead(item.pingId)}
-                                    style={{ cursor: item.kind !== "friend_request" ? "pointer" : "default" }}
-                                  >
-                                    <div className="np-ping-avatar">{(item.name || "?")[0].toUpperCase()}</div>
-                                    <div className="np-ping-body">
-                                      <span className="np-ping-text">{item.text}</span>
-                                      {item.kind === "friend_request" && (
-                                        <div className="np-ping-actions">
-                                          <button className="np-btn-accept" onClick={e => { e.stopPropagation(); handleAcceptFriendRequest(item); }}>
-                                            <Check size={13} strokeWidth={2.8} /> Accept
-                                          </button>
-                                          <button className="np-btn-decline" onClick={e => { e.stopPropagation(); handleDeclineFriendRequest(item); }}>
-                                            <X size={13} strokeWidth={2.8} /> Decline
-                                          </button>
-                                        </div>
-                                      )}
-                                    </div>
-                                    <div className="np-ping-side">
-                                      <span className="np-ping-time">{timeAgo(item.ts)}</span>
-                                      {item.isRead && <span className="rc-read-check">✓</span>}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                              <div className="np-sec-foot">
-                                <button className="np-link" onClick={() => { setNotifOpen(false); setView("friends"); }}>Go to Social</button>
-                                <button className="np-link np-link-danger" onClick={clearAllFriendNotifs}>Clear all</button>
-                              </div>
-                            </section>
-                          )}
-                          {showClasses && alertItems.length > 0 && (
-                            <section className="rc">
-                              <div className="rc-head">
-                                <span className="rc-title"><BellRing size={14} /> Alerts</span>
-                              </div>
-                              <ul className="rc-list">
-                                {alertItems.slice(0, 6).map(a => {
-                                  const code = a.data?.code;
-                                  const titleText = code ? a.title.replace(code, "").replace(/\s{2,}/g, " ").trim() : a.title;
-                                  return (
-                                  <li key={a.id} className={`rc-item rc-item-clickable${a.read_at ? " rc-item-read" : ""}`} onClick={() => markAlertRead(a.id)}>
-                                    <span className={`rc-dot ${ALERT_DOT[a.type] || "rc-alert"}`} />
-                                    <span className="rc-text">
-                                      <span className="rc-alert-title">
-                                        {code && <span className={`ses rc-alert-pill ${subjectClass(code)}`}>{code}</span>}
-                                        {titleText}
-                                      </span>
-                                      {a.body && <span className="rc-alert-sub">{a.body.replace(/\n/g, "  ·  ")}</span>}
-                                    </span>
-                                    {a.created_at && <span className="rc-time">{timeAgo(a.created_at)}</span>}
-                                    {a.read_at && <span className="rc-read-check">✓</span>}
-                                  </li>
-                                  );
-                                })}
-                              </ul>
-                            </section>
-                          )}
-                          {showClasses && filteredChanges.length > 0 && <RecentChanges changes={filteredChanges} readKeys={readChangeKeys} onMarkRead={markChangeRead} onViewAll={handleViewAllNotifs} />}
-                        </>
-                      );
-                    })()}
-                  </div>
-                </>
-              )}
-            </div>
+            {renderNotificationBell()}
             {/* Desktop-only: profile avatar */}
             <div className="tb-wrap over-wrap desktop-only" onMouseEnter={() => setProfileOpen(true)} onMouseLeave={() => setProfileOpen(false)}>
               <button className="sync profile-avatar-btn" onClick={() => setProfileOpen(o => !o)} aria-label="Profile" aria-expanded={profileOpen}>
@@ -2350,6 +2422,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                         </button>
                         <button onClick={() => { setMessMenuOpen(true); setOverflowOpen(false); }}>
                           <UtensilsCrossed size={14} /> Mess menu
+                        </button>
+                        <button onClick={() => { setView("split"); setCompareTarget(null); setOverflowOpen(false); }}>
+                          <Wallet size={14} /> Split
                         </button>
                         <button onClick={() => { setView("leave"); setCompareTarget(null); setOverflowOpen(false); }}>
                           <CalendarOff size={14} /> Leave planner
@@ -2520,7 +2595,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             </div>
             )}
 
-            {view !== "attendance" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && view !== "leave" && !compareTarget && (
+            {view !== "split" && view !== "attendance" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && view !== "leave" && view !== "glance" && view !== "wrapped" && view !== "board" && !compareTarget && (
               <>
                 {unseenWhatsNew.length > 0 && (
                   <WhatsNewPill item={unseenWhatsNew[0]} count={unseenWhatsNew.length} onOpen={() => setWhatsNewOpen(true)} />
@@ -2575,7 +2650,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 </div>
               </>
             )}
-            {view !== "attendance" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && view !== "leave" && view !== "glance" && view !== "wrapped" && view !== "board" && !compareTarget && view !== "tomorrow" && (
+            {view !== "split" && view !== "attendance" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && view !== "leave" && view !== "glance" && view !== "wrapped" && view !== "board" && !compareTarget && view !== "tomorrow" && (
               view === "week"
                 ? <div className="hide-mobile"><Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} onMarkAttendance={markAttendance} attendance={attendance} sysConfig={sysConfig} /></div>
                 : <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} onMarkAttendance={markAttendance} attendance={attendance} sysConfig={sysConfig} />
@@ -2721,6 +2796,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       myClasses={visible}
                       allClasses={CLASSES}
                       now={now}
+                      friendNotifItems={friendNotifItems}
+                      onAcceptFriend={handleAcceptFriendRequest}
+                      onDeclineFriend={handleDeclineFriendRequest}
+                      onMarkPingRead={markPingRead}
                       statusEnabled={enableStatus}
                       onOpenLeave={() => { setView("leave"); setCompareTarget(null); }}
                       onCompare={(f) => setCompareTarget({ mode: "friend", friendData: f })}
@@ -2808,6 +2887,15 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                     userName={user?.firstName || user?.username || "Student"}
                                     isAdmin={isAdmin}
                                   />
+                              : view === "split"
+                                ? <SplitPage
+                                    userId={userId}
+                                    userName={user?.firstName || user?.username || "Student"}
+                                    friends={friends}
+                                    initialGroupId={splitDeepLink}
+                                    initialJoinId={splitJoinLink}
+                                    onConsumeDeepLink={() => { setSplitDeepLink(null); setSplitJoinLink(null); }}
+                                  />
                               : view === "wrapped"
                                 ? <WrappedView
                                     visible={visible}
@@ -2856,13 +2944,15 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               </Suspense>
               {view === "today" && !compareTarget && <MessCard now={now} userId={userId} friends={enableStatus ? friends : []} />}
               {view === "tomorrow" && !compareTarget && (
-                <DeadlineStrip
-                  visible={visible}
-                  legend={enrolledLegend}
-                  now={now}
-                  onOpenAssignments={() => { setView("assignments"); setCompareTarget(null); }}
-                  onOpenExams={enableExams ? () => { setView("exams"); setCompareTarget(null); } : undefined}
-                />
+                <div className="dl-section-wrap">
+                  <DeadlineStrip
+                    visible={visible}
+                    legend={enrolledLegend}
+                    now={now}
+                    onOpenAssignments={() => { setView("assignments"); setCompareTarget(null); }}
+                    onOpenExams={enableExams ? () => { setView("exams"); setCompareTarget(null); } : undefined}
+                  />
+                </div>
               )}
             </div>
           </main>

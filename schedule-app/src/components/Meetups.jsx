@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
-import { CalendarPlus, MapPin, X, Check, Ban, Users } from "lucide-react";
+import { CalendarPlus, MapPin, X, Check, Ban, Users, Pencil } from "lucide-react";
 import { avatarGradient } from "../lib/friends.js";
 import {
-  PLACE_PRESETS, fmtMeetupTime, createMeetup, fetchMyMeetups,
+  PLACE_PRESETS, fmtMeetupTime, createMeetup, updateMeetup, fetchMyMeetups,
   rsvpMeetup, cancelMeetup, subscribeMeetups,
 } from "../lib/meetups.js";
 
@@ -32,11 +32,19 @@ function defaultDateTime(now = new Date()) {
 
 export function MeetupModal({ userId, userName, friends, draft, onCreated, onClose }) {
   const dflt = defaultDateTime();
-  const [title, setTitle] = useState(draft?.title || "Catch-up");
+  let dDraftDate = draft?.date || dflt.date;
+  let dDraftTime = draft?.start ? padTime(draft.start) : dflt.time;
+  if (draft?.starts_at) {
+    const [d, t] = draft.starts_at.split("T");
+    dDraftDate = d;
+    dDraftTime = t.substring(0, 5); // "HH:MM"
+  }
+
+  const [title, setTitle] = useState(draft?.title || (draft?.id ? "" : "Catch-up"));
   const [place, setPlace] = useState(draft?.place || "");
-  const [date, setDate] = useState(draft?.date || dflt.date);
-  const [time, setTime] = useState(padTime(draft?.start) || dflt.time);
-  const [selected, setSelected] = useState(() => new Set(draft?.memberCloudIds || []));
+  const [date, setDate] = useState(dDraftDate);
+  const [time, setTime] = useState(dDraftTime);
+  const [selected, setSelected] = useState(() => new Set(draft?.member_ids || draft?.memberCloudIds || []));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -55,24 +63,35 @@ export function MeetupModal({ userId, userName, friends, draft, onCreated, onClo
     if (isNaN(startsAt.getTime())) { setError("Pick a valid date and time."); return; }
     if (startsAt.getTime() < Date.now() - 60_000) { setError("That time is in the past."); return; }
     setSaving(true);
-    const row = await createMeetup({
-      userId, userName,
-      title, place,
-      startsAt: startsAt.toISOString(),
-      groupId: draft?.groupId || null,
-      groupName: draft?.groupName || null,
-      memberIds: [...selected],
-    });
-    setSaving(false);
-    if (row) onCreated(row);
-    else setError("Couldn't create the plan — try again.");
+    
+    let row;
+    if (draft?.id) {
+      row = await updateMeetup(draft.id, {
+        title, place, startsAt: startsAt.toISOString(), memberIds: [...selected]
+      }, userId);
+      setSaving(false);
+      if (row) onCreated(row, true);
+      else setError("Couldn't update the plan — try again.");
+    } else {
+      row = await createMeetup({
+        userId, userName,
+        title, place,
+        startsAt: startsAt.toISOString(),
+        groupId: draft?.groupId || null,
+        groupName: draft?.groupName || null,
+        memberIds: [...selected],
+      });
+      setSaving(false);
+      if (row) onCreated(row, false);
+      else setError("Couldn't create the plan — try again.");
+    }
   };
 
   return (
     <div className="fr-modal-backdrop" onClick={onClose}>
       <div className="fr-status-modal fr-meetup-modal" onClick={e => e.stopPropagation()}>
         <div className="fr-friends-modal-title-row">
-          <h2 className="fr-friends-modal-title">New plan</h2>
+          <h2 className="fr-friends-modal-title">{draft?.id ? "Edit plan" : "New plan"}</h2>
           <button className="fr-modal-close" onClick={onClose}><X size={18} /></button>
         </div>
 
@@ -139,7 +158,7 @@ export function MeetupModal({ userId, userName, friends, draft, onCreated, onClo
 
         <div className="fr-status-modal-foot">
           <button className="fr-btn fr-btn-primary" style={{ marginLeft: "auto" }} onClick={handleCreate} disabled={!canCreate}>
-            <CalendarPlus size={14} /> {saving ? "Creating…" : "Create plan"}
+            <CalendarPlus size={14} /> {saving ? (draft?.id ? "Updating…" : "Creating…") : (draft?.id ? "Update plan" : "Create plan")}
           </button>
         </div>
       </div>
@@ -147,7 +166,7 @@ export function MeetupModal({ userId, userName, friends, draft, onCreated, onClo
   );
 }
 
-function PlanCard({ meetup, rsvps, userId, userName, onChanged, showToast }) {
+function PlanCard({ meetup, rsvps, userId, userName, onChanged, onEdit, showToast }) {
   const isCreator = meetup.created_by === userId;
   const mine = rsvps.find(r => r.user_id === userId)?.response || null;
   const going = rsvps.filter(r => r.response === "going");
@@ -199,9 +218,14 @@ function PlanCard({ meetup, rsvps, userId, userName, onChanged, showToast }) {
               <button className="fr-btn fr-btn-small" onClick={() => setConfirmCancel(false)}>Keep</button>
             </>
           ) : (
-            <button className="fr-btn fr-btn-icon" title="Cancel plan" onClick={() => setConfirmCancel(true)}>
-              <Ban size={14} />
-            </button>
+            <>
+              <button className="fr-btn fr-btn-icon" title="Edit plan" onClick={() => onEdit(meetup)}>
+                <Pencil size={14} />
+              </button>
+              <button className="fr-btn fr-btn-icon" title="Cancel plan" onClick={() => setConfirmCancel(true)}>
+                <Ban size={14} />
+              </button>
+            </>
           )
         ) : (
           <>
@@ -267,6 +291,7 @@ export default function MeetupsStrip({ userId, userName, friends, draft, onDraft
               userId={userId}
               userName={userName}
               onChanged={refetch}
+              onEdit={setModalDraft}
               showToast={showToast}
             />
           ))}
@@ -279,7 +304,7 @@ export default function MeetupsStrip({ userId, userName, friends, draft, onDraft
           userName={userName}
           friends={friends}
           draft={modalDraft}
-          onCreated={() => { setModalDraft(null); refetch(); showToast("Plan created — invites sent", "success"); }}
+          onCreated={(row, isUpdate) => { setModalDraft(null); refetch(); showToast(isUpdate ? "Plan updated" : "Plan created — invites sent", "success"); }}
           onClose={() => setModalDraft(null)}
         />
       )}

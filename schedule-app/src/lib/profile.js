@@ -45,7 +45,7 @@ export async function syncProfileFromCloud(userId) {
     const cleanCourses = Object.fromEntries(Object.entries(raw).filter(([k]) => !k.startsWith('_')));
     const assignments = raw._assignments || {};
     try { localStorage.setItem("pgp2.assignments", JSON.stringify(assignments)); } catch {}
-    const s = { courses: cleanCourses, lastSeenNotif: remoteSeen, readPingIds, seenGroupIds, readChangeKeys, assignments };
+    const s = { courses: cleanCourses, lastSeenNotif: remoteSeen, readPingIds, seenGroupIds, readChangeKeys, assignments, imageUrl: raw._imageUrl };
     writeLocal({ courses: cleanCourses });
     return s;
   }
@@ -59,13 +59,14 @@ export async function syncProfileFromCloud(userId) {
   return null;
 }
 
-export async function pushProfile(userId, courses, userName, optionalLastSeenNotif) {
+export async function pushProfile(userId, courses, userName, optionalLastSeenNotif, imageUrl) {
   const s = { courses };
   writeLocal(s);
   if (!userId) return s;
   
   const dbCourses = { ...courses };
   if (userName) dbCourses._name = userName;
+  if (imageUrl) dbCourses._imageUrl = imageUrl;
 
   let lastSeenNotif = optionalLastSeenNotif;
   if (lastSeenNotif === undefined) {

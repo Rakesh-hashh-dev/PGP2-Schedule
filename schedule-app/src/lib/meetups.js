@@ -86,6 +86,31 @@ export async function createMeetup({ userId, userName, title, place, startsAt, g
 }
 
 /**
+ * Update an existing meetup. memberIds will overwrite the existing list.
+ */
+export async function updateMeetup(meetupId, { title, place, startsAt, memberIds = [] }, userId) {
+  if (!meetupId || !userId || !title?.trim() || !startsAt) return null;
+  const invitees = [...new Set(memberIds.filter(id => id && id !== userId))];
+  try {
+    const { data, error } = await supabase
+      .from("meetups")
+      .update({
+        title: title.trim().slice(0, 80),
+        place: (place || "").trim().slice(0, 60) || null,
+        starts_at: startsAt,
+        member_ids: invitees,
+      })
+      .eq("id", meetupId)
+      .eq("created_by", userId)
+      .select()
+      .single();
+    if (error) { console.error("[updateMeetup]", error.message); return null; }
+    // Optionally notify about changes here, skipping for now
+    return data;
+  } catch (e) { console.error("[updateMeetup]", e); return null; }
+}
+
+/**
  * Upcoming plans I created or am invited to (starting within the last hour or
  * later, not cancelled), plus all their RSVPs.
  * Returns { meetups: [...], rsvpsByMeetup: { [id]: rows[] } }.

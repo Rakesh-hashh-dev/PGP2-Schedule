@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Package, Plus, X, Check, Flag, Trash2, MessageSquare, Phone, ImagePlus, ShieldAlert, CheckCircle2, IndianRupee } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Package, Plus, X, Check, Flag, Trash2, MessageSquare, Phone, ImagePlus, ShieldAlert, CheckCircle2, IndianRupee, Search, Backpack, Tag, Megaphone } from "lucide-react";
 import {
-  BOARD_KINDS, fetchBoardPosts, createBoardPost, boardImageUrl,
+  BOARD_KINDS, fetchBoardPosts, createBoardPost, boardImageUrl, resizeImage,
   setBoardPostStatus, deleteBoardPost, reportBoardPost, contactPoster, subscribeBoard,
 } from "../lib/board.js";
 import "../styles/board.css";
@@ -21,6 +22,18 @@ function timeAgo(iso) {
 
 const KIND_META = Object.fromEntries(BOARD_KINDS.map(k => [k.id, k]));
 
+const KIND_ICONS = {
+  lost: Search,
+  found: Backpack,
+  sell: Tag,
+  ask: Megaphone,
+};
+
+function KindIcon({ kind, size = 14, className = "" }) {
+  const Icon = KIND_ICONS[kind] || Package;
+  return <Icon size={size} className={className} style={{ marginRight: 6, verticalAlign: "-2px" }} />;
+}
+
 function BoardComposer({ userId, userName, onCreated, onClose }) {
   const [kind, setKind] = useState("lost");
   const [title, setTitle] = useState("");
@@ -35,12 +48,48 @@ function BoardComposer({ userId, userName, onCreated, onClose }) {
 
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
 
-  function pickImage(e) {
-    const f = e.target.files?.[0];
-    if (!f) return;
+  async function handleFile(f) {
+    if (!f || !f.type.startsWith("image/")) return;
+    if (f.size > 15 * 1024 * 1024) {
+      alert("This image is too large (max 15MB). Please choose a smaller one.");
+      return;
+    }
     if (preview) URL.revokeObjectURL(preview);
-    setImageFile(f);
-    setPreview(URL.createObjectURL(f));
+    const tempUrl = URL.createObjectURL(f);
+    setPreview(tempUrl);
+    // Background compress immediately so the post is faster
+    try {
+      const blob = await resizeImage(f);
+      setImageFile(blob);
+    } catch (e) {
+      console.error("Compression failed", e);
+      setImageFile(f);
+    }
+  }
+
+  function pickImage(e) {
+    handleFile(e.target.files?.[0]);
+  }
+
+  function onPaste(e) {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type.startsWith("image/")) {
+        const file = item.getAsFile();
+        if (file) { handleFile(file); e.preventDefault(); break; }
+      }
+    }
+  }
+
+  function onDrop(e) {
+    e.preventDefault();
+    const file = e.dataTransfer?.files?.[0];
+    if (file) handleFile(file);
+  }
+
+  function onDragOver(e) {
+    e.preventDefault();
   }
 
   async function submit(e) {
@@ -56,9 +105,16 @@ function BoardComposer({ userId, userName, onCreated, onClose }) {
 
   const showPrice = kind === "sell" || kind === "ask";
 
-  return (
+  return createPortal(
     <div className="board-modal-backdrop" onClick={onClose}>
-      <form className="board-composer" onClick={e => e.stopPropagation()} onSubmit={submit}>
+      <form 
+        className="board-composer" 
+        onClick={e => e.stopPropagation()} 
+        onSubmit={submit}
+        onPaste={onPaste}
+        onDrop={onDrop}
+        onDragOver={onDragOver}
+      >
         <div className="board-composer-head">
           <h3><Package size={16} /> New post</h3>
           <button type="button" className="board-icon-btn" onClick={onClose} aria-label="Close"><X size={16} /></button>
@@ -67,7 +123,7 @@ function BoardComposer({ userId, userName, onCreated, onClose }) {
         <div className="board-kind-picker">
           {BOARD_KINDS.map(k => (
             <button key={k.id} type="button" className={`board-kind-chip${kind === k.id ? " on" : ""}`} onClick={() => setKind(k.id)}>
-              {k.emoji} {k.label}
+              <KindIcon kind={k.id} size={14} /> {k.label}
             </button>
           ))}
         </div>
@@ -105,7 +161,8 @@ function BoardComposer({ userId, userName, onCreated, onClose }) {
         </button>
         <p className="board-composer-note">Visible to the whole batch for 30 days. Without a contact, people reach you via an in-app ping.</p>
       </form>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -168,7 +225,7 @@ export default function BoardPage({ userId, userName, isAdmin }) {
         <button className={`board-chip${filter === "all" ? " on" : ""}`} onClick={() => setFilter("all")}>All</button>
         {BOARD_KINDS.map(k => (
           <button key={k.id} className={`board-chip${filter === k.id ? " on" : ""}`} onClick={() => setFilter(k.id)}>
-            {k.emoji} {k.label}
+            <KindIcon kind={k.id} size={13} /> {k.label}
           </button>
         ))}
         {isAdmin && reportedCount > 0 && (
@@ -201,7 +258,7 @@ export default function BoardPage({ userId, userName, isAdmin }) {
                 {img && <div className="board-card-img"><img src={img} alt="" loading="lazy" /></div>}
                 <div className="board-card-body">
                   <div className="board-card-top">
-                    <span className={`board-kind-badge board-k-${p.kind}`}>{meta.emoji} {meta.label}</span>
+                    <span className={`board-kind-badge board-k-${p.kind}`}><KindIcon kind={p.kind} size={12} /> {meta.label}</span>
                     {p.status === "resolved" && <span className="board-status-badge"><CheckCircle2 size={11} /> Resolved</span>}
                     {p.status === "removed" && <span className="board-status-badge board-removed-badge"><ShieldAlert size={11} /> Removed</span>}
                     {isAdmin && reportCount > 0 && p.status !== "removed" && (

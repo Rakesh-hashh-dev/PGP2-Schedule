@@ -57,6 +57,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
   const [selectedDate, setSelectedDate] = useState(null);
   const [nowMin, setNowMin] = useState(() => { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); });
   const [tooltip, setTooltip] = useState(null);
+  const [hasScrolledToToday, setHasScrolledToToday] = useState(false);
 
   useEffect(() => {
     const id = setInterval(() => { const n = new Date(); setNowMin(n.getHours() * 60 + n.getMinutes()); }, 60000);
@@ -152,6 +153,26 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
     }
     return result;
   }, [filtered]);
+
+  useEffect(() => {
+    if (viewMode === "list" && !jumpToDate && !jumpToSession && !hasScrolledToToday && grouped.length > 0) {
+      const t = setTimeout(() => {
+        let el = document.getElementById(`day-${TODAY}`);
+        if (!el) {
+          const classDates = grouped.filter(g => g.type === "day").map(g => g.date);
+          const nextDate = classDates.find(d => d >= TODAY);
+          if (nextDate) el = document.getElementById(`day-${nextDate}`);
+        }
+        if (el) {
+          const headerOffset = 100;
+          const offsetPosition = el.getBoundingClientRect().top + window.pageYOffset - headerOffset;
+          window.scrollTo({ top: offsetPosition, behavior: "smooth" });
+        }
+        setHasScrolledToToday(true);
+      }, 150);
+      return () => clearTimeout(t);
+    }
+  }, [viewMode, jumpToDate, jumpToSession, grouped, hasScrolledToToday]);
 
   // ── Calendar week data ──
   const dateClassMap = useMemo(() => {
