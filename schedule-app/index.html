@@ -15,6 +15,7 @@
       }
     </script>
     <meta name="google-site-verification" content="-n0rF29JoTYnculv2rShozCYa_YAszuv3ak-58v3PBY" />
+    <meta name="google-adsense-account" content="ca-pub-4569974855881178" />
 
     <!-- Theme init: must run before first paint so a saved dark preference
          never flashes the light UI. Mirrors useTheme() in App.jsx. -->
@@ -28,15 +29,21 @@
       })();
     </script>
 
-    <!-- Preconnect to external origins to reduce latency -->
+    <!-- Preconnect to external origins to reduce latency. Clerk serves both a
+         classic script (clerk-js) and CORS API calls (environment/client); the
+         browser pools those connections separately, so warm both with a plain
+         and a crossorigin preconnect. -->
     <link rel="preconnect" href="https://clerk.pgp2.termflow.tech" />
+    <link rel="preconnect" href="https://clerk.pgp2.termflow.tech" crossorigin />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 
     <!-- Async (non-blocking) Google Fonts load -->
     <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" onload="this.rel='stylesheet'" />
     <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" /></noscript>
-    <link rel="preconnect" href="https://fzhfbttlbfpnwhempyav.supabase.co" />
+    <!-- All supabase-js traffic is CORS fetch, so the preconnect must be crossorigin
+         to actually warm the connection the API calls reuse. -->
+    <link rel="preconnect" href="https://fzhfbttlbfpnwhempyav.supabase.co" crossorigin />
     <link rel="dns-prefetch" href="https://api.open-meteo.com" />
     <link rel="dns-prefetch" href="https://script.google.com" />
 
@@ -47,6 +54,8 @@
         var l = document.createElement("link");
         l.rel = "preload";
         l.as = "image";
+        // Hero backdrop is the LCP element; hint the browser to fetch it early.
+        l.fetchPriority = "high";
         l.href = new Date().getDate() % 2 === 0
           ? "/premium_hero_backdrop_v2.webp"
           : "/premium_hero_backdrop_v3.webp";
@@ -80,7 +89,8 @@
     <meta property="og:locale" content="en_IN" />
     <meta property="og:title" content="TermFlow — IIM Sambalpur PGP2 Schedule & Attendance" />
     <meta property="og:description" content="Official timetable, attendance tracker and class schedule app for IIM Sambalpur PGP2 (2025–27) students. Today's classes, exams, assignments and announcements — all in one place." />
-    <meta property="og:image" content="https://pgp2.termflow.tech/TermFlow-og.jpg?v=2" />
+    <meta property="og:image" content="https://pgp2.termflow.tech/TermFlow-og.jpg?v=3" />
+    <meta property="og:image:secure_url" content="https://pgp2.termflow.tech/TermFlow-og.jpg?v=3" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:image:type" content="image/jpeg" />
@@ -90,7 +100,7 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="TermFlow — IIM Sambalpur PGP2 Schedule & Attendance" />
     <meta name="twitter:description" content="Official timetable, attendance tracker and class schedule app for IIM Sambalpur PGP2 (2025–27) students." />
-    <meta name="twitter:image" content="https://pgp2.termflow.tech/TermFlow-og.jpg?v=2" />
+    <meta name="twitter:image" content="https://pgp2.termflow.tech/TermFlow-og.jpg?v=3" />
     <meta name="twitter:image:alt" content="TermFlow — PGP2 timetable and attendance tracker for IIM Sambalpur." />
 
     <!-- Structured data -->
@@ -130,9 +140,12 @@
         "name": "IIM Sambalpur",
         "url": "https://www.iimsambalpur.ac.in/"
       },
-      "screenshot": "https://pgp2.termflow.tech/TermFlow-og.jpg?v=2"
+      "screenshot": "https://pgp2.termflow.tech/TermFlow-og.jpg?v=3"
     }
     </script>
+    <!-- Google AdSense — site verification & ad serving -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4569974855881178"
+         crossorigin="anonymous"></script>
   </head>
   <body>
     <!-- Static boot splash: painted straight from HTML so FCP doesn't wait on

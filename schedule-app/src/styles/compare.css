@@ -1160,7 +1160,7 @@
 
   .cv-more-modal {
     border-radius: 22px;
-    max-width: 640px;
+    max-width: min(1080px, 94vw);
     max-height: 80vh;
     border: 1.5px solid var(--border);
     box-shadow:

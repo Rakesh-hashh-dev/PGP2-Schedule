@@ -9,8 +9,10 @@
 //   PUSH_ADMIN_SECRET
 // SB_URL / SB_SERVICE_ROLE_KEY fall back to the platform-injected SUPABASE_* vars.
 //
-// Body: { title, body, url?, icon?, tag?, mode? }
+// Body: { title, body, url?, icon?, tag?, mode?, target_user_id? }
 //   mode: "digest" fills in a default morning-digest title/body when omitted.
+//   target_user_id: when set, fan out to just that one user (admin test push).
+//   target_user_ids: when set, fan out to just this list of users (re-engagement).
 //
 // Behaviour note: the broadcast now gains up to ~1 min latency (it is delivered on
 // the next `dispatch` cron tick) and each broadcast creates one 30-day inbox row
@@ -48,8 +50,9 @@ Deno.serve(async (req) => {
     return json(400, { error: "Invalid JSON body" });
   }
 
-  let { title, body: message, url, icon, mode } = body as {
+  let { title, body: message, url, icon, mode, target_user_id, target_user_ids } = body as {
     title?: string; body?: string; url?: string; icon?: string; mode?: string;
+    target_user_id?: string; target_user_ids?: string[];
   };
   if (mode === "digest") {
     title = title || "Good morning ☀️";
@@ -65,8 +68,13 @@ Deno.serve(async (req) => {
 
   // Fan out to every known user — not just current push subscribers — so a user
   // without a live push subscription still gets the in-app inbox entry; `dispatch`
-  // simply skips the push for them.
-  const { data: users, error } = await supabase.from("profiles").select("user_id");
+  // simply skips the push for them. When target_user_id is set (admin "Send test
+  // to me"), deliver to that single user only for a real end-to-end preview.
+  const ids = target_user_id ? [target_user_id] : (Array.isArray(target_user_ids) ? target_user_ids : null);
+  const usersQuery = supabase.from("profiles").select("user_id");
+  const { data: users, error } = ids
+    ? await usersQuery.in("user_id", ids)
+    : await usersQuery;
   if (error) return json(500, { error: error.message });
   if (!users || users.length === 0) return json(200, { queued: 0 });
 

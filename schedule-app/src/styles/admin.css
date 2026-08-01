@@ -493,3 +493,205 @@
     }
 }
 
+/* ── Tab navigation ──
+   Groups the dashboard's ~24 sections into 5 categories. Each section carries an
+   admin-g-* class; the rules below hide the groups that don't match the masonry's
+   [data-active-tab]. Only tagged elements are affected — untagged nodes (modals,
+   comments) are never hidden. */
+.admin-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  margin-bottom: 28px;
+  background: var(--card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 10px 28px -18px rgba(0, 0, 0, 0.35);
+}
+
+.admin-tab {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px; /* accessible touch target */
+  padding: 10px 14px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--body);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  touch-action: manipulation; /* removes 300ms tap delay */
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.admin-tab:hover {
+  background: var(--card-hi);
+  color: var(--text);
+}
+
+.admin-tab:focus-visible {
+  outline: 2px solid var(--violet);
+  outline-offset: 2px;
+}
+
+.admin-tab.active {
+  background: var(--text);
+  color: var(--bg);
+  border-color: var(--text);
+}
+
+.admin-tab svg {
+  flex: none;
+}
+
+/* Hide the sections whose group isn't the active tab (direct children only).
+   !important is required because several sections set an inline display
+   (flex/grid) that would otherwise win over this rule and leak into every tab. */
+.admin-masonry:not([data-active-tab="broadcast"]) > .admin-g-broadcast,
+.admin-masonry:not([data-active-tab="schedule"]) > .admin-g-schedule,
+.admin-masonry:not([data-active-tab="users"]) > .admin-g-users,
+.admin-masonry:not([data-active-tab="insights"]) > .admin-g-insights,
+.admin-masonry:not([data-active-tab="system"]) > .admin-g-system {
+  display: none !important;
+}
+
+@media (max-width: 640px) {
+  .admin-tabs {
+    gap: 4px;
+    padding: 6px;
+    margin-bottom: 20px;
+    border-radius: 14px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .admin-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .admin-tab {
+    flex: 0 0 auto;
+    padding: 9px 15px;
+    scroll-snap-align: start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-tab {
+    transition: none;
+  }
+}
+
+/* ── Push notification live preview (lock-screen mockup) ── */
+.push-preview {
+  margin-top: 14px;
+  padding: 22px 18px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(109, 91, 208, 0.18), transparent 60%),
+    var(--surface);
+}
+
+.push-preview-note {
+  display: flex;
+  gap: 12px;
+  max-width: 380px;
+  margin: 0 auto;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(30, 30, 40, 0.72);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.6);
+}
+
+.push-preview-icon {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: linear-gradient(140deg, var(--violet), var(--live));
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: -0.5px;
+}
+
+.push-preview-content {
+  flex: 1;
+  min-width: 0;
+  color: #f5f5f7;
+}
+
+.push-preview-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+
+.push-preview-app {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgba(245, 245, 247, 0.6);
+}
+
+.push-preview-time {
+  font-size: 10.5px;
+  color: rgba(245, 245, 247, 0.55);
+  white-space: nowrap;
+}
+
+.push-preview-title {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.push-preview-text {
+  font-size: 13px;
+  line-height: 1.4;
+  margin-top: 2px;
+  color: rgba(245, 245, 247, 0.85);
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.push-preview-url {
+  font-size: 11px;
+  margin-top: 6px;
+  color: rgba(245, 245, 247, 0.5);
+  font-family: var(--mono);
+  word-break: break-all;
+}
+
+.push-preview-title.is-placeholder,
+.push-preview-text.is-placeholder {
+  color: rgba(245, 245, 247, 0.4);
+  font-style: italic;
+  font-weight: 500;
+}
+

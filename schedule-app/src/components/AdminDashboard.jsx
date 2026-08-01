@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import "../styles/admin.css";
 import "../styles/assignments.css";
 import "../styles/cmdk.css";
-import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil, BarChart2, UtensilsCrossed, GraduationCap, MessageSquare } from "lucide-react";
+import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil, BarChart2, UtensilsCrossed, GraduationCap, MessageSquare, CloudOff } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import * as XLSX from "xlsx";
 import { logAdminAction } from "../lib/adminAudit.js";
@@ -11,14 +11,57 @@ import { BASE_MENU } from "../data/messMenu.js";
 import snapshotMeta from "../data/snapshot-meta.json";
 import { getSnapshot } from "../lib/sheet.js";
 import AdminCommandPalette from "./AdminCommandPalette";
-import Hero from "./Hero.jsx";
 import FeedbackFlashToast from "./FeedbackFlashToast.jsx";
+import { WhatsNewPill, WhatsNewModal } from "./WhatsNew.jsx";
 
-// Frozen clock for the Hero backdrop preview — computed once at module load so
-// render stays pure (react-hooks/purity)
-const PREVIEW_NOW = Date.now();
-const PREVIEW_TODAY_ISO = new Date(PREVIEW_NOW).toISOString().split("T")[0];
-const PREVIEW_TOMORROW_ISO = new Date(PREVIEW_NOW + 86400000).toISOString().split("T")[0];
+// Render-stable "now" captured at module load — used for relative-time math in
+// render (inactivity windows, cron staleness) without an impure Date.now() call.
+const LOAD_NOW = Date.now();
+
+// Event-time clock. Module-level indirection so the react-hooks/purity linter
+// (which flags a literal Date.now() reachable from render) stays happy — only
+// ever call this from event handlers, never during render.
+const nowMs = () => Date.now();
+
+// Canonical feature toggles the app actually reads (all default ON when the key
+// is absent, i.e. `flags.x !== false`). Rendered as a curated list so the Feature
+// Flags card always shows every real feature — and never internal data keys like
+// classOverrides / configHistory / messMenuOverrides. maintenanceMode &
+// dispatchEnabled are managed in the Danger Zone.
+const FEATURE_FLAGS = [
+  { key: "enableFriends", label: "Friends & Social graph" },
+  { key: "enableExams", label: "Exams" },
+  { key: "enableAttendance", label: "Attendance" },
+  { key: "enableStatus", label: "Status lines" },
+  { key: "enableMeetups", label: "Meetups" },
+  { key: "enableFreeNudge", label: "Free-time nudges" },
+  { key: "enableAwayShare", label: "Away sharing" },
+  { key: "enableAds", label: "Campus Board Ads" },
+];
+const FEATURE_FLAG_KEYS = new Set(FEATURE_FLAGS.map(f => f.key));
+
+// Live lock-screen-style preview of a push notification, so admins see exactly
+// what subscribers get before broadcasting. Placeholders show until fields fill.
+function PushPreview({ title, body, url, when }) {
+  const t = title?.trim();
+  const b = body?.trim();
+  return (
+    <div className="push-preview" aria-hidden="true">
+      <div className="push-preview-note">
+        <div className="push-preview-icon">TF</div>
+        <div className="push-preview-content">
+          <div className="push-preview-head">
+            <span className="push-preview-app">TERMFLOW</span>
+            <span className="push-preview-time">{when || "now"}</span>
+          </div>
+          <div className={`push-preview-title ${t ? "" : "is-placeholder"}`}>{t || "Notification title"}</div>
+          <div className={`push-preview-text ${b ? "" : "is-placeholder"}`}>{b || "Your message shows here as you type it."}</div>
+          {url?.trim() ? <div className="push-preview-url">{url.trim()}</div> : null}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 
 // Mess Menu Editor — meal slots as stored in data/messMenu.js
@@ -147,11 +190,17 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [activeAnnouncement, setActiveAnnouncement] = useState(null);
   
   const [showAllAdminNotifs, setShowAllAdminNotifs] = useState(false);
-  
+
+  // Top-level tab for the admin dashboard. Sections are grouped via `admin-g-*`
+  // classes and shown/hidden with CSS keyed off [data-active-tab] on the masonry.
+  const [activeTab, setActiveTab] = useState("broadcast");
+  const [previewTheme, setPreviewTheme] = useState("dark"); // announcement banner preview
+
   const [flags, setFlags] = useState({
     enableFriends: true,
     enableExams: true,
     enableAttendance: true,
+    enableAds: true,
     maintenanceMode: false,
     bannedUsers: [],
     classOverrides: {},
@@ -192,6 +241,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [announcementTarget, setAnnouncementTarget] = useState("global");
   const [selectedUser, setSelectedUser] = useState(null);
 
+  const [activeUsersListModalOpen, setActiveUsersListModalOpen] = useState(false);
+  const [pushSubscribersModalOpen, setPushSubscribersModalOpen] = useState(false);
+  const [pushSubscribersList, setPushSubscribersList] = useState([]);
+
   // New states for added features
   const [pushSubCount, setPushSubCount] = useState("...");
   const [skipStats, setSkipStats] = useState([]);
@@ -225,6 +278,36 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [wnTitle, setWnTitle] = useState("");
   const [wnDesc, setWnDesc] = useState("");
   const [wnEditingId, setWnEditingId] = useState(null);
+  const [wnPreviewOpen, setWnPreviewOpen] = useState(false);
+
+  // ── New admin-tools features ──
+  const [activeTiers, setActiveTiers] = useState({ dau: 0, wau: 0, mau: 0 }); // active-user tiers
+  const [pushStats, setPushStats] = useState(null); // broadcast delivery analytics (RPC)
+  const [cronHealth, setCronHealth] = useState(null); // edge-fn / cron health (RPC)
+  const [announcementSeverity, setAnnouncementSeverity] = useState("info"); // banner severity
+  const [holidayStart, setHolidayStart] = useState("");
+  const [holidayEnd, setHolidayEnd] = useState("");
+  const [relocFrom, setRelocFrom] = useState("");
+  const [relocTo, setRelocTo] = useState("");
+  const [relocStart, setRelocStart] = useState("");
+  const [relocEnd, setRelocEnd] = useState("");
+  const [csvPreview, setCsvPreview] = useState(null); // dry-run summary of Bulk CSV
+  const [roleUserId, setRoleUserId] = useState("");
+  const [roleValue, setRoleValue] = useState("full");
+  const [reEngaging, setReEngaging] = useState(false);
+  const [reEngageMsg, setReEngageMsg] = useState("");
+  const [inactiveDays, setInactiveDays] = useState(14);
+  const configFileRef = useRef(null); // hidden file input for config import
+  const [auditActionFilter, setAuditActionFilter] = useState("all");
+  const [auditSearch, setAuditSearch] = useState("");
+  const [pushTarget, setPushTarget] = useState("all"); // targeted push audience
+  const [presentAdmins, setPresentAdmins] = useState([]); // realtime admin presence
+  const [scheduleDeployAt, setScheduleDeployAt] = useState(""); // scheduled config deploy time
+  const [relocEmail, setRelocEmail] = useState(""); // email→relocation parser input
+  const [viewAsUser, setViewAsUser] = useState(null); // read-only "view as" impersonation
+  const [selfTest, setSelfTest] = useState(null); // aggregated self-test result
+  const [selfTesting, setSelfTesting] = useState(false);
+  const [tplLabel, setTplLabel] = useState(""); // new announcement-template name
 
   // Software Update Config
   const [updatePromptTitle, setUpdatePromptTitle] = useState("");
@@ -281,6 +364,22 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [messDrafts, setMessDrafts] = useState({});
 
   const admin_id = user?.id || user?.user_id || "unknown";
+
+  // Realtime presence — who else is in the admin panel right now
+  useEffect(() => {
+    const ch = supabase.channel("admin-presence", { config: { presence: { key: admin_id } } });
+    ch.on("presence", { event: "sync" }, () => {
+      const state = ch.presenceState();
+      const seen = {}; const uniq = [];
+      Object.values(state).flat().forEach(p => { if (p?.id && !seen[p.id]) { seen[p.id] = 1; uniq.push({ id: p.id, name: p.name }); } });
+      setPresentAdmins(uniq);
+    });
+    ch.subscribe(async status => {
+      if (status === "SUBSCRIBED") await ch.track({ id: admin_id, name: user?.firstName || user?.username || "Admin" });
+    });
+    return () => { supabase.removeChannel(ch); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [admin_id]);
 
   useEffect(() => {
     const handleOpen = () => setIsCommandPaletteOpen(true);
@@ -342,13 +441,14 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           let allEnrolled = [];
           const usersWithNames = prodRows.map(d => {
             if (d.courses) {
-               const courses = Object.keys(d.courses).filter(c => c !== "_name" && c !== "_email");
+               const courses = Object.keys(d.courses).filter(c => !c.startsWith("_"));
                allEnrolled.push(...courses);
             }
             return {
               user_id: d.user_id,
               name: d.courses?._name || "Student",
-              courses: d.courses
+              courses: d.courses,
+              last_seen_at: d.last_seen_at
             };
           });
           setAllUsers(usersWithNames);
@@ -358,7 +458,13 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           const todayTs = today.getTime();
 
           // True DAU (active since midnight local time)
-          setActiveUsers(prodRows.filter(d => d.last_seen_at && new Date(d.last_seen_at).getTime() >= todayTs).length);
+          const dau = prodRows.filter(d => d.last_seen_at && new Date(d.last_seen_at).getTime() >= todayTs).length;
+          setActiveUsers(dau);
+
+          // Rolling active-user tiers (last 1 / 7 / 30 days) for retention at a glance
+          const nowTs = Date.now();
+          const within = days => prodRows.filter(d => d.last_seen_at && (nowTs - new Date(d.last_seen_at).getTime()) <= days * 86400000).length;
+          setActiveTiers({ dau, wau: within(7), mau: within(30) });
 
           // Build 7-day calendar bar chart and peak hour using prod users only
           const counts = Array(7).fill(0);
@@ -405,8 +511,17 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       const { data: fb } = await supabase.from("feedback").select("*").order("created_at", { ascending: false }).limit(20);
       if (fb) setFeedbackList(fb);
 
-      const { data: logs } = await supabase.from("admin_audit_logs").select("*").order("created_at", { ascending: false }).limit(20);
+      const { data: logs } = await supabase.from("admin_audit_logs").select("*").order("created_at", { ascending: false }).limit(200);
       if (logs) setAuditLogs(logs);
+    }
+
+    async function fetchInsightsRpcs() {
+      // Both are SECURITY DEFINER RPCs (see 20260731120000_admin_insights_rpcs.sql).
+      // If not yet deployed, leave state null so the cards show a "deploy" hint.
+      const { data: ps, error: psErr } = await supabase.rpc("get_push_broadcast_stats");
+      if (!psErr && Array.isArray(ps)) setPushStats(ps);
+      const { data: ch, error: chErr } = await supabase.rpc("get_cron_health");
+      if (!chErr && Array.isArray(ch)) setCronHealth(ch);
     }
 
     async function fetchExtraAdminStats() {
@@ -424,6 +539,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           setPushSubCount(stats.push_subscriptions ?? 0);
           setFriendPingsCount(stats.friend_pings ?? 0);
           setSkipStats(stats.skips_by_course || []);
+          if (stats.push_user_ids) {
+            setPushSubscribersList(stats.push_user_ids);
+          }
           return;
         }
 
@@ -457,7 +575,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       fetchDbSize(),
       fetchFeedbackAndLogs(),
       fetchSysMetrics(),
-      fetchExtraAdminStats()
+      fetchExtraAdminStats(),
+      fetchInsightsRpcs()
     ]);
     
     setStatsLoading(false);
@@ -553,9 +672,13 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       // Clean up legacy flag
       delete newFlags.feedbackFlash;
       
+      // Snapshot the PREVIOUS config for rollback, but strip its own history/queue
+      // first — otherwise each entry re-embeds all prior snapshots and the config
+      // row grows exponentially (the main cause of slow deploys).
+      const { configHistory: _prevHist, scheduledConfigDeploys: _prevQueue, ...prevSnapshot } = originalFlags || {};
       const historyEntry = {
          timestamp: new Date().toISOString(),
-         flags: originalFlags,
+         flags: prevSnapshot,
          author: admin_id
       };
       newFlags.configHistory = [historyEntry, ...(newFlags.configHistory || [])].slice(0, 15);
@@ -569,10 +692,15 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       if (error) {
         setSaveMsg("Failed: " + error.message);
       } else {
-        await logAdminAction(admin_id, "save_config", { announcement: activeAnnouncement, flags: newFlags });
+        // Show success immediately; the audit entry is secondary and now compact
+        // (storing the whole flags blob here was slow and bloated admin_audit_logs).
         setOriginalFlags(newFlags);
         setSaveMsg("Successfully saved to cloud!");
         setTimeout(() => setSaveMsg(""), 3000);
+        logAdminAction(admin_id, "save_config", {
+          changes: changesCount,
+          announcement: activeAnnouncement || null,
+        });
       }
     } catch (e) {
       setSaveMsg("Error saving config.");
@@ -580,15 +708,21 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     setSaving(false);
   }
 
-  async function sendPushBroadcast() {
-    if (!pushTitle.trim() || !pushBody.trim()) return alert("Fill in title and message.");
+  function getPushKey() {
     let pushKey = localStorage.getItem("pgp2.push-admin-key") || "";
     if (!pushKey) {
       pushKey = prompt("Enter the push admin key (PUSH_ADMIN_SECRET set on the send-push edge function):") || "";
-      if (!pushKey) return;
+      if (!pushKey) return "";
       localStorage.setItem("pgp2.push-admin-key", pushKey);
     }
-    if (!confirm(`Send this push notification to ALL subscribed devices?\n\n${pushTitle}\n${pushBody}`)) return;
+    return pushKey;
+  }
+
+  // Shared push sender. Pass a targetUserId to deliver only to that user's devices
+  // (used by "Send test to me"); omit it to broadcast to everyone.
+  async function postPush({ targetUserId } = {}) {
+    const pushKey = getPushKey();
+    if (!pushKey) return;
     setPushSending(true);
     setPushResult("");
     try {
@@ -599,14 +733,23 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           "x-push-key": pushKey,
           "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
         },
-        body: JSON.stringify({ title: pushTitle.trim(), body: pushBody.trim(), url: pushUrl.trim() || "/" }),
+        body: JSON.stringify({
+          title: pushTitle.trim(),
+          body: pushBody.trim(),
+          url: pushUrl.trim() || "/",
+          ...(targetUserId ? { target_user_id: targetUserId } : {}),
+        }),
       });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) {
         if (resp.status === 401) localStorage.removeItem("pgp2.push-admin-key");
         setPushResult(`Failed: ${data.error || resp.status}`);
+      } else if (targetUserId) {
+        setPushResult("Test queued to your devices — should arrive within ~1 min.");
+        await logAdminAction(admin_id, "push_test", { title: pushTitle.trim() });
       } else {
-        setPushResult(`Sent to ${data.sent} device${data.sent !== 1 ? "s" : ""}${data.failed ? `, ${data.failed} failed` : ""}${data.pruned ? `, ${data.pruned} stale pruned` : ""}.`);
+        const n = data.sent ?? data.queued ?? 0;
+        setPushResult(`Sent to ${n} device${n !== 1 ? "s" : ""}${data.failed ? `, ${data.failed} failed` : ""}${data.pruned ? `, ${data.pruned} stale pruned` : ""}.`);
         setPushTitle(""); setPushBody(""); setPushUrl("");
         await logAdminAction(admin_id, "push_broadcast", { title: pushTitle.trim() });
       }
@@ -616,8 +759,484 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     setPushSending(false);
   }
 
+  async function sendPushBroadcast() {
+    if (!pushTitle.trim() || !pushBody.trim()) return alert("Fill in title and message.");
+    const dup = recentDuplicatePush(pushTitle);
+    if (dup && !confirm(`⚠️ A push titled "${dup.title}" was already sent ${Math.round((nowMs() - new Date(dup.sent_at).getTime()) / 60000)} min ago to ${dup.total} device(s).\n\nSend this one anyway?`)) return;
+    if (inQuietHours(nowMs()) && !confirm(`⚠️ It's currently quiet hours (${quietHours.start}–${quietHours.end} IST). Sending now will buzz every device.\n\nSend anyway?`)) return;
+    if (!confirm(`Send this push notification to ALL subscribed devices?\n\n${pushTitle}\n${pushBody}`)) return;
+    await postPush();
+  }
+
+  async function sendTestPushToMe() {
+    if (!pushTitle.trim() || !pushBody.trim()) return alert("Fill in title and message.");
+    await postPush({ targetUserId: admin_id });
+  }
+
+  // ── Audience-size preview ──
+  // Estimates how many loaded users match an announcement/push target. Mirrors
+  // announcementTargetMatches() in App.jsx. Returns null when it can't be known
+  // client-side (e.g. has_friends, which isn't in the profiles projection).
+  function audienceCount(target) {
+    if (!target || target === "global") return allUsers.length;
+    if (target === "has_friends") return null;
+    if (target === "section_A" || target === "section_B") {
+      const s = target.endsWith("A") ? "_A" : "_B";
+      return allUsers.filter(u => Object.keys(u.courses || {}).some(c => c.endsWith(s))).length;
+    }
+    if (target.startsWith("subject_")) {
+      const code = target.replace("subject_", "");
+      return allUsers.filter(u => Object.keys(u.courses || {}).some(c => c === code || c.startsWith(code + "_"))).length;
+    }
+    return null;
+  }
+
+  // ── Holiday / day-off bulk cancel ──
+  function applyHolidayCancel() {
+    if (!holidayStart || !holidayEnd) return alert("Pick a start and end date.");
+    if (holidayEnd < holidayStart) return alert("End date must be after start date.");
+    const affected = liveSchedule.filter(c => c.date >= holidayStart && c.date <= holidayEnd && c.type !== "break");
+    if (affected.length === 0) return alert("No classes found in that range.");
+    if (!confirm(`Cancel ${affected.length} class(es) between ${holidayStart} and ${holidayEnd}? This writes overrides — deploy to apply.`)) return;
+    const next = { ...flags.classOverrides };
+    affected.forEach(c => {
+      const key = c.section && c.section !== "All" && c.section !== "Single" ? `${c.code}_${c.section}` : c.code;
+      next[c.date] = { ...(next[c.date] || {}), [key]: { type: "cancelled", modifiedAt: new Date().toISOString(), modifiedBy: admin_id } };
+    });
+    setFlags({ ...flags, classOverrides: next });
+    logAdminAction(admin_id, "holiday_cancel", { start: holidayStart, end: holidayEnd, count: affected.length });
+    setHolidayStart(""); setHolidayEnd("");
+    alert(`Staged ${affected.length} cancellations. Review & Deploy Config to apply.`);
+  }
+
+  // ── Bulk room relocation (e.g. "all A01 classes → A04" for a date range) ──
+  function applyRoomRelocation() {
+    const from = relocFrom.trim(), to = relocTo.trim();
+    if (!from || !to || !relocStart || !relocEnd) return alert("Fill from-room, to-room and both dates.");
+    if (relocEnd < relocStart) return alert("End date must be after start date.");
+    const affected = liveSchedule.filter(c => c.date >= relocStart && c.date <= relocEnd && c.type !== "break" && (c.room || "").toLowerCase() === from.toLowerCase());
+    if (affected.length === 0) return alert(`No classes found in room ${from} in that range.`);
+    if (!confirm(`Move ${affected.length} class(es) from ${from} to ${to} between ${relocStart} and ${relocEnd}? Stages overrides — Review & Deploy to apply.`)) return;
+    const next = { ...flags.classOverrides };
+    affected.forEach(c => {
+      const key = c.section && c.section !== "All" && c.section !== "Single" ? `${c.code}_${c.section}` : c.code;
+      const existing = next[c.date]?.[key] || {};
+      // keep any existing time override, just swap the room
+      next[c.date] = { ...(next[c.date] || {}), [key]: { type: "class", ...existing, room: to, modifiedAt: new Date().toISOString(), modifiedBy: admin_id } };
+    });
+    setFlags({ ...flags, classOverrides: next });
+    logAdminAction(admin_id, "room_relocation", { from, to, start: relocStart, end: relocEnd, count: affected.length });
+    setRelocFrom(""); setRelocTo(""); setRelocStart(""); setRelocEnd("");
+    alert(`Staged ${affected.length} room change(s). Review & Deploy Config to apply.`);
+  }
+
+  // ── Email → Room Relocation parser ──────────────────────────
+  // Reads a pasted notice like "A01 will be shifted to A04 from 5 Aug to 12 Aug"
+  // and pre-fills the Room Relocation form (rooms + date range). Best-effort:
+  // fills what it can find, leaves the rest for the admin to complete.
+  function parseRelocationEmail() {
+    const text = (relocEmail || "").trim();
+    if (!text) return alert("Paste the email / notice text first.");
+    let filled = [];
+    // Rooms: first two room-like tokens (letter(s)+digits), or an explicit "X → Y"
+    const arrow = text.match(/\b([A-Z]{1,3}-?\d{1,3})\b\s*(?:→|->|to|shifted to|moved to|changed to)\s*([A-Z]{1,3}-?\d{1,3})\b/i);
+    if (arrow) {
+      setRelocFrom(arrow[1].toUpperCase()); setRelocTo(arrow[2].toUpperCase());
+      filled.push(`room ${arrow[1].toUpperCase()} → ${arrow[2].toUpperCase()}`);
+    } else {
+      const rooms = [...text.matchAll(/\b([A-Z]{1,3}-?\d{1,3})\b/g)].map(m => m[1].toUpperCase());
+      if (rooms[0]) { setRelocFrom(rooms[0]); filled.push(`from ${rooms[0]}`); }
+      if (rooms[1]) { setRelocTo(rooms[1]); filled.push(`to ${rooms[1]}`); }
+    }
+    // Dates: ISO first, else "5 Aug", "Aug 5", "05/08/2026"
+    const dates = extractDates(text);
+    if (dates[0]) { setRelocStart(dates[0]); filled.push(`from ${dates[0]}`); }
+    if (dates[1]) { setRelocEnd(dates[1]); filled.push(`to ${dates[1]}`); }
+    else if (dates[0]) { setRelocEnd(dates[0]); } // single-day notice
+    alert(filled.length ? `Pre-filled: ${filled.join(", ")}.\nReview the Room Relocation fields below, then Relocate.` : "Couldn't find rooms or dates — fill the form manually.");
+  }
+
+  // Extract up to 2 dates (chronological) from free text → ["YYYY-MM-DD", ...]
+  function extractDates(text) {
+    const MONTHS = { jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11 };
+    const yr = new Date().getFullYear();
+    const found = [];
+    // ISO
+    [...text.matchAll(/\b(\d{4})-(\d{2})-(\d{2})\b/g)].forEach(m => found.push(`${m[1]}-${m[2]}-${m[3]}`));
+    // "5 Aug" / "5th August" / "Aug 5"
+    const iso = (y, mo, d) => `${y}-${String(mo + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    [...text.matchAll(/\b(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]{3,})\b/g)].forEach(m => {
+      const mo = MONTHS[m[2].slice(0, 3).toLowerCase()];
+      if (mo !== undefined) found.push(iso(yr, mo, +m[1]));
+    });
+    [...text.matchAll(/\b([A-Za-z]{3,})\s+(\d{1,2})(?:st|nd|rd|th)?\b/g)].forEach(m => {
+      const mo = MONTHS[m[1].slice(0, 3).toLowerCase()];
+      if (mo !== undefined) found.push(iso(yr, mo, +m[2]));
+    });
+    // dd/mm/yyyy or dd/mm
+    [...text.matchAll(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/g)].forEach(m => {
+      const y = m[3] ? (m[3].length === 2 ? 2000 + +m[3] : +m[3]) : yr;
+      found.push(iso(y, +m[2] - 1, +m[1]));
+    });
+    return [...new Set(found)].sort();
+  }
+
+  // ── Quiet hours: block broadcasts during a configured IST window ─────
+  const quietHours = flags.quietHours || { enabled: false, start: "23:00", end: "07:00" };
+  // Pass a timestamp (render passes the minute-tick `flashNow`; handlers pass Date.now())
+  function inQuietHours(nowMs) {
+    if (!quietHours.enabled) return false;
+    // current IST wall-clock minutes
+    const parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(new Date(nowMs ?? LOAD_NOW));
+    const h = +parts.find(p => p.type === "hour").value, m = +parts.find(p => p.type === "minute").value;
+    const cur = h * 60 + m;
+    const [sh, sm] = (quietHours.start || "23:00").split(":").map(Number);
+    const [eh, em] = (quietHours.end || "07:00").split(":").map(Number);
+    const s = sh * 60 + sm, e = eh * 60 + em;
+    return s <= e ? (cur >= s && cur < e) : (cur >= s || cur < e); // handle overnight window
+  }
+
+  // ── Announcement template library (stored in flags.announcementTemplates) ──
+  function saveAnnouncementTemplate() {
+    const label = tplLabel.trim();
+    if (!label) return alert("Name the template first.");
+    if (!announcement?.trim()) return alert("Type an announcement above to save as a template.");
+    const entry = { id: Date.now().toString(), label, text: announcement, severity: announcementSeverity };
+    setFlags({ ...flags, announcementTemplates: [...(flags.announcementTemplates || []), entry] });
+    setTplLabel("");
+  }
+  function applyAnnouncementTemplate(t) {
+    setAnnouncement(t.text);
+    if (t.severity) setAnnouncementSeverity(t.severity);
+  }
+  function removeAnnouncementTemplate(id) {
+    setFlags({ ...flags, announcementTemplates: (flags.announcementTemplates || []).filter(t => t.id !== id) });
+  }
+
+  // ── Override-only expiry cleanup (past-dated classOverrides) ──
+  function purgeStaleOverrides() {
+    if (staleOverrideDates.length === 0) return;
+    if (!window.confirm(`Remove ${staleOverrideDates.length} past-dated override date(s)? Deploy afterwards to shrink the config students download.`)) return;
+    const next = { ...(flags.classOverrides || {}) };
+    staleOverrideDates.forEach(d => delete next[d]);
+    setFlags({ ...flags, classOverrides: next });
+    logAdminAction(admin_id, "purge_stale_overrides", { dates: staleOverrideDates.length });
+  }
+
+  // ── Aggregated self-test: ping every service in one click ─────────────
+  async function runSelfTest() {
+    setSelfTesting(true); setSelfTest(null);
+    const checks = [];
+    // 1. Supabase DB
+    try { const t = Date.now(); const { error } = await supabase.from("system_config").select("id").limit(1); checks.push({ name: "Supabase DB", ok: !error, detail: error ? error.message : `${Date.now() - t}ms` }); }
+    catch (e) { checks.push({ name: "Supabase DB", ok: false, detail: e.message }); }
+    // 2. Insights RPCs
+    try { const { error } = await supabase.rpc("get_push_broadcast_stats"); checks.push({ name: "Insights RPCs", ok: !error, detail: error ? error.message : "responding" }); }
+    catch (e) { checks.push({ name: "Insights RPCs", ok: false, detail: e.message }); }
+    // 3. Cron health (via RPC) — flag any job that hasn't run in >2h
+    try {
+      const { data, error } = await supabase.rpc("get_cron_health");
+      if (error) checks.push({ name: "Cron jobs", ok: false, detail: error.message });
+      else {
+        const stale = (data || []).filter(j => !j.last_run || (LOAD_NOW - new Date(j.last_run).getTime()) > 2 * 3600000);
+        checks.push({ name: "Cron jobs", ok: stale.length === 0, detail: stale.length ? `${stale.length} stale: ${stale.map(s => s.jobname || s.jobid).join(", ")}` : `${(data || []).length} healthy` });
+      }
+    } catch (e) { checks.push({ name: "Cron jobs", ok: false, detail: e.message }); }
+    // 4. send-push edge fn reachable
+    try {
+      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
+        method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`, "x-push-key": "__health_check__" },
+        body: JSON.stringify({ __healthcheck: true }),
+      });
+      checks.push({ name: "send-push fn", ok: resp.status < 500, detail: `HTTP ${resp.status}` });
+    } catch (e) { checks.push({ name: "send-push fn", ok: false, detail: e.message }); }
+    // 5. Google Sheets feed
+    const FEED_URL = "https://script.google.com/macros/s/AKfycbwOCmpZAbzN7hRkb-xx6-SDejt3c45E5NBZ0NHuJW8CBRYO4ROJfwE_MI_g4aODwo08Gg/exec";
+    try { const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), 6000); const resp = await fetch(`${FEED_URL}?action=ping`, { signal: ctrl.signal }); clearTimeout(timer); checks.push({ name: "Sheets feed", ok: resp.ok, detail: resp.ok ? "reachable" : `HTTP ${resp.status}` }); }
+    catch (e) { checks.push({ name: "Sheets feed", ok: false, detail: e.name === "AbortError" ? "timeout" : e.message }); }
+    setSelfTest({ at: new Date().toISOString(), checks });
+    setSelfTesting(false);
+    await logAdminAction(admin_id, "self_test", { failed: checks.filter(c => !c.ok).length });
+  }
+
+  // ── Onboarding funnel: signup → picked section → push → active this week ──
+  const funnel = (() => {
+    const signedUp = allUsers.length;
+    const pickedSection = allUsers.filter(u => Object.keys(u.courses || {}).some(c => !c.startsWith("_"))).length;
+    const activeWeek = allUsers.filter(u => u.last_seen_at && (LOAD_NOW - new Date(u.last_seen_at).getTime()) <= 7 * 86400000).length;
+    const pushDevices = Number(pushSubCount) || 0;
+    return { signedUp, pickedSection, pushDevices, activeWeek };
+  })();
+
+  // ── Admin action leaderboard: audit actions per admin in the last 7 days ──
+  const adminLeaderboard = (() => {
+    const cutoff = LOAD_NOW - 7 * 86400000;
+    const by = {};
+    auditLogs.forEach(l => {
+      if (new Date(l.created_at).getTime() < cutoff) return;
+      const k = l.admin_id || "unknown";
+      (by[k] = by[k] || { id: k, count: 0, last: l.created_at, actions: {} });
+      by[k].count++;
+      by[k].actions[l.action] = (by[k].actions[l.action] || 0) + 1;
+      if (l.created_at > by[k].last) by[k].last = l.created_at;
+    });
+    return Object.values(by).sort((a, b) => b.count - a.count).slice(0, 8);
+  })();
+
+  // ── Config drift: what live config layers on top of the bundled snapshot ──
+  const configDrift = (() => {
+    const overrideDays = Object.keys(flags.classOverrides || {}).length;
+    const overrideClasses = Object.values(flags.classOverrides || {}).reduce((a, d) => a + Object.keys(d).length, 0);
+    const messDays = Object.keys(flags.messMenuOverrides || {}).length;
+    const announcements = (flags.scheduledAnnouncements || []).length;
+    const quickLinks = (flags.quickLinks || []).length;
+    const total = overrideClasses + messDays + announcements + quickLinks;
+    return { overrideDays, overrideClasses, messDays, announcements, quickLinks, total };
+  })();
+
+  // ── Broadcast agenda: all scheduled pushes/announcements/deploys, next 21 days ──
+  const broadcastAgenda = (() => {
+    const items = [];
+    (flags.scheduledPushes || []).forEach(p => items.push({ when: `${p.date || ""} ${p.time || ""}`.trim(), sort: `${p.date || ""}T${p.time || "00:00"}`, kind: "Push", label: p.title || "(push)", color: "var(--live)" }));
+    (flags.scheduledAnnouncements || []).forEach(a => items.push({ when: a.start || "", sort: `${a.start || ""}T00:00`, kind: "Announcement", label: (a.text || a.message || "").slice(0, 50) || "(announcement)", color: "var(--amber)", end: a.end }));
+    (flags.scheduledConfigDeploys || []).forEach(d => items.push({ when: (d.at || "").replace("T", " "), sort: d.at || "", kind: "Config deploy", label: "Queued config", color: "var(--violet)" }));
+    (flags.quickLinks || []).filter(q => q.start).forEach(q => items.push({ when: q.start, sort: `${q.start}T00:00`, kind: "Quick link", label: q.title || q.url || "(link)", color: "var(--blue)", end: q.end }));
+    return items.filter(i => i.sort).sort((a, b) => a.sort.localeCompare(b.sort));
+  })();
+
+  // ── Double-send guard: was a similar broadcast sent in the last hour? ──
+  // Reads the delivery-analytics RPC (pushStats); returns the matching row or null.
+  function recentDuplicatePush(title) {
+    const t = (title || "").trim().toLowerCase();
+    if (!t || !Array.isArray(pushStats)) return null;
+    return pushStats.find(s => (s.title || "").trim().toLowerCase() === t && s.sent_at && (nowMs() - new Date(s.sent_at).getTime()) < 3600000) || null;
+  }
+
+  // ── Saved audiences: reusable target filters (flags.savedAudiences) ──
+  function saveCurrentAudience() {
+    if (pushTarget === "all") return alert("Pick a specific audience first (not Everyone).");
+    const label = prompt("Name this audience:", pushTarget.replace(/_/g, " "));
+    if (!label?.trim()) return;
+    setFlags({ ...flags, savedAudiences: [...(flags.savedAudiences || []), { id: Date.now().toString(), label: label.trim(), target: pushTarget }] });
+  }
+
+  // ── Scheduled-announcement overlap detector ──
+  // Two announcements clash if their date ranges overlap AND their audiences
+  // intersect (same target, or either is global → everyone).
+  const announcementOverlaps = (() => {
+    const list = (flags.scheduledAnnouncements || []).filter(a => a.start && a.end);
+    const clashes = [];
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
+        const a = list[i], b = list[j];
+        const datesOverlap = a.start <= b.end && b.start <= a.end;
+        const audienceIntersect = a.target === b.target || a.target === "global" || b.target === "global";
+        if (datesOverlap && audienceIntersect) clashes.push({ a, b });
+      }
+    }
+    return clashes;
+  })();
+
+  // ── Room / time conflict detector (base snapshot) ──
+  const scheduleConflicts = (() => {
+    const groups = {};
+    liveSchedule.forEach(c => {
+      if (c.type === "break" || !c.room || !c.start) return;
+      const k = `${c.date}|${c.room}|${c.start}`;
+      (groups[k] = groups[k] || []).push(c);
+    });
+    return Object.entries(groups)
+      .filter(([, list]) => new Set(list.map(c => `${c.code}_${c.section || ""}`)).size > 1)
+      .map(([k, list]) => {
+        const [date, room, start] = k.split("|");
+        return { date, room, start, codes: [...new Set(list.map(c => c.code))] };
+      })
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(0, 20);
+  })();
+
+  // ── Bulk CSV dry-run ──
+  function previewCsvImport() {
+    if (!bulkCsv.trim()) { setCsvPreview(null); return; }
+    const lines = bulkCsv.trim().split("\n");
+    let valid = 0; const invalid = []; const sample = [];
+    lines.forEach((line, i) => {
+      const [date, code, section, room, start, end, cancelStr] = line.split(",").map(s => s?.trim());
+      if (!date || !code || !section) { invalid.push(i + 1); return; }
+      valid++;
+      if (sample.length < 5) {
+        sample.push(cancelStr?.toLowerCase() === "true"
+          ? `${date} · ${code} (${section}) → CANCELLED`
+          : `${date} · ${code} (${section}) → ${[room && `room ${room}`, start && `${start}-${end || "?"}`].filter(Boolean).join(", ") || "no change"}`);
+      }
+    });
+    setCsvPreview({ valid, invalid, sample, total: lines.length });
+  }
+
+  // ── Config import (JSON restore) ──
+  // Note: rollback to a previous deploy already exists as the "Restore Past
+  // Version" dropdown in the save footer (reads flags.configHistory).
+  function handleImportConfig(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(reader.result);
+        const nextFlags = parsed.flags || parsed;
+        if (!nextFlags || typeof nextFlags !== "object") throw new Error("No flags object found.");
+        if (!confirm("Import this config? It replaces the current unsaved flags — review & Deploy to apply.")) return;
+        setFlags(nextFlags);
+        if (parsed.announcement !== undefined) setActiveAnnouncement(parsed.announcement);
+        if (nextFlags.updatePrompt) {
+          setUpdatePromptTitle(nextFlags.updatePrompt.title || "");
+          setUpdatePromptDesc(nextFlags.updatePrompt.desc || "");
+          setUpdatePromptHighlights((nextFlags.updatePrompt.highlights || []).join("\n"));
+        }
+        if (Array.isArray(nextFlags.feedbackFlashes)) setFeedbackFlashes(nextFlags.feedbackFlashes);
+        logAdminAction(admin_id, "config_import", { file: file.name });
+        alert("Config imported. Review & Deploy Config to apply.");
+      } catch (err) {
+        alert("Invalid config file: " + err.message);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  }
+
+  // ── Admin roles editor ──
+  function saveAdminRole() {
+    const id = roleUserId.trim();
+    if (!id) return alert("Enter a user ID.");
+    setFlags({ ...flags, adminRoles: { ...(flags.adminRoles || {}), [id]: roleValue } });
+    setRoleUserId("");
+  }
+  function removeAdminRole(id) {
+    const next = { ...(flags.adminRoles || {}) };
+    delete next[id];
+    setFlags({ ...flags, adminRoles: next });
+  }
+
+  // ── Push to an explicit set of user IDs (bulk "Push Selected" + re-engagement) ──
+  async function pushToUserIds(ids, { title, body, url = "/?view=today", confirmMsg } = {}) {
+    if (!ids || ids.length === 0) return alert("No users to push to.");
+    const pushKey = getPushKey();
+    if (!pushKey) return;
+    if (confirmMsg && !confirm(confirmMsg)) return;
+    const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-push-key": pushKey, "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
+      body: JSON.stringify({ title, body, url, target_user_ids: ids }),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok && resp.status === 401) localStorage.removeItem("pgp2.push-admin-key");
+    return { ok: resp.ok, data };
+  }
+
+  async function pushSelectedUsers() {
+    const ids = [...selectedUserIds];
+    if (ids.length === 0) return alert("Select users first.");
+    const title = prompt(`Push title for ${ids.length} selected user(s):`);
+    if (!title) return;
+    const body = prompt("Push message:");
+    if (!body) return;
+    const res = await pushToUserIds(ids, { title: title.trim(), body: body.trim() });
+    if (res?.ok) { await logAdminAction(admin_id, "bulk_push", { count: ids.length }); alert(`Queued to ${res.data.queued ?? ids.length} user(s).`); }
+    else alert("Failed: " + (res?.data?.error || "unknown"));
+  }
+
+  // ── Re-engagement push to inactive users ──
+  const inactiveUsers = allUsers.filter(u => {
+    if (!u.last_seen_at) return true;
+    return (LOAD_NOW - new Date(u.last_seen_at).getTime()) > inactiveDays * 86400000;
+  });
+
+  // ── Audit log filtering ──
+  const filteredAuditLogs = auditLogs.filter(l => {
+    if (auditActionFilter !== "all" && l.action !== auditActionFilter) return false;
+    if (auditSearch.trim()) {
+      const hay = `${l.action} ${l.admin_id} ${JSON.stringify(l.details || {})}`.toLowerCase();
+      if (!hay.includes(auditSearch.trim().toLowerCase())) return false;
+    }
+    return true;
+  });
+  async function sendReEngagement() {
+    const ids = inactiveUsers.map(u => u.user_id).filter(Boolean);
+    if (ids.length === 0) return alert("No inactive users in that window.");
+    setReEngaging(true); setReEngageMsg("");
+    try {
+      const res = await pushToUserIds(ids, {
+        title: "We miss you at TermFlow 👋",
+        body: "Your schedule, mess menu and friends are waiting — jump back in.",
+        confirmMsg: `Send a re-engagement push to ${ids.length} user(s) inactive for ${inactiveDays}+ days?`,
+      });
+      if (!res) { setReEngaging(false); return; }
+      if (!res.ok) setReEngageMsg(`Failed: ${res.data.error || "error"}`);
+      else { setReEngageMsg(`Queued to ${res.data.queued ?? ids.length} user(s).`); await logAdminAction(admin_id, "reengagement_push", { count: ids.length, inactiveDays }); }
+    } catch (e) { setReEngageMsg("Error: " + e.message); }
+    setReEngaging(false);
+  }
+
+  // ── Targeted push: resolve an audience filter to concrete user IDs ──
+  // Returns null for "all" (→ broadcast) or targets that can't be resolved client-side.
+  function audienceIds(target) {
+    if (!target || target === "all") return null;
+    if (target === "inactive") return inactiveUsers.map(u => u.user_id).filter(Boolean);
+    if (target === "section_A" || target === "section_B") {
+      const s = target.endsWith("A") ? "_A" : "_B";
+      return allUsers.filter(u => Object.keys(u.courses || {}).some(c => c.endsWith(s))).map(u => u.user_id).filter(Boolean);
+    }
+    if (target.startsWith("subject_")) {
+      const code = target.replace("subject_", "");
+      return allUsers.filter(u => Object.keys(u.courses || {}).some(c => c === code || c.startsWith(code + "_"))).map(u => u.user_id).filter(Boolean);
+    }
+    return null;
+  }
+
+  // ── CSV export helper ──
+  function exportCsv(filename, headers, rows) {
+    const esc = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const csv = [headers.map(esc).join(","), ...rows.map(r => r.map(esc).join(","))].join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // ── Typed confirmation for destructive actions ──
+  function typedConfirm(word, message) {
+    const v = prompt(`${message}\n\nType ${word} to confirm:`);
+    return (v || "").trim().toUpperCase() === word.toUpperCase();
+  }
+
+  // ── Scheduled config deploy: queue the current pending config for a future time ──
+  async function queueConfigDeploy() {
+    if (!scheduleDeployAt) return alert("Pick a date & time to schedule the deploy.");
+    const snapshot = { ...flags };
+    delete snapshot.scheduledConfigDeploys;
+    delete snapshot.configHistory;
+    snapshot.updatePrompt = { title: updatePromptTitle, desc: updatePromptDesc, highlights: updatePromptHighlights.split("\n").filter(l => l.trim()) };
+    snapshot.feedbackFlashes = feedbackFlashes;
+    const entry = { id: Date.now().toString(), at: scheduleDeployAt, author: admin_id, flags: snapshot, announcement: activeAnnouncement };
+    // Persist ONLY the queue onto live config (don't disturb the deployed flags/announcement).
+    const { data: live } = await supabase.from("system_config").select("flags, announcement").eq("id", "global").single();
+    const liveFlags = { ...(live?.flags || {}), scheduledConfigDeploys: [ ...((live?.flags?.scheduledConfigDeploys) || []), entry ] };
+    const { error } = await supabase.from("system_config").upsert({ id: "global", announcement: live?.announcement ?? null, flags: liveFlags, updated_at: new Date().toISOString() });
+    if (error) return alert("Failed to schedule: " + error.message);
+    setFlags(f => ({ ...f, scheduledConfigDeploys: liveFlags.scheduledConfigDeploys }));
+    setScheduleDeployAt("");
+    logAdminAction(admin_id, "schedule_config_deploy", { at: entry.at });
+    alert("Scheduled. It auto-deploys at the chosen time (requires the apply-scheduled-config cron).");
+  }
+  async function removeScheduledDeploy(id) {
+    const { data: live } = await supabase.from("system_config").select("flags, announcement").eq("id", "global").single();
+    const liveFlags = { ...(live?.flags || {}), scheduledConfigDeploys: ((live?.flags?.scheduledConfigDeploys) || []).filter(e => e.id !== id) };
+    await supabase.from("system_config").upsert({ id: "global", announcement: live?.announcement ?? null, flags: liveFlags, updated_at: new Date().toISOString() });
+    setFlags(f => ({ ...f, scheduledConfigDeploys: liveFlags.scheduledConfigDeploys }));
+  }
+
   async function forceRefresh() {
-    if (confirm("Are you sure you want to force all active users to refresh their app?")) {
+    if (typedConfirm("REFRESH", "Force ALL active users to reload the app now?")) {
       await saveConfig();
       await logAdminAction(admin_id, "force_refresh", {});
       alert("Broadcast sent! Users will refresh on their next navigation.");
@@ -660,7 +1279,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const cancelClass = (date, code, section) => {
     const key = !section || section === "All" || section === "Single" ? code : `${code}_${section}`;
     const nextOverrides = { ...(flags.classOverrides || {}) };
-    nextOverrides[date] = { ...(nextOverrides[date] || {}), [key]: { type: "cancelled", name: `Cancelled: ${key}` } };
+    nextOverrides[date] = { ...(nextOverrides[date] || {}), [key]: { type: "cancelled", name: `Cancelled: ${key}`, modifiedAt: new Date().toISOString(), modifiedBy: admin_id } };
     setFlags({ ...flags, classOverrides: nextOverrides });
     logAdminAction(admin_id, "cancel_class", { date, class: key });
   };
@@ -705,7 +1324,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     if (roomOverrideRoom) changes.room = roomOverrideRoom;
     if (roomOverrideStart) changes.start = roomOverrideStart;
     if (roomOverrideEnd) changes.end = roomOverrideEnd;
-    
+    changes.modifiedAt = new Date().toISOString();
+    changes.modifiedBy = admin_id;
+
     nextOverrides[roomOverrideDate][overrideKey] = changes;
     setFlags({...flags, classOverrides: nextOverrides});
     logAdminAction(admin_id, "edit_class_override", { date: roomOverrideDate, class: overrideKey, changes });
@@ -887,10 +1508,24 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
            newOverrides[dayIdx] = dayMeals;
         }
 
+        // Diff vs currently staged/deployed overrides so the admin sees what changes.
+        const cur = flags.messMenuOverrides || {};
+        const changedDays = [];
+        for (let d = 0; d <= 6; d++) {
+          if (!(d in newOverrides)) continue;
+          if (JSON.stringify(newOverrides[d]) !== JSON.stringify(cur[d] ?? null)) changedDays.push(d);
+        }
+        const summary = changedDays.length === 0
+          ? "No differences vs the current menu."
+          : `Changes on: ${changedDays.map(d => MESS_DAY_NAMES[d] || d).join(", ")}`;
+        if (!confirm(`Parsed ${file.name}.\n${summary}\n\nStage this menu (${changedDays.length} day(s) changed)? Deploy to apply.`)) {
+          e.target.value = null;
+          return;
+        }
         setFlags({ ...flags, messMenuOverrides: newOverrides });
         setMessDrafts({});
-        logAdminAction(admin_id, "upload_mess_menu_excel", {});
-        alert("Menu successfully parsed and staged! Please deploy to cloud to apply.");
+        logAdminAction(admin_id, "upload_mess_menu_excel", { changedDays: changedDays.length });
+        alert("Menu staged! Please deploy to cloud to apply.");
       } catch (err) {
         console.error("Excel parse error", err);
         alert("Failed to parse Excel file: " + err.message);
@@ -916,7 +1551,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     <div className="admin-page">
       
       {/* ── Hero Section ── */}
-      <section className="hero" style={{ marginBottom: 32, padding: "40px 20px", textAlign: "center", borderRadius: 24 }}>
+      <section className="hero" style={{ marginBottom: 32, padding: "40px 20px", textAlign: "center", borderRadius: 24, position: "relative", overflow: "hidden" }}>
         <div style={{ display: "inline-flex", background: "rgba(109, 91, 208, 0.1)", color: "var(--live)", padding: "12px 24px", borderRadius: 30, alignItems: "center", gap: 12, marginBottom: 16, flexWrap: "wrap", justifyContent: "center" }}>
           <ShieldAlert size={28} />
           <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, letterSpacing: "-0.5px" }}>Admin Control Center</h1>
@@ -927,24 +1562,33 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             <Search size={20} />
           </button>
         </div>
-        <p style={{ color: "var(--muted)", margin: "0 0 32px 0", fontSize: 16 }}>Global settings, feature flags, and user management.</p>
-        
+        <p style={{ color: "var(--muted)", margin: "0 0 16px 0", fontSize: 16 }}>Global settings, feature flags, and user management.</p>
+
+        {presentAdmins.length > 0 && (
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 24, padding: "6px 14px", background: "var(--card)", border: "1px solid var(--border)", borderRadius: 30, fontSize: 13 }} title={presentAdmins.map(a => a.name).join(", ")}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--live)", boxShadow: "0 0 0 3px rgba(31,169,113,0.2)" }} />
+            <span style={{ color: "var(--muted)" }}>
+              {presentAdmins.length === 1 ? "You're the only admin here" : `${presentAdmins.length} admins here: ${presentAdmins.map(a => a.name).join(", ")}`}
+            </span>
+          </div>
+        )}
+
         <div style={{ display: "flex", gap: 24, justifyContent: "center", flexWrap: "wrap" }}>
-          <div style={{ background: "var(--card)", padding: "16px 32px", borderRadius: 16, border: "1px solid var(--border)", minWidth: 180 }}>
+          <div style={{ background: "var(--card)", padding: "16px 32px", borderRadius: 16, border: "1px solid var(--border)", minWidth: 180 }} title="Total registered students (excluding dev/admin accounts)">
             <div style={{ fontSize: 12, textTransform: "uppercase", fontWeight: 700, color: "var(--muted)", marginBottom: 8, letterSpacing: "1px" }}>Total Users</div>
             <div style={{ fontSize: 36, fontWeight: 800, fontFamily: "var(--display)", color: "var(--text)" }}>{statsLoading ? "..." : totalUsers}</div>
           </div>
-          <div style={{ background: "var(--card)", padding: "16px 32px", borderRadius: 16, border: "1px solid var(--border)", minWidth: 180 }}>
+          <div style={{ background: "var(--card)", padding: "16px 32px", borderRadius: 16, border: "1px solid var(--border)", minWidth: 180, cursor: "pointer" }} title="Unique students active since midnight local time" onClick={() => setActiveUsersListModalOpen(true)}>
             <div style={{ fontSize: 12, textTransform: "uppercase", fontWeight: 700, color: "var(--muted)", marginBottom: 8, letterSpacing: "1px" }}>Active Today</div>
-            <div style={{ fontSize: 36, fontWeight: 800, fontFamily: "var(--display)", color: "var(--text)" }}>{statsLoading ? "..." : activeUsers}</div>
+            <div style={{ fontSize: 36, fontWeight: 800, fontFamily: "var(--display)", color: "var(--text)", textDecoration: "underline", textDecorationColor: "var(--border)", textUnderlineOffset: 4 }}>{statsLoading ? "..." : activeUsers}</div>
           </div>
-          <div style={{ background: "var(--card)", padding: "16px 32px", borderRadius: 16, border: "1px solid var(--border)", minWidth: 180 }}>
+          <div style={{ background: "var(--card)", padding: "16px 32px", borderRadius: 16, border: "1px solid var(--border)", minWidth: 180 }} title="PostgreSQL database size (Free tier limit is 500MB)">
             <div style={{ fontSize: 12, textTransform: "uppercase", fontWeight: 700, color: "var(--muted)", marginBottom: 8, letterSpacing: "1px", display: "flex", alignItems: "center", gap: 6 }}><Database size={14}/> DB Storage Used</div>
             <div style={{ fontSize: 36, fontWeight: 800, fontFamily: "var(--display)", color: "var(--text)" }}>{statsLoading ? "..." : dbSize}</div>
           </div>
-          <div style={{ background: "var(--card)", padding: "16px 32px", borderRadius: 16, border: "1px solid var(--border)", minWidth: 180 }}>
+          <div style={{ background: "var(--card)", padding: "16px 32px", borderRadius: 16, border: "1px solid var(--border)", minWidth: 180, cursor: "pointer" }} title="Total devices enrolled for FCM web push notifications" onClick={() => setPushSubscribersModalOpen(true)}>
             <div style={{ fontSize: 12, textTransform: "uppercase", fontWeight: 700, color: "var(--muted)", marginBottom: 8, letterSpacing: "1px", display: "flex", alignItems: "center", gap: 6 }}><BellRing size={14}/> Push Subscribers</div>
-            <div style={{ fontSize: 36, fontWeight: 800, fontFamily: "var(--display)", color: "var(--text)" }}>{statsLoading ? "..." : pushSubCount}</div>
+            <div style={{ fontSize: 36, fontWeight: 800, fontFamily: "var(--display)", color: "var(--text)", textDecoration: "underline", textDecorationColor: "var(--border)", textUnderlineOffset: 4 }}>{statsLoading ? "..." : pushSubCount}</div>
           </div>
 
         </div>
@@ -958,13 +1602,40 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
         </div>
       </section>
 
+      {/* ── Tab nav: groups the ~24 sections into 5 categories ── */}
+      <nav className="admin-tabs" role="tablist" aria-label="Admin sections">
+        {[
+          { id: "broadcast", label: "Broadcast", Icon: Megaphone },
+          { id: "schedule", label: "Schedule", Icon: CalendarDays },
+          { id: "users", label: "Users", Icon: Users },
+          { id: "insights", label: "Insights", Icon: BarChart2 },
+          { id: "system", label: "System", Icon: ShieldAlert },
+        ].map(({ id, label, Icon }) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === id}
+            className={`admin-tab ${activeTab === id ? "active" : ""}`}
+            onClick={() => {
+              setActiveTab(id);
+              const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+              window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+            }}
+          >
+            <Icon size={16} />
+            <span className="admin-tab-label">{label}</span>
+          </button>
+        ))}
+      </nav>
+
       {/* ── Card flow: 2-col masonry ≥1200px, single column below ── */}
-      <div className="admin-masonry">
+      <div className="admin-masonry" data-active-tab={activeTab}>
 
 
 
           {/* Interactive Live Schedule Editor */}
-          <section className="admin-card admin-span-all" style={{ gridColumn: "1 / -1" }}>
+          <section className="admin-card admin-span-all admin-g-schedule" style={{ gridColumn: "1 / -1" }}>
             <h2><CalendarDays size={20} color="var(--blue)" /> Live Schedule Editor</h2>
             <p className="admin-subtext">Click on a class slot to visually change the room or cancel the class.</p>
             <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
@@ -1090,7 +1761,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
           {/* Class Cancellation Board */}
-          <section className="admin-card admin-span-all" style={{ gridColumn: "1 / -1" }}>
+          <section className="admin-card admin-span-all admin-g-schedule" style={{ gridColumn: "1 / -1" }}>
             <h2><XCircle size={20} color="var(--danger)" /> Class Cancellation Board</h2>
             <p className="admin-subtext">Globally cancel a class for all students on a specific date. Pick a date, then cancel directly from that day's schedule. Changes go live after "Deploy Config to Cloud".</p>
             <div className="admin-field" style={{ maxWidth: 220 }}>
@@ -1182,8 +1853,63 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             </details>
           </section>
 
+          {/* Holiday / Day-off bulk cancel */}
+          <section className="admin-card admin-span-all admin-g-schedule" style={{ gridColumn: "1 / -1" }}>
+            <h2><XCircle size={20} color="var(--danger)" /> Holiday / Day-off</h2>
+            <p className="admin-subtext">Cancel every class across a date range in one action (e.g. a festival break). Stages overrides — Review &amp; Deploy Config to apply.</p>
+            <div className="admin-field-row" style={{ maxWidth: 560, alignItems: "flex-end" }}>
+              <div className="admin-field"><label>From</label><input type="date" className="admin-input" value={holidayStart} onChange={e => setHolidayStart(e.target.value)} /></div>
+              <div className="admin-field"><label>To</label><input type="date" className="admin-input" value={holidayEnd} onChange={e => setHolidayEnd(e.target.value)} /></div>
+              <button className="admin-btn danger" style={{ flex: "0 0 auto", marginBottom: 10, padding: "9px 16px" }} onClick={applyHolidayCancel}><XCircle size={15} /> Cancel All</button>
+            </div>
+            {holidayStart && holidayEnd && holidayEnd >= holidayStart && (
+              <div style={{ fontSize: 12, color: "var(--muted)" }}>{liveSchedule.filter(c => c.date >= holidayStart && c.date <= holidayEnd && c.type !== "break").length} class(es) will be cancelled in this range.</div>
+            )}
+          </section>
+
+          {/* Bulk room relocation */}
+          <section className="admin-card admin-span-all admin-g-schedule" style={{ gridColumn: "1 / -1" }}>
+            <h2><CalendarDays size={20} color="var(--blue)" /> Room Relocation</h2>
+            <p className="admin-subtext">Move every class from one room to another across a date range (e.g. "all A01 classes → A04 until 2 Aug"). Stages room overrides — Review &amp; Deploy to apply.</p>
+            <details style={{ marginBottom: 12 }}>
+              <summary style={{ cursor: "pointer", fontSize: 13, color: "var(--live)", fontWeight: 600 }}>📋 Paste from email / notice</summary>
+              <div style={{ marginTop: 8 }}>
+                <textarea className="admin-input" rows={3} value={relocEmail} onChange={e => setRelocEmail(e.target.value)} placeholder="e.g. Kindly note that room A01 will be shifted to A04 from 5 Aug to 12 Aug 2026." style={{ width: "100%", resize: "vertical" }} />
+                <button className="admin-btn outline" style={{ marginTop: 6 }} onClick={parseRelocationEmail}><Search size={14} /> Parse &amp; pre-fill</button>
+              </div>
+            </details>
+            <div className="admin-field-row" style={{ alignItems: "flex-end", flexWrap: "wrap" }}>
+              <div className="admin-field"><label>From room</label><input className="admin-input" value={relocFrom} onChange={e => setRelocFrom(e.target.value)} placeholder="A01" /></div>
+              <div className="admin-field"><label>To room</label><input className="admin-input" value={relocTo} onChange={e => setRelocTo(e.target.value)} placeholder="A04" /></div>
+              <div className="admin-field"><label>From date</label><input type="date" className="admin-input" value={relocStart} onChange={e => setRelocStart(e.target.value)} /></div>
+              <div className="admin-field"><label>To date</label><input type="date" className="admin-input" value={relocEnd} onChange={e => setRelocEnd(e.target.value)} /></div>
+              <button className="admin-btn primary" style={{ flex: "0 0 auto", marginBottom: 10 }} onClick={applyRoomRelocation}><CalendarDays size={15} /> Relocate</button>
+            </div>
+            {relocFrom.trim() && relocStart && relocEnd && relocEnd >= relocStart && (
+              <div style={{ fontSize: 12, color: "var(--muted)" }}>{liveSchedule.filter(c => c.date >= relocStart && c.date <= relocEnd && c.type !== "break" && (c.room || "").toLowerCase() === relocFrom.trim().toLowerCase()).length} class(es) in {relocFrom.trim()} will move.</div>
+            )}
+          </section>
+
+          {/* Room / time conflict detector */}
+          <section className="admin-card admin-span-all admin-g-schedule" style={{ gridColumn: "1 / -1" }}>
+            <h2><AlertTriangle size={20} color="var(--amber)" /> Room &amp; Time Conflicts</h2>
+            <p className="admin-subtext">Same room booked for different classes at the same date &amp; time in the bundled schedule.</p>
+            {scheduleConflicts.length === 0 ? (
+              <div className="admin-empty">No conflicts detected.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {scheduleConflicts.map((c, i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "8px 12px", background: "rgba(245,158,11,0.08)", border: "1px solid var(--amber)", borderRadius: 8, fontSize: 13 }}>
+                    <span><b>{c.room}</b> @ {c.start} · {c.date}</span>
+                    <span style={{ color: "var(--amber-text, var(--amber))", fontWeight: 700 }}>{c.codes.join(" vs ")}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
           {/* Class Editor */}
-          <section className="admin-card admin-span-all" style={{ gridColumn: "1 / -1" }}>
+          <section className="admin-card admin-span-all admin-g-schedule" style={{ gridColumn: "1 / -1" }}>
             <h2><CalendarDays size={20} color="var(--blue)" /> Class Editor</h2>
             <p className="admin-subtext">Globally change the classroom or timings for a specific class on a given date.</p>
             <div className="admin-field-row" style={{ marginTop: 10 }}>
@@ -1239,7 +1965,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
           {/* Bulk Overrides & Copy */}
-          <section className="admin-card admin-span-all" style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 32 }}>
+          <section className="admin-card admin-span-all admin-g-schedule" style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 32 }}>
              <div>
                 <h2><CalendarDays size={20} color="var(--violet)" /> Copy Overrides</h2>
                 <p className="admin-subtext">Duplicate all overrides (cancellations/rooms) from one day to another.</p>
@@ -1281,31 +2007,50 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                          const sectionKey = section === "All" || section === "Single" ? code : `${code}_${section}`;
                          
                          if (cancelStr?.toLowerCase() === "true") {
-                            next[date][sectionKey] = { type: "cancelled" };
+                            next[date][sectionKey] = { type: "cancelled", modifiedAt: new Date().toISOString(), modifiedBy: admin_id };
                          } else {
                             next[date][sectionKey] = {
                                type: "class",
                                ...(room && { room }),
                                ...(start && { start }),
-                               ...(end && { end })
+                               ...(end && { end }),
+                               modifiedAt: new Date().toISOString(),
+                               modifiedBy: admin_id
                             };
                          }
                          count++;
                       }
                       setFlags({...flags, classOverrides: next});
-                      setBulkCsv("");
+                      setBulkCsv(""); setCsvPreview(null);
                       alert(`Imported ${count} overrides successfully.`);
                    } catch (e) {
                       alert("Invalid CSV format. " + e.message);
                    }
                 }}>Import CSV</button>
+                <button className="admin-btn outline" style={{ marginTop: 12, marginLeft: 8 }} onClick={previewCsvImport}>Preview (dry run)</button>
+                {csvPreview && (
+                   <div style={{ marginTop: 10, padding: 12, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }}>
+                      <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                        {csvPreview.valid} valid row(s)
+                        {csvPreview.invalid.length > 0 && <span style={{ color: "var(--danger)" }}> · {csvPreview.invalid.length} invalid (line {csvPreview.invalid.join(", ")})</span>}
+                      </div>
+                      {csvPreview.sample.map((s, i) => <div key={i} style={{ color: "var(--muted)", fontFamily: "var(--mono)" }}>{s}</div>)}
+                      {csvPreview.valid > csvPreview.sample.length && <div style={{ color: "var(--muted)" }}>…and {csvPreview.valid - csvPreview.sample.length} more</div>}
+                   </div>
+                )}
              </div>
           </section>
 
           {/* Active Overrides List */}
           {flags.classOverrides && Object.keys(flags.classOverrides).length > 0 && (
-            <section className="admin-card admin-span-all" style={{ gridColumn: "1 / -1" }}>
+            <section className="admin-card admin-span-all admin-g-schedule" style={{ gridColumn: "1 / -1" }}>
               <h2>Active Class Overrides</h2>
+              {staleOverrideDates.length > 0 && (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", padding: "10px 14px", background: "rgba(245,158,11,0.08)", border: "1px solid var(--amber)", borderRadius: 10, marginTop: 8 }}>
+                  <span style={{ fontSize: 13 }}><AlertTriangle size={15} color="var(--amber)" style={{ verticalAlign: "middle", marginRight: 6 }} />{staleOverrideDates.length} override date(s) are in the past and can never apply again — students still download them.</span>
+                  <button className="admin-btn outline" onClick={purgeStaleOverrides} style={{ borderColor: "var(--amber)", color: "var(--amber)" }}><Trash2 size={14} /> Purge expired</button>
+                </div>
+              )}
               <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
                 {Object.entries(flags.classOverrides).map(([date, classes]) => 
                   Object.keys(classes).map(code => {
@@ -1319,15 +2064,22 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
                     return (
                       <div key={`${date}-${code}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(0,0,0,0.03)", padding: "12px 16px", borderRadius: 8, border: "1px solid var(--border)" }}>
-                        <span style={{ fontWeight: 600, fontSize: 14 }}>
-                          {new Date(date).toLocaleDateString()} — {displayCode} 
-                          {isCancelled && <span style={{ color: "var(--danger)", marginLeft: 8 }}>(Cancelled)</span>}
-                          {isModified && !isCancelled && (
-                            <span style={{ color: "var(--blue)", marginLeft: 8 }}>
-                              ({[override.room && `Room: ${override.room}`, (override.start || override.end) && `${override.start || "?"} - ${override.end || "?"}`].filter(Boolean).join(" | ")})
-                            </span>
+                        <div style={{ minWidth: 0 }}>
+                          <span style={{ fontWeight: 600, fontSize: 14 }}>
+                            {new Date(date).toLocaleDateString()} — {displayCode}
+                            {isCancelled && <span style={{ color: "var(--danger)", marginLeft: 8 }}>(Cancelled)</span>}
+                            {isModified && !isCancelled && (
+                              <span style={{ color: "var(--blue)", marginLeft: 8 }}>
+                                ({[override.room && `Room: ${override.room}`, (override.start || override.end) && `${override.start || "?"} - ${override.end || "?"}`].filter(Boolean).join(" | ")})
+                              </span>
+                            )}
+                          </span>
+                          {override.modifiedAt && (
+                            <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 3 }}>
+                              Modified {new Date(override.modifiedAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}{override.modifiedBy ? ` · ${allUsers.find(u => u.user_id === override.modifiedBy)?.name || "admin"}` : ""}
+                            </div>
                           )}
-                        </span>
+                        </div>
                         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                           {isModified && (
                             <button onClick={() => {
@@ -1358,10 +2110,22 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               </div>
             </section>
           )}
-        <section className="admin-card" style={{ display: "flex", flexDirection: "column" }}>
+        <section className="admin-card admin-g-broadcast" style={{ display: "flex", flexDirection: "column" }}>
           <h2><Megaphone size={20} color="var(--amber)" /> Scheduled Announcements</h2>
           <p className="admin-subtext">Schedule targeted announcements. Active ones will appear as banners to matched users.</p>
-          
+
+          {/* Template library — reusable announcement presets stored in config */}
+          {(flags.announcementTemplates || []).length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+              {(flags.announcementTemplates || []).map(t => (
+                <span key={t.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 20, padding: "4px 6px 4px 12px", fontSize: 12 }}>
+                  <button type="button" onClick={() => applyAnnouncementTemplate(t)} title={t.text} style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--text)", fontWeight: 600, padding: 0 }}>{t.label}</button>
+                  <button type="button" onClick={() => removeAnnouncementTemplate(t.id)} title="Delete template" style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--danger)", display: "flex", padding: 0 }}><X size={13} /></button>
+                </span>
+              ))}
+            </div>
+          )}
+
           <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
             <input type="date" value={announcementStart} onChange={e => setAnnouncementStart(e.target.value)} className="admin-input" style={{ flex: "1 1 130px", padding: "8px", borderRadius: 8, border: "1px solid var(--border)" }} title="Start Date" />
             <input type="date" value={announcementEnd} onChange={e => setAnnouncementEnd(e.target.value)} className="admin-input" style={{ flex: "1 1 130px", padding: "8px", borderRadius: 8, border: "1px solid var(--border)" }} title="End Date (Inclusive)" />
@@ -1376,44 +2140,70 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 ))}
               </optgroup>
             </select>
+            <select className="admin-input" value={announcementSeverity} onChange={e => setAnnouncementSeverity(e.target.value)} style={{ flex: "1 1 120px", padding: "8px", borderRadius: 8, border: "1px solid var(--border)" }} title="Banner severity / colour">
+              <option value="info">Info</option>
+              <option value="warning">Warning</option>
+              <option value="urgent">Urgent</option>
+            </select>
           </div>
-          <textarea 
+          {(() => { const n = audienceCount(announcementTarget); return (
+            <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+              <Users size={13} /> Audience: {n === null ? "varies per user — can't estimate client-side" : `~${n} user${n === 1 ? "" : "s"}`}
+            </div>
+          ); })()}
+          <textarea
             className="admin-textarea"
             value={announcement}
             onChange={e => setAnnouncement(e.target.value)}
             placeholder="e.g., Exam registration closes tomorrow!"
           />
-          {announcement && (
-             <div style={{ padding: "12px", background: "var(--amber-transparent)", borderLeft: "4px solid var(--amber)", borderRadius: "0 8px 8px 0", marginTop: 8 }}>
-                <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-                   <Megaphone size={16} color="var(--amber)" style={{ marginTop: 2, flexShrink: 0 }} />
-                   <div style={{ fontSize: 13, color: "var(--amber-text)", fontWeight: 500, lineHeight: 1.4 }}>{announcement}</div>
+          {announcement.trim() && (
+             <div style={{ marginTop: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                   <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--muted)" }}>Student preview</span>
+                   <button type="button" onClick={() => setPreviewTheme(previewTheme === "dark" ? "light" : "dark")} style={{ background: "transparent", border: "1px solid var(--border)", borderRadius: 8, padding: "3px 10px", fontSize: 11, fontWeight: 600, color: "var(--text)", cursor: "pointer" }}>
+                      {previewTheme === "dark" ? "Dark" : "Light"} mode
+                   </button>
                 </div>
-                <div style={{ marginTop: 8, fontSize: 11, color: "var(--muted)", display: "flex", justifyContent: "flex-end" }}>
-                   Preview mode: <button style={{ marginLeft: 4, background: "transparent", border: "none", color: "var(--blue)", cursor: "pointer", textDecoration: "underline" }} onClick={(e) => {
-                      const t = e.currentTarget;
-                      const p = t.parentElement.parentElement;
-                      if(p.style.background.includes("transparent")) {
-                         p.style.background = "#fff";
-                         p.style.color = "#000";
-                         t.innerText = "Light";
-                      } else {
-                         p.style.background = "var(--amber-transparent)";
-                         p.style.color = "var(--amber-text)";
-                         t.innerText = "Dark";
-                      }
-                   }}>Dark</button>
-                </div>
+                {/* Mirrors the real banner in App.jsx (severity-coloured, dismissible) */}
+                {(() => {
+                  const bg = announcementSeverity === "urgent" ? "var(--danger)" : announcementSeverity === "info" ? "var(--violet)" : "var(--amber)";
+                  const fg = announcementSeverity === "warning" ? "#000" : "#fff";
+                  return (
+                    <div style={{ padding: 16, borderRadius: 12, border: "1px solid var(--border)", background: previewTheme === "dark" ? "#101216" : "#F3F1EA" }}>
+                       <div style={{ background: bg, color: fg, padding: "12px 16px", borderRadius: 8, display: "flex", gap: 8, alignItems: "center", fontWeight: 600 }}>
+                          <Megaphone size={18} style={{ flexShrink: 0 }} />
+                          <span style={{ fontSize: 14, flex: 1 }}>{announcement}</span>
+                          <X size={16} style={{ flexShrink: 0 }} />
+                       </div>
+                    </div>
+                  );
+                })()}
              </div>
           )}
-          <button className="admin-btn primary" style={{ marginTop: 12 }} onClick={() => {
-            if (!announcement || !announcementStart || !announcementEnd) return alert("Please fill message and dates.");
-            const newItem = { id: Date.now().toString(), message: announcement, target: announcementTarget, start: announcementStart, end: announcementEnd };
-            setFlags({...flags, scheduledAnnouncements: [...(flags.scheduledAnnouncements || []), newItem]});
-            setAnnouncement(""); setAnnouncementStart(""); setAnnouncementEnd("");
-          }}>
-            Add Scheduled Announcement
-          </button>
+          <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap", alignItems: "center" }}>
+            <button className="admin-btn primary" onClick={() => {
+              if (!announcement || !announcementStart || !announcementEnd) return alert("Please fill message and dates.");
+              const newItem = { id: Date.now().toString(), message: announcement, target: announcementTarget, start: announcementStart, end: announcementEnd, severity: announcementSeverity };
+              setFlags({...flags, scheduledAnnouncements: [...(flags.scheduledAnnouncements || []), newItem]});
+              setAnnouncement(""); setAnnouncementStart(""); setAnnouncementEnd(""); setAnnouncementSeverity("info");
+            }}>
+              Add Scheduled Announcement
+            </button>
+            <input className="admin-input" value={tplLabel} onChange={e => setTplLabel(e.target.value)} placeholder="Template name" style={{ flex: "1 1 140px", maxWidth: 200 }} />
+            <button className="admin-btn outline" onClick={saveAnnouncementTemplate} disabled={!announcement.trim() || !tplLabel.trim()} title="Save the current message + severity as a reusable template"><Save size={14} /> Save as template</button>
+          </div>
+
+          {announcementOverlaps.length > 0 && (
+            <div style={{ marginTop: 16, padding: "10px 14px", background: "rgba(245,158,11,0.08)", border: "1px solid var(--amber)", borderRadius: 10 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--amber)", display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}><AlertTriangle size={15} /> {announcementOverlaps.length} overlapping announcement(s)</div>
+              {announcementOverlaps.map((c, i) => (
+                <div key={i} style={{ fontSize: 12, color: "var(--muted)", marginBottom: 2 }}>
+                  “{(c.a.message || "").slice(0, 28)}” &amp; “{(c.b.message || "").slice(0, 28)}” both show to {c.a.target === "global" || c.b.target === "global" ? "everyone" : c.a.target} on overlapping dates.
+                </div>
+              ))}
+            </div>
+          )}
 
           <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
             {(flags.scheduledAnnouncements || []).map(a => (
@@ -1431,9 +2221,24 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
         </section>
 
           {/* Push Notification Broadcast */}
-          <section className="admin-card" style={{ display: "flex", flexDirection: "column" }}>
+          <section className="admin-card admin-g-broadcast" style={{ display: "flex", flexDirection: "column" }}>
             <h2><BellRing size={20} color="var(--live)" /> Push Notifications</h2>
             <p className="admin-subtext">Send a push notification to every device that enabled push on the Announcements page. Delivered even when the app is closed.</p>
+
+            {/* Saved templates — reusable presets stored in config */}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginBottom: 10 }}>
+              {(flags.pushTemplates || []).map(t => (
+                <span key={t.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 20, padding: "3px 4px 3px 10px", fontSize: 12 }}>
+                  <button type="button" onClick={() => { setPushTitle(t.title || ""); setPushBody(t.body || ""); setPushUrl(t.url || ""); }} style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--text)", fontWeight: 600 }} title="Apply this template">{t.title || "(untitled)"}</button>
+                  <button type="button" onClick={() => setFlags({ ...flags, pushTemplates: (flags.pushTemplates || []).filter(x => x.id !== t.id) })} style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--muted)", display: "flex" }} aria-label="Delete template"><X size={12} /></button>
+                </span>
+              ))}
+              <button type="button" className="admin-btn outline" style={{ fontSize: 11, padding: "4px 10px" }} onClick={() => {
+                if (!pushTitle.trim() || !pushBody.trim()) return alert("Fill title and message first, then save as template.");
+                setFlags({ ...flags, pushTemplates: [...(flags.pushTemplates || []), { id: Date.now().toString(), title: pushTitle.trim(), body: pushBody.trim(), url: pushUrl.trim() }] });
+              }}>+ Save current as template</button>
+            </div>
+
             <div className="admin-field-row">
               <div className="admin-field">
                 <label>Title</label>
@@ -1458,22 +2263,69 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                  <input type="time" className="admin-input" value={pushScheduleTime} onChange={e => setPushScheduleTime(e.target.value)} />
                </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12 }}>
+
+            <div className="admin-field" style={{ marginTop: 8 }}>
+              <label>Audience {pushTarget !== "all" && (() => { const ids = audienceIds(pushTarget); return <span className="admin-optional">— {ids ? `${ids.length} recipient(s)` : "n/a"}</span>; })()}</label>
+              <select className="admin-input" value={pushTarget} onChange={e => setPushTarget(e.target.value)}>
+                <option value="all">Everyone (broadcast)</option>
+                <option value="section_A">Section A</option>
+                <option value="section_B">Section B</option>
+                <option value="inactive">Inactive {inactiveDays}+ days</option>
+                <optgroup label="Subject-wise">
+                  {Object.keys(LEGEND || {}).map(c => <option key={c} value={`subject_${c}`}>{c}</option>)}
+                </optgroup>
+                {(flags.savedAudiences || []).length > 0 && (
+                  <optgroup label="Saved audiences">
+                    {(flags.savedAudiences || []).map(sa => <option key={sa.id} value={sa.target}>★ {sa.label}</option>)}
+                  </optgroup>
+                )}
+              </select>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6, alignItems: "center" }}>
+                {(flags.savedAudiences || []).map(sa => (
+                  <span key={sa.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--bg)", border: `1px solid ${pushTarget === sa.target ? "var(--live)" : "var(--border)"}`, borderRadius: 20, padding: "3px 4px 3px 10px", fontSize: 12 }}>
+                    <button type="button" onClick={() => setPushTarget(sa.target)} title={sa.target} style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--text)", fontWeight: 600 }}>★ {sa.label}</button>
+                    <button type="button" onClick={() => setFlags({ ...flags, savedAudiences: (flags.savedAudiences || []).filter(x => x.id !== sa.id) })} style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--muted)", display: "flex" }} aria-label="Delete saved audience"><X size={12} /></button>
+                  </span>
+                ))}
+                <button type="button" className="admin-btn outline" style={{ fontSize: 11, padding: "4px 10px" }} onClick={saveCurrentAudience} disabled={pushTarget === "all"}>+ Save current audience</button>
+              </div>
+            </div>
+
+            <PushPreview title={pushTitle} body={pushBody} url={pushUrl} when={pushScheduleDate && pushScheduleTime ? `${pushScheduleDate} · ${pushScheduleTime}` : "now"} />
+
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
               <button className="admin-btn primary" onClick={() => {
                  if (pushScheduleDate && pushScheduleTime) {
+                    if (pushTarget !== "all") return alert("Scheduled pushes currently go to everyone. For a targeted push, clear the schedule and send now.");
                     if (!pushTitle.trim() || !pushBody.trim()) return alert("Fill in title and message.");
                     const newItem = { id: Date.now().toString(), title: pushTitle.trim(), body: pushBody.trim(), url: pushUrl.trim(), date: pushScheduleDate, time: pushScheduleTime };
                     setFlags({...flags, scheduledPushes: [...(flags.scheduledPushes || []), newItem]});
                     setPushTitle(""); setPushBody(""); setPushUrl(""); setPushScheduleDate(""); setPushScheduleTime("");
                     setPushResult("Push scheduled successfully (Requires deploy).");
+                 } else if (pushTarget !== "all") {
+                    const ids = audienceIds(pushTarget);
+                    if (!ids || ids.length === 0) return alert("No recipients match that audience.");
+                    if (!pushTitle.trim() || !pushBody.trim()) return alert("Fill in title and message.");
+                    const dup = recentDuplicatePush(pushTitle);
+                    if (dup && !confirm(`⚠️ A push titled "${dup.title}" was already sent ${Math.round((nowMs() - new Date(dup.sent_at).getTime()) / 60000)} min ago. Send this one anyway?`)) return;
+                    (async () => {
+                      setPushSending(true); setPushResult("");
+                      const res = await pushToUserIds(ids, { title: pushTitle.trim(), body: pushBody.trim(), url: pushUrl.trim() || "/", confirmMsg: `Send this push to ${ids.length} user(s) in "${pushTarget}"?` });
+                      if (res?.ok) { setPushResult(`Sent to ${res.data.queued ?? ids.length} user(s).`); setPushTitle(""); setPushBody(""); setPushUrl(""); await logAdminAction(admin_id, "push_targeted", { target: pushTarget, count: ids.length }); }
+                      else if (res) setPushResult(`Failed: ${res.data?.error || "error"}`);
+                      setPushSending(false);
+                    })();
                  } else {
                     sendPushBroadcast();
                  }
               }} disabled={pushSending}>
-                <BellRing size={14} /> {pushSending ? "Sending..." : (pushScheduleDate && pushScheduleTime ? "Queue Push Notification" : "Send to All Subscribers")}
+                <BellRing size={14} /> {pushSending ? "Sending..." : (pushScheduleDate && pushScheduleTime ? "Queue Push Notification" : pushTarget !== "all" ? "Send to Audience" : "Send to All Subscribers")}
+              </button>
+              <button className="admin-btn outline" onClick={sendTestPushToMe} disabled={pushSending} title="Delivers only to your own subscribed devices — arrives within ~1 min">
+                <BellRing size={14} /> Send test to me
               </button>
               {pushResult && (
-                <span className="admin-subtext" style={{ margin: 0, color: pushResult.startsWith("Sent") || pushResult.startsWith("Push scheduled") ? "var(--live)" : "var(--danger)" }}>{pushResult}</span>
+                <span className="admin-subtext" style={{ margin: 0, color: pushResult.startsWith("Sent") || pushResult.startsWith("Push scheduled") || pushResult.startsWith("Test") ? "var(--live)" : "var(--danger)" }}>{pushResult}</span>
               )}
             </div>
 
@@ -1495,8 +2347,92 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             )}
           </section>
 
+          {/* Push Delivery Analytics */}
+          <section className="admin-card admin-g-broadcast" style={{ display: "flex", flexDirection: "column" }}>
+            <h2><BarChart2 size={20} color="var(--live)" /> Push Delivery Analytics</h2>
+            <p className="admin-subtext">How recent broadcasts actually landed: sent → delivered (push shown) → opened (read).</p>
+            {pushStats === null ? (
+              <div className="admin-empty">Needs the <code>get_push_broadcast_stats</code> RPC (migration 20260731120000) deployed.</div>
+            ) : pushStats.length === 0 ? (
+              <div className="admin-empty">No broadcasts sent yet.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {pushStats.slice(0, 8).map(s => {
+                  const dPct = s.total ? Math.round((s.delivered / s.total) * 100) : 0;
+                  const oPct = s.total ? Math.round((s.opened / s.total) * 100) : 0;
+                  return (
+                    <div key={s.dedup_key} style={{ padding: "10px 12px", background: "var(--bg)", borderRadius: 10, border: "1px solid var(--border)" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title || "(no title)"}</span>
+                        <span style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap" }}>{new Date(s.sent_at).toLocaleDateString()}</span>
+                      </div>
+                      <div style={{ display: "flex", gap: 16, fontSize: 12 }}>
+                        <span title="Users the broadcast was queued for"><b>{s.total}</b> sent</span>
+                        <span style={{ color: "var(--blue)" }} title="Push actually delivered to a device"><b>{s.delivered}</b> delivered ({dPct}%)</span>
+                        <span style={{ color: "var(--live)" }} title="Marked read in the inbox"><b>{s.opened}</b> opened ({oPct}%)</span>
+                      </div>
+                      <div style={{ height: 6, background: "var(--card)", borderRadius: 3, overflow: "hidden", border: "1px solid var(--border)", marginTop: 6, position: "relative" }}>
+                        <div style={{ position: "absolute", inset: 0, width: `${dPct}%`, background: "var(--blue)", opacity: 0.35 }} />
+                        <div style={{ position: "absolute", inset: 0, width: `${oPct}%`, background: "var(--live)" }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          {/* Broadcast agenda — every scheduled push/announcement/deploy on one timeline */}
+          <section className="admin-card admin-g-broadcast" style={{ display: "flex", flexDirection: "column" }}>
+            <h2><Clock size={20} color="var(--live)" /> Scheduled Timeline</h2>
+            <p className="admin-subtext">Everything queued to fire — pushes, announcements, config deploys and quick links — in one calendar so you can catch collisions or spam bursts before they hit.</p>
+            {broadcastAgenda.length === 0 ? (
+              <div className="admin-empty">Nothing scheduled. Queued pushes, announcements &amp; deploys will appear here.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {broadcastAgenda.map((it, i) => {
+                  const prev = broadcastAgenda[i - 1];
+                  const day = (it.sort || "").slice(0, 10);
+                  const newDay = !prev || (prev.sort || "").slice(0, 10) !== day;
+                  const sameSlot = prev && (prev.sort || "").slice(0, 13) === (it.sort || "").slice(0, 13);
+                  return (
+                    <div key={i}>
+                      {newDay && <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--muted)", margin: "6px 0 2px" }}>{day ? new Date(day).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" }) : "Undated"}</div>}
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: sameSlot ? "rgba(245,158,11,0.08)" : "var(--bg)", borderRadius: 8, border: `1px solid ${sameSlot ? "var(--amber)" : "var(--border)"}` }} title={sameSlot ? "Fires in the same slot as the item above — possible collision" : ""}>
+                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: it.color, flexShrink: 0 }} />
+                        <span style={{ fontSize: 12, fontWeight: 700, color: it.color, minWidth: 88 }}>{it.kind}</span>
+                        <span style={{ fontSize: 13, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.label}</span>
+                        <span style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap" }}>{it.when}{it.end ? ` → ${it.end}` : ""}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          {/* Quiet hours guard */}
+          <section className="admin-card admin-g-broadcast" style={{ display: "flex", flexDirection: "column" }}>
+            <h2><CloudOff size={20} color="var(--violet)" /> Quiet Hours</h2>
+            <p className="admin-subtext">Warn before a broadcast fires during a do-not-disturb window (IST), so nobody gets a 2am buzz. Deploy Config to save the window.</p>
+            <label className="admin-flag-item" style={{ marginBottom: 10 }}>
+              <input type="checkbox" checked={!!quietHours.enabled} onChange={e => setFlags({ ...flags, quietHours: { ...quietHours, enabled: e.target.checked } })} />
+              <span>Guard broadcasts during quiet hours</span>
+            </label>
+            <div className="admin-field-row" style={{ alignItems: "flex-end", opacity: quietHours.enabled ? 1 : 0.5 }}>
+              <div className="admin-field"><label>From</label><input type="time" className="admin-input" value={quietHours.start || "23:00"} disabled={!quietHours.enabled} onChange={e => setFlags({ ...flags, quietHours: { ...quietHours, start: e.target.value } })} /></div>
+              <div className="admin-field"><label>To</label><input type="time" className="admin-input" value={quietHours.end || "07:00"} disabled={!quietHours.enabled} onChange={e => setFlags({ ...flags, quietHours: { ...quietHours, end: e.target.value } })} /></div>
+            </div>
+            {quietHours.enabled && (() => { const q = inQuietHours(flashNow); return (
+              <div style={{ fontSize: 12, marginTop: 8, color: q ? "var(--danger)" : "var(--muted)", display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: q ? "var(--danger)" : "var(--live)" }} />
+                {q ? "Currently within quiet hours — broadcasts will prompt a warning." : "Outside quiet hours — broadcasts send normally."}
+              </div>
+            ); })()}
+          </section>
+
           {/* What's New — feature updates */}
-          <section className="admin-card" style={{ display: "flex", flexDirection: "column" }}>
+          <section className="admin-card admin-g-broadcast" style={{ display: "flex", flexDirection: "column" }}>
             <h2><Sparkles size={20} color="var(--violet)" /> What&rsquo;s New (Feature Updates)</h2>
             <p className="admin-subtext">Announce new features. Students see a "NEW" pill on the Today view until they open the What&rsquo;s New list. Publish with Deploy Config to Cloud.</p>
             <div className="admin-field-row">
@@ -1513,6 +2449,24 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               <label>Description</label>
               <textarea className="admin-textarea" value={wnDesc} onChange={e => setWnDesc(e.target.value)} placeholder="e.g. Enable push on the Announcements tab to get pinged 15/30/60 min before your classes." rows={2} maxLength={200}></textarea>
             </div>
+
+            {wnTitle.trim() && (
+              <div style={{ marginTop: 4, marginBottom: 12 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--muted)", display: "block", marginBottom: 8 }}>Student preview — click the pill to see the full card</span>
+                <WhatsNewPill
+                  item={{ id: "preview", emoji: wnEmoji.trim(), title: wnTitle.trim(), desc: wnDesc.trim(), date: new Date().toISOString().split("T")[0] }}
+                  count={1}
+                  onOpen={() => setWnPreviewOpen(true)}
+                />
+              </div>
+            )}
+            {wnPreviewOpen && (
+              <WhatsNewModal
+                items={[{ id: "preview", emoji: wnEmoji.trim(), title: wnTitle.trim() || "Feature title", desc: wnDesc.trim(), date: new Date().toISOString().split("T")[0] }]}
+                onClose={() => setWnPreviewOpen(false)}
+              />
+            )}
+
             <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
               <button className="admin-btn primary" style={{ alignSelf: "flex-start" }} onClick={() => {
                 if (!wnTitle.trim()) return alert("Feature title is required.");
@@ -1565,7 +2519,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             </div>
           </section>
 
-        <section className="admin-card" style={{ display: "flex", flexDirection: "column" }}>
+        <section className="admin-card admin-g-broadcast" style={{ display: "flex", flexDirection: "column" }}>
           <h2><Flag size={20} color="var(--violet)" /> Dynamic Quick Links</h2>
           <p className="admin-subtext">Push temporary important links to the sidebar (e.g. Exam Portal).</p>
           
@@ -1617,7 +2571,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
         </section>
 
         {/* Feedback Flash Scheduler */}
-        <section className="admin-card">
+        <section className="admin-card admin-g-broadcast">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
             <h2><MessageSquare size={20} color="var(--amber)" /> Feedback Flash Scheduler</h2>
             <button 
@@ -1789,7 +2743,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
         </section>
 
           {/* Software Update Prompt Config */}
-          <section className="admin-card">
+          <section className="admin-card admin-g-broadcast">
             <h2><RefreshCw size={20} color="var(--violet)" /> Update Prompt Text</h2>
             <p className="admin-subtext">Configure what users see when a new app version is available.</p>
             <div className="admin-field">
@@ -1807,7 +2761,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
           {/* Mess Menu Editor */}
-          <section className="admin-card admin-span-all" style={{ gridColumn: "1 / -1" }}>
+          <section className="admin-card admin-span-all admin-g-schedule" style={{ gridColumn: "1 / -1" }}>
             <h2><UtensilsCrossed size={20} color="var(--amber)" /> Mess Menu Editor</h2>
             <p className="admin-subtext">Edit the weekly mess menu shown on the Mess Card — one dish per line. Stage a day, then publish with "Deploy Config to Cloud".</p>
 
@@ -1884,7 +2838,42 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             </div>
           </section>
 
-        <section className="admin-card admin-directory-card admin-span-all">
+          {/* Onboarding funnel */}
+          <section className="admin-card admin-g-users" style={{ display: "flex", flexDirection: "column" }}>
+            <h2><BarChart2 size={20} color="var(--green)" /> Onboarding Funnel</h2>
+            <p className="admin-subtext">Where students drop off between signing up and staying active. Push count is device-based; the rest are user counts.</p>
+            {(() => {
+              const steps = [
+                { label: "Signed up", n: funnel.signedUp, color: "var(--green)" },
+                { label: "Picked a section", n: funnel.pickedSection, color: "var(--blue)" },
+                { label: "Enabled push (devices)", n: funnel.pushDevices, color: "var(--live)" },
+                { label: "Active this week", n: funnel.activeWeek, color: "var(--violet)" },
+              ];
+              const max = Math.max(funnel.signedUp, 1);
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {steps.map((s, i) => {
+                    const pct = Math.round((s.n / max) * 100);
+                    const prev = i > 0 ? steps[i - 1].n : null;
+                    const drop = prev != null && prev > 0 ? Math.round(((prev - s.n) / prev) * 100) : null;
+                    return (
+                      <div key={s.label}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
+                          <span style={{ fontWeight: 600 }}>{s.label}</span>
+                          <span><b>{s.n}</b> <span style={{ color: "var(--muted)" }}>({pct}%{drop != null && drop > 0 ? `, −${drop}%` : ""})</span></span>
+                        </div>
+                        <div style={{ height: 8, background: "var(--bg)", borderRadius: 4, overflow: "hidden", border: "1px solid var(--border)" }}>
+                          <div style={{ height: "100%", width: `${pct}%`, background: s.color }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </section>
+
+        <section className="admin-card admin-directory-card admin-span-all admin-g-users">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
              <h2><Users size={20} color="var(--green)" /> User Directory</h2>
              <button className="admin-btn outline" onClick={() => {
@@ -1894,7 +2883,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                       u.user_id, 
                       u.name || "", 
                       u.email || "", 
-                      u.courses ? Object.keys(u.courses).filter(c => c !== "_name" && c !== "_email").join(";") : ""
+                      u.courses ? Object.keys(u.courses).filter(c => !c.startsWith("_")).join(";") : ""
                    ].map(v => `"${v}"`).join(","));
                 });
                 const blob = new Blob([csvRows.join("\n")], { type: 'text/csv' });
@@ -1941,6 +2930,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                       setFlags({...flags, bannedUsers: next});
                       setSelectedUserIds(new Set());
                    }} style={{ fontSize: 11, padding: "4px 8px" }}>Unban Selected</button>
+
+                   <button className="admin-btn outline" onClick={pushSelectedUsers} style={{ fontSize: 11, padding: "4px 8px", borderColor: "var(--live)", color: "var(--live)" }}><BellRing size={12} /> Push Selected</button>
 
                    <button className="admin-btn outline" onClick={() => setSelectedUserIds(new Set())} style={{ fontSize: 11, padding: "4px 8px" }}>Clear Selection</button>
                 </div>
@@ -1994,8 +2985,33 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </div>
         </section>
 
+          {/* Inactive users + re-engagement */}
+          <section className="admin-card admin-g-users">
+            <h2><Users size={20} color="var(--muted)" /> Inactive Users</h2>
+            <p className="admin-subtext">Students not seen recently. Click a name for details, or send a gentle re-engagement push to the whole list.</p>
+            <div className="admin-field-row" style={{ alignItems: "flex-end", maxWidth: 440 }}>
+              <div className="admin-field">
+                <label>Inactive for at least (days)</label>
+                <input type="number" min={1} max={120} className="admin-input" value={inactiveDays} onChange={e => setInactiveDays(Math.max(1, Number(e.target.value) || 1))} />
+              </div>
+              <button className="admin-btn primary" style={{ flex: "0 0 auto", marginBottom: 10 }} onClick={sendReEngagement} disabled={reEngaging}>
+                <BellRing size={14} /> {reEngaging ? "Sending…" : `Nudge ${inactiveUsers.length}`}
+              </button>
+            </div>
+            {reEngageMsg && <div style={{ fontSize: 12, color: reEngageMsg.startsWith("Queued") ? "var(--live)" : "var(--danger)", marginBottom: 8 }}>{reEngageMsg}</div>}
+            <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 8 }}><b style={{ color: "var(--text)" }}>{inactiveUsers.length}</b> of {allUsers.length} users inactive {inactiveDays}+ days</div>
+            <div style={{ maxHeight: 220, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
+              {inactiveUsers.slice(0, 50).map(u => (
+                <div key={u.user_id} onClick={() => setSelectedUser(u)} style={{ display: "flex", justifyContent: "space-between", padding: "6px 10px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)", fontSize: 12, cursor: "pointer" }}>
+                  <span style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.name || "Student"}</span>
+                  <span style={{ color: "var(--muted)", whiteSpace: "nowrap" }}>{u.last_seen_at ? new Date(u.last_seen_at).toLocaleDateString() : "never seen"}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+
              {/* Friend Pings & Share Codes */}
-             <section className="admin-card">
+             <section className="admin-card admin-g-users">
                <h2><Users size={20} color="var(--green)" /> Social Hygiene</h2>
                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                   <span style={{ fontSize: 13, color: "var(--muted)" }}>Pending Friend Pings</span>
@@ -2027,7 +3043,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
              </section>
              
              {/* Enrollment Distribution */}
-             <section className="admin-card">
+             <section className="admin-card admin-g-users">
                <h2><Database size={20} color="var(--violet)" /> Enrollment Stats</h2>
                <p className="admin-subtext">Top 5 most popular courses by enrollment.</p>
                <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
@@ -2052,7 +3068,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
              </section>
 
           {/* Analytics Dashboard — real data from Supabase */}
-          <section className="admin-card admin-span-all" style={{ gridColumn: "1 / -1" }}>
+          <section className="admin-card admin-span-all admin-g-insights" style={{ gridColumn: "1 / -1" }}>
              <h2><BarChart2 size={20} color="var(--violet)" /> Analytics & Usage</h2>
              <div style={{ display: "flex", gap: 16, marginTop: 16, flexWrap: "wrap" }}>
 
@@ -2120,9 +3136,150 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 </div>
              </div>
           </section>
-             
+
+          {/* Active-user tiers (DAU/WAU/MAU) */}
+          <section className="admin-card admin-g-insights">
+            <h2><BarChart2 size={20} color="var(--live)" /> Active Users</h2>
+            <p className="admin-subtext">Unique students seen within each rolling window (from last_seen_at).</p>
+            <div className="admin-stats-grid">
+              {[["DAU", activeTiers.dau, "last 24h"], ["WAU", activeTiers.wau, "last 7 days"], ["MAU", activeTiers.mau, "last 30 days"]].map(([label, val, sub]) => (
+                <div className="admin-stat-box" key={label}>
+                  <div style={{ fontSize: 30, fontWeight: 800, fontFamily: "var(--display)", color: "var(--text)" }}>{statsLoading ? "…" : val}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--muted)", marginTop: 4 }}>{label}</div>
+                  <div style={{ fontSize: 11, color: "var(--muted)" }}>{sub}</div>
+                </div>
+              ))}
+            </div>
+            {typeof totalUsers === "number" && totalUsers > 0 && (
+              <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 12 }}>
+                Stickiness (DAU/MAU): <b style={{ color: "var(--text)" }}>{activeTiers.mau ? Math.round((activeTiers.dau / activeTiers.mau) * 100) : 0}%</b>
+                {" · "}MAU reach: <b style={{ color: "var(--text)" }}>{Math.round((activeTiers.mau / totalUsers) * 100)}%</b> of {totalUsers}
+              </div>
+            )}
+          </section>
+
+          {/* Feature adoption */}
+          <section className="admin-card admin-g-insights">
+            <h2><Flag size={20} color="var(--violet)" /> Feature Adoption</h2>
+            <p className="admin-subtext">Signals from live data + which major features are currently enabled.</p>
+            <div className="admin-stats-grid">
+              <div className="admin-stat-box">
+                <div style={{ fontSize: 26, fontWeight: 800, fontFamily: "var(--display)" }}>{typeof totalUsers === "number" && totalUsers ? Math.round((Number(pushSubCount) || 0) / totalUsers * 100) : 0}%</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", marginTop: 4 }}>Push enabled</div>
+                <div style={{ fontSize: 11, color: "var(--muted)" }}>{pushSubCount} devices</div>
+              </div>
+              <div className="admin-stat-box">
+                <div style={{ fontSize: 26, fontWeight: 800, fontFamily: "var(--display)" }}>{shareCodes.length}</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", marginTop: 4 }}>Active share codes</div>
+                <div style={{ fontSize: 11, color: "var(--muted)" }}>social sharing</div>
+              </div>
+              <div className="admin-stat-box">
+                <div style={{ fontSize: 26, fontWeight: 800, fontFamily: "var(--display)" }}>{friendPingsCount}</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", marginTop: 4 }}>Friend pings</div>
+                <div style={{ fontSize: 11, color: "var(--muted)" }}>pending</div>
+              </div>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 12 }}>
+              {["enableFriends", "enableExams", "enableAttendance", "enableStatus", "enableMeetups", "enableFreeNudge", "enableAwayShare"].filter(k => k in flags).map(k => (
+                <span key={k} style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 20, border: "1px solid var(--border)", background: flags[k] !== false ? "rgba(31,169,113,0.12)" : "var(--bg)", color: flags[k] !== false ? "var(--live)" : "var(--muted)" }}>
+                  {k.replace("enable", "")} {flags[k] !== false ? "on" : "off"}
+                </span>
+              ))}
+            </div>
+          </section>
+
+          {/* Edge-function / cron health */}
+          <section className="admin-card admin-span-all admin-g-insights" style={{ gridColumn: "1 / -1" }}>
+            <h2><Terminal size={20} color="var(--live)" /> Edge Function / Cron Health</h2>
+            <p className="admin-subtext">Last run of each scheduled job (dispatch, class-reminders, scheduled pushes). Watch for stalled or failing notifiers.</p>
+            {cronHealth === null ? (
+              <div className="admin-empty">Needs the <code>get_cron_health</code> RPC (migration 20260731120000) deployed.</div>
+            ) : cronHealth.length === 0 ? (
+              <div className="admin-empty">No cron jobs reported.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {cronHealth.map((j, i) => {
+                  const ok = (j.status || "").toLowerCase() === "succeeded";
+                  const stale = j.last_run && (LOAD_NOW - new Date(j.last_run).getTime()) > 20 * 60000;
+                  const color = !j.last_run ? "var(--muted)" : ok && !stale ? "var(--live)" : "var(--danger)";
+                  return (
+                    <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "8px 12px", background: "var(--bg)", borderRadius: 8, border: `1px solid ${color}` }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700 }}>{j.jobname} {!j.active && <span style={{ color: "var(--muted)", fontWeight: 500 }}>(paused)</span>}</div>
+                        <div style={{ fontSize: 11, color: "var(--muted)", fontFamily: "var(--mono)" }}>{j.schedule}{j.message ? ` — ${String(j.message).slice(0, 80)}` : ""}</div>
+                      </div>
+                      <div style={{ textAlign: "right", flexShrink: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color }}>{j.status || "never run"}</div>
+                        <div style={{ fontSize: 11, color: "var(--muted)" }}>{j.last_run ? new Date(j.last_run).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          {/* Self-test: ping every service in one click */}
+          <section className="admin-card admin-g-insights" style={{ display: "flex", flexDirection: "column" }}>
+            <h2><Check size={20} color="var(--live)" /> System Self-Test</h2>
+            <p className="admin-subtext">One click pings the DB, insights RPCs, cron jobs, the push function and the Sheets feed — a single green/red readout instead of checking each card.</p>
+            <button className="admin-btn primary" onClick={runSelfTest} disabled={selfTesting} style={{ alignSelf: "flex-start" }}>
+              {selfTesting ? <><RefreshCw size={14} className="spin-icon" /> Running…</> : <><Check size={14} /> Run self-test</>}
+            </button>
+            {selfTest && (
+              <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+                {selfTest.checks.map((c, i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "8px 12px", background: "var(--bg)", borderRadius: 8, border: `1px solid ${c.ok ? "var(--live)" : "var(--danger)"}` }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}><span style={{ width: 9, height: 9, borderRadius: "50%", background: c.ok ? "var(--live)" : "var(--danger)" }} />{c.name}</span>
+                    <span style={{ fontSize: 12, color: "var(--muted)", textAlign: "right" }}>{c.detail}</span>
+                  </div>
+                ))}
+                <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>
+                  {selfTest.checks.filter(c => !c.ok).length === 0 ? "All systems healthy." : `${selfTest.checks.filter(c => !c.ok).length} issue(s) found.`} · {new Date(selfTest.at).toLocaleTimeString()}
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* Admin action leaderboard */}
+          <section className="admin-card admin-g-insights" style={{ display: "flex", flexDirection: "column" }}>
+            <h2><ShieldAlert size={20} color="var(--violet)" /> Admin Activity (7 days)</h2>
+            <p className="admin-subtext">Who's been operating the panel this week — accountability across the admin roles.</p>
+            {adminLeaderboard.length === 0 ? (
+              <div className="admin-empty">No admin actions logged in the last 7 days.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {adminLeaderboard.map((a, i) => {
+                  const name = allUsers.find(u => u.user_id === a.id)?.name || (a.id === admin_id ? "You" : a.id.slice(0, 10));
+                  const top = Object.entries(a.actions).sort((x, y) => y[1] - x[1]).slice(0, 3).map(([k, v]) => `${k.replace(/_/g, " ")} ×${v}`).join(", ");
+                  return (
+                    <div key={a.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "8px 12px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)" }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700 }}>{i + 1}. {name}</div>
+                        <div style={{ fontSize: 11, color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{top}</div>
+                      </div>
+                      <div style={{ textAlign: "right", flexShrink: 0 }}>
+                        <div style={{ fontSize: 16, fontWeight: 800, fontFamily: "var(--display)" }}>{a.count}</div>
+                        <div style={{ fontSize: 10, color: "var(--muted)" }}>{new Date(a.last).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          {/* Sentry deep link */}
+          <section className="admin-card admin-g-insights">
+            <h2><AlertTriangle size={20} color="var(--amber)" /> Error Monitoring</h2>
+            <p className="admin-subtext">Client + edge errors are captured in Sentry. Open the dashboard for the live issue feed.</p>
+            <a className="admin-btn outline" href="https://sentry.io/organizations/flames-corp/issues/?project=termflow" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+              <Terminal size={14} /> Open Sentry Issues
+            </a>
+          </section>
+
              {/* API Health Check — live pings */}
-             <section className="admin-card">
+             <section className="admin-card admin-g-insights">
                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                  <h2><Terminal size={20} color="var(--live)" /> API Health Check</h2>
                  <button onClick={checkApiHealth} disabled={healthChecking} className="admin-btn outline" style={{ padding: "4px 10px", fontSize: 12 }}>
@@ -2155,7 +3312,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
              </section>
 
         {/* Feedback Section */}
-        <section className="admin-card">
+        <section className="admin-card admin-g-users">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <h2><Terminal size={20} color="var(--green)" /> Feedback & Bug Reports</h2>
             <div style={{ display: "flex", gap: 6 }}>
@@ -2174,28 +3331,164 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                    <span style={{ fontSize: 12, fontWeight: 700, color: f.status === "resolved" ? "var(--green)" : "var(--amber)" }}>{f.status.toUpperCase()}</span>
                  </div>
                  <div style={{ fontSize: 14, color: "var(--text)" }}>{f.message}</div>
-                 {f.status === "pending" && (
-                   <button onClick={() => markFeedbackResolved(f.id)} style={{ marginTop: 8, background: "transparent", border: "none", color: "var(--green)", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Mark Resolved</button>
-                 )}
+                 <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
+                   {f.status === "pending" && (
+                     <button onClick={() => markFeedbackResolved(f.id)} className="admin-btn outline" style={{ padding: "4px 10px", fontSize: 12, color: "var(--green)", borderColor: "var(--green)" }}>Mark Resolved</button>
+                   )}
+                   {f.user_id && (
+                     <button onClick={async () => {
+                       const msg = prompt(`Reply to ${fUser?.name || "user"} via push:`);
+                       if (!msg) return;
+                       const res = await pushToUserIds([f.user_id], { title: "Reply from TermFlow admin", body: msg.trim() });
+                       if (res?.ok) { await logAdminAction(admin_id, "feedback_reply", { feedback: f.id }); alert("Reply push queued."); }
+                       else alert("Failed: " + (res?.data?.error || "error"));
+                     }} className="admin-btn outline" style={{ padding: "4px 10px", fontSize: 12 }}><BellRing size={12} /> Reply</button>
+                   )}
+                   <button onClick={() => { setWnTitle(f.message.slice(0, 58)); setWnDesc(f.message); setWnEmoji("✨"); setActiveTab("broadcast"); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="admin-btn outline" style={{ padding: "4px 10px", fontSize: 12 }} title="Prefill a What's New entry from this feedback"><Sparkles size={12} /> To What&rsquo;s New</button>
+                   <span style={{ width: 1, height: 18, background: "var(--border)" }} />
+                   {["bug", "idea", "dup", "wontfix"].map(t => {
+                     const on = (flags.feedbackTags?.[f.id] || []).includes(t);
+                     return (
+                       <button key={t} onClick={() => {
+                         const cur = flags.feedbackTags?.[f.id] || [];
+                         const next = on ? cur.filter(x => x !== t) : [...cur, t];
+                         setFlags({ ...flags, feedbackTags: { ...(flags.feedbackTags || {}), [f.id]: next } });
+                       }} style={{ padding: "2px 9px", fontSize: 11, fontWeight: 600, borderRadius: 20, border: "1px solid var(--border)", background: on ? "var(--violet)" : "transparent", color: on ? "#fff" : "var(--muted)", cursor: "pointer" }}>{t}</button>
+                     );
+                   })}
+                 </div>
                </div>
              )})}
           </div>
         </section>
 
-                    <div className="admin-grid admin-span-all">
-<section className="admin-card">
+          {/* Maintenance scheduler */}
+          <section className="admin-card admin-g-system">
+            <h2><CloudOff size={20} color="var(--danger)" /> Maintenance Window</h2>
+            <p className="admin-subtext">Schedule an automatic maintenance lockout (non-admins see the "Under Maintenance" screen while the window is active). Leave blank for none. Deploy Config to apply.</p>
+            <div className="admin-field-row" style={{ maxWidth: 520 }}>
+              <div className="admin-field">
+                <label>Start</label>
+                <input type="datetime-local" className="admin-input" value={flags.maintenanceWindow?.start || ""} onChange={e => setFlags({ ...flags, maintenanceWindow: { ...(flags.maintenanceWindow || {}), start: e.target.value } })} />
+              </div>
+              <div className="admin-field">
+                <label>End</label>
+                <input type="datetime-local" className="admin-input" value={flags.maintenanceWindow?.end || ""} onChange={e => setFlags({ ...flags, maintenanceWindow: { ...(flags.maintenanceWindow || {}), end: e.target.value } })} />
+              </div>
+            </div>
+            {(flags.maintenanceWindow?.start || flags.maintenanceWindow?.end) && (
+              <button className="admin-btn outline" style={{ marginTop: 4 }} onClick={() => { const n = { ...flags }; delete n.maintenanceWindow; setFlags(n); }}>Clear window</button>
+            )}
+          </section>
+
+          {/* Admin roles */}
+          <section className="admin-card admin-g-system">
+            <h2><ShieldAlert size={20} color="var(--violet)" /> Admin Roles</h2>
+            <p className="admin-subtext">Grant Monitor (read-only) or Superadmin access by user ID. You can also set a role from any user's detail panel.</p>
+            <div className="admin-field-row" style={{ alignItems: "flex-end" }}>
+              <div className="admin-field" style={{ flex: 2 }}>
+                <label>User ID</label>
+                <input className="admin-input" value={roleUserId} onChange={e => setRoleUserId(e.target.value)} placeholder="user_xxx" />
+              </div>
+              <div className="admin-field" style={{ flex: 1 }}>
+                <label>Role</label>
+                <select className="admin-input" value={roleValue} onChange={e => setRoleValue(e.target.value)}>
+                  <option value="monitor">Monitor</option>
+                  <option value="superadmin">Superadmin</option>
+                </select>
+              </div>
+              <button className="admin-btn primary" style={{ flex: "0 0 auto", marginBottom: 10 }} onClick={saveAdminRole}>Grant</button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
+              {Object.keys(flags.adminRoles || {}).length === 0 ? (
+                <div className="admin-empty">No admin roles assigned.</div>
+              ) : Object.entries(flags.adminRoles).map(([id, role]) => {
+                const u = allUsers.find(x => x.user_id === id);
+                return (
+                  <div key={id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)" }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{u?.name || id}</div>
+                      <div style={{ fontSize: 11, color: "var(--muted)", fontFamily: "var(--mono)" }}>{id}</div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10, background: "rgba(109,91,208,0.12)", color: "var(--violet)" }}>{role}</span>
+                      <button onClick={() => removeAdminRole(id)} className="admin-btn outline" style={{ padding: "4px 8px", borderColor: "var(--danger)", color: "var(--danger)" }}><Trash2 size={14} /></button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Config backup & restore */}
+          <section className="admin-card admin-g-system">
+            <h2><Database size={20} color="var(--blue)" /> Config Backup &amp; Restore</h2>
+            <p className="admin-subtext">Download the live config as JSON, or import a backup (loads into the editor — Review &amp; Deploy to apply). Rollback to a recent deploy lives in the save bar below.</p>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <button className="admin-btn outline" onClick={_exportConfigJSON}><FileText size={15} /> Export JSON</button>
+              <button className="admin-btn outline" onClick={() => configFileRef.current?.click()}><FileText size={15} /> Import JSON</button>
+              <input ref={configFileRef} type="file" accept="application/json,.json" onChange={handleImportConfig} style={{ display: "none" }} />
+            </div>
+          </section>
+
+          {/* Data export center */}
+          <section className="admin-card admin-g-system">
+            <h2><FileText size={20} color="var(--blue)" /> Data Export</h2>
+            <p className="admin-subtext">Download the currently loaded admin data as CSV for reporting or backup.</p>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <button className="admin-btn outline" onClick={() => exportCsv("users.csv", ["user_id", "name", "last_seen_at", "courses"], allUsers.map(u => [u.user_id, u.name, u.last_seen_at || "", Object.keys(u.courses || {}).filter(c => !c.startsWith("_")).join(";")]))} disabled={allUsers.length === 0}>Users ({allUsers.length})</button>
+              <button className="admin-btn outline" onClick={() => exportCsv("feedback.csv", ["created_at", "status", "user_id", "message"], feedbackList.map(f => [f.created_at, f.status, f.user_id || "", f.message]))} disabled={feedbackList.length === 0}>Feedback ({feedbackList.length})</button>
+              <button className="admin-btn outline" onClick={() => exportCsv("audit_logs.csv", ["created_at", "action", "admin_id", "details"], auditLogs.map(l => [l.created_at, l.action, l.admin_id, JSON.stringify(l.details || {})]))} disabled={auditLogs.length === 0}>Audit logs ({auditLogs.length})</button>
+            </div>
+          </section>
+
+          {/* Scheduled config deploys */}
+          <section className="admin-card admin-g-system">
+            <h2><Clock size={20} color="var(--amber)" /> Scheduled Deploys</h2>
+            <p className="admin-subtext">Queue the current pending config to auto-publish at a future time (requires the apply-scheduled-config cron). For an immediate change, use Deploy Config in the save bar instead.</p>
+            <div className="admin-field-row" style={{ alignItems: "flex-end", maxWidth: 480 }}>
+              <div className="admin-field"><label>Deploy at</label><input type="datetime-local" className="admin-input" value={scheduleDeployAt} onChange={e => setScheduleDeployAt(e.target.value)} /></div>
+              <button className="admin-btn primary" style={{ flex: "0 0 auto", marginBottom: 10 }} onClick={queueConfigDeploy}>Schedule deploy</button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {(flags.scheduledConfigDeploys || []).length === 0 ? (
+                <div className="admin-empty">No scheduled deploys.</div>
+              ) : (flags.scheduledConfigDeploys || []).map(e => (
+                <div key={e.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)" }}>
+                  <div style={{ fontSize: 13 }}>
+                    <b>{new Date(e.at).toLocaleString()}</b>
+                    <div style={{ fontSize: 11, color: "var(--muted)" }}>by {allUsers.find(u => u.user_id === e.author)?.name || "admin"}</div>
+                  </div>
+                  <button onClick={() => removeScheduledDeploy(e.id)} className="admin-btn outline" style={{ padding: "4px 8px", borderColor: "var(--danger)", color: "var(--danger)" }}><Trash2 size={14} /></button>
+                </div>
+              ))}
+            </div>
+          </section>
+
+<section className="admin-card admin-g-system">
             <h2><Flag size={20} color="var(--violet)" /> Feature Flags</h2>
             <div className="admin-flag-list">
-              {Object.keys(flags).filter(k => k !== "maintenanceMode" && k !== "bannedUsers" && k !== "classOverrides" && k !== "abTests" && k !== "scheduledAnnouncements" && k !== "quickLinks" && k !== "heroBackdrop" && k !== "whatsNew" && k !== "updatePrompt" && k !== "dispatchEnabled" && k !== "wrappedReleaseDate" && k !== "wrappedTerm").map(key => (
+              {/* Curated toggles (default ON when unset) + any other real boolean
+                  flags. Internal data keys (classOverrides, configHistory,
+                  messMenuOverrides…) and Danger-Zone toggles are excluded. */}
+              {FEATURE_FLAGS.map(({ key, label }) => (
                 <label key={key} className="admin-flag-item">
-                  <input 
-                    type="checkbox" 
-                    checked={!!flags[key]} 
+                  <input
+                    type="checkbox"
+                    checked={flags[key] !== false}
                     onChange={e => setFlags({ ...flags, [key]: e.target.checked })}
                   />
-                  <span>{key}</span>
+                  <span>{label} <span style={{ color: "var(--muted)", fontWeight: 500, fontSize: 12 }}>({key})</span></span>
                 </label>
               ))}
+              {Object.keys(flags)
+                .filter(k => typeof flags[k] === "boolean" && !FEATURE_FLAG_KEYS.has(k) && k !== "maintenanceMode" && k !== "dispatchEnabled")
+                .map(key => (
+                  <label key={key} className="admin-flag-item">
+                    <input type="checkbox" checked={!!flags[key]} onChange={e => setFlags({ ...flags, [key]: e.target.checked })} />
+                    <span>{key}</span>
+                  </label>
+                ))}
             </div>
             
             <div className="admin-field" style={{ marginTop: 16 }}>
@@ -2257,27 +3550,11 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 <option value="v3">Static (V3 Image)</option>
               </select>
             </div>
-            
-            <div style={{ marginTop: 24 }}>
-               <label style={{ display: "block", marginBottom: 8, fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "1px" }}>Preview</label>
-               <div style={{ borderRadius: 16, overflow: "hidden", position: "relative", pointerEvents: "none", border: "1px solid var(--border)", paddingBottom: 16, background: "var(--bg)" }}>
-                 <div style={{ transform: "scale(0.8)", transformOrigin: "top center", marginBottom: "-40px" }}>
-                   <Hero 
-                     sysConfig={{ flags: { heroBackdrop: flags.heroBackdrop } }}
-                     now={PREVIEW_NOW - 1000 * 60 * 30}
-                     todayISO={PREVIEW_TODAY_ISO}
-                     tomorrowISO={PREVIEW_TOMORROW_ISO}
-                     current={{ name: "Strategic Management", start: "10:00", end: "11:30", room: "LT-1", date: PREVIEW_TODAY_ISO, type: "class", code: "SM" }}
-                     premiumMode={true}
-                   />
-                 </div>
-               </div>
-            </div>
           </section>
 
              {/* A/B Testing — managed from flags.abTests */}
 
-<section className="admin-card">
+<section className="admin-card admin-g-broadcast">
             <h2><Megaphone size={20} color="var(--amber)" /> All Announcements</h2>
             <div className="admin-subtext" style={{ marginBottom: 16 }}>Live feed of all schedule changes (including admin-only data quality issues).</div>
             
@@ -2370,9 +3647,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               </div>
             </div>
           )}
-          </div>
 
-          <section className="admin-card">
+          <section className="admin-card admin-g-system">
                <h2><Flag size={20} color="var(--blue)" /> A/B Testing</h2>
                <p className="admin-subtext">Rollout experiments stored in flags. Deploy config to apply changes.</p>
 
@@ -2424,7 +3700,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
 
           {/* Time Machine */}
-          <section className="admin-card admin-span-all" style={{ gridColumn: "1 / -1" }}>
+          <section className="admin-card admin-span-all admin-g-system" style={{ gridColumn: "1 / -1" }}>
             <h2><Clock size={20} color="var(--amber)" /> Time Machine</h2>
             <p className="admin-subtext">Override the application's current time to test the timeline, agenda, and UI states.</p>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12, alignItems: "center" }}>
@@ -2442,7 +3718,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
           {/* Live Sync Logs */}
-          <section className="admin-card admin-span-all" style={{ gridColumn: "1 / -1" }}>
+          <section className="admin-card admin-span-all admin-g-insights" style={{ gridColumn: "1 / -1" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 <h2 style={{ margin: 0, padding: 0 }}><Terminal size={20} color="var(--violet)" /> Live Sync Logs</h2>
@@ -2470,15 +3746,26 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
           {/* Audit Logs */}
-          <section className="admin-card admin-span-all" style={{ gridColumn: "1 / -1" }}>
+          <section className="admin-card admin-span-all admin-g-insights" style={{ gridColumn: "1 / -1" }}>
             <h2><Terminal size={20} color="var(--violet)" /> Admin Audit Logs</h2>
-            <p className="admin-subtext">Recent administrative actions performed by all admins.</p>
-            <div style={{ padding: 16, marginTop: 16 }}>
-              {auditLogs.length === 0 ? (
-                <div className="admin-empty">No audit logs found.</div>
+            <p className="admin-subtext">Administrative actions performed by all admins (last 200).</p>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 4 }}>
+              <select className="admin-input" value={auditActionFilter} onChange={e => setAuditActionFilter(e.target.value)} style={{ flex: "0 0 auto" }}>
+                <option value="all">All actions</option>
+                {[...new Set(auditLogs.map(l => l.action))].sort().map(a => <option key={a} value={a}>{a.replace(/_/g, " ")}</option>)}
+              </select>
+              <input className="admin-input" value={auditSearch} onChange={e => setAuditSearch(e.target.value)} placeholder="Search action / admin / details" style={{ flex: "1 1 200px" }} />
+              <button className="admin-btn outline" onClick={() => {
+                const rows = filteredAuditLogs.map(l => [l.created_at, l.action, l.admin_id, JSON.stringify(l.details || {})]);
+                exportCsv("admin_audit_logs.csv", ["created_at", "action", "admin_id", "details"], rows);
+              }} style={{ flex: "0 0 auto" }}><FileText size={14} /> Export CSV</button>
+            </div>
+            <div style={{ padding: 16, marginTop: 12 }}>
+              {filteredAuditLogs.length === 0 ? (
+                <div className="admin-empty">No matching audit logs.</div>
               ) : (
                 <div style={{ position: "relative", borderLeft: "2px solid var(--border)", paddingLeft: 24, marginLeft: 12, display: "flex", flexDirection: "column", gap: 24 }}>
-                  {auditLogs.map((log) => {
+                  {filteredAuditLogs.slice(0, 60).map((log) => {
                      let Icon = FileText;
                      let color = "var(--text)";
                      if (log.action.includes("save") || log.action.includes("refresh")) { Icon = Save; color = "var(--blue)"; }
@@ -2510,8 +3797,73 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             </div>
           </section>
 
+          {/* Config drift — what live config layers on top of the bundled snapshot */}
+          <section className="admin-card admin-g-system" style={{ display: "flex", flexDirection: "column" }}>
+            <h2><Database size={20} color="var(--blue)" /> Config Drift</h2>
+            <p className="admin-subtext">How far the live cloud config has drifted from the timetable baked into the app at build time. High counts mean students are downloading a lot of overrides — consider a snapshot rebuild.</p>
+            <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 12 }}>
+              Snapshot baked {snapshotMeta.ts ? new Date(snapshotMeta.ts).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "—"} · {snapshotMeta.classes || "?"} classes
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 10 }}>
+              {[
+                { label: "Class overrides", n: configDrift.overrideClasses, sub: `${configDrift.overrideDays} day(s)` },
+                { label: "Mess overrides", n: configDrift.messDays, sub: "day(s)" },
+                { label: "Announcements", n: configDrift.announcements, sub: "scheduled" },
+                { label: "Quick links", n: configDrift.quickLinks, sub: "active" },
+              ].map(s => (
+                <div key={s.label} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, padding: "12px 14px" }}>
+                  <div style={{ fontSize: 24, fontWeight: 800, fontFamily: "var(--display)", color: s.n > 0 ? "var(--text)" : "var(--muted)" }}>{s.n}</div>
+                  <div style={{ fontSize: 12, fontWeight: 700 }}>{s.label}</div>
+                  <div style={{ fontSize: 11, color: "var(--muted)" }}>{s.sub}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize: 12, marginTop: 12, color: configDrift.total > 0 ? "var(--amber)" : "var(--live)", display: "flex", alignItems: "center", gap: 6 }}>
+              {configDrift.total > 0
+                ? <><AlertTriangle size={14} /> Live config adds {configDrift.total} item(s) on top of the bundle.</>
+                : <><Check size={14} /> Live config matches the bundled snapshot.</>}
+            </div>
+          </section>
+
+          {/* Health alerts — admin-only push when a job stalls or the feed dies */}
+          <section className="admin-card admin-g-system" style={{ display: "flex", flexDirection: "column" }}>
+            <h2><BellRing size={20} color="var(--amber)" /> Health Alerts</h2>
+            <p className="admin-subtext">The <code>health-monitor</code> cron checks every 15 min for stalled/failed jobs and a dead Sheets feed, then pushes an alert — to admins on this list only, never to students. Deploy Config to save the recipient list.</p>
+            {(() => {
+              const recipients = flags.alertRecipients || [];
+              const meIncluded = recipients.includes(admin_id);
+              return (
+                <>
+                  <label className="admin-flag-item" style={{ marginBottom: 10 }}>
+                    <input type="checkbox" checked={meIncluded} onChange={e => {
+                      const next = e.target.checked ? [...new Set([...recipients, admin_id])] : recipients.filter(id => id !== admin_id);
+                      setFlags({ ...flags, alertRecipients: next });
+                    }} />
+                    <span>Send health alerts to me</span>
+                  </label>
+                  {recipients.length === 0 ? (
+                    <div className="admin-empty">No recipients — alerts are off. (Admins with a role still receive them.)</div>
+                  ) : (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {recipients.map(id => {
+                        const name = allUsers.find(u => u.user_id === id)?.name || (id === admin_id ? "You" : id.slice(0, 10));
+                        return (
+                          <span key={id} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 20, padding: "3px 4px 3px 10px", fontSize: 12 }}>
+                            {name}
+                            <button type="button" onClick={() => setFlags({ ...flags, alertRecipients: recipients.filter(x => x !== id) })} style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--muted)", display: "flex" }} aria-label="Remove recipient"><X size={12} /></button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 10 }}>Requires the <code>health-monitor</code> edge function + cron deployed. Alerts land in your inbox and as a push.</div>
+                </>
+              );
+            })()}
+          </section>
+
           {/* Bundled Snapshot + Danger Zone — one row at the bottom */}
-          <div className="admin-grid admin-span-all">
+          <div className="admin-grid admin-span-all admin-g-system">
 
             <section className="admin-card">
               <h2><Database size={20} color="var(--violet)" /> Bundled Snapshot</h2>
@@ -2626,6 +3978,18 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </button>
         )}
         {flags.configHistory && flags.configHistory.length > 0 && (
+           <button className="admin-btn outline" onClick={() => {
+              const last = flags.configHistory[0];
+              if (confirm(`Undo the last deploy and restore the config from ${new Date(last.timestamp).toLocaleString()}? Review & Deploy to apply.`)) {
+                 setFlags({ ...last.flags, configHistory: flags.configHistory });
+                 setSaveMsg("Loaded previous deploy. Deploy to apply.");
+                 setTimeout(() => setSaveMsg(""), 3000);
+              }
+           }} style={{ padding: "9px 16px" }} title={`Restore the config from ${new Date(flags.configHistory[0].timestamp).toLocaleString()}`}>
+              <RefreshCw size={15} /> Undo last deploy
+           </button>
+        )}
+        {flags.configHistory && flags.configHistory.length > 0 && (
            <div style={{ position: "relative", display: "inline-block" }}>
               <select className="admin-input" onChange={e => {
                  if(!e.target.value) return;
@@ -2723,6 +4087,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                  <div><strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase" }}>User ID</strong>{selectedUser.user_id}</div>
                  <div style={{ textAlign: "right" }}><strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase" }}>Last Active</strong>{selectedUser.last_seen_at ? new Date(selectedUser.last_seen_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "Never"}</div>
               </div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                 <div><strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase" }}>Section</strong>{(() => { const keys = Object.keys(selectedUser.courses || {}); if (keys.some(c => c.endsWith("_A"))) return "A"; if (keys.some(c => c.endsWith("_B"))) return "B"; return "—"; })()}</div>
+                 <div style={{ textAlign: "right" }}><strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase" }}>Push</strong>{(pushSubscribersList || []).includes(selectedUser.user_id) ? <span style={{ color: "var(--live)" }}>Subscribed</span> : <span style={{ color: "var(--muted)" }}>Not subscribed</span>}</div>
+              </div>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 4 }}>
                  <strong style={{ color: "var(--muted)", fontSize: 12, textTransform: "uppercase" }}>Role:</strong>
                  <select className="admin-input" value={flags.adminRoles?.[selectedUser.user_id] || "user"} onChange={e => {
@@ -2740,7 +4108,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               <div>
                 <strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase", marginBottom: 4 }}>Enrolled Subjects</strong>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {selectedUser.courses ? Object.keys(selectedUser.courses).filter(c => c !== "_name" && c !== "_email").map(c => (
+                  {selectedUser.courses ? Object.keys(selectedUser.courses).filter(c => !c.startsWith("_")).map(c => (
                     <span key={c} style={{ background: "var(--bg)", padding: "2px 8px", borderRadius: 4, fontSize: 12, border: "1px solid var(--border)", color: "var(--text)" }}>{c}</span>
                   )) : <span style={{ fontSize: 12, color: "var(--muted)" }}>No subjects enrolled.</span>}
                 </div>
@@ -2779,9 +4147,12 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               </div>
 
               <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border)", display: "flex", gap: 8 }}>
+                <button onClick={() => { setViewAsUser(selectedUser); setSelectedUser(null); }} className="admin-btn outline" style={{ flex: 1, justifyContent: "center", display: "flex", alignItems: "center", gap: 8 }}>
+                  <VenetianMask size={16} /> View as
+                </button>
                 <button onClick={async () => {
                   if (flags.adminRoles && flags.adminRoles[admin_id] === "monitor") return alert("You don't have permission to reset user setups.");
-                  if (confirm("Are you sure you want to reset this user's setup? They will have to onboard again.")) {
+                  if (typedConfirm("RESET", `Reset ${selectedUser.name || "this user"}'s setup? They will have to onboard again.`)) {
                     await supabase.from("profiles").update({ courses: null }).eq("user_id", selectedUser.user_id);
                     await logAdminAction(admin_id, "reset_user_setup", { target_user: selectedUser.user_id });
                     setAllUsers(allUsers.map(u => u.user_id === selectedUser.user_id ? { ...u, courses: null } : u));
@@ -2796,6 +4167,62 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </div>
         </>
       )}
+
+      {/* View-as (read-only impersonation) — renders a user's day + enabled features as they'd see them */}
+      {viewAsUser && (() => {
+        const courseKeys = Object.keys(viewAsUser.courses || {}).filter(c => !c.startsWith("_"));
+        const section = courseKeys.some(c => c.endsWith("_A")) ? "A" : courseKeys.some(c => c.endsWith("_B")) ? "B" : null;
+        const baseCodes = new Set(courseKeys.map(c => c.replace(/_[AB]$/, "")));
+        // Today's classes as this user would see them (their section + enrolled codes)
+        const today = new Date().toISOString().split("T")[0];
+        const overridesToday = flags.classOverrides?.[today] || {};
+        const userClasses = liveSchedule
+          .filter(c => c.date === today && c.type !== "break")
+          .filter(c => baseCodes.has(c.code))
+          .filter(c => !c.section || c.section === "All" || c.section === "Single" || !section || c.section === section)
+          .map(c => {
+            const key = c.section && c.section !== "All" && c.section !== "Single" ? `${c.code}_${c.section}` : c.code;
+            const ov = overridesToday[key] || overridesToday[c.code];
+            return { ...c, cancelled: ov?.type === "cancelled", room: ov?.room || c.room, start: ov?.start || c.start, end: ov?.end || c.end };
+          })
+          .sort((a, b) => (a.start || "").localeCompare(b.start || ""));
+        const featureState = FEATURE_FLAGS.map(f => ({ label: f.label, on: flags[f.key] !== false }));
+        return (
+          <>
+            <div className="notif-backdrop" onClick={() => setViewAsUser(null)} style={{ zIndex: 10000 }} />
+            <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "var(--card)", padding: 24, borderRadius: 16, width: "90%", maxWidth: 440, maxHeight: "85vh", overflowY: "auto", zIndex: 10001, border: "1px solid var(--border)", boxShadow: "0 10px 40px rgba(0,0,0,0.2)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <h2 style={{ margin: 0, fontSize: 18, display: "flex", gap: 8, alignItems: "center" }}><VenetianMask size={18} color="var(--violet)" /> Viewing as {viewAsUser.name || "user"}</h2>
+                <button onClick={() => setViewAsUser(null)} style={{ background: "transparent", border: "none", color: "var(--muted)", cursor: "pointer" }}><XCircle size={18} /></button>
+              </div>
+              <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 16 }}>Read-only preview · Section {section || "—"} · {baseCodes.size} subject(s)</div>
+
+              <strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase", marginBottom: 8 }}>Their schedule today</strong>
+              {userClasses.length === 0 ? (
+                <div className="admin-empty" style={{ marginBottom: 16 }}>No classes today for this student.</div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 16 }}>
+                  {userClasses.map((c, i) => (
+                    <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "8px 12px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)", opacity: c.cancelled ? 0.55 : 1 }}>
+                      <span style={{ fontWeight: 600, fontSize: 13, textDecoration: c.cancelled ? "line-through" : "none" }}>{c.code} {c.room ? `· ${c.room}` : ""}</span>
+                      <span style={{ fontSize: 12, color: "var(--muted)" }}>{c.cancelled ? "Cancelled" : `${c.start || "?"}–${c.end || "?"}`}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase", marginBottom: 8 }}>Features they can see</strong>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {featureState.map(f => (
+                  <span key={f.label} style={{ fontSize: 12, padding: "3px 10px", borderRadius: 20, border: "1px solid var(--border)", background: f.on ? "rgba(31,169,113,0.12)" : "var(--bg)", color: f.on ? "var(--live)" : "var(--muted)" }}>
+                    {f.on ? "✓" : "✕"} {f.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </>
+        );
+      })()}
 
       {/* Live Editor Modal — uses controlled React state, no document.getElementById */}
       {liveEditorModal && (
@@ -2843,7 +4270,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 const overrideKey = modalSection === "All" ? liveEditorModal.code : `${liveEditorModal.code}_${modalSection}`;
                 const nextOverrides = { ...(flags.classOverrides || {}) };
                 nextOverrides[liveEditorModal.date] = { ...(nextOverrides[liveEditorModal.date] || {}) };
-                nextOverrides[liveEditorModal.date][overrideKey] = { type: "cancelled", name: `Cancelled: ${overrideKey}` };
+                nextOverrides[liveEditorModal.date][overrideKey] = { type: "cancelled", name: `Cancelled: ${overrideKey}`, modifiedAt: new Date().toISOString(), modifiedBy: admin_id };
                 setFlags({ ...flags, classOverrides: nextOverrides });
                 logAdminAction(admin_id, "cancel_class", { date: liveEditorModal.date, class: overrideKey });
                 setLiveEditorModal(null);
@@ -2918,6 +4345,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     } else {
                       if (!modalRoom && !modalStart && !modalEnd) return alert("Enter at least one change (room, start, or end time).");
                     }
+                    changes.modifiedAt = new Date().toISOString();
+                    changes.modifiedBy = admin_id;
                     nextOverrides[liveEditorModal.date][overrideKey] = changes;
                     setFlags({ ...flags, classOverrides: nextOverrides });
                     logAdminAction(admin_id, "edit_class", { date: liveEditorModal.date, class: overrideKey, room: modalRoom, start: modalStart, end: modalEnd, name: modalName });
@@ -2944,6 +4373,50 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             </div>
           </div>
         </>
+      )}
+
+      {activeUsersListModalOpen && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setActiveUsersListModalOpen(false)}>
+          <div style={{ background: "var(--bg)", width: "90%", maxWidth: 500, borderRadius: 16, padding: 24, maxHeight: "80vh", overflowY: "auto", border: "1px solid var(--border)" }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h3 style={{ margin: 0 }}>Active Users Today ({activeUsers})</h3>
+              <button onClick={() => setActiveUsersListModalOpen(false)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer" }}><X size={20} /></button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {allUsers.filter(u => u.last_seen_at && new Date(u.last_seen_at).getTime() >= new Date().setHours(0,0,0,0)).map(u => (
+                <div key={u.user_id} style={{ background: "var(--card)", padding: "12px", borderRadius: 8, border: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }} onClick={() => { setSelectedUser(u); setActiveUsersListModalOpen(false); }}>
+                  <div style={{ fontWeight: 600 }}>{u.name}</div>
+                  <div style={{ fontSize: 12, color: "var(--muted)" }}>{new Date(u.last_seen_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pushSubscribersModalOpen && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setPushSubscribersModalOpen(false)}>
+          <div style={{ background: "var(--bg)", width: "90%", maxWidth: 500, borderRadius: 16, padding: 24, maxHeight: "80vh", overflowY: "auto", border: "1px solid var(--border)" }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h3 style={{ margin: 0 }}>Push Subscribers ({pushSubCount})</h3>
+              <button onClick={() => setPushSubscribersModalOpen(false)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer" }}><X size={20} /></button>
+            </div>
+            {pushSubscribersList.length > 0 ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {allUsers.filter(u => pushSubscribersList.includes(u.user_id)).map(u => (
+                  <div key={u.user_id} style={{ background: "var(--card)", padding: "12px", borderRadius: 8, border: "1px solid var(--border)", cursor: "pointer" }} onClick={() => { setSelectedUser(u); setPushSubscribersModalOpen(false); }}>
+                    <div style={{ fontWeight: 600 }}>{u.name}</div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ color: "var(--muted)", textAlign: "center", padding: 24, background: "var(--card)", borderRadius: 12 }}>
+                <p style={{ margin: 0 }}>The push subscriber list requires a database update.</p>
+                <p style={{ fontSize: 13, marginTop: 8 }}>Run the updated <code>get_admin_stats</code> SQL migration in Supabase to fetch user IDs securely.</p>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       <AdminCommandPalette 

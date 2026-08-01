@@ -4,7 +4,14 @@ import { VitePWA } from 'vite-plugin-pwa'
 import { sentryVitePlugin } from '@sentry/vite-plugin'
 import { writeFileSync, readFileSync } from 'node:fs'
 import { execSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
+import { resolve } from 'node:path'
 import { visualizer } from 'rollup-plugin-visualizer'
+
+// Absolute path to this file's dir (schedule-app/) so the lite build — whose
+// config lives in lite/ and imports makeConfig from here — still resolves the
+// shared src/, public/, and output dirs correctly regardless of where Vite runs.
+const APP_DIR = fileURLToPath(new URL('.', import.meta.url));
 
 // Semver from package.json (bump with `npm version patch|minor|major`),
 // plus the git short hash so each deploy is uniquely identifiable and the
@@ -18,11 +25,11 @@ const BUILD_VERSION = `${pkg.version}+${gitSha}`;
 // and the .map files are deleted after upload so they never deploy.
 const SENTRY_UPLOAD = Boolean(process.env.SENTRY_AUTH_TOKEN);
 
-function generateMeta() {
+function generateMeta(outDir) {
   return {
     name: 'generate-meta',
     writeBundle() {
-      writeFileSync('dist/meta.json', JSON.stringify({ version: BUILD_VERSION }));
+      writeFileSync(resolve(outDir, 'meta.json'), JSON.stringify({ version: BUILD_VERSION }));
     },
   };
 }
@@ -69,13 +76,119 @@ function asyncCssPlugin() {
   };
 }
 
-export default defineConfig({
+// Shared app icons — reused by both editions (lite has no distinct icon set yet).
+const FULL_ICONS = [
+  { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+  { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+  { src: 'termflow-icon-maskable.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
+  { src: 'apple-touch-icon.png', sizes: '180x180', type: 'image/png', purpose: 'any' },
+];
+
+const FULL_MANIFEST = {
+  name: 'TermFlow',
+  short_name: 'TermFlow',
+  description: 'PGP2 timetable & attendance tracker — IIM Sambalpur',
+  theme_color: '#15182B',
+  // Android paints the launch splash with this — dark matches the icon
+  // tile and avoids a bright flash for dark-mode users at night
+  background_color: '#15182B',
+  display: 'standalone',
+  start_url: '/',
+  scope: '/',
+  orientation: 'portrait',
+  icons: FULL_ICONS,
+  // Android surfaces at most 4 shortcuts in the long-press menu, in
+  // order — Glance / Today / Announcements / Attendance made the cut
+  // (Glance replaced This Week: it IS the quick-look use case shortcuts
+  // exist for); Assignments is kept 5th for launchers that show more.
+  // Icons are full-bleed maskable tiles (glyph in the 60% safe zone).
+  shortcuts: [
+    {
+      name: 'Glance',
+      short_name: 'Glance',
+      url: '/?view=glance',
+      icons: [{ src: 'shortcut-glance.png', sizes: '192x192', purpose: 'any maskable' }],
+    },
+    {
+      name: 'Today',
+      short_name: 'Today',
+      url: '/?view=today',
+      icons: [{ src: 'shortcut-today.png', sizes: '192x192', purpose: 'any maskable' }],
+    },
+    {
+      name: 'Announcements',
+      short_name: 'Announcements',
+      url: '/?view=notifications',
+      icons: [{ src: 'shortcut-announcements.png', sizes: '192x192', purpose: 'any maskable' }],
+    },
+    {
+      name: 'Attendance',
+      short_name: 'Attendance',
+      url: '/?view=attendance',
+      icons: [{ src: 'shortcut-attendance.png', sizes: '192x192', purpose: 'any maskable' }],
+    },
+    {
+      name: 'Assignments',
+      short_name: 'Assignments',
+      url: '/?view=assignments',
+      icons: [{ src: 'shortcut-assignments.png', sizes: '192x192', purpose: 'any maskable' }],
+    },
+  ],
+};
+
+// Edition-aware config factory. Full builds call makeConfig({ edition: 'full' })
+// (the default export below); the lite build (lite/vite.config.js) calls
+// makeConfig({ edition: 'lite' }) to swap root/outDir, inject VITE_EDITION, and
+// use a lite PWA manifest — all while sharing the same src/ and public/.
+export function makeConfig({ edition = 'full' } = {}) {
+  const isLite = edition === 'lite';
+  // Both editions share the same root + index.html (so /src/main.jsx resolves
+  // identically); lite only differs by output dir, manifest, and the injected
+  // VITE_EDITION flag. Edition branding on the html <title> is set at runtime.
+  const root = APP_DIR;
+  const outDir = resolve(APP_DIR, isLite ? 'dist-lite' : 'dist');
+  const publicDir = resolve(APP_DIR, 'public');
+
+  const manifest = isLite
+    ? {
+        name: 'TermFlow Lite',
+        short_name: 'Lite',
+        description: 'PGP2 timetable, attendance & compare — a lighter TermFlow',
+        theme_color: '#15182B',
+        background_color: '#15182B',
+        display: 'standalone',
+        start_url: '/',
+        scope: '/',
+        orientation: 'portrait',
+        icons: FULL_ICONS,
+        // Lite only surfaces the schedule-core shortcuts.
+        shortcuts: [
+          {
+            name: 'Today',
+            short_name: 'Today',
+            url: '/?view=today',
+            icons: [{ src: 'shortcut-today.png', sizes: '192x192', purpose: 'any maskable' }],
+          },
+          {
+            name: 'Attendance',
+            short_name: 'Attendance',
+            url: '/?view=attendance',
+            icons: [{ src: 'shortcut-attendance.png', sizes: '192x192', purpose: 'any maskable' }],
+          },
+        ],
+      }
+    : FULL_MANIFEST;
+
+  return defineConfig({
+  root,
+  publicDir,
   define: {
     __APP_VERSION__: JSON.stringify(BUILD_VERSION),
+    'import.meta.env.VITE_EDITION': JSON.stringify(edition),
   },
   plugins: [
     react(),
-    generateMeta(),
+    generateMeta(outDir),
     asyncCssPlugin(),
     VitePWA({
       registerType: 'prompt',
@@ -139,94 +252,23 @@ export default defineConfig({
           },
         ],
       },
-      manifest: {
-        name: 'TermFlow',
-        short_name: 'TermFlow',
-        description: 'PGP2 timetable & attendance tracker — IIM Sambalpur',
-        theme_color: '#15182B',
-        // Android paints the launch splash with this — dark matches the icon
-        // tile and avoids a bright flash for dark-mode users at night
-        background_color: '#15182B',
-        display: 'standalone',
-        start_url: '/',
-        scope: '/',
-        orientation: 'portrait',
-        icons: [
-          {
-            src: 'icon-192.png',
-            sizes: '192x192',
-            type: 'image/png',
-            purpose: 'any',
-          },
-          {
-            src: 'icon-512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any',
-          },
-          {
-            src: 'termflow-icon-maskable.svg',
-            sizes: 'any',
-            type: 'image/svg+xml',
-            purpose: 'maskable',
-          },
-          {
-            src: 'apple-touch-icon.png',
-            sizes: '180x180',
-            type: 'image/png',
-            purpose: 'any',
-          },
-        ],
-        // Android surfaces at most 4 shortcuts in the long-press menu, in
-        // order — Glance / Today / Announcements / Attendance made the cut
-        // (Glance replaced This Week: it IS the quick-look use case shortcuts
-        // exist for); Assignments is kept 5th for launchers that show more.
-        // Icons are full-bleed maskable tiles (glyph in the 60% safe zone).
-        shortcuts: [
-          {
-            name: 'Glance',
-            short_name: 'Glance',
-            url: '/?view=glance',
-            icons: [{ src: 'shortcut-glance.png', sizes: '192x192', purpose: 'any maskable' }],
-          },
-          {
-            name: 'Today',
-            short_name: 'Today',
-            url: '/?view=today',
-            icons: [{ src: 'shortcut-today.png', sizes: '192x192', purpose: 'any maskable' }],
-          },
-          {
-            name: 'Announcements',
-            short_name: 'Announcements',
-            url: '/?view=notifications',
-            icons: [{ src: 'shortcut-announcements.png', sizes: '192x192', purpose: 'any maskable' }],
-          },
-          {
-            name: 'Attendance',
-            short_name: 'Attendance',
-            url: '/?view=attendance',
-            icons: [{ src: 'shortcut-attendance.png', sizes: '192x192', purpose: 'any maskable' }],
-          },
-          {
-            name: 'Assignments',
-            short_name: 'Assignments',
-            url: '/?view=assignments',
-            icons: [{ src: 'shortcut-assignments.png', sizes: '192x192', purpose: 'any maskable' }],
-          },
-        ],
-      },
+      manifest,
     }),
     SENTRY_UPLOAD && sentryVitePlugin({
       org: process.env.SENTRY_ORG,
       project: process.env.SENTRY_PROJECT,
       authToken: process.env.SENTRY_AUTH_TOKEN,
       release: { name: String(BUILD_VERSION) },
-      sourcemaps: { filesToDeleteAfterUpload: ['dist/**/*.map'] },
+      sourcemaps: { filesToDeleteAfterUpload: [resolve(outDir, '**/*.map')] },
       telemetry: false,
     }),
-    visualizer({ filename: 'stats.html', open: false }),
+    visualizer({ filename: resolve(APP_DIR, isLite ? 'stats-lite.html' : 'stats.html'), open: false }),
   ].filter(Boolean),
   build: {
+    outDir,
+    // Lite's outDir (dist-lite) sits outside its root (lite/), so Vite needs
+    // explicit permission to empty it.
+    emptyOutDir: true,
     sourcemap: SENTRY_UPLOAD ? 'hidden' : false,
     target: 'esnext',
     minify: 'terser',
@@ -244,10 +286,19 @@ export default defineConfig({
             if (id.includes('@clerk')) return 'clerk';
             if (id.includes('react') || id.includes('react-dom')) return 'react-vendor';
             if (id.includes('@supabase')) return 'supabase';
+            // Isolate heavy/optional libs so an eager import of a small lib
+            // (e.g. @vercel/analytics) can never drag these onto first paint.
+            if (id.includes('xlsx')) return 'xlsx';
+            if (id.includes('@dnd-kit')) return 'dnd-kit';
+            if (id.includes('cmdk')) return 'cmdk';
+            if (id.includes('@vercel/analytics')) return 'analytics';
             return 'vendor';
           }
         }
       }
     }
   }
-})
+  });
+}
+
+export default makeConfig({ edition: 'full' });

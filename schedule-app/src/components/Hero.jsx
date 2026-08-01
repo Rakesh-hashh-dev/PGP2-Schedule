@@ -123,7 +123,7 @@ function LaterCountdown({ target }) {
   );
 }
 
-function HeroBackdrop({ sysConfig }) {
+export function HeroBackdrop({ sysConfig }) {
   const adminSetting = sysConfig?.flags?.heroBackdrop || "swap";
   
   if (adminSetting === "none") return null;

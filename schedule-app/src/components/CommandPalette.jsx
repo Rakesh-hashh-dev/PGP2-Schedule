@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import "../styles/cmdk.css";
-import { Search, Clock, Calendar, ClipboardList, GraduationCap, Users, Megaphone, MapPin, X, Package, Zap } from "lucide-react";
+import { Search, Clock, Calendar, ClipboardList, GraduationCap, Users, Megaphone, MapPin, X, Package, Zap, CalendarRange, CalendarOff } from "lucide-react";
+import { IS_LITE } from "../lib/edition.js";
 
 export default function CommandPalette({ isOpen, onClose, onViewChange, allClasses = [], friends = [] }) {
   const [query, setQuery] = useState("");
@@ -54,17 +55,29 @@ export default function CommandPalette({ isOpen, onClose, onViewChange, allClass
 
   if (!isOpen) return null;
 
-  // Navigation Links
-  const navItems = [
-    { id: "today", label: "Today", icon: <Clock size={16} /> },
-    { id: "week", label: "Week", icon: <Calendar size={16} /> },
-    { id: "attendance", label: "Attendance", icon: <ClipboardList size={16} /> },
-    { id: "exams", label: "Exams", icon: <GraduationCap size={16} /> },
-    { id: "notifications", label: "Announcements", icon: <Megaphone size={16} /> },
-    { id: "friends", label: "Social", icon: <Users size={16} /> },
-    { id: "board", label: "Campus Board", icon: <Package size={16} /> },
-    { id: "glance", label: "Glance", icon: <Zap size={16} /> }
-  ].filter(i => i.label.toLowerCase().includes(q));
+  // Navigation Links. Lite exposes only its supported views (Social → Compare).
+  const navItems = (IS_LITE
+    ? [
+        { id: "today", label: "Today", icon: <Clock size={16} /> },
+        { id: "tomorrow", label: "Tomorrow", icon: <Clock size={16} /> },
+        { id: "week", label: "Week", icon: <Calendar size={16} /> },
+        { id: "attendance", label: "Attendance", icon: <ClipboardList size={16} /> },
+        { id: "exams", label: "Exams", icon: <GraduationCap size={16} /> },
+        { id: "friends", label: "Compare", icon: <Users size={16} /> },
+        { id: "fullSchedule", label: "Full timetable", icon: <CalendarRange size={16} /> },
+        { id: "leave", label: "Leave planner", icon: <CalendarOff size={16} /> },
+      ]
+    : [
+        { id: "today", label: "Today", icon: <Clock size={16} /> },
+        { id: "week", label: "Week", icon: <Calendar size={16} /> },
+        { id: "attendance", label: "Attendance", icon: <ClipboardList size={16} /> },
+        { id: "exams", label: "Exams", icon: <GraduationCap size={16} /> },
+        { id: "notifications", label: "Announcements", icon: <Megaphone size={16} /> },
+        { id: "friends", label: "Social", icon: <Users size={16} /> },
+        { id: "board", label: "Campus Board", icon: <Package size={16} /> },
+        { id: "glance", label: "Glance", icon: <Zap size={16} /> },
+      ]
+  ).filter(i => i.label.toLowerCase().includes(q));
 
   const hasResults = navItems.length > 0 || classMatches.length > 0 || friendMatches.length > 0;
 

@@ -4,8 +4,12 @@ import "./styles.css";
 import { registerSW } from "virtual:pwa-register";
 import TermFlowLoader from "./components/TermFlowLoader.jsx";
 import { initSentry } from "./lib/sentry.js";
+import { IS_LITE } from "./lib/edition.js";
 
 initSentry();
+
+// Both editions share index.html; brand the tab title for lite at runtime.
+if (IS_LITE) document.title = "TermFlow Lite | IIM Sambalpur PGP2";
 
 // Start fetching ClerkApp immediately so LCP isn't delayed by the lazy boundary
 const clerkAppPromise = import("./ClerkApp.jsx");

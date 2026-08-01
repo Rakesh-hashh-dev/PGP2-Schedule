@@ -8318,6 +8318,40 @@ html[data-theme="dark"] .bnav {
   padding-top: 4px;
 }
 
+/* Collapsible "Tools" group header in the sidebar */
+.sb-tools-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0 12px 0 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+}
+.sb-tools-head .sb-nav-label {
+  padding-right: 6px;
+}
+.sb-tools-head:hover .sb-nav-label {
+  color: rgba(255, 255, 255, 0.5);
+}
+.sb-nav-caret {
+  color: rgba(255, 255, 255, 0.3);
+  transition: transform .18s ease;
+  flex: none;
+}
+.sb-nav-caret.open {
+  transform: rotate(180deg);
+}
+.sb-tools-head:hover .sb-nav-caret {
+  color: rgba(255, 255, 255, 0.5);
+}
+.sidebar.collapsed .sb-tools-head {
+  cursor: default;
+  padding: 0;
+}
+
 .sb-nav-label-admin {
   color: rgba(31, 169, 113, .55);
 }

@@ -331,6 +331,7 @@ function GroupChat({ group, userId, userName }) {
 function toMinFP(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function ymdFP(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
 export default function FriendsPanel({
+  lite = false,
   userId, userName, enrolled, friends, setFriends,
   groups, setGroups, allClasses, now, onCompare, onGroupCompare, onOpenLeave,
   statusEnabled = true, meetupsEnabled = true, nudgeEnabled = true, awayEnabled = true,
@@ -1467,7 +1468,7 @@ export default function FriendsPanel({
       {/* ── Page Header ── */}
       <div className="fr-page-hdr">
         <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-          <h2 className="fr-page-hdr-title">Social</h2>
+          <h2 className="fr-page-hdr-title">{lite ? "Compare" : "Social"}</h2>
           {(friends.length > 0 || groups.length > 0) && (
             <span style={{ fontSize: 14, color: "var(--muted)", fontWeight: 500 }}>
               {friends.length} friend{friends.length !== 1 ? 's' : ''} · {groups.length} group{groups.length !== 1 ? 's' : ''}

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import AdBanner from "./AdBanner.jsx";
 import { createPortal } from "react-dom";
 import { Package, Plus, X, Check, Flag, Trash2, MessageSquare, Phone, ImagePlus, ShieldAlert, CheckCircle2, IndianRupee, Search, Backpack, Tag, Megaphone } from "lucide-react";
 import {
@@ -166,7 +167,7 @@ function BoardComposer({ userId, userName, onCreated, onClose }) {
   );
 }
 
-export default function BoardPage({ userId, userName, isAdmin }) {
+export default function BoardPage({ userId, userName, isAdmin, enableAds = true }) {
   const [posts, setPosts] = useState(null); // null = loading, [] = empty
   const [filter, setFilter] = useState("all"); // all | kind | reported (admin)
   const [composerOpen, setComposerOpen] = useState(false);
@@ -235,6 +236,10 @@ export default function BoardPage({ userId, userName, isAdmin }) {
         )}
       </div>
 
+      {/* Ad banner — always visible on Campus Board, regardless of post count.
+           Controlled by the enableAds flag in Admin → Feature Flags. */}
+      {enableAds && <AdBanner />}
+
       {posts === null ? (
         <div className="board-grid">
           {[0, 1, 2].map(i => <div key={i} className="board-card board-card-skeleton" style={{ opacity: 1 - i * 0.25 }} />)}
@@ -248,7 +253,7 @@ export default function BoardPage({ userId, userName, isAdmin }) {
         </div>
       ) : (
         <div className="board-grid">
-          {visiblePosts.map(p => {
+          {visiblePosts.map((p) => {
             const meta = KIND_META[p.kind] || KIND_META.lost;
             const img = boardImageUrl(p.image_path);
             const own = p.user_id === userId;

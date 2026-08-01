@@ -36,6 +36,11 @@ as $$
       from push_subscriptions ps
       where ps.user_id not in (select id from dev_ids)
     ),
+    'push_user_ids', (
+      select coalesce(jsonb_agg(distinct ps.user_id), '[]'::jsonb)
+      from push_subscriptions ps
+      where ps.user_id not in (select id from dev_ids)
+    ),
     'friend_pings', (select count(*) from friend_pings),
     'skips_by_course', (
       -- session_key: YYYY-MM-DD_HH:MM_CODE_SECTION → part 3 is the course code

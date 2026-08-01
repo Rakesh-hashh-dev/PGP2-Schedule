@@ -5,11 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:lite": "vite --config lite/vite.config.js --port 5702 --strictPort",
     "snapshot": "node scripts/generate-snapshot.mjs",
     "prebuild": "node scripts/generate-snapshot.mjs",
     "build": "vite build",
+    "build:lite": "node scripts/generate-snapshot.mjs && vite build --config lite/vite.config.js",
     "lint": "eslint .",
     "preview": "vite preview",
+    "preview:lite": "vite preview --config lite/vite.config.js",
     "sentry:login": "sentry-cli login",
     "sentry:test": "sentry-cli send-event -m \"Test event from sentry-cli\"",
     "sentry:releases": "sentry-cli releases list"

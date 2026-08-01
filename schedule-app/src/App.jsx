@@ -52,6 +52,7 @@ import { haptic } from "./lib/haptics.js";
 import MarkPrompt from "./components/MarkPrompt.jsx";
 import { WhatsNewPill, WhatsNewModal } from "./components/WhatsNew.jsx";
 import { resizeImage } from "./lib/board.js";
+import { IS_LITE, LITE_VIEWS } from "./lib/edition.js";
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent || "");
 
@@ -195,7 +196,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // ── One-time dev→prod data restore (prod instance only) ────────
   const migrationState = useMigration({ isSignedIn, userId, email: userEmail });
 
-  const showAdminUI = isAdmin && adminMode;
+  // Admin tools are full-app only — admins use the full edition to manage config.
+  const showAdminUI = !IS_LITE && isAdmin && adminMode;
   const [sysConfig, setSysConfig] = useState(null);
   const [helpModalOpen, setHelpModalOpen] = useState(false);
   const [dismissedAnnouncements, setDismissedAnnouncements] = useState(() => {
@@ -292,6 +294,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       if (v === "courses") return "exams"; // retired view → its new home
       if (v === "insights") return "today"; // retired view
       if (v === "glance") return "today"; // peek surface, never sticky
+      // Lite excludes several views — fall back to Today rather than a dead end.
+      if (IS_LITE && !LITE_VIEWS.includes(v)) return "today";
       return v;
     } catch { return "today"; }
   });
@@ -536,6 +540,28 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   // Overflow-menu collapsible sections (mobile ⋯ menu)
   const [toolsSecOpen, setToolsSecOpen] = useState(false);
+  // Desktop sidebar "Tools" group — collapsed by default so the long tail of
+  // occasional-use pages doesn't flatten the whole nav's visual hierarchy.
+  const [sbToolsOpen, setSbToolsOpen] = useState(false);
+  // "New"/"Beta" nav badges auto-expire once the user has opened that view —
+  // they're a "look here" nudge, not a permanent status label.
+  const [seenBadges, setSeenBadges] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem("pgp2.seen-badges") || "[]")); }
+    catch { return new Set(); }
+  });
+  const markBadgeSeen = useCallback((key) => {
+    setSeenBadges(prev => {
+      if (prev.has(key)) return prev;
+      const next = new Set(prev); next.add(key);
+      try { localStorage.setItem("pgp2.seen-badges", JSON.stringify([...next])); } catch { }
+      return next;
+    });
+  }, []);
+  const showBadge = (key) => !seenBadges.has(key);
+  // Sidebar Tools group stays open when the active page lives inside it, so the
+  // user never loses their place; collapsed sidebar always shows the icons.
+  const viewIsTool = ["fullSchedule", "split", "leave", "wrapped"].includes(view);
+  const showSbTools = IS_LITE || sbCollapsed || sbToolsOpen || viewIsTool;
   const [prefsSecOpen, setPrefsSecOpen] = useState(false);
   const [messMenuOpen, setMessMenuOpen] = useState(false);
   const [aboutSecOpen, setAboutSecOpen] = useState(false);
@@ -605,10 +631,14 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // tapped while the app is already open (PWA or an existing tab, where the
   // mount effect never re-runs) still gets picked up.
   useEffect(() => {
-    const DEEP_LINK_VIEWS = new Set([
-      "today", "tomorrow", "week", "attendance", "exams", "assignments",
-      "notifications", "friends", "leave", "glance", "board", "split",
-    ]);
+    const DEEP_LINK_VIEWS = new Set(
+      IS_LITE
+        ? LITE_VIEWS
+        : [
+            "today", "tomorrow", "week", "attendance", "exams", "assignments",
+            "notifications", "friends", "leave", "glance", "board", "split",
+          ]
+    );
     const captureFromUrl = () => {
       const params = new URLSearchParams(window.location.search);
       const code = params.get("f");
@@ -1743,7 +1773,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     );
   }
 
-  if (sysConfig?.flags?.maintenanceMode && !isAdmin) {
+  const _mw = sysConfig?.flags?.maintenanceWindow;
+  const inMaintenanceWindow = !!(_mw?.start && _mw?.end &&
+    Date.now() >= new Date(_mw.start).getTime() && Date.now() <= new Date(_mw.end).getTime());
+  if ((sysConfig?.flags?.maintenanceMode || inMaintenanceWindow) && !isAdmin) {
     return (
       <main className="login-screen" style={{ flexDirection: "column", gap: 20 }}>
         <CloudOff size={64} color="var(--danger, #e74c3c)" style={{ filter: "drop-shadow(0 4px 12px rgba(231,76,60,0.3))" }} />
@@ -1759,12 +1792,16 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   }
 
   const enableExams = sysConfig?.flags?.enableExams !== false;
+  // Lite keeps the friends graph (Compare needs it) but hard-disables the rich
+  // social extras — status lines, meetups, free-nudges, away-sharing — which
+  // strips them from both the Today view and the (minimal) Compare page.
   const enableFriends = sysConfig?.flags?.enableFriends !== false;
   const enableAttendance = sysConfig?.flags?.enableAttendance !== false;
-  const enableStatus = sysConfig?.flags?.enableStatus !== false;
-  const enableMeetups = sysConfig?.flags?.enableMeetups !== false;
-  const enableFreeNudge = sysConfig?.flags?.enableFreeNudge !== false;
-  const enableAwayShare = sysConfig?.flags?.enableAwayShare !== false;
+  const enableStatus = !IS_LITE && sysConfig?.flags?.enableStatus !== false;
+  const enableMeetups = !IS_LITE && sysConfig?.flags?.enableMeetups !== false;
+  const enableFreeNudge = !IS_LITE && sysConfig?.flags?.enableFreeNudge !== false;
+  const enableAwayShare = !IS_LITE && sysConfig?.flags?.enableAwayShare !== false;
+  const enableAds = sysConfig?.flags?.enableAds !== false;
 
   const announcementTargetMatches = (target) => {
     if (!target || target === "global") return true;
@@ -1878,7 +1915,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                         ))}
                       </div>
                       <div className="np-sec-foot">
-                        <button className="np-link" onClick={() => { setNotifOpen(false); setView("friends"); }}>Go to Social</button>
+                        <button className="np-link" onClick={() => { setNotifOpen(false); setView("friends"); }}>{IS_LITE ? "Go to Compare" : "Go to Social"}</button>
                         <button className="np-link np-link-danger" onClick={clearAllFriendNotifs}>Clear all</button>
                       </div>
                     </section>
@@ -2145,7 +2182,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               <Sunrise size={18} /><span className="sb-link-label">Tomorrow</span>
             </button>
 
-            {(enableAttendance || enableExams) && <div className="sb-nav-label">Track</div>}
+            <div className="sb-nav-label">Track</div>
             {enableAttendance && (
               <button className={`sb-link${view === "attendance" ? " on" : ""}`} aria-current={view === "attendance" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Attendance")} onMouseLeave={hideSbTip} onClick={() => { setView("attendance"); setCompareTarget(null); hideSbTip(); }}>
                 <ClipboardList size={18} /><span className="sb-link-label">Attendance</span>
@@ -2156,44 +2193,62 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 <GraduationCap size={18} /><span className="sb-link-label">Exams</span>
               </button>
             )}
-            <button className={`sb-link${view === "assignments" ? " on" : ""}`} aria-current={view === "assignments" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Assignments")} onMouseLeave={hideSbTip} onClick={() => { setView("assignments"); setCompareTarget(null); hideSbTip(); }}>
-              <BookOpenCheck size={18} /><span className="sb-link-label">Assignments</span>
-            </button>
+            {!IS_LITE && (
+              <button className={`sb-link${view === "assignments" ? " on" : ""}`} aria-current={view === "assignments" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Assignments")} onMouseLeave={hideSbTip} onClick={() => { setView("assignments"); setCompareTarget(null); hideSbTip(); }}>
+                <BookOpenCheck size={18} /><span className="sb-link-label">Assignments</span>
+              </button>
+            )}
 
-            <div className="sb-nav-label">Campus</div>
-            <button className={`sb-link${view === "notifications" ? " on" : ""}`} aria-current={view === "notifications" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Announcements")} onMouseLeave={hideSbTip} onClick={() => { setView("notifications"); setCompareTarget(null); hideSbTip(); }}>
-              <Megaphone size={18} /><span className="sb-link-label">Announcements</span>
-              {unreadChangeCount > 0 && <span className="nav-badge">{unreadChangeCount > 9 ? "9+" : unreadChangeCount}</span>}
-            </button>
+            <div className="sb-nav-label">{IS_LITE ? "Compare" : "Campus"}</div>
+            {!IS_LITE && (
+              <button className={`sb-link${view === "notifications" ? " on" : ""}`} aria-current={view === "notifications" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Announcements")} onMouseLeave={hideSbTip} onClick={() => { setView("notifications"); setCompareTarget(null); hideSbTip(); }}>
+                <Megaphone size={18} /><span className="sb-link-label">Announcements</span>
+                {unreadChangeCount > 0 && <span className="nav-badge">{unreadChangeCount > 9 ? "9+" : unreadChangeCount}</span>}
+              </button>
+            )}
             {enableFriends && (
-              <button className={`sb-link${view === "friends" ? " on" : ""}`} aria-current={view === "friends" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Social")} onMouseLeave={hideSbTip} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); hideSbTip(); }}>
-                <Users size={18} /><span className="sb-link-label">Social</span> <span className="beta-badge">Beta</span>
+              <button className={`sb-link${view === "friends" ? " on" : ""}`} aria-current={view === "friends" ? "page" : undefined} onMouseEnter={e => showSbTip(e, IS_LITE ? "Compare" : "Social")} onMouseLeave={hideSbTip} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); markBadgeSeen("social"); hideSbTip(); }}>
+                <Users size={18} /><span className="sb-link-label">{IS_LITE ? "Compare" : "Social"}</span> {!IS_LITE && showBadge("social") && <span className="beta-badge">Beta</span>}
                 {unreadFriendCount > 0 && <span className="nav-badge">{unreadFriendCount > 9 ? "9+" : unreadFriendCount}</span>}
               </button>
             )}
-            <button className={`sb-link${view === "board" ? " on" : ""}`} aria-current={view === "board" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Campus Board")} onMouseLeave={hideSbTip} onClick={() => { setView("board"); setCompareTarget(null); hideSbTip(); }}>
-              <Package size={18} /><span className="sb-link-label">Campus Board</span> <span className="beta-badge">New</span>
-            </button>
-
-            {/* Mirrors the mobile ⋯ menu's Tools section — these had no desktop home before */}
-            <div className="sb-nav-label">Tools</div>
-            <button className={`sb-link${view === "fullSchedule" ? " on" : ""}`} aria-current={view === "fullSchedule" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Full timetable")} onMouseLeave={hideSbTip} onClick={() => { setView("fullSchedule"); setCompareTarget(null); hideSbTip(); }}>
-              <CalendarRange size={18} /><span className="sb-link-label">Full timetable</span>
-            </button>
-            <button className="sb-link" onMouseEnter={e => showSbTip(e, "Mess menu")} onMouseLeave={hideSbTip} onClick={() => { setMessMenuOpen(true); hideSbTip(); }}>
-              <UtensilsCrossed size={18} /><span className="sb-link-label">Mess menu</span>
-            </button>
-            <button className={`sb-link${view === "split" ? " on" : ""}`} aria-current={view === "split" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Split expenses")} onMouseLeave={hideSbTip} onClick={() => { setView("split"); setCompareTarget(null); hideSbTip(); }}>
-              <Wallet size={18} /><span className="sb-link-label">Split</span> <span className="beta-badge">New</span>
-            </button>
-            <button className={`sb-link${view === "leave" ? " on" : ""}`} aria-current={view === "leave" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Leave planner")} onMouseLeave={hideSbTip} onClick={() => { setView("leave"); setCompareTarget(null); hideSbTip(); }}>
-              <CalendarOff size={18} /><span className="sb-link-label">Leave planner</span>
-            </button>
-            {wrappedActive && (
-              <button className={`sb-link${view === "wrapped" ? " on" : ""}`} aria-current={view === "wrapped" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Term Wrapped")} onMouseLeave={hideSbTip} onClick={() => { setView("wrapped"); setCompareTarget(null); hideSbTip(); }}>
-                <Sparkles size={18} /><span className="sb-link-label">Term Wrapped</span>
+            {!IS_LITE && (
+              <button className={`sb-link${view === "board" ? " on" : ""}`} aria-current={view === "board" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Campus Board")} onMouseLeave={hideSbTip} onClick={() => { setView("board"); setCompareTarget(null); markBadgeSeen("board"); hideSbTip(); }}>
+                <Package size={18} /><span className="sb-link-label">Campus Board</span> {showBadge("board") && <span className="beta-badge">New</span>}
               </button>
             )}
+
+            {/* Mirrors the mobile ⋯ menu's Tools section — collapsed by default so
+                the occasional-use pages don't flatten the nav's visual hierarchy.
+                In lite the group is tiny (2 core items) so it renders expanded and
+                non-collapsible. */}
+            <button type="button" className="sb-tools-head" aria-expanded={showSbTools} onClick={() => { if (!sbCollapsed && !IS_LITE) setSbToolsOpen(o => !o); }}>
+              <span className="sb-nav-label">Tools</span>
+              {!sbCollapsed && !IS_LITE && <ChevronDown size={13} className={`sb-nav-caret${showSbTools ? " open" : ""}`} />}
+            </button>
+            {showSbTools && (<>
+              <button className={`sb-link${view === "fullSchedule" ? " on" : ""}`} aria-current={view === "fullSchedule" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Full timetable")} onMouseLeave={hideSbTip} onClick={() => { setView("fullSchedule"); setCompareTarget(null); hideSbTip(); }}>
+                <CalendarRange size={18} /><span className="sb-link-label">Full timetable</span>
+              </button>
+              {!IS_LITE && (
+                <button className="sb-link" onMouseEnter={e => showSbTip(e, "Mess menu")} onMouseLeave={hideSbTip} onClick={() => { setMessMenuOpen(true); hideSbTip(); }}>
+                  <UtensilsCrossed size={18} /><span className="sb-link-label">Mess menu</span>
+                </button>
+              )}
+              {!IS_LITE && (
+                <button className={`sb-link${view === "split" ? " on" : ""}`} aria-current={view === "split" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Split expenses")} onMouseLeave={hideSbTip} onClick={() => { setView("split"); setCompareTarget(null); markBadgeSeen("split"); hideSbTip(); }}>
+                  <Wallet size={18} /><span className="sb-link-label">Split</span> {showBadge("split") && <span className="beta-badge">New</span>}
+                </button>
+              )}
+              <button className={`sb-link${view === "leave" ? " on" : ""}`} aria-current={view === "leave" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Leave planner")} onMouseLeave={hideSbTip} onClick={() => { setView("leave"); setCompareTarget(null); hideSbTip(); }}>
+                <CalendarOff size={18} /><span className="sb-link-label">Leave planner</span>
+              </button>
+              {!IS_LITE && wrappedActive && (
+                <button className={`sb-link${view === "wrapped" ? " on" : ""}`} aria-current={view === "wrapped" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Term Wrapped")} onMouseLeave={hideSbTip} onClick={() => { setView("wrapped"); setCompareTarget(null); hideSbTip(); }}>
+                  <Sparkles size={18} /><span className="sb-link-label">Term Wrapped</span>
+                </button>
+              )}
+            </>)}
           </nav>
 
           {activeQuickLinks.length > 0 && (
@@ -2420,19 +2475,25 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                         <button onClick={() => { setView("fullSchedule"); setCompareTarget(null); setOverflowOpen(false); }}>
                           <CalendarRange size={14} /> Full timetable
                         </button>
-                        <button onClick={() => { setMessMenuOpen(true); setOverflowOpen(false); }}>
-                          <UtensilsCrossed size={14} /> Mess menu
-                        </button>
-                        <button onClick={() => { setView("split"); setCompareTarget(null); setOverflowOpen(false); }}>
-                          <Wallet size={14} /> Split
-                        </button>
+                        {!IS_LITE && (
+                          <button onClick={() => { setMessMenuOpen(true); setOverflowOpen(false); }}>
+                            <UtensilsCrossed size={14} /> Mess menu
+                          </button>
+                        )}
+                        {!IS_LITE && (
+                          <button onClick={() => { setView("split"); setCompareTarget(null); setOverflowOpen(false); }}>
+                            <Wallet size={14} /> Split
+                          </button>
+                        )}
                         <button onClick={() => { setView("leave"); setCompareTarget(null); setOverflowOpen(false); }}>
                           <CalendarOff size={14} /> Leave planner
                         </button>
-                        <button onClick={() => { setView("board"); setCompareTarget(null); setOverflowOpen(false); }}>
-                          <Package size={14} /> Campus Board
-                        </button>
-                        {wrappedActive && (
+                        {!IS_LITE && (
+                          <button onClick={() => { setView("board"); setCompareTarget(null); setOverflowOpen(false); }}>
+                            <Package size={14} /> Campus Board
+                          </button>
+                        )}
+                        {!IS_LITE && wrappedActive && (
                           <button onClick={() => { setView("wrapped"); setCompareTarget(null); setOverflowOpen(false); }}>
                             <Sparkles size={14} /> Term Wrapped
                           </button>
@@ -2578,17 +2639,31 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                     <GraduationCap size={15} /> <span className="tab-label">Exams</span>
                   </button>
                 )}
-                <button className={`tab ${view === "notifications" ? "on" : ""}`} aria-label="Announcements" onClick={() => { setView("notifications"); setCompareTarget(null); }}>
-                  <Megaphone size={15} /> <span className="tab-label">Announcements</span>
-                  {unreadChangeCount > 0 && <span className="nav-badge">{unreadChangeCount}</span>}
-                </button>
-                <button className={`tab ${view === "assignments" ? "on" : ""}`} aria-label="Assignments" onClick={() => { setView("assignments"); setCompareTarget(null); }}>
-                  <BookOpenCheck size={15} /> <span className="tab-label">Assignments</span>
-                </button>
+                {!IS_LITE && (
+                  <button className={`tab ${view === "notifications" ? "on" : ""}`} aria-label="Announcements" onClick={() => { setView("notifications"); setCompareTarget(null); }}>
+                    <Megaphone size={15} /> <span className="tab-label">Announcements</span>
+                    {unreadChangeCount > 0 && <span className="nav-badge">{unreadChangeCount}</span>}
+                  </button>
+                )}
+                {!IS_LITE && (
+                  <button className={`tab ${view === "assignments" ? "on" : ""}`} aria-label="Assignments" onClick={() => { setView("assignments"); setCompareTarget(null); }}>
+                    <BookOpenCheck size={15} /> <span className="tab-label">Assignments</span>
+                  </button>
+                )}
                 {enableFriends && (
-                  <button className={`tab ${view === "friends" ? "on" : ""}`} aria-label="Social" onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); }}>
-                    <Users size={15} /> <span className="tab-label">Social</span> <span className="beta-badge tab-label">Beta</span>
+                  <button className={`tab ${view === "friends" ? "on" : ""}`} aria-label={IS_LITE ? "Compare" : "Social"} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); markBadgeSeen("social"); }}>
+                    <Users size={15} /> <span className="tab-label">{IS_LITE ? "Compare" : "Social"}</span> {!IS_LITE && showBadge("social") && <span className="beta-badge tab-label">Beta</span>}
                     {unreadFriendCount > 0 && <span className="nav-badge">{unreadFriendCount}</span>}
+                  </button>
+                )}
+                {IS_LITE && (
+                  <button className={`tab ${view === "fullSchedule" ? "on" : ""}`} aria-label="Full timetable" onClick={() => { setView("fullSchedule"); setCompareTarget(null); }}>
+                    <CalendarRange size={15} /> <span className="tab-label">Timetable</span>
+                  </button>
+                )}
+                {IS_LITE && (
+                  <button className={`tab ${view === "leave" ? "on" : ""}`} aria-label="Leave planner" onClick={() => { setView("leave"); setCompareTarget(null); }}>
+                    <CalendarOff size={15} /> <span className="tab-label">Leave</span>
                   </button>
                 )}
               </nav>
@@ -2606,15 +2681,20 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                     <span style={{ fontSize: 14 }}>{activeGlobalAnnouncement}</span>
                   </div>
                 )}
-                {activeScheduledAnnouncements.map(a => (
-                  <div key={a.id} style={{ background: "var(--amber)", color: "#000", padding: "12px 16px", borderRadius: 8, marginBottom: 16, display: "flex", gap: 8, alignItems: "center", fontWeight: 600 }}>
+                {activeScheduledAnnouncements.map(a => {
+                  // Severity → banner colour (set in Admin Tools). Defaults to amber/warning.
+                  const bg = a.severity === "urgent" ? "var(--danger)" : a.severity === "info" ? "var(--violet)" : "var(--amber)";
+                  const fg = a.severity === "warning" || !a.severity ? "#000" : "#fff";
+                  return (
+                  <div key={a.id} style={{ background: bg, color: fg, padding: "12px 16px", borderRadius: 8, marginBottom: 16, display: "flex", gap: 8, alignItems: "center", fontWeight: 600 }}>
                     <Megaphone size={18} style={{ flexShrink: 0 }} />
                     <span style={{ fontSize: 14, flex: 1 }}>{a.message}</span>
-                    <button onClick={() => dismissAnnouncement(a.id)} aria-label="Dismiss announcement" style={{ background: "none", border: "none", cursor: "pointer", color: "#000", display: "flex", padding: 2, flexShrink: 0 }}>
+                    <button onClick={() => dismissAnnouncement(a.id)} aria-label="Dismiss announcement" style={{ background: "none", border: "none", cursor: "pointer", color: fg, display: "flex", padding: 2, flexShrink: 0 }}>
                       <X size={16} />
                     </button>
                   </div>
-                ))}
+                  );
+                })}
                 {activeQuickLinks.length > 0 && (
                   <div className="ql-chips mobile-only">
                     {activeQuickLinks.map(ql => (
@@ -2650,7 +2730,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 </div>
               </>
             )}
-            {view !== "split" && view !== "attendance" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && view !== "leave" && view !== "glance" && view !== "wrapped" && view !== "board" && !compareTarget && view !== "tomorrow" && (
+            {view !== "split" && view !== "attendance" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && view !== "leave" && view !== "glance" && view !== "wrapped" && view !== "board" && view !== "admin" && !compareTarget && view !== "tomorrow" && (
               view === "week"
                 ? <div className="hide-mobile"><Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} onMarkAttendance={markAttendance} attendance={attendance} sysConfig={sysConfig} /></div>
                 : <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} onMarkAttendance={markAttendance} attendance={attendance} sysConfig={sysConfig} />
@@ -2675,12 +2755,12 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 <CalendarOff size={16} />
                 <span>
                   <strong>You&rsquo;re on leave</strong>
-                  <span>Back on {fmtAwayEnd(myAway.to)} · friends can see this too</span>
+                  <span>Back on {fmtAwayEnd(myAway.to)}{IS_LITE ? "" : " · friends can see this too"}</span>
                 </span>
                 <span className="away-banner-go">Manage →</span>
               </button>
             )}
-            {view === "today" && !compareTarget && wrappedActive && (
+            {view === "today" && !compareTarget && !IS_LITE && wrappedActive && (
               <button type="button" className="wrapped-banner" onClick={() => { setView("wrapped"); setCompareTarget(null); }}>
                 <Sparkles size={18} />
                 <span>
@@ -2785,6 +2865,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                   />
                   : view === "friends"
                     ? <FriendsPanel
+                      lite={IS_LITE}
                       userId={user?.id}
                       userName={user?.firstName || user?.username || "Student"}
                       enrolled={enrolled}
@@ -2886,6 +2967,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                     userId={userId}
                                     userName={user?.firstName || user?.username || "Student"}
                                     isAdmin={isAdmin}
+                                    enableAds={enableAds}
                                   />
                               : view === "split"
                                 ? <SplitPage
@@ -2942,8 +3024,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                       <Timeline list={todayList} current={current} now={now} dateLabel={prettyDate(todayISO)} attendance={attendance} markAttendance={markAttendance} skipInfo={skipInfo} syncStatus={<span className="live"><span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} />
                                     </>}
               </Suspense>
-              {view === "today" && !compareTarget && <MessCard now={now} userId={userId} friends={enableStatus ? friends : []} />}
-              {view === "tomorrow" && !compareTarget && (
+              {view === "today" && !compareTarget && !IS_LITE && <MessCard now={now} userId={userId} friends={enableStatus ? friends : []} />}
+              {view === "tomorrow" && !compareTarget && !IS_LITE && (
                 <div className="dl-section-wrap">
                   <DeadlineStrip
                     visible={visible}
@@ -3131,21 +3213,30 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 <span className="bnav-icon"><GraduationCap size={19} /></span>
               </button>
             )}
-            <button className={`bnav-btn${view === "notifications" ? " on" : ""}`} aria-label="Announcements" aria-current={view === "notifications" ? "page" : undefined} onClick={() => { setView("notifications"); setCompareTarget(null); }}>
-              <span className="bnav-icon">
-                <Megaphone size={19} />
-                {unreadChangeCount > 0 && <span className="bnav-dot" />}
-              </span>
-            </button>
-            <button className={`bnav-btn${view === "assignments" ? " on" : ""}`} aria-label="Assignments" aria-current={view === "assignments" ? "page" : undefined} onClick={() => { setView("assignments"); setCompareTarget(null); }}>
-              <span className="bnav-icon"><BookOpenCheck size={19} /></span>
-            </button>
+            {!IS_LITE && (
+              <button className={`bnav-btn${view === "notifications" ? " on" : ""}`} aria-label="Announcements" aria-current={view === "notifications" ? "page" : undefined} onClick={() => { setView("notifications"); setCompareTarget(null); }}>
+                <span className="bnav-icon">
+                  <Megaphone size={19} />
+                  {unreadChangeCount > 0 && <span className="bnav-dot" />}
+                </span>
+              </button>
+            )}
+            {!IS_LITE && (
+              <button className={`bnav-btn${view === "assignments" ? " on" : ""}`} aria-label="Assignments" aria-current={view === "assignments" ? "page" : undefined} onClick={() => { setView("assignments"); setCompareTarget(null); }}>
+                <span className="bnav-icon"><BookOpenCheck size={19} /></span>
+              </button>
+            )}
             {enableFriends && (
-              <button className={`bnav-btn${view === "friends" ? " on" : ""}`} aria-label="Social" aria-current={view === "friends" ? "page" : undefined} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); }}>
+              <button className={`bnav-btn${view === "friends" ? " on" : ""}`} aria-label={IS_LITE ? "Compare" : "Social"} aria-current={view === "friends" ? "page" : undefined} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); }}>
                 <span className="bnav-icon">
                   <Users size={19} />
                   {unreadFriendCount > 0 && <span className="bnav-dot" />}
                 </span>
+              </button>
+            )}
+            {IS_LITE && (
+              <button className={`bnav-btn${view === "leave" ? " on" : ""}`} aria-label="Leave planner" aria-current={view === "leave" ? "page" : undefined} onClick={() => { setView("leave"); setCompareTarget(null); }}>
+                <span className="bnav-icon"><CalendarOff size={19} /></span>
               </button>
             )}
           </nav>

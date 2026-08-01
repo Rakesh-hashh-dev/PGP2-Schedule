@@ -1,0 +1,11 @@
+User-agent: *
+Disallow:
+
+# Block AI training crawlers from indexing private student data
+User-agent: GPTBot
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+Sitemap: https://pgp2.termflow.tech/sitemap.xml
