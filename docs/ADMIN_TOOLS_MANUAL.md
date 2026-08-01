@@ -1,6 +1,17 @@
 # TermFlow Admin Tools Manual
 
-Covers every control in the Admin Dashboard (`src/components/AdminDashboard.jsx`), what it actually does under the hood, and what it touches in the student-facing app (`src/App.jsx`). Written from the current code as of 2026-07-02.
+Covers every control in the Admin Dashboard (`src/components/AdminDashboard.jsx`), what it actually does under the hood, and what it touches in the student-facing app (`src/App.jsx`). Originally written 2026-07-02.
+
+> ⚠️ **Partially superseded (2026-08-01).** The dashboard was reorganised into **5 sticky tabs** (Broadcast / Schedule / Users / Insights / System) and gained ~30 new cards (targeted push, push analytics, DAU/WAU/MAU, cron/health monitoring, self-test, config drift, admin roles, scheduled deploys, mess editor, and more). Several "Known gaps" below are now closed. The section-by-section descriptions of individual controls are still broadly accurate, but the **flat single-scroll layout is gone** and the gap list at §21 is outdated — see the correction block immediately below.
+
+## ✅ 2026-08-01 corrections (read these first)
+
+- **Scheduled Announcements & Quick Links are now wired** to students (no longer dormant — §8/§9/§21.1 outdated).
+- **"Active Today" is now real** — derived from `profiles.last_seen_at`, not `count * 0.85` (§3/§21.2 outdated).
+- **Admin writes are now server-gated.** `system_config` + `admin_audit_logs` writes require membership in the new `admins` table / `flags.adminRoles` (`is_admin()` RLS). The client-side `ADMIN_EMAILS` check is now UI-only; the real gate is in Postgres. Migration: `20260801120000_admin_rls_lockdown.sql`.
+- **Concurrent-admin safety.** Deploy now uses an optimistic-concurrency guard on `updated_at`: if another admin deployed since you loaded, your Deploy is **blocked** (not silently overwritten) and you're told to refresh. The pre-deploy **"Review changes"** modal also flags this drift proactively (§21.5 closed).
+- **Destructive one-click actions are reversible.** Bans, override deletes, and scheduled-announcement/push/quick-link removals now show a 7-second **Undo** toast (§21.4 softened).
+- **Pre-deploy review.** A "Review N changes" modal shows a per-flag diff (added / removed / edited) before Deploy, and lets you deploy straight from it.
 
 ---
 

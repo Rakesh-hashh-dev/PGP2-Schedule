@@ -287,7 +287,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [syncLogs, setSyncLogs] = useState([]);
   const [realNow, setRealNow] = useState(new Date());
   const [timeOverride, setTimeOverride] = useState(null);
-  const now = timeOverride ? new Date(timeOverride) : realNow;
+  // Memoized so `now` keeps a stable identity between renders when neither the
+  // override nor the ticking clock changed — otherwise every render produced a
+  // fresh Date and churned all the useMemo/useEffect hooks that depend on it.
+  const now = useMemo(() => (timeOverride ? new Date(timeOverride) : realNow), [timeOverride, realNow]);
   const [view, setView] = useState(() => {
     try {
       const v = localStorage.getItem(VIEW_KEY) || "today";
@@ -722,6 +725,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       }
       setView("friends");
     })();
+    // Runs once per pending invite. The user's name is read as a point-in-time
+    // value for the outgoing request — re-running on a name change would resend
+    // the friend request, so those fields are intentionally not dependencies.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, pendingInvite]);
 
   useEffect(() => {
@@ -789,6 +796,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       }
     })();
     return () => { alive = false; };
+    // Initial cloud sync, keyed on sign-in. The user.* fields are only read to
+    // opportunistically push an updated avatar; re-running the full sync when
+    // they change would be wasteful, so they're intentionally omitted.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   const checkFeedbackFlashes = useCallback(() => {
@@ -1143,7 +1154,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     };
     document.addEventListener("visibilitychange", handleVisibility);
     return () => document.removeEventListener("visibilitychange", handleVisibility);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSignedIn, syncedAt, userId, loadNotifications]);
 
   useEffect(() => {
@@ -2880,7 +2890,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       friendNotifItems={friendNotifItems}
                       onAcceptFriend={handleAcceptFriendRequest}
                       onDeclineFriend={handleDeclineFriendRequest}
-                      onMarkPingRead={markPingRead}
                       statusEnabled={enableStatus}
                       onOpenLeave={() => { setView("leave"); setCompareTarget(null); }}
                       onCompare={(f) => setCompareTarget({ mode: "friend", friendData: f })}
@@ -3267,7 +3276,7 @@ export default function App() {
       sessionStorage.setItem(DOMAIN_BLOCKED_KEY, "1");
       signOut();
     }
-  }, [isLoaded, isSignedIn, user]);
+  }, [isLoaded, isSignedIn, user, signOut]);
 
   if (domainBlocked) return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100dvh", gap: 16, padding: 32, textAlign: "center" }}>

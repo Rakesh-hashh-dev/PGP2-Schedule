@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  Wallet, Plus, X, Users, ArrowLeft, Trash2, Check, Receipt, Bell,
+  Wallet, X, Users, ArrowLeft, Trash2, Check, Receipt,
   ArrowRight, HandCoins, Pencil, ChevronRight, ImagePlus, Share2, Copy,
-  BarChart3, WifiOff, AlertTriangle,
+  WifiOff, AlertTriangle,
   Utensils, Car, ShoppingCart, Home, ShoppingBag, Lightbulb, PartyPopper, Tag
 } from "lucide-react";
 import {
@@ -805,7 +805,6 @@ function mergeActivity(ledger) {
 }
 
 function ExpenseRow({ e, shares, userId, group, nameOf, confirmDel, warnDel, onEdit, onAskDel, onCancelDel, onDel }) {
-  const cat = CAT_META[e.category] || CAT_META.other;
   const myShare = shares.find(s => s.user_id === userId);
   const iPaid = e.paid_by === userId;
   const mine = e.created_by === userId;
@@ -894,10 +893,9 @@ function GlobalInsights({ groups, userId }) {
   const [globalNet, setGlobalNet] = useState(null);
 
   useEffect(() => {
-    if (!groups || groups.length === 0) {
-      setGlobalNet(0);
-      return;
-    }
+    // When there are no groups the component renders null (see below), so
+    // there is nothing to compute — bail without touching state.
+    if (!groups || groups.length === 0) return;
     let alive = true;
     async function fetchAll() {
       let totalNet = 0;

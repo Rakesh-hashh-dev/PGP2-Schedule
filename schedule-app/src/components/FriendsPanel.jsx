@@ -189,7 +189,6 @@ function GroupChat({ group, userId, userName }) {
   const [pollBusy, setPollBusy] = useState(false);
   const [editingMsg, setEditingMsg] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
-  const messagesEndRef = useState(null)[0];
 
   useEffect(() => {
     let channel;
@@ -336,7 +335,7 @@ export default function FriendsPanel({
   groups, setGroups, allClasses, now, onCompare, onGroupCompare, onOpenLeave,
   statusEnabled = true, meetupsEnabled = true, nudgeEnabled = true, awayEnabled = true,
   planDraft = null, onPlanDraftConsumed,
-  friendNotifItems = [], onAcceptFriend, onDeclineFriend, onMarkPingRead,
+  friendNotifItems = [], onAcceptFriend, onDeclineFriend,
 }) {
   const [addCode, setAddCode] = useState("");
   const [addError, setAddError] = useState("");

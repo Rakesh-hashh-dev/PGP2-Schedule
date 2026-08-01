@@ -4,7 +4,9 @@ import "../styles/assignments.css";
 import "../styles/cmdk.css";
 import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil, BarChart2, UtensilsCrossed, GraduationCap, MessageSquare, CloudOff } from "lucide-react";
 import { supabase } from "../lib/supabase";
-import * as XLSX from "xlsx";
+// NOTE: `xlsx` is ~322 KB. It is only needed when an admin actually uploads a
+// mess-menu spreadsheet, so it is dynamically imported inside handleExcelUpload
+// rather than statically here — this keeps it out of the dashboard chunk.
 import { logAdminAction } from "../lib/adminAudit.js";
 import { LEGEND } from "../data/schedule.js";
 import { BASE_MENU } from "../data/messMenu.js";
@@ -79,6 +81,19 @@ const MESS_DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", 
 function Avatar({ name, email }) {
   const init = name ? name[0] : (email ? email[0] : "?");
   return <div className="admin-avatar">{init.toUpperCase()}</div>;
+}
+
+// Strip the bookkeeping keys (rollback history + scheduled-deploy queue) out of
+// a flags object. These must NEVER live inside a configHistory snapshot: if a
+// snapshot embeds the history, and that snapshot is later restored + re-deployed,
+// the history nests inside itself and the system_config row grows exponentially
+// until an UPDATE exceeds the 8s statement_timeout ("canceling statement due to
+// statement timeout"). Used both when snapshotting for history and when loading a
+// past version back into the editor.
+function stripHistoryKeys(flags) {
+  if (!flags) return flags;
+  const { configHistory: _h, scheduledConfigDeploys: _q, ...rest } = flags;
+  return rest;
 }
 
 // ── Pre-deploy config review ─────────────────────────────────────────────────
@@ -229,6 +244,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
   const [reviewOpen, setReviewOpen] = useState(false);
+  // Set when the live config's updated_at no longer matches what we loaded —
+  // i.e. another admin deployed since. Surfaces the concurrency guard (P2)
+  // proactively in the review modal instead of only at deploy time.
+  const [reviewDrift, setReviewDrift] = useState(null); // null | { when }
 
   const [allUsers, setAllUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -332,6 +351,14 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
   // Keep original fetched config for diffing
   const [originalFlags, setOriginalFlags] = useState(null);
+  // `updated_at` of the config row as we last loaded/saved it. Used as an
+  // optimistic-concurrency token so a second admin's Deploy can't silently
+  // clobber a first admin's just-saved changes (last-write-wins guard).
+  const [loadedUpdatedAt, setLoadedUpdatedAt] = useState(null);
+  // Undo toast for destructive one-click actions. Local-state deletes (list
+  // items, bans) fire immediately with no confirm; this gives a short grace
+  // window to reverse an accidental click before it's Deployed.
+  const [undoToast, setUndoToast] = useState(null); // { label, undo, key }
 
   // API Health Check — live ping results
   const [healthStatus, setHealthStatus] = useState({ supabase: null, sheets: null, push: null });
@@ -600,6 +627,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       try {
         const { data } = await supabase.from("system_config").select("*").eq("id", "global").single();
         if (data) {
+          setLoadedUpdatedAt(data.updated_at ?? null);
           if (data.announcement) {
             setActiveAnnouncement(data.announcement);
             setAnnouncement(data.announcement);
@@ -624,6 +652,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       }
     }
     fetchConfig();
+    // Mount-only initial load. loadDashboardData is recreated each render, so
+    // listing it would refetch on every render — the empty deps are intentional.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const changesCount = originalFlags ? Object.keys(flags).reduce((acc, k) => {
@@ -675,26 +706,55 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       // Snapshot the PREVIOUS config for rollback, but strip its own history/queue
       // first — otherwise each entry re-embeds all prior snapshots and the config
       // row grows exponentially (the main cause of slow deploys).
-      const { configHistory: _prevHist, scheduledConfigDeploys: _prevQueue, ...prevSnapshot } = originalFlags || {};
+      const prevSnapshot = stripHistoryKeys(originalFlags || {});
       const historyEntry = {
          timestamp: new Date().toISOString(),
          flags: prevSnapshot,
          author: admin_id
       };
-      newFlags.configHistory = [historyEntry, ...(newFlags.configHistory || [])].slice(0, 15);
+      // Defensively re-strip carried-forward entries too: a restored pre-fix
+      // snapshot could still carry an embedded history that would otherwise nest.
+      const carried = (newFlags.configHistory || []).map(h => (
+         h && h.flags ? { ...h, flags: stripHistoryKeys(h.flags) } : h
+      ));
+      newFlags.configHistory = [historyEntry, ...carried].slice(0, 15);
 
-      const { error } = await supabase.from("system_config").upsert({
-        id: "global",
-        announcement: activeAnnouncement,
-        flags: newFlags,
-        updated_at: new Date().toISOString()
-      });
-      if (error) {
+      const nextUpdatedAt = new Date().toISOString();
+      const row = { id: "global", announcement: activeAnnouncement, flags: newFlags, updated_at: nextUpdatedAt };
+
+      // Optimistic-concurrency guard: if the config row already existed when
+      // we loaded it, only write when its updated_at still matches what we
+      // read. If another admin Deployed in the meantime the guarded update
+      // touches 0 rows — we abort instead of silently clobbering their work.
+      let error = null, conflicted = false;
+      if (loadedUpdatedAt) {
+        const { data: updRows, error: updErr } = await supabase
+          .from("system_config")
+          .update(row)
+          .eq("id", "global")
+          .eq("updated_at", loadedUpdatedAt)
+          .select("updated_at");
+        error = updErr;
+        conflicted = !updErr && (!updRows || updRows.length === 0);
+      } else {
+        // First-ever save (no row yet) — plain upsert.
+        const { error: upErr } = await supabase.from("system_config").upsert(row);
+        error = upErr;
+      }
+
+      if (conflicted) {
+        // Fetch who/when so the admin knows what they'd have overwritten.
+        const { data: cur } = await supabase
+          .from("system_config").select("updated_at").eq("id", "global").single();
+        const when = cur?.updated_at ? new Date(cur.updated_at).toLocaleTimeString() : "just now";
+        setSaveMsg(`⚠ Another admin deployed at ${when}. Your changes were NOT saved — refresh the dashboard and re-apply.`);
+      } else if (error) {
         setSaveMsg("Failed: " + error.message);
       } else {
         // Show success immediately; the audit entry is secondary and now compact
         // (storing the whole flags blob here was slow and bloated admin_audit_logs).
         setOriginalFlags(newFlags);
+        setLoadedUpdatedAt(nextUpdatedAt);
         setSaveMsg("Successfully saved to cloud!");
         setTimeout(() => setSaveMsg(""), 3000);
         logAdminAction(admin_id, "save_config", {
@@ -1203,6 +1263,30 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     URL.revokeObjectURL(url);
   }
 
+  // Auto-dismiss the undo toast ~7s after it appears (restarts on each new one
+  // via its `key`). Effect-based so we avoid ref/global access from render.
+  useEffect(() => {
+    if (!undoToast) return;
+    const t = setTimeout(() => setUndoToast(null), 7000);
+    return () => clearTimeout(t);
+    // Keyed on `.key` so the dismiss timer only restarts for a genuinely new
+    // toast; depending on the whole object would reset it on any field change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [undoToast?.key]);
+
+  // ── Undo toast for reversible destructive actions ──
+  // Apply the change immediately, then surface a "Undo" toast for ~7s. If the
+  // admin clicks Undo we call `undo()` to restore. Auto-dismisses otherwise.
+  function removeWithUndo(label, undo) {
+    // `key` forces the auto-dismiss effect to restart even for back-to-back
+    // deletes with the same label.
+    setUndoToast({ label, undo, key: nowMs() });
+  }
+  function runUndo() {
+    undoToast?.undo?.();
+    setUndoToast(null);
+  }
+
   // ── Typed confirmation for destructive actions ──
   function typedConfirm(word, message) {
     const v = prompt(`${message}\n\nType ${word} to confirm:`);
@@ -1221,8 +1305,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     // Persist ONLY the queue onto live config (don't disturb the deployed flags/announcement).
     const { data: live } = await supabase.from("system_config").select("flags, announcement").eq("id", "global").single();
     const liveFlags = { ...(live?.flags || {}), scheduledConfigDeploys: [ ...((live?.flags?.scheduledConfigDeploys) || []), entry ] };
-    const { error } = await supabase.from("system_config").upsert({ id: "global", announcement: live?.announcement ?? null, flags: liveFlags, updated_at: new Date().toISOString() });
+    const stamp = new Date().toISOString();
+    const { error } = await supabase.from("system_config").upsert({ id: "global", announcement: live?.announcement ?? null, flags: liveFlags, updated_at: stamp });
     if (error) return alert("Failed to schedule: " + error.message);
+    setLoadedUpdatedAt(stamp);
     setFlags(f => ({ ...f, scheduledConfigDeploys: liveFlags.scheduledConfigDeploys }));
     setScheduleDeployAt("");
     logAdminAction(admin_id, "schedule_config_deploy", { at: entry.at });
@@ -1231,7 +1317,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   async function removeScheduledDeploy(id) {
     const { data: live } = await supabase.from("system_config").select("flags, announcement").eq("id", "global").single();
     const liveFlags = { ...(live?.flags || {}), scheduledConfigDeploys: ((live?.flags?.scheduledConfigDeploys) || []).filter(e => e.id !== id) };
-    await supabase.from("system_config").upsert({ id: "global", announcement: live?.announcement ?? null, flags: liveFlags, updated_at: new Date().toISOString() });
+    const stamp = new Date().toISOString();
+    await supabase.from("system_config").upsert({ id: "global", announcement: live?.announcement ?? null, flags: liveFlags, updated_at: stamp });
+    setLoadedUpdatedAt(stamp);
     setFlags(f => ({ ...f, scheduledConfigDeploys: liveFlags.scheduledConfigDeploys }));
   }
 
@@ -1459,8 +1547,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       try {
+        const XLSX = await import("xlsx");
         const data = new Uint8Array(evt.target.result);
         const workbook = XLSX.read(data, { type: "array" });
         const sheetName = workbook.SheetNames[0];
@@ -1549,7 +1638,15 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
   return (
     <div className="admin-page">
-      
+
+      {/* ── Undo toast for destructive one-click actions ── */}
+      {undoToast && (
+        <div style={{ position: "fixed", left: "50%", bottom: 28, transform: "translateX(-50%)", zIndex: 1000, display: "flex", alignItems: "center", gap: 16, padding: "12px 18px", background: "var(--text)", color: "var(--bg)", borderRadius: 12, boxShadow: "0 8px 30px rgba(0,0,0,0.25)", fontSize: 14, fontWeight: 600, maxWidth: "90vw" }}>
+          <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{undoToast.label}</span>
+          <button onClick={runUndo} style={{ background: "transparent", border: "none", color: "var(--live)", fontWeight: 800, cursor: "pointer", fontSize: 14, padding: "2px 6px", flex: "0 0 auto" }}>Undo</button>
+        </div>
+      )}
+
       {/* ── Hero Section ── */}
       <section className="hero" style={{ marginBottom: 32, padding: "40px 20px", textAlign: "center", borderRadius: 24, position: "relative", overflow: "hidden" }}>
         <div style={{ display: "inline-flex", background: "rgba(109, 91, 208, 0.1)", color: "var(--live)", padding: "12px 24px", borderRadius: 30, alignItems: "center", gap: 12, marginBottom: 16, flexWrap: "wrap", justifyContent: "center" }}>
@@ -2094,11 +2191,13 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                             </button>
                           )}
                           <button onClick={() => {
-                             const next = {...flags.classOverrides};
+                             const prev = flags.classOverrides;
+                             const next = {...prev};
                              next[date] = { ...next[date] };
                              delete next[date][code];
                              if (Object.keys(next[date]).length === 0) delete next[date];
                              setFlags({...flags, classOverrides: next});
+                             removeWithUndo(`Override removed — ${displayCode}`, () => setFlags(f => ({ ...f, classOverrides: prev })));
                           }} style={{ background: "transparent", border: "none", cursor: "pointer", display: "flex", alignItems: "center", padding: 4 }}>
                              <Trash2 size={16} color="var(--danger)" />
                           </button>
@@ -2213,7 +2312,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                   <div style={{ fontSize: 11, color: "var(--muted)" }}>Target: {a.target} | {a.start} to {a.end}</div>
                 </div>
                 <button onClick={() => {
-                  setFlags({...flags, scheduledAnnouncements: flags.scheduledAnnouncements.filter(x => x.id !== a.id)});
+                  const prev = flags.scheduledAnnouncements;
+                  setFlags({...flags, scheduledAnnouncements: prev.filter(x => x.id !== a.id)});
+                  removeWithUndo("Announcement removed", () => setFlags(f => ({ ...f, scheduledAnnouncements: prev })));
                 }} className="admin-btn outline" style={{ padding: "4px 8px", borderColor: "var(--danger)", color: "var(--danger)" }}><Trash2 size={14} /></button>
               </div>
             ))}
@@ -2339,7 +2440,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                          <div style={{ fontSize: 11, color: "var(--muted)" }}>Scheduled for {p.date} at {p.time}</div>
                        </div>
                        <button onClick={() => {
-                         setFlags({...flags, scheduledPushes: flags.scheduledPushes.filter(x => x.id !== p.id)});
+                         const prev = flags.scheduledPushes;
+                         setFlags({...flags, scheduledPushes: prev.filter(x => x.id !== p.id)});
+                         removeWithUndo("Queued push removed", () => setFlags(f => ({ ...f, scheduledPushes: prev })));
                        }} className="admin-btn outline" style={{ padding: "4px 8px", borderColor: "var(--danger)", color: "var(--danger)" }}><Trash2 size={14} /></button>
                      </div>
                   ))}
@@ -2562,7 +2665,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                   }} disabled={idx === flags.quickLinks.length - 1} className="admin-btn outline" style={{ padding: "4px 8px", opacity: idx === flags.quickLinks.length - 1 ? 0.3 : 1 }}>↓</button>
                   
                   <button onClick={() => {
-                    setFlags({...flags, quickLinks: flags.quickLinks.filter(x => x.id !== ql.id)});
+                    const prev = flags.quickLinks;
+                    setFlags({...flags, quickLinks: prev.filter(x => x.id !== ql.id)});
+                    removeWithUndo("Quick link removed", () => setFlags(f => ({ ...f, quickLinks: prev })));
                   }} className="admin-btn outline" style={{ padding: "4px 8px", borderColor: "var(--danger)", color: "var(--danger)" }}><Trash2 size={14} /></button>
                 </div>
               </div>
@@ -2971,10 +3076,12 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                       <VenetianMask size={20} color="var(--amber)" />
                     </button>
                     <button onClick={() => {
-                       const isBanned = flags.bannedUsers?.includes(u.user_id);
-                       const next = isBanned ? flags.bannedUsers.filter(id => id !== u.user_id) : [...(flags.bannedUsers || []), u.user_id];
+                       const prevBanned = flags.bannedUsers || [];
+                       const isBanned = prevBanned.includes(u.user_id);
+                       const next = isBanned ? prevBanned.filter(id => id !== u.user_id) : [...prevBanned, u.user_id];
                        setFlags({...flags, bannedUsers: next});
                        logAdminAction(admin_id, isBanned ? "unban_user" : "ban_user", { target_user: u.user_id });
+                       removeWithUndo(`${isBanned ? "Unbanned" : "Banned"} ${u.name || "user"} (Deploy to apply)`, () => setFlags(f => ({ ...f, bannedUsers: prevBanned })));
                     }} className="admin-btn-icon" title={flags.bannedUsers?.includes(u.user_id) ? "Unban User" : "Ban User"} style={{ background: "transparent", border: "none", cursor: "pointer", padding: 6 }}>
                       <Ban size={20} color={flags.bannedUsers?.includes(u.user_id) ? "var(--danger)" : "var(--muted)"} />
                     </button>
@@ -3944,7 +4051,15 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
       <div className="admin-save-footer" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         {changesCount > 0 && (
-          <button className="admin-btn" onClick={() => setReviewOpen(true)} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <button className="admin-btn" onClick={async () => {
+            setReviewDrift(null);
+            setReviewOpen(true);
+            // Passive drift check: did someone deploy since we loaded?
+            if (loadedUpdatedAt) {
+              const { data: cur } = await supabase.from("system_config").select("updated_at").eq("id", "global").single();
+              if (cur?.updated_at && cur.updated_at !== loadedUpdatedAt) setReviewDrift({ when: cur.updated_at });
+            }
+          }} style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <FileText size={16} /> Review {changesCount} change{changesCount > 1 ? "s" : ""}
           </button>
         )}
@@ -3981,7 +4096,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
            <button className="admin-btn outline" onClick={() => {
               const last = flags.configHistory[0];
               if (confirm(`Undo the last deploy and restore the config from ${new Date(last.timestamp).toLocaleString()}? Review & Deploy to apply.`)) {
-                 setFlags({ ...last.flags, configHistory: flags.configHistory });
+                 setFlags({ ...stripHistoryKeys(last.flags), configHistory: flags.configHistory });
                  setSaveMsg("Loaded previous deploy. Deploy to apply.");
                  setTimeout(() => setSaveMsg(""), 3000);
               }
@@ -3995,7 +4110,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                  if(!e.target.value) return;
                  const selectedHistory = flags.configHistory[parseInt(e.target.value)];
                  if(confirm(`Restore configuration saved on ${new Date(selectedHistory.timestamp).toLocaleString()}?`)) {
-                    setFlags(selectedHistory.flags);
+                    setFlags({ ...stripHistoryKeys(selectedHistory.flags), configHistory: flags.configHistory });
                     setSaveMsg("Restored from history. Deploy to apply.");
                     setTimeout(() => setSaveMsg(""), 3000);
                  }
@@ -4030,8 +4145,17 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 <button onClick={() => setReviewOpen(false)} style={{ background: "transparent", border: "none", color: "var(--muted)", cursor: "pointer" }} aria-label="Close"><XCircle size={18} /></button>
               </div>
               <div className="admin-subtext" style={{ marginBottom: 14 }}>
-                Local edits vs the config currently in the cloud. Nothing is live until you deploy.
+                Local edits vs the config you loaded. Nothing is live until you deploy.
               </div>
+
+              {reviewDrift && (
+                <div style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "10px 14px", marginBottom: 14, background: "rgba(245,158,11,0.1)", border: "1px solid var(--amber)", borderRadius: 10 }}>
+                  <AlertTriangle size={16} color="var(--amber)" style={{ flex: "0 0 auto", marginTop: 1 }} />
+                  <span style={{ fontSize: 12.5, color: "var(--text)" }}>
+                    Another admin deployed at {new Date(reviewDrift.when).toLocaleTimeString()}. Deploying now is blocked to protect their changes — <strong>refresh the dashboard</strong> and re-apply your edits.
+                  </span>
+                </div>
+              )}
 
               {changes.length === 0 ? (
                 <div style={{ padding: 20, textAlign: "center", color: "var(--muted)", background: "var(--bg)", borderRadius: 10, border: "1px dashed var(--border)" }}>
@@ -4061,7 +4185,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               <div style={{ display: "flex", gap: 10, marginTop: 16, justifyContent: "flex-end" }}>
                 <button className="admin-btn" onClick={() => setReviewOpen(false)}>Keep editing</button>
                 {changes.length > 0 && (
-                  <button className="admin-btn primary" disabled={saving} onClick={async () => { await saveConfig(); setReviewOpen(false); }}>
+                  <button className="admin-btn primary" disabled={saving || !!reviewDrift} onClick={async () => { await saveConfig(); setReviewOpen(false); }} title={reviewDrift ? "Refresh first — another admin deployed since you loaded" : undefined}>
                     <Save size={15} /> {saving ? "Deploying…" : "Looks good — Deploy"}
                   </button>
                 )}

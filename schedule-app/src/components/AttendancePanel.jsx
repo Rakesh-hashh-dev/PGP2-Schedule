@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Check, X, Clock, AlertTriangle, ChevronDown, Flame, Activity } from "lucide-react";
 import { sessionKey, courseSkipStats, isExamSession } from "../lib/attendance.js";
 import { subjectClass } from "../lib/subjectColors.js";
@@ -123,15 +123,15 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
     return out;
   }, [allClasses, enrolled, legend, now]);
 
-  const stat = (list) => {
+  const stat = useCallback((list) => {
     const present  = list.filter(s => attendance[s.key] === "present").length;
     const absent   = list.filter(s => attendance[s.key] === "absent").length;
     const unmarked = list.length - present - absent;
     const pct = (present + absent) > 0 ? Math.round((present / (present + absent)) * 100) : null;
     return { present, absent, unmarked, pct, total: list.length };
-  };
+  }, [attendance]);
 
-  const overall = useMemo(() => stat(allPast), [allPast, attendance]);
+  const overall = useMemo(() => stat(allPast), [allPast, stat]);
 
   const byCourse = useMemo(() => {
     return codes.map(code => {
@@ -156,7 +156,7 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
       if (a.skipsRemaining !== b.skipsRemaining) return a.skipsRemaining - b.skipsRemaining;
       return (a.pct ?? 101) - (b.pct ?? 101);
     });
-  }, [allPast, attendance, codes, allClasses, enrolled]);
+  }, [allPast, attendance, codes, allClasses, enrolled, legend, stat]);
 
   const overallSkipBudget = useMemo(() => {
     let allowed = 0;
