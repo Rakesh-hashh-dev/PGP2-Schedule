@@ -1,7 +1,17 @@
 import React, { useMemo, useState, useEffect } from "react";
 import "../styles/fullschedule.css";
-import { ArrowLeft, Clock, MapPin, User, SlidersHorizontal, X, ArrowUp, Calendar, ChevronLeft, ChevronRight, List, CalendarDays } from "lucide-react";
+import { ArrowLeft, Clock, MapPin, User, SlidersHorizontal, X, ArrowUp, Calendar, ChevronLeft, ChevronRight, List, CalendarDays, GraduationCap } from "lucide-react";
 import { subjectClass } from "../lib/subjectColors.js";
+import { isExamSession } from "../lib/attendance.js";
+
+function examCategory(name, session) {
+  const n = (name || "").toLowerCase();
+  const s = (session || "").toLowerCase();
+  if ((n.includes("end") && n.includes("term")) || (s.includes("end") && s.includes("term"))) return "End Term";
+  if ((n.includes("mid") && n.includes("term")) || (s.includes("mid") && s.includes("term"))) return "Mid Term";
+  if (n.includes("quiz") || s.includes("quiz")) return "Quiz";
+  return "Exam";
+}
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 
@@ -110,21 +120,47 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
   }, []);
 
   const baseClasses = useMemo(() => {
-    const classOnly = allClasses.filter(c => c.type === "class");
-    if (showAllClasses) return classOnly.sort((a, b) => a.date.localeCompare(b.date) || toMin(a.start) - toMin(b.start));
-    if (!enrolled) return [];
-    return classOnly
-      .filter(c => { const sec = enrolled[c.code]; return sec !== undefined && (c.section === sec || c.section === "Single"); })
-      .sort((a, b) => a.date.localeCompare(b.date) || toMin(a.start) - toMin(b.start));
+    // Separate regular classes and exam entries
+    const examRows = allClasses
+      .filter(c => c.type === "exam" || (c.type === "class" && isExamSession(c)))
+      .map(c => ({ ...c, isExam: true }));
+
+    let classes;
+    if (showAllClasses) {
+      classes = allClasses.filter(c => c.type === "class" && !isExamSession(c));
+    } else if (!enrolled) {
+      return [];
+    } else {
+      classes = allClasses
+        .filter(c => c.type === "class" && !isExamSession(c))
+        .filter(c => { const sec = enrolled[c.code]; return sec !== undefined && (c.section === sec || c.section === "Single"); });
+    }
+
+    // For exams: include all (type=exam are global), or filter subject-specific ones if "my schedule"
+    const enrolledCodes = enrolled ? Object.keys(enrolled) : [];
+    const filteredExams = showAllClasses
+      ? examRows
+      : examRows.filter(c => {
+          // Generic exams (no code) show to everyone; subject-specific only if enrolled
+          if (!c.code) return true;
+          return enrolledCodes.includes(c.code);
+        });
+
+    const combined = [...classes, ...filteredExams];
+    return combined.sort((a, b) => a.date.localeCompare(b.date) || toMin(a.start) - toMin(b.start));
   }, [allClasses, enrolled, showAllClasses]);
 
   const subjectCodes = useMemo(() => {
-    const codes = [...new Set(baseClasses.map(c => c.code))];
+    const codes = [...new Set(baseClasses.map(c => c.code).filter(Boolean))];
     codes.sort((a, b) => (legend[a]?.name || a).localeCompare(legend[b]?.name || b));
     return codes;
   }, [baseClasses, legend]);
 
-  const filtered = filterCodes.length > 0 ? baseClasses.filter(c => filterCodes.includes(c.code)) : baseClasses;
+  const filtered = useMemo(() => {
+    if (filterCodes.includes("__EXAMS__")) return baseClasses.filter(c => c.isExam);
+    if (filterCodes.length > 0) return baseClasses.filter(c => filterCodes.includes(c.code));
+    return baseClasses;
+  }, [baseClasses, filterCodes]);
 
   const grouped = useMemo(() => {
     if (filtered.length === 0) return [];
@@ -304,10 +340,12 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
             onClick={() => setFilterModalOpen(true)}
           >
             <SlidersHorizontal size={14} />
-            {filterCodes.length > 0
-              ? (filterCodes.length === 1 ? filterCodes[0] : `${filterCodes[0]} +${filterCodes.length - 1}`)
-              : (!showAllClasses ? "My Schedule" : "All Subjects")}
-            {filterCodes.length > 0 && <span className="cal-ctrl-count">{filterCodes.length}</span>}
+            {filterCodes.includes("__EXAMS__")
+              ? "Exams"
+              : filterCodes.length > 0
+                ? (filterCodes.length === 1 ? filterCodes[0] : `${filterCodes[0]} +${filterCodes.length - 1}`)
+                : (!showAllClasses ? "My Schedule" : "All Subjects")}
+            {filterCodes.length > 0 && !filterCodes.includes("__EXAMS__") && <span className="cal-ctrl-count">{filterCodes.length}</span>}
           </button>
 
           <button className="cal-ctrl-btn" onClick={() => setDateModalOpen(true)}>
@@ -391,10 +429,19 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                   Whole Timetable
                 </button>
               </div>
+
               <h4 style={{ fontSize: "11.5px", fontWeight: "700", color: "var(--muted)", margin: "0 0 12px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
                 Filter by Subject
               </h4>
               <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                {/* Exams chip */}
+                <button
+                  className={`fs-chip fs-chip-exams ${filterCodes.includes("__EXAMS__") ? "fs-chip-exams-on" : ""}`}
+                  onClick={() => setFilterCodes(filterCodes.includes("__EXAMS__") ? [] : ["__EXAMS__"])}
+                  style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+                >
+                  <GraduationCap size={12} /> Exams
+                </button>
                 {subjectCodes.map(code => {
                   const section = enrolled ? enrolled[code] : null;
                   const showSection = section && section !== "Single";
@@ -525,6 +572,43 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                         }
                       }
                       
+                      if (c.isExam) {
+                        const cat = examCategory(c.name, c.session);
+                        return (
+                          <div
+                            key={i}
+                            data-class-key={`${c.date}-${c.code}-${c.start}`}
+                            className="fs-card fs-card-exam"
+                            style={{ animationDelay: `${i * 0.055}s` }}
+                          >
+                            <div className="fs-card-accent fs-exam-accent" />
+                            <div className="fs-card-body">
+                              <div className="fs-card-top">
+                                <span className="fs-card-name fs-exam-name">
+                                  <GraduationCap size={14} className="fs-exam-icon" />
+                                  {c.name || (c.code ? `${c.code} Exam` : "Exam")}
+                                </span>
+                                <div style={{ display: "flex", alignItems: "center", gap: "6px", marginLeft: "auto" }}>
+                                  <span className="fs-exam-cat-badge">{cat}</span>
+                                  {c.code && <span className={`ses ${subjectClass(c.code)} fs-exam-code`}>{c.code}</span>}
+                                </div>
+                              </div>
+                              <div className="fs-card-meta">
+                                <span className="fs-meta-item"><Clock size={13} /> {c.start} – {c.end}</span>
+                                {c.room && (
+                                  <span className="fs-meta-item"><MapPin size={13} />
+                                    <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.room + " exam hall")}`} target="_blank" rel="noreferrer" className="fs-meta-link">
+                                      {c.room}
+                                    </a>
+                                  </span>
+                                )}
+                                {c.faculty && <span className="fs-meta-item"><User size={13} /> {c.faculty}</span>}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+
                       return (
                         <div
                           key={i}
@@ -665,6 +749,25 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                       const width = Math.max((toMin(cls.end) - toMin(cls.start)) / 60 * HOUR_W - 6, 40);
                       const top = cls.laneIdx * LANE_H + 5;
                       const height = LANE_H - 10;
+                      if (cls.isExam) {
+                        return (
+                          <div
+                            key={i}
+                            className="cal-h-event cal-h-event-exam"
+                            style={{ left, width, top, height }}
+                            onMouseEnter={(e) => showTooltip(e, cls)}
+                            onMouseLeave={() => setTooltip(null)}
+                          >
+                            <span className="cal-ev-top">
+                              <GraduationCap size={10} style={{ flexShrink: 0 }} />
+                              <span className="cal-ev-code">{cls.code || "EXAM"}</span>
+                              {width > 128 && <span className="cal-ev-time">{cls.start}–{cls.end}</span>}
+                            </span>
+                            {width > 88 && <span className="cal-ev-name">{examCategory(cls.name, cls.session)}</span>}
+                            {width <= 128 && width > 54 && <span className="cal-ev-time">{cls.start}–{cls.end}</span>}
+                          </div>
+                        );
+                      }
                       return (
                         <div
                           key={i}
@@ -748,19 +851,27 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
               const classes = dateClassMap.get(cell.iso) || [];
               const isToday = cell.iso === TODAY;
               const isSelected = cell.iso === selectedDate;
+              const regularClasses = classes.filter(c => !c.isExam);
+              const examClasses = classes.filter(c => c.isExam);
               const hasCls = cell.inMonth && classes.length > 0;
+              const hasExam = cell.inMonth && examClasses.length > 0;
               const D = parseInt(cell.iso.split("-")[2]);
               return (
                 <div
                   key={i}
-                  className={`cal-month-cell${!cell.inMonth ? " cal-month-out" : ""}${isToday ? " cal-month-cell-today" : ""}${isSelected ? " cal-month-selected" : ""}${hasCls ? " cal-month-has-cls" : ""}`}
+                  className={`cal-month-cell${!cell.inMonth ? " cal-month-out" : ""}${isToday ? " cal-month-cell-today" : ""}${isSelected ? " cal-month-selected" : ""}${hasCls ? " cal-month-has-cls" : ""}${hasExam ? " cal-month-has-exam" : ""}`}
                   onClick={() => hasCls && setSelectedDate(isSelected ? null : cell.iso)}
                 >
                   <span className={`cal-month-dnum${isToday ? " cal-dnum-today" : ""}`}>{D}</span>
+                  {hasExam && (
+                    <div className="cal-month-exam-dot" title={`${examClasses.length} exam${examClasses.length > 1 ? "s" : ""}`}>
+                      <GraduationCap size={9} />
+                    </div>
+                  )}
                   {hasCls && (
                     <div className="cal-month-count-wrap">
-                      <span className="cal-month-count">{classes.length}</span>
-                      <span className="cal-month-count-label">{classes.length === 1 ? "class" : "classes"}</span>
+                      {regularClasses.length > 0 && <span className="cal-month-count">{regularClasses.length}</span>}
+                      {regularClasses.length > 0 && <span className="cal-month-count-label">{regularClasses.length === 1 ? "class" : "classes"}</span>}
                     </div>
                   )}
                 </div>

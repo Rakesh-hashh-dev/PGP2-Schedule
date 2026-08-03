@@ -12,6 +12,12 @@ import "../styles/board.css";
 // realtime refresh; moderation is report-to-hide (3 reports) plus admin
 // remove/delete on any card.
 
+// Posted within the last 3h — drives the "New" freshness pill. Module-scope
+// (like timeAgo) so the Date.now() read stays out of the render body.
+function isRecent(iso, hours = 3) {
+  return Date.now() - new Date(iso).getTime() < hours * 3600 * 1000;
+}
+
 function timeAgo(iso) {
   const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
   if (m < 1) return "just now";
@@ -258,12 +264,21 @@ export default function BoardPage({ userId, userName, isAdmin, enableAds = true 
             const img = boardImageUrl(p.image_path);
             const own = p.user_id === userId;
             const reportCount = Array.isArray(p.reported_by) ? p.reported_by.length : 0;
+            // "New" is derived from age, not a stored field — honest freshness, not manufactured urgency
+            const isNew = p.status === "open" && isRecent(p.created_at);
             return (
               <article key={p.id} className={`board-card board-k-${p.kind}${p.status !== "open" ? " is-done" : ""}`}>
-                {img && <div className="board-card-img"><img src={img} alt="" loading="lazy" /></div>}
+                {img && (
+                  <div className="board-card-img">
+                    <img src={img} alt="" loading="lazy" />
+                    <span className={`board-kind-badge board-kind-badge-float board-k-${p.kind}`}><KindIcon kind={p.kind} size={12} /> {meta.label}</span>
+                    {isNew && <span className="board-badge-new">New</span>}
+                  </div>
+                )}
                 <div className="board-card-body">
                   <div className="board-card-top">
-                    <span className={`board-kind-badge board-k-${p.kind}`}><KindIcon kind={p.kind} size={12} /> {meta.label}</span>
+                    {!img && <span className={`board-kind-badge board-k-${p.kind}`}><KindIcon kind={p.kind} size={12} /> {meta.label}</span>}
+                    {!img && isNew && <span className="board-badge-new board-badge-new-inline">New</span>}
                     {p.status === "resolved" && <span className="board-status-badge"><CheckCircle2 size={11} /> Resolved</span>}
                     {p.status === "removed" && <span className="board-status-badge board-removed-badge"><ShieldAlert size={11} /> Removed</span>}
                     {isAdmin && reportCount > 0 && p.status !== "removed" && (

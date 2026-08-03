@@ -99,9 +99,21 @@
   border: 1px solid var(--border);
   border-radius: 16px;
   overflow: hidden;
+  transition: transform .18s var(--ease-out-strong), box-shadow .18s var(--ease-out-strong), border-color .18s ease;
+}
+
+/* Product-card lift on hover (borrowed from e-commerce offer grids) */
+@media (hover: hover) {
+  .board-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 24px rgba(26, 28, 42, .10);
+    border-color: var(--border-hi);
+  }
+  .board-card:hover .board-card-img img { transform: scale(1.05); }
 }
 
 .board-card.is-done { opacity: .62; }
+.board-card.is-done .board-card-img img { filter: grayscale(.4); }
 
 .board-card-skeleton {
   min-height: 150px;
@@ -116,6 +128,7 @@
 }
 
 .board-card-img {
+  position: relative;
   aspect-ratio: 16 / 9;
   background: var(--surface);
   overflow: hidden;
@@ -126,6 +139,44 @@
   height: 100%;
   object-fit: cover;
   display: block;
+  transition: transform .3s var(--ease-out-strong), filter .2s ease;
+}
+
+/* Kind badge floated onto the image, like a "Bestseller" corner tag. The
+   base .board-k-* tints are near-transparent, so give the float a frosted
+   backdrop and keep the coloured text for legibility over any photo. */
+.board-kind-badge-float {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: inline-flex;
+  align-items: center;
+  background: rgba(255, 255, 255, .92) !important;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .14);
+}
+html[data-theme="dark"] .board-kind-badge-float {
+  background: rgba(20, 22, 28, .82) !important;
+}
+
+/* Freshness pill — honest "posted recently" cue, top-right of the image */
+.board-badge-new {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font: 800 10px var(--body);
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: #fff;
+  background: var(--live);
+  padding: 3px 8px;
+  border-radius: 999px;
+  box-shadow: 0 2px 6px rgba(31, 169, 113, .35);
+}
+.board-badge-new-inline {
+  position: static;
+  box-shadow: none;
+  padding: 2px 7px;
 }
 
 .board-card-body {
@@ -228,8 +279,17 @@
 }
 
 .board-act:hover { color: var(--text); border-color: var(--border-hi); }
-.board-act-primary { background: var(--violet); border-color: var(--violet); color: #fff; }
+.board-act-primary {
+  flex: 1;
+  justify-content: center;
+  padding: 7px 12px;
+  background: var(--violet);
+  border-color: var(--violet);
+  color: #fff;
+  transition: opacity .15s ease, transform .1s ease;
+}
 .board-act-primary:hover { color: #fff; border-color: var(--violet); opacity: .92; }
+.board-act-primary:active { transform: scale(.97); }
 .board-act-danger { color: var(--danger); border-color: var(--danger); }
 .board-act-danger:hover { color: var(--danger); }
 .board-act-flag { padding: 5px 8px; }

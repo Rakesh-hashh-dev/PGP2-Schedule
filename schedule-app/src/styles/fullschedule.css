@@ -77,6 +77,19 @@
   box-shadow: 0 4px 12px rgba(21, 24, 43, .15);
 }
 
+.fs-chip-exams-on {
+  background: #7c3aed;
+  color: #fff;
+  border-color: #7c3aed;
+  box-shadow: 0 4px 12px rgba(124, 58, 237, .25);
+}
+
+.fs-chip-exams-on:hover {
+  background: #6d28d9;
+  border-color: #6d28d9;
+  transform: translateY(-1px);
+}
+
 .fs-list {
   display: flex;
   flex-direction: column;
@@ -417,6 +430,86 @@
 .fs-scroll-top:active {
   transform: translateY(0) scale(0.95);
   box-shadow: 0 2px 8px rgba(21, 24, 43, 0.15);
+}
+
+/* ── Exam card highlight ── */
+.fs-card-exam {
+  border-color: color-mix(in srgb, #f59e0b 35%, transparent);
+  background: color-mix(in srgb, #f59e0b 5%, var(--card));
+  box-shadow: 0 2px 12px color-mix(in srgb, #f59e0b 12%, transparent),
+              inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.fs-card-exam:hover {
+  border-color: color-mix(in srgb, #f59e0b 60%, transparent);
+  box-shadow: 0 4px 20px color-mix(in srgb, #f59e0b 20%, transparent);
+  transform: translateY(-2px);
+}
+
+.fs-exam-accent {
+  background: linear-gradient(180deg, #f59e0b, #d97706) !important;
+}
+
+.fs-exam-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #d97706 !important;
+  font-weight: 700;
+}
+
+.fs-exam-icon {
+  color: #d97706;
+  flex-shrink: 0;
+}
+
+.fs-exam-cat-badge {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #fff;
+  background: #d97706;
+  padding: 2px 7px;
+  border-radius: 8px;
+}
+
+.fs-exam-code {
+  opacity: 0.9;
+}
+
+/* ── Exam event block in week calendar ── */
+.cal-h-event-exam {
+  background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.25) !important;
+  box-shadow: 0 2px 10px color-mix(in srgb, #f59e0b 40%, transparent) !important;
+  color: #fff !important;
+}
+
+.cal-h-event-exam .cal-ev-code,
+.cal-h-event-exam .cal-ev-name,
+.cal-h-event-exam .cal-ev-time {
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
+/* ── Exam dot in month calendar ── */
+.cal-month-has-exam {
+  border-color: color-mix(in srgb, #f59e0b 40%, transparent);
+}
+
+.cal-month-exam-dot {
+  position: absolute;
+  top: 4px;
+  right: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #fff;
+  box-shadow: 0 1px 4px rgba(245, 158, 11, 0.5);
 }
 
 /* ── Controls bar (view toggle + filter + date) ── */

@@ -243,6 +243,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
+  const [forceDeployReady, setForceDeployReady] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   // Set when the live config's updated_at no longer matches what we loaded —
   // i.e. another admin deployed since. Surfaces the concurrency guard (P2)
@@ -671,7 +672,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
    
   }, [changesCount]);
 
-  async function saveConfig() {
+  async function saveConfig({ force = false } = {}) {
     if (flags.adminRoles && flags.adminRoles[admin_id] === "monitor") {
        return alert("You only have 'Monitor' access. Configuration changes are disabled for your role.");
     }
@@ -726,8 +727,14 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       // we loaded it, only write when its updated_at still matches what we
       // read. If another admin Deployed in the meantime the guarded update
       // touches 0 rows — we abort instead of silently clobbering their work.
+      // force=true bypasses this check (used by Force Deploy after a conflict).
       let error = null, conflicted = false;
-      if (loadedUpdatedAt) {
+      if (force) {
+        // Unconditional overwrite — admin explicitly chose to overwrite.
+        // Use update (not upsert) so we don't trigger the INSERT RLS policy.
+        const { error: upErr } = await supabase.from("system_config").update(row).eq("id", "global");
+        error = upErr;
+      } else if (loadedUpdatedAt) {
         const { data: updRows, error: updErr } = await supabase
           .from("system_config")
           .update(row)
@@ -743,16 +750,17 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       }
 
       if (conflicted) {
-        // Fetch who/when so the admin knows what they'd have overwritten.
+        // Fetch the current updated_at so the admin can force-overwrite in one click
         const { data: cur } = await supabase
           .from("system_config").select("updated_at").eq("id", "global").single();
         const when = cur?.updated_at ? new Date(cur.updated_at).toLocaleTimeString() : "just now";
-        setSaveMsg(`⚠ Another admin deployed at ${when}. Your changes were NOT saved — refresh the dashboard and re-apply.`);
+        if (cur?.updated_at) setLoadedUpdatedAt(cur.updated_at); // sync so force-deploy works
+        setSaveMsg(`⚠ Another deploy happened at ${when}. Force deploy to overwrite.`);
+        setForceDeployReady(true);
       } else if (error) {
         setSaveMsg("Failed: " + error.message);
       } else {
-        // Show success immediately; the audit entry is secondary and now compact
-        // (storing the whole flags blob here was slow and bloated admin_audit_logs).
+        setForceDeployReady(false);
         setOriginalFlags(newFlags);
         setLoadedUpdatedAt(nextUpdatedAt);
         setSaveMsg("Successfully saved to cloud!");
@@ -4127,6 +4135,18 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           <span className={`admin-save-msg ${saveMsg.includes("Failed") || saveMsg.includes("Error") ? "error" : "success"}`}>
             {saveMsg.includes("Successfully") && <Check size={16} />}
             {saveMsg}
+            {forceDeployReady && (
+              <button
+                onClick={() => { setForceDeployReady(false); setSaveMsg(""); saveConfig({ force: true }); }}
+                style={{
+                  marginLeft: 10, padding: "3px 10px", borderRadius: 6, border: "none",
+                  background: "#fff", color: "#b45309", fontWeight: 700, fontSize: 12,
+                  cursor: "pointer", whiteSpace: "nowrap"
+                }}
+              >
+                Force Deploy
+              </button>
+            )}
           </span>
         )}
       </div>
@@ -4394,6 +4414,12 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 const overrideKey = modalSection === "All" ? liveEditorModal.code : `${liveEditorModal.code}_${modalSection}`;
                 const nextOverrides = { ...(flags.classOverrides || {}) };
                 nextOverrides[liveEditorModal.date] = { ...(nextOverrides[liveEditorModal.date] || {}) };
+                // "All Sections" must supersede any per-section override, otherwise the
+                // section-specific key shadows the bare-code key in the reader/preview.
+                if (modalSection === "All") {
+                  delete nextOverrides[liveEditorModal.date][`${liveEditorModal.code}_A`];
+                  delete nextOverrides[liveEditorModal.date][`${liveEditorModal.code}_B`];
+                }
                 nextOverrides[liveEditorModal.date][overrideKey] = { type: "cancelled", name: `Cancelled: ${overrideKey}`, modifiedAt: new Date().toISOString(), modifiedBy: admin_id };
                 setFlags({ ...flags, classOverrides: nextOverrides });
                 logAdminAction(admin_id, "cancel_class", { date: liveEditorModal.date, class: overrideKey });
@@ -4423,6 +4449,11 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                       }
                       logAdminAction(admin_id, "clear_exam_flag", { date: liveEditorModal.date, class: overrideKey });
                     } else {
+                      // "All Sections" must supersede any per-section override.
+                      if (modalSection === "All") {
+                        delete nextOverrides[liveEditorModal.date][`${liveEditorModal.code}_A`];
+                        delete nextOverrides[liveEditorModal.date][`${liveEditorModal.code}_B`];
+                      }
                       nextOverrides[liveEditorModal.date][overrideKey] = { ...existing, type: "exam" };
                       logAdminAction(admin_id, "mark_as_exam", { date: liveEditorModal.date, class: overrideKey });
                     }
@@ -4458,6 +4489,12 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     const overrideKey = modalSection === "All" ? codeToUse : `${codeToUse}_${modalSection}`;
                     const nextOverrides = { ...(flags.classOverrides || {}) };
                     nextOverrides[liveEditorModal.date] = { ...(nextOverrides[liveEditorModal.date] || {}) };
+                    // "All Sections" must supersede any per-section override, otherwise the
+                    // section-specific key shadows the bare-code key in the reader/preview.
+                    if (modalSection === "All" && !modalIsNew) {
+                      delete nextOverrides[liveEditorModal.date][`${codeToUse}_A`];
+                      delete nextOverrides[liveEditorModal.date][`${codeToUse}_B`];
+                    }
                     const existing = nextOverrides[liveEditorModal.date][overrideKey] || {};
                     const changes = { ...existing };
                     if (modalRoom)  changes.room  = modalRoom;

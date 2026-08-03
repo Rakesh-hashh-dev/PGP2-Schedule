@@ -229,7 +229,7 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
             <h2>{label}</h2>
             {syncStatus && <div className="desk-only desk-live-pill">{syncStatus}</div>}
             {onRefresh && (
-              <button onClick={onRefresh} className="sync" aria-label="Refresh" style={{ padding: "4px", margin: 0, background: "transparent", border: "none", cursor: "pointer", color: "var(--muted)" }}>
+              <button onClick={onRefresh} className="sync panel-refresh" aria-label="Refresh">
                 <RefreshCw size={16} className={isSyncing ? "spin-icon" : ""} />
               </button>
             )}

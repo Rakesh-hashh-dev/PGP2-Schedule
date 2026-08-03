@@ -25,14 +25,16 @@ function sesLabel(code, session) {
 function lerp(a, b, t) { return Math.round(a + (b - a) * t); }
 
 function progFillStyle(done) {
-  // violet(109,91,208) → teal(14,165,233) → green(31,169,113)
+  // violet(109,91,208) → teal(14,165,233) → amber(224,160,68)
+  // Warms toward amber as time runs out so the colour reads as "wrapping up",
+  // not the green "success/complete" it used to imply at 100%.
   let r, g, b;
   if (done <= 0.5) {
     const t = done / 0.5;
     [r, g, b] = [lerp(109, 14, t), lerp(91, 165, t), lerp(208, 233, t)];
   } else {
     const t = (done - 0.5) / 0.5;
-    [r, g, b] = [lerp(14, 31, t), lerp(165, 169, t), lerp(233, 113, t)];
+    [r, g, b] = [lerp(14, 224, t), lerp(165, 160, t), lerp(233, 68, t)];
   }
   const glowSize = done >= 0.85 ? Math.round(10 + ((done - 0.85) / 0.15) * 16) : 10;
   const glowAlpha = done >= 0.65 ? 0.65 : 0.5;
@@ -163,13 +165,20 @@ export default function Hero({ current, next, now, todayISO, tomorrowISO, onMark
     const prev = prevRef.current;
     prevRef.current = current;
     if (prev && !current) setJustDone(prev);
+    else if (current) setJustDone(null); // a new class is live — drop the wrapped card
   }, [current]);
 
   useEffect(() => {
     if (!justDone) return;
-    const t = setTimeout(() => setJustDone(null), 5000);
+    // Keep the just-ended card (and its one-tap Present/Absent prompt) around long
+    // enough to actually use. While attendance is still unmarked and markable, hold
+    // it ~30s instead of 5 so glancing away doesn't cost the highest-value mark
+    // moment. Marking (or a new class starting) dismisses it immediately anyway.
+    const marked = attendance?.[sessionKey(justDone)];
+    const awaitingMark = onMarkAttendance && !marked;
+    const t = setTimeout(() => setJustDone(null), awaitingMark ? 30000 : 5000);
     return () => clearTimeout(t);
-  }, [justDone]);
+  }, [justDone, attendance, onMarkAttendance]);
 
   if (justDone) {
     const key = sessionKey(justDone);

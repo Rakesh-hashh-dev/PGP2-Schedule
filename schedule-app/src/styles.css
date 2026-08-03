@@ -670,6 +670,23 @@ html[data-theme="dark"] .bar .logo {
   border-radius: 10px;
 }
 
+/* Borderless icon-only variant used for the Timeline header refresh control.
+   Keeps .sync's hover/focus/spin + the coarse-pointer 44px hit target, but
+   drops the boxed chrome so it reads as an inline affordance next to the title. */
+.panel-refresh {
+  width: auto;
+  height: auto;
+  padding: 4px;
+  margin: 0;
+  background: transparent;
+  border: none;
+}
+.panel-refresh:hover {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
 .sync-on {
   color: var(--violet) !important;
   border-color: var(--violet) !important;
@@ -14154,6 +14171,14 @@ a.sb-quicklink {
   .notif-snooze-btn {
     min-width: 44px;
     min-height: 44px;
+  }
+
+  /* Timeline present/absent toggles: enlarge from 28px so they're comfortably
+     tappable in dense rows, without forcing the full 44px that would blow out
+     the segmented pill next to the class text. */
+  .att-btn {
+    width: 40px;
+    height: 40px;
   }
 }
 
