@@ -89,9 +89,17 @@ export async function fetchSchedule(force = false) {
       url += `?since=${cached.data.buildTs}`;
     }
 
-    const res = await fetch(url, { redirect: "follow" });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    const data = await res.json();
+    let data;
+    // Consume the eager fetch promise from index.html if it exists and matches this request
+    if (!force && window.__schedulePromise) {
+      data = await window.__schedulePromise;
+      window.__schedulePromise = null; // Clear it so subsequent fetches hit the network
+    } else {
+      const res = await fetch(url, { redirect: "follow" });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      data = await res.json();
+    }
+    
     if (data?.error) throw new Error(data.error);
     if (data?.unchanged && cached?.data) {
       return { ...withAreas(cached.data), _meta: { status: "success", message: "No changes from live sheet (using cache)", ts: new Date().toISOString() } };

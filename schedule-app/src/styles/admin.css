@@ -20,6 +20,28 @@
   gap: 24px;
 }
 
+.admin-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.admin-stats-grid {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.modern-ui .admin-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+}
+
 @media (min-width: 1200px) {
   .admin-masonry {
     display: block;
@@ -442,9 +464,36 @@
       /* extra bottom padding clears the mobile bottom-nav bar */
     }
 
-  .admin-card {
-      padding: 18px 16px;
+  .modern-ui .admin-card {
+      padding: 12px 10px;
       border-radius: 16px;
+    }
+    
+  .modern-ui .admin-grid-2 {
+      grid-template-columns: 1fr !important;
+    }
+
+  .modern-ui .admin-input, .modern-ui .admin-card select, .modern-ui .admin-card textarea {
+      font-size: 16px !important;
+    }
+
+  .modern-ui .admin-stats-grid {
+      display: flex;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scroll-snap-type: x mandatory;
+      scrollbar-width: none;
+      justify-content: flex-start;
+      gap: 12px;
+      padding-bottom: 8px;
+    }
+  .modern-ui .admin-stats-grid::-webkit-scrollbar {
+      display: none;
+    }
+  .modern-ui .admin-stats-grid > div {
+      flex: 0 0 85%;
+      scroll-snap-align: center;
     }
 
   .admin-card h2 {
@@ -562,7 +611,9 @@
 .admin-masonry:not([data-active-tab="schedule"]) > .admin-g-schedule,
 .admin-masonry:not([data-active-tab="users"]) > .admin-g-users,
 .admin-masonry:not([data-active-tab="insights"]) > .admin-g-insights,
-.admin-masonry:not([data-active-tab="system"]) > .admin-g-system {
+.admin-masonry:not([data-active-tab="system"]) > .admin-g-system,
+.admin-masonry:not([data-active-tab="moderation"]) > .admin-g-moderation,
+.admin-masonry:not([data-active-tab="database"]) > .admin-g-database {
   display: none !important;
 }
 
