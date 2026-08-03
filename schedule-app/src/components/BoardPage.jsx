@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import AdBanner from "./AdBanner.jsx";
 import { createPortal } from "react-dom";
 import { Package, Plus, X, Check, Flag, Trash2, MessageSquare, Phone, ImagePlus, ShieldAlert, CheckCircle2, IndianRupee, Search, Backpack, Tag, Megaphone } from "lucide-react";
 import {
@@ -173,7 +172,7 @@ function BoardComposer({ userId, userName, onCreated, onClose }) {
   );
 }
 
-export default function BoardPage({ userId, userName, isAdmin, enableAds = true }) {
+export default function BoardPage({ userId, userName, isAdmin }) {
   const [posts, setPosts] = useState(null); // null = loading, [] = empty
   const [filter, setFilter] = useState("all"); // all | kind | reported (admin)
   const [composerOpen, setComposerOpen] = useState(false);
@@ -241,10 +240,6 @@ export default function BoardPage({ userId, userName, isAdmin, enableAds = true 
           </button>
         )}
       </div>
-
-      {/* Ad banner — always visible on Campus Board, regardless of post count.
-           Controlled by the enableAds flag in Admin → Feature Flags. */}
-      {enableAds && <AdBanner />}
 
       {posts === null ? (
         <div className="board-grid">

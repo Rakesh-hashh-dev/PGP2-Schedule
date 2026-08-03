@@ -2,14 +2,10 @@ import { useState, useEffect, useRef } from "react";
 import "../styles/admin.css";
 import "../styles/assignments.css";
 import "../styles/cmdk.css";
-import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil, BarChart2, UtensilsCrossed, GraduationCap, MessageSquare, CloudOff } from "lucide-react";
+import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil, BarChart2, GraduationCap, MessageSquare, CloudOff, Shield, Smartphone } from "lucide-react";
 import { supabase } from "../lib/supabase";
-// NOTE: `xlsx` is ~322 KB. It is only needed when an admin actually uploads a
-// mess-menu spreadsheet, so it is dynamically imported inside handleExcelUpload
-// rather than statically here — this keeps it out of the dashboard chunk.
 import { logAdminAction } from "../lib/adminAudit.js";
 import { LEGEND } from "../data/schedule.js";
-import { BASE_MENU } from "../data/messMenu.js";
 import snapshotMeta from "../data/snapshot-meta.json";
 import { getSnapshot } from "../lib/sheet.js";
 import AdminCommandPalette from "./AdminCommandPalette";
@@ -38,7 +34,6 @@ const FEATURE_FLAGS = [
   { key: "enableMeetups", label: "Meetups" },
   { key: "enableFreeNudge", label: "Free-time nudges" },
   { key: "enableAwayShare", label: "Away sharing" },
-  { key: "enableAds", label: "Campus Board Ads" },
 ];
 const FEATURE_FLAG_KEYS = new Set(FEATURE_FLAGS.map(f => f.key));
 
@@ -65,18 +60,6 @@ function PushPreview({ title, body, url, when }) {
   );
 }
 
-
-// Mess Menu Editor — meal slots as stored in data/messMenu.js
-const MESS_MEALS = [
-  { key: "breakfast", label: "Breakfast Mains", hint: "Daily items (bread, cornflakes, sprouts, egg, fruits, beverages) are appended automatically." },
-  { key: "lunch", label: "Lunch" },
-  { key: "snacksW13", label: "Snacks — Week 1 & 3" },
-  { key: "snacksW24", label: "Snacks — Week 2 & 4", hint: "Leave empty to serve the Week 1 & 3 snacks on those weeks too." },
-  { key: "dinner", label: "Dinner" },
-];
-// Date#getDay() indices in Monday-first display order
-const MESS_DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
-const MESS_DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 function Avatar({ name, email }) {
   const init = name ? name[0] : (email ? email[0] : "?");
@@ -215,7 +198,6 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     enableFriends: true,
     enableExams: true,
     enableAttendance: true,
-    enableAds: true,
     maintenanceMode: false,
     bannedUsers: [],
     classOverrides: {},
@@ -334,6 +316,59 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [updatePromptDesc, setUpdatePromptDesc] = useState("");
   const [updatePromptHighlights, setUpdatePromptHighlights] = useState("");
 
+  // Social Flash Notification State
+  const [socialFlashTitle, setSocialFlashTitle] = useState("⚡ New Social Update");
+  const [socialFlashMsg, setSocialFlashMsg] = useState("Someone added a new status on TermFlow!");
+  const [socialFlashIcon, setSocialFlashIcon] = useState("social");
+  const [socialFlashDuration, setSocialFlashDuration] = useState(6000);
+  const [socialFlashUrl, setSocialFlashUrl] = useState("");
+  const [socialFlashSending, setSocialFlashSending] = useState(false);
+  const [socialFlashStatus, setSocialFlashStatus] = useState("");
+
+  async function triggerSocialFlashBroadcast() {
+    setSocialFlashSending(true);
+    setSocialFlashStatus("");
+    try {
+      const payload = {
+        title: socialFlashTitle.trim() || "⚡ New Social Update",
+        message: socialFlashMsg.trim() || "Someone added a new status on TermFlow!",
+        iconType: socialFlashIcon,
+        duration: parseInt(socialFlashDuration, 10) || 6000,
+        url: socialFlashUrl.trim() || null,
+        timestamp: Date.now()
+      };
+      
+      const channel = supabase.channel("social-flash-channel");
+      await channel.subscribe();
+      await channel.send({
+        type: "broadcast",
+        event: "social-flash",
+        payload
+      });
+
+      window.dispatchEvent(new CustomEvent("social-flash-trigger", { detail: payload }));
+      
+      setSocialFlashStatus("Broadcast sent live to active users!");
+      setTimeout(() => setSocialFlashStatus(""), 4000);
+    } catch (err) {
+      setSocialFlashStatus("Failed: " + err.message);
+    } finally {
+      setSocialFlashSending(false);
+    }
+  }
+
+  function testSocialFlashLocal() {
+    const payload = {
+      title: socialFlashTitle.trim() || "⚡ New Social Update",
+      message: socialFlashMsg.trim() || "Someone added a new status on TermFlow!",
+      iconType: socialFlashIcon,
+      duration: parseInt(socialFlashDuration, 10) || 6000,
+      url: socialFlashUrl.trim() || null,
+      timestamp: Date.now()
+    };
+    window.dispatchEvent(new CustomEvent("social-flash-trigger", { detail: payload }));
+  }
+
   // Feedback Flash Config
   const [feedbackFlashes, setFeedbackFlashes] = useState([]);
   const [previewFlashId, setPreviewFlashId] = useState(null);
@@ -349,6 +384,12 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [liveEditorDate, setLiveEditorDate] = useState(new Date().toISOString().split("T")[0]);
   const [liveEditorModal, setLiveEditorModal] = useState(null);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+
+  // Database Data Explorer State
+  const [dbTable, setDbTable] = useState("profiles");
+  const [dbRows, setDbRows] = useState([]);
+  const [dbLoading, setDbLoading] = useState(false);
+  const [dbError, setDbError] = useState("");
 
   // Keep original fetched config for diffing
   const [originalFlags, setOriginalFlags] = useState(null);
@@ -382,14 +423,17 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [modalName, setModalName] = useState("");
   const [modalIsNew, setModalIsNew] = useState(false);
 
+  // Modern Mobile UI Toggle
+  const [isModernUi, setIsModernUi] = useState(() => {
+    return localStorage.getItem("pgp2.admin-modern-ui") !== "false";
+  });
+  useEffect(() => {
+    localStorage.setItem("pgp2.admin-modern-ui", isModernUi);
+  }, [isModernUi]);
+
   // A/B Test editor
   const [abTestName, setAbTestName] = useState("");
   const [abTestRollout, setAbTestRollout] = useState(50);
-
-  // Mess Menu Editor — drafts hold only meals the admin has typed in; anything
-  // else falls through to the staged override (flags) or the bundled menu.
-  const [messEditDay, setMessEditDay] = useState(() => new Date().getDay());
-  const [messDrafts, setMessDrafts] = useState({});
 
   const admin_id = user?.id || user?.user_id || "unknown";
 
@@ -408,6 +452,20 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     return () => { supabase.removeChannel(ch); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [admin_id]);
+
+  useEffect(() => {
+    if (activeTab === "database") {
+      let isMounted = true;
+      setDbLoading(true); setDbError("");
+      supabase.from(dbTable).select("*").limit(50).then(({ data, error }) => {
+        if (!isMounted) return;
+        if (error) setDbError(error.message);
+        else setDbRows(data || []);
+        setDbLoading(false);
+      });
+      return () => { isMounted = false; };
+    }
+  }, [activeTab, dbTable]);
 
   useEffect(() => {
     const handleOpen = () => setIsCommandPaletteOpen(true);
@@ -456,7 +514,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
         // stats reflect the Clerk PROD instance. If the RPC is gone (post
         // Phase 2 cleanup) the filter is simply empty.
         const [{ data, error }, devIdsRes] = await Promise.all([
-          supabase.from("profiles").select("user_id, courses, last_seen_at, updated_at"),
+          supabase.from("profiles").select("user_id, email, courses, last_seen_at, updated_at"),
           supabase.rpc("get_dev_user_ids"),
         ]);
         const devIds = new Set((devIdsRes.data || []).map(r => (typeof r === "string" ? r : r.dev_user_id)));
@@ -474,6 +532,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             }
             return {
               user_id: d.user_id,
+              email: d.email,
               name: d.courses?._name || "Student",
               courses: d.courses,
               last_seen_at: d.last_seen_at
@@ -1055,11 +1114,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const configDrift = (() => {
     const overrideDays = Object.keys(flags.classOverrides || {}).length;
     const overrideClasses = Object.values(flags.classOverrides || {}).reduce((a, d) => a + Object.keys(d).length, 0);
-    const messDays = Object.keys(flags.messMenuOverrides || {}).length;
     const announcements = (flags.scheduledAnnouncements || []).length;
     const quickLinks = (flags.quickLinks || []).length;
-    const total = overrideClasses + messDays + announcements + quickLinks;
-    return { overrideDays, overrideClasses, messDays, announcements, quickLinks, total };
+    const total = overrideClasses + announcements + quickLinks;
+    return { overrideDays, overrideClasses, announcements, quickLinks, total };
   })();
 
   // ── Broadcast agenda: all scheduled pushes/announcements/deploys, next 21 days ──
@@ -1516,122 +1574,6 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     setHealthChecking(false);
   };
 
-  // ── Mess Menu Editor helpers ─────────────────────────────────
-  // Textarea value: unsaved draft → staged override → bundled default
-  const messMealText = (meal) => {
-    if (messDrafts[meal] !== undefined) return messDrafts[meal];
-    const staged = flags.messMenuOverrides?.[messEditDay]?.[meal];
-    return (staged ?? BASE_MENU[messEditDay][meal] ?? []).join("\n");
-  };
-
-  const stageMessMenuEdits = () => {
-    const dayOverride = {};
-    MESS_MEALS.forEach(({ key }) => {
-      const items = messMealText(key).split("\n").map(s => s.trim()).filter(Boolean);
-      // Only store meals that differ from the bundled menu
-      if (JSON.stringify(items) !== JSON.stringify(BASE_MENU[messEditDay][key] ?? [])) {
-        dayOverride[key] = items;
-      }
-    });
-    const next = { ...(flags.messMenuOverrides || {}) };
-    if (Object.keys(dayOverride).length === 0) delete next[messEditDay];
-    else next[messEditDay] = dayOverride;
-    setFlags({ ...flags, messMenuOverrides: next });
-    setMessDrafts({});
-    logAdminAction(admin_id, "edit_mess_menu", { day: MESS_DAY_NAMES[messEditDay], meals: Object.keys(dayOverride) });
-  };
-
-  const resetMessMenuDay = () => {
-    if (!window.confirm(`Reset ${MESS_DAY_NAMES[messEditDay]} to the bundled menu (discard the override)?`)) return;
-    const next = { ...(flags.messMenuOverrides || {}) };
-    delete next[messEditDay];
-    setFlags({ ...flags, messMenuOverrides: next });
-    setMessDrafts({});
-    logAdminAction(admin_id, "reset_mess_menu_day", { day: MESS_DAY_NAMES[messEditDay] });
-  };
-
-  const handleExcelUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      try {
-        const XLSX = await import("xlsx");
-        const data = new Uint8Array(evt.target.result);
-        const workbook = XLSX.read(data, { type: "array" });
-        const sheetName = workbook.SheetNames[0];
-        const sheet = workbook.Sheets[sheetName];
-        
-        const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-        if (jsonData.length < 20) throw new Error("Excel file doesn't have enough rows.");
-
-        const newOverrides = {};
-        const colToDayIndex = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 7: 6, 8: 0 };
-        const getCellStr = (row, col) => {
-           const val = jsonData[row]?.[col];
-           return val ? String(val).trim().replace(/\n/g, "") : "";
-        };
-
-        for (let col = 2; col <= 8; col++) {
-           const dayIdx = colToDayIndex[col];
-           const dayMeals = { breakfast: [], lunch: [], snacksW13: [], snacksW24: [], dinner: [] };
-
-           const bMain = getCellStr(3, col);
-           const bExtra = getCellStr(4, col);
-           if (bMain) dayMeals.breakfast.push(bMain);
-           if (bExtra) dayMeals.breakfast.push(...bExtra.split('+').map(s => s.trim()).filter(Boolean));
-
-           for (let r = 6; r <= 11; r++) {
-              const item = getCellStr(r, col);
-              if (item) dayMeals.lunch.push(item);
-           }
-
-           const sW13 = getCellStr(13, col);
-           const sW24 = getCellStr(14, col);
-           const sBev = getCellStr(15, col);
-           
-           if (sW13) dayMeals.snacksW13.push(sW13);
-           if (sW13 && sBev) dayMeals.snacksW13.push(sBev);
-           if (sW24) {
-              dayMeals.snacksW24.push(sW24);
-              if (sBev) dayMeals.snacksW24.push(sBev);
-           }
-
-           for (let r = 17; r <= 23; r++) {
-              const item = getCellStr(r, col);
-              if (item) dayMeals.dinner.push(item);
-           }
-           newOverrides[dayIdx] = dayMeals;
-        }
-
-        // Diff vs currently staged/deployed overrides so the admin sees what changes.
-        const cur = flags.messMenuOverrides || {};
-        const changedDays = [];
-        for (let d = 0; d <= 6; d++) {
-          if (!(d in newOverrides)) continue;
-          if (JSON.stringify(newOverrides[d]) !== JSON.stringify(cur[d] ?? null)) changedDays.push(d);
-        }
-        const summary = changedDays.length === 0
-          ? "No differences vs the current menu."
-          : `Changes on: ${changedDays.map(d => MESS_DAY_NAMES[d] || d).join(", ")}`;
-        if (!confirm(`Parsed ${file.name}.\n${summary}\n\nStage this menu (${changedDays.length} day(s) changed)? Deploy to apply.`)) {
-          e.target.value = null;
-          return;
-        }
-        setFlags({ ...flags, messMenuOverrides: newOverrides });
-        setMessDrafts({});
-        logAdminAction(admin_id, "upload_mess_menu_excel", { changedDays: changedDays.length });
-        alert("Menu staged! Please deploy to cloud to apply.");
-      } catch (err) {
-        console.error("Excel parse error", err);
-        alert("Failed to parse Excel file: " + err.message);
-      }
-      e.target.value = null;
-    };
-    reader.readAsArrayBuffer(file);
-  };
-
   // Helper to open the Live Editor modal AND initialise controlled inputs
   const openLiveEditorModal = (c, isNew = false) => {
     setLiveEditorModal(c);
@@ -1645,7 +1587,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   };
 
   return (
-    <div className="admin-page">
+    <div className={`admin-page ${isModernUi ? "modern-ui" : ""}`}>
 
       {/* ── Undo toast for destructive one-click actions ── */}
       {undoToast && (
@@ -1666,6 +1608,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           <button onClick={() => setIsCommandPaletteOpen(true)} style={{ background: "transparent", border: "none", color: "var(--live)", cursor: "pointer", padding: 4, display: "flex", alignItems: "center", justifyContent: "center" }} title="Open Command Palette (Cmd+Shift+K)">
             <Search size={20} />
           </button>
+          <button onClick={() => setIsModernUi(!isModernUi)} style={{ background: "transparent", border: "none", color: "var(--live)", cursor: "pointer", padding: 4, display: "flex", alignItems: "center", justifyContent: "center" }} title={isModernUi ? "Switch to Legacy Mobile UI" : "Switch to Modern Mobile UI"}>
+            <Smartphone size={20} opacity={isModernUi ? 1 : 0.4} />
+          </button>
         </div>
         <p style={{ color: "var(--muted)", margin: "0 0 16px 0", fontSize: 16 }}>Global settings, feature flags, and user management.</p>
 
@@ -1678,7 +1623,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </div>
         )}
 
-        <div style={{ display: "flex", gap: 24, justifyContent: "center", flexWrap: "wrap" }}>
+        <div className="admin-stats-grid">
           <div style={{ background: "var(--card)", padding: "16px 32px", borderRadius: 16, border: "1px solid var(--border)", minWidth: 180 }} title="Total registered students (excluding dev/admin accounts)">
             <div style={{ fontSize: 12, textTransform: "uppercase", fontWeight: 700, color: "var(--muted)", marginBottom: 8, letterSpacing: "1px" }}>Total Users</div>
             <div style={{ fontSize: 36, fontWeight: 800, fontFamily: "var(--display)", color: "var(--text)" }}>{statsLoading ? "..." : totalUsers}</div>
@@ -1710,12 +1655,14 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       {/* ── Tab nav: groups the ~24 sections into 5 categories ── */}
       <nav className="admin-tabs" role="tablist" aria-label="Admin sections">
         {[
-          { id: "broadcast", label: "Broadcast", Icon: Megaphone },
+          { id: "broadcast", label: "Broadcast", Icon: Megaphone, isNew: true },
           { id: "schedule", label: "Schedule", Icon: CalendarDays },
           { id: "users", label: "Users", Icon: Users },
           { id: "insights", label: "Insights", Icon: BarChart2 },
+          { id: "moderation", label: "Moderation", Icon: Shield },
+          { id: "database", label: "Database", Icon: Database },
           { id: "system", label: "System", Icon: ShieldAlert },
-        ].map(({ id, label, Icon }) => (
+        ].map(({ id, label, Icon, isNew }) => (
           <button
             key={id}
             type="button"
@@ -1730,6 +1677,17 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           >
             <Icon size={16} />
             <span className="admin-tab-label">{label}</span>
+            {isNew && (
+              <span style={{
+                background: "linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%)",
+                color: "#fff",
+                fontSize: "9px",
+                fontWeight: 800,
+                padding: "1px 5px",
+                borderRadius: "6px",
+                marginLeft: "4px"
+              }}>NEW</span>
+            )}
           </button>
         ))}
       </nav>
@@ -2329,6 +2287,195 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </div>
         </section>
 
+        {/* Social Flash Notification Manager (First Card under Broadcast) */}
+        <section id="social-flash-section" className="admin-card admin-g-broadcast" style={{ border: "1.5px solid color-mix(in srgb, var(--violet, #8B5CF6) 40%, transparent)", margin: "10px 0" }}>
+            <h2>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--violet, #8B5CF6)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: "-3px" }}>
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+              </svg> Social Flash Notifications
+              <span style={{
+                background: "linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%)",
+                color: "#fff",
+                fontSize: "10px",
+                fontWeight: 800,
+                letterSpacing: "0.6px",
+                padding: "3px 8px",
+                borderRadius: "10px",
+                boxShadow: "0 2px 10px rgba(139, 92, 246, 0.4)",
+                marginLeft: "10px",
+                verticalAlign: "middle"
+              }}>NEW</span>
+            </h2>
+            <p className="admin-subtext">Push real-time flash toast notifications to active users. Docks in the top-right corner for 5–7 seconds.</p>
+
+            <div className="admin-field">
+              <label>Title</label>
+              <input className="admin-input" value={socialFlashTitle} onChange={e => setSocialFlashTitle(e.target.value)} placeholder="New Social Update" />
+            </div>
+
+            <div className="admin-field">
+              <label>Message</label>
+              <textarea className="admin-textarea" value={socialFlashMsg} onChange={e => setSocialFlashMsg(e.target.value)} placeholder="Someone added a new status on TermFlow!" rows={2}></textarea>
+            </div>
+
+            <div className="admin-grid-2">
+              <div className="admin-field">
+                <label>Icon Style</label>
+                <select className="admin-input" value={socialFlashIcon} onChange={e => setSocialFlashIcon(e.target.value)}>
+                  <option value="social">Social (Purple)</option>
+                  <option value="alert">Alert (Amber)</option>
+                  <option value="announcement">Announcement (Blue)</option>
+                  <option value="success">Success (Green)</option>
+                </select>
+              </div>
+
+              <div className="admin-field">
+                <label>Display Duration</label>
+                <select className="admin-input" value={socialFlashDuration} onChange={e => setSocialFlashDuration(Number(e.target.value))}>
+                  <option value={5000}>5 Seconds</option>
+                  <option value={6000}>6 Seconds (Default)</option>
+                  <option value={7000}>7 Seconds</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="admin-field">
+              <label>Action Link (Optional)</label>
+              <input className="admin-input" value={socialFlashUrl} onChange={e => setSocialFlashUrl(e.target.value)} placeholder="https://termflow.app/friends or /meetups" />
+            </div>
+
+            <div style={{ marginTop: 20 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 10 }}>
+                <label style={{ fontSize: 11.5, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                  Live Top-Right Toast Preview ({socialFlashDuration / 1000}s)
+                </label>
+                <button
+                  type="button"
+                  onClick={testSocialFlashLocal}
+                  style={{
+                    background: "color-mix(in srgb, var(--violet, #8B5CF6) 12%, transparent)",
+                    border: "1px solid color-mix(in srgb, var(--violet, #8B5CF6) 30%, transparent)",
+                    color: "var(--violet, #8B5CF6)",
+                    padding: "5px 12px",
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    transition: "all 0.15s"
+                  }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L12 3Z" />
+                  </svg> Test Toast on Screen
+                </button>
+              </div>
+
+              <div style={{
+                position: "relative",
+                width: "100%",
+                background: "var(--card, #1A1A2E)",
+                border: "1px solid color-mix(in srgb, var(--violet, #8B5CF6) 40%, transparent)",
+                borderRadius: 16,
+                padding: "14px 16px",
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 14,
+                boxShadow: "0 4px 20px rgba(0, 0, 0, 0.25)",
+                overflow: "hidden"
+              }}>
+                <div style={{
+                  flexShrink: 0,
+                  width: 36,
+                  height: 36,
+                  borderRadius: 10,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginTop: 2,
+                  background: socialFlashIcon === "alert" ? "rgba(245, 158, 11, 0.2)" : socialFlashIcon === "announcement" ? "rgba(59, 130, 246, 0.2)" : socialFlashIcon === "success" ? "rgba(16, 185, 129, 0.2)" : "rgba(139, 92, 246, 0.2)",
+                  border: `1px solid ${socialFlashIcon === "alert" ? "#F59E0B44" : socialFlashIcon === "announcement" ? "#3B82F644" : socialFlashIcon === "success" ? "#10b98144" : "#8B5CF644"}`
+                }}>
+                  {socialFlashIcon === "alert" && (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                  )}
+                  {socialFlashIcon === "announcement" && (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                  )}
+                  {socialFlashIcon === "success" && (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
+                  )}
+                  {socialFlashIcon === "social" && (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                  )}
+                </div>
+
+                <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
+                  <div style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--ink, #fff)", paddingRight: 18 }}>
+                    {socialFlashTitle.trim() || "New Social Update"}
+                  </div>
+                  <div style={{ fontSize: "12.5px", color: "var(--muted, rgba(255,255,255,0.7))", lineHeight: 1.4 }}>
+                    {socialFlashMsg.trim() || "Someone added a new status on TermFlow!"}
+                  </div>
+                  {socialFlashUrl.trim() && (
+                    <div style={{ marginTop: 4, fontSize: 12, fontWeight: 700, color: "#8B5CF6", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      View <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ position: "absolute", top: 10, right: 10, color: "var(--muted, rgba(255,255,255,0.5))" }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </div>
+
+                {/* Countdown progress bar */}
+                <div
+                  className="social-flash-progress"
+                  style={{
+                    background: socialFlashIcon === "alert" ? "#F59E0B" : socialFlashIcon === "announcement" ? "#3B82F6" : socialFlashIcon === "success" ? "#10b981" : "#8B5CF6",
+                    animationDuration: `${socialFlashDuration}ms`
+                  }}
+                />
+              </div>
+            </div>
+
+            <div style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 12 }}>
+              <button
+                type="button"
+                className="admin-btn primary"
+                disabled={socialFlashSending}
+                onClick={triggerSocialFlashBroadcast}
+                style={{
+                  background: "var(--violet, #8B5CF6)",
+                  color: "#fff",
+                  padding: "10px 18px",
+                  borderRadius: 10,
+                  fontWeight: 700,
+                  fontSize: 13.5,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13" />
+                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                </svg>
+                {socialFlashSending ? "Pushing Live..." : "Push Social Flash to All Users"}
+              </button>
+
+              {socialFlashStatus && (
+                <span style={{ fontSize: 13, fontWeight: 600, color: socialFlashStatus.startsWith("Failed") ? "var(--red, #ef4444)" : "var(--green, #10b981)" }}>
+                  {socialFlashStatus}
+                </span>
+              )}
+            </div>
+          </section>
+
           {/* Push Notification Broadcast */}
           <section className="admin-card admin-g-broadcast" style={{ display: "flex", flexDirection: "column" }}>
             <h2><BellRing size={20} color="var(--live)" /> Push Notifications</h2>
@@ -2456,6 +2603,176 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                   ))}
                </div>
             )}
+          </section>
+
+          {/* Social Flash Notification Manager */}
+          <section id="social-flash-section" className="admin-card admin-g-broadcast">
+            <h2>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--violet, #8B5CF6)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: "-3px" }}>
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+              </svg> Social Flash Notifications
+            </h2>
+            <p className="admin-subtext">Push real-time flash toast notifications to active users. Docks in the top-right corner for 5–7 seconds.</p>
+
+            <div className="admin-field">
+              <label>Title</label>
+              <input className="admin-input" value={socialFlashTitle} onChange={e => setSocialFlashTitle(e.target.value)} placeholder="⚡ New Social Update" />
+            </div>
+
+            <div className="admin-field">
+              <label>Message</label>
+              <textarea className="admin-textarea" value={socialFlashMsg} onChange={e => setSocialFlashMsg(e.target.value)} placeholder="Someone added a new status on TermFlow!" rows={2}></textarea>
+            </div>
+
+            <div className="admin-grid-2">
+              <div className="admin-field">
+                <label>Icon Style</label>
+                <select className="admin-input" value={socialFlashIcon} onChange={e => setSocialFlashIcon(e.target.value)}>
+                  <option value="social">👥 Social (Purple)</option>
+                  <option value="alert">⚡ Alert (Amber)</option>
+                  <option value="announcement">📣 Announcement (Blue)</option>
+                  <option value="sparkles">✨ Sparkles (Pink)</option>
+                </select>
+              </div>
+
+              <div className="admin-field">
+                <label>Display Duration</label>
+                <select className="admin-input" value={socialFlashDuration} onChange={e => setSocialFlashDuration(Number(e.target.value))}>
+                  <option value={5000}>5 Seconds</option>
+                  <option value={6000}>6 Seconds (Default)</option>
+                  <option value={7000}>7 Seconds</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="admin-field">
+              <label>Action Link (Optional)</label>
+              <input className="admin-input" value={socialFlashUrl} onChange={e => setSocialFlashUrl(e.target.value)} placeholder="https://termflow.app/friends or /meetups" />
+            </div>
+
+            {/* Live Top-Right Toast Preview */}
+            <div style={{ marginTop: 20 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 10 }}>
+                <label style={{ fontSize: 11.5, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                  Live Top-Right Toast Preview ({socialFlashDuration / 1000}s)
+                </label>
+                <button
+                  type="button"
+                  onClick={testSocialFlashLocal}
+                  style={{
+                    background: "color-mix(in srgb, var(--violet, #8B5CF6) 12%, transparent)",
+                    border: "1px solid color-mix(in srgb, var(--violet, #8B5CF6) 30%, transparent)",
+                    color: "var(--violet, #8B5CF6)",
+                    padding: "5px 12px",
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    transition: "all 0.15s"
+                  }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+                  </svg> Test Toast on Screen
+                </button>
+              </div>
+
+              {/* Toast card preview */}
+              <div style={{
+                position: "relative",
+                width: "100%",
+                background: "var(--card, #1A1A2E)",
+                border: "1px solid color-mix(in srgb, var(--violet, #8B5CF6) 40%, transparent)",
+                borderRadius: 16,
+                padding: "14px 16px",
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 14,
+                boxShadow: "0 4px 20px rgba(0, 0, 0, 0.25)"
+              }}>
+                <div style={{
+                  flexShrink: 0,
+                  width: 36,
+                  height: 36,
+                  borderRadius: 10,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginTop: 2,
+                  background: socialFlashIcon === "alert" ? "rgba(245, 158, 11, 0.2)" : socialFlashIcon === "announcement" ? "rgba(59, 130, 246, 0.2)" : socialFlashIcon === "sparkles" ? "rgba(236, 72, 153, 0.2)" : "rgba(139, 92, 246, 0.2)",
+                  border: `1px solid ${socialFlashIcon === "alert" ? "#F59E0B44" : socialFlashIcon === "announcement" ? "#3B82F644" : socialFlashIcon === "sparkles" ? "#EC489944" : "#8B5CF644"}`
+                }}>
+                  {socialFlashIcon === "alert" && (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                  )}
+                  {socialFlashIcon === "announcement" && (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                  )}
+                  {socialFlashIcon === "sparkles" && (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#EC4899" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+                  )}
+                  {socialFlashIcon === "social" && (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                  )}
+                </div>
+
+                <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
+                  <div style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--ink, #fff)", paddingRight: 18 }}>
+                    {socialFlashTitle.trim() || "⚡ New Social Update"}
+                  </div>
+                  <div style={{ fontSize: "12.5px", color: "var(--muted, rgba(255,255,255,0.7))", lineHeight: 1.4 }}>
+                    {socialFlashMsg.trim() || "Someone added a new status on TermFlow!"}
+                  </div>
+                  {socialFlashUrl.trim() && (
+                    <div style={{ marginTop: 4, fontSize: 12, fontWeight: 700, color: "#8B5CF6", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      View <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ position: "absolute", top: 10, right: 10, color: "var(--muted, rgba(255,255,255,0.5))" }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </div>
+              </div>
+            </div>
+
+            {/* Broadcast action button */}
+            <div style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 12 }}>
+              <button
+                type="button"
+                className="admin-btn primary"
+                disabled={socialFlashSending}
+                onClick={triggerSocialFlashBroadcast}
+                style={{
+                  background: "var(--violet, #8B5CF6)",
+                  color: "#fff",
+                  padding: "10px 18px",
+                  borderRadius: 10,
+                  fontWeight: 700,
+                  fontSize: 13.5,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13" />
+                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                </svg>
+                {socialFlashSending ? "Pushing Live..." : "Push Social Flash to All Users"}
+              </button>
+
+              {socialFlashStatus && (
+                <span style={{ fontSize: 13, fontWeight: 600, color: socialFlashStatus.startsWith("Failed") ? "var(--red, #ef4444)" : "var(--green, #10b981)" }}>
+                  {socialFlashStatus}
+                </span>
+              )}
+            </div>
           </section>
 
           {/* Push Delivery Analytics */}
@@ -2789,7 +3106,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                         </div>
                       )}
 
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                      <div className="admin-grid-2">
                         <div className="admin-field">
                           <label>Deadline <span className="admin-optional">(Nudges fire before this)</span></label>
                           <input type="datetime-local" className="admin-input" value={ff.deadline || ""} onChange={e => setFeedbackFlashes(feedbackFlashes.map(f => f.id === ff.id ? { ...f, deadline: e.target.value } : f))} />
@@ -2871,83 +3188,84 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               <label>Highlights (one per line)</label>
               <textarea className="admin-textarea" value={updatePromptHighlights} onChange={e => setUpdatePromptHighlights(e.target.value)} placeholder="Faster load times&#10;New features..." rows={3}></textarea>
             </div>
-          </section>
 
-          {/* Mess Menu Editor */}
-          <section className="admin-card admin-span-all admin-g-schedule" style={{ gridColumn: "1 / -1" }}>
-            <h2><UtensilsCrossed size={20} color="var(--amber)" /> Mess Menu Editor</h2>
-            <p className="admin-subtext">Edit the weekly mess menu shown on the Mess Card — one dish per line. Stage a day, then publish with "Deploy Config to Cloud".</p>
-
-            <div style={{ marginTop: 12, display: "flex", gap: 10, alignItems: "center" }}>
-              <label className="admin-btn outline" style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 16px" }}>
-                <FileText size={16} /> Upload Excel Menu
-                <input type="file" accept=".xlsx, .xls" onChange={handleExcelUpload} style={{ display: "none" }} />
-              </label>
-              <span style={{ fontSize: 12, color: "var(--muted)" }}>Automatically stages overrides for all 7 days</span>
-            </div>
-
-            {/* Day picker (Mon-first) */}
-            <div style={{ display: "flex", gap: 8, marginTop: 12, marginBottom: 16, flexWrap: "wrap" }}>
-              {MESS_DAY_ORDER.map(d => {
-                const isOverridden = !!flags.messMenuOverrides?.[d];
-                const on = d === messEditDay;
-                return (
-                  <button
-                    key={d}
-                    className={`admin-btn ${on ? "primary" : "outline"}`}
-                    onClick={() => {
-                      if (d === messEditDay) return;
-                      if (Object.keys(messDrafts).length > 0 && !window.confirm("Discard unstaged edits on this day?")) return;
-                      setMessDrafts({});
-                      setMessEditDay(d);
-                    }}
-                    style={{ padding: "7px 14px", fontSize: 13, position: "relative" }}
-                  >
-                    {MESS_DAY_NAMES[d].slice(0, 3)}
-                    {isOverridden && <span title="Menu overridden for this day" style={{ position: "absolute", top: -4, right: -4, width: 10, height: 10, borderRadius: "50%", background: "var(--amber)", border: "2px solid var(--card)" }} />}
-                  </button>
-                );
-              })}
-            </div>
-
-            {flags.messMenuOverrides?.[messEditDay] && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, fontSize: 13, color: "var(--amber-text, var(--amber))", background: "var(--amber-transparent, rgba(240,180,41,0.1))", border: "1px solid var(--amber)", borderRadius: 8, padding: "8px 12px" }}>
-                <AlertTriangle size={14} /> {MESS_DAY_NAMES[messEditDay]} is overridden — meals below show the overridden menu, not the bundled default.
-              </div>
-            )}
-
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
-              {MESS_MEALS.map(({ key, label, hint }) => (
-                <div key={key} className="admin-field" style={{ marginBottom: 0 }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    {label}
-                    {flags.messMenuOverrides?.[messEditDay]?.[key] && <span style={{ background: "var(--amber)", color: "#000", padding: "1px 6px", borderRadius: 4, fontSize: 9.5, fontWeight: 800, letterSpacing: ".03em" }}>OVERRIDDEN</span>}
-                  </label>
-                  <textarea
-                    className="admin-textarea"
-                    rows={6}
-                    value={messMealText(key)}
-                    onChange={e => setMessDrafts({ ...messDrafts, [key]: e.target.value })}
-                    placeholder="One dish per line"
-                    style={{ fontSize: 13, lineHeight: 1.5 }}
-                  />
-                  {hint && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>{hint}</div>}
-                </div>
-              ))}
-            </div>
-
-            <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap", alignItems: "center" }}>
-              <button className="admin-btn primary" onClick={stageMessMenuEdits} style={{ padding: "9px 16px" }}>
-                <Check size={15} /> Stage {MESS_DAY_NAMES[messEditDay]}&apos;s Menu
-              </button>
-              {(flags.messMenuOverrides?.[messEditDay] || Object.keys(messDrafts).length > 0) && (
-                <button className="admin-btn outline" onClick={resetMessMenuDay} style={{ padding: "9px 16px", borderColor: "var(--danger)", color: "var(--danger)" }}>
-                  <RefreshCw size={15} /> Reset Day to Default
+            {/* Live Toast Preview */}
+            <div style={{ marginTop: 20 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <label style={{ fontSize: 11.5, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Live Toast Preview</label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent("sw-update-available", {
+                      detail: { updateSW: () => alert("Test refresh triggered! (In production this reloads the app with the new version)") }
+                    }));
+                  }}
+                  style={{
+                    background: "color-mix(in srgb, var(--violet, #6D5BD0) 12%, transparent)",
+                    border: "1px solid color-mix(in srgb, var(--violet, #6D5BD0) 30%, transparent)",
+                    color: "var(--violet, #6D5BD0)",
+                    padding: "5px 12px",
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    transition: "all 0.15s"
+                  }}
+                >
+                  <Sparkles size={13} /> Test Toast on Screen
                 </button>
-              )}
-              {Object.keys(messDrafts).length > 0 && (
-                <span style={{ fontSize: 12, color: "var(--amber-text, var(--amber))", fontWeight: 600 }}>Unstaged edits — stage them, then deploy config.</span>
-              )}
+              </div>
+
+              <div className="sw-update-preview-box" style={{
+                position: "relative",
+                width: "100%",
+                background: "linear-gradient(160deg, rgba(26, 26, 46, 0.96) 0%, rgba(22, 33, 62, 0.96) 100%)",
+                border: "1px solid rgba(109, 91, 208, 0.35)",
+                borderRadius: 16,
+                padding: "12px 14px",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                boxShadow: "0 4px 20px rgba(0, 0, 0, 0.25)"
+              }}>
+                <div className="sw-update-toast-icon" style={{ flexShrink: 0 }}>
+                  <RefreshCw size={16} color="#fff" strokeWidth={2.5} className="sw-update-spin-icon" />
+                </div>
+                <div className="sw-update-toast-text" style={{ flex: 1, minWidth: 0 }}>
+                  <span className="sw-update-toast-title" style={{ color: "#fff", fontWeight: 700, fontSize: "13.5px", display: "block" }}>
+                    {updatePromptTitle.trim() || "TermFlow just got better"}
+                  </span>
+                  <span className="sw-update-toast-desc" style={{ color: "rgba(255, 255, 255, 0.65)", fontSize: "12px", display: "block" }}>
+                    {updatePromptDesc.trim() || "A new version is available."}
+                  </span>
+                  {updatePromptHighlights.trim() && (
+                    <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 4 }}>
+                      {updatePromptHighlights.split("\n").filter(l => l.trim()).map((h, i) => (
+                        <span key={i} style={{
+                          background: "rgba(109, 91, 208, 0.3)",
+                          border: "1px solid rgba(109, 91, 208, 0.5)",
+                          color: "rgba(255, 255, 255, 0.9)",
+                          fontSize: "10.5px",
+                          fontWeight: 600,
+                          padding: "1px 7px",
+                          borderRadius: 6
+                        }}>
+                          ✨ {h.trim()}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <button type="button" className="sw-update-toast-refresh" style={{ pointerEvents: "none" }}>
+                  Refresh
+                </button>
+                <div style={{ color: "rgba(255, 255, 255, 0.4)", display: "flex", alignItems: "center" }}>
+                  <X size={15} strokeWidth={2.5} />
+                </div>
+              </div>
             </div>
           </section>
 
@@ -2985,6 +3303,31 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               );
             })()}
           </section>
+
+             {/* Enrollment Distribution */}
+             <section className="admin-card admin-g-users">
+               <h2><Database size={20} color="var(--violet)" /> Enrollment Stats</h2>
+               <p className="admin-subtext">Top 5 most popular courses by enrollment.</p>
+               <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
+                  {popularCourses.length === 0 ? <div className="admin-empty">No data.</div> : 
+                     popularCourses.slice(0, 5).map(([code, count]) => {
+                        const max = popularCourses[0][1];
+                        const pct = Math.round((count / max) * 100);
+                        return (
+                           <div key={code}>
+                              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                                 <span style={{ fontWeight: 600 }}>{code}</span>
+                                 <span style={{ color: "var(--muted)" }}>{count} enrolled</span>
+                              </div>
+                              <div style={{ height: 6, background: "var(--bg)", borderRadius: 4, overflow: "hidden", border: "1px solid var(--border)" }}>
+                                 <div style={{ height: "100%", width: `${pct}%`, background: "var(--violet)" }}></div>
+                              </div>
+                           </div>
+                        )
+                     })
+                  }
+               </div>
+             </section>
 
         <section className="admin-card admin-directory-card admin-span-all admin-g-users">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -3076,7 +3419,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                       <div className="admin-user-name" style={{ color: flags.bannedUsers?.includes(u.user_id) ? "var(--danger)" : "inherit" }}>
                          {u.name || "Student"} {flags.bannedUsers?.includes(u.user_id) && "(Banned)"}
                       </div>
-                      <div className="admin-user-id">{u.user_id}</div>
+                      <div className="admin-user-id">{u.email || u.user_id}</div>
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>
@@ -3157,31 +3500,6 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                </div>
              </section>
              
-             {/* Enrollment Distribution */}
-             <section className="admin-card admin-g-users">
-               <h2><Database size={20} color="var(--violet)" /> Enrollment Stats</h2>
-               <p className="admin-subtext">Top 5 most popular courses by enrollment.</p>
-               <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
-                  {popularCourses.length === 0 ? <div className="admin-empty">No data.</div> : 
-                     popularCourses.slice(0, 5).map(([code, count]) => {
-                        const max = popularCourses[0][1];
-                        const pct = Math.round((count / max) * 100);
-                        return (
-                           <div key={code}>
-                              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
-                                 <span style={{ fontWeight: 600 }}>{code}</span>
-                                 <span style={{ color: "var(--muted)" }}>{count} enrolled</span>
-                              </div>
-                              <div style={{ height: 6, background: "var(--bg)", borderRadius: 4, overflow: "hidden", border: "1px solid var(--border)" }}>
-                                 <div style={{ height: "100%", width: `${pct}%`, background: "var(--violet)" }}></div>
-                              </div>
-                           </div>
-                        )
-                     })
-                  }
-               </div>
-             </section>
-
           {/* Analytics Dashboard — real data from Supabase */}
           <section className="admin-card admin-span-all admin-g-insights" style={{ gridColumn: "1 / -1" }}>
              <h2><BarChart2 size={20} color="var(--violet)" /> Analytics & Usage</h2>
@@ -3922,7 +4240,6 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 10 }}>
               {[
                 { label: "Class overrides", n: configDrift.overrideClasses, sub: `${configDrift.overrideDays} day(s)` },
-                { label: "Mess overrides", n: configDrift.messDays, sub: "day(s)" },
                 { label: "Announcements", n: configDrift.announcements, sub: "scheduled" },
                 { label: "Quick links", n: configDrift.quickLinks, sub: "active" },
               ].map(s => (
@@ -4016,6 +4333,55 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               )}
             </section>
 
+            <section className="admin-card admin-g-system">
+              <h2><Terminal size={20} color="var(--violet)" /> Feature Toggles</h2>
+              <p className="admin-subtext">Remote kill switches. If a toggle is on, the feature is active for all users.</p>
+              
+              <div className="admin-danger-row" style={{ border: "none", padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
+                <div>
+                  <strong style={{ display: "block", marginBottom: 4 }}>Social Feed & TermFlow</strong>
+                  <span className="admin-subtext" style={{ margin: 0 }}>Enable or disable user statuses and feeds.</span>
+                </div>
+                <label className="admin-toggle">
+                  <input type="checkbox" checked={flags.features?.social !== false} onChange={e => setFlags({ ...flags, features: { ...(flags.features || {}), social: e.target.checked } })} />
+                  <span className="slider"></span>
+                </label>
+              </div>
+
+              <div className="admin-danger-row" style={{ border: "none", padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
+                <div>
+                  <strong style={{ display: "block", marginBottom: 4 }}>Group Chats</strong>
+                  <span className="admin-subtext" style={{ margin: 0 }}>Enable or disable group messaging.</span>
+                </div>
+                <label className="admin-toggle">
+                  <input type="checkbox" checked={flags.features?.chat !== false} onChange={e => setFlags({ ...flags, features: { ...(flags.features || {}), chat: e.target.checked } })} />
+                  <span className="slider"></span>
+                </label>
+              </div>
+
+              <div className="admin-danger-row" style={{ border: "none", padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
+                <div>
+                  <strong style={{ display: "block", marginBottom: 4 }}>Expense Splitting</strong>
+                  <span className="admin-subtext" style={{ margin: 0 }}>Enable or disable the group expense splitter.</span>
+                </div>
+                <label className="admin-toggle">
+                  <input type="checkbox" checked={flags.features?.splits !== false} onChange={e => setFlags({ ...flags, features: { ...(flags.features || {}), splits: e.target.checked } })} />
+                  <span className="slider"></span>
+                </label>
+              </div>
+
+              <div className="admin-danger-row" style={{ border: "none", padding: "10px 0" }}>
+                <div>
+                  <strong style={{ display: "block", marginBottom: 4 }}>Group Polls</strong>
+                  <span className="admin-subtext" style={{ margin: 0 }}>Enable or disable poll creation in groups.</span>
+                </div>
+                <label className="admin-toggle">
+                  <input type="checkbox" checked={flags.features?.polls !== false} onChange={e => setFlags({ ...flags, features: { ...(flags.features || {}), polls: e.target.checked } })} />
+                  <span className="slider"></span>
+                </label>
+              </div>
+            </section>
+
             <section className="admin-card danger-zone">
               <h2><AlertTriangle size={20} color="var(--danger, #e74c3c)" /> Danger Zone</h2>
 
@@ -4055,6 +4421,134 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             </section>
 
           </div>
+
+          <section className="admin-card admin-span-all admin-g-moderation" style={{ gridColumn: "1 / -1" }}>
+            <h2><Shield size={20} color="var(--violet)" /> UGC Moderation (TermFlow)</h2>
+            <p className="admin-subtext">View and manage live user statuses. Active statuses are visible on user cards.</p>
+            <div className="admin-user-list" style={{ maxHeight: 400, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 12 }}>
+              {allUsers.filter(u => {
+                 if (!u.courses?._status?.until) return false;
+                 return new Date(u.courses._status.until).getTime() > Date.now();
+              }).length === 0 ? (
+                 <div className="admin-empty">No active user statuses found.</div>
+              ) : (
+                 allUsers.filter(u => u.courses?._status?.until && new Date(u.courses._status.until).getTime() > Date.now()).map(u => (
+                   <div key={u.user_id} className="admin-user-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderBottom: "1px solid var(--border)" }}>
+                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                       <Avatar name={u.name} email={u.user_id} />
+                       <div>
+                         <div style={{ fontSize: 14, fontWeight: 600 }}>{u.name}</div>
+                         <div style={{ fontSize: 13, color: "var(--text)" }}>
+                           <span style={{ marginRight: 6 }}>{u.courses._status.emoji}</span>
+                           {u.courses._status.text}
+                         </div>
+                         <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
+                           Expires: {new Date(u.courses._status.until).toLocaleString()}
+                         </div>
+                       </div>
+                     </div>
+                     <button onClick={async () => {
+                        if (confirm(`Clear status for ${u.name}?`)) {
+                           const updated = { ...u.courses };
+                           delete updated._status;
+                           await supabase.from("profiles").update({ courses: updated }).eq("user_id", u.user_id);
+                           await logAdminAction(admin_id, "clear_user_status", { target_user: u.user_id });
+                           setAllUsers(allUsers.map(usr => usr.user_id === u.user_id ? { ...usr, courses: updated } : usr));
+                        }
+                     }} className="admin-btn outline" style={{ color: "var(--danger)", borderColor: "var(--danger)", fontSize: 12, padding: "6px 12px" }}>
+                       Clear Status
+                     </button>
+                   </div>
+                 ))
+              )}
+            </div>
+          </section>
+
+          <section className="admin-card admin-span-all admin-g-moderation" style={{ gridColumn: "1 / -1" }}>
+            <h2><Terminal size={20} color="var(--live)" /> Admin Audit Logs</h2>
+            <p className="admin-subtext">Recent actions performed by administrators across the dashboard.</p>
+            <div className="admin-table-wrapper" style={{ maxHeight: 400 }}>
+              {auditLogs.length === 0 ? (
+                 <div className="admin-empty">No audit logs found.</div>
+              ) : (
+                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                   <thead style={{ background: "var(--card)", position: "sticky", top: 0, borderBottom: "1px solid var(--border)" }}>
+                     <tr>
+                       <th style={{ textAlign: "left", padding: "10px 16px", color: "var(--muted)", fontWeight: 600 }}>Timestamp</th>
+                       <th style={{ textAlign: "left", padding: "10px 16px", color: "var(--muted)", fontWeight: 600 }}>Admin ID</th>
+                       <th style={{ textAlign: "left", padding: "10px 16px", color: "var(--muted)", fontWeight: 600 }}>Action</th>
+                       <th style={{ textAlign: "left", padding: "10px 16px", color: "var(--muted)", fontWeight: 600 }}>Details</th>
+                     </tr>
+                   </thead>
+                   <tbody>
+                     {auditLogs.map((log, i) => (
+                       <tr key={log.id || i} style={{ borderBottom: "1px solid var(--border)", background: i % 2 === 0 ? "transparent" : "var(--card)" }}>
+                         <td style={{ padding: "10px 16px", whiteSpace: "nowrap", color: "var(--muted)", fontSize: 12 }}>{new Date(log.created_at).toLocaleString()}</td>
+                         <td style={{ padding: "10px 16px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 120 }}>{log.admin_id}</td>
+                         <td style={{ padding: "10px 16px", fontWeight: 600 }}>{log.action}</td>
+                         <td style={{ padding: "10px 16px" }}>
+                           <pre style={{ margin: 0, fontSize: 11, background: "var(--bg)", padding: 6, borderRadius: 6, overflowX: "auto", color: "var(--text)" }}>
+                             {JSON.stringify(log.details, null, 2)}
+                           </pre>
+                         </td>
+                       </tr>
+                     ))}
+                   </tbody>
+                 </table>
+              )}
+            </div>
+          </section>
+
+          <section className="admin-card admin-span-all admin-g-database" style={{ gridColumn: "1 / -1" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
+              <div>
+                <h2><Database size={20} color="var(--blue)" /> Database Explorer</h2>
+                <p className="admin-subtext" style={{ margin: 0 }}>Raw read-only view of database tables (showing top 50 most recent rows).</p>
+              </div>
+              <select className="admin-input" value={dbTable} onChange={e => setDbTable(e.target.value)} style={{ padding: "6px 12px", width: 200 }}>
+                <option value="profiles">profiles</option>
+                <option value="groups">groups</option>
+                <option value="group_members">group_members</option>
+                <option value="meetups">meetups</option>
+                <option value="polls">polls</option>
+                <option value="split_groups">split_groups</option>
+                <option value="feedback">feedback</option>
+                <option value="share_codes">share_codes</option>
+              </select>
+            </div>
+            
+            <div className="admin-table-wrapper" style={{ minHeight: 200 }}>
+              {dbLoading ? (
+                <div className="admin-empty">Loading {dbTable} data...</div>
+              ) : dbError ? (
+                <div className="admin-empty" style={{ color: "var(--danger)" }}>{dbError}</div>
+              ) : dbRows.length === 0 ? (
+                <div className="admin-empty">No rows found in {dbTable}.</div>
+              ) : (
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, textAlign: "left" }}>
+                  <thead style={{ background: "var(--card)" }}>
+                    <tr>
+                      {Object.keys(dbRows[0]).map(k => (
+                        <th key={k} style={{ padding: "10px 16px", color: "var(--muted)", fontWeight: 600, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" }}>{k}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dbRows.map((row, i) => (
+                      <tr key={i} style={{ borderBottom: "1px solid var(--border)", background: i % 2 === 0 ? "transparent" : "var(--card)" }}>
+                        {Object.values(row).map((v, j) => (
+                          <td key={j} style={{ padding: "10px 16px", whiteSpace: "nowrap", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis" }} title={typeof v === "object" ? JSON.stringify(v) : String(v)}>
+                            {typeof v === "object" ? JSON.stringify(v) : String(v)}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </section>
+
       </div>
 
       <div className="admin-save-footer" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
@@ -4218,22 +4712,53 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       {/* User X-Ray Modal */}
       {selectedUser && (
         <>
-          <div className="notif-backdrop" onClick={() => setSelectedUser(null)} style={{ zIndex: 10000 }} />
-          <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "var(--card)", padding: 24, borderRadius: 16, width: "90%", maxWidth: 400, maxHeight: "85vh", overflowY: "auto", zIndex: 10001, border: "1px solid var(--border)", boxShadow: "0 10px 40px rgba(0,0,0,0.2)" }}>
+          <div className="notif-backdrop" onClick={() => setSelectedUser(null)} style={{ zIndex: 10000, backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)", background: "rgba(0,0,0,0.2)" }} />
+          <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "var(--card)", padding: 24, borderRadius: 16, width: "90%", maxWidth: 500, maxHeight: "85vh", overflowY: "auto", zIndex: 10001, border: "1px solid var(--border)", boxShadow: "0 10px 40px rgba(0,0,0,0.2)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <h2 style={{ margin: 0, fontSize: 18, display: "flex", gap: 8, alignItems: "center" }}><Users size={18} color="var(--violet)" /> User Information</h2>
               <button onClick={() => setSelectedUser(null)} style={{ background: "transparent", border: "none", color: "var(--muted)", cursor: "pointer" }}><XCircle size={18} /></button>
             </div>
             
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <div><strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase" }}>Name</strong>{selectedUser.name}</div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                 <div><strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase" }}>User ID</strong>{selectedUser.user_id}</div>
-                 <div style={{ textAlign: "right" }}><strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase" }}>Last Active</strong>{selectedUser.last_seen_at ? new Date(selectedUser.last_seen_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "Never"}</div>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+                 <div style={{ flex: 1, minWidth: 0 }}>
+                    <strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase" }}>Name</strong>
+                    <div style={{ fontSize: 14, fontWeight: 600 }}>{selectedUser.name}</div>
+                 </div>
+                 {selectedUser.email && (
+                 <div style={{ textAlign: "right", flexShrink: 0 }}>
+                    <strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase" }}>Email</strong>
+                    <div style={{ fontSize: 13 }}>{selectedUser.email}</div>
+                 </div>
+                 )}
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                 <div><strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase" }}>Section</strong>{(() => { const keys = Object.keys(selectedUser.courses || {}); if (keys.some(c => c.endsWith("_A"))) return "A"; if (keys.some(c => c.endsWith("_B"))) return "B"; return "—"; })()}</div>
-                 <div style={{ textAlign: "right" }}><strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase" }}>Push</strong>{(pushSubscribersList || []).includes(selectedUser.user_id) ? <span style={{ color: "var(--live)" }}>Subscribed</span> : <span style={{ color: "var(--muted)" }}>Not subscribed</span>}</div>
+              
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+                 <div style={{ flex: 1, minWidth: 0 }}>
+                    <strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase" }}>User ID</strong>
+                    <div style={{ fontSize: 13, wordBreak: "break-all", color: "var(--text)" }}>{selectedUser.user_id}</div>
+                 </div>
+                 <div style={{ textAlign: "right", flexShrink: 0 }}>
+                    <strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase" }}>Last Active</strong>
+                    <div style={{ fontSize: 13, whiteSpace: "nowrap" }}>
+                      {selectedUser.last_seen_at ? new Date(selectedUser.last_seen_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "Never"}
+                    </div>
+                 </div>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+                 <div style={{ flex: 1, minWidth: 0 }}>
+                    <strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase" }}>Section</strong>
+                    <div style={{ fontSize: 13 }}>
+                      {(() => { const keys = Object.keys(selectedUser.courses || {}); if (keys.some(c => c.endsWith("_A"))) return "A"; if (keys.some(c => c.endsWith("_B"))) return "B"; return "—"; })()}
+                    </div>
+                 </div>
+                 <div style={{ textAlign: "right", flexShrink: 0 }}>
+                    <strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase" }}>Push</strong>
+                    <div style={{ fontSize: 13 }}>
+                      {(pushSubscribersList || []).includes(selectedUser.user_id) ? <span style={{ color: "var(--live)" }}>Subscribed</span> : <span style={{ color: "var(--muted)" }}>Not subscribed</span>}
+                    </div>
+                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 4 }}>
                  <strong style={{ color: "var(--muted)", fontSize: 12, textTransform: "uppercase" }}>Role:</strong>
@@ -4290,10 +4815,33 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                  </div>
               </div>
 
-              <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border)", display: "flex", gap: 8 }}>
-                <button onClick={() => { setViewAsUser(selectedUser); setSelectedUser(null); }} className="admin-btn outline" style={{ flex: 1, justifyContent: "center", display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border)", display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button onClick={() => { setViewAsUser(selectedUser); setSelectedUser(null); }} className="admin-btn outline" style={{ flex: "1 1 140px", justifyContent: "center", display: "flex", alignItems: "center", gap: 8 }}>
                   <VenetianMask size={16} /> View as
                 </button>
+                <button onClick={async () => {
+                   const msg = prompt(`Send a direct push notification to ${selectedUser.name}:`);
+                   if (!msg) return;
+                   const res = await pushToUserIds([selectedUser.user_id], { title: "Message from Admin", body: msg.trim() });
+                   if (res?.ok) { await logAdminAction(admin_id, "direct_push", { target_user: selectedUser.user_id }); alert("Push delivered."); }
+                   else alert("Failed to send push.");
+                }} className="admin-btn outline" style={{ flex: "1 1 140px", justifyContent: "center", display: "flex", alignItems: "center", gap: 8 }}>
+                  <BellRing size={16} /> Direct Push
+                </button>
+                {selectedUser.courses?._status && new Date(selectedUser.courses._status.until).getTime() > Date.now() && (
+                  <button onClick={async () => {
+                     if (confirm(`Clear active status for ${selectedUser.name}?`)) {
+                        const updated = { ...selectedUser.courses };
+                        delete updated._status;
+                        await supabase.from("profiles").update({ courses: updated }).eq("user_id", selectedUser.user_id);
+                        await logAdminAction(admin_id, "clear_user_status", { target_user: selectedUser.user_id });
+                        setAllUsers(allUsers.map(u => u.user_id === selectedUser.user_id ? { ...u, courses: updated } : u));
+                        setSelectedUser({ ...selectedUser, courses: updated });
+                     }
+                  }} className="admin-btn outline" style={{ flex: "1 1 140px", justifyContent: "center", display: "flex", alignItems: "center", gap: 8, color: "var(--amber)", borderColor: "var(--amber)" }}>
+                    <Shield size={16} /> Clear Status
+                  </button>
+                )}
                 <button onClick={async () => {
                   if (flags.adminRoles && flags.adminRoles[admin_id] === "monitor") return alert("You don't have permission to reset user setups.");
                   if (typedConfirm("RESET", `Reset ${selectedUser.name || "this user"}'s setup? They will have to onboard again.`)) {

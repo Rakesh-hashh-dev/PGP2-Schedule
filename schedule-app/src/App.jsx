@@ -17,6 +17,7 @@ import GlanceView from "./components/GlanceView.jsx";
 import "./styles/wrapped.css"; // Wrapped entry-banner styles must exist on Today before the lazy view loads
 import { MessMenuStandalone } from "./components/MessMenuModal.jsx";
 import { setMessMenuOverrides } from "./data/messMenu.js";
+import { fetchMessMenu } from "./lib/messFeed.js";
 import { getSnapshot, fetchSchedule, sha256hex } from "./lib/sheet.js";
 import TermFlowLoader from "./components/TermFlowLoader.jsx";
 
@@ -28,6 +29,7 @@ const RecentChanges = lazy(() => import("./components/RecentChanges.jsx"));
 const ExamsPanel = lazy(() => import("./components/ExamsPanel.jsx"));
 const FeedbackWidget = lazy(() => import("./components/FeedbackWidget.jsx"));
 const FeedbackFlashToast = lazy(() => import("./components/FeedbackFlashToast.jsx"));
+const SocialFlashToast = lazy(() => import("./components/SocialFlashToast.jsx"));
 const NotificationsPage = lazy(() => import("./components/NotificationsPage.jsx"));
 const FullSchedulePage = lazy(() => import("./components/FullSchedulePage.jsx"));
 const AdminDashboard = lazy(() => import("./components/AdminDashboard.jsx"));
@@ -67,6 +69,34 @@ function fmtWait(ms) {
 function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
 function clsDate(c, which) { const [Y, Mo, D] = c.date.split("-").map(Number); const [h, m] = c[which].split(":").map(Number); return new Date(Y, Mo - 1, D, h, m); }
 function prettyDate(iso) { const [Y, M, D] = iso.split("-").map(Number); return new Date(Y, M - 1, D).toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" }); }
+// Silent auto-update clock: once a new version has been *available* for 2–3
+// days we stop prompting and just apply it. A per-client random spread (2 days
+// + up to 1 day) avoids every browser reloading at the same instant; the
+// "first seen" timestamp is persisted so the clock survives reloads and
+// "Maybe Later" dismissals across sessions. Returns { firstSeen, thresholdMs }.
+const SW_SEEN_KEY = "pgp2.sw-update-seen";
+function swSeenRecord() {
+  const DAY = 86_400_000;
+  try {
+    const raw = localStorage.getItem(SW_SEEN_KEY);
+    if (raw) {
+      const p = JSON.parse(raw);
+      if (p && p.firstSeen && p.thresholdMs) return p;
+    }
+  } catch { /* corrupt/blocked storage — fall through to a fresh record */ }
+  const rec = { firstSeen: Date.now(), thresholdMs: DAY * 2 + Math.random() * DAY };
+  try { localStorage.setItem(SW_SEEN_KEY, JSON.stringify(rec)); } catch { /* ignore */ }
+  return rec;
+}
+// True once the pending update has been available past its per-client threshold.
+function swUpdateIsStale() {
+  const rec = swSeenRecord();
+  return Date.now() - rec.firstSeen >= rec.thresholdMs;
+}
+function clearSwSeen() {
+  try { localStorage.removeItem(SW_SEEN_KEY); } catch { /* ignore */ }
+}
+
 // Alert type → rc-dot colour, mirroring the Recent-changes kind palette
 const ALERT_DOT = {
   class_cancelled: "rc-removed",
@@ -284,6 +314,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // -------------------------------
 
   const [scheduleData, setScheduleData] = useState(() => isSignedIn ? getSnapshot() : null);
+  // Bumped when the live mess-menu feed applies, to re-render menu consumers.
+  const [, setMessMenuRev] = useState(0);
   const [syncLogs, setSyncLogs] = useState([]);
   const [realNow, setRealNow] = useState(new Date());
   const [timeOverride, setTimeOverride] = useState(null);
@@ -326,6 +358,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [readPingIds, setReadPingIds] = useState(() => loadReadPingIds());
   const [readChangeKeys, setReadChangeKeys] = useState(() => loadReadChangeKeys());
   const [swUpdateFn, setSwUpdateFn] = useState(null);
+  const [socialFlashToast, setSocialFlashToast] = useState(null);
   const [installPromptEvent, setInstallPromptEvent] = useState(null);
   const [showIOSInstallHint, setShowIOSInstallHint] = useState(false);
   const [installBannerClosing, setInstallBannerClosing] = useState(false);
@@ -743,9 +776,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       ]);
       if (alive) {
         if (sysConfigRes?.data) {
-          // Apply mess menu overrides before the state update so the re-render
-          // it triggers already sees the merged menu (module-level, see messMenu.js)
-          setMessMenuOverrides(sysConfigRes.data.flags?.messMenuOverrides);
+          // Mess menu now comes from its own live sheet feed (see lib/messFeed.js),
+          // not system_config — so we no longer apply messMenuOverrides here.
           setSysConfig(sysConfigRes.data);
         }
         if (p?.courses) {
@@ -890,8 +922,15 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     setScheduleData(getSnapshot());
 
     // Background-fetch live data
-    const load = () =>
-      fetchSchedule().then((data) => {
+    const load = () => {
+      // Mess menu reads the admin's live sheet directly (lib/messFeed.js);
+      // on success it merges over the bundled BASE_MENU, else BASE_MENU stays.
+      fetchMessMenu().then((menu) => {
+        if (!alive || !menu) return;
+        setMessMenuOverrides(menu);
+        setMessMenuRev(r => r + 1);
+      });
+      return fetchSchedule().then((data) => {
         if (!alive) return;
         setScheduleData(data);
         setSyncedAt(new Date());
@@ -900,6 +939,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         if (!alive) return;
         setSyncLogs(prev => [{ ts: Date.now(), status: "error", message: `Background sync failed: ${e.message || "Network Error"}` }, ...prev].slice(0, 1000));
       });
+    };
     load();
     const id = setInterval(load, 10 * 60 * 1000);
     return () => { alive = false; clearInterval(id); };
@@ -1011,6 +1051,32 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           handleSocialRow(row);
           if (row.type !== "friend_removed") {
             setPings(prev => prev.some(p => p.id === row.id) ? prev : [socialRowToPing(row), ...prev]);
+
+            // Pop up top-right 5-7s flash toast for social events
+            const d = row.data || {};
+            const fromName = d.from_name || "Someone";
+            if (row.type === "friend_request") {
+              setSocialFlashToast({
+                title: "👥 Friend Request",
+                message: `${fromName} sent you a friend request!`,
+                iconType: "social",
+                duration: 6000
+              });
+            } else if (row.type === "friend_accepted") {
+              setSocialFlashToast({
+                title: "👥 Friend Request Accepted",
+                message: `${fromName} accepted your friend request!`,
+                iconType: "social",
+                duration: 6000
+              });
+            } else if (row.type === "group_invite") {
+              setSocialFlashToast({
+                title: "👥 Group Invitation",
+                message: `${fromName} invited you to ${d.group || "a group"}!`,
+                iconType: "social",
+                duration: 6000
+              });
+            }
           }
         } else {
           setAlerts(prev => prev.some(a => a.id === row.id) ? prev : [row, ...prev]);
@@ -1028,12 +1094,46 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   }, [userId, loadNotifications, handleSocialRow]);
 
   useEffect(() => {
+    // Listen for admin broadcast social flash notifications
+    const channel = supabase.channel("social-flash-channel");
+    channel
+      .on("broadcast", { event: "social-flash" }, (payload) => {
+        if (payload?.payload) {
+          setSocialFlashToast(payload.payload);
+        }
+      })
+      .subscribe();
+
+    const handleLocalTrigger = (e) => {
+      if (e.detail) setSocialFlashToast(e.detail);
+    };
+    window.addEventListener("social-flash-trigger", handleLocalTrigger);
+
+    return () => {
+      supabase.removeChannel(channel);
+      window.removeEventListener("social-flash-trigger", handleLocalTrigger);
+    };
+  }, []);
+
+  useEffect(() => {
+    // Decide between reloading silently (stale enough) or surfacing the toast.
+    const handleUpdate = (fn) => {
+      // swSeenRecord() lazily starts the clock the first time an update is seen.
+      if (swUpdateIsStale()) {
+        clearSwSeen(); // next update cycle starts a fresh clock after reload
+        fn(true);
+        return;
+      }
+      // Wrap so the toast's "Refresh" also clears the clock before reloading.
+      setSwUpdateFn(() => (reload) => { clearSwSeen(); fn(reload); });
+    };
+
     // Catch updates that fired before React mounted
     if (window.__swPendingUpdate) {
-      setSwUpdateFn(() => window.__swPendingUpdate);
+      handleUpdate(window.__swPendingUpdate);
       window.__swPendingUpdate = null;
     }
-    const handler = (e) => setSwUpdateFn(() => e.detail.updateSW);
+    const handler = (e) => handleUpdate(e.detail.updateSW);
     window.addEventListener("sw-update-available", handler);
     return () => window.removeEventListener("sw-update-available", handler);
   }, []);
@@ -1120,16 +1220,25 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // detected even when the SW lifecycle doesn't trigger onNeedRefresh reliably.
   // Use functional updater: if a banner is already showing (prev !== null), do nothing.
   // This means N deploys while the user is away still produce exactly one banner.
-  const triggerHardRefresh = () => setSwUpdateFn(prev => {
-    if (prev !== null) return prev;
-    return async () => {
+  const triggerHardRefresh = () => {
+    // Hard-reload: nuke caches then reload. Reused for both the silent
+    // auto-update and the manual toast path below.
+    const hardReload = async () => {
+      clearSwSeen();
       try {
         const names = await caches.keys();
         await Promise.all(names.map(n => caches.delete(n)));
       } catch { }
       window.location.reload();
     };
-  });
+    // Silent auto-update: if this version has been stale for 2–3 days, just
+    // reload — don't nag. swSeenRecord() (inside swUpdateIsStale) starts the
+    // clock on first sighting so the toast still shows before the deadline.
+    if (swUpdateIsStale()) { hardReload(); return; }
+    // Functional updater: if a toast is already showing (prev !== null) do
+    // nothing, so N deploys while the user is away still produce one toast.
+    setSwUpdateFn(prev => (prev !== null ? prev : hardReload));
+  };
 
   useEffect(() => {
     if (!isSignedIn) return;
@@ -1752,7 +1861,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     return { week, totalWeeks, daysLeft };
   }, [TERM?.start, TERM?.end, now]);
 
-  if (!isLoaded) return (
+  // If Clerk hasn't resolved and we aren't optimistically bypassing (no cache), show the splash
+  if (!isLoaded && !isSignedIn) return (
     <main className="loading-screen">
       <TermFlowLoader variant="splash" size={96} />
       <p className="loading-label">Starting up…</p>
@@ -1811,7 +1921,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const enableMeetups = !IS_LITE && sysConfig?.flags?.enableMeetups !== false;
   const enableFreeNudge = !IS_LITE && sysConfig?.flags?.enableFreeNudge !== false;
   const enableAwayShare = !IS_LITE && sysConfig?.flags?.enableAwayShare !== false;
-  const enableAds = sysConfig?.flags?.enableAds !== false;
 
   const announcementTargetMatches = (target) => {
     if (!target || target === "global") return true;
@@ -2047,48 +2156,39 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       {/* ── Dev→Prod Migration Banner (one-time, self-removing) ── */}
       {migrationState && <MigrationBanner state={migrationState} />}
 
-      {/* ── SW Update Modal ── */}
-      {swUpdateFn && (
-        <div className="sw-update-overlay" role="dialog" aria-modal="true" aria-labelledby="sw-update-title">
-          <div className="sw-update-modal">
-            <div className="sw-update-glow" />
-            <div className="sw-update-icon-wrap">
-              <div className="sw-update-ring" />
-              <RefreshCw size={22} color="#fff" strokeWidth={2.5} className="sw-update-spin-icon" />
+      {/* ── SW Update Toast (non-blocking) ── */}
+      {swUpdateFn && (() => {
+        const cfg = sysConfig?.flags?.updatePrompt || {};
+        const title = cfg.title || "Update ready";
+        const desc = cfg.desc || "A new version is available.";
+        return (
+          <div className="sw-update-toast" role="status" aria-live="polite">
+            <span className="sw-update-toast-sheen" aria-hidden="true" />
+            <div className="sw-update-toast-icon">
+              <span className="sw-update-toast-ring" aria-hidden="true" />
+              <RefreshCw size={16} color="#fff" strokeWidth={2.5} className="sw-update-spin-icon" />
             </div>
-            <div className="sw-update-badge">New Update</div>
-            {(() => {
-              const cfg = sysConfig?.flags?.updatePrompt || {};
-              const highlights = (cfg.highlights && cfg.highlights.length)
-                ? cfg.highlights
-                : ["Faster load times", "New features & improvements", "Bug fixes & stability"];
-              const prompt = {
-                title: cfg.title || "TermFlow just got better",
-                desc: cfg.desc || "A fresh version is cached and ready to go. Refresh now for the latest features and bug fixes.",
-                highlights,
-              };
-              return (
-                <>
-                  <h3 className="sw-update-title" id="sw-update-title">{prompt.title}</h3>
-                  <p className="sw-update-desc">{prompt.desc}</p>
-                  <ul className="sw-update-highlights">
-                    {prompt.highlights.map((h, i) => (
-                      <li key={i}><span className="sw-update-check">✦</span> {h}</li>
-                    ))}
-                  </ul>
-                </>
-              );
-            })()}
-            <div className="sw-update-actions">
-              <button className="sw-update-refresh" onClick={() => swUpdateFn(true)}>
-                <RefreshCw size={15} strokeWidth={2.5} />
-                Refresh Now
-              </button>
-              <button className="sw-update-later" onClick={() => setSwUpdateFn(null)}>Maybe Later</button>
+            <div className="sw-update-toast-text">
+              <span className="sw-update-toast-title">
+                {title}
+                <span className="sw-update-toast-tag">NEW</span>
+              </span>
+              <span className="sw-update-toast-desc">{desc}</span>
             </div>
+            <button className="sw-update-toast-refresh" onClick={() => swUpdateFn(true)}>
+              <RefreshCw size={13} strokeWidth={2.6} aria-hidden="true" />
+              <span>Refresh</span>
+            </button>
+            <button
+              className="sw-update-toast-dismiss"
+              onClick={() => setSwUpdateFn(null)}
+              aria-label="Dismiss update notification"
+            >
+              <X size={15} strokeWidth={2.5} />
+            </button>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ── What's New modal ── */}
       {whatsNewOpen && (
@@ -2976,7 +3076,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                     userId={userId}
                                     userName={user?.firstName || user?.username || "Student"}
                                     isAdmin={isAdmin}
-                                    enableAds={enableAds}
                                   />
                               : view === "split"
                                 ? <SplitPage
@@ -3185,6 +3284,15 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           </Suspense>
         )}
 
+        {socialFlashToast && (
+          <Suspense fallback={null}>
+            <SocialFlashToast
+              config={socialFlashToast}
+              onClose={() => setSocialFlashToast(null)}
+            />
+          </Suspense>
+        )}
+
 
         {/* ── Bottom nav (mobile) — floating glass dock, all views listed ── */}
         {showBottomNav && (
@@ -3261,6 +3369,13 @@ export default function App() {
   const { isSignedIn, isLoaded, user } = useUser();
   const { signOut } = useClerk();
 
+  // Offline-First LCP Optimization: If we have a cached schedule, optimistically
+  // assume the user is signed in to render the UI instantly. If Clerk finishes
+  // verifying and they are actually signed out, it will correctly flip to <Login />.
+  const hasCache = !!localStorage.getItem("pgp2-feed-cache");
+  const optimisticSignIn = !isLoaded && hasCache;
+  const effectiveIsSignedIn = isLoaded ? isSignedIn : optimisticSignIn;
+
   // Read flag set before the signOut redirect, then clear it immediately
   const [domainBlocked, setDomainBlocked] = useState(() => {
     const was = sessionStorage.getItem(DOMAIN_BLOCKED_KEY) === "1";
@@ -3294,7 +3409,7 @@ export default function App() {
     </div>
   );
 
-  return <AppCore isSignedIn={isSignedIn} isLoaded={isLoaded} signOut={signOut} userId={user?.id} user={user} />;
+  return <AppCore isSignedIn={effectiveIsSignedIn} isLoaded={isLoaded} signOut={signOut} userId={user?.id} user={user} />;
 }
 
 export function DevApp() {

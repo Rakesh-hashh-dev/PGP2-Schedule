@@ -15,7 +15,6 @@
       }
     </script>
     <meta name="google-site-verification" content="-n0rF29JoTYnculv2rShozCYa_YAszuv3ak-58v3PBY" />
-    <meta name="google-adsense-account" content="ca-pub-4569974855881178" />
 
     <!-- Theme init: must run before first paint so a saved dark preference
          never flashes the light UI. Mirrors useTheme() in App.jsx. -->
@@ -60,6 +59,23 @@
           ? "/premium_hero_backdrop_v2.webp"
           : "/premium_hero_backdrop_v3.webp";
         document.head.appendChild(l);
+      })();
+    </script>
+
+    <!-- Eager Schedule Fetch (LCP Optimization)
+         Kicks off the network request for the schedule before React parses. -->
+    <script>
+      (function() {
+        const FEED_URL = "https://script.google.com/macros/s/AKfycbwOCmpZAbzN7hRkb-xx6-SDejt3c45E5NBZ0NHuJW8CBRYO4ROJfwE_MI_g4aODwo08Gg/exec";
+        try {
+          const cached = JSON.parse(localStorage.getItem("pgp2-feed-cache") || "null");
+          let url = FEED_URL;
+          if (cached && cached.data && cached.data.buildTs) {
+            url += "?since=" + cached.data.buildTs;
+          }
+          // Store the promise on window so sheet.js can await it
+          window.__schedulePromise = fetch(url, { redirect: "follow" }).then(r => r.json()).catch(() => null);
+        } catch(e) {}
       })();
     </script>
 
@@ -143,9 +159,6 @@
       "screenshot": "https://pgp2.termflow.tech/TermFlow-og.jpg?v=3"
     }
     </script>
-    <!-- Google AdSense — site verification & ad serving -->
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4569974855881178"
-         crossorigin="anonymous"></script>
   </head>
   <body>
     <!-- Static boot splash: painted straight from HTML so FCP doesn't wait on
