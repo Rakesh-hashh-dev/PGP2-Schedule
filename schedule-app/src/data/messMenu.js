@@ -10,8 +10,13 @@ export const MEAL_TIMES = [
   { id: "dinner", label: "Dinner", start: "20:00", end: "22:30" },
 ];
 
-// Menu cycle start (a Monday) — used to resolve Week 1&3 vs Week 2&4 snacks
-const MENU_START = new Date(2026, 5, 22);
+// Week-rotation anchor: a Monday that falls in a Week 1&3 week of the CURRENT
+// menu cycle. Used to resolve Week 1&3 vs Week 2&4 snacks by parity. Re-anchor
+// this whenever the institute publishes a new cycle (only the parity matters,
+// not the exact date). 2026-08-04: verified against the live sheet — Mon
+// 2026-07-27 is a Week 1&3 week, which puts Mon 2026-08-03 on Week 2&4
+// (Papdi Chat), matching what the mess actually served.
+const MENU_START = new Date(2026, 6, 27);
 
 // Served every day alongside the day's breakfast mains
 export const DAILY_BREAKFAST = [
