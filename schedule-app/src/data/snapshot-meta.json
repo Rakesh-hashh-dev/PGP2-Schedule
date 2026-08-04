@@ -1,11 +1,10 @@
 {
-  "status": "failed",
-  "ts": "2026-08-03T11:19:48.707Z",
-  "classes": 677,
+  "status": "success",
+  "ts": "2026-08-04T06:31:28.995Z",
+  "classes": 678,
   "courses": 22,
   "termStart": "2026-06-15",
   "termEnd": "2026-09-04",
-  "feedBuildTs": 1785754694574,
-  "error": "HTTP 404",
-  "lastSuccessTs": "2026-08-03T11:06:18.113Z"
+  "feedBuildTs": 1785825071200,
+  "error": null
 }

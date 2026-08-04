@@ -8,6 +8,7 @@ import { logAdminAction } from "../lib/adminAudit.js";
 import { LEGEND } from "../data/schedule.js";
 import snapshotMeta from "../data/snapshot-meta.json";
 import { getSnapshot } from "../lib/sheet.js";
+import { classIdent, makeOverrideKey, lookupOverride, parseOverrideKey } from "../lib/overrides.js";
 import AdminCommandPalette from "./AdminCommandPalette";
 import FeedbackFlashToast from "./FeedbackFlashToast.jsx";
 import { WhatsNewPill, WhatsNewModal } from "./WhatsNew.jsx";
@@ -927,7 +928,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     if (!confirm(`Cancel ${affected.length} class(es) between ${holidayStart} and ${holidayEnd}? This writes overrides — deploy to apply.`)) return;
     const next = { ...flags.classOverrides };
     affected.forEach(c => {
-      const key = c.section && c.section !== "All" && c.section !== "Single" ? `${c.code}_${c.section}` : c.code;
+      const key = makeOverrideKey(classIdent(c), c.section);
       next[c.date] = { ...(next[c.date] || {}), [key]: { type: "cancelled", modifiedAt: new Date().toISOString(), modifiedBy: admin_id } };
     });
     setFlags({ ...flags, classOverrides: next });
@@ -946,7 +947,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     if (!confirm(`Move ${affected.length} class(es) from ${from} to ${to} between ${relocStart} and ${relocEnd}? Stages overrides — Review & Deploy to apply.`)) return;
     const next = { ...flags.classOverrides };
     affected.forEach(c => {
-      const key = c.section && c.section !== "All" && c.section !== "Single" ? `${c.code}_${c.section}` : c.code;
+      const key = makeOverrideKey(classIdent(c), c.section);
       const existing = next[c.date]?.[key] || {};
       // keep any existing time override, just swap the room
       next[c.date] = { ...(next[c.date] || {}), [key]: { type: "class", ...existing, room: to, modifiedAt: new Date().toISOString(), modifiedBy: admin_id } };
@@ -1717,11 +1718,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 const overridesForDate = flags.classOverrides?.[liveEditorDate] || {};
                 
                 Object.keys(overridesForDate).forEach(key => {
-                  const codeParts = key.split('_');
-                  const code = codeParts[0];
-                  const section = codeParts[1] || "All";
-                  const exists = baseClasses.some(c => c.code === code && (c.section === section || section === "All" || c.section === "Single"));
-                  
+                  const { ident: code, section } = parseOverrideKey(key);
+                  const exists = baseClasses.some(c => classIdent(c) === code && (c.section === section || section === "All" || c.section === "Single"));
+
                   if (!exists) {
                     const ovr = overridesForDate[key];
                     if (ovr.type !== "cancelled") {
@@ -1753,8 +1752,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     const c1 = displayClasses[i];
                     const c2 = displayClasses[j];
                     
-                    const ovr1 = overridesForDate[`${c1.code}_${c1.section}`] || overridesForDate[c1.code];
-                    const ovr2 = overridesForDate[`${c2.code}_${c2.section}`] || overridesForDate[c2.code];
+                    const ovr1 = lookupOverride(overridesForDate, c1);
+                    const ovr2 = lookupOverride(overridesForDate, c2);
                     
                     if (ovr1?.type === "cancelled" || ovr2?.type === "cancelled") continue;
                     
@@ -1785,7 +1784,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 }
                 
                 const classElements = displayClasses.map((c, i) => {
-                  const override = overridesForDate[`${c.code}_${c.section}`] || overridesForDate[c.code] || null;
+                  const override = lookupOverride(overridesForDate, c);
                   const isCancelled = override?.type === "cancelled";
                   const isGuest = (c.session || "").toLowerCase().includes("guest");
                   const displayRoom = override?.room || c.room;
@@ -1842,8 +1841,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               return (
                 <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
                   {dayClasses.map((c, i) => {
-                    const sectionKey = `${c.code}_${c.section}`;
-                    const isCancelled = overridesForDate[c.code]?.type === "cancelled" || overridesForDate[sectionKey]?.type === "cancelled";
+                    const isCancelled = lookupOverride(overridesForDate, c)?.type === "cancelled";
                     return (
                       <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 14px", opacity: isCancelled ? 0.65 : 1 }}>
                         <div style={{ minWidth: 0 }}>
@@ -1856,11 +1854,11 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                           </div>
                         </div>
                         {isCancelled ? (
-                          <button className="admin-btn outline" onClick={() => restoreClass(overrideDate, c.code, c.section)} style={{ flex: "0 0 auto", padding: "7px 14px", fontSize: 13 }}>
+                          <button className="admin-btn outline" onClick={() => restoreClass(overrideDate, classIdent(c), c.section)} style={{ flex: "0 0 auto", padding: "7px 14px", fontSize: 13 }}>
                             <RefreshCw size={14} /> Restore
                           </button>
                         ) : (
-                          <button className="admin-btn outline" onClick={() => cancelClass(overrideDate, c.code, c.section)} style={{ flex: "0 0 auto", padding: "7px 14px", fontSize: 13, borderColor: "var(--danger)", color: "var(--danger)" }}>
+                          <button className="admin-btn outline" onClick={() => cancelClass(overrideDate, classIdent(c), c.section)} style={{ flex: "0 0 auto", padding: "7px 14px", fontSize: 13, borderColor: "var(--danger)", color: "var(--danger)" }}>
                             <XCircle size={14} /> Cancel
                           </button>
                         )}
@@ -1881,7 +1879,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     const next = {...flags.classOverrides};
                     if (!next[overrideDate]) next[overrideDate] = {};
                     dayClasses.forEach(c => {
-                       const sectionKey = c.section === "Single" ? c.code : `${c.code}_${c.section}`;
+                       const sectionKey = makeOverrideKey(classIdent(c), c.section);
                        next[overrideDate][sectionKey] = { type: "cancelled" };
                     });
                     setFlags({...flags, classOverrides: next});
@@ -2122,8 +2120,11 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     const isRoomChanged = !!override.room;
                     const isTimeChanged = !!override.start || !!override.end;
                     const isModified = isRoomChanged || isTimeChanged;
-                    const codeParts = code.split('_');
-                    const displayCode = codeParts.length > 1 ? `${codeParts[0]} (Sec ${codeParts[1]})` : code;
+                    const { ident: keyIdent, section: keySection } = parseOverrideKey(code);
+                    // Empty ident = a legacy exam override written before code-less
+                    // classes were keyed by name; it no longer applies — flag for removal.
+                    const displayBase = keyIdent || "⚠ legacy (remove)";
+                    const displayCode = keySection !== "All" ? `${displayBase} (Sec ${keySection})` : displayBase;
 
                     return (
                       <div key={`${date}-${code}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(0,0,0,0.03)", padding: "12px 16px", borderRadius: 8, border: "1px solid var(--border)" }}>
@@ -2147,8 +2148,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                           {isModified && (
                             <button onClick={() => {
                                setRoomOverrideDate(date);
-                               setRoomOverrideClass(codeParts[0]);
-                               setRoomOverrideSection(codeParts[1] || "All");
+                               setRoomOverrideClass(keyIdent);
+                               setRoomOverrideSection(keySection);
                                setRoomOverrideRoom(override.room || "");
                                setRoomOverrideStart(override.start || "");
                                setRoomOverrideEnd(override.end || "");
@@ -4873,8 +4874,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           .filter(c => baseCodes.has(c.code))
           .filter(c => !c.section || c.section === "All" || c.section === "Single" || !section || c.section === section)
           .map(c => {
-            const key = c.section && c.section !== "All" && c.section !== "Single" ? `${c.code}_${c.section}` : c.code;
-            const ov = overridesToday[key] || overridesToday[c.code];
+            const ov = lookupOverride(overridesToday, c);
             return { ...c, cancelled: ov?.type === "cancelled", room: ov?.room || c.room, start: ov?.start || c.start, end: ov?.end || c.end };
           })
           .sort((a, b) => (a.start || "").localeCompare(b.start || ""));
@@ -4959,16 +4959,17 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
               {/* Cancel button */}
               <button onClick={() => {
-                const overrideKey = modalSection === "All" ? liveEditorModal.code : `${liveEditorModal.code}_${modalSection}`;
+                const ident = classIdent(liveEditorModal);
+                const overrideKey = makeOverrideKey(ident, modalSection);
                 const nextOverrides = { ...(flags.classOverrides || {}) };
                 nextOverrides[liveEditorModal.date] = { ...(nextOverrides[liveEditorModal.date] || {}) };
                 // "All Sections" must supersede any per-section override, otherwise the
                 // section-specific key shadows the bare-code key in the reader/preview.
                 if (modalSection === "All") {
-                  delete nextOverrides[liveEditorModal.date][`${liveEditorModal.code}_A`];
-                  delete nextOverrides[liveEditorModal.date][`${liveEditorModal.code}_B`];
+                  delete nextOverrides[liveEditorModal.date][`${ident}_A`];
+                  delete nextOverrides[liveEditorModal.date][`${ident}_B`];
                 }
-                nextOverrides[liveEditorModal.date][overrideKey] = { type: "cancelled", name: `Cancelled: ${overrideKey}`, modifiedAt: new Date().toISOString(), modifiedBy: admin_id };
+                nextOverrides[liveEditorModal.date][overrideKey] = { type: "cancelled", name: `Cancelled: ${liveEditorModal.name || ident}`, modifiedAt: new Date().toISOString(), modifiedBy: admin_id };
                 setFlags({ ...flags, classOverrides: nextOverrides });
                 logAdminAction(admin_id, "cancel_class", { date: liveEditorModal.date, class: overrideKey });
                 setLiveEditorModal(null);
@@ -4978,7 +4979,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
               {/* Mark as Exam toggle */}
               {(() => {
-                const overrideKey = modalSection === "All" ? liveEditorModal.code : `${liveEditorModal.code}_${modalSection}`;
+                const ident = classIdent(liveEditorModal);
+                const overrideKey = makeOverrideKey(ident, modalSection);
                 const existing = flags.classOverrides?.[liveEditorModal.date]?.[overrideKey];
                 const isExamOverride = existing?.type === "exam";
                 return (
@@ -4999,8 +5001,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     } else {
                       // "All Sections" must supersede any per-section override.
                       if (modalSection === "All") {
-                        delete nextOverrides[liveEditorModal.date][`${liveEditorModal.code}_A`];
-                        delete nextOverrides[liveEditorModal.date][`${liveEditorModal.code}_B`];
+                        delete nextOverrides[liveEditorModal.date][`${ident}_A`];
+                        delete nextOverrides[liveEditorModal.date][`${ident}_B`];
                       }
                       nextOverrides[liveEditorModal.date][overrideKey] = { ...existing, type: "exam" };
                       logAdminAction(admin_id, "mark_as_exam", { date: liveEditorModal.date, class: overrideKey });
@@ -5032,9 +5034,11 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 <div style={{ display: "flex", gap: 8 }}>
                   <input type="text" placeholder="e.g. C-104" className="admin-input" style={{ flex: 1 }} value={modalRoom} onChange={e => setModalRoom(e.target.value)} />
                   <button onClick={() => {
-                    const codeToUse = modalIsNew ? modalCode : liveEditorModal.code;
+                    // New classes use the typed code; existing rows use their
+                    // identity (code, or name for code-less exam entries).
+                    const codeToUse = modalIsNew ? modalCode : classIdent(liveEditorModal);
                     if (modalIsNew && !codeToUse) return alert("Course Code is required.");
-                    const overrideKey = modalSection === "All" ? codeToUse : `${codeToUse}_${modalSection}`;
+                    const overrideKey = makeOverrideKey(codeToUse, modalSection);
                     const nextOverrides = { ...(flags.classOverrides || {}) };
                     nextOverrides[liveEditorModal.date] = { ...(nextOverrides[liveEditorModal.date] || {}) };
                     // "All Sections" must supersede any per-section override, otherwise the
@@ -5065,15 +5069,16 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               </div>
 
               {/* Remove existing override */}
-              {(flags.classOverrides?.[liveEditorModal.date]?.[liveEditorModal.code] || flags.classOverrides?.[liveEditorModal.date]?.[`${liveEditorModal.code}_${liveEditorModal.section}`]) && (
+              {lookupOverride(flags.classOverrides?.[liveEditorModal.date], liveEditorModal) && (
                 <button onClick={() => {
+                  const ident = classIdent(liveEditorModal);
                   const nextOverrides = { ...(flags.classOverrides || {}) };
                   nextOverrides[liveEditorModal.date] = { ...nextOverrides[liveEditorModal.date] };
-                  delete nextOverrides[liveEditorModal.date][liveEditorModal.code];
-                  delete nextOverrides[liveEditorModal.date][`${liveEditorModal.code}_${liveEditorModal.section}`];
+                  delete nextOverrides[liveEditorModal.date][ident];
+                  delete nextOverrides[liveEditorModal.date][`${ident}_${liveEditorModal.section}`];
                   if (Object.keys(nextOverrides[liveEditorModal.date]).length === 0) delete nextOverrides[liveEditorModal.date];
                   setFlags({ ...flags, classOverrides: nextOverrides });
-                  logAdminAction(admin_id, "clear_override", { date: liveEditorModal.date, class: liveEditorModal.code });
+                  logAdminAction(admin_id, "clear_override", { date: liveEditorModal.date, class: ident });
                   setLiveEditorModal(null);
                 }} className="admin-btn outline" style={{ marginTop: 4 }}>
                   <Trash2 size={16} /> Remove Override

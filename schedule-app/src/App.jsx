@@ -19,6 +19,7 @@ import { MessMenuStandalone } from "./components/MessMenuModal.jsx";
 import { setMessMenuOverrides } from "./data/messMenu.js";
 import { fetchMessMenu } from "./lib/messFeed.js";
 import { getSnapshot, fetchSchedule, sha256hex } from "./lib/sheet.js";
+import { classIdent, lookupOverride, parseOverrideKey } from "./lib/overrides.js";
 import TermFlowLoader from "./components/TermFlowLoader.jsx";
 
 const AttendancePanel = lazy(() => import("./components/AttendancePanel.jsx"));
@@ -1367,7 +1368,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         const overrides = sysConfig.flags.classOverrides;
         const newClasses = [];
         data.CLASSES = data.CLASSES.map(c => {
-          const classOverride = overrides[c.date]?.[`${c.code}_${c.section}`] || overrides[c.date]?.[c.code];
+          const classOverride = lookupOverride(overrides[c.date], c);
           return classOverride ? { ...c, ...classOverride } : c;
         });
 
@@ -1375,11 +1376,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           Object.keys(overrides[date]).forEach(key => {
             const ovr = overrides[date][key];
             if (ovr.type === "cancelled") return;
-            const codeParts = key.split('_');
-            const code = codeParts[0];
-            const section = codeParts[1] || "All";
+            const { ident: code, section } = parseOverrideKey(key);
 
-            const exists = data.CLASSES.some(c => c.date === date && c.code === code && (c.section === section || section === "All" || c.section === "Single"));
+            const exists = data.CLASSES.some(c => c.date === date && classIdent(c) === code && (c.section === section || section === "All" || c.section === "Single"));
             if (!exists) {
               newClasses.push({
                 date: date,
