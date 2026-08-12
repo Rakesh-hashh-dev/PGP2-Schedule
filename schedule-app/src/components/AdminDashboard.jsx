@@ -22,6 +22,16 @@ const LOAD_NOW = Date.now();
 // ever call this from event handlers, never during render.
 const nowMs = () => Date.now();
 
+// Next upcoming month/day (this year if not yet passed, else next) at 09:00 —
+// used by the Time Machine's "Preview Independence/Republic Day" shortcuts,
+// formatted for a <input type="datetime-local">.
+function nextOccurrence(month, day) {
+  const now = new Date();
+  let year = now.getFullYear();
+  if (new Date(year, month - 1, day, 23, 59) < now) year += 1;
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T09:00`;
+}
+
 // Canonical feature toggles the app actually reads (all default ON when the key
 // is absent, i.e. `flags.x !== false`). Rendered as a curated list so the Feature
 // Flags card always shows every real feature — and never internal data keys like
@@ -4143,6 +4153,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               {timeOverride && (
                 <button className="admin-btn outline" onClick={() => setTimeOverride(null)}>Reset to Real Time</button>
               )}
+              <button className="admin-btn outline" onClick={() => setTimeOverride(nextOccurrence(8, 15))}>Preview Independence Day</button>
+              <button className="admin-btn outline" onClick={() => setTimeOverride(nextOccurrence(1, 26))}>Preview Republic Day</button>
             </div>
             {timeOverride && (
                <div style={{ marginTop: 12, padding: "8px 12px", background: "rgba(245, 158, 11, 0.1)", border: "1px solid var(--amber)", color: "var(--amber)", borderRadius: 8, fontSize: 13, fontWeight: 600 }}>
@@ -4371,13 +4383,24 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 </label>
               </div>
 
-              <div className="admin-danger-row" style={{ border: "none", padding: "10px 0" }}>
+              <div className="admin-danger-row" style={{ border: "none", padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
                 <div>
                   <strong style={{ display: "block", marginBottom: 4 }}>Group Polls</strong>
                   <span className="admin-subtext" style={{ margin: 0 }}>Enable or disable poll creation in groups.</span>
                 </div>
                 <label className="admin-toggle">
                   <input type="checkbox" checked={flags.features?.polls !== false} onChange={e => setFlags({ ...flags, features: { ...(flags.features || {}), polls: e.target.checked } })} />
+                  <span className="slider"></span>
+                </label>
+              </div>
+
+              <div className="admin-danger-row" style={{ border: "none", padding: "10px 0" }}>
+                <div>
+                  <strong style={{ display: "block", marginBottom: 4 }}>Independence/Republic Day Theme</strong>
+                  <span className="admin-subtext" style={{ margin: 0 }}>Tricolor accent + greeting banner on 15 Aug and 26 Jan.</span>
+                </div>
+                <label className="admin-toggle">
+                  <input type="checkbox" checked={flags.features?.specialDayTheme !== false} onChange={e => setFlags({ ...flags, features: { ...(flags.features || {}), specialDayTheme: e.target.checked } })} />
                   <span className="slider"></span>
                 </label>
               </div>

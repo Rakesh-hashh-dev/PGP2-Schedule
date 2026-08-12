@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { MapPin, CheckCircle2, Timer, ThumbsUp, ThumbsDown, PartyPopper } from "lucide-react";
 import { sessionKey } from "../lib/attendance.js";
 import { subjectClass } from "../lib/subjectColors.js";
+import { getSpecialDay } from "../lib/datetime.js";
+import IndiaFlagIcon from "./IndiaFlagIcon.jsx";
 
 function clsDate(c, which) {
   const [Y, Mo, D] = c.date.split("-").map(Number);
@@ -156,10 +158,13 @@ function UpNext({ c, gapLabel }) {
   );
 }
 
-export default function Hero({ current, next, now, todayISO, tomorrowISO, onMarkAttendance, attendance, sysConfig }) {
+export default function Hero({ current, next, now, todayISO, tomorrowISO, onMarkAttendance, attendance, sysConfig, onTap, todayList }) {
   const prevRef = useRef(current);
   const [justDone, setJustDone] = useState(null); // full class object
   const tintStyle = { "--hero-time-tint": timeTint(now) };
+  const specialDay = sysConfig?.flags?.features?.specialDayTheme !== false
+    ? getSpecialDay(now instanceof Date ? now : new Date(now))
+    : null;
 
   useEffect(() => {
     const prev = prevRef.current;
@@ -235,8 +240,22 @@ export default function Hero({ current, next, now, todayISO, tomorrowISO, onMark
       }
     }
 
+    const handleKeyDown = (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        onTap?.();
+      }
+    };
+
     return (
-      <section className="hero hero-live" style={tintStyle}>
+      <section 
+        className="hero hero-live" 
+        style={{ ...tintStyle, cursor: onTap ? "pointer" : "default" }}
+        role={onTap ? "button" : undefined}
+        tabIndex={onTap ? 0 : undefined}
+        onClick={onTap}
+        onKeyDown={onTap ? handleKeyDown : undefined}
+      >
         <HeroBackdrop sysConfig={sysConfig} />
         <div className="hero-time-tint" />
         <div className="hero-state-row">
@@ -286,28 +305,85 @@ export default function Hero({ current, next, now, todayISO, tomorrowISO, onMark
 
     if (!sameDay) {
       const nextLabel = next.date === tomorrowISO ? "Tomorrow" : prettyDate(next.date);
+
+      const lastToday = todayList?.length > 0 ? todayList[todayList.length - 1] : null;
+      let markRow = null;
+      if (lastToday && onMarkAttendance) {
+        const key = sessionKey(lastToday);
+        const marked = attendance?.[key];
+        if (!marked && lastToday.type !== "break") {
+          markRow = (
+            <div className="hero-next-hint" style={{ marginTop: "16px", padding: "12px", background: "rgba(255,255,255,0.05)", borderRadius: "12px" }}>
+              <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "8px" }}>Did you attend {lastToday.name}?</div>
+              <div className="done-mark-row" style={{ marginTop: 0 }}>
+                <button className="done-mark-btn present" onClick={(e) => { e.stopPropagation(); onMarkAttendance(lastToday, "present"); }}>
+                  <ThumbsUp size={13} /> Present
+                </button>
+                <button className="done-mark-btn absent" onClick={(e) => { e.stopPropagation(); onMarkAttendance(lastToday, "absent"); }}>
+                  <ThumbsDown size={13} /> Absent
+                </button>
+              </div>
+            </div>
+          );
+        }
+      }
+
+      const handleKeyDown = (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onTap?.();
+        }
+      };
+
       return (
-        <section className="hero hero-done-today" style={tintStyle}>
+        <section 
+          className="hero hero-done-today" 
+          style={{ ...tintStyle, cursor: onTap ? "pointer" : "default" }}
+          role={onTap ? "button" : undefined}
+          tabIndex={onTap ? 0 : undefined}
+          onClick={onTap}
+          onKeyDown={onTap ? handleKeyDown : undefined}
+        >
           <HeroBackdrop sysConfig={sysConfig} />
           <div className="hero-time-tint" />
           <div className="hero-state-row">
-            <div className="hero-tag done"><span className="dot" />Done for today</div>
+            <div className="hero-tag done"><span className="dot" />{specialDay ? specialDay.label : "Done for today"}</div>
           </div>
-          <h1 className="hero-course">All clear <PartyPopper size={22} aria-hidden="true" className="hero-course-ico" /></h1>
-          <div className="hero-when">No more classes left today. {timeOfDaySign(now)}</div>
-          <div className="hero-next-hint">
-            <span className="hero-hint-label">Next up</span>
-            <span className="hero-hint-name">{next.name}</span>
-            <span className="hero-hint-when">{nextLabel} · {next.start}</span>
-          </div>
+          {specialDay ? (
+            <h1 className="hero-course">Happy {specialDay.label} <IndiaFlagIcon size={22} className="hero-course-ico" /></h1>
+          ) : (
+            <h1 className="hero-course">All clear <PartyPopper size={22} aria-hidden="true" className="hero-course-ico" /></h1>
+          )}
+          <div className="hero-when">{specialDay ? "No classes today — enjoy the holiday." : `No more classes left today. ${timeOfDaySign(now)}`}</div>
+          {markRow || (
+            <div className="hero-next-hint">
+              <span className="hero-hint-label">Next up</span>
+              <span className="hero-hint-name">{next.name}</span>
+              <span className="hero-hint-when">{nextLabel} · {next.start}</span>
+            </div>
+          )}
         </section>
       );
     }
 
     const imminent = mins <= 2;
 
+    const handleKeyDown = (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        onTap?.();
+      }
+    };
+
     return (
-      <section className={`hero hero-upnext${imminent ? " hero-imminent" : ""}`} style={tintStyle}>
+      <section 
+        className={`hero hero-upnext${imminent ? " hero-imminent" : ""}`} 
+        style={{ ...tintStyle, cursor: onTap ? "pointer" : "default" }}
+        role={onTap ? "button" : undefined}
+        tabIndex={onTap ? 0 : undefined}
+        onClick={onTap}
+        onKeyDown={onTap ? handleKeyDown : undefined}
+      >
         <HeroBackdrop sysConfig={sysConfig} />
         <div className="hero-time-tint" />
         <div className="hero-state-row">

@@ -1,7 +1,7 @@
 {
   "name": "schedule-app",
   "private": true,
-  "version": "4.3.7",
+  "version": "5.2.3",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,6 +11,8 @@
     "build": "vite build",
     "build:lite": "node scripts/generate-snapshot.mjs && vite build --config lite/vite.config.js",
     "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "preview": "vite preview",
     "preview:lite": "vite preview --config lite/vite.config.js",
     "sentry:login": "sentry-cli login",
@@ -44,6 +46,7 @@
     "sharp": "^0.35.3",
     "supabase": "^2.109.1",
     "vite": "^8.0.12",
-    "vite-plugin-pwa": "^1.3.0"
+    "vite-plugin-pwa": "^1.3.0",
+    "vitest": "^3.2.7"
   }
 }

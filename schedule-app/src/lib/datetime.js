@@ -33,3 +33,11 @@ export function timeAgo(iso) {
   if (h < 24) return `${h}h ago`;
   return `${Math.floor(h / 24)}d ago`;
 }
+
+/** A Date → national-holiday info on 15 Aug / 26 Jan (local calendar date), else null. */
+export function getSpecialDay(d) {
+  const month = d.getMonth(), date = d.getDate();
+  if (month === 7 && date === 15) return { key: "independence", label: "Independence Day", short: "15 Aug" };
+  if (month === 0 && date === 26) return { key: "republic", label: "Republic Day", short: "26 Jan" };
+  return null;
+}

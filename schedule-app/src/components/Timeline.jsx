@@ -3,12 +3,19 @@ import { MapPin, CheckCircle2, XCircle, AlertTriangle, TrendingDown } from "luci
 import { sessionKey, isExamSession } from "../lib/attendance.js";
 import { subjectClass } from "../lib/subjectColors.js";
 import { haptic } from "../lib/haptics.js";
+import IndiaFlagIcon from "./IndiaFlagIcon.jsx";
+import { isNationalHoliday } from "../lib/nationalHolidays.js";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function fmtClock(d) { return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }); }
 
-function TypeBadge({ type }) {
-  if (type === "holiday") return <span className="tb holiday">Holiday</span>;
+function TypeBadge({ type, name }) {
+  if (type === "holiday") {
+    const isNational = isNationalHoliday({ type, name });
+    return (
+      <span className={`tb holiday${isNational ? " tb-tricolor" : ""}`}>Holiday</span>
+    );
+  }
   if (type === "exam") return <span className="tb exam">Exam / Admin</span>;
   if (type === "break") return <span className="tb break">Break</span>;
   return null;
@@ -287,6 +294,7 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
                   )}
                   <div className="row-head">
                     <div className="row-course">
+                      {isNationalHoliday(c) && <IndiaFlagIcon size={19} className="row-flag-icon" />}
                       {c.name} {c.session && (
                         <span className={`ses ${subjectClass(c.code)}`}>
                           {c.code} {c.session}
@@ -305,7 +313,7 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
                           {c.section === "Single" && <span className="single-tag">all</span>}
                           {!isPast && attKey && !attStatus && <SkipHint info={skipInfo?.[c.code]} name={c.name} />}
                         </>
-                      : <TypeBadge type={c.type} />}
+                      : <TypeBadge type={c.type} name={c.name} />}
                   </div>
                 </div>
                 {canMark && (

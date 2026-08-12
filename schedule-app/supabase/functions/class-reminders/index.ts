@@ -42,6 +42,16 @@ function nowIST() {
   };
 }
 
+// National-holiday check for the morning-summary push copy (mirrors
+// src/lib/datetime.js's getSpecialDay — this function runs standalone in
+// Deno so it can't import from the app bundle).
+function getSpecialDay(dateISO: string) {
+  const [, m, d] = dateISO.split("-").map(Number);
+  if (m === 8 && d === 15) return { label: "Independence Day" };
+  if (m === 1 && d === 26) return { label: "Republic Day" };
+  return null;
+}
+
 function toMin(hhmm?: string) {
   if (!hhmm || !/^\d{1,2}:\d{2}$/.test(hhmm)) return null;
   const [h, m] = hhmm.split(":").map(Number);
@@ -180,7 +190,7 @@ async function runReminders(supabase: ReturnType<typeof createClient>) {
 
   // ── 5b. Morning summaries due this run (per-user summary_time) ────────────
   const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-  type SummaryJob = { userId: string; title: string; body: string };
+  type SummaryJob = { userId: string; title: string; body: string; icon?: string };
   const summaryJobs: SummaryJob[] = [];
   for (const profile of profiles || []) {
     if (!subscribed.has(profile.user_id)) continue;
@@ -219,7 +229,18 @@ async function runReminders(supabase: ReturnType<typeof createClient>) {
     if (examsToday.length) extras.push(`📝 Exam today: ${[...new Set(examsToday)].join(", ")}`);
     if (dueToday.length) extras.push(`📌 Due today: ${[...new Set(dueToday)].join(", ")}`);
 
-    if (mine.length === 0) {
+    const specialDay = sysConfig?.flags?.features?.specialDayTheme !== false ? getSpecialDay(dateISO) : null;
+
+    if (mine.length === 0 && specialDay) {
+      // No flag emoji here — Windows lacks the regional-indicator glyph pair
+      // and renders 🇮🇳 as literal "IN" text in the notification banner.
+      summaryJobs.push({
+        userId: profile.user_id,
+        title: `🎉 Happy ${specialDay.label}`,
+        body: ["No classes today — enjoy the holiday.", ...extras].join("\n"),
+        icon: "/icon-flag-192.png",
+      });
+    } else if (mine.length === 0) {
       summaryJobs.push({
         userId: profile.user_id,
         title: `🎉 No classes this ${weekday}`,
@@ -398,7 +419,7 @@ async function runReminders(supabase: ReturnType<typeof createClient>) {
     title: s.title,
     body: s.body,
     url: "/?view=today",
-    icon: "/icon-push-bell.png",
+    icon: s.icon || "/icon-push-bell.png",
     data: { urgency: "high", ttl: 14400 }, // 4h — still useful when a phone wakes mid-morning
     dedup_key: `summary:${dateISO}`,
   }));

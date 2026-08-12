@@ -3,6 +3,8 @@ import "../styles/compare.css";
 import { ArrowLeft, Columns, Layers, Clock, BookOpen, UserCheck, Sparkles, ChevronDown, Copy, Check, CalendarDays, ArrowRight as ArrowRightIcon, Flame, X, CalendarX2, PartyPopper, CalendarPlus } from "lucide-react";
 import { EmptyState } from "./ui.jsx";
 import { findFreeSlots, findGroupFreeSlots, scheduleInsights, friendVisibleClasses, avatarGradient } from "../lib/friends.js";
+import { isNationalHoliday } from "../lib/nationalHolidays.js";
+import IndiaFlagIcon from "./IndiaFlagIcon.jsx";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
@@ -161,7 +163,7 @@ export default function CompareView({
   mode, friendData, groupData,
   myClasses, mine, allClasses, enrolled, legend, now, onExit, onPlanSlot,
 }) {
-  const [viewMode, setViewMode] = useState("merged"); // "merged" | "side"
+  const [viewMode, setViewMode] = useState("side"); // "merged" | "side"
   const [dayFilter, setDayFilter] = useState("today"); // "today", "tomorrow", "week"
   const [customRange, setCustomRange] = useState({ start: ymd(now), end: ymd(now) });
   const [pendingRange, setPendingRange] = useState({ start: ymd(now), end: ymd(now) });
@@ -808,6 +810,7 @@ function MergedTimeline({ myClasses, targetClasses, targets, freeSlots, dayFilte
                   {tg.events.map((e, ei) => (
                     <div key={ei} className={`cva-card cva-${e.type}`} style={{ margin: 0 }}>
                       <div className="cva-title">
+                        {e.type !== "free" && isNationalHoliday(e.data) && <IndiaFlagIcon size={12} className="row-flag-icon" />}
                         {e.type === "free" ? "Matching Free Time" : e.data.name}
                       </div>
                       <div className="cva-sub">
@@ -1032,7 +1035,10 @@ function SideBySide({ myClasses, targetClasses, targets, dayFilter, freeSlots = 
                               return (
                                 <div key={cii} className={`cva-card cv-sbs-card ${isShared ? "cva-shared" : columnsDef[ci].colorClass}`}>
                                   <div className="cva-time-sm">{fmtTime(c.start)} – {fmtTime(c.end)}</div>
-                                  <div className="cva-title">{c.name}</div>
+                                  <div className="cva-title">
+                                    {isNationalHoliday(c) && <IndiaFlagIcon size={12} className="row-flag-icon" />}
+                                    {c.name}
+                                  </div>
                                 </div>
                               );
                             })}

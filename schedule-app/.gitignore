@@ -19,6 +19,15 @@ dev-dist
 # Local-only migration healer runbook (kept off the repo by choice)
 HEALER.md
 
+# Local build/audit artifacts — regenerated on demand, never commit
+stats.html
+stats-lite.html
+lighthouse*.json
+lh-*.json
+*.bak
+*.bak-*
+backup_*.sql
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

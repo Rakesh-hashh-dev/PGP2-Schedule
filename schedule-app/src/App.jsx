@@ -20,7 +20,7 @@ import { setMessMenuOverrides } from "./data/messMenu.js";
 import { fetchMessMenu } from "./lib/messFeed.js";
 import { getSnapshot, fetchSchedule, sha256hex } from "./lib/sheet.js";
 import { classIdent, lookupOverride, parseOverrideKey } from "./lib/overrides.js";
-import { toMin, fmtWait, ymd, clsDate, prettyDate, timeAgo } from "./lib/datetime.js";
+import { toMin, fmtWait, ymd, clsDate, prettyDate, timeAgo, getSpecialDay } from "./lib/datetime.js";
 import {
   swUpdateIsStale, clearSwSeen,
   LAST_USER_KEY, VIEW_KEY, PENDING_INVITE_KEY, USER_SCOPED_KEYS,
@@ -29,6 +29,7 @@ import {
   READ_CHANGES_KEY, loadReadChangeKeys, CLEARED_GROUPS_KEY, loadClearedGroups,
 } from "./lib/appStorage.js";
 import TermFlowLoader from "./components/TermFlowLoader.jsx";
+import IndiaFlagIcon from "./components/IndiaFlagIcon.jsx";
 
 const AttendancePanel = lazy(() => import("./components/AttendancePanel.jsx"));
 const LeavePlanner = lazy(() => import("./components/LeavePlanner.jsx"));
@@ -294,6 +295,15 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [installPromptEvent, setInstallPromptEvent] = useState(null);
   const [showIOSInstallHint, setShowIOSInstallHint] = useState(false);
   const [installBannerClosing, setInstallBannerClosing] = useState(false);
+  const [specialDayBannerDismissed, setSpecialDayBannerDismissed] = useState(() => {
+    try { return localStorage.getItem("pgp2.specialday-dismissed") === ymd(new Date()); } catch { return false; }
+  });
+  const [specialDayBannerClosing, setSpecialDayBannerClosing] = useState(false);
+  const dismissSpecialDayBanner = () => {
+    setSpecialDayBannerClosing(true);
+    try { localStorage.setItem("pgp2.specialday-dismissed", ymd(new Date())); } catch { }
+    setTimeout(() => { setSpecialDayBannerDismissed(true); setSpecialDayBannerClosing(false); }, 300);
+  };
 
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   useEffect(() => {
@@ -510,7 +520,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [toolsSecOpen, setToolsSecOpen] = useState(false);
   // Desktop sidebar "Tools" group — collapsed by default so the long tail of
   // occasional-use pages doesn't flatten the whole nav's visual hierarchy.
-  const [sbToolsOpen, setSbToolsOpen] = useState(false);
+  const [sbToolsOpen, setSbToolsOpen] = useState(true);
   // "New"/"Beta" nav badges auto-expire once the user has opened that view —
   // they're a "look here" nudge, not a permanent status label.
   const [seenBadges, setSeenBadges] = useState(() => {
@@ -1209,6 +1219,14 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     document.body.classList.add(timeTheme);
   }, [now]);
 
+  // Independence Day (15 Aug) / Republic Day (26 Jan) tricolor accent —
+  // admin-toggleable via sysConfig.flags.features.specialDayTheme (default on).
+  const enableSpecialDayTheme = sysConfig?.flags?.features?.specialDayTheme !== false;
+  const specialDay = enableSpecialDayTheme ? getSpecialDay(now) : null;
+  useEffect(() => {
+    document.body.classList.toggle("theme-tricolor", !!specialDay);
+  }, [specialDay]);
+
   // Auto-sync section overrides from live sheet.
   // Also adds new courses from the sheet's STUDENTS roster that the user
   // wasn't enrolled in yet (e.g. WAI added after initial onboarding).
@@ -1815,7 +1833,12 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     <main className="loading-screen">
       <TermFlowLoader size={72} />
       <p className="loading-label">Loading timetable…</p>
-      <p className="loading-sub">Fetching your class schedule</p>
+      <p className="loading-sub">
+        {(() => {
+          const h = new Date().getHours();
+          return h < 12 ? "Good morning, loading your day…" : h < 16 ? "Good afternoon, loading your day…" : "Good evening, loading your day…";
+        })()}
+      </p>
     </main>
   );
   const needsName = !(user?.firstName || user?.username);
@@ -2177,11 +2200,28 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         </div>
       )}
 
+      {/* ── Independence/Republic Day greeting banner ── */}
+      {specialDay && !specialDayBannerDismissed && (
+        <div className={`specialday-banner${specialDayBannerClosing ? " specialday-banner--closing" : ""}`} role="complementary" aria-label={`${specialDay.label} greeting`}>
+          <div className="specialday-sparkles" aria-hidden="true">
+            {Array.from({ length: 8 }).map((_, i) => <span key={i} className="specialday-sparkle" />)}
+          </div>
+          <div className="specialday-banner-icon" aria-hidden="true"><IndiaFlagIcon size={22} /></div>
+          <div className="specialday-banner-text">
+            <div className="specialday-banner-title">Happy {specialDay.label}!</div>
+            <div className="specialday-banner-desc">Wishing you a great {specialDay.short} from TermFlow.</div>
+          </div>
+          <button className="specialday-banner-dismiss" onClick={dismissSpecialDayBanner} aria-label="Dismiss">
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
       {/* ── Impersonation Banner ── */}
       {impersonatedUser && (
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, background: "var(--amber)", color: "#000", padding: "8px 16px", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "space-between", fontWeight: 700, fontSize: 13, borderBottom: "1px solid rgba(0,0,0,0.1)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}><ShieldAlert size={16} /> Impersonating: {impersonatedUser.name || impersonatedUser.user_id}</div>
-          <button onClick={stopImpersonation} style={{ background: "rgba(0,0,0,0.15)", border: "none", padding: "4px 10px", borderRadius: 4, cursor: "pointer", fontWeight: 700, color: "#000", fontSize: 12 }}>Exit</button>
+        <div className="announcement-banner warning" style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 9999, borderBottom: "1px solid rgba(0,0,0,0.1)", borderRadius: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}><ShieldAlert size={16} /> Impersonating: {impersonatedUser.name || impersonatedUser.user_id}</div>
+          <button onClick={stopImpersonation} style={{ background: "rgba(0,0,0,0.15)", border: "none", padding: "4px 10px", borderRadius: 4, cursor: "pointer", fontWeight: 700, color: "var(--text)", fontSize: 12 }}>Exit</button>
         </div>
       )}
 
@@ -2194,7 +2234,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           <div className="sb-brand-mark" aria-hidden="true" />
           <div className="logo"><img src="/termflow-icon.svg" alt="TermFlow" width={20} height={20} /></div>
           <div className="sb-brand-text">
-            <div className="sb-brand-name">TermFlow</div>
+            <div className="sb-brand-name">TermFlow {specialDay && <IndiaFlagIcon size={12} className="sb-brand-flag" />}</div>
             <div className="sb-brand-sub">
               <div>IIM Sambalpur</div>
               <div className="sb-brand-date">{termLabel}</div>
@@ -2364,7 +2404,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 <div className="sb-foot-sep" />
                 {renderSbUtilStrip()}
                 <div className="sb-sync-note">
-                  <span className="sb-sync-dot" />
+                  <span className="sb-sync-dot" style={{ animationDuration: syncing ? "1s" : "3s" }} />
                   {syncing ? "Syncing…" : syncedAgo === 0 ? "Synced just now" : `Synced ${syncedAgo}m ago`}
                 </div>
               </>
@@ -2722,26 +2762,26 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             </div>
             )}
 
+
+
             {view !== "split" && view !== "attendance" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && view !== "leave" && view !== "glance" && view !== "wrapped" && view !== "board" && !compareTarget && (
               <>
                 {unseenWhatsNew.length > 0 && (
                   <WhatsNewPill item={unseenWhatsNew[0]} count={unseenWhatsNew.length} onOpen={() => setWhatsNewOpen(true)} />
                 )}
                 {activeGlobalAnnouncement && (
-                  <div style={{ background: "var(--amber)", color: "#000", padding: "12px 16px", borderRadius: 8, marginBottom: 16, display: "flex", gap: 8, alignItems: "center", fontWeight: 600 }}>
+                  <div className="announcement-banner warning">
                     <Megaphone size={18} style={{ flexShrink: 0 }} />
                     <span style={{ fontSize: 14 }}>{activeGlobalAnnouncement}</span>
                   </div>
                 )}
                 {activeScheduledAnnouncements.map(a => {
-                  // Severity → banner colour (set in Admin Tools). Defaults to amber/warning.
-                  const bg = a.severity === "urgent" ? "var(--danger)" : a.severity === "info" ? "var(--violet)" : "var(--amber)";
-                  const fg = a.severity === "warning" || !a.severity ? "#000" : "#fff";
+                  const bannerClass = a.severity === "urgent" ? "urgent" : a.severity === "info" ? "info" : "warning";
                   return (
-                  <div key={a.id} style={{ background: bg, color: fg, padding: "12px 16px", borderRadius: 8, marginBottom: 16, display: "flex", gap: 8, alignItems: "center", fontWeight: 600 }}>
+                  <div key={a.id} className={`announcement-banner ${bannerClass}`}>
                     <Megaphone size={18} style={{ flexShrink: 0 }} />
                     <span style={{ fontSize: 14, flex: 1 }}>{a.message}</span>
-                    <button onClick={() => dismissAnnouncement(a.id)} aria-label="Dismiss announcement" style={{ background: "none", border: "none", cursor: "pointer", color: fg, display: "flex", padding: 2, flexShrink: 0 }}>
+                    <button onClick={() => dismissAnnouncement(a.id)} aria-label="Dismiss announcement" style={{ background: "none", border: "none", cursor: "pointer", color: "inherit", display: "flex", padding: 2, flexShrink: 0 }}>
                       <X size={16} />
                     </button>
                   </div>
@@ -2760,11 +2800,14 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                   <span className="vdh-label">
                     {view === "notifications" ? `${filteredChanges.length} update${filteredChanges.length !== 1 ? "s" : ""}`
                       : view === "week" ? weekRangeLabel : prettyDate(view === "tomorrow" ? tomorrowISO : todayISO)}
+                    {view === "week" && weekOffset !== 0 && (
+                      <button className="week-back-today" onClick={() => setWeekOffset(0)}>
+                        <CalendarDays size={13} /> This week
+                      </button>
+                    )}
                   </span>
                   <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-                    <button className="desktop-only vdh-filter-btn" onClick={() => setFeedbackOpen(true)} style={{ color: "var(--amber-text)", background: "var(--amber-transparent)", border: "1px solid var(--amber)", display: "flex", alignItems: "center", gap: "6px", fontWeight: "600" }}>
-                      <MessageSquare size={14} /> Report Bug
-                    </button>
+                      {/* Report Bug button moved to overflow menu */}
                     <button className="desktop-only vdh-filter-btn" onClick={() => setFilterModalOpen(true)}>
                       <SlidersHorizontal size={14} /> Filter subjects
                     </button>
@@ -2784,8 +2827,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             )}
             {view !== "split" && view !== "attendance" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && view !== "leave" && view !== "glance" && view !== "wrapped" && view !== "board" && view !== "admin" && !compareTarget && view !== "tomorrow" && (
               view === "week"
-                ? <div className="hide-mobile"><Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} onMarkAttendance={markAttendance} attendance={attendance} sysConfig={sysConfig} /></div>
-                : <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} onMarkAttendance={markAttendance} attendance={attendance} sysConfig={sysConfig} />
+                ? <div className="hide-mobile"><Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} onMarkAttendance={markAttendance} attendance={attendance} sysConfig={sysConfig} onTap={() => setView("fullSchedule")} todayList={todayList} /></div>
+                : <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} onMarkAttendance={markAttendance} attendance={attendance} sysConfig={sysConfig} onTap={() => setView("fullSchedule")} todayList={todayList} />
             )}
             {view === "week" && !compareTarget && (
               <div className="mobile-only">
@@ -3068,7 +3111,22 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                       <li className="row premium-skeleton" style={{ height: "80px", marginBottom: "12px", border: "none", opacity: 0.4 }} />
                                     </ul>
                                   )
-                                  : <div className="cva-card soft"><div className="cva-content"><strong>No classes!</strong><div className="cva-sub">Enjoy your free time.</div></div></div>
+                                  : <div className="tmrw-summary-card tmrw-free-card" style={{ margin: "0 12px 20px" }}>
+                                      <div className="tmrw-free-scene" aria-hidden="true">
+                                        <div className="tmrw-free-sky sky-day sky-clear">
+                                          <span className="tmrw-free-sun" />
+                                          <span className="tmrw-free-cloud c1" />
+                                          <span className="tmrw-free-cloud c2" />
+                                          <span className="tmrw-free-spark s1" />
+                                          <span className="tmrw-free-spark s2" />
+                                          <span className="tmrw-free-spark s3" />
+                                        </div>
+                                      </div>
+                                      <div className="tmrw-free-text">
+                                        <div className="tmrw-free-title">No classes today!</div>
+                                        <div className="tmrw-free-sub">Enjoy your free time.</div>
+                                      </div>
+                                    </div>
                                 : <>
                                       <MarkPrompt list={todayList} now={now} attendance={attendance} markAttendance={markAttendance} />
                                       <Timeline list={todayList} current={current} now={now} dateLabel={prettyDate(todayISO)} attendance={attendance} markAttendance={markAttendance} skipInfo={skipInfo} syncStatus={<span className="live"><span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} />
@@ -3088,16 +3146,16 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               )}
             </div>
           </main>
-          <aside className={view !== "week" ? "side-col hide-mobile" : "side-col"} style={view === "friends" || view === "admin" ? { display: "none" } : {}}>
+          <aside className={view !== "week" ? "side-col hide-mobile" : "side-col side-col-week"} style={view === "friends" || view === "admin" ? { display: "none" } : {}}>
             <WeekAgenda visible={visible} now={now} offset={weekOffset} setOffset={setWeekOffset} todayISO={todayISO} onViewFullSchedule={(iso) => { setJumpToDate(iso); setView("fullSchedule"); }} />
           </aside>
 
           {/* Floating Schedule button & Modal for the Friends and Admin views —
               the docked agenda is hidden there so the wide content gets the full
               row; desktop only (.fr-agenda-fab is display:none below 900px) */}
-          {(view === "friends" || view === "admin") && (
+          {(view === "friends" || view === "admin" || view === "week") && (
             <>
-              <button className="fr-agenda-fab" onClick={() => setShowFriendsAgenda(true)} title="View Schedule">
+              <button className={`fr-agenda-fab${view === "week" ? " week-fab" : ""}`} onClick={() => setShowFriendsAgenda(true)} title="View Schedule">
                 <Calendar size={22} />
               </button>
               {showFriendsAgenda && (
