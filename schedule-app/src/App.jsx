@@ -20,6 +20,14 @@ import { setMessMenuOverrides } from "./data/messMenu.js";
 import { fetchMessMenu } from "./lib/messFeed.js";
 import { getSnapshot, fetchSchedule, sha256hex } from "./lib/sheet.js";
 import { classIdent, lookupOverride, parseOverrideKey } from "./lib/overrides.js";
+import { toMin, fmtWait, ymd, clsDate, prettyDate, timeAgo } from "./lib/datetime.js";
+import {
+  swUpdateIsStale, clearSwSeen,
+  LAST_USER_KEY, VIEW_KEY, PENDING_INVITE_KEY, USER_SCOPED_KEYS,
+  readSetup, saveSetup,
+  NOTIF_KEY, loadLastSeen, READ_PINGS_KEY, loadReadPingIds,
+  READ_CHANGES_KEY, loadReadChangeKeys, CLEARED_GROUPS_KEY, loadClearedGroups,
+} from "./lib/appStorage.js";
 import TermFlowLoader from "./components/TermFlowLoader.jsx";
 
 const AttendancePanel = lazy(() => import("./components/AttendancePanel.jsx"));
@@ -59,45 +67,6 @@ import { IS_LITE, LITE_VIEWS } from "./lib/edition.js";
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent || "");
 
-function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
-function fmtWait(ms) {
-  const m = Math.max(0, Math.round(ms / 60000));
-  if (m < 60) return `in ${m}m`;
-  const h = Math.floor(m / 60), r = m % 60;
-  if (h < 24) return r ? `in ${h}h ${r}m` : `in ${h}h`;
-  return `in ${Math.round(m / 1440)}d`;
-}
-function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
-function clsDate(c, which) { const [Y, Mo, D] = c.date.split("-").map(Number); const [h, m] = c[which].split(":").map(Number); return new Date(Y, Mo - 1, D, h, m); }
-function prettyDate(iso) { const [Y, M, D] = iso.split("-").map(Number); return new Date(Y, M - 1, D).toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" }); }
-// Silent auto-update clock: once a new version has been *available* for 2–3
-// days we stop prompting and just apply it. A per-client random spread (2 days
-// + up to 1 day) avoids every browser reloading at the same instant; the
-// "first seen" timestamp is persisted so the clock survives reloads and
-// "Maybe Later" dismissals across sessions. Returns { firstSeen, thresholdMs }.
-const SW_SEEN_KEY = "pgp2.sw-update-seen";
-function swSeenRecord() {
-  const DAY = 86_400_000;
-  try {
-    const raw = localStorage.getItem(SW_SEEN_KEY);
-    if (raw) {
-      const p = JSON.parse(raw);
-      if (p && p.firstSeen && p.thresholdMs) return p;
-    }
-  } catch { /* corrupt/blocked storage — fall through to a fresh record */ }
-  const rec = { firstSeen: Date.now(), thresholdMs: DAY * 2 + Math.random() * DAY };
-  try { localStorage.setItem(SW_SEEN_KEY, JSON.stringify(rec)); } catch { /* ignore */ }
-  return rec;
-}
-// True once the pending update has been available past its per-client threshold.
-function swUpdateIsStale() {
-  const rec = swSeenRecord();
-  return Date.now() - rec.firstSeen >= rec.thresholdMs;
-}
-function clearSwSeen() {
-  try { localStorage.removeItem(SW_SEEN_KEY); } catch { /* ignore */ }
-}
-
 // Alert type → rc-dot colour, mirroring the Recent-changes kind palette
 const ALERT_DOT = {
   class_cancelled: "rc-removed",
@@ -106,15 +75,6 @@ const ALERT_DOT = {
   admin_broadcast: "rc-course",
   daily_summary: "rc-update",
 };
-
-function timeAgo(iso) {
-  const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
-}
 
 function UserAvatar({ user, size = 30 }) {
   const initials = `${user?.firstName?.[0] ?? ""}${user?.lastName?.[0] ?? ""}` || "?";
@@ -131,33 +91,6 @@ async function checkAppVersion(onUpdateAvailable) {
   } catch { }
 }
 
-const LAST_USER_KEY = "pgp2.last-user-id";
-const VIEW_KEY = "pgp2.last-view";
-// Deliberately not in USER_SCOPED_KEYS: an invite clicked before first sign-in
-// must survive the user-switch wipe.
-const PENDING_INVITE_KEY = "pgp2.pending-invite";
-const USER_SCOPED_KEYS = [
-  "pgp2.friends", "pgp2.groups", "pgp2.my_share_code",
-  "pgp2.setup", "pgp2-notif-seen", "pgp2.read-ping-ids", "pgp2.read-change-keys",
-  "pgp2.seen-recv-groups", "pgp2.recv-groups-count", "pgp2.sidebar", VIEW_KEY,
-];
-const SETUP_KEY = "pgp2.setup";
-function readSetup() {
-  try {
-    const s = JSON.parse(localStorage.getItem(SETUP_KEY));
-    if (s && s.courses && !Array.isArray(s.courses) && typeof s.courses === "object") return s;
-    return null;
-  } catch { return null; }
-}
-function saveSetup(s) { try { localStorage.setItem(SETUP_KEY, JSON.stringify(s)); } catch (e) { } }
-
-const NOTIF_KEY = "pgp2-notif-seen";
-function loadLastSeen() { try { return parseInt(localStorage.getItem(NOTIF_KEY) || "0", 10); } catch { return 0; } }
-const READ_PINGS_KEY = "pgp2.read-ping-ids";
-function loadReadPingIds() { try { return new Set(JSON.parse(localStorage.getItem(READ_PINGS_KEY) || "[]")); } catch { return new Set(); } }
-const READ_CHANGES_KEY = "pgp2.read-change-keys";
-function loadReadChangeKeys() { try { return new Set(JSON.parse(localStorage.getItem(READ_CHANGES_KEY) || "[]")); } catch { return new Set(); } }
-
 // Phase 3: social events now live in the unified `notifications` store (types
 // below) instead of friend_pings. These are routed to the bell's Friends section;
 // all other notification types go to the Alerts section.
@@ -171,8 +104,6 @@ function socialRowToPing(row) {
   else { meta.type = row.type; if (d.from_code) meta.fromCode = d.from_code; }
   return { id: row.id, from_id: d.from_id, from_name: JSON.stringify(meta), created_at: row.created_at, read_at: row.read_at };
 }
-const CLEARED_GROUPS_KEY = "pgp2.cleared-groups";
-function loadClearedGroups() { try { return new Set(JSON.parse(localStorage.getItem(CLEARED_GROUPS_KEY) || "[]")); } catch { return new Set(); } }
 const ADMIN_EMAILS = [
   "mba25rakeshb@iimsambalpur.ac.in",
   "test@iimsambalpur.ac.in"
@@ -1290,10 +1221,15 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(email));
         const hash = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
         const overrides = students[hash];
+        const droppedCodes = setup?.droppedCodes || [];
         if (overrides) {
           let changed = false;
           const nextEnrolled = { ...enrolled };
           for (const [code, rawSection] of Object.entries(overrides)) {
+            // Never resurrect a course the student deliberately dropped via
+            // setup-edit — the admin roster sheet isn't updated on drop, so
+            // without this it silently reappears on the next feed sync.
+            if (!(code in nextEnrolled) && droppedCodes.includes(code)) continue;
             // Normalise whatever value the sheet uses → A | B | Single
             const s = String(rawSection).trim();
             const section = s === "A" || s === "B" ? s : "Single";
@@ -1537,7 +1473,14 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   }
 
   async function handleOnboardingDone(courses, enteredName) {
-    const s = { courses };
+    // Track codes the student deliberately removed here, so the roster
+    // auto-sync (below) never silently re-adds them from the admin sheet.
+    // Re-picking a dropped code (a swap-back) clears it from the set again.
+    const prevCourses = setup?.courses || enrolled || {};
+    const prevDropped = setup?.droppedCodes || [];
+    const newlyDropped = Object.keys(prevCourses).filter((c) => !(c in courses));
+    const droppedCodes = [...new Set([...prevDropped, ...newlyDropped])].filter((c) => !(c in courses));
+    const s = { courses, droppedCodes };
     saveSetup(s);
     const trimmed = (enteredName || "").trim();
     // If the user typed a name (they had none from Clerk), persist it to Clerk so
@@ -1547,7 +1490,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       try { await user.update({ firstName: trimmed }); } catch { /* non-blocking */ }
     }
     const name = trimmed || user?.firstName || user?.username || "Student";
-    pushProfile(userId, courses, name, undefined, user?.imageUrl);
+    pushProfile(userId, courses, name, undefined, user?.imageUrl, droppedCodes);
     setEnrolled(courses);
     setMine(new Set(Object.keys(courses)));
     setSetup(s);

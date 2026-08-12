@@ -44,8 +44,9 @@ export async function syncProfileFromCloud(userId) {
     const readChangeKeys = raw._readChangeKeys || [];
     const cleanCourses = Object.fromEntries(Object.entries(raw).filter(([k]) => !k.startsWith('_')));
     const assignments = raw._assignments || {};
+    const droppedCodes = raw._droppedCodes || [];
     try { localStorage.setItem("pgp2.assignments", JSON.stringify(assignments)); } catch {}
-    const s = { courses: cleanCourses, lastSeenNotif: remoteSeen, readPingIds, seenGroupIds, readChangeKeys, assignments, imageUrl: raw._imageUrl };
+    const s = { courses: cleanCourses, lastSeenNotif: remoteSeen, readPingIds, seenGroupIds, readChangeKeys, assignments, droppedCodes, imageUrl: raw._imageUrl };
     writeLocal({ courses: cleanCourses });
     return s;
   }
@@ -59,11 +60,11 @@ export async function syncProfileFromCloud(userId) {
   return null;
 }
 
-export async function pushProfile(userId, courses, userName, optionalLastSeenNotif, imageUrl) {
+export async function pushProfile(userId, courses, userName, optionalLastSeenNotif, imageUrl, droppedCodes) {
   const s = { courses };
   writeLocal(s);
   if (!userId) return s;
-  
+
   const dbCourses = { ...courses };
   if (userName) dbCourses._name = userName;
   if (imageUrl) dbCourses._imageUrl = imageUrl;
@@ -96,6 +97,15 @@ export async function pushProfile(userId, courses, userName, optionalLastSeenNot
 
     const asgn = Object.keys(localAsgn).length ? localAsgn : (remote._assignments || {});
     if (Object.keys(asgn).length) dbCourses._assignments = asgn;
+
+    // Last-write-wins (like courses itself): reflects the current drop state,
+    // not an ever-growing log — a code removed from droppedCodes (re-added by
+    // the student) must actually disappear cloud-side too.
+    if (droppedCodes !== undefined) {
+      if (droppedCodes.length) dbCourses._droppedCodes = droppedCodes;
+    } else if (remote._droppedCodes) {
+      dbCourses._droppedCodes = remote._droppedCodes;
+    }
 
     // Carry over cloud meta keys this write path doesn't own (_status,
     // _hide_from_matchmaker, _dismissedChangeKeys, _mutedCourses, …) so a
