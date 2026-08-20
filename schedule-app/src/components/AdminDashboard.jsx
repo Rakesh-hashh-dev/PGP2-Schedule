@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import "../styles/admin.css";
 import "../styles/assignments.css";
 import "../styles/cmdk.css";
-import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil, BarChart2, GraduationCap, MessageSquare, CloudOff, Shield, Smartphone } from "lucide-react";
+import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil, BarChart2, GraduationCap, MessageSquare, CloudOff, Shield, Smartphone, Copy } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { logAdminAction } from "../lib/adminAudit.js";
 import { LEGEND } from "../data/schedule.js";
@@ -75,6 +75,24 @@ function PushPreview({ title, body, url, when }) {
 function Avatar({ name, email }) {
   const init = name ? name[0] : (email ? email[0] : "?");
   return <div className="admin-avatar">{init.toUpperCase()}</div>;
+}
+
+// Shared centered-overlay modal shell — backdrop click / X both close, body
+// scrolls with a hidden scrollbar track. Width is per-modal (list modals want
+// more room than a short confirm), everything else (positioning, max-height,
+// close affordance) stays identical so a future fix only has to land once.
+function AdminModal({ title, onClose, width = 640, children }) {
+  return (
+    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={onClose}>
+      <div className="admin-scroll-hide" style={{ background: "var(--bg)", width: "90%", maxWidth: width, borderRadius: 16, padding: 24, maxHeight: "80vh", overflowY: "auto", border: "1px solid var(--border)" }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <h3 style={{ margin: 0 }}>{title}</h3>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer" }}><X size={20} /></button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
 }
 
 // Strip the bookkeeping keys (rollback history + scheduled-deploy queue) out of
@@ -255,6 +273,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [selectedUser, setSelectedUser] = useState(null);
 
   const [activeUsersListModalOpen, setActiveUsersListModalOpen] = useState(false);
+  const [activeUsersSort, setActiveUsersSort] = useState("recent"); // "recent" | "name"
   const [pushSubscribersModalOpen, setPushSubscribersModalOpen] = useState(false);
   const [pushSubscribersList, setPushSubscribersList] = useState([]);
 
@@ -318,6 +337,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [scheduleDeployAt, setScheduleDeployAt] = useState(""); // scheduled config deploy time
   const [relocEmail, setRelocEmail] = useState(""); // email→relocation parser input
   const [viewAsUser, setViewAsUser] = useState(null); // read-only "view as" impersonation
+  const [viewAsDate, setViewAsDate] = useState(() => new Date().toISOString().split("T")[0]); // date picker for view-as schedule
   const [selfTest, setSelfTest] = useState(null); // aggregated self-test result
   const [selfTesting, setSelfTesting] = useState(false);
   const [tplLabel, setTplLabel] = useState(""); // new announcement-template name
@@ -390,6 +410,32 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     return () => clearInterval(t);
   }, []);
 
+  // ── Broadcast Tab Accordion & Announcement Revamp States ──
+  const [annFilter, setAnnFilter] = useState("all"); // "all" | "active" | "upcoming" | "expired"
+  const [annSearch, setAnnSearch] = useState("");
+  const [editingAnnId, setEditingAnnId] = useState(null);
+  const [editAnnMsg, setEditAnnMsg] = useState("");
+  const [editAnnStart, setEditAnnStart] = useState("");
+  const [editAnnEnd, setEditAnnEnd] = useState("");
+  const [editAnnTarget, setEditAnnTarget] = useState("global");
+  const [editAnnSeverity, setEditAnnSeverity] = useState("info");
+
+  // ── Broadcast Tab Accordion States ──
+  const [openBcast, setOpenBcast] = useState({ announcements: true, push: false, social: false });
+  const [openContent, setOpenContent] = useState({ whatsNew: true, quickLinks: false, updatePrompt: false });
+
+  // ── Command Centre State (Week View + Quick Actions + Undo Stack) ──
+  const [cmdSection, setCmdSection] = useState("All");       // "All" | "A" | "B"
+  const [cmdUndoStack, setCmdUndoStack] = useState([]);      // [{ label, prevOverrides }]
+  const [cmdQuickRoom, setCmdQuickRoom] = useState(null);    // { classKey, date } | null
+  const [cmdQuickRoomValue, setCmdQuickRoomValue] = useState("");
+  const [draggedIdx, setDraggedIdx] = useState(null);        // idx of dragged class card
+  // ── Active Overrides Hub State ──
+  const [ovrFilterType, setOvrFilterType] = useState("all"); // all|cancelled|room|time|exam|custom
+  const [ovrSearch, setOvrSearch] = useState("");
+  const [ovrEditKey, setOvrEditKey] = useState(null);        // "date::code" being edited inline
+  const [ovrEditValues, setOvrEditValues] = useState({ room: "", start: "", end: "" });
+
   // Live Editor State
   const [liveSchedule] = useState(() => getSnapshot().CLASSES || []);
   const [liveEditorDate, setLiveEditorDate] = useState(new Date().toISOString().split("T")[0]);
@@ -420,6 +466,11 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   // 7-day activity analytics (index 0 = 6 days ago, index 6 = today)
   const [activityChartData, setActivityChartData] = useState(Array(7).fill(0));
   const [peakHour, setPeakHour] = useState(null);
+
+  // Weekly Presence card — selected day index (0 = 6 days ago, 6 = today), sort mode, hour filter
+  const [weeklyPresenceDay, setWeeklyPresenceDay] = useState(null);
+  const [weeklyPresenceSort, setWeeklyPresenceSort] = useState("time"); // "time" | "name"
+  const [weeklyPresenceHourFilter, setWeeklyPresenceHourFilter] = useState(null); // null = all
 
 
   // Reactive flag — avoids stale localStorage.getItem() at render time
@@ -1048,7 +1099,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     if (t.severity) setAnnouncementSeverity(t.severity);
   }
   function removeAnnouncementTemplate(id) {
-    setFlags({ ...flags, announcementTemplates: (flags.announcementTemplates || []).filter(t => t.id !== id) });
+    const prev = flags.announcementTemplates || [];
+    setFlags({ ...flags, announcementTemplates: prev.filter(t => t.id !== id) });
+    removeWithUndo("Template removed", () => setFlags(f => ({ ...f, announcementTemplates: prev })));
   }
 
   // ── Override-only expiry cleanup (past-dated classOverrides) ──
@@ -1105,6 +1158,68 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     const pushDevices = Number(pushSubCount) || 0;
     return { signedUp, pickedSection, pushDevices, activeWeek };
   })();
+
+  // ── Weekly Presence: per-day, per-hour buckets from last_seen_at ────────────
+  // One entry per user per day (last_seen_at is a single heartbeat per user,
+  // stamped at most once/hour). Index 0 = 6 days ago, index 6 = today.
+  const weeklyPresence = (() => {
+    const days = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(LOAD_NOW - (6 - i) * 86400000);
+      d.setHours(0, 0, 0, 0);
+      return {
+        ts: d.getTime(),
+        label: d.toLocaleDateString("en-IN", { weekday: "short" }),
+        date: d.toLocaleDateString("en-IN", { day: "numeric", month: "short" }),
+        isoDate: d.toISOString().split("T")[0],
+        users: [],           // { name, hour, userId, section, isNew, seenTs }
+        hourBuckets: Array(24).fill(0),
+      };
+    });
+
+    allUsers.forEach(u => {
+      if (!u.last_seen_at) return;
+      const seenDate = new Date(u.last_seen_at);
+      const dayStart = new Date(seenDate); dayStart.setHours(0, 0, 0, 0);
+      const dayIdx = days.findIndex(d => d.ts === dayStart.getTime());
+      if (dayIdx === -1) return;
+      const hour = seenDate.getHours();
+      // Derive section from the first non-underscore course key
+      const courseKeys = Object.keys(u.courses || {}).filter(c => !c.startsWith("_"));
+      const section = courseKeys.length > 0
+        ? (courseKeys.find(c => /_[ABC]$/.test(c))?.match(/_([ABC])$/)?.[1] || "—")
+        : "—";
+      // Mark as "new" if they signed up (updated_at) within 24h of the day
+      const isNew = u.updated_at
+        ? Math.abs(new Date(u.updated_at).getTime() - dayStart.getTime()) <= 86400000
+        : false;
+      days[dayIdx].users.push({
+        name: u.name || "Student",
+        hour,
+        userId: u.user_id,
+        section,
+        isNew,
+        seenTs: seenDate.getTime(),
+      });
+      days[dayIdx].hourBuckets[hour]++;
+    });
+
+    return days;
+  })();
+
+  // ── Streak users: seen on every one of the last 7 days ──────────────────────
+  const streakUserIds = new Set(
+    allUsers
+      .filter(u => {
+        if (!u.last_seen_at) return false;
+        return weeklyPresence.every(day => day.users.some(wu => wu.userId === u.user_id));
+      })
+      .map(u => u.user_id)
+  );
+
+  // ── Ghost users: not seen in 7+ days (only if they ever logged in) ──────────
+  const ghostUsers = allUsers.filter(u =>
+    u.last_seen_at && (LOAD_NOW - new Date(u.last_seen_at).getTime()) > 7 * 86400000
+  );
 
   // ── Admin action leaderboard: audit actions per admin in the last 7 days ──
   const adminLeaderboard = (() => {
@@ -1249,6 +1364,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     setRoleUserId("");
   }
   function removeAdminRole(id) {
+    if (!confirm(`Remove admin access for ${id}?`)) return;
     const next = { ...(flags.adminRoles || {}) };
     delete next[id];
     setFlags({ ...flags, adminRoles: next });
@@ -1708,169 +1824,260 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
 
 
-          {/* Interactive Live Schedule Editor */}
+          {/* ── Live Schedule Command Centre ── */}
           <section className="admin-card admin-span-all admin-g-schedule" style={{ gridColumn: "1 / -1" }}>
-            <h2><CalendarDays size={20} color="var(--blue)" /> Live Schedule Editor</h2>
-            <p className="admin-subtext">Click on a class slot to visually change the room or cancel the class.</p>
-            <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
-              <input type="date" className="admin-input" value={liveEditorDate} onChange={e => setLiveEditorDate(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)" }} />
-              <button 
-                className="admin-btn primary"
-                onClick={() => openLiveEditorModal({ date: liveEditorDate, code: "", name: "", type: "class", section: "All" }, true)}
-              >
-                + Add Class
-              </button>
+            {/* Header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+              <div>
+                <h2 style={{ marginBottom: 4 }}><CalendarDays size={20} color="var(--blue)" /> Schedule Command Centre</h2>
+                <p className="admin-subtext" style={{ margin: 0 }}>Click a class card for quick cancel, room move, or full edit. Drag two cards to swap their time slots.</p>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button className="admin-btn primary" style={{ padding: "7px 14px", fontSize: 13 }}
+                  onClick={() => openLiveEditorModal({ date: liveEditorDate, code: "", name: "", type: "class", section: "All" }, true)}>
+                  + Add Class
+                </button>
+                <button className="admin-btn outline" style={{ padding: "7px 14px", fontSize: 13, borderColor: "var(--danger)", color: "var(--danger)" }}
+                  onClick={() => {
+                    const dayClasses = liveSchedule.filter(c => c.date === liveEditorDate && c.type !== "break");
+                    if (dayClasses.length === 0) return alert("No classes to cancel on this date.");
+                    if (!window.confirm(`Mark all ${dayClasses.length} classes on ${liveEditorDate} as Holiday?`)) return;
+                    const prev = flags.classOverrides;
+                    const next = { ...flags.classOverrides };
+                    if (!next[liveEditorDate]) next[liveEditorDate] = {};
+                    dayClasses.forEach(c => { const k = makeOverrideKey(classIdent(c), c.section); next[liveEditorDate][k] = { type: "cancelled", modifiedAt: new Date().toISOString(), modifiedBy: admin_id }; });
+                    setFlags({ ...flags, classOverrides: next });
+                    setCmdUndoStack(s => [{ label: `Holiday: all classes on ${liveEditorDate} cancelled`, prevOverrides: prev }, ...s.slice(0, 9)]);
+                  }}>
+                  <XCircle size={14} /> Holiday (Cancel All)
+                </button>
+              </div>
             </div>
-            <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 16 }}>
-              {(() => {
-                const baseClasses = liveSchedule.filter(c => c.date === liveEditorDate && c.type !== "break");
-                const newClasses = [];
-                const overridesForDate = flags.classOverrides?.[liveEditorDate] || {};
-                
-                Object.keys(overridesForDate).forEach(key => {
-                  const { ident: code, section } = parseOverrideKey(key);
-                  const exists = baseClasses.some(c => classIdent(c) === code && (c.section === section || section === "All" || c.section === "Single"));
 
-                  if (!exists) {
-                    const ovr = overridesForDate[key];
-                    if (ovr.type !== "cancelled") {
-                      newClasses.push({
-                        date: liveEditorDate,
-                        code: code,
-                        section: section,
-                        name: ovr.name || "Custom Added Class",
-                        room: ovr.room || "",
-                        start: ovr.start || "",
-                        end: ovr.end || "",
-                        type: ovr.type || "class"
-                      });
-                    }
-                  }
-                });
-                
-                // Chronological order — raw data lists Sec A, then Sec B, then
-                // Single-section/guest classes, which buries them off-screen
-                const displayClasses = [...baseClasses, ...newClasses]
-                  .sort((a, b) => (a.start || "").localeCompare(b.start || "") || (a.code || "").localeCompare(b.code || ""));
-                
-                // --- CONFLICT DETECTOR ---
-                const conflicts = [];
-                function toMinFP(t) { const [h, m] = t.split(":").map(Number); return h * 60 + (m || 0); }
-                
-                for (let i = 0; i < displayClasses.length; i++) {
-                  for (let j = i + 1; j < displayClasses.length; j++) {
-                    const c1 = displayClasses[i];
-                    const c2 = displayClasses[j];
-                    
-                    const ovr1 = lookupOverride(overridesForDate, c1);
-                    const ovr2 = lookupOverride(overridesForDate, c2);
-                    
-                    if (ovr1?.type === "cancelled" || ovr2?.type === "cancelled") continue;
-                    
-                    const room1 = ovr1?.room || c1.room;
-                    const room2 = ovr2?.room || c2.room;
-                    
-                    const start1 = toMinFP(ovr1?.start || c1.start || "00:00");
-                    const end1 = toMinFP(ovr1?.end || c1.end || "00:00");
-                    const start2 = toMinFP(ovr2?.start || c2.start || "00:00");
-                    const end2 = toMinFP(ovr2?.end || c2.end || "00:00");
-
-                    // Overlap logic: start1 < end2 && start2 < end1
-                    const isTimeOverlap = start1 < end2 && start2 < end1;
-                    
-                    if (isTimeOverlap) {
-                      if (room1 && room2 && room1.toLowerCase() === room2.toLowerCase() && room1.toLowerCase() !== "tbd") {
-                        conflicts.push(`Room Double-Booked: ${room1} (${c1.code} and ${c2.code})`);
-                      } else if (c1.section === c2.section || c1.section === "All" || c2.section === "All") {
-                        conflicts.push(`Section Overlap: Section ${c1.section === "All" ? c2.section : c1.section} expected in ${c1.code} and ${c2.code} simultaneously.`);
-                      }
-                    }
-                  }
-                }
-                // -------------------------
-
-                if (displayClasses.length === 0) {
-                  return <div className="admin-empty">No classes found for this date.</div>;
-                }
-                
-                const classElements = displayClasses.map((c, i) => {
-                  const override = lookupOverride(overridesForDate, c);
-                  const isCancelled = override?.type === "cancelled";
-                  const isGuest = (c.session || "").toLowerCase().includes("guest");
-                  const displayRoom = override?.room || c.room;
-                  const displayStart = override?.start || c.start;
-                  const displayEnd = override?.end || c.end;
-                  return (
-                    <div key={i} onClick={() => openLiveEditorModal(c)} style={{ minWidth: 200, padding: 12, background: "var(--bg)", border: `1px solid ${isGuest ? "var(--violet)" : "var(--border)"}`, borderRadius: 12, cursor: "pointer", position: "relative", opacity: isCancelled ? 0.6 : 1 }}>
-                      <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4, textDecoration: isCancelled ? "line-through" : "none" }}>
-                        {displayStart} - {displayEnd} | Sec: {c.section === "Single" ? "All" : c.section}
-                        {isGuest && <span style={{ marginLeft: 6, background: "var(--violet)", color: "#fff", padding: "1px 6px", borderRadius: 4, fontSize: 9.5, fontWeight: 800, letterSpacing: ".03em" }}>GUEST</span>}
-                      </div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)", marginBottom: 4, textDecoration: isCancelled ? "line-through" : "none" }}>{c.code} - {c.name || "Class"}</div>
-                      <div style={{ fontSize: 12, color: "var(--muted)", textDecoration: isCancelled ? "line-through" : "none" }}>Room: {displayRoom || "TBD"}</div>
-                      {override && <div style={{ position: "absolute", top: -6, right: -6, background: "var(--amber)", color: "#000", padding: "2px 6px", borderRadius: 4, fontSize: 10, fontWeight: 800 }}>OVERRIDDEN</div>}
-                    </div>
-                  );
-                });
-                
-                return (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 16, width: "100%" }}>
-                    {conflicts.length > 0 && (
-                       <div style={{ background: "rgba(231, 76, 60, 0.1)", border: "1px solid var(--danger)", padding: 12, borderRadius: 8, color: "var(--danger)" }}>
-                         <strong style={{ display: "flex", alignItems: "center", gap: 8 }}><AlertTriangle size={16} /> Conflict Warning</strong>
-                         <ul style={{ margin: "8px 0 0 0", paddingLeft: 20, fontSize: 13 }}>
-                           {Array.from(new Set(conflicts)).map((c, idx) => <li key={idx}>{c}</li>)}
-                         </ul>
-                       </div>
-                    )}
-                    <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8, WebkitOverflowScrolling: "touch" }}>
-                       {classElements}
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-          </section>
-
-          {/* Class Cancellation Board */}
-          <section className="admin-card admin-span-all admin-g-schedule" style={{ gridColumn: "1 / -1" }}>
-            <h2><XCircle size={20} color="var(--danger)" /> Class Cancellation Board</h2>
-            <p className="admin-subtext">Globally cancel a class for all students on a specific date. Pick a date, then cancel directly from that day's schedule. Changes go live after "Deploy Config to Cloud".</p>
-            <div className="admin-field" style={{ maxWidth: 220 }}>
-              <label>Date</label>
-              <input type="date" className="admin-input" value={overrideDate} onChange={e => setOverrideDate(e.target.value)} />
-            </div>
-            {overrideDate && (() => {
-              const overridesForDate = flags.classOverrides?.[overrideDate] || {};
-              const dayClasses = liveSchedule
-                .filter(c => c.date === overrideDate && c.type !== "break")
-                .sort((a, b) => (a.start || "").localeCompare(b.start || "") || (a.code || "").localeCompare(b.code || ""));
-              if (dayClasses.length === 0) {
-                return <div className="admin-empty" style={{ padding: "20px 0" }}>No classes scheduled on this date. Use manual entry below if needed.</div>;
-              }
+            {/* Week View Ribbon */}
+            {(() => {
+              const today = new Date().toISOString().split("T")[0];
+              const weekDays = Array.from({ length: 7 }, (_, i) => {
+                const d = new Date(); d.setDate(d.getDate() - 3 + i);
+                const iso = d.toISOString().split("T")[0];
+                const count = liveSchedule.filter(c => c.date === iso && c.type !== "break").length;
+                const hasOverride = !!(flags.classOverrides?.[iso] && Object.keys(flags.classOverrides[iso]).length > 0);
+                return { iso, label: d.toLocaleDateString("en-IN", { weekday: "short" }), num: d.getDate(), count, hasOverride, isToday: iso === today };
+              });
               return (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
-                  {dayClasses.map((c, i) => {
-                    const isCancelled = lookupOverride(overridesForDate, c)?.type === "cancelled";
+                <div style={{ display: "flex", gap: 6, marginBottom: 16, overflowX: "auto" }}>
+                  {weekDays.map(d => (
+                    <button key={d.iso}
+                      onClick={() => setLiveEditorDate(d.iso)}
+                      style={{ flex: "0 0 auto", minWidth: 56, padding: "8px 6px", borderRadius: 12, border: liveEditorDate === d.iso ? "2px solid var(--blue)" : "1px solid var(--border)", background: liveEditorDate === d.iso ? "rgba(59,130,246,0.10)" : d.isToday ? "rgba(109,91,208,0.06)" : "var(--bg)", cursor: "pointer", textAlign: "center", position: "relative", transition: "border-color 0.15s" }}>
+                      <div style={{ fontSize: 10, fontWeight: 600, color: liveEditorDate === d.iso ? "var(--blue)" : "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>{d.label}</div>
+                      <div style={{ fontSize: 16, fontWeight: 800, color: liveEditorDate === d.iso ? "var(--blue)" : "var(--text)", fontFamily: "var(--display)" }}>{d.num}</div>
+                      <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>{d.count > 0 ? `${d.count} cls` : "—"}</div>
+                      {d.hasOverride && <span style={{ position: "absolute", top: 5, right: 7, width: 6, height: 6, borderRadius: "50%", background: "var(--amber)" }} title="Has overrides" />}
+                      {d.isToday && <div style={{ position: "absolute", bottom: 4, left: "50%", transform: "translateX(-50%)", width: 4, height: 4, borderRadius: "50%", background: "var(--violet)" }} />}
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
+
+            {/* Day toolbar: date picker + section filter */}
+            <div style={{ display: "flex", gap: 10, marginBottom: 16, alignItems: "center", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                <button onClick={() => { const d = new Date(liveEditorDate); d.setDate(d.getDate() - 1); setLiveEditorDate(d.toISOString().split("T")[0]); }}
+                  style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 10px", cursor: "pointer", color: "var(--muted)" }}>‹</button>
+                <input type="date" className="admin-input" value={liveEditorDate} onChange={e => setLiveEditorDate(e.target.value)}
+                  style={{ padding: "7px 12px", borderRadius: 8 }} />
+                <button onClick={() => { const d = new Date(liveEditorDate); d.setDate(d.getDate() + 1); setLiveEditorDate(d.toISOString().split("T")[0]); }}
+                  style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 10px", cursor: "pointer", color: "var(--muted)" }}>›</button>
+              </div>
+              <div style={{ display: "flex", gap: 4 }}>
+                {["All", "A", "B"].map(s => (
+                  <button key={s} onClick={() => setCmdSection(s)}
+                    style={{ padding: "6px 14px", borderRadius: 8, border: cmdSection === s ? "1.5px solid var(--blue)" : "1px solid var(--border)", background: cmdSection === s ? "rgba(59,130,246,0.10)" : "var(--bg)", cursor: "pointer", fontSize: 13, fontWeight: cmdSection === s ? 700 : 500, color: cmdSection === s ? "var(--blue)" : "var(--muted)" }}>
+                    {s === "All" ? "All Sections" : `Sec ${s}`}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Undo stack bar */}
+            {cmdUndoStack.length > 0 && (
+              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: "rgba(109,91,208,0.07)", border: "1px solid rgba(109,91,208,0.3)", borderRadius: 10, marginBottom: 14, fontSize: 13 }}>
+                <span style={{ flex: 1, color: "var(--muted)" }}>Staged: <b style={{ color: "var(--text)" }}>{cmdUndoStack[0].label}</b></span>
+                <button onClick={() => {
+                  setFlags(f => ({ ...f, classOverrides: cmdUndoStack[0].prevOverrides }));
+                  setCmdUndoStack(s => s.slice(1));
+                }} style={{ background: "none", color: "var(--violet)", fontWeight: 700, cursor: "pointer", fontSize: 13, padding: "2px 8px", borderRadius: 6, border: "1px solid var(--violet)" }}>↩ Undo</button>
+                {cmdUndoStack.length > 1 && <span style={{ fontSize: 11, color: "var(--muted)" }}>(+{cmdUndoStack.length - 1} more)</span>}
+                <button onClick={() => setCmdUndoStack([])} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 11, padding: "2px 6px" }}>Clear all</button>
+              </div>
+            )}
+
+            {/* Class grid */}
+            {(() => {
+              const overridesForDate = flags.classOverrides?.[liveEditorDate] || {};
+              const baseClasses = liveSchedule.filter(c => c.date === liveEditorDate && c.type !== "break");
+              const newClasses = [];
+              Object.keys(overridesForDate).forEach(key => {
+                const { ident: code, section } = parseOverrideKey(key);
+                const exists = baseClasses.some(c => classIdent(c) === code && (c.section === section || section === "All" || c.section === "Single"));
+                if (!exists) {
+                  const ovr = overridesForDate[key];
+                  if (ovr.type !== "cancelled") newClasses.push({ date: liveEditorDate, code, section, name: ovr.name || "Custom Class", room: ovr.room || "", start: ovr.start || "", end: ovr.end || "", type: ovr.type || "class" });
+                }
+              });
+              let displayClasses = [...baseClasses, ...newClasses]
+                .sort((a, b) => (a.start || "").localeCompare(b.start || "") || (a.code || "").localeCompare(b.code || ""));
+              if (cmdSection !== "All") displayClasses = displayClasses.filter(c => c.section === cmdSection || c.section === "Single" || c.section === "All");
+
+              // Conflict detector
+              function toMin(t) { if (!t) return 0; const [h, m] = t.split(":").map(Number); return h * 60 + (m || 0); }
+              const conflicts = [];
+              for (let i = 0; i < displayClasses.length; i++) {
+                for (let j = i + 1; j < displayClasses.length; j++) {
+                  const c1 = displayClasses[i]; const c2 = displayClasses[j];
+                  const o1 = lookupOverride(overridesForDate, c1); const o2 = lookupOverride(overridesForDate, c2);
+                  if (o1?.type === "cancelled" || o2?.type === "cancelled") continue;
+                  const r1 = o1?.room || c1.room; const r2 = o2?.room || c2.room;
+                  const s1 = toMin(o1?.start || c1.start); const e1 = toMin(o1?.end || c1.end);
+                  const s2 = toMin(o2?.start || c2.start); const e2 = toMin(o2?.end || c2.end);
+                  if (s1 < e2 && s2 < e1) {
+                    if (r1 && r2 && r1.toLowerCase() === r2.toLowerCase() && r1.toLowerCase() !== "tbd") conflicts.push(`Room double-booked: ${r1} (${c1.code} & ${c2.code})`);
+                    else if (c1.section === c2.section || c1.section === "All" || c2.section === "All") conflicts.push(`Section overlap: Sec ${c1.section === "All" ? c2.section : c1.section} — ${c1.code} & ${c2.code}`);
+                  }
+                }
+              }
+
+              if (displayClasses.length === 0) return <div className="admin-empty" style={{ padding: "24px 0" }}>No classes on this date{cmdSection !== "All" ? ` for Section ${cmdSection}` : ""}.</div>;
+
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {conflicts.length > 0 && (
+                    <div style={{ background: "rgba(231,76,60,0.08)", border: "1px solid var(--danger)", borderRadius: 10, padding: "10px 14px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, color: "var(--danger)", marginBottom: 6 }}><AlertTriangle size={15} /> Conflict Warning</div>
+                      {Array.from(new Set(conflicts)).map((c, i) => <div key={i} style={{ fontSize: 12, color: "var(--danger)" }}>• {c}</div>)}
+                    </div>
+                  )}
+                  {displayClasses.map((c, idx) => {
+                    const override = lookupOverride(overridesForDate, c);
+                    const isCancelled = override?.type === "cancelled";
+                    const isExam = override?.type === "exam";
+                    const hasRoomChange = !!override?.room;
+                    const hasTimeChange = !!override?.start || !!override?.end;
+                    const isModified = hasRoomChange || hasTimeChange || isExam;
+                    const isGuest = (c.session || "").toLowerCase().includes("guest");
+                    const displayRoom = override?.room || c.room;
+                    const displayStart = override?.start || c.start;
+                    const displayEnd = override?.end || c.end;
+                    const ident = classIdent(c);
+                    const isBeingDragged = draggedIdx === idx;
+                    const isQuickRoomOpen = cmdQuickRoom?.date === liveEditorDate && cmdQuickRoom?.classKey === ident + "_" + c.section;
+
                     return (
-                      <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 14px", opacity: isCancelled ? 0.65 : 1 }}>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)", textDecoration: isCancelled ? "line-through" : "none" }}>
-                            {c.code} — {c.name || LEGEND[c.code]?.name || "Class"}
-                            {isCancelled && <span style={{ marginLeft: 8, background: "var(--danger)", color: "#fff", padding: "1px 7px", borderRadius: 4, fontSize: 10, fontWeight: 800, letterSpacing: ".04em", textDecoration: "none", display: "inline-block" }}>CANCELLED</span>}
+                      <div key={idx}
+                        draggable
+                        onDragStart={() => setDraggedIdx(idx)}
+                        onDragEnd={() => setDraggedIdx(null)}
+                        onDragOver={e => e.preventDefault()}
+                        onDrop={() => {
+                          if (draggedIdx === null || draggedIdx === idx) return;
+                          const src = displayClasses[draggedIdx];
+                          const dst = c;
+                          if (!src || !dst) return;
+                          // Swap the start/end times between the two classes
+                          const srcStart = override?.start || src.start; const srcEnd = override?.end || src.end;
+                          const dstOvr = lookupOverride(overridesForDate, dst);
+                          const dstStart = dstOvr?.start || dst.start; const dstEnd = dstOvr?.end || dst.end;
+                          const prev = flags.classOverrides;
+                          const next = { ...flags.classOverrides };
+                          next[liveEditorDate] = { ...(next[liveEditorDate] || {}) };
+                          const srcKey = makeOverrideKey(classIdent(src), src.section);
+                          const dstKey = makeOverrideKey(classIdent(dst), dst.section);
+                          next[liveEditorDate][srcKey] = { ...(next[liveEditorDate][srcKey] || {}), start: dstStart, end: dstEnd, modifiedAt: new Date().toISOString(), modifiedBy: admin_id };
+                          next[liveEditorDate][dstKey] = { ...(next[liveEditorDate][dstKey] || {}), start: srcStart, end: srcEnd, modifiedAt: new Date().toISOString(), modifiedBy: admin_id };
+                          setFlags({ ...flags, classOverrides: next });
+                          setCmdUndoStack(s => [{ label: `Swapped times: ${src.code} ↔ ${dst.code}`, prevOverrides: prev }, ...s.slice(0, 9)]);
+                          setDraggedIdx(null);
+                          logAdminAction(admin_id, "swap_time_slots", { date: liveEditorDate, src: srcKey, dst: dstKey });
+                        }}
+                        style={{
+                          border: `1px solid ${isCancelled ? "var(--danger)" : isModified ? "var(--amber)" : isGuest ? "var(--violet)" : "var(--border)"}`,
+                          borderRadius: 12, background: isCancelled ? "rgba(231,76,60,0.04)" : isModified ? "rgba(245,158,11,0.04)" : "var(--bg)",
+                          opacity: isCancelled ? 0.75 : 1, transition: "border-color 0.15s, box-shadow 0.15s",
+                          boxShadow: isBeingDragged ? "0 4px 20px rgba(0,0,0,0.15)" : "none",
+                        }}>
+                        {/* Card main row */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px" }}>
+                          {/* Drag handle */}
+                          <div style={{ cursor: "grab", color: "var(--muted)", flexShrink: 0 }} title="Drag to swap time slot">⇅</div>
+                          {/* Class info */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)", textDecoration: isCancelled ? "line-through" : "none", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                              {c.code} — {c.name || LEGEND[c.code]?.name || "Class"}
+                              {isCancelled && <span style={{ fontSize: 10, fontWeight: 800, background: "var(--danger)", color: "#fff", padding: "1px 7px", borderRadius: 4 }}>CANCELLED</span>}
+                              {isExam && !isCancelled && <span style={{ fontSize: 10, fontWeight: 800, background: "var(--violet)", color: "#fff", padding: "1px 7px", borderRadius: 4 }}>EXAM</span>}
+                              {isModified && !isCancelled && !isExam && <span style={{ fontSize: 10, fontWeight: 800, background: "var(--amber)", color: "#000", padding: "1px 7px", borderRadius: 4 }}>OVERRIDDEN</span>}
+                              {isGuest && <span style={{ fontSize: 10, fontWeight: 800, background: "var(--violet)", color: "#fff", padding: "1px 7px", borderRadius: 4 }}>GUEST</span>}
+                            </div>
+                            <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3, textDecoration: isCancelled ? "line-through" : "none" }}>
+                              {displayStart}–{displayEnd} · Sec: {c.section === "Single" ? "All" : c.section} · Room: {displayRoom || "TBD"}
+                            </div>
                           </div>
-                          <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
-                            {c.start} - {c.end} · Sec: {c.section === "Single" ? "All" : c.section} · Room: {c.room || "TBD"}
+                          {/* Action buttons */}
+                          <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                            {isCancelled ? (
+                              <button title="Restore class" onClick={() => {
+                                const prev = flags.classOverrides;
+                                restoreClass(liveEditorDate, ident, c.section);
+                                setCmdUndoStack(s => [{ label: `Restored: ${c.code} on ${liveEditorDate}`, prevOverrides: prev }, ...s.slice(0, 9)]);
+                              }} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "var(--live)", display: "flex", alignItems: "center", gap: 4 }}>
+                                <RefreshCw size={12} /> Restore
+                              </button>
+                            ) : (
+                              <button title="Quick cancel this class" onClick={() => {
+                                if (!window.confirm(`Cancel ${c.code} on ${liveEditorDate}?`)) return;
+                                const prev = flags.classOverrides;
+                                cancelClass(liveEditorDate, ident, c.section);
+                                setCmdUndoStack(s => [{ label: `Cancelled: ${c.code} on ${liveEditorDate}`, prevOverrides: prev }, ...s.slice(0, 9)]);
+                              }} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid var(--danger)", background: "var(--bg)", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "var(--danger)", display: "flex", alignItems: "center", gap: 4 }}>
+                                <XCircle size={12} /> Cancel
+                              </button>
+                            )}
+                            <button title="Quick room change" onClick={() => {
+                              setCmdQuickRoom(isQuickRoomOpen ? null : { date: liveEditorDate, classKey: ident + "_" + c.section });
+                              setCmdQuickRoomValue(displayRoom || "");
+                            }} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${isQuickRoomOpen ? "var(--blue)" : "var(--border)"}`, background: isQuickRoomOpen ? "rgba(59,130,246,0.10)" : "var(--bg)", cursor: "pointer", fontSize: 12, fontWeight: 600, color: isQuickRoomOpen ? "var(--blue)" : "var(--muted)", display: "flex", alignItems: "center", gap: 4 }}>
+                              📍 Room
+                            </button>
+                            <button title="Full edit (timing, name, section, exam)" onClick={() => openLiveEditorModal(c)} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "var(--muted)", display: "flex", alignItems: "center", gap: 4 }}>
+                              <Pencil size={12} /> Edit
+                            </button>
                           </div>
                         </div>
-                        {isCancelled ? (
-                          <button className="admin-btn outline" onClick={() => restoreClass(overrideDate, classIdent(c), c.section)} style={{ flex: "0 0 auto", padding: "7px 14px", fontSize: 13 }}>
-                            <RefreshCw size={14} /> Restore
-                          </button>
-                        ) : (
-                          <button className="admin-btn outline" onClick={() => cancelClass(overrideDate, classIdent(c), c.section)} style={{ flex: "0 0 auto", padding: "7px 14px", fontSize: 13, borderColor: "var(--danger)", color: "var(--danger)" }}>
-                            <XCircle size={14} /> Cancel
-                          </button>
+                        {/* Quick room inline input */}
+                        {isQuickRoomOpen && (
+                          <div style={{ display: "flex", gap: 8, padding: "0 14px 12px 14px", alignItems: "center" }}>
+                            <input autoFocus type="text" placeholder="New room (e.g. C-104)" className="admin-input"
+                              value={cmdQuickRoomValue} onChange={e => setCmdQuickRoomValue(e.target.value)}
+                              onKeyDown={e => { if (e.key === "Enter") document.getElementById("cmd-quick-room-save-" + idx)?.click(); if (e.key === "Escape") setCmdQuickRoom(null); }}
+                              style={{ flex: 1, padding: "6px 10px", fontSize: 13 }} />
+                            <button id={"cmd-quick-room-save-" + idx}
+                              onClick={() => {
+                                if (!cmdQuickRoomValue.trim()) return;
+                                const prev = flags.classOverrides;
+                                const next = { ...flags.classOverrides };
+                                next[liveEditorDate] = { ...(next[liveEditorDate] || {}) };
+                                const key = makeOverrideKey(ident, c.section);
+                                next[liveEditorDate][key] = { ...(next[liveEditorDate][key] || {}), room: cmdQuickRoomValue.trim(), modifiedAt: new Date().toISOString(), modifiedBy: admin_id };
+                                setFlags({ ...flags, classOverrides: next });
+                                setCmdUndoStack(s => [{ label: `Room: ${c.code} → ${cmdQuickRoomValue.trim()}`, prevOverrides: prev }, ...s.slice(0, 9)]);
+                                logAdminAction(admin_id, "quick_room_change", { date: liveEditorDate, class: key, room: cmdQuickRoomValue.trim() });
+                                setCmdQuickRoom(null); setCmdQuickRoomValue("");
+                              }}
+                              className="admin-btn primary" style={{ padding: "6px 14px", fontSize: 13 }}>Save</button>
+                            <button onClick={() => setCmdQuickRoom(null)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", padding: 4 }}><X size={14} /></button>
+                          </div>
                         )}
                       </div>
                     );
@@ -1878,29 +2085,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 </div>
               );
             })()}
-            
-            {overrideDate && (
-              <div style={{ marginTop: 12 }}>
-                 <button className="admin-btn danger outline" onClick={() => {
-                    const dayClasses = liveSchedule.filter(c => c.date === overrideDate && c.type !== "break");
-                    if (dayClasses.length === 0) return alert("No classes to cancel on this date.");
-                    if (!window.confirm(`Mark all ${dayClasses.length} classes on ${overrideDate} as cancelled (Holiday)?`)) return;
-                    
-                    const next = {...flags.classOverrides};
-                    if (!next[overrideDate]) next[overrideDate] = {};
-                    dayClasses.forEach(c => {
-                       const sectionKey = makeOverrideKey(classIdent(c), c.section);
-                       next[overrideDate][sectionKey] = { type: "cancelled" };
-                    });
-                    setFlags({...flags, classOverrides: next});
-                 }} style={{ padding: "8px 16px" }}>
-                    <XCircle size={15} /> Mark Entire Day as Holiday (Cancel All)
-                 </button>
-              </div>
-            )}
-            
-            <details style={{ marginTop: 14 }}>
-              <summary style={{ fontSize: 13, color: "var(--muted)", cursor: "pointer", fontWeight: 600 }}>Manual entry (class not listed?)</summary>
+
+            {/* Manual entry for classes not in snapshot */}
+            <details style={{ marginTop: 16 }}>
+              <summary style={{ fontSize: 13, color: "var(--muted)", cursor: "pointer", fontWeight: 600 }}>Manual entry (class not listed above?)</summary>
               <div className="admin-field-row" style={{ marginTop: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
                 <div className="admin-field">
                   <label>Class Code</label>
@@ -1923,7 +2111,6 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               </div>
             </details>
           </section>
-
           {/* Holiday / Day-off bulk cancel */}
           <section className="admin-card admin-span-all admin-g-schedule" style={{ gridColumn: "1 / -1" }}>
             <h2><XCircle size={20} color="var(--danger)" /> Holiday / Day-off</h2>
@@ -2112,721 +2299,871 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
              </div>
           </section>
 
-          {/* Active Overrides List */}
+          {/* ── Active Class Overrides Hub ── */}
           {flags.classOverrides && Object.keys(flags.classOverrides).length > 0 && (
             <section className="admin-card admin-span-all admin-g-schedule" style={{ gridColumn: "1 / -1" }}>
-              <h2>Active Class Overrides</h2>
+              <h2><Pencil size={20} color="var(--blue)" /> Active Class Overrides</h2>
+
+              {/* Summary metrics */}
+              {(() => {
+                let nCancelled = 0, nRoom = 0, nTime = 0, nExam = 0, nCustom = 0;
+                Object.values(flags.classOverrides).forEach(day => Object.values(day).forEach(ovr => {
+                  if (ovr.type === "cancelled") nCancelled++;
+                  else if (ovr.type === "exam") nExam++;
+                  else if (ovr.type === "class") nCustom++;
+                  else { if (ovr.room) nRoom++; if (ovr.start || ovr.end) nTime++; }
+                }));
+                const total = nCancelled + nRoom + nTime + nExam + nCustom;
+                return (
+                  <div style={{ display: "flex", gap: 12, marginTop: 12, marginBottom: 14, flexWrap: "wrap" }}>
+                    {[
+                      { label: `${total} Total`, color: "var(--text)", bg: "var(--bg)", filter: "all" },
+                      { label: `${nCancelled} Cancelled`, color: "var(--danger)", bg: "rgba(231,76,60,0.06)", filter: "cancelled" },
+                      { label: `${nRoom} Room`, color: "var(--blue)", bg: "rgba(59,130,246,0.06)", filter: "room" },
+                      { label: `${nTime} Time`, color: "var(--amber)", bg: "rgba(245,158,11,0.06)", filter: "time" },
+                      { label: `${nExam} Exam`, color: "var(--violet)", bg: "rgba(109,91,208,0.08)", filter: "exam" },
+                      { label: `${nCustom} Custom`, color: "var(--live)", bg: "rgba(31,169,113,0.06)", filter: "custom" },
+                    ].map(chip => (
+                      <button key={chip.filter} onClick={() => setOvrFilterType(chip.filter)}
+                        style={{ padding: "5px 14px", borderRadius: 20, border: `1.5px solid ${ovrFilterType === chip.filter ? chip.color : "var(--border)"}`, background: ovrFilterType === chip.filter ? chip.bg : "transparent", color: ovrFilterType === chip.filter ? chip.color : "var(--muted)", cursor: "pointer", fontSize: 12, fontWeight: 700, transition: "all 0.15s" }}>
+                        {chip.label}
+                      </button>
+                    ))}
+                    <input type="text" placeholder="Search code or room…" value={ovrSearch} onChange={e => setOvrSearch(e.target.value)}
+                      className="admin-input" style={{ marginLeft: "auto", width: 180, padding: "5px 10px", fontSize: 12 }} />
+                  </div>
+                );
+              })()}
+
+              {/* Stale overrides alert */}
               {staleOverrideDates.length > 0 && (
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", padding: "10px 14px", background: "rgba(245,158,11,0.08)", border: "1px solid var(--amber)", borderRadius: 10, marginTop: 8 }}>
-                  <span style={{ fontSize: 13 }}><AlertTriangle size={15} color="var(--amber)" style={{ verticalAlign: "middle", marginRight: 6 }} />{staleOverrideDates.length} override date(s) are in the past and can never apply again — students still download them.</span>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", padding: "10px 14px", background: "rgba(245,158,11,0.08)", border: "1px solid var(--amber)", borderRadius: 10, marginBottom: 12 }}>
+                  <span style={{ fontSize: 13 }}><AlertTriangle size={15} color="var(--amber)" style={{ verticalAlign: "middle", marginRight: 6 }} />{staleOverrideDates.length} override date(s) are in the past — students still download them.</span>
                   <button className="admin-btn outline" onClick={purgeStaleOverrides} style={{ borderColor: "var(--amber)", color: "var(--amber)" }}><Trash2 size={14} /> Purge expired</button>
                 </div>
               )}
-              <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-                {Object.entries(flags.classOverrides).map(([date, classes]) => 
-                  Object.keys(classes).map(code => {
-                    const override = classes[code];
+
+              {/* Override rows */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {Object.entries(flags.classOverrides).flatMap(([date, classes]) =>
+                  Object.entries(classes).map(([code, override]) => {
                     const isCancelled = override.type === "cancelled";
-                    const isRoomChanged = !!override.room;
-                    const isTimeChanged = !!override.start || !!override.end;
-                    const isModified = isRoomChanged || isTimeChanged;
+                    const isExam = override.type === "exam";
+                    const isCustom = override.type === "class";
+                    const hasRoom = !!override.room;
+                    const hasTime = !!override.start || !!override.end;
                     const { ident: keyIdent, section: keySection } = parseOverrideKey(code);
-                    // Empty ident = a legacy exam override written before code-less
-                    // classes were keyed by name; it no longer applies — flag for removal.
-                    const displayBase = keyIdent || "⚠ legacy (remove)";
+                    const displayBase = keyIdent || "⚠ legacy";
                     const displayCode = keySection !== "All" ? `${displayBase} (Sec ${keySection})` : displayBase;
+                    const rowKey = `${date}::${code}`;
+                    const isEditing = ovrEditKey === rowKey;
+
+                    // Filter logic
+                    const matchesType = ovrFilterType === "all"
+                      || (ovrFilterType === "cancelled" && isCancelled)
+                      || (ovrFilterType === "exam" && isExam)
+                      || (ovrFilterType === "custom" && isCustom)
+                      || (ovrFilterType === "room" && hasRoom && !isCancelled && !isExam)
+                      || (ovrFilterType === "time" && hasTime && !isCancelled && !isExam);
+                    const matchesSearch = !ovrSearch || displayCode.toLowerCase().includes(ovrSearch.toLowerCase()) || (override.room || "").toLowerCase().includes(ovrSearch.toLowerCase());
+                    if (!matchesType || !matchesSearch) return null;
+
+                    // Type badge
+                    const typeBadge = isCancelled ? { label: "CANCELLED", color: "var(--danger)", bg: "rgba(231,76,60,0.10)" }
+                      : isExam ? { label: "EXAM", color: "var(--violet)", bg: "rgba(109,91,208,0.10)" }
+                      : isCustom ? { label: "CUSTOM CLASS", color: "var(--live)", bg: "rgba(31,169,113,0.10)" }
+                      : hasRoom && hasTime ? { label: `ROOM+TIME`, color: "var(--amber)", bg: "rgba(245,158,11,0.10)" }
+                      : hasRoom ? { label: `ROOM: ${override.room}`, color: "var(--blue)", bg: "rgba(59,130,246,0.10)" }
+                      : { label: `TIME: ${override.start || "?"}–${override.end || "?"}`, color: "var(--amber)", bg: "rgba(245,158,11,0.10)" };
 
                     return (
-                      <div key={`${date}-${code}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(0,0,0,0.03)", padding: "12px 16px", borderRadius: 8, border: "1px solid var(--border)" }}>
-                        <div style={{ minWidth: 0 }}>
-                          <span style={{ fontWeight: 600, fontSize: 14 }}>
-                            {new Date(date).toLocaleDateString()} — {displayCode}
-                            {isCancelled && <span style={{ color: "var(--danger)", marginLeft: 8 }}>(Cancelled)</span>}
-                            {isModified && !isCancelled && (
-                              <span style={{ color: "var(--blue)", marginLeft: 8 }}>
-                                ({[override.room && `Room: ${override.room}`, (override.start || override.end) && `${override.start || "?"} - ${override.end || "?"}`].filter(Boolean).join(" | ")})
-                              </span>
-                            )}
-                          </span>
-                          {override.modifiedAt && (
-                            <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 3 }}>
-                              Modified {new Date(override.modifiedAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}{override.modifiedBy ? ` · ${allUsers.find(u => u.user_id === override.modifiedBy)?.name || "admin"}` : ""}
+                      <div key={rowKey} style={{ borderRadius: 10, border: `1px solid ${isEditing ? "var(--blue)" : "var(--border)"}`, background: isEditing ? "rgba(59,130,246,0.03)" : "var(--bg)", overflow: "hidden", transition: "border-color 0.15s" }}>
+                        {/* Main row */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px" }}>
+                          {/* Type badge */}
+                          <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 6, background: typeBadge.bg, color: typeBadge.color, flexShrink: 0, letterSpacing: "0.5px" }}>{typeBadge.label}</span>
+                          {/* Info */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 700, fontSize: 13 }}>
+                              {new Date(date + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short" })} — {displayCode}
                             </div>
-                          )}
-                        </div>
-                        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                          {isModified && (
-                            <button onClick={() => {
-                               setRoomOverrideDate(date);
-                               setRoomOverrideClass(keyIdent);
-                               setRoomOverrideSection(keySection);
-                               setRoomOverrideRoom(override.room || "");
-                               setRoomOverrideStart(override.start || "");
-                               setRoomOverrideEnd(override.end || "");
-                            }} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 13, color: "var(--blue)", fontWeight: 600, padding: "4px 8px" }}>
-                               Edit
+                            {override.modifiedAt && (
+                              <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
+                                Modified {new Date(override.modifiedAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                                {override.modifiedBy ? ` · ${allUsers.find(u => u.user_id === override.modifiedBy)?.name || "admin"}` : ""}
+                              </div>
+                            )}
+                          </div>
+                          {/* Actions */}
+                          <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
+                            {isCancelled && (
+                              <button title="Restore class" onClick={() => {
+                                const prev = flags.classOverrides;
+                                const next = { ...flags.classOverrides };
+                                const forDate = { ...next[date] };
+                                delete forDate[code];
+                                if (Object.keys(forDate).length === 0) delete next[date]; else next[date] = forDate;
+                                setFlags({ ...flags, classOverrides: next });
+                                removeWithUndo(`Override removed — ${displayCode}`, () => setFlags(f => ({ ...f, classOverrides: prev })));
+                              }} style={{ background: "none", border: "1px solid var(--live)", borderRadius: 6, cursor: "pointer", color: "var(--live)", fontSize: 12, fontWeight: 600, padding: "3px 10px", display: "flex", alignItems: "center", gap: 4 }}>
+                                <RefreshCw size={12} /> Restore
+                              </button>
+                            )}
+                            {!isCancelled && (
+                              <button title="Edit inline" onClick={() => {
+                                if (isEditing) { setOvrEditKey(null); return; }
+                                setOvrEditKey(rowKey);
+                                setOvrEditValues({ room: override.room || "", start: override.start || "", end: override.end || "" });
+                              }} style={{ background: "none", border: `1px solid ${isEditing ? "var(--blue)" : "var(--border)"}`, borderRadius: 6, cursor: "pointer", color: isEditing ? "var(--blue)" : "var(--muted)", fontSize: 12, fontWeight: 600, padding: "3px 10px", display: "flex", alignItems: "center", gap: 4 }}>
+                                <Pencil size={12} /> {isEditing ? "Close" : "Edit"}
+                              </button>
+                            )}
+                            <button title="Delete override" onClick={() => {
+                              const prev = flags.classOverrides;
+                              const next = { ...prev };
+                              next[date] = { ...next[date] };
+                              delete next[date][code];
+                              if (Object.keys(next[date]).length === 0) delete next[date];
+                              setFlags({ ...flags, classOverrides: next });
+                              removeWithUndo(`Override removed — ${displayCode}`, () => setFlags(f => ({ ...f, classOverrides: prev })));
+                              if (isEditing) setOvrEditKey(null);
+                            }} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", alignItems: "center" }}>
+                              <Trash2 size={15} color="var(--danger)" />
                             </button>
-                          )}
-                          <button onClick={() => {
-                             const prev = flags.classOverrides;
-                             const next = {...prev};
-                             next[date] = { ...next[date] };
-                             delete next[date][code];
-                             if (Object.keys(next[date]).length === 0) delete next[date];
-                             setFlags({...flags, classOverrides: next});
-                             removeWithUndo(`Override removed — ${displayCode}`, () => setFlags(f => ({ ...f, classOverrides: prev })));
-                          }} style={{ background: "transparent", border: "none", cursor: "pointer", display: "flex", alignItems: "center", padding: 4 }}>
-                             <Trash2 size={16} color="var(--danger)" />
-                          </button>
+                          </div>
                         </div>
+                        {/* Inline edit form */}
+                        {isEditing && (
+                          <div style={{ borderTop: "1px solid var(--border)", padding: "12px 14px", display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap", background: "rgba(59,130,246,0.03)" }}>
+                            <div className="admin-field" style={{ flex: 1, minWidth: 100 }}>
+                              <label>Room</label>
+                              <input type="text" placeholder="e.g. C-104" className="admin-input" value={ovrEditValues.room} onChange={e => setOvrEditValues(v => ({ ...v, room: e.target.value }))} />
+                            </div>
+                            <div className="admin-field" style={{ flex: 1, minWidth: 100 }}>
+                              <label>New Start</label>
+                              <input type="time" className="admin-input" value={ovrEditValues.start} onChange={e => setOvrEditValues(v => ({ ...v, start: e.target.value }))} />
+                            </div>
+                            <div className="admin-field" style={{ flex: 1, minWidth: 100 }}>
+                              <label>New End</label>
+                              <input type="time" className="admin-input" value={ovrEditValues.end} onChange={e => setOvrEditValues(v => ({ ...v, end: e.target.value }))} />
+                            </div>
+                            <button className="admin-btn primary" style={{ marginBottom: 10, padding: "8px 16px" }}
+                              onClick={() => {
+                                if (!ovrEditValues.room && !ovrEditValues.start && !ovrEditValues.end) return alert("Enter at least one change.");
+                                const next = { ...flags.classOverrides };
+                                next[date] = { ...next[date] };
+                                const existing = next[date][code] || {};
+                                const changes = { ...existing };
+                                if (ovrEditValues.room) changes.room = ovrEditValues.room;
+                                if (ovrEditValues.start) changes.start = ovrEditValues.start;
+                                if (ovrEditValues.end) changes.end = ovrEditValues.end;
+                                changes.modifiedAt = new Date().toISOString();
+                                changes.modifiedBy = admin_id;
+                                next[date][code] = changes;
+                                setFlags({ ...flags, classOverrides: next });
+                                logAdminAction(admin_id, "inline_edit_override", { date, class: code, changes: ovrEditValues });
+                                setOvrEditKey(null);
+                              }}>
+                              <Check size={14} /> Save Changes
+                            </button>
+                            <button className="admin-btn outline" style={{ marginBottom: 10, padding: "8px 14px" }} onClick={() => setOvrEditKey(null)}>Cancel</button>
+                          </div>
+                        )}
                       </div>
                     );
-                  })
+                  }).filter(Boolean)
                 )}
               </div>
             </section>
           )}
-        <section className="admin-card admin-g-broadcast" style={{ display: "flex", flexDirection: "column" }}>
-          <h2><Megaphone size={20} color="var(--amber)" /> Scheduled Announcements</h2>
-          <p className="admin-subtext">Schedule targeted announcements. Active ones will appear as banners to matched users.</p>
-
-          {/* Template library — reusable announcement presets stored in config */}
-          {(flags.announcementTemplates || []).length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
-              {(flags.announcementTemplates || []).map(t => (
-                <span key={t.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 20, padding: "4px 6px 4px 12px", fontSize: 12 }}>
-                  <button type="button" onClick={() => applyAnnouncementTemplate(t)} title={t.text} style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--text)", fontWeight: 600, padding: 0 }}>{t.label}</button>
-                  <button type="button" onClick={() => removeAnnouncementTemplate(t.id)} title="Delete template" style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--danger)", display: "flex", padding: 0 }}><X size={13} /></button>
-                </span>
-              ))}
+                {/* ── 1. Broadcast Studio (Announcements + Push + Social Flash + Quiet Hours) ── */}
+        <section className="admin-card admin-span-all admin-g-broadcast" style={{ gridColumn: "1 / -1" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+            <div>
+              <h2 style={{ marginBottom: 4 }}><Megaphone size={20} color="var(--amber)" /> Broadcast Studio</h2>
+              <p className="admin-subtext" style={{ margin: 0 }}>Compose and dispatch banners, push notifications, and live toast alerts to students.</p>
             </div>
-          )}
-
-          <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
-            <input type="date" value={announcementStart} onChange={e => setAnnouncementStart(e.target.value)} className="admin-input" style={{ flex: "1 1 130px", padding: "8px", borderRadius: 8, border: "1px solid var(--border)" }} title="Start Date" />
-            <input type="date" value={announcementEnd} onChange={e => setAnnouncementEnd(e.target.value)} className="admin-input" style={{ flex: "1 1 130px", padding: "8px", borderRadius: 8, border: "1px solid var(--border)" }} title="End Date (Inclusive)" />
-            <select className="admin-input" value={announcementTarget} onChange={e => setAnnouncementTarget(e.target.value)} style={{ flex: "2 1 200px", padding: "8px", borderRadius: 8, border: "1px solid var(--border)" }}>
-              <option value="global">Global</option>
-              <option value="section_A">Section A</option>
-              <option value="section_B">Section B</option>
-              <option value="has_friends">Social Users</option>
-              <optgroup label="Subject Wise">
-                {Object.entries(LEGEND || {}).map(([code]) => (
-                  <option key={code} value={`subject_${code}`}>{code}</option>
-                ))}
-              </optgroup>
-            </select>
-            <select className="admin-input" value={announcementSeverity} onChange={e => setAnnouncementSeverity(e.target.value)} style={{ flex: "1 1 120px", padding: "8px", borderRadius: 8, border: "1px solid var(--border)" }} title="Banner severity / colour">
-              <option value="info">Info</option>
-              <option value="warning">Warning</option>
-              <option value="urgent">Urgent</option>
-            </select>
-          </div>
-          {(() => { const n = audienceCount(announcementTarget); return (
-            <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-              <Users size={13} /> Audience: {n === null ? "varies per user — can't estimate client-side" : `~${n} user${n === 1 ? "" : "s"}`}
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={() => setOpenBcast(o => ({ ...o, announcements: !o.announcements }))}
+                style={{
+                  padding: "6px 12px", borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: "pointer",
+                  border: openBcast.announcements ? "1.5px solid var(--amber)" : "1px solid var(--border)",
+                  background: openBcast.announcements ? "rgba(245,158,11,0.12)" : "var(--bg)",
+                  color: openBcast.announcements ? "var(--amber)" : "var(--muted)",
+                  display: "flex", alignItems: "center", gap: 6
+                }}>
+                <Megaphone size={14} /> Banners {(flags.scheduledAnnouncements || []).length > 0 ? `(${flags.scheduledAnnouncements.length})` : ""}
+              </button>
+              <button
+                type="button"
+                onClick={() => setOpenBcast(o => ({ ...o, push: !o.push }))}
+                style={{
+                  padding: "6px 12px", borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: "pointer",
+                  border: openBcast.push ? "1.5px solid var(--live)" : "1px solid var(--border)",
+                  background: openBcast.push ? "rgba(31,169,113,0.12)" : "var(--bg)",
+                  color: openBcast.push ? "var(--live)" : "var(--muted)",
+                  display: "flex", alignItems: "center", gap: 6
+                }}>
+                <BellRing size={14} /> Web Push {(flags.scheduledPushes || []).length > 0 ? `(${flags.scheduledPushes.length})` : ""}
+              </button>
+              <button
+                type="button"
+                onClick={() => setOpenBcast(o => ({ ...o, social: !o.social }))}
+                style={{
+                  padding: "6px 12px", borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: "pointer",
+                  border: openBcast.social ? "1.5px solid var(--violet)" : "1px solid var(--border)",
+                  background: openBcast.social ? "rgba(139,92,246,0.12)" : "var(--bg)",
+                  color: openBcast.social ? "var(--violet)" : "var(--muted)",
+                  display: "flex", alignItems: "center", gap: 6
+                }}>
+                <Sparkles size={14} /> Social Flash
+              </button>
             </div>
-          ); })()}
-          <textarea
-            className="admin-textarea"
-            value={announcement}
-            onChange={e => setAnnouncement(e.target.value)}
-            placeholder="e.g., Exam registration closes tomorrow!"
-          />
-          {announcement.trim() && (
-             <div style={{ marginTop: 10 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                   <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--muted)" }}>Student preview</span>
-                   <button type="button" onClick={() => setPreviewTheme(previewTheme === "dark" ? "light" : "dark")} style={{ background: "transparent", border: "1px solid var(--border)", borderRadius: 8, padding: "3px 10px", fontSize: 11, fontWeight: 600, color: "var(--text)", cursor: "pointer" }}>
-                      {previewTheme === "dark" ? "Dark" : "Light"} mode
-                   </button>
-                </div>
-                {/* Mirrors the real banner in App.jsx (severity-coloured, dismissible) */}
-                {(() => {
-                  const bg = announcementSeverity === "urgent" ? "var(--danger)" : announcementSeverity === "info" ? "var(--violet)" : "var(--amber)";
-                  const fg = announcementSeverity === "warning" ? "#000" : "#fff";
-                  return (
-                    <div style={{ padding: 16, borderRadius: 12, border: "1px solid var(--border)", background: previewTheme === "dark" ? "#101216" : "#F3F1EA" }}>
-                       <div style={{ background: bg, color: fg, padding: "12px 16px", borderRadius: 8, display: "flex", gap: 8, alignItems: "center", fontWeight: 600 }}>
-                          <Megaphone size={18} style={{ flexShrink: 0 }} />
-                          <span style={{ fontSize: 14, flex: 1 }}>{announcement}</span>
-                          <X size={16} style={{ flexShrink: 0 }} />
-                       </div>
-                    </div>
-                  );
-                })()}
-             </div>
-          )}
-          <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap", alignItems: "center" }}>
-            <button className="admin-btn primary" onClick={() => {
-              if (!announcement || !announcementStart || !announcementEnd) return alert("Please fill message and dates.");
-              const newItem = { id: Date.now().toString(), message: announcement, target: announcementTarget, start: announcementStart, end: announcementEnd, severity: announcementSeverity };
-              setFlags({...flags, scheduledAnnouncements: [...(flags.scheduledAnnouncements || []), newItem]});
-              setAnnouncement(""); setAnnouncementStart(""); setAnnouncementEnd(""); setAnnouncementSeverity("info");
-            }}>
-              Add Scheduled Announcement
-            </button>
-            <input className="admin-input" value={tplLabel} onChange={e => setTplLabel(e.target.value)} placeholder="Template name" style={{ flex: "1 1 140px", maxWidth: 200 }} />
-            <button className="admin-btn outline" onClick={saveAnnouncementTemplate} disabled={!announcement.trim() || !tplLabel.trim()} title="Save the current message + severity as a reusable template"><Save size={14} /> Save as template</button>
           </div>
 
-          {announcementOverlaps.length > 0 && (
-            <div style={{ marginTop: 16, padding: "10px 14px", background: "rgba(245,158,11,0.08)", border: "1px solid var(--amber)", borderRadius: 10 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--amber)", display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}><AlertTriangle size={15} /> {announcementOverlaps.length} overlapping announcement(s)</div>
-              {announcementOverlaps.map((c, i) => (
-                <div key={i} style={{ fontSize: 12, color: "var(--muted)", marginBottom: 2 }}>
-                  “{(c.a.message || "").slice(0, 28)}” &amp; “{(c.b.message || "").slice(0, 28)}” both show to {c.a.target === "global" || c.b.target === "global" ? "everyone" : c.a.target} on overlapping dates.
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                        {/* ── Accordion 1: In-App Scheduled Announcements ── */}
+            <div style={{ border: `1px solid ${openBcast.announcements ? "var(--amber)" : "var(--border)"}`, borderRadius: 12, overflow: "hidden", background: "var(--bg)", transition: "border-color 0.15s" }}>
+              <div
+                onClick={() => setOpenBcast(o => ({ ...o, announcements: !o.announcements }))}
+                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", cursor: "pointer", background: openBcast.announcements ? "rgba(245,158,11,0.06)" : "transparent" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <Megaphone size={17} color="var(--amber)" />
+                  <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text)" }}>In-App Banner Announcements</span>
+                  {(flags.scheduledAnnouncements || []).length > 0 && (
+                    <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 10, background: "rgba(245,158,11,0.15)", color: "var(--amber)" }}>
+                      {flags.scheduledAnnouncements.length} active
+                    </span>
+                  )}
                 </div>
-              ))}
-            </div>
-          )}
-
-          <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-            {(flags.scheduledAnnouncements || []).map(a => (
-              <div key={a.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)" }}>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>{a.message}</div>
-                  <div style={{ fontSize: 11, color: "var(--muted)" }}>Target: {a.target} | {a.start} to {a.end}</div>
-                </div>
-                <button onClick={() => {
-                  const prev = flags.scheduledAnnouncements;
-                  setFlags({...flags, scheduledAnnouncements: prev.filter(x => x.id !== a.id)});
-                  removeWithUndo("Announcement removed", () => setFlags(f => ({ ...f, scheduledAnnouncements: prev })));
-                }} className="admin-btn outline" style={{ padding: "4px 8px", borderColor: "var(--danger)", color: "var(--danger)" }}><Trash2 size={14} /></button>
+                <span style={{ color: "var(--muted)", fontSize: 13, fontWeight: 600 }}>{openBcast.announcements ? "▲ Collapse" : "▼ Expand"}</span>
               </div>
-            ))}
+
+              {openBcast.announcements && (
+                <div style={{ padding: "16px", borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 14 }}>
+                  
+                  {/* Template presets library */}
+                  {(flags.announcementTemplates || []).length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase" }}>Templates:</span>
+                      {(flags.announcementTemplates || []).map(t => (
+                        <span key={t.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--card)", border: "1px solid var(--border)", borderRadius: 20, padding: "3px 6px 3px 10px", fontSize: 11.5 }}>
+                          <button type="button" onClick={() => applyAnnouncementTemplate(t)} title={t.text} style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--text)", fontWeight: 600, padding: 0 }}>{t.label}</button>
+                          <button type="button" onClick={() => removeAnnouncementTemplate(t.id)} title="Delete template" style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--danger)", display: "flex", padding: 0 }}><X size={12} /></button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Date range presets row */}
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                      <label style={{ fontSize: 11.5, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Schedule &amp; Dates</label>
+                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                        {[
+                          { label: "Today", days: 0 },
+                          { label: "Next 3 Days", days: 3 },
+                          { label: "This Week", days: 7 },
+                          { label: "2 Weeks", days: 14 },
+                          { label: "Term End", termEnd: "2026-09-04" },
+                        ].map(p => (
+                          <button key={p.label} type="button"
+                            onClick={() => {
+                              const t = new Date();
+                              const start = t.toISOString().split("T")[0];
+                              let end = start;
+                              if (p.termEnd) {
+                                end = p.termEnd;
+                              } else {
+                                const e = new Date(); e.setDate(e.getDate() + p.days);
+                                end = e.toISOString().split("T")[0];
+                              }
+                              setAnnouncementStart(start);
+                              setAnnouncementEnd(end);
+                            }}
+                            style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "2px 8px", fontSize: 11, fontWeight: 600, color: "var(--muted)", cursor: "pointer" }}>
+                            {p.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <input type="date" value={announcementStart} onChange={e => setAnnouncementStart(e.target.value)} className="admin-input" style={{ flex: "1 1 130px", padding: "8px", borderRadius: 8 }} title="Start Date" />
+                      <input type="date" value={announcementEnd} onChange={e => setAnnouncementEnd(e.target.value)} className="admin-input" style={{ flex: "1 1 130px", padding: "8px", borderRadius: 8 }} title="End Date (Inclusive)" />
+                      <select className="admin-input" value={announcementTarget} onChange={e => setAnnouncementTarget(e.target.value)} style={{ flex: "2 1 170px", padding: "8px", borderRadius: 8 }}>
+                        <option value="global">🌐 Global (All Students)</option>
+                        <option value="section_A">🅰️ Section A Only</option>
+                        <option value="section_B">🅱️ Section B Only</option>
+                        <option value="has_friends">👥 Social Users</option>
+                        <optgroup label="Subject Specific">
+                          {Object.entries(LEGEND || {}).map(([code, info]) => (
+                            <option key={code} value={`subject_${code}`}>{code} — {info.name}</option>
+                          ))}
+                        </optgroup>
+                      </select>
+                      <select className="admin-input" value={announcementSeverity} onChange={e => setAnnouncementSeverity(e.target.value)} style={{ flex: "1.5 1 140px", padding: "8px", borderRadius: 8 }} title="Banner severity / colour">
+                        <option value="info">🟣 Info (Purple)</option>
+                        <option value="warning">🟡 Warning (Amber)</option>
+                        <option value="urgent">🔴 Urgent (Red)</option>
+                        <option value="celebration">🟢 Celebration (Green 🎉)</option>
+                        <option value="exam">🎓 Exam Alert (Indigo)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Audience estimator */}
+                  {(() => { const n = audienceCount(announcementTarget); return (
+                    <div style={{ fontSize: 12, color: "var(--muted)", display: "flex", alignItems: "center", gap: 6, marginTop: -4 }}>
+                      <Users size={13} /> Estimated Audience: <b style={{ color: "var(--text)" }}>{n === null ? "Varies per student" : `~${n} students`}</b>
+                    </div>
+                  ); })()}
+
+                  {/* Message composition with quick emoji helpers */}
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                      <label style={{ fontSize: 11.5, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Announcement Message</label>
+                      <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                        <span style={{ fontSize: 11, color: "var(--muted)", marginRight: 4 }}>Add icon:</span>
+                        {["⚡", "📢", "🚨", "🎉", "🎓", "ℹ️", "🗓️", "🔔"].map(em => (
+                          <button key={em} type="button" onClick={() => setAnnouncement(prev => prev ? `${em} ${prev}` : `${em} `)}
+                            style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 6, padding: "1px 5px", fontSize: 12, cursor: "pointer" }}>
+                            {em}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <textarea
+                      className="admin-textarea"
+                      value={announcement}
+                      onChange={e => setAnnouncement(e.target.value)}
+                      placeholder="e.g., 📢 Term 5 Exam registrations close tomorrow at 5:00 PM!"
+                      rows={2}
+                    />
+                  </div>
+
+                  {/* Realtime student preview */}
+                  {announcement.trim() && (
+                    <div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--muted)" }}>Student In-App Live Preview</span>
+                        <button type="button" onClick={() => setPreviewTheme(previewTheme === "dark" ? "light" : "dark")} style={{ background: "transparent", border: "1px solid var(--border)", borderRadius: 8, padding: "3px 10px", fontSize: 11, fontWeight: 600, color: "var(--text)", cursor: "pointer" }}>
+                          {previewTheme === "dark" ? "🌙 Dark" : "☀️ Light"} mode preview
+                        </button>
+                      </div>
+                      {(() => {
+                        const bg = announcementSeverity === "urgent" ? "var(--danger, #EF4444)"
+                          : announcementSeverity === "info" ? "var(--violet, #8B5CF6)"
+                          : announcementSeverity === "celebration" ? "var(--green, #10B981)"
+                          : announcementSeverity === "exam" ? "var(--blue, #6366F1)"
+                          : "var(--amber, #F59E0B)";
+                        const fg = announcementSeverity === "warning" ? "#000" : "#fff";
+                        return (
+                          <div style={{ padding: 14, borderRadius: 12, border: "1px solid var(--border)", background: previewTheme === "dark" ? "#101216" : "#F3F1EA" }}>
+                            <div style={{ background: bg, color: fg, padding: "11px 14px", borderRadius: 10, display: "flex", gap: 10, alignItems: "center", fontWeight: 600, fontSize: 13.5, boxShadow: "0 2px 8px rgba(0,0,0,0.15)" }}>
+                              <Megaphone size={16} style={{ flexShrink: 0 }} />
+                              <span style={{ flex: 1, lineHeight: 1.4 }}>{announcement}</span>
+                              <X size={15} style={{ flexShrink: 0, opacity: 0.75, cursor: "pointer" }} />
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+
+                  {/* Action buttons */}
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                    <button className="admin-btn primary" onClick={() => {
+                      if (!announcement.trim() || !announcementStart || !announcementEnd) return alert("Please fill message and start/end dates.");
+                      const newItem = { id: Date.now().toString(), message: announcement.trim(), target: announcementTarget, start: announcementStart, end: announcementEnd, severity: announcementSeverity };
+                      setFlags({...flags, scheduledAnnouncements: [...(flags.scheduledAnnouncements || []), newItem]});
+                      setAnnouncement(""); setAnnouncementStart(""); setAnnouncementEnd(""); setAnnouncementSeverity("info");
+                    }}>
+                      <Megaphone size={14} /> Add Scheduled Announcement
+                    </button>
+                    <input className="admin-input" value={tplLabel} onChange={e => setTplLabel(e.target.value)} placeholder="Template name (e.g. Exam)" style={{ flex: "1 1 140px", maxWidth: 180 }} />
+                    <button className="admin-btn outline" onClick={saveAnnouncementTemplate} disabled={!announcement.trim() || !tplLabel.trim()} title="Save the current message + severity as a reusable template"><Save size={14} /> Save template</button>
+                  </div>
+
+                  {/* Overlap detector warning */}
+                  {announcementOverlaps.length > 0 && (
+                    <div style={{ padding: "10px 14px", background: "rgba(245,158,11,0.08)", border: "1px solid var(--amber)", borderRadius: 10 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--amber)", display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}><AlertTriangle size={15} /> {announcementOverlaps.length} overlapping announcement(s) detected</div>
+                      {announcementOverlaps.map((c, i) => (
+                        <div key={i} style={{ fontSize: 12, color: "var(--muted)" }}>
+                          • “{(c.a.message || "").slice(0, 32)}” &amp; “{(c.b.message || "").slice(0, 32)}” both appear to {c.a.target === "global" || c.b.target === "global" ? "everyone" : c.a.target} on overlapping dates.
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* ── Active Announcements Manager Table / List ── */}
+                  {(() => {
+                    const todayStr = new Date().toISOString().split("T")[0];
+                    const items = flags.scheduledAnnouncements || [];
+                    const nActive = items.filter(a => a.start <= todayStr && todayStr <= a.end).length;
+                    const nUpcoming = items.filter(a => a.start > todayStr).length;
+                    const nExpired = items.filter(a => a.end < todayStr).length;
+
+                    const filtered = items.filter(a => {
+                      const isLive = a.start <= todayStr && todayStr <= a.end;
+                      const isUpcoming = a.start > todayStr;
+                      const isExpired = a.end < todayStr;
+                      if (annFilter === "active" && !isLive) return false;
+                      if (annFilter === "upcoming" && !isUpcoming) return false;
+                      if (annFilter === "expired" && !isExpired) return false;
+                      if (annSearch.trim()) {
+                        const q = annSearch.toLowerCase();
+                        return (a.message || "").toLowerCase().includes(q) || (a.target || "").toLowerCase().includes(q);
+                      }
+                      return true;
+                    });
+
+                    return (
+                      <div style={{ marginTop: 8, borderTop: "1px solid var(--border)", paddingTop: 14 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                            {[
+                              { id: "all", label: `All (${items.length})` },
+                              { id: "active", label: `🟢 Live Now (${nActive})` },
+                              { id: "upcoming", label: `🟣 Upcoming (${nUpcoming})` },
+                              { id: "expired", label: `🔴 Expired (${nExpired})` },
+                            ].map(f => (
+                              <button key={f.id} type="button" onClick={() => setAnnFilter(f.id)}
+                                style={{ padding: "4px 10px", borderRadius: 16, border: annFilter === f.id ? "1.5px solid var(--blue)" : "1px solid var(--border)", background: annFilter === f.id ? "rgba(59,130,246,0.10)" : "var(--card)", color: annFilter === f.id ? "var(--blue)" : "var(--muted)", fontSize: 12, fontWeight: annFilter === f.id ? 700 : 500, cursor: "pointer" }}>
+                                {f.label}
+                              </button>
+                            ))}
+                          </div>
+                          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                            <input type="text" placeholder="Search banners…" value={annSearch} onChange={e => setAnnSearch(e.target.value)}
+                              className="admin-input" style={{ width: 150, padding: "4px 8px", fontSize: 12 }} />
+                            {nExpired > 0 && (
+                              <button type="button" onClick={() => {
+                                if (!confirm(`Remove all ${nExpired} expired announcement(s)?`)) return;
+                                const prev = flags.scheduledAnnouncements || [];
+                                setFlags({ ...flags, scheduledAnnouncements: prev.filter(a => a.end >= todayStr) });
+                                removeWithUndo("Expired announcements purged", () => setFlags(f => ({ ...f, scheduledAnnouncements: prev })));
+                              }} className="admin-btn outline" style={{ fontSize: 11, padding: "4px 8px", color: "var(--danger)", borderColor: "var(--danger)" }}>
+                                Purge Expired
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {filtered.length === 0 ? (
+                          <div className="admin-empty" style={{ padding: "16px 0" }}>No announcements match this filter.</div>
+                        ) : (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                            {filtered.map(a => {
+                              const isLive = a.start <= todayStr && todayStr <= a.end;
+                              const isUpcoming = a.start > todayStr;
+                              const isExpired = a.end < todayStr;
+                              const isEditing = editingAnnId === a.id;
+
+                              const statusTag = isLive ? { label: "LIVE NOW", color: "var(--live, #10B981)", bg: "rgba(16,185,129,0.12)" }
+                                : isUpcoming ? { label: "UPCOMING", color: "var(--violet, #8B5CF6)", bg: "rgba(139,92,246,0.12)" }
+                                : { label: "EXPIRED", color: "var(--danger, #EF4444)", bg: "rgba(239,68,68,0.12)" };
+
+                              return (
+                                <div key={a.id} style={{ borderRadius: 10, border: `1px solid ${isEditing ? "var(--blue)" : isLive ? "var(--live)" : "var(--border)"}`, background: isEditing ? "rgba(59,130,246,0.03)" : "var(--card)", padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+                                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10, justifyContent: "space-between" }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                      <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 6, background: statusTag.bg, color: statusTag.color, letterSpacing: "0.5px" }}>
+                                        {statusTag.label}
+                                      </span>
+                                      <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 7px", borderRadius: 6, background: "var(--bg)", border: "1px solid var(--border)", color: "var(--muted)", textTransform: "uppercase" }}>
+                                        {a.severity || "info"}
+                                      </span>
+                                      <span style={{ fontSize: 11.5, color: "var(--muted)" }}>
+                                        Target: <b style={{ color: "var(--text)" }}>{a.target === "global" ? "Everyone" : a.target}</b> · {a.start} to {a.end}
+                                      </span>
+                                    </div>
+                                    <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                                      {/* Clone button */}
+                                      <button type="button" title="Duplicate announcement" onClick={() => {
+                                        const copy = { ...a, id: Date.now().toString(), message: `(Copy) ${a.message}` };
+                                        setFlags({ ...flags, scheduledAnnouncements: [...(flags.scheduledAnnouncements || []), copy] });
+                                      }} className="admin-btn outline" style={{ padding: "3px 8px", fontSize: 11 }}>
+                                        <Copy size={12} />
+                                      </button>
+                                      {/* Edit button */}
+                                      <button type="button" title="Edit announcement" onClick={() => {
+                                        if (isEditing) { setEditingAnnId(null); return; }
+                                        setEditingAnnId(a.id);
+                                        setEditAnnMsg(a.message || "");
+                                        setEditAnnStart(a.start || "");
+                                        setEditAnnEnd(a.end || "");
+                                        setEditAnnTarget(a.target || "global");
+                                        setEditAnnSeverity(a.severity || "info");
+                                      }} className="admin-btn outline" style={{ padding: "3px 8px", fontSize: 11, color: isEditing ? "var(--blue)" : "var(--muted)" }}>
+                                        <Pencil size={12} />
+                                      </button>
+                                      {/* Delete button */}
+                                      <button type="button" title="Delete announcement" onClick={() => {
+                                        const prev = flags.scheduledAnnouncements;
+                                        setFlags({ ...flags, scheduledAnnouncements: prev.filter(x => x.id !== a.id) });
+                                        removeWithUndo("Announcement removed", () => setFlags(f => ({ ...f, scheduledAnnouncements: prev })));
+                                        if (isEditing) setEditingAnnId(null);
+                                      }} className="admin-btn danger" style={{ padding: "3px 8px", fontSize: 11 }}>
+                                        <Trash2 size={12} />
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {!isEditing ? (
+                                    <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text)", lineHeight: 1.4 }}>
+                                      {a.message}
+                                    </div>
+                                  ) : (
+                                    /* Inline Edit Form */
+                                    <div style={{ borderTop: "1px solid var(--border)", paddingTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+                                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                                        <input type="date" value={editAnnStart} onChange={e => setEditAnnStart(e.target.value)} className="admin-input" style={{ flex: "1 1 120px", padding: "6px" }} />
+                                        <input type="date" value={editAnnEnd} onChange={e => setEditAnnEnd(e.target.value)} className="admin-input" style={{ flex: "1 1 120px", padding: "6px" }} />
+                                        <select className="admin-input" value={editAnnTarget} onChange={e => setEditAnnTarget(e.target.value)} style={{ flex: "1.5 1 140px", padding: "6px" }}>
+                                          <option value="global">🌐 Global</option>
+                                          <option value="section_A">🅰️ Section A</option>
+                                          <option value="section_B">🅱️ Section B</option>
+                                          <option value="has_friends">👥 Social</option>
+                                          {Object.keys(LEGEND || {}).map(c => <option key={c} value={`subject_${c}`}>{c}</option>)}
+                                        </select>
+                                        <select className="admin-input" value={editAnnSeverity} onChange={e => setEditAnnSeverity(e.target.value)} style={{ flex: "1 1 120px", padding: "6px" }}>
+                                          <option value="info">🟣 Info</option>
+                                          <option value="warning">🟡 Warning</option>
+                                          <option value="urgent">🔴 Urgent</option>
+                                          <option value="celebration">🟢 Celebration</option>
+                                          <option value="exam">🎓 Exam</option>
+                                        </select>
+                                      </div>
+                                      <textarea className="admin-textarea" rows={2} value={editAnnMsg} onChange={e => setEditAnnMsg(e.target.value)} />
+                                      <div style={{ display: "flex", gap: 8 }}>
+                                        <button className="admin-btn primary" style={{ padding: "6px 14px", fontSize: 12.5 }} onClick={() => {
+                                          if (!editAnnMsg.trim() || !editAnnStart || !editAnnEnd) return alert("Fill all fields.");
+                                          setFlags({
+                                            ...flags,
+                                            scheduledAnnouncements: (flags.scheduledAnnouncements || []).map(item => item.id === a.id ? {
+                                              ...item,
+                                              message: editAnnMsg.trim(),
+                                              start: editAnnStart,
+                                              end: editAnnEnd,
+                                              target: editAnnTarget,
+                                              severity: editAnnSeverity
+                                            } : item)
+                                          });
+                                          setEditingAnnId(null);
+                                        }}>
+                                          <Check size={13} /> Save Updates
+                                        </button>
+                                        <button className="admin-btn outline" style={{ padding: "6px 12px", fontSize: 12.5 }} onClick={() => setEditingAnnId(null)}>
+                                          Cancel
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+{/* ── Accordion 2: Push Notifications ── */}
+            <div style={{ border: `1px solid ${openBcast.push ? "var(--live)" : "var(--border)"}`, borderRadius: 12, overflow: "hidden", background: "var(--bg)", transition: "border-color 0.15s" }}>
+              <div
+                onClick={() => setOpenBcast(o => ({ ...o, push: !o.push }))}
+                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", cursor: "pointer", background: openBcast.push ? "rgba(31,169,113,0.06)" : "transparent" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <BellRing size={17} color="var(--live)" />
+                  <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text)" }}>Web Push Notifications</span>
+                  {(flags.scheduledPushes || []).length > 0 && (
+                    <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 10, background: "rgba(31,169,113,0.15)", color: "var(--live)" }}>
+                      {flags.scheduledPushes.length} queued
+                    </span>
+                  )}
+                </div>
+                <span style={{ color: "var(--muted)", fontSize: 13, fontWeight: 600 }}>{openBcast.push ? "▲ Collapse" : "▼ Expand"}</span>
+              </div>
+
+              {openBcast.push && (
+                <div style={{ padding: "16px", borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 12 }}>
+                  {/* Saved push templates */}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+                    {(flags.pushTemplates || []).map(t => (
+                      <span key={t.id} className="admin-tag">
+                        <button type="button" className="admin-tag-label" onClick={() => { setPushTitle(t.title || ""); setPushBody(t.body || ""); setPushUrl(t.url || ""); }} title="Apply this template">{t.title || "(untitled)"}</button>
+                        <button type="button" className="admin-tag-del" onClick={() => { if (!confirm(`Delete template "${t.title || "(untitled)"}"?`)) return; setFlags({ ...flags, pushTemplates: (flags.pushTemplates || []).filter(x => x.id !== t.id) }); }} aria-label="Delete template"><X size={12} /></button>
+                      </span>
+                    ))}
+                    <button type="button" className="admin-btn outline" style={{ fontSize: 11, padding: "4px 10px" }} onClick={() => {
+                      if (!pushTitle.trim() || !pushBody.trim()) return alert("Fill title and message first, then save as template.");
+                      setFlags({ ...flags, pushTemplates: [...(flags.pushTemplates || []), { id: Date.now().toString(), title: pushTitle.trim(), body: pushBody.trim(), url: pushUrl.trim() }] });
+                    }}>+ Save current as template</button>
+                  </div>
+
+                  <div className="admin-field-row">
+                    <div className="admin-field">
+                      <label>Title</label>
+                      <input className="admin-input" value={pushTitle} onChange={e => setPushTitle(e.target.value)} placeholder="e.g. Room change: FIN-201 today" maxLength={80} />
+                    </div>
+                    <div className="admin-field">
+                      <label>Open URL <span className="admin-optional">(optional)</span></label>
+                      <input className="admin-input" value={pushUrl} onChange={e => setPushUrl(e.target.value)} placeholder="/?view=today" />
+                    </div>
+                  </div>
+                  <div className="admin-field">
+                    <label>Message</label>
+                    <textarea className="admin-textarea" value={pushBody} onChange={e => setPushBody(e.target.value)} placeholder="e.g. Today's 11:30 FIN-201 class moved to Room C-104." rows={2} maxLength={200}></textarea>
+                  </div>
+                  <div className="admin-field-row">
+                    <div className="admin-field">
+                      <label>Schedule Date <span className="admin-optional">(Optional)</span></label>
+                      <input type="date" className="admin-input" value={pushScheduleDate} onChange={e => setPushScheduleDate(e.target.value)} />
+                    </div>
+                    <div className="admin-field">
+                      <label>Schedule Time <span className="admin-optional">(Optional)</span></label>
+                      <input type="time" className="admin-input" value={pushScheduleTime} onChange={e => setPushScheduleTime(e.target.value)} />
+                    </div>
+                  </div>
+
+                  <div className="admin-field">
+                    <label>Audience {pushTarget !== "all" && (() => { const ids = audienceIds(pushTarget); return <span className="admin-optional">— {ids ? `${ids.length} recipient(s)` : "n/a"}</span>; })()}</label>
+                    <select className="admin-input" value={pushTarget} onChange={e => setPushTarget(e.target.value)}>
+                      <option value="all">Everyone (broadcast)</option>
+                      <option value="section_A">Section A</option>
+                      <option value="section_B">Section B</option>
+                      <option value="inactive">Inactive {inactiveDays}+ days</option>
+                      <optgroup label="Subject-wise">
+                        {Object.keys(LEGEND || {}).map(c => <option key={c} value={`subject_${c}`}>{c}</option>)}
+                      </optgroup>
+                      {(flags.savedAudiences || []).length > 0 && (
+                        <optgroup label="Saved audiences">
+                          {(flags.savedAudiences || []).map(sa => <option key={sa.id} value={sa.target}>★ {sa.label}</option>)}
+                        </optgroup>
+                      )}
+                    </select>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6, alignItems: "center" }}>
+                      {(flags.savedAudiences || []).map(sa => (
+                        <span key={sa.id} className={`admin-tag${pushTarget === sa.target ? " active" : ""}`}>
+                          <button type="button" className="admin-tag-label" onClick={() => setPushTarget(sa.target)} title={sa.target}>★ {sa.label}</button>
+                          <button type="button" className="admin-tag-del" onClick={() => { if (!confirm(`Delete saved audience "${sa.label}"?`)) return; setFlags({ ...flags, savedAudiences: (flags.savedAudiences || []).filter(x => x.id !== sa.id) }); }} aria-label="Delete saved audience"><X size={12} /></button>
+                        </span>
+                      ))}
+                      <button type="button" className="admin-btn outline" style={{ fontSize: 11, padding: "4px 10px" }} onClick={saveCurrentAudience} disabled={pushTarget === "all"}>+ Save current audience</button>
+                    </div>
+                  </div>
+
+                  <PushPreview title={pushTitle} body={pushBody} url={pushUrl} when={pushScheduleDate && pushScheduleTime ? `${pushScheduleDate} · ${pushScheduleTime}` : "now"} />
+
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                    <button className="admin-btn primary" onClick={() => {
+                      if (pushScheduleDate && pushScheduleTime) {
+                        if (pushTarget !== "all") return alert("Scheduled pushes currently go to everyone. For a targeted push, clear the schedule and send now.");
+                        if (!pushTitle.trim() || !pushBody.trim()) return alert("Fill in title and message.");
+                        const newItem = { id: Date.now().toString(), title: pushTitle.trim(), body: pushBody.trim(), url: pushUrl.trim(), date: pushScheduleDate, time: pushScheduleTime };
+                        setFlags({...flags, scheduledPushes: [...(flags.scheduledPushes || []), newItem]});
+                        setPushTitle(""); setPushBody(""); setPushUrl(""); setPushScheduleDate(""); setPushScheduleTime("");
+                        setPushResult("Push scheduled successfully (Requires deploy).");
+                      } else if (pushTarget !== "all") {
+                        const ids = audienceIds(pushTarget);
+                        if (!ids || ids.length === 0) return alert("No recipients match that audience.");
+                        if (!pushTitle.trim() || !pushBody.trim()) return alert("Fill in title and message.");
+                        const dup = recentDuplicatePush(pushTitle);
+                        if (dup && !confirm(`⚠️ A push titled "${dup.title}" was already sent ${Math.round((nowMs() - new Date(dup.sent_at).getTime()) / 60000)} min ago. Send this one anyway?`)) return;
+                        (async () => {
+                          setPushSending(true); setPushResult("");
+                          const res = await pushToUserIds(ids, { title: pushTitle.trim(), body: pushBody.trim(), url: pushUrl.trim() || "/", confirmMsg: `Send this push to ${ids.length} user(s) in "${pushTarget}"?` });
+                          if (res?.ok) { setPushResult(`Sent to ${res.data.queued ?? ids.length} user(s).`); setPushTitle(""); setPushBody(""); setPushUrl(""); await logAdminAction(admin_id, "push_targeted", { target: pushTarget, count: ids.length }); }
+                          else if (res) setPushResult(`Failed: ${res.data?.error || "error"}`);
+                          setPushSending(false);
+                        })();
+                      } else {
+                        sendPushBroadcast();
+                      }
+                    }} disabled={pushSending}>
+                      <BellRing size={14} /> {pushSending ? "Sending..." : (pushScheduleDate && pushScheduleTime ? "Queue Push Notification" : pushTarget !== "all" ? "Send to Audience" : "Send to All Subscribers")}
+                    </button>
+                    <button className="admin-btn outline" onClick={sendTestPushToMe} disabled={pushSending} title="Delivers only to your own subscribed devices — arrives within ~1 min">
+                      <BellRing size={14} /> Send test to me
+                    </button>
+                    {pushResult && (
+                      <span className="admin-subtext" style={{ margin: 0, color: pushResult.startsWith("Sent") || pushResult.startsWith("Push scheduled") || pushResult.startsWith("Test") ? "var(--live)" : "var(--danger)" }}>{pushResult}</span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ── Accordion 3: Social Flash Notifications ── */}
+            <div style={{ border: `1px solid ${openBcast.social ? "var(--violet)" : "var(--border)"}`, borderRadius: 12, overflow: "hidden", background: "var(--bg)", transition: "border-color 0.15s" }}>
+              <div
+                onClick={() => setOpenBcast(o => ({ ...o, social: !o.social }))}
+                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", cursor: "pointer", background: openBcast.social ? "rgba(139,92,246,0.06)" : "transparent" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <Sparkles size={17} color="var(--violet)" />
+                  <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text)" }}>Social Flash Toast Notifications</span>
+                  <span style={{ background: "linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%)", color: "#fff", fontSize: "9px", fontWeight: 800, padding: "2px 6px", borderRadius: "8px" }}>REALTIME</span>
+                </div>
+                <span style={{ color: "var(--muted)", fontSize: 13, fontWeight: 600 }}>{openBcast.social ? "▲ Collapse" : "▼ Expand"}</span>
+              </div>
+
+              {openBcast.social && (
+                <div style={{ padding: "16px", borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div className="admin-field">
+                    <label>Title</label>
+                    <input className="admin-input" value={socialFlashTitle} onChange={e => setSocialFlashTitle(e.target.value)} placeholder="⚡ New Social Update" />
+                  </div>
+                  <div className="admin-field">
+                    <label>Message</label>
+                    <textarea className="admin-textarea" value={socialFlashMsg} onChange={e => setSocialFlashMsg(e.target.value)} placeholder="Someone added a new status on TermFlow!" rows={2}></textarea>
+                  </div>
+                  <div className="admin-grid-2">
+                    <div className="admin-field">
+                      <label>Icon Style</label>
+                      <select className="admin-input" value={socialFlashIcon} onChange={e => setSocialFlashIcon(e.target.value)}>
+                        <option value="social">👥 Social (Purple)</option>
+                        <option value="alert">⚡ Alert (Amber)</option>
+                        <option value="announcement">📣 Announcement (Blue)</option>
+                        <option value="sparkles">✨ Sparkles (Pink)</option>
+                        <option value="success">✅ Success (Green)</option>
+                      </select>
+                    </div>
+                    <div className="admin-field">
+                      <label>Display Duration</label>
+                      <select className="admin-input" value={socialFlashDuration} onChange={e => setSocialFlashDuration(Number(e.target.value))}>
+                        <option value={5000}>5 Seconds</option>
+                        <option value={6000}>6 Seconds (Default)</option>
+                        <option value={7000}>7 Seconds</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="admin-field">
+                    <label>Action Link <span className="admin-optional">(Optional)</span></label>
+                    <input className="admin-input" value={socialFlashUrl} onChange={e => setSocialFlashUrl(e.target.value)} placeholder="https://termflow.app/friends or /meetups" />
+                  </div>
+
+                  {/* Toast preview */}
+                  <div style={{ marginTop: 4 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                      <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Live Toast Preview ({socialFlashDuration / 1000}s)</span>
+                      <button type="button" onClick={testSocialFlashLocal} className="admin-btn outline" style={{ fontSize: 11.5, padding: "4px 10px", color: "var(--violet)", borderColor: "rgba(139,92,246,0.3)" }}>
+                        <Sparkles size={13} /> Test Toast on Screen
+                      </button>
+                    </div>
+
+                    <div style={{
+                      position: "relative",
+                      width: "100%",
+                      background: "var(--card, #1A1A2E)",
+                      border: "1px solid color-mix(in srgb, var(--violet, #8B5CF6) 40%, transparent)",
+                      borderRadius: 14,
+                      padding: "12px 14px",
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 12,
+                      boxShadow: "0 4px 20px rgba(0, 0, 0, 0.25)"
+                    }}>
+                      <div style={{
+                        flexShrink: 0,
+                        width: 34,
+                        height: 34,
+                        borderRadius: 8,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        marginTop: 2,
+                        background: socialFlashIcon === "alert" ? "rgba(245, 158, 11, 0.2)" : socialFlashIcon === "announcement" ? "rgba(59, 130, 246, 0.2)" : socialFlashIcon === "sparkles" ? "rgba(236, 72, 153, 0.2)" : socialFlashIcon === "success" ? "rgba(16, 185, 129, 0.2)" : "rgba(139, 92, 246, 0.2)",
+                        border: `1px solid ${socialFlashIcon === "alert" ? "#F59E0B44" : socialFlashIcon === "announcement" ? "#3B82F644" : socialFlashIcon === "sparkles" ? "#EC489944" : socialFlashIcon === "success" ? "#10b98144" : "#8B5CF644"}`
+                      }}>
+                        {socialFlashIcon === "alert" && <span style={{ fontSize: 16 }}>⚡</span>}
+                        {socialFlashIcon === "announcement" && <span style={{ fontSize: 16 }}>📣</span>}
+                        {socialFlashIcon === "sparkles" && <span style={{ fontSize: 16 }}>✨</span>}
+                        {socialFlashIcon === "success" && <span style={{ fontSize: 16 }}>✅</span>}
+                        {socialFlashIcon === "social" && <span style={{ fontSize: 16 }}>👥</span>}
+                      </div>
+
+                      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+                        <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--ink, #fff)" }}>
+                          {socialFlashTitle.trim() || "⚡ New Social Update"}
+                        </div>
+                        <div style={{ fontSize: "12px", color: "var(--muted, rgba(255,255,255,0.7))", lineHeight: 1.4 }}>
+                          {socialFlashMsg.trim() || "Someone added a new status on TermFlow!"}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <button
+                      type="button"
+                      className="admin-btn primary"
+                      disabled={socialFlashSending}
+                      onClick={triggerSocialFlashBroadcast}
+                      style={{
+                        background: "var(--violet, #8B5CF6)",
+                        color: "#fff",
+                        padding: "9px 16px",
+                        borderRadius: 8,
+                        fontWeight: 700,
+                        fontSize: 13,
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6
+                      }}
+                    >
+                      <Sparkles size={14} />
+                      {socialFlashSending ? "Pushing Live..." : "Push Social Flash to All Users"}
+                    </button>
+                    {socialFlashStatus && (
+                      <span style={{ fontSize: 12.5, fontWeight: 600, color: socialFlashStatus.startsWith("Failed") ? "var(--danger)" : "var(--live)" }}>
+                        {socialFlashStatus}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── Footer Row: Quiet Hours Guard ── */}
+          <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <label className="admin-flag-item" style={{ margin: 0, fontSize: 13 }}>
+                <input type="checkbox" checked={!!quietHours.enabled} onChange={e => setFlags({ ...flags, quietHours: { ...quietHours, enabled: e.target.checked } })} />
+                <span style={{ fontWeight: 600 }}>Quiet Hours Guard (IST)</span>
+              </label>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, opacity: quietHours.enabled ? 1 : 0.45 }}>
+                <input type="time" className="admin-input" style={{ width: "auto", padding: "4px 8px", fontSize: 12 }} value={quietHours.start || "23:00"} disabled={!quietHours.enabled} onChange={e => setFlags({ ...flags, quietHours: { ...quietHours, start: e.target.value } })} />
+                <span style={{ fontSize: 12, color: "var(--muted)" }}>to</span>
+                <input type="time" className="admin-input" style={{ width: "auto", padding: "4px 8px", fontSize: 12 }} value={quietHours.end || "07:00"} disabled={!quietHours.enabled} onChange={e => setFlags({ ...flags, quietHours: { ...quietHours, end: e.target.value } })} />
+              </div>
+            </div>
+            {quietHours.enabled && (() => { const q = inQuietHours(flashNow); return (
+              <div style={{ fontSize: 12, color: q ? "var(--danger)" : "var(--live)", display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: q ? "var(--danger)" : "var(--live)" }} />
+                {q ? "Within quiet hours (warning active)" : "Outside quiet hours (normal)"}
+              </div>
+            ); })()}
           </div>
         </section>
 
-        {/* Social Flash Notification Manager (First Card under Broadcast) */}
-        <section id="social-flash-section" className="admin-card admin-g-broadcast" style={{ border: "1.5px solid color-mix(in srgb, var(--violet, #8B5CF6) 40%, transparent)", margin: "10px 0" }}>
-            <h2>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--violet, #8B5CF6)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: "-3px" }}>
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-              </svg> Social Flash Notifications
-              <span style={{
-                background: "linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%)",
-                color: "#fff",
-                fontSize: "10px",
-                fontWeight: 800,
-                letterSpacing: "0.6px",
-                padding: "3px 8px",
-                borderRadius: "10px",
-                boxShadow: "0 2px 10px rgba(139, 92, 246, 0.4)",
-                marginLeft: "10px",
-                verticalAlign: "middle"
-              }}>NEW</span>
-            </h2>
-            <p className="admin-subtext">Push real-time flash toast notifications to active users. Docks in the top-right corner for 5–7 seconds.</p>
+        {/* ── 2. Mission Control (Timeline Agenda + Delivery Stats + Queued Pushes) ── */}
+        <section className="admin-card admin-span-all admin-g-broadcast" style={{ gridColumn: "1 / -1" }}>
+          <h2><Clock size={20} color="var(--live)" /> Broadcast Mission Control</h2>
+          <p className="admin-subtext">Unified schedule of upcoming pushes, active banners, and recent broadcast delivery performance.</p>
 
-            <div className="admin-field">
-              <label>Title</label>
-              <input className="admin-input" value={socialFlashTitle} onChange={e => setSocialFlashTitle(e.target.value)} placeholder="New Social Update" />
-            </div>
-
-            <div className="admin-field">
-              <label>Message</label>
-              <textarea className="admin-textarea" value={socialFlashMsg} onChange={e => setSocialFlashMsg(e.target.value)} placeholder="Someone added a new status on TermFlow!" rows={2}></textarea>
-            </div>
-
-            <div className="admin-grid-2">
-              <div className="admin-field">
-                <label>Icon Style</label>
-                <select className="admin-input" value={socialFlashIcon} onChange={e => setSocialFlashIcon(e.target.value)}>
-                  <option value="social">Social (Purple)</option>
-                  <option value="alert">Alert (Amber)</option>
-                  <option value="announcement">Announcement (Blue)</option>
-                  <option value="success">Success (Green)</option>
-                </select>
-              </div>
-
-              <div className="admin-field">
-                <label>Display Duration</label>
-                <select className="admin-input" value={socialFlashDuration} onChange={e => setSocialFlashDuration(Number(e.target.value))}>
-                  <option value={5000}>5 Seconds</option>
-                  <option value={6000}>6 Seconds (Default)</option>
-                  <option value={7000}>7 Seconds</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="admin-field">
-              <label>Action Link (Optional)</label>
-              <input className="admin-input" value={socialFlashUrl} onChange={e => setSocialFlashUrl(e.target.value)} placeholder="https://termflow.app/friends or /meetups" />
-            </div>
-
-            <div style={{ marginTop: 20 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 10 }}>
-                <label style={{ fontSize: 11.5, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                  Live Top-Right Toast Preview ({socialFlashDuration / 1000}s)
-                </label>
-                <button
-                  type="button"
-                  onClick={testSocialFlashLocal}
-                  style={{
-                    background: "color-mix(in srgb, var(--violet, #8B5CF6) 12%, transparent)",
-                    border: "1px solid color-mix(in srgb, var(--violet, #8B5CF6) 30%, transparent)",
-                    color: "var(--violet, #8B5CF6)",
-                    padding: "5px 12px",
-                    borderRadius: 8,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    transition: "all 0.15s"
-                  }}
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L12 3Z" />
-                  </svg> Test Toast on Screen
-                </button>
-              </div>
-
-              <div style={{
-                position: "relative",
-                width: "100%",
-                background: "var(--card, #1A1A2E)",
-                border: "1px solid color-mix(in srgb, var(--violet, #8B5CF6) 40%, transparent)",
-                borderRadius: 16,
-                padding: "14px 16px",
-                display: "flex",
-                alignItems: "flex-start",
-                gap: 14,
-                boxShadow: "0 4px 20px rgba(0, 0, 0, 0.25)",
-                overflow: "hidden"
-              }}>
-                <div style={{
-                  flexShrink: 0,
-                  width: 36,
-                  height: 36,
-                  borderRadius: 10,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginTop: 2,
-                  background: socialFlashIcon === "alert" ? "rgba(245, 158, 11, 0.2)" : socialFlashIcon === "announcement" ? "rgba(59, 130, 246, 0.2)" : socialFlashIcon === "success" ? "rgba(16, 185, 129, 0.2)" : "rgba(139, 92, 246, 0.2)",
-                  border: `1px solid ${socialFlashIcon === "alert" ? "#F59E0B44" : socialFlashIcon === "announcement" ? "#3B82F644" : socialFlashIcon === "success" ? "#10b98144" : "#8B5CF644"}`
-                }}>
-                  {socialFlashIcon === "alert" && (
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                  )}
-                  {socialFlashIcon === "announcement" && (
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-                  )}
-                  {socialFlashIcon === "success" && (
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
-                  )}
-                  {socialFlashIcon === "social" && (
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                  )}
-                </div>
-
-                <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
-                  <div style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--ink, #fff)", paddingRight: 18 }}>
-                    {socialFlashTitle.trim() || "New Social Update"}
-                  </div>
-                  <div style={{ fontSize: "12.5px", color: "var(--muted, rgba(255,255,255,0.7))", lineHeight: 1.4 }}>
-                    {socialFlashMsg.trim() || "Someone added a new status on TermFlow!"}
-                  </div>
-                  {socialFlashUrl.trim() && (
-                    <div style={{ marginTop: 4, fontSize: 12, fontWeight: 700, color: "#8B5CF6", display: "inline-flex", alignItems: "center", gap: 4 }}>
-                      View <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                    </div>
-                  )}
-                </div>
-
-                <div style={{ position: "absolute", top: 10, right: 10, color: "var(--muted, rgba(255,255,255,0.5))" }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </div>
-
-                {/* Countdown progress bar */}
-                <div
-                  className="social-flash-progress"
-                  style={{
-                    background: socialFlashIcon === "alert" ? "#F59E0B" : socialFlashIcon === "announcement" ? "#3B82F6" : socialFlashIcon === "success" ? "#10b981" : "#8B5CF6",
-                    animationDuration: `${socialFlashDuration}ms`
-                  }}
-                />
-              </div>
-            </div>
-
-            <div style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 12 }}>
-              <button
-                type="button"
-                className="admin-btn primary"
-                disabled={socialFlashSending}
-                onClick={triggerSocialFlashBroadcast}
-                style={{
-                  background: "var(--violet, #8B5CF6)",
-                  color: "#fff",
-                  padding: "10px 18px",
-                  borderRadius: 10,
-                  fontWeight: 700,
-                  fontSize: 13.5,
-                  cursor: "pointer",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 8
-                }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="22" y1="2" x2="11" y2="13" />
-                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                </svg>
-                {socialFlashSending ? "Pushing Live..." : "Push Social Flash to All Users"}
-              </button>
-
-              {socialFlashStatus && (
-                <span style={{ fontSize: 13, fontWeight: 600, color: socialFlashStatus.startsWith("Failed") ? "var(--red, #ef4444)" : "var(--green, #10b981)" }}>
-                  {socialFlashStatus}
-                </span>
-              )}
-            </div>
-          </section>
-
-          {/* Push Notification Broadcast */}
-          <section className="admin-card admin-g-broadcast" style={{ display: "flex", flexDirection: "column" }}>
-            <h2><BellRing size={20} color="var(--live)" /> Push Notifications</h2>
-            <p className="admin-subtext">Send a push notification to every device that enabled push on the Announcements page. Delivered even when the app is closed.</p>
-
-            {/* Saved templates — reusable presets stored in config */}
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginBottom: 10 }}>
-              {(flags.pushTemplates || []).map(t => (
-                <span key={t.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 20, padding: "3px 4px 3px 10px", fontSize: 12 }}>
-                  <button type="button" onClick={() => { setPushTitle(t.title || ""); setPushBody(t.body || ""); setPushUrl(t.url || ""); }} style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--text)", fontWeight: 600 }} title="Apply this template">{t.title || "(untitled)"}</button>
-                  <button type="button" onClick={() => setFlags({ ...flags, pushTemplates: (flags.pushTemplates || []).filter(x => x.id !== t.id) })} style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--muted)", display: "flex" }} aria-label="Delete template"><X size={12} /></button>
-                </span>
-              ))}
-              <button type="button" className="admin-btn outline" style={{ fontSize: 11, padding: "4px 10px" }} onClick={() => {
-                if (!pushTitle.trim() || !pushBody.trim()) return alert("Fill title and message first, then save as template.");
-                setFlags({ ...flags, pushTemplates: [...(flags.pushTemplates || []), { id: Date.now().toString(), title: pushTitle.trim(), body: pushBody.trim(), url: pushUrl.trim() }] });
-              }}>+ Save current as template</button>
-            </div>
-
-            <div className="admin-field-row">
-              <div className="admin-field">
-                <label>Title</label>
-                <input className="admin-input" value={pushTitle} onChange={e => setPushTitle(e.target.value)} placeholder="e.g. Room change: FIN-201 today" maxLength={80} />
-              </div>
-              <div className="admin-field">
-                <label>Open URL (optional)</label>
-                <input className="admin-input" value={pushUrl} onChange={e => setPushUrl(e.target.value)} placeholder="/?view=today" />
-              </div>
-            </div>
-            <div className="admin-field">
-              <label>Message</label>
-              <textarea className="admin-textarea" value={pushBody} onChange={e => setPushBody(e.target.value)} placeholder="e.g. Today's 11:30 FIN-201 class moved to Room C-104." rows={2} maxLength={200}></textarea>
-            </div>
-            <div className="admin-field-row" style={{ marginTop: 8 }}>
-               <div className="admin-field">
-                 <label>Schedule Date (Optional)</label>
-                 <input type="date" className="admin-input" value={pushScheduleDate} onChange={e => setPushScheduleDate(e.target.value)} />
-               </div>
-               <div className="admin-field">
-                 <label>Schedule Time (Optional)</label>
-                 <input type="time" className="admin-input" value={pushScheduleTime} onChange={e => setPushScheduleTime(e.target.value)} />
-               </div>
-            </div>
-
-            <div className="admin-field" style={{ marginTop: 8 }}>
-              <label>Audience {pushTarget !== "all" && (() => { const ids = audienceIds(pushTarget); return <span className="admin-optional">— {ids ? `${ids.length} recipient(s)` : "n/a"}</span>; })()}</label>
-              <select className="admin-input" value={pushTarget} onChange={e => setPushTarget(e.target.value)}>
-                <option value="all">Everyone (broadcast)</option>
-                <option value="section_A">Section A</option>
-                <option value="section_B">Section B</option>
-                <option value="inactive">Inactive {inactiveDays}+ days</option>
-                <optgroup label="Subject-wise">
-                  {Object.keys(LEGEND || {}).map(c => <option key={c} value={`subject_${c}`}>{c}</option>)}
-                </optgroup>
-                {(flags.savedAudiences || []).length > 0 && (
-                  <optgroup label="Saved audiences">
-                    {(flags.savedAudiences || []).map(sa => <option key={sa.id} value={sa.target}>★ {sa.label}</option>)}
-                  </optgroup>
-                )}
-              </select>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6, alignItems: "center" }}>
-                {(flags.savedAudiences || []).map(sa => (
-                  <span key={sa.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--bg)", border: `1px solid ${pushTarget === sa.target ? "var(--live)" : "var(--border)"}`, borderRadius: 20, padding: "3px 4px 3px 10px", fontSize: 12 }}>
-                    <button type="button" onClick={() => setPushTarget(sa.target)} title={sa.target} style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--text)", fontWeight: 600 }}>★ {sa.label}</button>
-                    <button type="button" onClick={() => setFlags({ ...flags, savedAudiences: (flags.savedAudiences || []).filter(x => x.id !== sa.id) })} style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--muted)", display: "flex" }} aria-label="Delete saved audience"><X size={12} /></button>
-                  </span>
-                ))}
-                <button type="button" className="admin-btn outline" style={{ fontSize: 11, padding: "4px 10px" }} onClick={saveCurrentAudience} disabled={pushTarget === "all"}>+ Save current audience</button>
-              </div>
-            </div>
-
-            <PushPreview title={pushTitle} body={pushBody} url={pushUrl} when={pushScheduleDate && pushScheduleTime ? `${pushScheduleDate} · ${pushScheduleTime}` : "now"} />
-
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
-              <button className="admin-btn primary" onClick={() => {
-                 if (pushScheduleDate && pushScheduleTime) {
-                    if (pushTarget !== "all") return alert("Scheduled pushes currently go to everyone. For a targeted push, clear the schedule and send now.");
-                    if (!pushTitle.trim() || !pushBody.trim()) return alert("Fill in title and message.");
-                    const newItem = { id: Date.now().toString(), title: pushTitle.trim(), body: pushBody.trim(), url: pushUrl.trim(), date: pushScheduleDate, time: pushScheduleTime };
-                    setFlags({...flags, scheduledPushes: [...(flags.scheduledPushes || []), newItem]});
-                    setPushTitle(""); setPushBody(""); setPushUrl(""); setPushScheduleDate(""); setPushScheduleTime("");
-                    setPushResult("Push scheduled successfully (Requires deploy).");
-                 } else if (pushTarget !== "all") {
-                    const ids = audienceIds(pushTarget);
-                    if (!ids || ids.length === 0) return alert("No recipients match that audience.");
-                    if (!pushTitle.trim() || !pushBody.trim()) return alert("Fill in title and message.");
-                    const dup = recentDuplicatePush(pushTitle);
-                    if (dup && !confirm(`⚠️ A push titled "${dup.title}" was already sent ${Math.round((nowMs() - new Date(dup.sent_at).getTime()) / 60000)} min ago. Send this one anyway?`)) return;
-                    (async () => {
-                      setPushSending(true); setPushResult("");
-                      const res = await pushToUserIds(ids, { title: pushTitle.trim(), body: pushBody.trim(), url: pushUrl.trim() || "/", confirmMsg: `Send this push to ${ids.length} user(s) in "${pushTarget}"?` });
-                      if (res?.ok) { setPushResult(`Sent to ${res.data.queued ?? ids.length} user(s).`); setPushTitle(""); setPushBody(""); setPushUrl(""); await logAdminAction(admin_id, "push_targeted", { target: pushTarget, count: ids.length }); }
-                      else if (res) setPushResult(`Failed: ${res.data?.error || "error"}`);
-                      setPushSending(false);
-                    })();
-                 } else {
-                    sendPushBroadcast();
-                 }
-              }} disabled={pushSending}>
-                <BellRing size={14} /> {pushSending ? "Sending..." : (pushScheduleDate && pushScheduleTime ? "Queue Push Notification" : pushTarget !== "all" ? "Send to Audience" : "Send to All Subscribers")}
-              </button>
-              <button className="admin-btn outline" onClick={sendTestPushToMe} disabled={pushSending} title="Delivers only to your own subscribed devices — arrives within ~1 min">
-                <BellRing size={14} /> Send test to me
-              </button>
-              {pushResult && (
-                <span className="admin-subtext" style={{ margin: 0, color: pushResult.startsWith("Sent") || pushResult.startsWith("Push scheduled") || pushResult.startsWith("Test") ? "var(--live)" : "var(--danger)" }}>{pushResult}</span>
-              )}
-            </div>
-
-            {flags.scheduledPushes && flags.scheduledPushes.length > 0 && (
-               <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase" }}>Queued Pushes</label>
-                  {flags.scheduledPushes.map(p => (
-                     <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)" }}>
-                       <div>
-                         <div style={{ fontSize: 13, fontWeight: 600 }}>{p.title}</div>
-                         <div style={{ fontSize: 11, color: "var(--muted)" }}>Scheduled for {p.date} at {p.time}</div>
-                       </div>
-                       <button onClick={() => {
-                         const prev = flags.scheduledPushes;
-                         setFlags({...flags, scheduledPushes: prev.filter(x => x.id !== p.id)});
-                         removeWithUndo("Queued push removed", () => setFlags(f => ({ ...f, scheduledPushes: prev })));
-                       }} className="admin-btn outline" style={{ padding: "4px 8px", borderColor: "var(--danger)", color: "var(--danger)" }}><Trash2 size={14} /></button>
-                     </div>
-                  ))}
-               </div>
-            )}
-          </section>
-
-          {/* Social Flash Notification Manager */}
-          <section id="social-flash-section" className="admin-card admin-g-broadcast">
-            <h2>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--violet, #8B5CF6)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: "-3px" }}>
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-              </svg> Social Flash Notifications
-            </h2>
-            <p className="admin-subtext">Push real-time flash toast notifications to active users. Docks in the top-right corner for 5–7 seconds.</p>
-
-            <div className="admin-field">
-              <label>Title</label>
-              <input className="admin-input" value={socialFlashTitle} onChange={e => setSocialFlashTitle(e.target.value)} placeholder="⚡ New Social Update" />
-            </div>
-
-            <div className="admin-field">
-              <label>Message</label>
-              <textarea className="admin-textarea" value={socialFlashMsg} onChange={e => setSocialFlashMsg(e.target.value)} placeholder="Someone added a new status on TermFlow!" rows={2}></textarea>
-            </div>
-
-            <div className="admin-grid-2">
-              <div className="admin-field">
-                <label>Icon Style</label>
-                <select className="admin-input" value={socialFlashIcon} onChange={e => setSocialFlashIcon(e.target.value)}>
-                  <option value="social">👥 Social (Purple)</option>
-                  <option value="alert">⚡ Alert (Amber)</option>
-                  <option value="announcement">📣 Announcement (Blue)</option>
-                  <option value="sparkles">✨ Sparkles (Pink)</option>
-                </select>
-              </div>
-
-              <div className="admin-field">
-                <label>Display Duration</label>
-                <select className="admin-input" value={socialFlashDuration} onChange={e => setSocialFlashDuration(Number(e.target.value))}>
-                  <option value={5000}>5 Seconds</option>
-                  <option value={6000}>6 Seconds (Default)</option>
-                  <option value={7000}>7 Seconds</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="admin-field">
-              <label>Action Link (Optional)</label>
-              <input className="admin-input" value={socialFlashUrl} onChange={e => setSocialFlashUrl(e.target.value)} placeholder="https://termflow.app/friends or /meetups" />
-            </div>
-
-            {/* Live Top-Right Toast Preview */}
-            <div style={{ marginTop: 20 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 10 }}>
-                <label style={{ fontSize: 11.5, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                  Live Top-Right Toast Preview ({socialFlashDuration / 1000}s)
-                </label>
-                <button
-                  type="button"
-                  onClick={testSocialFlashLocal}
-                  style={{
-                    background: "color-mix(in srgb, var(--violet, #8B5CF6) 12%, transparent)",
-                    border: "1px solid color-mix(in srgb, var(--violet, #8B5CF6) 30%, transparent)",
-                    color: "var(--violet, #8B5CF6)",
-                    padding: "5px 12px",
-                    borderRadius: 8,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    transition: "all 0.15s"
-                  }}
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
-                  </svg> Test Toast on Screen
-                </button>
-              </div>
-
-              {/* Toast card preview */}
-              <div style={{
-                position: "relative",
-                width: "100%",
-                background: "var(--card, #1A1A2E)",
-                border: "1px solid color-mix(in srgb, var(--violet, #8B5CF6) 40%, transparent)",
-                borderRadius: 16,
-                padding: "14px 16px",
-                display: "flex",
-                alignItems: "flex-start",
-                gap: 14,
-                boxShadow: "0 4px 20px rgba(0, 0, 0, 0.25)"
-              }}>
-                <div style={{
-                  flexShrink: 0,
-                  width: 36,
-                  height: 36,
-                  borderRadius: 10,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginTop: 2,
-                  background: socialFlashIcon === "alert" ? "rgba(245, 158, 11, 0.2)" : socialFlashIcon === "announcement" ? "rgba(59, 130, 246, 0.2)" : socialFlashIcon === "sparkles" ? "rgba(236, 72, 153, 0.2)" : "rgba(139, 92, 246, 0.2)",
-                  border: `1px solid ${socialFlashIcon === "alert" ? "#F59E0B44" : socialFlashIcon === "announcement" ? "#3B82F644" : socialFlashIcon === "sparkles" ? "#EC489944" : "#8B5CF644"}`
-                }}>
-                  {socialFlashIcon === "alert" && (
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                  )}
-                  {socialFlashIcon === "announcement" && (
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-                  )}
-                  {socialFlashIcon === "sparkles" && (
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#EC4899" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
-                  )}
-                  {socialFlashIcon === "social" && (
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                  )}
-                </div>
-
-                <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
-                  <div style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--ink, #fff)", paddingRight: 18 }}>
-                    {socialFlashTitle.trim() || "⚡ New Social Update"}
-                  </div>
-                  <div style={{ fontSize: "12.5px", color: "var(--muted, rgba(255,255,255,0.7))", lineHeight: 1.4 }}>
-                    {socialFlashMsg.trim() || "Someone added a new status on TermFlow!"}
-                  </div>
-                  {socialFlashUrl.trim() && (
-                    <div style={{ marginTop: 4, fontSize: 12, fontWeight: 700, color: "#8B5CF6", display: "inline-flex", alignItems: "center", gap: 4 }}>
-                      View <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                    </div>
-                  )}
-                </div>
-
-                <div style={{ position: "absolute", top: 10, right: 10, color: "var(--muted, rgba(255,255,255,0.5))" }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </div>
-              </div>
-            </div>
-
-            {/* Broadcast action button */}
-            <div style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 12 }}>
-              <button
-                type="button"
-                className="admin-btn primary"
-                disabled={socialFlashSending}
-                onClick={triggerSocialFlashBroadcast}
-                style={{
-                  background: "var(--violet, #8B5CF6)",
-                  color: "#fff",
-                  padding: "10px 18px",
-                  borderRadius: 10,
-                  fontWeight: 700,
-                  fontSize: 13.5,
-                  cursor: "pointer",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 8
-                }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="22" y1="2" x2="11" y2="13" />
-                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                </svg>
-                {socialFlashSending ? "Pushing Live..." : "Push Social Flash to All Users"}
-              </button>
-
-              {socialFlashStatus && (
-                <span style={{ fontSize: 13, fontWeight: 600, color: socialFlashStatus.startsWith("Failed") ? "var(--red, #ef4444)" : "var(--green, #10b981)" }}>
-                  {socialFlashStatus}
-                </span>
-              )}
-            </div>
-          </section>
-
-          {/* Push Delivery Analytics */}
-          <section className="admin-card admin-g-broadcast" style={{ display: "flex", flexDirection: "column" }}>
-            <h2><BarChart2 size={20} color="var(--live)" /> Push Delivery Analytics</h2>
-            <p className="admin-subtext">How recent broadcasts actually landed: sent → delivered (push shown) → opened (read).</p>
-            {pushStats === null ? (
-              <div className="admin-empty">Needs the <code>get_push_broadcast_stats</code> RPC (migration 20260731120000) deployed.</div>
-            ) : pushStats.length === 0 ? (
-              <div className="admin-empty">No broadcasts sent yet.</div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {pushStats.slice(0, 8).map(s => {
-                  const dPct = s.total ? Math.round((s.delivered / s.total) * 100) : 0;
-                  const oPct = s.total ? Math.round((s.opened / s.total) * 100) : 0;
-                  return (
-                    <div key={s.dedup_key} style={{ padding: "10px 12px", background: "var(--bg)", borderRadius: 10, border: "1px solid var(--border)" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title || "(no title)"}</span>
-                        <span style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap" }}>{new Date(s.sent_at).toLocaleDateString()}</span>
-                      </div>
-                      <div style={{ display: "flex", gap: 16, fontSize: 12 }}>
-                        <span title="Users the broadcast was queued for"><b>{s.total}</b> sent</span>
-                        <span style={{ color: "var(--blue)" }} title="Push actually delivered to a device"><b>{s.delivered}</b> delivered ({dPct}%)</span>
-                        <span style={{ color: "var(--live)" }} title="Marked read in the inbox"><b>{s.opened}</b> opened ({oPct}%)</span>
-                      </div>
-                      <div style={{ height: 6, background: "var(--card)", borderRadius: 3, overflow: "hidden", border: "1px solid var(--border)", marginTop: 6, position: "relative" }}>
-                        <div style={{ position: "absolute", inset: 0, width: `${dPct}%`, background: "var(--blue)", opacity: 0.35 }} />
-                        <div style={{ position: "absolute", inset: 0, width: `${oPct}%`, background: "var(--live)" }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-
-          {/* Broadcast agenda — every scheduled push/announcement/deploy on one timeline */}
-          <section className="admin-card admin-g-broadcast" style={{ display: "flex", flexDirection: "column" }}>
-            <h2><Clock size={20} color="var(--live)" /> Scheduled Timeline</h2>
-            <p className="admin-subtext">Everything queued to fire — pushes, announcements, config deploys and quick links — in one calendar so you can catch collisions or spam bursts before they hit.</p>
+          {/* Scheduled Timeline Agenda */}
+          <div style={{ marginTop: 12, marginBottom: 16 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 8 }}>Scheduled Timeline Agenda</div>
             {broadcastAgenda.length === 0 ? (
-              <div className="admin-empty">Nothing scheduled. Queued pushes, announcements &amp; deploys will appear here.</div>
+              <div className="admin-empty" style={{ padding: "16px 0" }}>Nothing scheduled. Queued pushes, announcements &amp; deploys will appear here.</div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {broadcastAgenda.map((it, i) => {
@@ -2848,192 +3185,448 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 })}
               </div>
             )}
-          </section>
+          </div>
 
-          {/* Quiet hours guard */}
-          <section className="admin-card admin-g-broadcast" style={{ display: "flex", flexDirection: "column" }}>
-            <h2><CloudOff size={20} color="var(--violet)" /> Quiet Hours</h2>
-            <p className="admin-subtext">Warn before a broadcast fires during a do-not-disturb window (IST), so nobody gets a 2am buzz. Deploy Config to save the window.</p>
-            <label className="admin-flag-item" style={{ marginBottom: 10 }}>
-              <input type="checkbox" checked={!!quietHours.enabled} onChange={e => setFlags({ ...flags, quietHours: { ...quietHours, enabled: e.target.checked } })} />
-              <span>Guard broadcasts during quiet hours</span>
-            </label>
-            <div className="admin-field-row" style={{ alignItems: "flex-end", opacity: quietHours.enabled ? 1 : 0.5 }}>
-              <div className="admin-field"><label>From</label><input type="time" className="admin-input" value={quietHours.start || "23:00"} disabled={!quietHours.enabled} onChange={e => setFlags({ ...flags, quietHours: { ...quietHours, start: e.target.value } })} /></div>
-              <div className="admin-field"><label>To</label><input type="time" className="admin-input" value={quietHours.end || "07:00"} disabled={!quietHours.enabled} onChange={e => setFlags({ ...flags, quietHours: { ...quietHours, end: e.target.value } })} /></div>
+          {/* Collapsible Queued Pushes */}
+          {flags.scheduledPushes && flags.scheduledPushes.length > 0 && (
+            <details style={{ borderTop: "1px solid var(--border)", paddingTop: 12, marginBottom: 12 }}>
+              <summary style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", cursor: "pointer" }}>
+                Queued Push Notifications ({flags.scheduledPushes.length})
+              </summary>
+              <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+                {flags.scheduledPushes.map(p => (
+                  <div key={p.id} className="admin-list-item" style={{ padding: "8px 12px" }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{p.title}</div>
+                      <div style={{ fontSize: 11, color: "var(--muted)" }}>Scheduled for {p.date} at {p.time}</div>
+                    </div>
+                    <button onClick={() => {
+                      const prev = flags.scheduledPushes;
+                      setFlags({...flags, scheduledPushes: prev.filter(x => x.id !== p.id)});
+                      removeWithUndo("Queued push removed", () => setFlags(f => ({ ...f, scheduledPushes: prev })));
+                    }} className="admin-btn danger" style={{ padding: "4px 8px" }}><Trash2 size={14} /></button>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+
+          {/* Collapsible Push Delivery Analytics */}
+          <details style={{ borderTop: "1px solid var(--border)", paddingTop: 12 }} open>
+            <summary style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", cursor: "pointer" }}>
+              Push Delivery Analytics
+            </summary>
+            <div style={{ marginTop: 10 }}>
+              {pushStats === null ? (
+                <div className="admin-empty">Needs the <code>get_push_broadcast_stats</code> RPC (migration 20260731120000) deployed.</div>
+              ) : pushStats.length === 0 ? (
+                <div className="admin-empty">No broadcasts sent yet.</div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {pushStats.slice(0, 6).map(s => {
+                    const dPct = s.total ? Math.round((s.delivered / s.total) * 100) : 0;
+                    const oPct = s.total ? Math.round((s.opened / s.total) * 100) : 0;
+                    return (
+                      <div key={s.dedup_key} style={{ padding: "8px 12px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
+                          <span style={{ fontSize: 12.5, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title || "(no title)"}</span>
+                          <span style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap" }}>{new Date(s.sent_at).toLocaleDateString()}</span>
+                        </div>
+                        <div style={{ display: "flex", gap: 14, fontSize: 11.5 }}>
+                          <span><b>{s.total}</b> sent</span>
+                          <span style={{ color: "var(--blue)" }}><b>{s.delivered}</b> delivered ({dPct}%)</span>
+                          <span style={{ color: "var(--live)" }}><b>{s.opened}</b> opened ({oPct}%)</span>
+                        </div>
+                        <div style={{ height: 5, background: "var(--card)", borderRadius: 3, overflow: "hidden", border: "1px solid var(--border)", marginTop: 4, position: "relative" }}>
+                          <div style={{ position: "absolute", inset: 0, width: `${dPct}%`, background: "var(--blue)", opacity: 0.35 }} />
+                          <div style={{ position: "absolute", inset: 0, width: `${oPct}%`, background: "var(--live)" }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-            {quietHours.enabled && (() => { const q = inQuietHours(flashNow); return (
-              <div style={{ fontSize: 12, marginTop: 8, color: q ? "var(--danger)" : "var(--muted)", display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ width: 8, height: 8, borderRadius: "50%", background: q ? "var(--danger)" : "var(--live)" }} />
-                {q ? "Currently within quiet hours — broadcasts will prompt a warning." : "Outside quiet hours — broadcasts send normally."}
-              </div>
-            ); })()}
-          </section>
+          </details>
+        </section>
 
-          {/* What's New — feature updates */}
-          <section className="admin-card admin-g-broadcast" style={{ display: "flex", flexDirection: "column" }}>
-            <h2><Sparkles size={20} color="var(--violet)" /> What&rsquo;s New (Feature Updates)</h2>
-            <p className="admin-subtext">Announce new features. Students see a "NEW" pill on the Today view until they open the What&rsquo;s New list. Publish with Deploy Config to Cloud.</p>
-            <div className="admin-field-row">
-              <div className="admin-field" style={{ flex: "0 0 90px" }}>
-                <label>Emoji</label>
-                <input className="admin-input" value={wnEmoji} onChange={e => setWnEmoji(e.target.value)} placeholder="🔔" maxLength={4} />
-              </div>
-              <div className="admin-field">
-                <label>Feature Title</label>
-                <input className="admin-input" value={wnTitle} onChange={e => setWnTitle(e.target.value)} placeholder="e.g. Class reminders are here" maxLength={60} />
-              </div>
+        {/* ── 3. Content Hub (What's New + Quick Links + Update Prompt) ── */}
+        <section className="admin-card admin-span-all admin-g-broadcast" style={{ gridColumn: "1 / -1" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+            <div>
+              <h2 style={{ marginBottom: 4 }}><Sparkles size={20} color="var(--violet)" /> App Content Hub</h2>
+              <p className="admin-subtext" style={{ margin: 0 }}>Publish in-app feature notes, dynamic sidebar links, and client update prompts.</p>
             </div>
-            <div className="admin-field">
-              <label>Description</label>
-              <textarea className="admin-textarea" value={wnDesc} onChange={e => setWnDesc(e.target.value)} placeholder="e.g. Enable push on the Announcements tab to get pinged 15/30/60 min before your classes." rows={2} maxLength={200}></textarea>
-            </div>
-
-            {wnTitle.trim() && (
-              <div style={{ marginTop: 4, marginBottom: 12 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--muted)", display: "block", marginBottom: 8 }}>Student preview — click the pill to see the full card</span>
-                <WhatsNewPill
-                  item={{ id: "preview", emoji: wnEmoji.trim(), title: wnTitle.trim(), desc: wnDesc.trim(), date: new Date().toISOString().split("T")[0] }}
-                  count={1}
-                  onOpen={() => setWnPreviewOpen(true)}
-                />
-              </div>
-            )}
-            {wnPreviewOpen && (
-              <WhatsNewModal
-                items={[{ id: "preview", emoji: wnEmoji.trim(), title: wnTitle.trim() || "Feature title", desc: wnDesc.trim(), date: new Date().toISOString().split("T")[0] }]}
-                onClose={() => setWnPreviewOpen(false)}
-              />
-            )}
-
-            <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
-              <button className="admin-btn primary" style={{ alignSelf: "flex-start" }} onClick={() => {
-                if (!wnTitle.trim()) return alert("Feature title is required.");
-                if (wnEditingId) {
-                  // Edit in place — keeps its original date and list position
-                  setFlags({
-                    ...flags,
-                    whatsNew: (flags.whatsNew || []).map(x => x.id === wnEditingId
-                      ? { ...x, emoji: wnEmoji.trim(), title: wnTitle.trim(), desc: wnDesc.trim() }
-                      : x)
-                  });
-                } else {
-                  const entry = {
-                    id: Date.now().toString(),
-                    date: new Date().toISOString().split("T")[0],
-                    emoji: wnEmoji.trim(),
-                    title: wnTitle.trim(),
-                    desc: wnDesc.trim(),
-                  };
-                  // newest first, keep the list short — students only care about recent
-                  setFlags({ ...flags, whatsNew: [entry, ...(flags.whatsNew || [])].slice(0, 10) });
-                }
-                setWnEmoji(""); setWnTitle(""); setWnDesc(""); setWnEditingId(null);
-              }}>
-                <Sparkles size={14} /> {wnEditingId ? "Save Changes" : "Add Feature Update"}
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={() => setOpenContent(o => ({ ...o, whatsNew: !o.whatsNew }))}
+                style={{
+                  padding: "6px 12px", borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: "pointer",
+                  border: openContent.whatsNew ? "1.5px solid var(--violet)" : "1px solid var(--border)",
+                  background: openContent.whatsNew ? "rgba(109,91,208,0.12)" : "var(--bg)",
+                  color: openContent.whatsNew ? "var(--violet)" : "var(--muted)",
+                  display: "flex", alignItems: "center", gap: 6
+                }}>
+                <Sparkles size={14} /> What&rsquo;s New {(flags.whatsNew || []).length > 0 ? `(${flags.whatsNew.length})` : ""}
               </button>
-              {wnEditingId && (
-                <button className="admin-btn outline" onClick={() => { setWnEmoji(""); setWnTitle(""); setWnDesc(""); setWnEditingId(null); }}>
-                  Cancel
-                </button>
+              <button
+                type="button"
+                onClick={() => setOpenContent(o => ({ ...o, quickLinks: !o.quickLinks }))}
+                style={{
+                  padding: "6px 12px", borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: "pointer",
+                  border: openContent.quickLinks ? "1.5px solid var(--blue)" : "1px solid var(--border)",
+                  background: openContent.quickLinks ? "rgba(59,130,246,0.12)" : "var(--bg)",
+                  color: openContent.quickLinks ? "var(--blue)" : "var(--muted)",
+                  display: "flex", alignItems: "center", gap: 6
+                }}>
+                <Flag size={14} /> Quick Links {(flags.quickLinks || []).length > 0 ? `(${flags.quickLinks.length})` : ""}
+              </button>
+              <button
+                type="button"
+                onClick={() => setOpenContent(o => ({ ...o, updatePrompt: !o.updatePrompt }))}
+                style={{
+                  padding: "6px 12px", borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: "pointer",
+                  border: openContent.updatePrompt ? "1.5px solid var(--live)" : "1px solid var(--border)",
+                  background: openContent.updatePrompt ? "rgba(31,169,113,0.12)" : "var(--bg)",
+                  color: openContent.updatePrompt ? "var(--live)" : "var(--muted)",
+                  display: "flex", alignItems: "center", gap: 6
+                }}>
+                <RefreshCw size={14} /> Update Prompt
+              </button>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {/* ── Content Section 1: What's New ── */}
+            <div style={{ border: `1px solid ${openContent.whatsNew ? "var(--violet)" : "var(--border)"}`, borderRadius: 12, overflow: "hidden", background: "var(--bg)", transition: "border-color 0.15s" }}>
+              <div
+                onClick={() => setOpenContent(o => ({ ...o, whatsNew: !o.whatsNew }))}
+                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", cursor: "pointer", background: openContent.whatsNew ? "rgba(109,91,208,0.06)" : "transparent" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <Sparkles size={17} color="var(--violet)" />
+                  <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text)" }}>What&rsquo;s New (Feature Updates)</span>
+                  {(flags.whatsNew || []).length > 0 && (
+                    <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 10, background: "rgba(109,91,208,0.15)", color: "var(--violet)" }}>
+                      {flags.whatsNew.length} entries
+                    </span>
+                  )}
+                </div>
+                <span style={{ color: "var(--muted)", fontSize: 13, fontWeight: 600 }}>{openContent.whatsNew ? "▲ Collapse" : "▼ Expand"}</span>
+              </div>
+
+              {openContent.whatsNew && (
+                <div style={{ padding: "16px", borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div className="admin-field-row">
+                    <div className="admin-field" style={{ flex: "0 0 90px" }}>
+                      <label>Emoji</label>
+                      <input className="admin-input" value={wnEmoji} onChange={e => setWnEmoji(e.target.value)} placeholder="🔔" maxLength={4} />
+                    </div>
+                    <div className="admin-field">
+                      <label>Feature Title</label>
+                      <input className="admin-input" value={wnTitle} onChange={e => setWnTitle(e.target.value)} placeholder="e.g. Class reminders are here" maxLength={60} />
+                    </div>
+                  </div>
+                  <div className="admin-field">
+                    <label>Description</label>
+                    <textarea className="admin-textarea" value={wnDesc} onChange={e => setWnDesc(e.target.value)} placeholder="e.g. Enable push on the Announcements tab to get pinged 15/30/60 min before your classes." rows={2} maxLength={200}></textarea>
+                  </div>
+
+                  {wnTitle.trim() && (
+                    <div style={{ marginTop: 2, marginBottom: 8 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--muted)", display: "block", marginBottom: 6 }}>Student preview — click pill to test modal</span>
+                      <WhatsNewPill
+                        item={{ id: "preview", emoji: wnEmoji.trim(), title: wnTitle.trim(), desc: wnDesc.trim(), date: new Date().toISOString().split("T")[0] }}
+                        count={1}
+                        onOpen={() => setWnPreviewOpen(true)}
+                      />
+                    </div>
+                  )}
+                  {wnPreviewOpen && (
+                    <WhatsNewModal
+                      items={[{ id: "preview", emoji: wnEmoji.trim(), title: wnTitle.trim() || "Feature title", desc: wnDesc.trim(), date: new Date().toISOString().split("T")[0] }]}
+                      onClose={() => setWnPreviewOpen(false)}
+                    />
+                  )}
+
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <button className="admin-btn primary" onClick={() => {
+                      if (!wnTitle.trim()) return alert("Feature title is required.");
+                      if (wnEditingId) {
+                        setFlags({
+                          ...flags,
+                          whatsNew: (flags.whatsNew || []).map(x => x.id === wnEditingId
+                            ? { ...x, emoji: wnEmoji.trim(), title: wnTitle.trim(), desc: wnDesc.trim() }
+                            : x)
+                        });
+                      } else {
+                        const entry = {
+                          id: Date.now().toString(),
+                          date: new Date().toISOString().split("T")[0],
+                          emoji: wnEmoji.trim(),
+                          title: wnTitle.trim(),
+                          desc: wnDesc.trim(),
+                        };
+                        setFlags({ ...flags, whatsNew: [entry, ...(flags.whatsNew || [])].slice(0, 10) });
+                      }
+                      setWnEmoji(""); setWnTitle(""); setWnDesc(""); setWnEditingId(null);
+                    }}>
+                      <Sparkles size={14} /> {wnEditingId ? "Save Changes" : "Add Feature Update"}
+                    </button>
+                    {wnEditingId && (
+                      <button className="admin-btn outline" onClick={() => { setWnEmoji(""); setWnTitle(""); setWnDesc(""); setWnEditingId(null); }}>
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
+                    {(flags.whatsNew || []).map(w => (
+                      <div key={w.id} className="admin-list-item" style={{ gap: 10, background: w.id === wnEditingId ? "rgba(109, 91, 208, 0.08)" : "var(--bg)", border: `1px solid ${w.id === wnEditingId ? "var(--violet)" : "var(--border)"}` }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{w.emoji ? `${w.emoji} ` : ""}{w.title}</div>
+                          <div style={{ fontSize: 11, color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{w.date}{w.desc ? ` — ${w.desc}` : ""}</div>
+                        </div>
+                        <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                          <button onClick={() => { setWnEmoji(w.emoji || ""); setWnTitle(w.title || ""); setWnDesc(w.desc || ""); setWnEditingId(w.id); }} className="admin-btn outline" style={{ padding: "4px 8px" }} aria-label="Edit"><Pencil size={14} /></button>
+                          <button onClick={() => {
+                            if (!confirm(`Delete "What's New" entry "${w.title}"?`)) return;
+                            setFlags({ ...flags, whatsNew: flags.whatsNew.filter(x => x.id !== w.id) });
+                            if (wnEditingId === w.id) { setWnEmoji(""); setWnTitle(""); setWnDesc(""); setWnEditingId(null); }
+                          }} className="admin-btn danger" style={{ padding: "4px 8px" }} aria-label="Delete"><Trash2 size={14} /></button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
 
-            <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
-              {(flags.whatsNew || []).map(w => (
-                <div key={w.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "8px 12px", background: w.id === wnEditingId ? "rgba(109, 91, 208, 0.08)" : "var(--bg)", borderRadius: 8, border: `1px solid ${w.id === wnEditingId ? "var(--violet)" : "var(--border)"}` }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{w.emoji ? `${w.emoji} ` : ""}{w.title}</div>
-                    <div style={{ fontSize: 11, color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{w.date}{w.desc ? ` — ${w.desc}` : ""}</div>
-                  </div>
-                  <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                    <button onClick={() => { setWnEmoji(w.emoji || ""); setWnTitle(w.title || ""); setWnDesc(w.desc || ""); setWnEditingId(w.id); }} className="admin-btn outline" style={{ padding: "4px 8px" }} aria-label="Edit"><Pencil size={14} /></button>
-                    <button onClick={() => {
-                      setFlags({ ...flags, whatsNew: flags.whatsNew.filter(x => x.id !== w.id) });
-                      if (wnEditingId === w.id) { setWnEmoji(""); setWnTitle(""); setWnDesc(""); setWnEditingId(null); }
-                    }} className="admin-btn outline" style={{ padding: "4px 8px", borderColor: "var(--danger)", color: "var(--danger)" }} aria-label="Delete"><Trash2 size={14} /></button>
-                  </div>
+            {/* ── Content Section 2: Dynamic Quick Links ── */}
+            <div style={{ border: `1px solid ${openContent.quickLinks ? "var(--blue)" : "var(--border)"}`, borderRadius: 12, overflow: "hidden", background: "var(--bg)", transition: "border-color 0.15s" }}>
+              <div
+                onClick={() => setOpenContent(o => ({ ...o, quickLinks: !o.quickLinks }))}
+                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", cursor: "pointer", background: openContent.quickLinks ? "rgba(59,130,246,0.06)" : "transparent" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <Flag size={17} color="var(--blue)" />
+                  <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text)" }}>Dynamic Quick Links</span>
+                  {(flags.quickLinks || []).length > 0 && (
+                    <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 10, background: "rgba(59,130,246,0.15)", color: "var(--blue)" }}>
+                      {flags.quickLinks.length} active
+                    </span>
+                  )}
                 </div>
-              ))}
-            </div>
-          </section>
-
-        <section className="admin-card admin-g-broadcast" style={{ display: "flex", flexDirection: "column" }}>
-          <h2><Flag size={20} color="var(--violet)" /> Dynamic Quick Links</h2>
-          <p className="admin-subtext">Push temporary important links to the sidebar (e.g. Exam Portal).</p>
-          
-          <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
-            <input type="text" placeholder="Link Title" value={qlTitle} onChange={e => setQlTitle(e.target.value)} className="admin-input" style={{ flex: 1, padding: "8px", borderRadius: 8, border: "1px solid var(--border)", minWidth: 150 }} />
-            <input type="url" placeholder="https://..." value={qlUrl} onChange={e => setQlUrl(e.target.value)} className="admin-input" style={{ flex: 2, padding: "8px", borderRadius: 8, border: "1px solid var(--border)", minWidth: 200 }} />
-          </div>
-          <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
-            <input type="date" value={qlStart} onChange={e => setQlStart(e.target.value)} className="admin-input" style={{ flex: "1 1 130px", padding: "8px", borderRadius: 8, border: "1px solid var(--border)" }} title="Start Date" />
-            <input type="date" value={qlEnd} onChange={e => setQlEnd(e.target.value)} className="admin-input" style={{ flex: "1 1 130px", padding: "8px", borderRadius: 8, border: "1px solid var(--border)" }} title="End Date (Inclusive)" />
-            <button className="admin-btn primary" style={{ flex: "1 1 130px" }} onClick={() => {
-              if (!qlTitle || !qlUrl || !qlStart || !qlEnd) return alert("Fill all fields.");
-              const newItem = { id: Date.now().toString(), title: qlTitle, url: qlUrl, start: qlStart, end: qlEnd };
-              setFlags({...flags, quickLinks: [...(flags.quickLinks || []), newItem]});
-              setQlTitle(""); setQlUrl(""); setQlStart(""); setQlEnd("");
-            }}>
-              Add Quick Link
-            </button>
-          </div>
-
-          <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 8 }}>
-            {(flags.quickLinks || []).map((ql, idx) => (
-              <div key={ql.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)" }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>{ql.title}</div>
-                  <div style={{ fontSize: 11, color: "var(--muted)" }}>{ql.url} | {ql.start} to {ql.end}</div>
-                </div>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <button onClick={() => {
-                    if(idx === 0) return;
-                    const next = [...flags.quickLinks];
-                    [next[idx-1], next[idx]] = [next[idx], next[idx-1]];
-                    setFlags({...flags, quickLinks: next});
-                  }} disabled={idx === 0} className="admin-btn outline" style={{ padding: "4px 8px", opacity: idx === 0 ? 0.3 : 1 }}>↑</button>
-                  <button onClick={() => {
-                    if(idx === flags.quickLinks.length - 1) return;
-                    const next = [...flags.quickLinks];
-                    [next[idx+1], next[idx]] = [next[idx], next[idx+1]];
-                    setFlags({...flags, quickLinks: next});
-                  }} disabled={idx === flags.quickLinks.length - 1} className="admin-btn outline" style={{ padding: "4px 8px", opacity: idx === flags.quickLinks.length - 1 ? 0.3 : 1 }}>↓</button>
-                  
-                  <button onClick={() => {
-                    const prev = flags.quickLinks;
-                    setFlags({...flags, quickLinks: prev.filter(x => x.id !== ql.id)});
-                    removeWithUndo("Quick link removed", () => setFlags(f => ({ ...f, quickLinks: prev })));
-                  }} className="admin-btn outline" style={{ padding: "4px 8px", borderColor: "var(--danger)", color: "var(--danger)" }}><Trash2 size={14} /></button>
-                </div>
+                <span style={{ color: "var(--muted)", fontSize: 13, fontWeight: 600 }}>{openContent.quickLinks ? "▲ Collapse" : "▼ Expand"}</span>
               </div>
-            ))}
+
+              {openContent.quickLinks && (
+                <div style={{ padding: "16px", borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <input type="text" placeholder="Link Title (e.g. Exam Portal)" value={qlTitle} onChange={e => setQlTitle(e.target.value)} className="admin-input" style={{ flex: 1, padding: "8px", minWidth: 150 }} />
+                    <input type="url" placeholder="https://..." value={qlUrl} onChange={e => setQlUrl(e.target.value)} className="admin-input" style={{ flex: 2, padding: "8px", minWidth: 200 }} />
+                  </div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <input type="date" value={qlStart} onChange={e => setQlStart(e.target.value)} className="admin-input" style={{ flex: "1 1 130px", padding: "8px" }} title="Start Date" />
+                    <input type="date" value={qlEnd} onChange={e => setQlEnd(e.target.value)} className="admin-input" style={{ flex: "1 1 130px", padding: "8px" }} title="End Date (Inclusive)" />
+                    <button className="admin-btn primary" style={{ flex: "1 1 130px" }} onClick={() => {
+                      if (!qlTitle || !qlUrl || !qlStart || !qlEnd) return alert("Fill all fields.");
+                      const newItem = { id: Date.now().toString(), title: qlTitle, url: qlUrl, start: qlStart, end: qlEnd };
+                      setFlags({...flags, quickLinks: [...(flags.quickLinks || []), newItem]});
+                      setQlTitle(""); setQlUrl(""); setQlStart(""); setQlEnd("");
+                    }}>
+                      Add Quick Link
+                    </button>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
+                    {(flags.quickLinks || []).map((ql, idx) => (
+                      <div key={ql.id} className="admin-list-item" style={{ padding: "8px 12px" }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600 }}>{ql.title}</div>
+                          <div style={{ fontSize: 11, color: "var(--muted)" }}>{ql.url} · {ql.start} to {ql.end}</div>
+                        </div>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <button onClick={() => {
+                            if(idx === 0) return;
+                            const next = [...flags.quickLinks];
+                            [next[idx-1], next[idx]] = [next[idx], next[idx-1]];
+                            setFlags({...flags, quickLinks: next});
+                          }} disabled={idx === 0} className="admin-btn outline" style={{ padding: "4px 8px", opacity: idx === 0 ? 0.3 : 1 }}>↑</button>
+                          <button onClick={() => {
+                            if(idx === flags.quickLinks.length - 1) return;
+                            const next = [...flags.quickLinks];
+                            [next[idx+1], next[idx]] = [next[idx], next[idx+1]];
+                            setFlags({...flags, quickLinks: next});
+                          }} disabled={idx === flags.quickLinks.length - 1} className="admin-btn outline" style={{ padding: "4px 8px", opacity: idx === flags.quickLinks.length - 1 ? 0.3 : 1 }}>↓</button>
+                          <button onClick={() => {
+                            const prev = flags.quickLinks;
+                            setFlags({...flags, quickLinks: prev.filter(x => x.id !== ql.id)});
+                            removeWithUndo("Quick link removed", () => setFlags(f => ({ ...f, quickLinks: prev })));
+                          }} className="admin-btn danger" style={{ padding: "4px 8px" }}><Trash2 size={14} /></button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ── Content Section 3: Update Prompt Text ── */}
+            <div style={{ border: `1px solid ${openContent.updatePrompt ? "var(--live)" : "var(--border)"}`, borderRadius: 12, overflow: "hidden", background: "var(--bg)", transition: "border-color 0.15s" }}>
+              <div
+                onClick={() => setOpenContent(o => ({ ...o, updatePrompt: !o.updatePrompt }))}
+                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", cursor: "pointer", background: openContent.updatePrompt ? "rgba(31,169,113,0.06)" : "transparent" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <RefreshCw size={17} color="var(--live)" />
+                  <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text)" }}>Update Prompt Text</span>
+                </div>
+                <span style={{ color: "var(--muted)", fontSize: 13, fontWeight: 600 }}>{openContent.updatePrompt ? "▲ Collapse" : "▼ Expand"}</span>
+              </div>
+
+              {openContent.updatePrompt && (
+                <div style={{ padding: "16px", borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div className="admin-field">
+                    <label>Title</label>
+                    <input className="admin-input" value={updatePromptTitle} onChange={e => setUpdatePromptTitle(e.target.value)} placeholder="TermFlow just got better" />
+                  </div>
+                  <div className="admin-field">
+                    <label>Description</label>
+                    <textarea className="admin-textarea" value={updatePromptDesc} onChange={e => setUpdatePromptDesc(e.target.value)} placeholder="A fresh version is cached..." rows={2}></textarea>
+                  </div>
+                  <div className="admin-field">
+                    <label>Highlights (one per line)</label>
+                    <textarea className="admin-textarea" value={updatePromptHighlights} onChange={e => setUpdatePromptHighlights(e.target.value)} placeholder="Faster load times&#10;New features..." rows={3}></textarea>
+                  </div>
+
+                  {/* Live preview */}
+                  <div style={{ marginTop: 4 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                      <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Live Toast Preview</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          window.dispatchEvent(new CustomEvent("sw-update-available", {
+                            detail: { updateSW: () => alert("Test refresh triggered! (In production this reloads the app with the new version)") }
+                          }));
+                        }}
+                        className="admin-btn outline"
+                        style={{ fontSize: 11.5, padding: "4px 10px", color: "var(--violet)" }}
+                      >
+                        <Sparkles size={13} /> Test Toast on Screen
+                      </button>
+                    </div>
+
+                    <div className="sw-update-preview-box" style={{
+                      position: "relative",
+                      width: "100%",
+                      background: "linear-gradient(160deg, rgba(26, 26, 46, 0.96) 0%, rgba(22, 33, 62, 0.96) 100%)",
+                      border: "1px solid rgba(109, 91, 208, 0.35)",
+                      borderRadius: 14,
+                      padding: "12px 14px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      boxShadow: "0 4px 20px rgba(0, 0, 0, 0.25)"
+                    }}>
+                      <div className="sw-update-toast-icon" style={{ flexShrink: 0 }}>
+                        <RefreshCw size={16} color="#fff" strokeWidth={2.5} className="sw-update-spin-icon" />
+                      </div>
+                      <div className="sw-update-toast-text" style={{ flex: 1, minWidth: 0 }}>
+                        <span className="sw-update-toast-title" style={{ color: "#fff", fontWeight: 700, fontSize: "13px", display: "block" }}>
+                          {updatePromptTitle.trim() || "TermFlow just got better"}
+                        </span>
+                        <span className="sw-update-toast-desc" style={{ color: "rgba(255, 255, 255, 0.65)", fontSize: "11.5px", display: "block" }}>
+                          {updatePromptDesc.trim() || "A new version is available."}
+                        </span>
+                        {updatePromptHighlights.trim() && (
+                          <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 4 }}>
+                            {updatePromptHighlights.split("\n").filter(l => l.trim()).map((h, i) => (
+                              <span key={i} style={{
+                                background: "rgba(109, 91, 208, 0.3)",
+                                border: "1px solid rgba(109, 91, 208, 0.5)",
+                                color: "rgba(255, 255, 255, 0.9)",
+                                fontSize: "10.5px",
+                                fontWeight: 600,
+                                padding: "1px 7px",
+                                borderRadius: 6
+                              }}>
+                                ✨ {h.trim()}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <button type="button" className="sw-update-toast-refresh" style={{ pointerEvents: "none", fontSize: 12, padding: "4px 10px" }}>
+                        Refresh
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </section>
 
-        {/* Feedback Flash Scheduler */}
-        <section className="admin-card admin-g-broadcast">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-            <h2><MessageSquare size={20} color="var(--amber)" /> Feedback Flash Scheduler</h2>
-            <button 
-              onClick={() => setFeedbackFlashes([...feedbackFlashes, { id: Date.now().toString(), enabled: false, deadline: "", link: "", subjects: [] }])} 
-              className="admin-btn outline" style={{ fontSize: 12, padding: "4px 8px" }}
-            >
-              + Add Flash
-            </button>
+        {/* ── 4. Feedback Flash Scheduler (Revamped Deck) ── */}
+        <section className="admin-card admin-span-all admin-g-broadcast" style={{ gridColumn: "1 / -1" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 10, marginBottom: 14 }}>
+            <div>
+              <h2 style={{ marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}>
+                <MessageSquare size={20} color="var(--amber)" /> Feedback Flash Scheduler
+              </h2>
+              <p className="admin-subtext" style={{ margin: 0 }}>
+                Automated 3-stage nudges (on announce, 2h before, 20m before deadline). Active nudges dock as in-app feedback toasts.
+              </p>
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button 
+                onClick={() => {
+                  const newId = Date.now().toString();
+                  setFeedbackFlashes([
+                    ...feedbackFlashes,
+                    { id: newId, enabled: true, deadline: "", link: "", subjects: [] }
+                  ]);
+                }} 
+                className="admin-btn primary" style={{ fontSize: 13, padding: "7px 14px" }}
+              >
+                + Add Feedback Flash
+              </button>
+            </div>
           </div>
-          <p className="admin-sub">
-            Each enabled flash nudges targeted users up to 3 times: on announce (first save), 2 hours before and 20 minutes
-            before the deadline. Each nudge shows for 1 hour and users can dismiss it once per session.
-          </p>
 
-          <div className="admin-form" style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* Quick Metrics & Expired Purge Bar */}
+          {(() => {
+            const now = flashNow;
+            const total = feedbackFlashes.length;
+            const live = feedbackFlashes.filter(f => f.enabled && f.deadline && (new Date(f.deadline).getTime() > now)).length;
+            const expired = feedbackFlashes.filter(f => f.deadline && (new Date(f.deadline).getTime() <= now)).length;
+
+            return (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, padding: "8px 12px", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, marginBottom: 14, fontSize: 12.5 }}>
+                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                  <span><b>{total}</b> total flash{total !== 1 ? "es" : ""}</span>
+                  <span style={{ color: "var(--live)" }}>• <b>{live}</b> active / scheduled</span>
+                  {expired > 0 && <span style={{ color: "var(--danger)" }}>• <b>{expired}</b> expired</span>}
+                </div>
+                {expired > 0 && (
+                  <button type="button" onClick={() => {
+                    if (!confirm(`Purge ${expired} expired flash schedule(s)?`)) return;
+                    setFeedbackFlashes(feedbackFlashes.filter(f => !f.deadline || (new Date(f.deadline).getTime() > now)));
+                  }} className="admin-btn outline" style={{ fontSize: 11, padding: "3px 8px", color: "var(--danger)", borderColor: "var(--danger)" }}>
+                    Purge Expired ({expired})
+                  </button>
+                )}
+              </div>
+            );
+          })()}
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {feedbackFlashes.map((ff, index) => {
               const HOUR = 60 * 60 * 1000;
               const now = flashNow;
               const deadlineMs = ff.deadline ? new Date(ff.deadline).getTime() : null;
 
-              const fmtAbs = ms => new Date(ms).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+              const fmtAbs = ms => new Date(ms).toLocaleString("en-IN", { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
               const fmtRel = ms => {
                 const diff = ms - now;
                 const mins = Math.round(Math.abs(diff) / 60000);
@@ -3042,134 +3635,205 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               };
 
               const triggers = deadlineMs ? [
-                { key: "announced", name: "Announce", time: ff.announcedAt ? new Date(ff.announcedAt).getTime() : null, pendingNote: "on first save" },
-                { key: "2h", name: "2h before", time: deadlineMs - 2 * HOUR },
-                { key: "20m", name: "20m before", time: deadlineMs - 20 * 60 * 1000 },
+                { key: "announced", name: "Stage 1: Announce", time: ff.announcedAt ? new Date(ff.announcedAt).getTime() : null, pendingNote: "on first save" },
+                { key: "2h", name: "Stage 2: 2h Before", time: deadlineMs - 2 * HOUR },
+                { key: "20m", name: "Stage 3: 20m Before", time: deadlineMs - 20 * 60 * 1000 },
               ] : [];
               const inWindow = t => t != null && now >= t && now <= t + HOUR;
 
+              const isExpired = deadlineMs && now > deadlineMs;
+              const isLive = deadlineMs && now <= deadlineMs && triggers.some(t => inWindow(t.time));
+              const isScheduled = deadlineMs && now <= deadlineMs && !isLive;
+
               const status = !ff.enabled
-                ? { label: "Draft", color: "var(--muted)", bg: "color-mix(in srgb, var(--muted) 14%, transparent)" }
+                ? { label: "Draft / Disabled", color: "var(--muted)", bg: "rgba(255,255,255,0.06)", border: "var(--border)" }
                 : !deadlineMs
-                  ? { label: "Needs deadline", color: "var(--amber)", bg: "rgba(234, 179, 8, .14)" }
-                  : now > deadlineMs
-                    ? { label: "Expired", color: "var(--red)", bg: "rgba(225, 29, 72, .10)" }
-                    : triggers.some(t => inWindow(t.time))
-                      ? { label: "Live now", color: "var(--live)", bg: "rgba(31, 169, 113, .14)" }
-                      : { label: "Scheduled", color: "var(--violet)", bg: "rgba(109, 91, 208, .12)" };
+                  ? { label: "Needs Deadline", color: "var(--amber)", bg: "rgba(245,158,11,0.12)", border: "var(--amber)" }
+                  : isExpired
+                    ? { label: "Expired", color: "var(--danger)", bg: "rgba(239,68,68,0.12)", border: "var(--danger)" }
+                    : isLive
+                      ? { label: "🟢 Nudge Window Live Now", color: "var(--live)", bg: "rgba(16,185,129,0.14)", border: "var(--live)" }
+                      : { label: "Scheduled", color: "var(--violet)", bg: "rgba(139,92,246,0.12)", border: "var(--violet)" };
 
               return (
-                <div key={ff.id} style={{ display: "flex", flexDirection: "column", gap: 14, padding: 18, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, position: "relative", opacity: ff.enabled ? 1 : .72 }}>
+                <div key={ff.id} style={{
+                  display: "flex", flexDirection: "column", gap: 14, padding: 18,
+                  background: isLive ? "rgba(16,185,129,0.03)" : "var(--card)",
+                  border: `1.5px solid ${ff.enabled ? status.border : "var(--border)"}`,
+                  borderRadius: 14,
+                  opacity: ff.enabled ? 1 : 0.75,
+                  transition: "all 0.15s",
+                  boxShadow: isLive ? "0 4px 20px rgba(16,185,129,0.15)" : "none"
+                }}>
 
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                    <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                      <input type="checkbox" checked={ff.enabled} onChange={e => setFeedbackFlashes(feedbackFlashes.map(f => f.id === ff.id ? { ...f, enabled: e.target.checked } : f))} />
-                      <span style={{ fontWeight: 600 }}>Flash #{index + 1}</span>
-                    </label>
-                    <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: status.color, background: status.bg, padding: "3px 10px", borderRadius: 20 }}>
-                      {status.label}
-                    </span>
-                    <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
-                      <button onClick={() => setPreviewFlashId(ff.id)} disabled={!ff.enabled} className="admin-btn" style={{ padding: "4px 8px", fontSize: 12 }}>
-                        Preview
+                  {/* Header Bar */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontWeight: 700, fontSize: 14.5 }}>
+                        <input type="checkbox" checked={ff.enabled} onChange={e => setFeedbackFlashes(feedbackFlashes.map(f => f.id === ff.id ? { ...f, enabled: e.target.checked } : f))} />
+                        <span>Flash #{index + 1}</span>
+                      </label>
+                      <span style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em", color: status.color, background: status.bg, padding: "3px 10px", borderRadius: 20 }}>
+                        {status.label}
+                      </span>
+                    </div>
+
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      {/* Test Toast Button */}
+                      <button type="button" onClick={() => setPreviewFlashId(ff.id)} className="admin-btn outline" style={{ padding: "4px 10px", fontSize: 12, color: "var(--violet)", borderColor: "rgba(139,92,246,0.35)" }}>
+                        <Sparkles size={13} /> Test Toast
                       </button>
-                      <button onClick={() => setFeedbackFlashes(feedbackFlashes.filter(f => f.id !== ff.id))} className="admin-btn outline" style={{ padding: "4px 8px", fontSize: 12, color: "var(--red)", borderColor: "var(--red)" }}>
-                        Remove
+                      {/* Clone Button */}
+                      <button type="button" title="Clone Flash Config" onClick={() => {
+                        const copy = { ...ff, id: Date.now().toString(), enabled: true };
+                        setFeedbackFlashes([...feedbackFlashes, copy]);
+                      }} className="admin-btn outline" style={{ padding: "4px 8px", fontSize: 12 }}>
+                        <Copy size={13} />
+                      </button>
+                      {/* Remove Button */}
+                      <button type="button" title="Remove Flash" onClick={() => setFeedbackFlashes(feedbackFlashes.filter(f => f.id !== ff.id))} className="admin-btn danger" style={{ padding: "4px 8px", fontSize: 12 }}>
+                        <Trash2 size={13} />
                       </button>
                     </div>
                   </div>
 
-                  {/* At-a-glance summary — visible even when the flash is disabled */}
-                  <div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.5 }}>
+                  {/* Summary Bar */}
+                  <div style={{ fontSize: 13, color: "var(--muted)", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                     {deadlineMs ? (
                       <>
-                        Deadline <strong style={{ color: "var(--text)" }}>{fmtAbs(deadlineMs)}</strong> ({fmtRel(deadlineMs)})
-                        {" · "}{(ff.subjects || []).length ? `Targets ${ff.subjects.join(", ")}` : "All users"}
-                        {" · "}{ff.link ? "External form" : "In-app widget"}
+                        <span>⏰ Deadline: <strong style={{ color: "var(--text)" }}>{fmtAbs(deadlineMs)}</strong> ({fmtRel(deadlineMs)})</span>
+                        <span>•</span>
+                        <span>👥 {(ff.subjects || []).length ? `Targets ${ff.subjects.length} course(s): ${ff.subjects.join(", ")}` : "All students"}</span>
+                        <span>•</span>
+                        <span>📋 {ff.link ? "External Form Link" : "In-app Feedback Widget"}</span>
                       </>
                     ) : (
-                      "No deadline set — this flash will never fire."
+                      <span style={{ color: "var(--amber)" }}>⚠️ No deadline set — pick a deadline preset below to activate nudges.</span>
                     )}
                   </div>
 
-                  {ff.enabled && (
-                    <>
-                      {deadlineMs && now > deadlineMs && (
-                        <div style={{ fontSize: 12.5, color: "var(--red)", background: "rgba(225, 29, 72, .07)", border: "1px solid rgba(225, 29, 72, .18)", borderRadius: 10, padding: "8px 12px" }}>
-                          Deadline has passed — users no longer see this flash. Set a new deadline to reuse it, or remove it to keep the list clean.
-                        </div>
-                      )}
-
-                      {/* Trigger timeline: when users will actually see this flash */}
-                      {deadlineMs && now <= deadlineMs && (
-                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                          {triggers.map(t => {
-                            const live = inWindow(t.time);
-                            const fired = t.time != null && now > t.time + HOUR;
-                            const color = live ? "var(--live)" : fired ? "var(--muted)" : "var(--violet)";
-                            return (
-                              <div key={t.key} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 600, color, background: "var(--card)", border: `1px solid ${live ? "rgba(31, 169, 113, .35)" : "var(--border)"}`, borderRadius: 20, padding: "4px 10px" }}>
-                                <span style={{ width: 7, height: 7, borderRadius: "50%", background: color, flexShrink: 0 }} />
-                                {t.name}: {t.time == null ? t.pendingNote : live ? "live now" : fired ? "shown" : fmtRel(t.time)}
+                  {/* 3-Stage Visual Nudge Progression Bar */}
+                  {deadlineMs && !isExpired && (
+                    <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 14px" }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", marginBottom: 8, letterSpacing: "0.5px" }}>Automated 3-Stage Nudge Timeline</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 8 }}>
+                        {triggers.map(t => {
+                          const live = inWindow(t.time);
+                          const fired = t.time != null && now > t.time + HOUR;
+                          const color = live ? "var(--live)" : fired ? "var(--muted)" : "var(--violet)";
+                          return (
+                            <div key={t.key} style={{
+                              display: "flex", alignItems: "center", gap: 8, fontSize: 12, fontWeight: 600, color,
+                              background: live ? "rgba(16,185,129,0.08)" : "var(--card)",
+                              border: `1px solid ${live ? "var(--live)" : "var(--border)"}`,
+                              borderRadius: 8, padding: "6px 10px"
+                            }}>
+                              <span style={{ width: 8, height: 8, borderRadius: "50%", background: color, flexShrink: 0, boxShadow: live ? "0 0 8px var(--live)" : "none" }} />
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div>{t.name}</div>
+                                <div style={{ fontSize: 10.5, opacity: 0.8 }}>{t.time == null ? t.pendingNote : live ? "⚡ LIVE NOW" : fired ? "✓ shown" : fmtRel(t.time)}</div>
                               </div>
-                            );
-                          })}
-                        </div>
-                      )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
-                      <div className="admin-grid-2">
-                        <div className="admin-field">
-                          <label>Deadline <span className="admin-optional">(Nudges fire before this)</span></label>
-                          <input type="datetime-local" className="admin-input" value={ff.deadline || ""} onChange={e => setFeedbackFlashes(feedbackFlashes.map(f => f.id === ff.id ? { ...f, deadline: e.target.value } : f))} />
-                        </div>
+                  {/* Deadline Quick Presets */}
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                      <label style={{ fontSize: 11.5, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                        Deadline Configuration
+                      </label>
+                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                        {[
+                          { label: "Today 11:59 PM", getMs: () => { const d = new Date(); d.setHours(23, 59, 0, 0); return d; } },
+                          { label: "Tomorrow 5:00 PM", getMs: () => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(17, 0, 0, 0); return d; } },
+                          { label: "This Friday 11:59 PM", getMs: () => { const d = new Date(); const day = d.getDay(); const diff = (5 - day + 7) % 7 || 7; d.setDate(d.getDate() + diff); d.setHours(23, 59, 0, 0); return d; } },
+                          { label: "+7 Days", getMs: () => { const d = new Date(); d.setDate(d.getDate() + 7); d.setHours(23, 59, 0, 0); return d; } },
+                        ].map(p => (
+                          <button key={p.label} type="button" onClick={() => {
+                            const dt = p.getMs();
+                            const isoLocal = new Date(dt.getTime() - dt.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+                            setFeedbackFlashes(feedbackFlashes.map(f => f.id === ff.id ? { ...f, deadline: isoLocal } : f));
+                          }} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, padding: "2px 8px", fontSize: 11, fontWeight: 600, color: "var(--muted)", cursor: "pointer" }}>
+                            {p.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
 
-                        <div className="admin-field">
-                          <label>Form Link <span className="admin-optional">(If blank, opens in-app widget)</span></label>
-                          <input type="url" className="admin-input" value={ff.link || ""} onChange={e => setFeedbackFlashes(feedbackFlashes.map(f => f.id === ff.id ? { ...f, link: e.target.value } : f))} placeholder="https://forms.gle/..." />
-                        </div>
+                    <div className="admin-grid-2">
+                      <div className="admin-field">
+                        <label>Deadline Date &amp; Time</label>
+                        <input type="datetime-local" className="admin-input" value={ff.deadline || ""} onChange={e => setFeedbackFlashes(feedbackFlashes.map(f => f.id === ff.id ? { ...f, deadline: e.target.value } : f))} />
                       </div>
 
                       <div className="admin-field">
-                        <label>Target Subjects <span className="admin-optional">(Only enrolled users are nudged. None selected = everyone)</span></label>
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
-                          {Object.keys(LEGEND).map(code => {
-                            const isSelected = (ff.subjects || []).includes(code);
-                            return (
-                              <button
-                                key={code}
-                                type="button"
-                                onClick={() => {
-                                  const newSubjects = isSelected ? (ff.subjects || []).filter(c => c !== code) : [...(ff.subjects || []), code];
-                                  setFeedbackFlashes(feedbackFlashes.map(f => f.id === ff.id ? { ...f, subjects: newSubjects } : f));
-                                }}
-                                className={`admin-btn ${isSelected ? "primary" : "outline"}`}
-                                style={{ padding: "4px 10px", fontSize: 12, borderRadius: 20 }}
-                                title={LEGEND[code].name}
-                              >
-                                {code}
-                              </button>
-                            );
-                          })}
-                        </div>
+                        <label>External Form Link <span className="admin-optional">(Optional — leave blank for in-app form)</span></label>
+                        <input type="url" className="admin-input" value={ff.link || ""} onChange={e => setFeedbackFlashes(feedbackFlashes.map(f => f.id === ff.id ? { ...f, link: e.target.value } : f))} placeholder="https://forms.gle/..." />
                       </div>
-                    </>
-                  )}
+                    </div>
+                  </div>
+
+                  {/* Target Courses Selector */}
+                  <div className="admin-field">
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                      <label>Target Courses <span className="admin-optional">({(ff.subjects || []).length === 0 ? "All Courses / Everyone" : `${ff.subjects.length} selected`})</span></label>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <button type="button" onClick={() => {
+                          setFeedbackFlashes(feedbackFlashes.map(f => f.id === ff.id ? { ...f, subjects: Object.keys(LEGEND) } : f));
+                        }} style={{ background: "none", border: "none", color: "var(--blue)", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>
+                          Select All
+                        </button>
+                        <span style={{ color: "var(--muted)" }}>|</span>
+                        <button type="button" onClick={() => {
+                          setFeedbackFlashes(feedbackFlashes.map(f => f.id === ff.id ? { ...f, subjects: [] } : f));
+                        }} style={{ background: "none", border: "none", color: "var(--muted)", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>
+                          Clear All (Everyone)
+                        </button>
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {Object.keys(LEGEND).map(code => {
+                        const isSelected = (ff.subjects || []).includes(code);
+                        return (
+                          <button
+                            key={code}
+                            type="button"
+                            onClick={() => {
+                              const newSubjects = isSelected ? (ff.subjects || []).filter(c => c !== code) : [...(ff.subjects || []), code];
+                              setFeedbackFlashes(feedbackFlashes.map(f => f.id === ff.id ? { ...f, subjects: newSubjects } : f));
+                            }}
+                            className={`admin-btn ${isSelected ? "primary" : "outline"}`}
+                            style={{ padding: "4px 9px", fontSize: 11.5, borderRadius: 16 }}
+                            title={LEGEND[code].name}
+                          >
+                            {code}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
               );
             })}
 
             {feedbackFlashes.length === 0 && (
               <div style={{ padding: 24, textAlign: "center", color: "var(--muted)", background: "var(--bg)", borderRadius: 12, border: "1px dashed var(--border)" }}>
-                No feedback flashes scheduled. Add one and users get nudged automatically as its deadline approaches.
+                No feedback flashes scheduled. Click <b>+ Add Feedback Flash</b> above to set up automated deadline nudges for course evaluations.
               </div>
             )}
-            
-            <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
-              <button onClick={saveConfig} disabled={saving} className="admin-btn primary">
-                <Save size={16} /> Save Scheduler Config
+
+            <div style={{ display: "flex", gap: 12, marginTop: 4 }}>
+              <button onClick={saveConfig} disabled={saving} className="admin-btn primary" style={{ padding: "9px 20px" }}>
+                <Save size={15} /> Save Scheduler Config
               </button>
             </div>
 
+            {/* Live on-screen preview trigger */}
             {previewFlashId && (
               <FeedbackFlashToast 
                 config={{ 
@@ -3182,104 +3846,6 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             )}
           </div>
         </section>
-
-          {/* Software Update Prompt Config */}
-          <section className="admin-card admin-g-broadcast">
-            <h2><RefreshCw size={20} color="var(--violet)" /> Update Prompt Text</h2>
-            <p className="admin-subtext">Configure what users see when a new app version is available.</p>
-            <div className="admin-field">
-              <label>Title</label>
-              <input className="admin-input" value={updatePromptTitle} onChange={e => setUpdatePromptTitle(e.target.value)} placeholder="TermFlow just got better" />
-            </div>
-            <div className="admin-field">
-              <label>Description</label>
-              <textarea className="admin-textarea" value={updatePromptDesc} onChange={e => setUpdatePromptDesc(e.target.value)} placeholder="A fresh version is cached..." rows={2}></textarea>
-            </div>
-            <div className="admin-field">
-              <label>Highlights (one per line)</label>
-              <textarea className="admin-textarea" value={updatePromptHighlights} onChange={e => setUpdatePromptHighlights(e.target.value)} placeholder="Faster load times&#10;New features..." rows={3}></textarea>
-            </div>
-
-            {/* Live Toast Preview */}
-            <div style={{ marginTop: 20 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                <label style={{ fontSize: 11.5, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Live Toast Preview</label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    window.dispatchEvent(new CustomEvent("sw-update-available", {
-                      detail: { updateSW: () => alert("Test refresh triggered! (In production this reloads the app with the new version)") }
-                    }));
-                  }}
-                  style={{
-                    background: "color-mix(in srgb, var(--violet, #6D5BD0) 12%, transparent)",
-                    border: "1px solid color-mix(in srgb, var(--violet, #6D5BD0) 30%, transparent)",
-                    color: "var(--violet, #6D5BD0)",
-                    padding: "5px 12px",
-                    borderRadius: 8,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    transition: "all 0.15s"
-                  }}
-                >
-                  <Sparkles size={13} /> Test Toast on Screen
-                </button>
-              </div>
-
-              <div className="sw-update-preview-box" style={{
-                position: "relative",
-                width: "100%",
-                background: "linear-gradient(160deg, rgba(26, 26, 46, 0.96) 0%, rgba(22, 33, 62, 0.96) 100%)",
-                border: "1px solid rgba(109, 91, 208, 0.35)",
-                borderRadius: 16,
-                padding: "12px 14px",
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                boxShadow: "0 4px 20px rgba(0, 0, 0, 0.25)"
-              }}>
-                <div className="sw-update-toast-icon" style={{ flexShrink: 0 }}>
-                  <RefreshCw size={16} color="#fff" strokeWidth={2.5} className="sw-update-spin-icon" />
-                </div>
-                <div className="sw-update-toast-text" style={{ flex: 1, minWidth: 0 }}>
-                  <span className="sw-update-toast-title" style={{ color: "#fff", fontWeight: 700, fontSize: "13.5px", display: "block" }}>
-                    {updatePromptTitle.trim() || "TermFlow just got better"}
-                  </span>
-                  <span className="sw-update-toast-desc" style={{ color: "rgba(255, 255, 255, 0.65)", fontSize: "12px", display: "block" }}>
-                    {updatePromptDesc.trim() || "A new version is available."}
-                  </span>
-                  {updatePromptHighlights.trim() && (
-                    <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 4 }}>
-                      {updatePromptHighlights.split("\n").filter(l => l.trim()).map((h, i) => (
-                        <span key={i} style={{
-                          background: "rgba(109, 91, 208, 0.3)",
-                          border: "1px solid rgba(109, 91, 208, 0.5)",
-                          color: "rgba(255, 255, 255, 0.9)",
-                          fontSize: "10.5px",
-                          fontWeight: 600,
-                          padding: "1px 7px",
-                          borderRadius: 6
-                        }}>
-                          ✨ {h.trim()}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <button type="button" className="sw-update-toast-refresh" style={{ pointerEvents: "none" }}>
-                  Refresh
-                </button>
-                <div style={{ color: "rgba(255, 255, 255, 0.4)", display: "flex", alignItems: "center" }}>
-                  <X size={15} strokeWidth={2.5} />
-                </div>
-              </div>
-            </div>
-          </section>
-
           {/* Onboarding funnel */}
           <section className="admin-card admin-g-users" style={{ display: "flex", flexDirection: "column" }}>
             <h2><BarChart2 size={20} color="var(--green)" /> Onboarding Funnel</h2>
@@ -3384,12 +3950,13 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
              <div style={{ background: "var(--amber-transparent)", padding: "8px 12px", borderRadius: 8, border: "1px solid var(--amber)", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: "var(--amber-text)" }}>{selectedUserIds.size} Users Selected</span>
                 <div style={{ display: "flex", gap: 8 }}>
-                   <button className="admin-btn outline" onClick={() => {
+                   <button className="admin-btn danger" onClick={() => {
+                      if (!confirm(`Ban ${selectedUserIds.size} selected user${selectedUserIds.size > 1 ? "s" : ""}? Takes effect on next Deploy.`)) return;
                       const next = [...(flags.bannedUsers || [])];
                       selectedUserIds.forEach(id => { if(!next.includes(id)) next.push(id) });
                       setFlags({...flags, bannedUsers: next});
                       setSelectedUserIds(new Set());
-                   }} style={{ fontSize: 11, padding: "4px 8px", borderColor: "var(--danger)", color: "var(--danger)" }}>Ban Selected</button>
+                   }} style={{ fontSize: 11, padding: "4px 8px" }}>Ban Selected</button>
                    
                    <button className="admin-btn outline" onClick={() => {
                       let next = [...(flags.bannedUsers || [])];
@@ -3511,7 +4078,174 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                </div>
              </section>
              
-          {/* Analytics Dashboard — real data from Supabase */}
+          
+          {/* ── Weekly Presence Heatmap ── */}
+          <section className="admin-card admin-span-all admin-g-insights" style={{ gridColumn: "1 / -1" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8, marginBottom: 4 }}>
+              <div>
+                <h2 style={{ marginBottom: 4 }}><Users size={20} color="var(--violet)" /> Weekly Presence</h2>
+                <p className="admin-subtext" style={{ margin: 0 }}>Who used the app and when — based on last-seen heartbeats. Click a day for a full breakdown.</p>
+              </div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                {weeklyPresenceDay !== null && (
+                  <button className="admin-btn outline" style={{ fontSize: 12, padding: "5px 12px" }} onClick={() => { setWeeklyPresenceDay(null); setWeeklyPresenceHourFilter(null); }}>
+                    <X size={13} /> Back to week
+                  </button>
+                )}
+                <button className="admin-btn outline" style={{ fontSize: 12, padding: "5px 12px" }} onClick={() => {
+                  const rows = [["Day", "Date", "Name", "Time", "Hour", "Section", "Streak"]];
+                  weeklyPresence.forEach(day => {
+                    day.users.forEach(u => {
+                      rows.push([day.label, day.date, u.name, new Date(u.seenTs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }), u.hour, u.section, streakUserIds.has(u.userId) ? "Yes" : "No"]);
+                    });
+                  });
+                  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, "'")}"` ).join(",")).join("\n");
+                  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+                  a.download = `weekly-presence-${new Date().toISOString().split("T")[0]}.csv`; a.click();
+                }}>
+                  <FileText size={13} /> Export CSV
+                </button>
+              </div>
+            </div>
+
+            {ghostUsers.length > 0 && (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, background: "rgba(231,76,60,0.07)", border: "1px solid rgba(231,76,60,0.25)", marginBottom: 16, marginTop: 8 }}>
+                <AlertTriangle size={15} color="var(--danger)" style={{ flexShrink: 0 }} />
+                <span style={{ fontSize: 12, color: "var(--danger)" }}>
+                  <b>{ghostUsers.length}</b> user{ghostUsers.length > 1 ? "s" : ""} haven&apos;t been seen in 7+ days — retention risk.{" "}
+                  <span style={{ color: "var(--muted)" }}>Last: {ghostUsers.slice(0, 3).map(u => u.name).join(", ")}{ghostUsers.length > 3 ? ` +${ghostUsers.length - 3} more` : ""}.</span>
+                </span>
+              </div>
+            )}
+
+            {statsLoading ? (
+              <div style={{ textAlign: "center", padding: "32px 0", color: "var(--muted)", fontSize: 13 }}>Loading presence data…</div>
+            ) : weeklyPresenceDay === null ? (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 8, marginTop: 16 }}>
+                  {weeklyPresence.map((day, i) => {
+                    const maxDay = Math.max(...weeklyPresence.map(d => d.users.length), 1);
+                    const isToday = i === 6;
+                    const hasOverride = Object.keys(flags.classOverrides || {}).includes(day.isoDate);
+                    const secCounts = {};
+                    day.users.forEach(u => { secCounts[u.section] = (secCounts[u.section] || 0) + 1; });
+                    const topSec = Object.entries(secCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
+                    return (
+                      <button key={i}
+                        onClick={() => { setWeeklyPresenceDay(i); setWeeklyPresenceHourFilter(null); }}
+                        style={{ background: isToday ? "rgba(109,91,208,0.10)" : "var(--bg)", border: isToday ? "1.5px solid var(--violet)" : "1px solid var(--border)", borderRadius: 12, padding: "12px 8px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, transition: "box-shadow 0.2s", position: "relative" }}
+                        onMouseEnter={e => e.currentTarget.style.boxShadow = "0 0 0 2px var(--violet)"}
+                        onMouseLeave={e => e.currentTarget.style.boxShadow = "none"}
+                      >
+                        {hasOverride && <span title="Has class overrides" style={{ position: "absolute", top: 7, right: 9, width: 7, height: 7, borderRadius: "50%", background: "var(--amber)" }} />}
+                        <span style={{ fontSize: 11, fontWeight: isToday ? 800 : 600, color: isToday ? "var(--violet)" : "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>{day.label}</span>
+                        <span style={{ fontSize: 10, color: "var(--muted)" }}>{day.date}</span>
+                        <div style={{ width: "100%", height: 80, display: "flex", alignItems: "flex-end" }}>
+                          <div style={{ width: "100%", height: day.users.length === 0 ? 4 : `${Math.max(8, Math.round((day.users.length / maxDay) * 80))}px`, background: isToday ? "linear-gradient(180deg, var(--violet) 0%, rgba(109,91,208,0.45) 100%)" : "rgba(109,91,208,0.35)", borderRadius: "4px 4px 0 0", transition: "height 0.4s" }} />
+                        </div>
+                        <span style={{ fontSize: 15, fontWeight: 800, color: day.users.length === 0 ? "var(--muted)" : "var(--text)", fontFamily: "var(--display)" }}>{day.users.length}</span>
+                        {topSec && topSec !== "—" && <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 20, background: "rgba(109,91,208,0.15)", color: "var(--violet)" }}>Sec {topSec}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div style={{ display: "flex", gap: 20, marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--border)", flexWrap: "wrap", alignItems: "center" }}>
+                  <div style={{ fontSize: 12, color: "var(--muted)" }}>Sessions this week: <b style={{ color: "var(--text)" }}>{weeklyPresence.reduce((a, d) => a + d.users.length, 0)}</b></div>
+                  <div style={{ fontSize: 12, color: "var(--muted)" }}>🔥 7-day streak: <b style={{ color: "var(--violet)" }}>{streakUserIds.size}</b></div>
+                  <div style={{ fontSize: 12, color: "var(--muted)" }}>👻 Inactive 7d+: <b style={{ color: ghostUsers.length > 0 ? "var(--danger)" : "var(--muted)" }}>{ghostUsers.length}</b></div>
+                  <div style={{ fontSize: 11, color: "var(--muted)", marginLeft: "auto", display: "flex", alignItems: "center", gap: 5 }}>
+                    <span style={{ display: "inline-block", width: 7, height: 7, borderRadius: "50%", background: "var(--amber)" }} /> override on day
+                  </div>
+                </div>
+              </>
+            ) : (() => {
+              const day = weeklyPresence[weeklyPresenceDay];
+              const maxHour = Math.max(...day.hourBuckets, 1);
+              const filtered = weeklyPresenceHourFilter !== null ? day.users.filter(u => u.hour === weeklyPresenceHourFilter) : day.users;
+              const sorted = [...filtered].sort((a, b) => weeklyPresenceSort === "name" ? a.name.localeCompare(b.name) : b.seenTs - a.seenTs);
+              const secCounts = {};
+              day.users.forEach(u => { secCounts[u.section] = (secCounts[u.section] || 0) + 1; });
+              return (
+                <>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 16, marginBottom: 16, flexWrap: "wrap" }}>
+                    <div style={{ fontSize: 18, fontWeight: 800, fontFamily: "var(--display)" }}>{day.label} · {day.date}</div>
+                    <div style={{ fontSize: 13, color: "var(--muted)" }}>{day.users.length} session{day.users.length !== 1 ? "s" : ""}</div>
+                    {Object.entries(secCounts).filter(([s]) => s !== "—").sort((a, b) => b[1] - a[1]).map(([sec, cnt]) => (
+                      <span key={sec} style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: "rgba(109,91,208,0.12)", color: "var(--violet)" }}>Sec {sec}: {cnt}</span>
+                    ))}
+                    <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+                      <button onClick={() => setWeeklyPresenceSort("time")} className={`admin-btn ${weeklyPresenceSort === "time" ? "" : "outline"}`} style={{ padding: "4px 10px", fontSize: 11 }}>By time</button>
+                      <button onClick={() => setWeeklyPresenceSort("name")} className={`admin-btn ${weeklyPresenceSort === "name" ? "" : "outline"}`} style={{ padding: "4px 10px", fontSize: 11 }}>By name</button>
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 6, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>Hourly activity — click to filter</div>
+                    <div style={{ display: "flex", gap: 2, height: 36, alignItems: "flex-end" }}>
+                      {day.hourBuckets.map((count, h) => {
+                        const isSelected = weeklyPresenceHourFilter === h;
+                        const intensity = count === 0 ? 0 : Math.max(0.12, count / maxHour);
+                        return (
+                          <button key={h} title={`${h}:00 — ${count} user${count !== 1 ? "s" : ""}`}
+                            onClick={() => setWeeklyPresenceHourFilter(isSelected ? null : h)}
+                            style={{ flex: 1, height: count === 0 ? 8 : `${Math.max(12, Math.round(intensity * 36))}px`, borderRadius: 3, border: isSelected ? "1.5px solid var(--violet)" : "none", background: count === 0 ? "var(--bg)" : `rgba(109,91,208,${intensity})`, cursor: count > 0 ? "pointer" : "default", transition: "all 0.2s", minWidth: 0 }}
+                          />
+                        );
+                      })}
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+                      {["12am", "3am", "6am", "9am", "12pm", "3pm", "6pm", "9pm", "11pm"].map((l, i) => (
+                        <span key={i} style={{ fontSize: 9, color: "var(--muted)" }}>{l}</span>
+                      ))}
+                    </div>
+                    {weeklyPresenceHourFilter !== null && (
+                      <div style={{ fontSize: 11, color: "var(--violet)", marginTop: 6 }}>
+                        Filtered to {weeklyPresenceHourFilter}:00–{weeklyPresenceHourFilter}:59 ·{" "}
+                        <button onClick={() => setWeeklyPresenceHourFilter(null)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 11, padding: 0, textDecoration: "underline" }}>clear</button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 340, overflowY: "auto" }} className="admin-scroll-hide">
+                    {sorted.length === 0 ? (
+                      <div className="admin-empty">No users active{weeklyPresenceHourFilter !== null ? ` at ${weeklyPresenceHourFilter}:00` : " this day"}.</div>
+                    ) : sorted.map((u, idx) => {
+                      const isStreak = streakUserIds.has(u.userId);
+                      const initials = u.name.split(" ").filter(Boolean).map(w => w[0]).join("").slice(0, 2).toUpperCase();
+                      return (
+                        <div key={u.userId + idx}
+                          style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 10, background: "var(--bg)", border: "1px solid var(--border)", cursor: "pointer", transition: "border-color 0.15s" }}
+                          onClick={() => setSelectedUser(allUsers.find(au => au.user_id === u.userId) || null)}
+                          onMouseEnter={e => e.currentTarget.style.borderColor = "var(--violet)"}
+                          onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}
+                        >
+                          <div style={{ width: 34, height: 34, borderRadius: "50%", flexShrink: 0, background: isStreak ? "rgba(109,91,208,0.20)" : "var(--card)", border: isStreak ? "2px solid var(--violet)" : "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color: isStreak ? "var(--violet)" : "var(--muted)" }}>
+                            {initials}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                              {u.name}
+                              {isStreak && <span title="Active all 7 days" style={{ fontSize: 10, background: "rgba(109,91,208,0.15)", color: "var(--violet)", padding: "1px 7px", borderRadius: 20, fontWeight: 700 }}>🔥 Streak</span>}
+                              {u.isNew && <span style={{ fontSize: 10, background: "rgba(31,169,113,0.15)", color: "var(--live)", padding: "1px 7px", borderRadius: 20, fontWeight: 700 }}>New</span>}
+                              {u.section !== "—" && <span style={{ fontSize: 10, color: "var(--muted)", padding: "1px 6px", borderRadius: 20, border: "1px solid var(--border)" }}>Sec {u.section}</span>}
+                            </div>
+                            <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>Click to view profile</div>
+                          </div>
+                          <div style={{ textAlign: "right", flexShrink: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, fontFamily: "var(--display)" }}>
+                              {new Date(u.seenTs).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                            </div>
+                            <div style={{ fontSize: 10, color: "var(--muted)" }}>{u.hour}:00 slot</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              );
+            })()}
+          </section>
+{/* Analytics Dashboard — real data from Supabase */}
           <section className="admin-card admin-span-all admin-g-insights" style={{ gridColumn: "1 / -1" }}>
              <h2><BarChart2 size={20} color="var(--violet)" /> Analytics & Usage</h2>
              <div style={{ display: "flex", gap: 16, marginTop: 16, flexWrap: "wrap" }}>
@@ -3522,8 +4256,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                    {(() => {
                       const maxVal = Math.max(...activityChartData, 1);
                       const dayLabels = Array.from({ length: 7 }, (_, i) => {
-                        // eslint-disable-next-line react-hooks/purity
-                        const d = new Date(Date.now() - (6 - i) * 86400000);
+                        const d = new Date(LOAD_NOW - (6 - i) * 86400000);
                         return d.toLocaleDateString("en-IN", { weekday: "short" });
                       });
                       return (
@@ -3821,7 +4554,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               </div>
             </div>
             {(flags.maintenanceWindow?.start || flags.maintenanceWindow?.end) && (
-              <button className="admin-btn outline" style={{ marginTop: 4 }} onClick={() => { const n = { ...flags }; delete n.maintenanceWindow; setFlags(n); }}>Clear window</button>
+              <button className="admin-btn outline" style={{ marginTop: 4 }} onClick={() => { if (!confirm("Clear the scheduled maintenance window?")) return; const n = { ...flags }; delete n.maintenanceWindow; setFlags(n); }}>Clear window</button>
             )}
           </section>
 
@@ -3856,7 +4589,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10, background: "rgba(109,91,208,0.12)", color: "var(--violet)" }}>{role}</span>
-                      <button onClick={() => removeAdminRole(id)} className="admin-btn outline" style={{ padding: "4px 8px", borderColor: "var(--danger)", color: "var(--danger)" }}><Trash2 size={14} /></button>
+                      <button onClick={() => removeAdminRole(id)} className="admin-btn danger" style={{ padding: "4px 8px" }}><Trash2 size={14} /></button>
                     </div>
                   </div>
                 );
@@ -4450,13 +5183,12 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             <h2><Shield size={20} color="var(--violet)" /> UGC Moderation (TermFlow)</h2>
             <p className="admin-subtext">View and manage live user statuses. Active statuses are visible on user cards.</p>
             <div className="admin-user-list" style={{ maxHeight: 400, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 12 }}>
-              {allUsers.filter(u => {
-                 if (!u.courses?._status?.until) return false;
-                 return new Date(u.courses._status.until).getTime() > Date.now();
-              }).length === 0 ? (
+              {(() => {
+                const activeStatusUsers = allUsers.filter(u => u.courses?._status?.until && new Date(u.courses._status.until).getTime() > LOAD_NOW);
+                return activeStatusUsers.length === 0 ? (
                  <div className="admin-empty">No active user statuses found.</div>
               ) : (
-                 allUsers.filter(u => u.courses?._status?.until && new Date(u.courses._status.until).getTime() > Date.now()).map(u => (
+                 activeStatusUsers.map(u => (
                    <div key={u.user_id} className="admin-user-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderBottom: "1px solid var(--border)" }}>
                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                        <Avatar name={u.name} email={u.user_id} />
@@ -4484,7 +5216,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                      </button>
                    </div>
                  ))
-              )}
+                );
+              })()}
             </div>
           </section>
 
@@ -4597,60 +5330,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
              </div>
           )}
         </button>
-        {activeOverrideCount > 0 && (
-          <span style={{ fontSize: 12, color: "var(--orange)", display: "flex", alignItems: "center", gap: 4 }}>
-            <AlertTriangle size={14} /> {activeOverrideCount} active overrides
-          </span>
-        )}
-        {staleConfigCount > 0 && (
-          <button className="admin-btn outline" onClick={purgeStaleConfig} title="Remove past-dated class overrides, expired announcements and quick links from the config students download" style={{ padding: "9px 16px" }}>
-            <Trash2 size={15} /> Purge expired ({staleConfigCount})
-          </button>
-        )}
-        {originalFlags && (
-          <button className="admin-btn outline" onClick={() => {
-             if (confirm("Revert all unsaved changes back to the currently deployed config?")) {
-                setFlags(originalFlags);
-                setSaveMsg("Reverted to deployed config.");
-                setTimeout(() => setSaveMsg(""), 3000);
-             }
-          }} style={{ padding: "9px 16px" }}>
-            <RefreshCw size={15} /> Revert Changes
-          </button>
-        )}
-        {flags.configHistory && flags.configHistory.length > 0 && (
-           <button className="admin-btn outline" onClick={() => {
-              const last = flags.configHistory[0];
-              if (confirm(`Undo the last deploy and restore the config from ${new Date(last.timestamp).toLocaleString()}? Review & Deploy to apply.`)) {
-                 setFlags({ ...stripHistoryKeys(last.flags), configHistory: flags.configHistory });
-                 setSaveMsg("Loaded previous deploy. Deploy to apply.");
-                 setTimeout(() => setSaveMsg(""), 3000);
-              }
-           }} style={{ padding: "9px 16px" }} title={`Restore the config from ${new Date(flags.configHistory[0].timestamp).toLocaleString()}`}>
-              <RefreshCw size={15} /> Undo last deploy
-           </button>
-        )}
-        {flags.configHistory && flags.configHistory.length > 0 && (
-           <div style={{ position: "relative", display: "inline-block" }}>
-              <select className="admin-input" onChange={e => {
-                 if(!e.target.value) return;
-                 const selectedHistory = flags.configHistory[parseInt(e.target.value)];
-                 if(confirm(`Restore configuration saved on ${new Date(selectedHistory.timestamp).toLocaleString()}?`)) {
-                    setFlags({ ...stripHistoryKeys(selectedHistory.flags), configHistory: flags.configHistory });
-                    setSaveMsg("Restored from history. Deploy to apply.");
-                    setTimeout(() => setSaveMsg(""), 3000);
-                 }
-                 e.target.value = ""; // reset
-              }} style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", width: 220 }}>
-                 <option value="">Restore Past Version...</option>
-                 {flags.configHistory.map((h, i) => (
-                    <option key={h.timestamp} value={i}>{new Date(h.timestamp).toLocaleString()} by {h.author || "Admin"}</option>
-                 ))}
-              </select>
-           </div>
-        )}
         {saveMsg && (
-          <span className={`admin-save-msg ${saveMsg.includes("Failed") || saveMsg.includes("Error") ? "error" : "success"}`}>
+          <span className={`admin-save-msg ${saveMsg.includes("Failed") || saveMsg.includes("Error") || saveMsg.includes("⚠") ? "error" : "success"}`}>
             {saveMsg.includes("Successfully") && <Check size={16} />}
             {saveMsg}
             {forceDeployReady && (
@@ -4666,6 +5347,52 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               </button>
             )}
           </span>
+        )}
+        {activeOverrideCount > 0 && (
+          <span style={{ fontSize: 12, color: "var(--orange)", display: "flex", alignItems: "center", gap: 4 }}>
+            <AlertTriangle size={14} /> {activeOverrideCount} active overrides
+          </span>
+        )}
+        {staleConfigCount > 0 && (
+          <button className="admin-btn outline" onClick={purgeStaleConfig} title="Remove past-dated class overrides, expired announcements and quick links from the config students download" style={{ padding: "9px 16px" }}>
+            <Trash2 size={15} /> Purge expired ({staleConfigCount})
+          </button>
+        )}
+        {originalFlags && (
+          <button className="admin-btn outline" onClick={() => {
+             if (confirm("Revert all unsaved changes back to the currently deployed config?")) {
+                setFlags(originalFlags);
+             }
+          }} style={{ padding: "9px 16px" }}>
+            <RefreshCw size={15} /> Revert Changes
+          </button>
+        )}
+        {flags.configHistory && flags.configHistory.length > 0 && (
+           <button className="admin-btn outline" onClick={() => {
+              const last = flags.configHistory[0];
+              if (confirm(`Undo the last deploy and restore the config from ${new Date(last.timestamp).toLocaleString()}? Review & Deploy to apply.`)) {
+                 setFlags({ ...stripHistoryKeys(last.flags), configHistory: flags.configHistory });
+              }
+           }} style={{ padding: "9px 16px" }} title={`Restore the config from ${new Date(flags.configHistory[0].timestamp).toLocaleString()}`}>
+              <RefreshCw size={15} /> Undo last deploy
+           </button>
+        )}
+        {flags.configHistory && flags.configHistory.length > 0 && (
+           <div style={{ position: "relative", display: "inline-block" }}>
+              <select className="admin-input" onChange={e => {
+                 if(!e.target.value) return;
+                 const selectedHistory = flags.configHistory[parseInt(e.target.value)];
+                 if(confirm(`Restore configuration saved on ${new Date(selectedHistory.timestamp).toLocaleString()}?`)) {
+                    setFlags({ ...stripHistoryKeys(selectedHistory.flags), configHistory: flags.configHistory });
+                 }
+                 e.target.value = ""; // reset
+              }} style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", width: 220 }}>
+                 <option value="">Restore Past Version...</option>
+                 {flags.configHistory.map((h, i) => (
+                    <option key={h.timestamp} value={i}>{new Date(h.timestamp).toLocaleString()} by {h.author || "Admin"}</option>
+                 ))}
+              </select>
+           </div>
         )}
       </div>
 
@@ -4852,7 +5579,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 }} className="admin-btn outline" style={{ flex: "1 1 140px", justifyContent: "center", display: "flex", alignItems: "center", gap: 8 }}>
                   <BellRing size={16} /> Direct Push
                 </button>
-                {selectedUser.courses?._status && new Date(selectedUser.courses._status.until).getTime() > Date.now() && (
+                {selectedUser.courses?._status && new Date(selectedUser.courses._status.until).getTime() > LOAD_NOW && (
                   <button onClick={async () => {
                      if (confirm(`Clear active status for ${selectedUser.name}?`)) {
                         const updated = { ...selectedUser.courses };
@@ -4887,45 +5614,189 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       {/* View-as (read-only impersonation) — renders a user's day + enabled features as they'd see them */}
       {viewAsUser && (() => {
         const courseKeys = Object.keys(viewAsUser.courses || {}).filter(c => !c.startsWith("_"));
-        const section = courseKeys.some(c => c.endsWith("_A")) ? "A" : courseKeys.some(c => c.endsWith("_B")) ? "B" : null;
-        const baseCodes = new Set(courseKeys.map(c => c.replace(/_[AB]$/, "")));
-        // Today's classes as this user would see them (their section + enrolled codes)
-        const today = new Date().toISOString().split("T")[0];
-        const overridesToday = flags.classOverrides?.[today] || {};
+        // Build per-course section map: { SCM: "A", MPB: "B", WAI: "All" }
+        const courseSectionMap = {};
+        courseKeys.forEach(k => {
+          const base = k.replace(/_[AB]$/, "");
+          const rawVal = viewAsUser.courses[k];
+          const sec = k.endsWith("_A") ? "A" : k.endsWith("_B") ? "B" : (rawVal === "A" || rawVal === "B" ? rawVal : "All");
+          courseSectionMap[base] = sec;
+        });
+        const baseCodes = new Set(Object.keys(courseSectionMap));
+
+        // Schedule for selected date
+        const overridesForDate = flags.classOverrides?.[viewAsDate] || {};
         const userClasses = liveSchedule
-          .filter(c => c.date === today && c.type !== "break")
+          .filter(c => c.date === viewAsDate && c.type !== "break")
           .filter(c => baseCodes.has(c.code))
-          .filter(c => !c.section || c.section === "All" || c.section === "Single" || !section || c.section === section)
+          .filter(c => {
+            const userSec = courseSectionMap[c.code];
+            return !c.section || c.section === "All" || c.section === "Single" || !userSec || userSec === "All" || c.section === userSec;
+          })
           .map(c => {
-            const ov = lookupOverride(overridesToday, c);
+            const ov = lookupOverride(overridesForDate, c);
             return { ...c, cancelled: ov?.type === "cancelled", room: ov?.room || c.room, start: ov?.start || c.start, end: ov?.end || c.end };
           })
           .sort((a, b) => (a.start || "").localeCompare(b.start || ""));
+
+        // Clash detector: find pairs with overlapping times
+        const toMin = t => { if (!t) return 0; const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+        const clashingIndices = new Set();
+        for (let i = 0; i < userClasses.length; i++) {
+          for (let j = i + 1; j < userClasses.length; j++) {
+            const a = userClasses[i], b = userClasses[j];
+            if (!a.cancelled && !b.cancelled && toMin(a.start) < toMin(b.end) && toMin(b.start) < toMin(a.end)) {
+              clashingIndices.add(i); clashingIndices.add(j);
+            }
+          }
+        }
+
+        // Upcoming exams (next 30 days from today)
+        const todayISO = new Date().toISOString().split("T")[0];
+        const cutoff = new Date(); cutoff.setDate(cutoff.getDate() + 30);
+        const cutoffISO = cutoff.toISOString().split("T")[0];
+        const upcomingExams = liveSchedule
+          .filter(c => c.type === "exam" && c.date >= todayISO && c.date <= cutoffISO)
+          .filter(c => !c.code || baseCodes.has(c.code))
+          .sort((a, b) => a.date.localeCompare(b.date))
+          .slice(0, 6);
+
+        // Dropped courses
+        const droppedCodes = viewAsUser.courses?._droppedCodes || [];
+
+        // Profile completeness
+        const hasPush = (pushSubscribersList || []).includes(viewAsUser.user_id);
+        const hasName = !!(viewAsUser.name && viewAsUser.name !== "Student");
+        const hasAvatar = !!viewAsUser.courses?._imageUrl;
+        const hasSetup = courseKeys.length > 0;
+        const completenessItems = [
+          { label: "Setup done", ok: hasSetup },
+          { label: "Name set", ok: hasName },
+          { label: "Avatar", ok: hasAvatar },
+          { label: "Push on", ok: hasPush },
+        ];
+        const completenessScore = completenessItems.filter(x => x.ok).length;
+
+        // Last setup change
+        const lastChange = viewAsUser.updated_at
+          ? new Date(viewAsUser.updated_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+          : null;
+
         const featureState = FEATURE_FLAGS.map(f => ({ label: f.label, on: flags[f.key] !== false }));
+        const SEC_COLOR = { A: "var(--blue)", B: "var(--violet)", All: "var(--muted)", Single: "var(--muted)" };
+        const todayStr = new Date().toISOString().split("T")[0];
+
         return (
           <>
             <div className="notif-backdrop" onClick={() => setViewAsUser(null)} style={{ zIndex: 10000 }} />
-            <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "var(--card)", padding: 24, borderRadius: 16, width: "90%", maxWidth: 440, maxHeight: "85vh", overflowY: "auto", zIndex: 10001, border: "1px solid var(--border)", boxShadow: "0 10px 40px rgba(0,0,0,0.2)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "var(--card)", padding: 24, borderRadius: 16, width: "90%", maxWidth: 480, maxHeight: "88vh", overflowY: "auto", zIndex: 10001, border: "1px solid var(--border)", boxShadow: "0 10px 40px rgba(0,0,0,0.25)" }}>
+
+              {/* Header */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                 <h2 style={{ margin: 0, fontSize: 18, display: "flex", gap: 8, alignItems: "center" }}><VenetianMask size={18} color="var(--violet)" /> Viewing as {viewAsUser.name || "user"}</h2>
                 <button onClick={() => setViewAsUser(null)} style={{ background: "transparent", border: "none", color: "var(--muted)", cursor: "pointer" }}><XCircle size={18} /></button>
               </div>
-              <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 16 }}>Read-only preview · Section {section || "—"} · {baseCodes.size} subject(s)</div>
+              <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 16, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                <span>Read-only preview</span>
+                <span>·</span>
+                <span>{baseCodes.size} subject(s)</span>
+                {lastChange && <><span>·</span><span title="Last setup change">Updated {lastChange}</span></>}
+              </div>
 
-              <strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase", marginBottom: 8 }}>Their schedule today</strong>
+              {/* Profile completeness */}
+              <div style={{ marginBottom: 16, padding: "10px 14px", background: "var(--bg)", borderRadius: 10, border: "1px solid var(--border)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase" }}>Profile completeness</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: completenessScore === completenessItems.length ? "var(--live)" : "var(--orange)" }}>{completenessScore}/{completenessItems.length}</span>
+                </div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {completenessItems.map(item => (
+                    <span key={item.label} style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, border: "1px solid var(--border)", background: item.ok ? "rgba(31,169,113,0.1)" : "rgba(220,53,69,0.08)", color: item.ok ? "var(--live)" : "var(--danger)" }}>
+                      {item.ok ? "✓" : "✕"} {item.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Enrolled subjects with section badges */}
+              <strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase", marginBottom: 8 }}>Enrolled subjects</strong>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
+                {Object.entries(courseSectionMap).map(([code, sec]) => (
+                  <span key={code} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, padding: "3px 8px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)" }}>
+                    {code}
+                    <span style={{ fontSize: 10, fontWeight: 700, color: SEC_COLOR[sec] || "var(--muted)", background: "var(--card)", borderRadius: 4, padding: "1px 5px", border: `1px solid ${SEC_COLOR[sec] || "var(--border)"}` }}>{sec}</span>
+                  </span>
+                ))}
+                {baseCodes.size === 0 && <span style={{ fontSize: 12, color: "var(--muted)" }}>No subjects enrolled.</span>}
+              </div>
+
+              {/* Dropped courses */}
+              {droppedCodes.length > 0 && (
+                <>
+                  <strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase", marginBottom: 6 }}>Dropped courses</strong>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
+                    {droppedCodes.map(code => (
+                      <span key={code} style={{ fontSize: 12, padding: "3px 8px", borderRadius: 6, border: "1px solid var(--danger)", background: "rgba(220,53,69,0.07)", color: "var(--danger)", textDecoration: "line-through" }}>{code}</span>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {/* Schedule with date picker */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, gap: 8, flexWrap: "wrap" }}>
+                <strong style={{ color: "var(--muted)", fontSize: 12, textTransform: "uppercase", display: "flex", alignItems: "center", gap: 8 }}>
+                  Schedule
+                  {clashingIndices.size > 0 && (
+                    <span style={{ fontSize: 10, background: "rgba(220,53,69,0.12)", color: "var(--danger)", padding: "2px 7px", borderRadius: 10, fontWeight: 700 }}>
+                      ⚠ {Math.floor(clashingIndices.size / 2)} clash{Math.floor(clashingIndices.size / 2) > 1 ? "es" : ""}
+                    </span>
+                  )}
+                </strong>
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <button onClick={() => { const d = new Date(viewAsDate); d.setDate(d.getDate() - 1); setViewAsDate(d.toISOString().split("T")[0]); }} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 6, padding: "3px 9px", cursor: "pointer", color: "var(--text)", fontSize: 15, lineHeight: 1 }}>‹</button>
+                  <input type="date" value={viewAsDate} onChange={e => setViewAsDate(e.target.value)} style={{ padding: "3px 8px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)", fontSize: 12, cursor: "pointer" }} />
+                  <button onClick={() => { const d = new Date(viewAsDate); d.setDate(d.getDate() + 1); setViewAsDate(d.toISOString().split("T")[0]); }} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 6, padding: "3px 9px", cursor: "pointer", color: "var(--text)", fontSize: 15, lineHeight: 1 }}>›</button>
+                  {viewAsDate !== todayStr && (
+                    <button onClick={() => setViewAsDate(todayStr)} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 6, padding: "3px 8px", cursor: "pointer", color: "var(--muted)", fontSize: 11 }}>Today</button>
+                  )}
+                </div>
+              </div>
               {userClasses.length === 0 ? (
-                <div className="admin-empty" style={{ marginBottom: 16 }}>No classes today for this student.</div>
+                <div className="admin-empty" style={{ marginBottom: 16 }}>No classes on {viewAsDate} for this student.</div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 16 }}>
                   {userClasses.map((c, i) => (
-                    <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "8px 12px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)", opacity: c.cancelled ? 0.55 : 1 }}>
-                      <span style={{ fontWeight: 600, fontSize: 13, textDecoration: c.cancelled ? "line-through" : "none" }}>{c.code} {c.room ? `· ${c.room}` : ""}</span>
-                      <span style={{ fontSize: 12, color: "var(--muted)" }}>{c.cancelled ? "Cancelled" : `${c.start || "?"}–${c.end || "?"}`}</span>
+                    <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "8px 12px", background: clashingIndices.has(i) ? "rgba(220,53,69,0.06)" : "var(--bg)", borderRadius: 8, border: `1px solid ${clashingIndices.has(i) ? "var(--danger)" : "var(--border)"}`, opacity: c.cancelled ? 0.55 : 1 }}>
+                      <span style={{ fontWeight: 600, fontSize: 13, textDecoration: c.cancelled ? "line-through" : "none", display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
+                        {c.code}
+                        {c.section && c.section !== "All" && c.section !== "Single" && (
+                          <span style={{ fontSize: 10, fontWeight: 700, color: SEC_COLOR[c.section] || "var(--muted)", background: "var(--card)", borderRadius: 4, padding: "1px 4px", border: `1px solid ${SEC_COLOR[c.section] || "var(--border)"}` }}>{c.section}</span>
+                        )}
+                        {c.room && <span style={{ fontWeight: 400, color: "var(--muted)", fontSize: 12 }}>· {c.room}</span>}
+                        {clashingIndices.has(i) && <span style={{ fontSize: 10, color: "var(--danger)", fontWeight: 700 }}>⚠ clash</span>}
+                      </span>
+                      <span style={{ fontSize: 12, color: c.cancelled ? "var(--danger)" : "var(--muted)", whiteSpace: "nowrap" }}>{c.cancelled ? "Cancelled" : `${c.start || "?"}–${c.end || "?"}`}</span>
                     </div>
                   ))}
                 </div>
               )}
 
+              {/* Upcoming exams */}
+              {upcomingExams.length > 0 && (
+                <>
+                  <strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase", marginBottom: 6 }}>Upcoming exams (next 30 days)</strong>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 16 }}>
+                    {upcomingExams.map((c, i) => (
+                      <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "6px 12px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)" }}>
+                        <span style={{ fontWeight: 600, fontSize: 12 }}>{c.name || c.code || "Exam"}</span>
+                        <span style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap" }}>{c.date}{c.start ? ` · ${c.start}` : ""}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {/* Features */}
               <strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase", marginBottom: 8 }}>Features they can see</strong>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {featureState.map(f => (
@@ -4970,14 +5841,32 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {/* Section selector */}
+              {/* Section selector — pill buttons */}
               <div className="admin-field">
                 <label>Apply to Section</label>
-                <select className="admin-input" value={modalSection} onChange={e => setModalSection(e.target.value)}>
-                  <option value="All">All Sections</option>
-                  <option value="A">Section A</option>
-                  <option value="B">Section B</option>
-                </select>
+                <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                  {[["A", "Section A"], ["B", "Section B"], ["All", "Both"]].map(([val, label]) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setModalSection(val)}
+                      style={{
+                        flex: 1,
+                        padding: "8px 0",
+                        borderRadius: 8,
+                        border: `2px solid ${modalSection === val ? "var(--blue)" : "var(--border)"}`,
+                        background: modalSection === val ? "color-mix(in srgb, var(--blue) 12%, transparent)" : "var(--bg)",
+                        color: modalSection === val ? "var(--blue)" : "var(--muted)",
+                        fontWeight: modalSection === val ? 700 : 500,
+                        fontSize: 13,
+                        cursor: "pointer",
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Cancel button */}
@@ -5061,6 +5950,11 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     // identity (code, or name for code-less exam entries).
                     const codeToUse = modalIsNew ? modalCode : classIdent(liveEditorModal);
                     if (modalIsNew && !codeToUse) return alert("Course Code is required.");
+                    else {
+                      const originalSection = liveEditorModal.section === "Single" ? "All" : (liveEditorModal.section || "All");
+                      const sectionChanged = modalSection !== originalSection;
+                      if (!modalRoom && !modalStart && !modalEnd && !sectionChanged) return alert("Enter at least one change (section, room, start, or end time).");
+                    }
                     const overrideKey = makeOverrideKey(codeToUse, modalSection);
                     const nextOverrides = { ...(flags.classOverrides || {}) };
                     nextOverrides[liveEditorModal.date] = { ...(nextOverrides[liveEditorModal.date] || {}) };
@@ -5078,8 +5972,6 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     if (modalIsNew) {
                       changes.name = modalName;
                       changes.type = "class"; // base type, can be marked as exam later
-                    } else {
-                      if (!modalRoom && !modalStart && !modalEnd) return alert("Enter at least one change (room, start, or end time).");
                     }
                     changes.modifiedAt = new Date().toISOString();
                     changes.modifiedBy = admin_id;
@@ -5113,47 +6005,50 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       )}
 
       {activeUsersListModalOpen && (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setActiveUsersListModalOpen(false)}>
-          <div style={{ background: "var(--bg)", width: "90%", maxWidth: 500, borderRadius: 16, padding: 24, maxHeight: "80vh", overflowY: "auto", border: "1px solid var(--border)" }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h3 style={{ margin: 0 }}>Active Users Today ({activeUsers})</h3>
-              <button onClick={() => setActiveUsersListModalOpen(false)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer" }}><X size={20} /></button>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {allUsers.filter(u => u.last_seen_at && new Date(u.last_seen_at).getTime() >= new Date().setHours(0,0,0,0)).map(u => (
-                <div key={u.user_id} style={{ background: "var(--card)", padding: "12px", borderRadius: 8, border: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }} onClick={() => { setSelectedUser(u); setActiveUsersListModalOpen(false); }}>
-                  <div style={{ fontWeight: 600 }}>{u.name}</div>
-                  <div style={{ fontSize: 12, color: "var(--muted)" }}>{new Date(u.last_seen_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-                </div>
-              ))}
-            </div>
+        <AdminModal title={`Active Users Today (${activeUsers})`} onClose={() => setActiveUsersListModalOpen(false)} width={640}>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+            <select value={activeUsersSort} onChange={e => setActiveUsersSort(e.target.value)} className="admin-input" style={{ width: "auto", fontSize: 12.5, padding: "6px 10px" }}>
+              <option value="recent">Sort: Most recent</option>
+              <option value="oldest">Sort: Oldest first</option>
+              <option value="name">Sort: Name (A-Z)</option>
+            </select>
           </div>
-        </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {allUsers
+              .filter(u => u.last_seen_at && new Date(u.last_seen_at).getTime() >= new Date().setHours(0,0,0,0))
+              .sort((a, b) => {
+                if (activeUsersSort === "name") return (a.name || "").localeCompare(b.name || "");
+                const ta = new Date(a.last_seen_at).getTime();
+                const tb = new Date(b.last_seen_at).getTime();
+                return activeUsersSort === "oldest" ? ta - tb : tb - ta;
+              })
+              .map(u => (
+              <div key={u.user_id} style={{ background: "var(--card)", padding: "12px", borderRadius: 8, border: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }} onClick={() => { setSelectedUser(u); setActiveUsersListModalOpen(false); }}>
+                <div style={{ fontWeight: 600 }}>{u.name}</div>
+                <div style={{ fontSize: 12, color: "var(--muted)" }}>{new Date(u.last_seen_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+              </div>
+            ))}
+          </div>
+        </AdminModal>
       )}
 
       {pushSubscribersModalOpen && (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setPushSubscribersModalOpen(false)}>
-          <div style={{ background: "var(--bg)", width: "90%", maxWidth: 500, borderRadius: 16, padding: 24, maxHeight: "80vh", overflowY: "auto", border: "1px solid var(--border)" }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h3 style={{ margin: 0 }}>Push Subscribers ({pushSubCount})</h3>
-              <button onClick={() => setPushSubscribersModalOpen(false)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer" }}><X size={20} /></button>
+        <AdminModal title={`Push Subscribers (${pushSubCount})`} onClose={() => setPushSubscribersModalOpen(false)} width={500}>
+          {pushSubscribersList.length > 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {allUsers.filter(u => pushSubscribersList.includes(u.user_id)).map(u => (
+                <div key={u.user_id} style={{ background: "var(--card)", padding: "12px", borderRadius: 8, border: "1px solid var(--border)", cursor: "pointer" }} onClick={() => { setSelectedUser(u); setPushSubscribersModalOpen(false); }}>
+                  <div style={{ fontWeight: 600 }}>{u.name}</div>
+                </div>
+              ))}
             </div>
-            {pushSubscribersList.length > 0 ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {allUsers.filter(u => pushSubscribersList.includes(u.user_id)).map(u => (
-                  <div key={u.user_id} style={{ background: "var(--card)", padding: "12px", borderRadius: 8, border: "1px solid var(--border)", cursor: "pointer" }} onClick={() => { setSelectedUser(u); setPushSubscribersModalOpen(false); }}>
-                    <div style={{ fontWeight: 600 }}>{u.name}</div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div style={{ color: "var(--muted)", textAlign: "center", padding: 24, background: "var(--card)", borderRadius: 12 }}>
-                <p style={{ margin: 0 }}>The push subscriber list requires a database update.</p>
-                <p style={{ fontSize: 13, marginTop: 8 }}>Run the updated <code>get_admin_stats</code> SQL migration in Supabase to fetch user IDs securely.</p>
-              </div>
-            )}
-          </div>
-        </div>
+          ) : (
+            <div style={{ color: "var(--muted)", textAlign: "center", padding: 24, background: "var(--card)", borderRadius: 12 }}>
+              <p style={{ margin: 0 }}>The push subscriber list requires a database update.</p>
+              <p style={{ fontSize: 13, marginTop: 8 }}>Run the updated <code>get_admin_stats</code> SQL migration in Supabase to fetch user IDs securely.</p>
+            </div>
+          )}
+        </AdminModal>
       )}
 
       <AdminCommandPalette 

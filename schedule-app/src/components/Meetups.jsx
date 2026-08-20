@@ -5,6 +5,7 @@ import {
   PLACE_PRESETS, fmtMeetupTime, createMeetup, updateMeetup, fetchMyMeetups,
   rsvpMeetup, cancelMeetup, subscribeMeetups,
 } from "../lib/meetups.js";
+import { EmptyState } from "./ui.jsx";
 
 // Meetup plans (social-plan Phase B): a "Plans" strip at the top of the Social
 // page + the creation modal. Entry points: the strip's New-plan button, a
@@ -280,7 +281,7 @@ export default function MeetupsStrip({ userId, userName, friends, draft, onDraft
       </div>
 
       {loaded && data.meetups.length === 0 ? (
-        <p className="fr-plans-empty">No upcoming plans — make one from a free slot in Compare, or hit New plan.</p>
+        <EmptyState compact icon={CalendarPlus} sub="No upcoming plans — make one from a free slot in Compare, or hit New plan." />
       ) : (
         <div className="fr-plan-list">
           {data.meetups.map(m => (

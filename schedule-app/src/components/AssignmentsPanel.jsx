@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import "../styles/assignments.css";
 import { CheckCircle2, Circle, Plus, Trash2, X, ChevronDown, Check, Sparkles, BookOpen, Clock, AlertCircle } from "lucide-react";
 import { loadAssignments, pushAssignments } from "../lib/assignments.js";
+import { EmptyState } from "./ui.jsx";
 
 function daysUntil(dueDate) {
   if (!dueDate) return null;
@@ -356,11 +357,7 @@ export default function AssignmentsPanel({ enrolled, legend, userId }) {
       )}
 
       {tab === "done" && stats.submitted === 0 && (
-        <div className="assign-empty">
-          <CheckCircle2 size={48} style={{ color:"var(--green)", animation:"sparkle-float 3s ease-in-out infinite" }} />
-          <h3 style={{ background:"none", WebkitTextFillColor:"var(--muted)", color:"var(--muted)" }}>Nothing here yet</h3>
-          <p>Completed assignments will appear here</p>
-        </div>
+        <EmptyState icon={CheckCircle2} title="Nothing here yet" sub="Completed assignments will appear here" />
       )}
 
       {!(tab === "open" && allClear) && !(tab === "done" && stats.submitted === 0) && (

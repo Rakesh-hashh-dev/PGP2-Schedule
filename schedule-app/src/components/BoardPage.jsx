@@ -5,6 +5,7 @@ import {
   BOARD_KINDS, fetchBoardPosts, createBoardPost, boardImageUrl, resizeImage,
   setBoardPostStatus, deleteBoardPost, reportBoardPost, contactPoster, subscribeBoard,
 } from "../lib/board.js";
+import { EmptyState } from "./ui.jsx";
 import "../styles/board.css";
 
 // Campus Board — cohort lost & found + buy/sell. Feed is Supabase-backed with
@@ -246,12 +247,12 @@ export default function BoardPage({ userId, userName, isAdmin }) {
           {[0, 1, 2].map(i => <div key={i} className="board-card board-card-skeleton" style={{ opacity: 1 - i * 0.25 }} />)}
         </div>
       ) : visiblePosts.length === 0 ? (
-        <div className="board-empty">
-          <div className="board-empty-ico"><Package size={26} /></div>
-          <p>{filter === "all" ? "Nothing on the board yet" : "No posts here"}</p>
-          <span>Lost something? Selling something? Put it up for the batch.</span>
-          <button className="board-new-btn" onClick={() => setComposerOpen(true)}><Plus size={14} /> First post</button>
-        </div>
+        <EmptyState
+          icon={Package}
+          title={filter === "all" ? "Nothing on the board yet" : "No posts here"}
+          sub="Lost something? Selling something? Put it up for the batch."
+          action={<button className="board-new-btn" onClick={() => setComposerOpen(true)}><Plus size={14} /> First post</button>}
+        />
       ) : (
         <div className="board-grid">
           {visiblePosts.map((p) => {

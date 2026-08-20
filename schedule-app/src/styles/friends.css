@@ -161,6 +161,7 @@ html[data-theme="dark"] .fr-btn-primary:hover {
 
 .fr-btn-small {
   padding: 8px 12px;
+  min-height: 0;
   font-size: 12px;
   background: var(--card);
   color: var(--text);
@@ -1815,6 +1816,7 @@ html[data-theme="dark"] .fr-pings-title { color: #FCD34D; }
 
 .fr-buddy .fr-friend-actions .fr-btn {
   padding: 7px 12px;
+  min-height: 0;
   font-size: 12px;
   white-space: nowrap;
 }
@@ -2366,6 +2368,12 @@ html[data-theme="dark"] .fr-friend-card.favourite-glow:hover {
   align-items: center;
   gap: 6px;
   flex: none;
+}
+
+/* RSVP is the primary mobile action on a plan card — meet the 44px touch target
+   without widening every other .fr-btn-small use (chat rows, member chips, etc). */
+.fr-plan-btn-go, .fr-plan-btn-no {
+  min-height: 44px;
 }
 
 .fr-plan-btn-go.is-active {

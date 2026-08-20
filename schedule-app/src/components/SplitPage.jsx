@@ -15,6 +15,7 @@ import {
   buildInviteUrl, joinGroup, enqueueOfflineExpense, flushQueue, queuedCount,
   subscribeGroupLedger, subscribeMyGroups,
 } from "../lib/expenses.js";
+import { EmptyState } from "./ui.jsx";
 import "../styles/split.css";
 
 // TermFlow Split — Splitwise-style shared expenses. Two screens: a list of
@@ -754,10 +755,7 @@ function GroupLedger({ userId, userName, group, onBack, onGroupChanged, onGroupD
           {[0, 1, 2].map(i => <div key={i} className="sp-feed-row sp-skeleton" style={{ opacity: 1 - i * 0.25 }} />)}
         </div>
       ) : (ledger.expenses.length === 0 && ledger.settlements.length === 0) ? (
-        <div className="sp-empty-sm">
-          <p>No expenses yet</p>
-          <span>Add the first one to start splitting.</span>
-        </div>
+        <EmptyState compact icon={Receipt} title="No expenses yet" sub="Add the first one to start splitting." />
       ) : (
         <div className="sp-feed">
           {mergeActivity(ledger).map(item => item.kind === "expense"
@@ -1026,12 +1024,12 @@ export default function SplitPage({ userId, userName, friends, initialGroupId, i
           {[0, 1].map(i => <div key={i} className="sp-group-card sp-skeleton" style={{ opacity: 1 - i * 0.3 }} />)}
         </div>
       ) : groups.length === 0 ? (
-        <div className="sp-empty">
-          <div className="sp-empty-ico"><Wallet size={32} strokeWidth={1.5} /></div>
-          <p>No split groups yet</p>
-          <span>Trip, flatmates, a group dinner — create a group and start splitting expenses.</span>
-          <button className="sp-new-btn" onClick={() => setModalOpen(true)}>New group</button>
-        </div>
+        <EmptyState
+          icon={Wallet}
+          title="No split groups yet"
+          sub="Trip, flatmates, a group dinner — create a group and start splitting expenses."
+          action={<button className="sp-new-btn" onClick={() => setModalOpen(true)}>New group</button>}
+        />
       ) : (
         <div className="sp-grid">
           {groups.map(g => <GroupCard key={g.id} g={g} userId={userId} onOpen={() => setActive(g)} />)}

@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Suspense, lazy } from "react";
 import { createPortal } from "react-dom";
-import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, ChevronsLeft, ChevronsRight, Megaphone, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Sparkles, Wand2, BellRing, CalendarDays, ExternalLink, Download, Share, WifiOff, Zap, PanelBottom, PanelTop, PanelsTopLeft, Check, ChevronDown, MapPin, Sun, Moon, Monitor, CalendarOff, CalendarRange, UtensilsCrossed, Package, Camera, Loader2, Wallet } from "lucide-react";
+import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, ChevronsLeft, ChevronsRight, Megaphone, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Sparkles, Wand2, BellRing, CalendarDays, ExternalLink, Download, Share, WifiOff, Zap, PanelBottom, PanelTop, PanelsTopLeft, Check, ChevronDown, Sun, Moon, Monitor, CalendarOff, CalendarRange, UtensilsCrossed, Package, Camera, Loader2, Wallet } from "lucide-react";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
 import SemSummary from "./components/SemSummary.jsx";
@@ -20,7 +20,7 @@ import { setMessMenuOverrides } from "./data/messMenu.js";
 import { fetchMessMenu } from "./lib/messFeed.js";
 import { getSnapshot, fetchSchedule, sha256hex } from "./lib/sheet.js";
 import { classIdent, lookupOverride, parseOverrideKey } from "./lib/overrides.js";
-import { toMin, fmtWait, ymd, clsDate, prettyDate, timeAgo, getSpecialDay } from "./lib/datetime.js";
+import { toMin, ymd, clsDate, prettyDate, timeAgo, getSpecialDay } from "./lib/datetime.js";
 import {
   swUpdateIsStale, clearSwSeen,
   LAST_USER_KEY, VIEW_KEY, PENDING_INVITE_KEY, USER_SCOPED_KEYS,
@@ -67,6 +67,16 @@ import { resizeImage } from "./lib/board.js";
 import { IS_LITE, LITE_VIEWS } from "./lib/edition.js";
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent || "");
+
+// Views that live behind the sidebar's collapsed Tools accordion / the
+// mobile overflow menu's Tools section — candidates for the "Recent" row.
+const TOOLS_VIEWS = ["fullSchedule", "split", "leave", "wrapped"];
+const TOOLS_VIEW_META = {
+  fullSchedule: { icon: CalendarRange, label: "Full timetable" },
+  split:        { icon: Wallet,        label: "Split" },
+  leave:        { icon: CalendarOff,   label: "Leave planner" },
+  wrapped:      { icon: Sparkles,      label: "Term Wrapped" },
+};
 
 // Alert type → rc-dot colour, mirroring the Recent-changes kind palette
 const ALERT_DOT = {
@@ -276,6 +286,21 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       setTimeOverride(null);
     }
   }, [view, showAdminUI]);
+  // Recently visited Tools-group views — the sidebar's Tools accordion is
+  // collapsed by default (see sbToolsOpen below), so a "Full timetable" or
+  // "Split" visit is otherwise a click-to-expand away every single time.
+  // Tracks the last 2 distinct Tools views, most recent first.
+  const [recentToolViews, setRecentToolViews] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("pgp2.recent-tools") || "[]"); } catch { return []; }
+  });
+  useEffect(() => {
+    if (!TOOLS_VIEWS.includes(view)) return;
+    setRecentToolViews(prev => {
+      const next = [view, ...prev.filter(v => v !== view)].slice(0, 2);
+      try { localStorage.setItem("pgp2.recent-tools", JSON.stringify(next)); } catch { }
+      return next;
+    });
+  }, [view]);
   const [weekOffset, setWeekOffset] = useState(0);
   const [mine, setMine] = useState(() => { const s = readSetup(); return s?.courses ? new Set(Object.keys(s.courses)) : null; });
   const [enrolled, setEnrolled] = useState(() => { const s = readSetup(); return s?.courses ?? null; });
@@ -538,7 +563,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const showBadge = (key) => !seenBadges.has(key);
   // Sidebar Tools group stays open when the active page lives inside it, so the
   // user never loses their place; collapsed sidebar always shows the icons.
-  const viewIsTool = ["fullSchedule", "split", "leave", "wrapped"].includes(view);
+  const viewIsTool = TOOLS_VIEWS.includes(view);
   const showSbTools = IS_LITE || sbCollapsed || sbToolsOpen || viewIsTool;
   const [prefsSecOpen, setPrefsSecOpen] = useState(false);
   const [messMenuOpen, setMessMenuOpen] = useState(false);
@@ -1251,8 +1276,11 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             // Normalise whatever value the sheet uses → A | B | Single
             const s = String(rawSection).trim();
             const section = s === "A" || s === "B" ? s : "Single";
-            // Add the course if missing, OR update the section if it changed
-            if (nextEnrolled[code] !== section) {
+            // Only sync from the sheet for courses the student isn't already
+            // enrolled in (i.e. new additions from the roster). If the student
+            // is already enrolled, their manually-chosen section takes priority —
+            // don't let the sheet silently override a deliberate edit-setup change.
+            if (!(code in nextEnrolled)) {
               nextEnrolled[code] = section;
               changed = true;
             }
@@ -2310,6 +2338,20 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               </button>
             )}
 
+            {!showSbTools && recentToolViews.filter(v => v !== view && TOOLS_VIEWS.includes(v) && (v !== "split" || !IS_LITE) && (v !== "wrapped" || (!IS_LITE && wrappedActive))).length > 0 && (
+              <>
+                <div className="sb-nav-label">Recent</div>
+                {recentToolViews.filter(v => v !== view && TOOLS_VIEWS.includes(v) && (v !== "split" || !IS_LITE) && (v !== "wrapped" || (!IS_LITE && wrappedActive))).map(v => {
+                  const { icon: Icon, label } = TOOLS_VIEW_META[v];
+                  return (
+                    <button key={v} className="sb-link" onMouseEnter={e => showSbTip(e, label)} onMouseLeave={hideSbTip} onClick={() => { setView(v); setCompareTarget(null); hideSbTip(); }}>
+                      <Icon size={18} /><span className="sb-link-label">{label}</span>
+                    </button>
+                  );
+                })}
+              </>
+            )}
+
             {/* Mirrors the mobile ⋯ menu's Tools section — collapsed by default so
                 the occasional-use pages don't flatten the nav's visual hierarchy.
                 In lite the group is tiny (2 core items) so it renders expanded and
@@ -2351,30 +2393,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                   <ExternalLink size={18} /><span className="sb-link-label">{ql.title}</span>
                 </a>
               ))}
-            </div>
-          )}
-
-          {!sbCollapsed && (current || next) && (
-            <div className={`sb-now-card${current ? " sb-now-live" : (next.s - now <= 15 * 60000 ? " sb-now-soon" : "")}`} role="button" tabIndex={0} onClick={() => { setView(current || (next && next.date === todayISO) ? "today" : "tomorrow"); setCompareTarget(null); }} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setView(current || (next && next.date === todayISO) ? "today" : "tomorrow"); setCompareTarget(null); } }}>
-              <div className="sb-now-head">
-                <span className="sb-now-chip"><span className="sb-now-dot" />{current ? "Now" : "Next"}</span>
-                {!current && next.date !== todayISO && (
-                  <span className="sb-now-day">{next.date === tomorrowISO ? "Tomorrow" : next.s.toLocaleDateString([], { weekday: "long" })}</span>
-                )}
-                <span className="sb-now-eta">
-                  {current ? `${Math.max(0, Math.round((current.e - now) / 60000))}m left` : fmtWait(next.s - now)}
-                </span>
-              </div>
-              <div className="sb-now-name">{(current || next).name}</div>
-              <div className="sb-now-meta">
-                <span className="sb-now-loc"><MapPin size={11} />{(current || next).room || "TBA"}</span>
-                <span className="sb-now-time"><Clock size={11} />{(current || next).start}–{(current || next).end}</span>
-              </div>
-              {current && (
-                <div className="sb-now-progress">
-                  <div className="sb-now-progress-fill" style={{ width: `${Math.min(100, Math.max(0, ((now - current.s) / (current.e - current.s)) * 100))}%` }} />
-                </div>
-              )}
             </div>
           )}
 
@@ -2555,6 +2573,23 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                     <button onClick={() => { setShowSetupEdit(true); setOverflowOpen(false); }}>
                       <Settings2 size={14} /> Edit setup
                     </button>
+
+                    {/* ── Recent (Tools views visited recently, only while Tools itself
+                         is collapsed — avoids showing the same item twice) ── */}
+                    {!toolsSecOpen && recentToolViews.filter(v => v !== view && TOOLS_VIEWS.includes(v) && (v !== "split" || !IS_LITE) && (v !== "wrapped" || (!IS_LITE && wrappedActive))).length > 0 && (
+                      <>
+                        <div className="over-sep" />
+                        <div className="over-section-label">Recent</div>
+                        {recentToolViews.filter(v => v !== view && TOOLS_VIEWS.includes(v) && (v !== "split" || !IS_LITE) && (v !== "wrapped" || (!IS_LITE && wrappedActive))).map(v => {
+                          const { icon: Icon, label } = TOOLS_VIEW_META[v];
+                          return (
+                            <button key={v} onClick={() => { setView(v); setCompareTarget(null); setOverflowOpen(false); }}>
+                              <Icon size={14} /> {label}
+                            </button>
+                          );
+                        })}
+                      </>
+                    )}
 
                     {/* ── Tools ── */}
                     <div className="over-sep" />
@@ -2776,7 +2811,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                   </div>
                 )}
                 {activeScheduledAnnouncements.map(a => {
-                  const bannerClass = a.severity === "urgent" ? "urgent" : a.severity === "info" ? "info" : "warning";
+                  const bannerClass = a.severity === "urgent" ? "urgent" : a.severity === "info" ? "info" : a.severity === "celebration" ? "celebration" : a.severity === "exam" ? "exam" : "warning";
                   return (
                   <div key={a.id} className={`announcement-banner ${bannerClass}`}>
                     <Megaphone size={18} style={{ flexShrink: 0 }} />

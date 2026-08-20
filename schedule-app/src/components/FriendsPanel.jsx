@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import "../styles/friends.css";
 import { Copy, Link2, UserPlus, Users, Trash2, ArrowRight, Plus, X, Check, ChevronDown, ChevronUp, ChevronRight, RefreshCw, Globe, Lock, CheckCircle, AlertCircle, Info, AlertTriangle, Star, CalendarOff, Smile, BarChart3, CalendarPlus, BellRing, Coffee, BookOpen, Utensils, Dumbbell, Moon, MessageSquare, Pencil } from "lucide-react";
-import { SkeletonText } from "./ui.jsx";
+import { SkeletonText, EmptyState } from "./ui.jsx";
 import MeetupsStrip from "./Meetups.jsx";
 import { fetchMyNudges, scheduleNudge, cancelNudge } from "../lib/nudges.js";
 
@@ -1065,7 +1065,7 @@ export default function FriendsPanel({
               <>
                 <p className="fr-group-body-label">Members in this group:</p>
                 {displayMembers.length === 0 ? (
-                  <p className="fr-empty">Add the group members as friends to see them here.</p>
+                  <EmptyState compact icon={Users} sub="Add the group members as friends to see them here." />
                 ) : (
                   <div className="fr-group-members">
                     {displayMembers.map(f => (
@@ -1120,10 +1120,7 @@ export default function FriendsPanel({
                 </div>
                 <p className="fr-group-body-label">Tap friends to add/remove from this group:</p>
                 {friends.length === 0 ? (
-                  <div className="fr-empty-inline">
-                    <UserPlus size={18} strokeWidth={1.5} />
-                    <span>Add friends first, then build your group.</span>
-                  </div>
+                  <EmptyState compact icon={UserPlus} sub="Add friends first, then build your group." />
                 ) : (
                   <div className="fr-group-members">
                     {friends.map(f => {
@@ -1542,14 +1539,16 @@ export default function FriendsPanel({
         )}
 
         {groups.length === 0 && !showNewGroup ? (
-          <div className="fr-empty-state fr-empty-state-sm">
-            <Users size={36} strokeWidth={1.2} />
-            <p>No groups yet</p>
-            <span>Compare schedules with multiple friends at once.</span>
-            <button className="fr-btn fr-btn-primary fr-empty-cta" onClick={() => setShowNewGroup(true)}>
-              <Plus size={14} /> Create your first group
-            </button>
-          </div>
+          <EmptyState
+            icon={Users}
+            title="No groups yet"
+            sub="Compare schedules with multiple friends at once."
+            action={
+              <button className="fr-btn fr-btn-primary fr-empty-cta" onClick={() => setShowNewGroup(true)}>
+                <Plus size={14} /> Create your first group
+              </button>
+            }
+          />
         ) : (
           <div className="fr-group-list">
             {groups.slice(0, 4).map(group => renderGroupCard(group, false))}

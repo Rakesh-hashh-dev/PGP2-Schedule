@@ -5507,9 +5507,11 @@ html[data-theme="dark"] .tb.holiday.tb-tricolor {
   font-weight: 600;
   font-size: 14px;
 }
-.announcement-banner.warning { background: var(--amber-dim); color: var(--text); border: 1px solid rgba(201, 136, 43, 0.3); }
-.announcement-banner.urgent  { background: rgba(192, 57, 43, .1); color: var(--text); border: 1px solid var(--danger); }
-.announcement-banner.info    { background: var(--violet-dim); color: var(--text); border: 1px solid rgba(109, 91, 208, 0.3); }
+.announcement-banner.warning     { background: var(--amber-dim); color: var(--text); border: 1px solid rgba(201, 136, 43, 0.3); }
+.announcement-banner.urgent      { background: rgba(192, 57, 43, .1); color: var(--text); border: 1px solid var(--danger); }
+.announcement-banner.info        { background: var(--violet-dim); color: var(--text); border: 1px solid rgba(109, 91, 208, 0.3); }
+.announcement-banner.celebration { background: rgba(16, 185, 129, 0.12); color: var(--text); border: 1px solid rgba(16, 185, 129, 0.35); }
+.announcement-banner.exam        { background: rgba(99, 102, 241, 0.12); color: var(--text); border: 1px solid rgba(99, 102, 241, 0.35); }
 
 /* ── Attendance toggle (Timeline rows) ── */
 .att-tog {
@@ -9821,6 +9823,7 @@ html[data-theme="dark"] .bnav {
   border: none;
   border-radius: 12px;
   padding: 10px 16px;
+  min-height: 44px;
   font-family: var(--body);
   font-weight: 600;
   font-size: 13.5px;
@@ -10052,6 +10055,14 @@ html[data-theme="dark"] .bnav {
 
 .cv-day-btn.on {
   background: var(--ink);
+  color: var(--bone);
+  border-color: var(--ink);
+}
+
+/* .cv-day-btn:hover (compare.css) resets color to var(--text), which is dark
+   in both themes — without this, hovering the selected day pill puts dark
+   text on the .on state's dark ink background and the label vanishes. */
+.cv-day-btn.on:hover {
   color: var(--bone);
   border-color: var(--ink);
 }
@@ -11466,6 +11477,15 @@ body.theme-tricolor .sidebar.collapsed .sb-link.on::before {
 
 body.theme-tricolor .sidebar.collapsed .sb-link.on svg {
   color: #ffcf8a;
+}
+
+/* Mobile top-tab-strip equivalent — same warm retint as .sb-link.on, minus the
+   left accent bar (the pill shape has no edge to hang it on; the border does
+   the same "this is the flag" signalling here). */
+body.theme-tricolor .tab.on {
+  background: linear-gradient(135deg, rgba(255, 153, 51, .24) 0%, rgba(19, 136, 8, .2) 100%);
+  border-color: rgba(255, 153, 51, .4);
+  box-shadow: inset 0 0 0 1px rgba(255, 153, 51, .3), 0 0 14px rgba(19, 136, 8, .18);
 }
 
 /* ── Independence/Republic Day greeting banner ── */

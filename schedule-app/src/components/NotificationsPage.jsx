@@ -6,6 +6,7 @@ import { SwipeRow } from "./notifications/SwipeRow.jsx";
 import { PushToggle } from "./notifications/PushToggle.jsx";
 import { NotificationPrefsPanel } from "./notifications/NotificationPrefsPanel.jsx";
 import CohortPolls from "./notifications/CohortPolls.jsx";
+import { EmptyState } from "./ui.jsx";
 
 const SWIPE_HINT_KEY = "pgp2.notif-swipe-hint-seen";
 const LOAD_TS = Date.now();
@@ -256,11 +257,7 @@ export default function NotificationsPage({ allChanges, myChanges, isAdmin, user
         </div>
         {pushStatus === "on" && <NotificationPrefsPanel userId={userId} openSignal={openPrefsSignal} />}
         <CohortPolls userId={userId} userName={userName} isAdmin={isAdmin} />
-        <div className="notif-pg-empty">
-          <div className="notif-empty-ico"><CheckCircle2 size={26} /></div>
-          <p>You're all caught up</p>
-          <span>No recent announcements for your subjects.</span>
-        </div>
+        <EmptyState icon={CheckCircle2} title="You're all caught up" sub="No recent announcements for your subjects." />
       </div>
     );
   }
@@ -412,23 +409,25 @@ export default function NotificationsPage({ allChanges, myChanges, isAdmin, user
       )}
 
       {changes.length === 0 ? (
-        <div className="notif-pg-empty">
-          <div className="notif-empty-ico"><CheckCircle2 size={26} /></div>
-          <p>No changes for your subjects</p>
-          {!showAll && extraCount > 0 && (
+        <EmptyState
+          icon={CheckCircle2}
+          title="No changes for your subjects"
+          action={!showAll && extraCount > 0 && (
             <button className="notif-show-all-link" onClick={() => setShowAll(true)}>
               Show {extraCount} other announcement{extraCount > 1 ? "s" : ""}
             </button>
           )}
-        </div>
+        />
       ) : feed.length === 0 ? (
-        <div className="notif-pg-empty">
-          <div className="notif-empty-ico"><CheckCircle2 size={26} /></div>
-          <p>Nothing in this filter</p>
-          <button className="notif-show-all-link" onClick={() => setKindFilter("all")}>
-            Show all announcements
-          </button>
-        </div>
+        <EmptyState
+          icon={CheckCircle2}
+          title="Nothing in this filter"
+          action={
+            <button className="notif-show-all-link" onClick={() => setKindFilter("all")}>
+              Show all announcements
+            </button>
+          }
+        />
       ) : (
         <div className="notif-feed">
           {!swipeHintSeen && (

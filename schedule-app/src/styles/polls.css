@@ -65,6 +65,7 @@
   gap: 8px;
   width: 100%;
   padding: 8px 10px;
+  min-height: 44px;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--surface);
@@ -236,6 +237,7 @@
 .poll-submit {
   margin-left: auto;
   padding: 7px 14px;
+  min-height: 44px;
   border: 0;
   border-radius: 10px;
   background: var(--violet);

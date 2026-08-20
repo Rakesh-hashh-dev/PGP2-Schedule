@@ -49,6 +49,7 @@
   align-items: center;
   gap: 6px;
   padding: 8px 14px;
+  min-height: 44px;
   border: 0;
   border-radius: 10px;
   background: var(--violet);
@@ -283,6 +284,7 @@ html[data-theme="dark"] .board-kind-badge-float {
   flex: 1;
   justify-content: center;
   padding: 7px 12px;
+  min-height: 44px;
   background: var(--violet);
   border-color: var(--violet);
   color: #fff;
@@ -477,6 +479,7 @@ html[data-theme="dark"] .board-kind-badge-float {
 
 .board-submit {
   padding: 11px;
+  min-height: 44px;
   border: 0;
   border-radius: 12px;
   background: var(--violet);
