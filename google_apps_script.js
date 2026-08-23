@@ -344,12 +344,26 @@ function parseTimetable(ss, legend) {
           .find(x => x && !/guest/i.test(x) && !/\d{1,2}[:.]\d{2}|\b[ap]m\b/i.test(x));
         if (rm) room = rm;
       }
-      // Two guest types: merged across the section rows = combined (everyone
-      // attends → 'Single'); inside one section's row = section-wise (keep it).
-      const combinedGuest = isGuest && span.rows > 1;
+      // A cell merged vertically across section rows applies to every section
+      // it spans — read each spanned row's own Section-column label rather
+      // than trusting just the top row (where the merged value actually
+      // lives; the other rows read blank and would otherwise be dropped).
+      // Spans reaching the Single Section row mean everyone attends → 'Single'.
       // 'AB' = joint session attended by both sections — emit one entry per section.
-      const sectionsToEmit = combinedGuest ? ['Single']
-        : section === 'AB' ? ['A', 'B'] : [section];
+      let sectionsToEmit;
+      if (span.rows > 1) {
+        const covered = new Set();
+        for (let r = 0; r < span.rows; r++) {
+          const rowSectionRaw = grid.values[i + r] ? grid.values[i + r][2] : '';
+          const rowSection = SECTION_MAP[String(rowSectionRaw).trim().toLowerCase()];
+          if (rowSection) covered.add(rowSection);
+        }
+        if (covered.has('Single')) sectionsToEmit = ['Single'];
+        else if (covered.size > 1) sectionsToEmit = Array.from(covered);
+        else sectionsToEmit = section === 'AB' ? ['A', 'B'] : [section];
+      } else {
+        sectionsToEmit = section === 'AB' ? ['A', 'B'] : [section];
+      }
       for (const sec of sectionsToEmit) {
         out.push({
           date: curDate, day: curDay, section: sec, slot: s,
