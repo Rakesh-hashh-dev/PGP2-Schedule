@@ -2,12 +2,13 @@ import { useState, useEffect, useRef } from "react";
 import "../styles/admin.css";
 import "../styles/assignments.css";
 import "../styles/cmdk.css";
-import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil, BarChart2, GraduationCap, MessageSquare, CloudOff, Shield, Smartphone, Copy, Activity, ChevronRight, Clock3, Download, Filter } from "lucide-react";
+import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil, BarChart2, GraduationCap, MessageSquare, CloudOff, Shield, Smartphone, Copy, Activity, ChevronRight, Clock3, Download, Filter, Eye, ListFilter } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { logAdminAction } from "../lib/adminAudit.js";
 import { LEGEND } from "../data/schedule.js";
 import snapshotMeta from "../data/snapshot-meta.json";
 import { getSnapshot } from "../lib/sheet.js";
+import { MESS_MENU_FEED_URL } from "../lib/messFeed.js";
 import { classIdent, makeOverrideKey, lookupOverride, parseOverrideKey } from "../lib/overrides.js";
 import { ymd } from "../lib/datetime.js";
 import AdminCommandPalette from "./AdminCommandPalette";
@@ -49,6 +50,17 @@ const FEATURE_FLAGS = [
   { key: "enableAwayShare", label: "Away sharing" },
 ];
 const FEATURE_FLAG_KEYS = new Set(FEATURE_FLAGS.map(f => f.key));
+
+const DATABASE_TABLES = [
+  { id: "profiles", label: "Profiles", description: "Student profile and setup records" },
+  { id: "groups", label: "Groups", description: "Student-created groups" },
+  { id: "group_members", label: "Group members", description: "Membership links for groups" },
+  { id: "meetups", label: "Meetups", description: "Shared meetup plans" },
+  { id: "polls", label: "Polls", description: "Group and cohort polls" },
+  { id: "split_groups", label: "Split groups", description: "Expense-splitting groups" },
+  { id: "feedback", label: "Feedback", description: "Student feedback submissions" },
+  { id: "share_codes", label: "Share codes", description: "Schedule sharing codes" },
+];
 
 // Live lock-screen-style preview of a push notification, so admins see exactly
 // what subscribers get before broadcasting. Placeholders show until fields fill.
@@ -484,6 +496,14 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [dbRows, setDbRows] = useState([]);
   const [dbLoading, setDbLoading] = useState(false);
   const [dbError, setDbError] = useState("");
+  const [dbSearch, setDbSearch] = useState("");
+  const [dbColumn, setDbColumn] = useState("all");
+  const [dbRefreshKey, setDbRefreshKey] = useState(0);
+  const [dbLoadedAt, setDbLoadedAt] = useState(null);
+  const [dbSelectedRow, setDbSelectedRow] = useState(null);
+  const [moderationSearch, setModerationSearch] = useState("");
+  const [moderationBusyId, setModerationBusyId] = useState(null);
+  const [moderationMessage, setModerationMessage] = useState("");
 
   // Keep original fetched config for diffing
   const [originalFlags, setOriginalFlags] = useState(null);
@@ -497,7 +517,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [undoToast, setUndoToast] = useState(null); // { label, undo, key }
 
   // API Health Check — live ping results
-  const [healthStatus, setHealthStatus] = useState({ supabase: null, sheets: null, push: null });
+  const [healthStatus, setHealthStatus] = useState({ supabase: null, sheets: null, mess: null, push: null });
   const [healthChecking, setHealthChecking] = useState(false);
 
   // 7-day activity analytics (index 0 = 6 days ago, index 6 = today)
@@ -555,16 +575,16 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   useEffect(() => {
     if (activeTab === "database") {
       let isMounted = true;
-      setDbLoading(true); setDbError("");
+      setDbLoading(true); setDbError(""); setDbSelectedRow(null);
       supabase.from(dbTable).select("*").limit(50).then(({ data, error }) => {
         if (!isMounted) return;
         if (error) setDbError(error.message);
-        else setDbRows(data || []);
+        else { setDbRows(data || []); setDbLoadedAt(new Date()); }
         setDbLoading(false);
       });
       return () => { isMounted = false; };
     }
-  }, [activeTab, dbTable]);
+  }, [activeTab, dbTable, dbRefreshKey]);
 
   useEffect(() => {
     const handleOpen = () => setIsCommandPaletteOpen(true);
@@ -1451,6 +1471,39 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     }
     return true;
   });
+  const activeStatusUsers = allUsers.filter(u => u.courses?._status?.until && new Date(u.courses._status.until).getTime() > LOAD_NOW);
+  const normalizedModerationSearch = moderationSearch.trim().toLowerCase();
+  const filteredStatusUsers = activeStatusUsers.filter(u => {
+    if (!normalizedModerationSearch) return true;
+    const status = u.courses?._status || {};
+    return `${u.name || ""} ${u.email || ""} ${status.text || ""} ${status.emoji || ""}`.toLowerCase().includes(normalizedModerationSearch);
+  });
+  const dbColumns = dbRows.length ? Object.keys(dbRows[0]) : [];
+  const filteredDbRows = dbRows.filter(row => {
+    const term = dbSearch.trim().toLowerCase();
+    if (!term) return true;
+    const values = dbColumn === "all" ? Object.values(row) : [row[dbColumn]];
+    return values.some(value => (typeof value === "object" ? JSON.stringify(value) : String(value ?? "")).toLowerCase().includes(term));
+  });
+  const selectedDbTable = DATABASE_TABLES.find(table => table.id === dbTable) || DATABASE_TABLES[0];
+  const scheduleToday = ymd(new Date(LOAD_NOW));
+  const scheduleOverrideCount = Object.values(flags.classOverrides || {}).reduce((sum, day) => sum + Object.keys(day || {}).length, 0);
+  const upcomingOverrideCount = Object.entries(flags.classOverrides || {}).reduce((sum, [date, day]) => sum + (date >= scheduleToday ? Object.keys(day || {}).length : 0), 0);
+  async function clearUserStatus(target) {
+    if (!confirm(`Clear status for ${target.name || "this student"}?`)) return;
+    setModerationBusyId(target.user_id);
+    setModerationMessage("");
+    const updated = { ...target.courses };
+    delete updated._status;
+    const { error } = await supabase.from("profiles").update({ courses: updated }).eq("user_id", target.user_id);
+    if (error) setModerationMessage(`Could not clear status: ${error.message}`);
+    else {
+      await logAdminAction(admin_id, "clear_user_status", { target_user: target.user_id });
+      setAllUsers(users => users.map(item => item.user_id === target.user_id ? { ...item, courses: updated } : item));
+      setModerationMessage(`Status cleared for ${target.name || "student"}.`);
+    }
+    setModerationBusyId(null);
+  }
   async function sendReEngagement() {
     const ids = inactiveUsers.map(u => u.user_id).filter(Boolean);
     if (ids.length === 0) return alert("No inactive users in that window.");
@@ -1727,7 +1780,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   // ── API Health Check: probes real services ──────────────────
   const checkApiHealth = async () => {
     setHealthChecking(true);
-    const next = { supabase: null, sheets: null, push: null };
+    const next = { supabase: null, sheets: null, mess: null, push: null };
 
     // 1. Supabase DB latency
     try {
@@ -1761,6 +1814,18 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       next.sheets = resp.ok ? "ok" : "error";
     } catch (e) {
       next.sheets = e.name === "AbortError" ? "timeout" : "error";
+    }
+
+    // 4. Mess-menu Apps Script — validate both reachability and its menu payload.
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 6000);
+      const resp = await fetch(MESS_MENU_FEED_URL, { signal: ctrl.signal, redirect: "follow" });
+      const data = resp.ok ? await resp.json() : null;
+      clearTimeout(timer);
+      next.mess = resp.ok && !data?.error && data?.menu && Object.keys(data.menu).length ? "ok" : "error";
+    } catch (e) {
+      next.mess = e.name === "AbortError" ? "timeout" : "error";
     }
 
     setHealthStatus(next);
@@ -2270,8 +2335,22 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               </div>
             </details>
           </section>
+          <section className="admin-card admin-span-all admin-g-schedule schedule-ops-overview" style={{ gridColumn: "1 / -1" }}>
+            <div className="schedule-ops-head"><div><span className="schedule-ops-eyebrow">Change control</span><h2><Shield size={20} color="var(--blue)" /> Schedule operations</h2><p className="admin-subtext">See what is staged before deployment and start the most common interventions from one place.</p></div><div className="schedule-ops-live"><span /> Staged locally</div></div>
+            <div className="schedule-ops-metrics">
+              <div><strong>{scheduleOverrideCount}</strong><span>total overrides</span></div>
+              <div><strong>{upcomingOverrideCount}</strong><span>upcoming changes</span></div>
+              <div className={scheduleConflicts.length ? "has-warning" : ""}><strong>{scheduleConflicts.length}</strong><span>room/time conflicts</span></div>
+              <div><strong>{liveSchedule.filter(c => c.date >= scheduleToday && c.type !== "break").length}</strong><span>classes remaining</span></div>
+            </div>
+            <div className="schedule-ops-actions">
+              <button type="button" className="admin-btn outline" onClick={() => { setHolidayStart(scheduleToday); setHolidayEnd(scheduleToday); }}><XCircle size={14} /> Prepare day-off</button>
+              <button type="button" className="admin-btn outline" onClick={() => setRoomOverrideDate(scheduleToday)}><Pencil size={14} /> Edit today&apos;s class</button>
+              <button type="button" className="admin-btn outline" onClick={() => setOvrFilterType("all")}><ListFilter size={14} /> Review overrides</button>
+            </div>
+          </section>
           {/* Holiday / Day-off bulk cancel */}
-          <section className="admin-card admin-span-all admin-g-schedule" style={{ gridColumn: "1 / -1" }}>
+          <section className="admin-card admin-span-all admin-g-schedule schedule-action-card schedule-action-card--holiday" style={{ gridColumn: "1 / -1" }}>
             <h2><XCircle size={20} color="var(--danger)" /> Holiday / Day-off</h2>
             <p className="admin-subtext">Cancel every class across a date range in one action (e.g. a festival break). Stages overrides — Review &amp; Deploy Config to apply.</p>
             <div className="admin-field-row" style={{ maxWidth: 560, alignItems: "flex-end" }}>
@@ -2285,7 +2364,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
           {/* Bulk room relocation */}
-          <section className="admin-card admin-span-all admin-g-schedule" style={{ gridColumn: "1 / -1" }}>
+          <section className="admin-card admin-span-all admin-g-schedule schedule-action-card schedule-action-card--relocation" style={{ gridColumn: "1 / -1" }}>
             <h2><CalendarDays size={20} color="var(--blue)" /> Room Relocation</h2>
             <p className="admin-subtext">Move every class from one room to another across a date range (e.g. "all A01 classes → A04 until 2 Aug"). Stages room overrides — Review &amp; Deploy to apply.</p>
             <details style={{ marginBottom: 12 }}>
@@ -2308,7 +2387,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
           {/* Room / time conflict detector */}
-          <section className="admin-card admin-span-all admin-g-schedule" style={{ gridColumn: "1 / -1" }}>
+          <section className="admin-card admin-span-all admin-g-schedule schedule-conflicts-card" style={{ gridColumn: "1 / -1" }}>
             <h2><AlertTriangle size={20} color="var(--amber)" /> Room &amp; Time Conflicts</h2>
             <p className="admin-subtext">Same room booked for different classes at the same date &amp; time in the bundled schedule.</p>
             {scheduleConflicts.length === 0 ? (
@@ -2326,7 +2405,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
           {/* Class Editor */}
-          <section className="admin-card admin-span-all admin-g-schedule" style={{ gridColumn: "1 / -1" }}>
+          <section className="admin-card admin-span-all admin-g-schedule schedule-action-card schedule-action-card--editor" style={{ gridColumn: "1 / -1" }}>
             <h2><CalendarDays size={20} color="var(--blue)" /> Class Editor</h2>
             <p className="admin-subtext">Globally change the classroom or timings for a specific class on a given date.</p>
             <div className="admin-field-row" style={{ marginTop: 10 }}>
@@ -2382,7 +2461,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
           {/* Bulk Overrides & Copy */}
-          <section className="admin-card admin-span-all admin-g-schedule" style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 32 }}>
+          <section className="admin-card admin-span-all admin-g-schedule schedule-bulk-tools" style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 32 }}>
              <div>
                 <h2><CalendarDays size={20} color="var(--violet)" /> Copy Overrides</h2>
                 <p className="admin-subtext">Duplicate all overrides (cancellations/rooms) from one day to another.</p>
@@ -4453,13 +4532,13 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             })()}
           </section>
 {/* Analytics Dashboard — real data from Supabase */}
-          <section className="admin-card admin-span-all admin-g-insights" style={{ gridColumn: "1 / -1" }}>
-             <h2><BarChart2 size={20} color="var(--violet)" /> Analytics & Usage</h2>
-             <div style={{ display: "flex", gap: 16, marginTop: 16, flexWrap: "wrap" }}>
+          <section className="admin-card admin-span-all admin-g-insights insights-overview" style={{ gridColumn: "1 / -1" }}>
+             <div className="insights-section-head"><div><span className="insights-eyebrow">Behaviour signal</span><h2><BarChart2 size={20} color="var(--violet)" /> Usage overview</h2><p className="admin-subtext">A quick read on engagement, attendance friction, and when students rely on TermFlow.</p></div><div className="insights-summary-chip"><Activity size={15} /> {activityChartData.reduce((a, b) => a + b, 0)} sessions / 7d</div></div>
+             <div className="insights-overview-grid">
 
                 {/* 7-Day Active Users — real last_seen_at buckets */}
-                <div style={{ flex: 1, minWidth: 250, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: 16 }}>
-                   <div style={{ fontSize: 13, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "1px", marginBottom: 12 }}>7-Day Active Users</div>
+                <div className="insight-panel insight-panel--activity">
+                   <div className="insight-panel-label">7-day active users</div>
                    {(() => {
                       const maxVal = Math.max(...activityChartData, 1);
                       const dayLabels = Array.from({ length: 7 }, (_, i) => {
@@ -4478,8 +4557,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                           <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
                             {dayLabels.map((l, i) => <div key={i} style={{ flex: 1, fontSize: 9, color: "var(--muted)", textAlign: "center", fontWeight: i === 6 ? 800 : 400 }}>{l}</div>)}
                           </div>
-                          <div style={{ marginTop: 10, fontSize: 12, color: "var(--muted)", borderTop: "1px solid var(--border)", paddingTop: 8 }}>
-                            Total past 7 days: <strong style={{ color: "var(--text)" }}>{activityChartData.reduce((a, b) => a + b, 0)}</strong> unique sessions
+                          <div className="insight-panel-foot">
+                            <span>Today <strong>{activityChartData[6] || 0}</strong></span><span>7-day total <strong>{activityChartData.reduce((a, b) => a + b, 0)}</strong></span>
                           </div>
                         </>
                       );
@@ -4487,8 +4566,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 </div>
 
                 {/* Most-Skipped Classes — from attendance table */}
-                <div style={{ flex: 1, minWidth: 250, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: 16 }}>
-                   <div style={{ fontSize: 13, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "1px", marginBottom: 12 }}>Most Skipped Classes</div>
+                <div className="insight-panel">
+                   <div className="insight-panel-label">Attendance watchlist</div>
                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                       {skipStats.length === 0 ? (
                          <div className="admin-empty" style={{ fontSize: 12 }}>No absence data yet.</div>
@@ -4509,20 +4588,20 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 </div>
 
                 {/* Peak Hour — computed from last_seen_at timestamps */}
-                <div style={{ flex: 1, minWidth: 250, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: 16, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", textAlign: "center" }}>
+                <div className="insight-panel insight-panel--peak">
                    <Clock size={32} color="var(--blue)" style={{ marginBottom: 12 }} />
                    <div style={{ fontSize: 28, fontWeight: 800 }}>
                      {peakHour !== null ? `${peakHour % 12 || 12}:00 ${peakHour < 12 ? "AM" : "PM"}` : "—"}
                    </div>
-                   <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 4 }}>Peak Usage Hour (IST)</div>
-                   <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>Based on last_seen_at heartbeats</div>
+                   <div className="insight-panel-label" style={{ marginTop: 4 }}>Peak usage hour · IST</div>
+                   <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>Based on recent heartbeats</div>
                    {statsLoading && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>Loading...</div>}
                 </div>
              </div>
           </section>
 
           {/* Active-user tiers (DAU/WAU/MAU) */}
-          <section className="admin-card admin-g-insights">
+          <section className="admin-card admin-g-insights insights-metric-card">
             <h2><BarChart2 size={20} color="var(--live)" /> Active Users</h2>
             <p className="admin-subtext">Unique students seen within each rolling window (from last_seen_at).</p>
             <div className="admin-stats-grid">
@@ -4543,7 +4622,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
           {/* Feature adoption */}
-          <section className="admin-card admin-g-insights">
+          <section className="admin-card admin-g-insights insights-metric-card">
             <h2><Flag size={20} color="var(--violet)" /> Feature Adoption</h2>
             <p className="admin-subtext">Signals from live data + which major features are currently enabled.</p>
             <div className="admin-stats-grid">
@@ -4573,7 +4652,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
           {/* Edge-function / cron health */}
-          <section className="admin-card admin-span-all admin-g-insights" style={{ gridColumn: "1 / -1" }}>
+          <section className="admin-card admin-span-all admin-g-insights insights-service-health" style={{ gridColumn: "1 / -1" }}>
             <h2><Terminal size={20} color="var(--live)" /> Edge Function / Cron Health</h2>
             <p className="admin-subtext">Last run of each scheduled job (dispatch, class-reminders, scheduled pushes). Watch for stalled or failing notifiers.</p>
             {cronHealth === null ? (
@@ -4604,7 +4683,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
           {/* Self-test: ping every service in one click */}
-          <section className="admin-card admin-g-insights" style={{ display: "flex", flexDirection: "column" }}>
+          <section className="admin-card admin-g-insights insights-diagnostic-card" style={{ display: "flex", flexDirection: "column" }}>
             <h2><Check size={20} color="var(--live)" /> System Self-Test</h2>
             <p className="admin-subtext">One click pings the DB, insights RPCs, cron jobs, the push function and the Sheets feed — a single green/red readout instead of checking each card.</p>
             <button className="admin-btn primary" onClick={runSelfTest} disabled={selfTesting} style={{ alignSelf: "flex-start" }}>
@@ -4626,7 +4705,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
           {/* Admin action leaderboard */}
-          <section className="admin-card admin-g-insights" style={{ display: "flex", flexDirection: "column" }}>
+          <section className="admin-card admin-g-insights insights-diagnostic-card" style={{ display: "flex", flexDirection: "column" }}>
             <h2><ShieldAlert size={20} color="var(--violet)" /> Admin Activity (7 days)</h2>
             <p className="admin-subtext">Who's been operating the panel this week — accountability across the admin roles.</p>
             {adminLeaderboard.length === 0 ? (
@@ -4654,7 +4733,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
           {/* Sentry deep link */}
-          <section className="admin-card admin-g-insights">
+          <section className="admin-card admin-g-insights insights-diagnostic-card">
             <h2><AlertTriangle size={20} color="var(--amber)" /> Error Monitoring</h2>
             <p className="admin-subtext">Client + edge errors are captured in Sentry. Open the dashboard for the live issue feed.</p>
             <a className="admin-btn outline" href="https://sentry.io/organizations/flames-corp/issues/?project=termflow" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
@@ -4663,7 +4742,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
              {/* API Health Check — live pings */}
-             <section className="admin-card admin-g-insights">
+             <section className="admin-card admin-g-insights insights-diagnostic-card">
                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                  <h2><Terminal size={20} color="var(--live)" /> API Health Check</h2>
                  <button onClick={checkApiHealth} disabled={healthChecking} className="admin-btn outline" style={{ padding: "4px 10px", fontSize: 12 }}>
@@ -4675,7 +4754,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                   {[
                     { key: "supabase", label: "Supabase Database", icon: <Database size={14} /> },
                     { key: "push",     label: "Push Notification Gateway", icon: <BellRing size={14} /> },
-                    { key: "sheets",   label: "Google Sheets Live Feed", icon: <FileText size={14} /> },
+                    { key: "sheets",   label: "Schedule Google Apps Script", icon: <FileText size={14} /> },
+                    { key: "mess",     label: "Mess Menu Google Apps Script", icon: <CalendarDays size={14} /> },
                   ].map(({ key, label, icon }) => {
                     const s = healthStatus[key];
                     const _isOk  = s && s !== "error" && s !== "timeout";
@@ -4746,8 +4826,13 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </div>
         </section>
 
+          <section className="admin-card admin-span-all admin-g-system system-ops-console" style={{ gridColumn: "1 / -1" }}>
+            <div className="system-ops-head"><div><span className="system-ops-eyebrow">Operational control</span><h2><ShieldAlert size={20} color="var(--violet)" /> System control centre</h2><p className="admin-subtext">A high-level read on deployment readiness, scheduled automation, and the quickest safe actions.</p></div><div className="system-ops-status"><span /> Admin controls online</div></div>
+            <div className="system-ops-metrics"><div><strong>{configDrift.total}</strong><span>config drift items</span></div><div><strong>{(flags.scheduledConfigDeploys || []).length}</strong><span>scheduled deploys</span></div><div><strong>{presentAdmins.length}</strong><span>admins present</span></div><div className={snapshotMeta.status === "success" ? "is-healthy" : "is-risk"}><strong>{snapshotMeta.status === "success" ? "OK" : "!"}</strong><span>snapshot automation</span></div></div>
+            <div className="system-ops-actions"><button type="button" className="admin-btn outline" onClick={checkApiHealth} disabled={healthChecking}><Activity size={14} /> {healthChecking ? "Checking…" : "Check services"}</button><button type="button" className="admin-btn outline" onClick={forceRefresh}><RefreshCw size={14} /> Force client sync</button><button type="button" className="admin-btn outline" onClick={_exportConfigJSON}><Download size={14} /> Export config</button><button type="button" className="admin-btn outline" onClick={() => setReviewOpen(true)}><FileText size={14} /> Review staged changes</button></div>
+          </section>
           {/* Maintenance scheduler */}
-          <section className="admin-card admin-g-system">
+          <section className="admin-card admin-g-system system-control-card system-maintenance-card">
             <h2><CloudOff size={20} color="var(--danger)" /> Maintenance Window</h2>
             <p className="admin-subtext">Schedule an automatic maintenance lockout (non-admins see the "Under Maintenance" screen while the window is active). Leave blank for none. Deploy Config to apply.</p>
             <div className="admin-field-row" style={{ maxWidth: 520 }}>
@@ -4766,7 +4851,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
           {/* Admin roles */}
-          <section className="admin-card admin-g-system">
+          <section className="admin-card admin-g-system system-control-card system-roles-card">
             <h2><ShieldAlert size={20} color="var(--violet)" /> Admin Roles</h2>
             <p className="admin-subtext">Grant Monitor (read-only) or Superadmin access by user ID. You can also set a role from any user's detail panel.</p>
             <div className="admin-field-row" style={{ alignItems: "flex-end" }}>
@@ -4805,7 +4890,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
           {/* Config backup & restore */}
-          <section className="admin-card admin-g-system">
+          <section className="admin-card admin-g-system system-control-card system-backup-card">
             <h2><Database size={20} color="var(--blue)" /> Config Backup &amp; Restore</h2>
             <p className="admin-subtext">Download the live config as JSON, or import a backup (loads into the editor — Review &amp; Deploy to apply). Rollback to a recent deploy lives in the save bar below.</p>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -4816,7 +4901,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
           {/* Data export center */}
-          <section className="admin-card admin-g-system">
+          <section className="admin-card admin-g-system system-control-card system-export-card">
             <h2><FileText size={20} color="var(--blue)" /> Data Export</h2>
             <p className="admin-subtext">Download the currently loaded admin data as CSV for reporting or backup.</p>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -4827,7 +4912,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
           {/* Scheduled config deploys */}
-          <section className="admin-card admin-g-system">
+          <section className="admin-card admin-g-system system-control-card system-deploy-card">
             <h2><Clock size={20} color="var(--amber)" /> Scheduled Deploys</h2>
             <p className="admin-subtext">Queue the current pending config to auto-publish at a future time (requires the apply-scheduled-config cron). For an immediate change, use Deploy Config in the save bar instead.</p>
             <div className="admin-field-row" style={{ alignItems: "flex-end", maxWidth: 480 }}>
@@ -5032,7 +5117,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             </div>
           )}
 
-          <section className="admin-card admin-g-system">
+          <section className="admin-card admin-g-system system-control-card system-experiments-card">
                <h2><Flag size={20} color="var(--blue)" /> A/B Testing</h2>
                <p className="admin-subtext">Rollout experiments stored in flags. Deploy config to apply changes.</p>
 
@@ -5084,7 +5169,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
 
           {/* Time Machine */}
-          <section className="admin-card admin-span-all admin-g-system" style={{ gridColumn: "1 / -1" }}>
+          <section className="admin-card admin-span-all admin-g-system system-time-machine" style={{ gridColumn: "1 / -1" }}>
             <h2><Clock size={20} color="var(--amber)" /> Time Machine</h2>
             <p className="admin-subtext">Override the application's current time to test the timeline, agenda, and UI states.</p>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12, alignItems: "center" }}>
@@ -5104,7 +5189,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
           {/* Live Sync Logs */}
-          <section className="admin-card admin-span-all admin-g-insights" style={{ gridColumn: "1 / -1" }}>
+          <section className="admin-card admin-span-all admin-g-insights insights-sync-log" style={{ gridColumn: "1 / -1" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 <h2 style={{ margin: 0, padding: 0 }}><Terminal size={20} color="var(--violet)" /> Live Sync Logs</h2>
@@ -5132,7 +5217,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
           {/* Audit Logs */}
-          <section className="admin-card admin-span-all admin-g-insights" style={{ gridColumn: "1 / -1" }}>
+          <section className="admin-card admin-span-all admin-g-moderation admin-audit-trail" style={{ gridColumn: "1 / -1" }}>
             <h2><Terminal size={20} color="var(--violet)" /> Admin Audit Logs</h2>
             <p className="admin-subtext">Administrative actions performed by all admins (last 200).</p>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 4 }}>
@@ -5184,7 +5269,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
           {/* Config drift — what live config layers on top of the bundled snapshot */}
-          <section className="admin-card admin-g-system" style={{ display: "flex", flexDirection: "column" }}>
+          <section className="admin-card admin-g-system system-control-card system-drift-card" style={{ display: "flex", flexDirection: "column" }}>
             <h2><Database size={20} color="var(--blue)" /> Config Drift</h2>
             <p className="admin-subtext">How far the live cloud config has drifted from the timetable baked into the app at build time. High counts mean students are downloading a lot of overrides — consider a snapshot rebuild.</p>
             <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 12 }}>
@@ -5211,7 +5296,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
           {/* Health alerts — admin-only push when a job stalls or the feed dies */}
-          <section className="admin-card admin-g-system" style={{ display: "flex", flexDirection: "column" }}>
+          <section className="admin-card admin-g-system system-control-card system-alerts-card" style={{ display: "flex", flexDirection: "column" }}>
             <h2><BellRing size={20} color="var(--amber)" /> Health Alerts</h2>
             <p className="admin-subtext">The <code>health-monitor</code> cron checks every 15 min for stalled/failed jobs and a dead Sheets feed, then pushes an alert — to admins on this list only, never to students. Deploy Config to save the recipient list.</p>
             {(() => {
@@ -5250,7 +5335,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           {/* Bundled Snapshot + Danger Zone — one row at the bottom */}
           <div className="admin-grid admin-span-all admin-g-system">
 
-            <section className="admin-card">
+            <section className="admin-card system-control-card system-snapshot-card">
               <h2><Database size={20} color="var(--violet)" /> Bundled Snapshot</h2>
               <p className="admin-subtext">
                 Fallback timetable baked into the app at build time. Regenerated automatically from the live sheet on every deploy.
@@ -5346,7 +5431,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               </div>
             </section>
 
-            <section className="admin-card danger-zone">
+            <section className="admin-card danger-zone system-danger-card">
               <h2><AlertTriangle size={20} color="var(--danger, #e74c3c)" /> Danger Zone</h2>
 
               <div className="admin-danger-row">
@@ -5386,130 +5471,43 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
           </div>
 
-          <section className="admin-card admin-span-all admin-g-moderation" style={{ gridColumn: "1 / -1" }}>
-            <h2><Shield size={20} color="var(--violet)" /> UGC Moderation (TermFlow)</h2>
-            <p className="admin-subtext">View and manage live user statuses. Active statuses are visible on user cards.</p>
-            <div className="admin-user-list" style={{ maxHeight: 400, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 12 }}>
-              {(() => {
-                const activeStatusUsers = allUsers.filter(u => u.courses?._status?.until && new Date(u.courses._status.until).getTime() > LOAD_NOW);
-                return activeStatusUsers.length === 0 ? (
-                 <div className="admin-empty">No active user statuses found.</div>
-              ) : (
-                 activeStatusUsers.map(u => (
-                   <div key={u.user_id} className="admin-user-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderBottom: "1px solid var(--border)" }}>
-                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                       <Avatar name={u.name} email={u.user_id} />
-                       <div>
-                         <div style={{ fontSize: 14, fontWeight: 600 }}>{u.name}</div>
-                         <div style={{ fontSize: 13, color: "var(--text)" }}>
-                           <span style={{ marginRight: 6 }}>{u.courses._status.emoji}</span>
-                           {u.courses._status.text}
-                         </div>
-                         <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
-                           Expires: {new Date(u.courses._status.until).toLocaleString()}
-                         </div>
-                       </div>
-                     </div>
-                     <button onClick={async () => {
-                        if (confirm(`Clear status for ${u.name}?`)) {
-                           const updated = { ...u.courses };
-                           delete updated._status;
-                           await supabase.from("profiles").update({ courses: updated }).eq("user_id", u.user_id);
-                           await logAdminAction(admin_id, "clear_user_status", { target_user: u.user_id });
-                           setAllUsers(allUsers.map(usr => usr.user_id === u.user_id ? { ...usr, courses: updated } : usr));
-                        }
-                     }} className="admin-btn outline" style={{ color: "var(--danger)", borderColor: "var(--danger)", fontSize: 12, padding: "6px 12px" }}>
-                       Clear Status
-                     </button>
-                   </div>
-                 ))
-                );
-              })()}
+          <section className="admin-card admin-span-all admin-g-moderation moderation-workspace" style={{ gridColumn: "1 / -1" }}>
+            <div className="admin-workspace-head">
+              <div><h2><Shield size={20} color="var(--violet)" /> Live status moderation</h2><p className="admin-subtext">Review the statuses currently visible on student cards. Clearing a status is immediate and recorded in the audit trail.</p></div>
+              <div className="admin-count-chip"><Activity size={14} /> {activeStatusUsers.length} active</div>
+            </div>
+            <div className="admin-workspace-toolbar">
+              <label className="admin-search-control"><Search size={15} /><input value={moderationSearch} onChange={e => setModerationSearch(e.target.value)} placeholder="Search a student or status" aria-label="Search active statuses" /></label>
+              <span className="admin-toolbar-note">{filteredStatusUsers.length} shown</span>
+            </div>
+            {moderationMessage && <div className={`admin-inline-notice ${moderationMessage.startsWith("Could not") ? "is-error" : ""}`}>{moderationMessage}</div>}
+            <div className="moderation-list">
+              {filteredStatusUsers.length === 0 ? <div className="admin-empty">{activeStatusUsers.length ? "No active statuses match this search." : "No active user statuses right now."}</div> : filteredStatusUsers.map(u => {
+                const status = u.courses._status;
+                return <article key={u.user_id} className="moderation-row">
+                  <Avatar name={u.name} email={u.email || u.user_id} />
+                  <div className="moderation-status"><strong>{u.name || "Unnamed student"}</strong><span>{status.emoji || "💬"} {status.text || "No status message"}</span><small>Expires {new Date(status.until).toLocaleString()}</small></div>
+                  <button type="button" onClick={() => clearUserStatus(u)} disabled={moderationBusyId === u.user_id} className="admin-btn outline moderation-clear"><Trash2 size={14} /> {moderationBusyId === u.user_id ? "Clearing…" : "Clear"}</button>
+                </article>;
+              })}
             </div>
           </section>
 
-          <section className="admin-card admin-span-all admin-g-moderation" style={{ gridColumn: "1 / -1" }}>
-            <h2><Terminal size={20} color="var(--live)" /> Admin Audit Logs</h2>
-            <p className="admin-subtext">Recent actions performed by administrators across the dashboard.</p>
-            <div className="admin-table-wrapper" style={{ maxHeight: 400 }}>
-              {auditLogs.length === 0 ? (
-                 <div className="admin-empty">No audit logs found.</div>
-              ) : (
-                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                   <thead style={{ background: "var(--card)", position: "sticky", top: 0, borderBottom: "1px solid var(--border)" }}>
-                     <tr>
-                       <th style={{ textAlign: "left", padding: "10px 16px", color: "var(--muted)", fontWeight: 600 }}>Timestamp</th>
-                       <th style={{ textAlign: "left", padding: "10px 16px", color: "var(--muted)", fontWeight: 600 }}>Admin ID</th>
-                       <th style={{ textAlign: "left", padding: "10px 16px", color: "var(--muted)", fontWeight: 600 }}>Action</th>
-                       <th style={{ textAlign: "left", padding: "10px 16px", color: "var(--muted)", fontWeight: 600 }}>Details</th>
-                     </tr>
-                   </thead>
-                   <tbody>
-                     {auditLogs.map((log, i) => (
-                       <tr key={log.id || i} style={{ borderBottom: "1px solid var(--border)", background: i % 2 === 0 ? "transparent" : "var(--card)" }}>
-                         <td style={{ padding: "10px 16px", whiteSpace: "nowrap", color: "var(--muted)", fontSize: 12 }}>{new Date(log.created_at).toLocaleString()}</td>
-                         <td style={{ padding: "10px 16px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 120 }}>{log.admin_id}</td>
-                         <td style={{ padding: "10px 16px", fontWeight: 600 }}>{log.action}</td>
-                         <td style={{ padding: "10px 16px" }}>
-                           <pre style={{ margin: 0, fontSize: 11, background: "var(--bg)", padding: 6, borderRadius: 6, overflowX: "auto", color: "var(--text)" }}>
-                             {JSON.stringify(log.details, null, 2)}
-                           </pre>
-                         </td>
-                       </tr>
-                     ))}
-                   </tbody>
-                 </table>
-              )}
+          <section className="admin-card admin-span-all admin-g-database database-workspace" style={{ gridColumn: "1 / -1" }}>
+            <div className="admin-workspace-head">
+              <div><h2><Database size={20} color="var(--blue)" /> Database explorer</h2><p className="admin-subtext">Read-only operational view. Results are limited to 50 rows and never write to your database.</p></div>
+              <button type="button" className="admin-btn outline" onClick={() => setDbRefreshKey(key => key + 1)} disabled={dbLoading}><RefreshCw size={14} className={dbLoading ? "spin-icon" : ""} /> Refresh</button>
             </div>
-          </section>
-
-          <section className="admin-card admin-span-all admin-g-database" style={{ gridColumn: "1 / -1" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
-              <div>
-                <h2><Database size={20} color="var(--blue)" /> Database Explorer</h2>
-                <p className="admin-subtext" style={{ margin: 0 }}>Raw read-only view of database tables (showing top 50 most recent rows).</p>
+            <div className="database-table-picker" role="list" aria-label="Database tables">
+              {DATABASE_TABLES.map(table => <button type="button" role="listitem" key={table.id} className={dbTable === table.id ? "active" : ""} onClick={() => { setDbTable(table.id); setDbSearch(""); setDbColumn("all"); }}><span>{table.label}</span><small>{table.description}</small></button>)}
+            </div>
+            <div className="database-context"><div><strong>{selectedDbTable.label}</strong><span>{selectedDbTable.description}</span></div><small>{dbLoadedAt ? `Loaded ${dbLoadedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Waiting for data"}</small></div>
+            {!dbLoading && !dbError && dbRows.length > 0 && <div className="admin-workspace-toolbar database-filters"><label className="admin-search-control"><Search size={15} /><input value={dbSearch} onChange={e => setDbSearch(e.target.value)} placeholder="Search loaded rows" aria-label="Search loaded database rows" /></label><label className="admin-select-control"><ListFilter size={15} /><select value={dbColumn} onChange={e => setDbColumn(e.target.value)}><option value="all">All columns</option>{dbColumns.map(column => <option key={column} value={column}>{column}</option>)}</select></label><span className="admin-toolbar-note">{filteredDbRows.length} / {dbRows.length} rows</span></div>}
+            <div className="database-grid">
+              <div className="admin-table-wrapper database-table-shell">
+                {dbLoading ? <div className="admin-empty">Loading {selectedDbTable.label.toLowerCase()}…</div> : dbError ? <div className="admin-empty database-error"><AlertTriangle size={18} /> {dbError}</div> : dbRows.length === 0 ? <div className="admin-empty">No rows found in {selectedDbTable.label.toLowerCase()}.</div> : filteredDbRows.length === 0 ? <div className="admin-empty">No loaded rows match this search.</div> : <table className="database-table"><thead><tr><th className="database-inspect-col">Inspect</th>{dbColumns.map(column => <th key={column}>{column}</th>)}</tr></thead><tbody>{filteredDbRows.map((row, i) => <tr key={i} className={dbSelectedRow === row ? "is-selected" : ""} onClick={() => setDbSelectedRow(row)}><td><button type="button" className="database-inspect" onClick={() => setDbSelectedRow(row)}><Eye size={15} /> Inspect</button></td>{dbColumns.map(column => { const value = row[column]; const text = typeof value === "object" ? JSON.stringify(value) : String(value ?? "—"); return <td key={column} title={text}>{text}</td>; })}</tr>)}</tbody></table>}
               </div>
-              <select className="admin-input" value={dbTable} onChange={e => setDbTable(e.target.value)} style={{ padding: "6px 12px", width: 200 }}>
-                <option value="profiles">profiles</option>
-                <option value="groups">groups</option>
-                <option value="group_members">group_members</option>
-                <option value="meetups">meetups</option>
-                <option value="polls">polls</option>
-                <option value="split_groups">split_groups</option>
-                <option value="feedback">feedback</option>
-                <option value="share_codes">share_codes</option>
-              </select>
-            </div>
-            
-            <div className="admin-table-wrapper" style={{ minHeight: 200 }}>
-              {dbLoading ? (
-                <div className="admin-empty">Loading {dbTable} data...</div>
-              ) : dbError ? (
-                <div className="admin-empty" style={{ color: "var(--danger)" }}>{dbError}</div>
-              ) : dbRows.length === 0 ? (
-                <div className="admin-empty">No rows found in {dbTable}.</div>
-              ) : (
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, textAlign: "left" }}>
-                  <thead style={{ background: "var(--card)" }}>
-                    <tr>
-                      {Object.keys(dbRows[0]).map(k => (
-                        <th key={k} style={{ padding: "10px 16px", color: "var(--muted)", fontWeight: 600, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" }}>{k}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dbRows.map((row, i) => (
-                      <tr key={i} style={{ borderBottom: "1px solid var(--border)", background: i % 2 === 0 ? "transparent" : "var(--card)" }}>
-                        {Object.values(row).map((v, j) => (
-                          <td key={j} style={{ padding: "10px 16px", whiteSpace: "nowrap", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis" }} title={typeof v === "object" ? JSON.stringify(v) : String(v)}>
-                            {typeof v === "object" ? JSON.stringify(v) : String(v)}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
+              <aside className="database-inspector"><div className="database-inspector-head"><span>Row inspector</span>{dbSelectedRow && <button type="button" onClick={() => setDbSelectedRow(null)} aria-label="Close row inspector"><X size={15} /></button>}</div>{dbSelectedRow ? <pre>{JSON.stringify(dbSelectedRow, null, 2)}</pre> : <div className="database-inspector-empty"><Eye size={18} /> Select a row to inspect its complete value.</div>}</aside>
             </div>
           </section>
 

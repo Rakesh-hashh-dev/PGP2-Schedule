@@ -14,7 +14,7 @@ import WrappedDetailModal from "./wrapped/WrappedDetailModal.jsx";
 import { WrappedComparison, WrappedIdentity } from "./wrapped/WrappedInsights.jsx";
 import "../styles/wrapped.css";
 
-export default function WrappedView({ visible, legend, attendance, now, termLabel, userName, isArchived = false, previousTerm, onBack }) {
+export default function WrappedView({ visible, legend, attendance, now, termLabel, userName, isArchived = false, previousTerm, previousTermNumber, onViewPrevious, onBack }) {
   const stats = useMemo(
     () => buildWrapped(visible, legend, attendance, now, { includeLocalExtras: !isArchived }),
     [visible, legend, attendance, now, isArchived],
@@ -39,6 +39,11 @@ export default function WrappedView({ visible, legend, attendance, now, termLabe
           <span className="wrapped-eyebrow">TermFlow Wrapped</span>
           <h1>Not enough story yet</h1>
           <p>Wrapped unlocks after ten regular classes have finished. Exams and future sessions do not count toward that threshold.</p>
+          {onViewPrevious && previousTermNumber && previousTerm && (
+            <button type="button" className="wrapped-prev-cta" onClick={onViewPrevious}>
+              <History size={15} aria-hidden="true" /> See your Term {previousTermNumber} Wrapped
+            </button>
+          )}
         </section>
       </div>
     );
@@ -68,6 +73,11 @@ export default function WrappedView({ visible, legend, attendance, now, termLabe
           <div><strong>{attendanceValue}</strong><span>{stats.marked ? "attendance" : "not marked"}</span></div>
           <div><strong>{stats.courseCount}</strong><span>courses</span></div>
         </div>
+        {onViewPrevious && previousTermNumber && previousTerm && (
+          <button type="button" className="wrapped-prev-cta wrapped-prev-cta--hero" onClick={onViewPrevious}>
+            <History size={15} aria-hidden="true" /> See your Term {previousTermNumber} Wrapped
+          </button>
+        )}
       </section>
 
       <WrappedIdentity archetype={stats.archetype} insights={stats.insights} />

@@ -1514,6 +1514,17 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const todayISO = ymd(now);
   const tomorrowISO = ymd(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
 
+  // The "Term N Wrapped is ready" nudge runs only for the first 3 days of the
+  // new term (term start .. +2, e.g. Sep 5–7), then drops on its own. After
+  // that the recap stays reachable via the term switcher + the live-term
+  // Wrapped empty-state shortcut, so the banner doesn't linger all term.
+  const wrappedNudgeUntil = useMemo(() => {
+    if (!TERM?.start) return null;
+    const d = new Date(`${TERM.start}T00:00:00`);
+    d.setDate(d.getDate() + 2);
+    return ymd(d);
+  }, []);
+
   // TermFlow Wrapped release gate: hidden from EVERYONE — admins included —
   // until the admin explicitly pushes it (Admin Tools → Feature Flags →
   // flags.wrappedReleaseDate), and never before 27 Aug 2026, the hard floor
@@ -2669,7 +2680,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 {unseenWhatsNew.length > 0 && (
                   <WhatsNewPill item={unseenWhatsNew[0]} count={unseenWhatsNew.length} onOpen={() => setWhatsNewOpen(true)} />
                 )}
-                {!IS_LITE && mostRecentArchivedTerm && todayISO >= (TERM?.start || "9999") && !seenWrappedNudges.has(mostRecentArchivedTerm.number) && (
+                {!IS_LITE && mostRecentArchivedTerm && todayISO >= (TERM?.start || "9999") && (!wrappedNudgeUntil || todayISO <= wrappedNudgeUntil) && !seenWrappedNudges.has(mostRecentArchivedTerm.number) && (
                   <WhatsNewPill
                     item={{ emoji: "🎓", title: `Your Term ${mostRecentArchivedTerm.number} Wrapped is ready` }}
                     onOpen={() => {
@@ -2995,6 +3006,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                     userName={user?.firstName || user?.username || "Student"}
                                     isArchived={isArchivedView}
                                     previousTerm={previousWrappedInput}
+                                    previousTermNumber={!isArchivedView ? mostRecentArchivedTerm?.number : null}
+                                    onViewPrevious={!isArchivedView && mostRecentArchivedTerm ? () => { setSelectedTerm(mostRecentArchivedTerm.number); setCompareTarget(null); } : null}
                                     onBack={() => { setView("today"); setCompareTarget(null); }}
                                   />
                               : view === "glance"

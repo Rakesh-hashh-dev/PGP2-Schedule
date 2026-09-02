@@ -9,7 +9,7 @@
 // Set FEED_URL to the /exec URL from deploying google_apps_script_menu.js
 // (see setup steps in that file's header comment).
 
-const FEED_URL = "https://script.google.com/macros/s/AKfycbylRyf5UlCtwS2dfrxIOS8S6huCmuy1QderIhWfQL5i3O_NvMfSeOEGL2zKxBFbBYCIpQ/exec";
+export const MESS_MENU_FEED_URL = "https://script.google.com/macros/s/AKfycbylRyf5UlCtwS2dfrxIOS8S6huCmuy1QderIhWfQL5i3O_NvMfSeOEGL2zKxBFbBYCIpQ/exec";
 const CACHE_KEY = "pgp2-mess-feed-cache";
 
 function readCache() {
@@ -19,11 +19,11 @@ function readCache() {
 // Returns the live overrides object, or null if the feed is unreachable
 // (caller keeps the bundled menu). Serves cached data instantly when unchanged.
 export async function fetchMessMenu() {
-  if (!FEED_URL || FEED_URL.startsWith("PASTE_")) return null;
+  if (!MESS_MENU_FEED_URL || MESS_MENU_FEED_URL.startsWith("PASTE_")) return null;
 
   const cached = readCache();
   try {
-    const res = await fetch(FEED_URL, { redirect: "follow" });
+    const res = await fetch(MESS_MENU_FEED_URL, { redirect: "follow" });
     if (!res.ok) throw new Error("HTTP " + res.status);
     const data = await res.json();
     if (data?.error) throw new Error(data.error);
