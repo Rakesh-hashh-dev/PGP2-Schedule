@@ -1874,8 +1874,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     </main>
   );
   const needsName = !(user?.firstName || user?.username);
-  if (!setup) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} termLabel={termLabel} onPullFromSheet={buildAllocationFromSheet} prefill={prefillPicked} cloudChecked={cloudChecked} waitingForAllocation={waitingForAllocation} needsName={needsName} reonboardFromTerm={reonboardFromTerm} newTermLabel={TERM?.number} />;
-  if (showSetupEdit) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} initialPicked={enrolled} onCancel={() => setShowSetupEdit(false)} termLabel={termLabel} onPullFromSheet={buildAllocationFromSheet} needsName={needsName} />;
+  if (!setup) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} termLabel={termLabel} onPullFromSheet={buildAllocationFromSheet} prefill={prefillPicked} cloudChecked={cloudChecked} waitingForAllocation={waitingForAllocation} needsName={needsName} reonboardFromTerm={reonboardFromTerm} newTermLabel={TERM?.number} liveTerm={TERM?.number} priorTerm={mostRecentArchivedTerm?.number} priorLegend={mostRecentArchivedTerm?.LEGEND} priorPicked={mostRecentArchivedTerm ? archivedCourses[mostRecentArchivedTerm.number] : null} />;
+  if (showSetupEdit) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} initialPicked={enrolled} onCancel={() => setShowSetupEdit(false)} termLabel={termLabel} onPullFromSheet={buildAllocationFromSheet} needsName={needsName} liveTerm={TERM?.number} priorTerm={mostRecentArchivedTerm?.number} priorLegend={mostRecentArchivedTerm?.LEGEND} priorPicked={mostRecentArchivedTerm ? archivedCourses[mostRecentArchivedTerm.number] : null} />;
 
   // Banned User Lockout
   if (sysConfig?.flags?.bannedUsers?.includes(userId) && !isAdmin) {

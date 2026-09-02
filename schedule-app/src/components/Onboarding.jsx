@@ -5,7 +5,7 @@ import { subjectClass } from "../lib/subjectColors.js";
 const AREA_LABEL = { "F&A": "Finance & Accounting", MKTG: "Marketing", ISM: "Information Systems", STM: "Strategy", OPS: "Operations", "OB&HR": "OB & HR", Other: "Other" };
 const AREA_ORDER = ["F&A", "MKTG", "ISM", "STM", "OPS", "OB&HR", "Other"];
 
-export default function Onboarding({ legend, sectionsByCode, onDone, initialPicked, onCancel, termLabel, onPullFromSheet, prefill, cloudChecked, waitingForAllocation, needsName, reonboardFromTerm, newTermLabel }) {
+export default function Onboarding({ legend, sectionsByCode, onDone, initialPicked, onCancel, termLabel, onPullFromSheet, prefill, cloudChecked, waitingForAllocation, needsName, reonboardFromTerm, newTermLabel, liveTerm, priorTerm, priorLegend, priorPicked }) {
   const isEditing = !!initialPicked;
   const [picked, setPicked] = useState(() => initialPicked || {});
   const [name, setName] = useState("");
@@ -32,6 +32,16 @@ export default function Onboarding({ legend, sectionsByCode, onDone, initialPick
     Object.values(byArea).forEach((l) => l.sort((x, y) => x[1].localeCompare(y[1])));
     return AREA_ORDER.map((a) => [a, byArea[a] || []]).filter(([, l]) => l.length);
   }, [legend]);
+
+  const priorGroups = useMemo(() => {
+    const byArea = {};
+    Object.entries(priorLegend || {}).forEach(([code, info]) => {
+      const a = info.area || "Other";
+      (byArea[a] = byArea[a] || []).push([code, info.name]);
+    });
+    Object.values(byArea).forEach((l) => l.sort((x, y) => x[1].localeCompare(y[1])));
+    return AREA_ORDER.map((a) => [a, byArea[a] || []]).filter(([, l]) => l.length);
+  }, [priorLegend]);
 
   const allCodes = useMemo(() => Object.keys(legend || {}), [legend]);
   const count = Object.keys(picked).length;
@@ -83,6 +93,15 @@ export default function Onboarding({ legend, sectionsByCode, onDone, initialPick
       </header>
 
       <div className="ob-body">
+        {liveTerm && (
+          <div className="ob-term-badge" role="note">
+            <span className="ob-term-badge-live">Term {liveTerm}</span>
+            <span className="ob-term-badge-label">Now enrolling · Live</span>
+            {priorTerm && priorTerm !== liveTerm && (
+              <span className="ob-term-badge-prior">Finished Term {priorTerm}? Your old courses &amp; attendance are safe — switch to Term {priorTerm} anytime from the term picker.</span>
+            )}
+          </div>
+        )}
         <h1 className="ob-title">{isEditing ? "Edit your courses." : reonboardFromTerm ? `Term ${newTermLabel || ""} has started.` : "Set up your timetable."}</h1>
         <p className="ob-sub">
           {reonboardFromTerm
@@ -139,7 +158,7 @@ export default function Onboarding({ legend, sectionsByCode, onDone, initialPick
         )}
 
         <div className="ob-label-row">
-          <span className="ob-label">Your courses &amp; sections</span>
+          <span className="ob-label">{liveTerm ? `Your Term ${liveTerm} courses & sections` : "Your courses & sections"}</span>
           <button className="ob-all" onClick={selectAll}>{allOn ? "Clear all" : "Select all"}</button>
         </div>
 
@@ -177,6 +196,39 @@ export default function Onboarding({ legend, sectionsByCode, onDone, initialPick
             </div>
           </div>
         ))}
+
+        {priorTerm && priorTerm !== liveTerm && priorGroups.length > 0 && priorPicked && Object.keys(priorPicked).length > 0 && (
+          <div className="ob-prior">
+            <div className="ob-prior-head">
+              <span className="ob-prior-tag">Term {priorTerm} · Completed</span>
+              <span className="ob-prior-note">Archived &amp; read-only — view from the term picker</span>
+            </div>
+            {priorGroups.map(([area, list]) => (
+              <div key={area} className="ob-grp">
+                <div className="ob-grp-h">{AREA_LABEL[area] || area}</div>
+                <div className="oc-list">
+                  {list.map(([code, name]) => {
+                    const sec = priorPicked && priorPicked[code];
+                    const on = !!sec;
+                    return (
+                      <div key={code} className={`oc oc-archived ${on ? "on" : ""}`}>
+                        <div className="oc-main">
+                          <span className={`ses ${subjectClass(code)}`}>{code}</span>
+                          <span className="oc-n">{name}</span>
+                        </div>
+                        {on && (
+                          <div className="oc-right">
+                            <span className="oc-single">{sec === "Single" ? "All" : sec}</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="ob-foot">

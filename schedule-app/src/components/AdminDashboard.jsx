@@ -9,6 +9,7 @@ import { LEGEND } from "../data/schedule.js";
 import snapshotMeta from "../data/snapshot-meta.json";
 import { getSnapshot } from "../lib/sheet.js";
 import { classIdent, makeOverrideKey, lookupOverride, parseOverrideKey } from "../lib/overrides.js";
+import { ymd } from "../lib/datetime.js";
 import AdminCommandPalette from "./AdminCommandPalette";
 import FeedbackFlashToast from "./FeedbackFlashToast.jsx";
 import { WhatsNewPill, WhatsNewModal } from "./WhatsNew.jsx";
@@ -474,7 +475,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
   // Live Editor State
   const [liveSchedule] = useState(() => getSnapshot().CLASSES || []);
-  const [liveEditorDate, setLiveEditorDate] = useState(new Date().toISOString().split("T")[0]);
+  const [liveEditorDate, setLiveEditorDate] = useState(ymd(new Date()));
   const [liveEditorModal, setLiveEditorModal] = useState(null);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
 
@@ -2014,10 +2015,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
             {/* Week View Ribbon */}
             {(() => {
-              const today = new Date().toISOString().split("T")[0];
+              const today = ymd(new Date());
               const weekDays = Array.from({ length: 7 }, (_, i) => {
                 const d = new Date(); d.setDate(d.getDate() - 3 + i);
-                const iso = d.toISOString().split("T")[0];
+                const iso = ymd(d);
                 const count = liveSchedule.filter(c => c.date === iso && c.type !== "break").length;
                 const hasOverride = !!(flags.classOverrides?.[iso] && Object.keys(flags.classOverrides[iso]).length > 0);
                 return { iso, label: d.toLocaleDateString("en-IN", { weekday: "short" }), num: d.getDate(), count, hasOverride, isToday: iso === today };
@@ -2042,11 +2043,11 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             {/* Day toolbar: date picker + section filter */}
             <div style={{ display: "flex", gap: 10, marginBottom: 16, alignItems: "center", flexWrap: "wrap" }}>
               <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                <button onClick={() => { const d = new Date(liveEditorDate); d.setDate(d.getDate() - 1); setLiveEditorDate(d.toISOString().split("T")[0]); }}
+                <button onClick={() => { const d = new Date(liveEditorDate); d.setDate(d.getDate() - 1); setLiveEditorDate(ymd(d)); }}
                   style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 10px", cursor: "pointer", color: "var(--muted)" }}>‹</button>
                 <input type="date" className="admin-input" value={liveEditorDate} onChange={e => setLiveEditorDate(e.target.value)}
                   style={{ padding: "7px 12px", borderRadius: 8 }} />
-                <button onClick={() => { const d = new Date(liveEditorDate); d.setDate(d.getDate() + 1); setLiveEditorDate(d.toISOString().split("T")[0]); }}
+                <button onClick={() => { const d = new Date(liveEditorDate); d.setDate(d.getDate() + 1); setLiveEditorDate(ymd(d)); }}
                   style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 10px", cursor: "pointer", color: "var(--muted)" }}>›</button>
               </div>
               <div style={{ display: "flex", gap: 4 }}>
@@ -6021,6 +6022,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 <>
                   <div style={{ fontWeight: 700, color: "var(--text)" }}>{liveEditorModal.code} — {liveEditorModal.name || "Class"}</div>
                   <div style={{ color: "var(--muted)", fontSize: 13 }}>{liveEditorModal.date} | {liveEditorModal.start} – {liveEditorModal.end} | Section {liveEditorModal.section}</div>
+                  <div className="admin-field" style={{ marginTop: 12 }}>
+                    <label>Class Name</label>
+                    <input type="text" className="admin-input" value={modalName} onChange={e => setModalName(e.target.value)} placeholder="e.g. WAI Guest Lecture" />
+                  </div>
                 </>
               )}
             </div>
@@ -6138,7 +6143,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     else {
                       const originalSection = liveEditorModal.section === "Single" ? "All" : (liveEditorModal.section || "All");
                       const sectionChanged = modalSection !== originalSection;
-                      if (!modalRoom && !modalStart && !modalEnd && !sectionChanged) return alert("Enter at least one change (section, room, start, or end time).");
+                      const nameChanged = modalName !== (liveEditorModal.name || "");
+                      if (!modalRoom && !modalStart && !modalEnd && !sectionChanged && !nameChanged) return alert("Enter at least one change (name, section, room, start, or end time).");
                     }
                     const overrideKey = makeOverrideKey(codeToUse, modalSection);
                     const nextOverrides = { ...(flags.classOverrides || {}) };
@@ -6157,6 +6163,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     if (modalIsNew) {
                       changes.name = modalName;
                       changes.type = "class"; // base type, can be marked as exam later
+                    } else if (modalName !== (liveEditorModal.name || "")) {
+                      // renaming an existing class (e.g. a custom entry titled "Custom Class")
+                      changes.name = modalName;
                     }
                     changes.modifiedAt = new Date().toISOString();
                     changes.modifiedBy = admin_id;
