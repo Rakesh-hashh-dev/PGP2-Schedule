@@ -20,7 +20,7 @@ import { MessMenuStandalone } from "./components/MessMenuModal.jsx";
 import { setMessMenuOverrides } from "./data/messMenu.js";
 import { fetchMessMenu } from "./lib/messFeed.js";
 import { getSnapshot, fetchSchedule, sha256hex } from "./lib/sheet.js";
-import { classIdent, lookupOverride, parseOverrideKey } from "./lib/overrides.js";
+import { lookupOverride, buildOverrideAdds } from "./lib/overrides.js";
 import { toMin, ymd, clsDate, prettyDate, timeAgo, getSpecialDay } from "./lib/datetime.js";
 import {
   swUpdateIsStale, clearSwSeen,
@@ -1288,34 +1288,12 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
       if (sysConfig.flags.classOverrides) {
         const overrides = sysConfig.flags.classOverrides;
-        const newClasses = [];
         data.CLASSES = data.CLASSES.map(c => {
           const classOverride = lookupOverride(overrides[c.date], c);
           return classOverride ? { ...c, ...classOverride } : c;
         });
 
-        Object.keys(overrides).forEach(date => {
-          Object.keys(overrides[date]).forEach(key => {
-            const ovr = overrides[date][key];
-            if (ovr.type === "cancelled") return;
-            const { ident: code, section } = parseOverrideKey(key);
-
-            const exists = data.CLASSES.some(c => c.date === date && classIdent(c) === code && (c.section === section || section === "All" || c.section === "Single"));
-            if (!exists) {
-              newClasses.push({
-                date: date,
-                code: code,
-                section: section,
-                name: ovr.name || "Custom Added Class",
-                room: ovr.room || "",
-                start: ovr.start || "",
-                end: ovr.end || "",
-                type: ovr.type || "class"
-              });
-            }
-          });
-        });
-
+        const newClasses = buildOverrideAdds(overrides, data.CLASSES);
         if (newClasses.length > 0) {
           data.CLASSES = [...data.CLASSES, ...newClasses];
         }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classIdent, makeOverrideKey, lookupOverride, parseOverrideKey } from "./overrides.js";
+import { classIdent, makeOverrideKey, lookupOverride, parseOverrideKey, buildOverrideAdds } from "./overrides.js";
 
 describe("classIdent", () => {
   it("uses the course code when present", () => {
@@ -73,5 +73,43 @@ describe("parseOverrideKey", () => {
       const key = makeOverrideKey(ident, section);
       expect(parseOverrideKey(key)).toEqual({ ident, section });
     }
+  });
+});
+
+describe("buildOverrideAdds", () => {
+  it("adds a titled override with no matching class", () => {
+    const overrides = { "2026-09-03": { WAI: { name: "Working with AI", type: "exam", start: "15:00", end: "17:00" } } };
+    const added = buildOverrideAdds(overrides, []);
+    expect(added).toEqual([
+      { date: "2026-09-03", code: "WAI", section: "All", name: "Working with AI", room: "", start: "15:00", end: "17:00", type: "exam" },
+    ]);
+  });
+
+  it("does NOT resurrect a name-less field-patch whose class left the feed (Term V '1/3' bug)", () => {
+    // A prior term's room/time edits (no `name`) no longer match the live feed.
+    const overrides = {
+      "2026-07-10": { CS: { start: "12:30", end: "14:00" } },
+      "2026-08-11": { CS_A: { room: "A02", start: "10:00", end: "11:30" } },
+      "2026-08-27": { CS_A: { room: "A01", start: "11:10", end: "13:30" } },
+    };
+    expect(buildOverrideAdds(overrides, [])).toEqual([]);
+  });
+
+  it("produces nothing for a modification that DOES match a live class", () => {
+    const classes = [{ date: "2026-09-08", code: "CS", section: "A", type: "class" }];
+    const overrides = { "2026-09-08": { CS_A: { room: "B02" } } };
+    expect(buildOverrideAdds(overrides, classes)).toEqual([]);
+  });
+
+  it("never adds a cancelled override", () => {
+    const overrides = { "2026-08-08": { DVB_B: { name: "Cancelled: DVB", type: "cancelled" } } };
+    expect(buildOverrideAdds(overrides, [])).toEqual([]);
+  });
+
+  it("defaults type to class and fills blank fields for a titled add", () => {
+    const overrides = { "2026-09-04": { BBM: { name: "Business to Business Marketing", type: "exam" } } };
+    expect(buildOverrideAdds(overrides, [])).toEqual([
+      { date: "2026-09-04", code: "BBM", section: "All", name: "Business to Business Marketing", room: "", start: "", end: "", type: "exam" },
+    ]);
   });
 });
