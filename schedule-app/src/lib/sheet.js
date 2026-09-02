@@ -17,8 +17,11 @@ export async function sha256hex(str) {
 
 const CACHE_KEY = "pgp2-feed-cache";
 
-// These courses have only one combined section; rename stray "B" feed entries to "Single".
-const SINGLE_SECTION_B = new Set(["AMR", "BAMD", "BBM"]);
+// Courses that have only one combined section but whose feed occasionally emits
+// a stray "B" row — renamed to "Single". Term-specific; empty for Term V (the
+// sheet tags single-section courses correctly). Repopulate only if a rollover
+// surfaces a mis-sectioned course.
+const SINGLE_SECTION_B = new Set([]);
 function normalizeSingleSection(c) {
   if (c.type !== "class") return c;
   // Repair guest cells the feed regex failed on: a line break in the sheet cell
@@ -43,6 +46,21 @@ function cleanFaculty(f) {
   return f.replace(/\s+/g, " ").replace(/\s*&\s*/g, " & ").trim();
 }
 
+// A feed "class" whose code isn't a real course (not in the legend) isn't a
+// class — the sheet has full-day festival/event banners (NUAKHAI, Dussehra,
+// Foundation Day, …) and the occasional stray token in a slot. Multi-letter
+// cells become holidays (so they render as non-teaching blocks); 1–2 char
+// stray tokens (e.g. a leftover "B") are dropped. Real courses are always in
+// the legend, so this never touches a genuine class.
+function reclassifyUnknown(c, legend) {
+  if (c.type !== "class" || !c.code || legend[c.code]) return c;
+  const label = String(c.name || c.code).replace(/\s+/g, " ").trim();
+  if (label.replace(/[^A-Za-z]/g, "").length >= 3) {
+    return { ...c, type: "holiday", code: "", session: "", name: label };
+  }
+  return null; // stray noise → drop
+}
+
 function withAreas(data) {
   const legend = {};
   for (const code in data.LEGEND) {
@@ -50,6 +68,8 @@ function withAreas(data) {
   }
   const classes = (data.CLASSES || [])
     .map(normalizeSingleSection)
+    .filter(Boolean)
+    .map((c) => reclassifyUnknown(c, data.LEGEND || {}))
     .filter(Boolean)
     .map((c) => ({
       ...c,

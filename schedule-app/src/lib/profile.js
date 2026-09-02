@@ -1,4 +1,11 @@
 import { supabase } from "./supabase.js";
+import { TERM as LIVE_TERM } from "../data/schedule.js";
+import { ARCHIVED_TERMS } from "../data/archive/index.js";
+
+// The term that was live immediately before the current one — the one whose
+// enrollment needs a one-time snapshot into _archivedCourses before it gets
+// overwritten by fresh onboarding for the new live term.
+const PRIOR_TERM = ARCHIVED_TERMS[ARCHIVED_TERMS.length - 1];
 
 const SETUP_KEY = "pgp2.setup";
 function readLocal() {
@@ -45,8 +52,10 @@ export async function syncProfileFromCloud(userId) {
     const cleanCourses = Object.fromEntries(Object.entries(raw).filter(([k]) => !k.startsWith('_')));
     const assignments = raw._assignments || {};
     const droppedCodes = raw._droppedCodes || [];
+    const archivedCourses = raw._archivedCourses || {};
+    const enrolledTerm = raw._enrolledTerm;
     try { localStorage.setItem("pgp2.assignments", JSON.stringify(assignments)); } catch {}
-    const s = { courses: cleanCourses, lastSeenNotif: remoteSeen, readPingIds, seenGroupIds, readChangeKeys, assignments, droppedCodes, imageUrl: raw._imageUrl };
+    const s = { courses: cleanCourses, lastSeenNotif: remoteSeen, readPingIds, seenGroupIds, readChangeKeys, assignments, droppedCodes, archivedCourses, enrolledTerm, imageUrl: raw._imageUrl };
     writeLocal({ courses: cleanCourses });
     return s;
   }
@@ -68,6 +77,10 @@ export async function pushProfile(userId, courses, userName, optionalLastSeenNot
   const dbCourses = { ...courses };
   if (userName) dbCourses._name = userName;
   if (imageUrl) dbCourses._imageUrl = imageUrl;
+  // Tags which term these course picks belong to, so a later load can tell
+  // whether they're still valid for the live term (see App.jsx's
+  // enrollmentStale check) instead of silently reusing a past term's picks.
+  dbCourses._enrolledTerm = LIVE_TERM.number;
 
   let lastSeenNotif = optionalLastSeenNotif;
   if (lastSeenNotif === undefined) {
@@ -84,6 +97,18 @@ export async function pushProfile(userId, courses, userName, optionalLastSeenNot
     // never wipes read state accumulated on other devices
     const { data } = await supabase.from("profiles").select("courses").eq("user_id", userId).maybeSingle();
     const remote = data?.courses || {};
+
+    // One-time enrollment archive: if the live term has rolled over since this
+    // profile last synced (LIVE_TERM.number no longer matches the most recently
+    // archived term) and we haven't snapshotted that prior term's courses yet,
+    // do it now — before `remote`'s (still prior-term) course map gets
+    // overwritten below by the caller's new (live-term) `courses` argument.
+    const archivedCourses = { ...(remote._archivedCourses || {}) };
+    if (PRIOR_TERM && LIVE_TERM.number !== PRIOR_TERM.number && !archivedCourses[PRIOR_TERM.number]) {
+      const priorClean = Object.fromEntries(Object.entries(remote).filter(([k]) => !k.startsWith("_")));
+      if (Object.keys(priorClean).length) archivedCourses[PRIOR_TERM.number] = priorClean;
+    }
+    if (Object.keys(archivedCourses).length) dbCourses._archivedCourses = archivedCourses;
 
     const seen = Math.max(lastSeenNotif || 0, remote._lastSeenNotif || 0);
     if (seen) dbCourses._lastSeenNotif = seen;

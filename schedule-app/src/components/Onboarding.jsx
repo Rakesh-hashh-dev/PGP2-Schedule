@@ -5,7 +5,7 @@ import { subjectClass } from "../lib/subjectColors.js";
 const AREA_LABEL = { "F&A": "Finance & Accounting", MKTG: "Marketing", ISM: "Information Systems", STM: "Strategy", OPS: "Operations", "OB&HR": "OB & HR", Other: "Other" };
 const AREA_ORDER = ["F&A", "MKTG", "ISM", "STM", "OPS", "OB&HR", "Other"];
 
-export default function Onboarding({ legend, sectionsByCode, onDone, initialPicked, onCancel, termLabel, onPullFromSheet, prefill, cloudChecked, waitingForAllocation, needsName }) {
+export default function Onboarding({ legend, sectionsByCode, onDone, initialPicked, onCancel, termLabel, onPullFromSheet, prefill, cloudChecked, waitingForAllocation, needsName, reonboardFromTerm, newTermLabel }) {
   const isEditing = !!initialPicked;
   const [picked, setPicked] = useState(() => initialPicked || {});
   const [name, setName] = useState("");
@@ -83,8 +83,12 @@ export default function Onboarding({ legend, sectionsByCode, onDone, initialPick
       </header>
 
       <div className="ob-body">
-        <h1 className="ob-title">{isEditing ? "Edit your courses." : "Set up your timetable."}</h1>
-        <p className="ob-sub">Pick your courses — and your section for each. We'll show only your classes, with no clashes.</p>
+        <h1 className="ob-title">{isEditing ? "Edit your courses." : reonboardFromTerm ? `Term ${newTermLabel || ""} has started.` : "Set up your timetable."}</h1>
+        <p className="ob-sub">
+          {reonboardFromTerm
+            ? `Your Term ${reonboardFromTerm} courses have ended — pick your subjects for the new term to keep going. Your old schedule and attendance are saved and still viewable from the term switcher.`
+            : "Pick your courses — and your section for each. We'll show only your classes, with no clashes."}
+        </p>
         <div className="ob-hint"><Info size={14} /> Your section can differ per course — choose A or B on each.</div>
 
         {needsName && (

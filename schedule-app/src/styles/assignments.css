@@ -39,10 +39,78 @@
 
 /* ── Page Container ── */
 .assign-page {
+  position: relative;
   padding: 0 16px 100px;
   max-width: 860px;
   margin: 0 auto;
+  isolation: isolate;
   animation: fade-in-up 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* ── Ambient aura backdrop ──
+   Two soft radial blobs behind the header for depth. Softness is baked into the
+   gradient falloff (no filter:blur) so the slow transform drift stays cheap —
+   per the app-wide rule: animate transform/opacity only, never filter/shadow. */
+.assign-aura {
+  position: absolute;
+  top: -60px;
+  left: 0;
+  right: 0;
+  height: 340px;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: -1;
+  will-change: transform;
+}
+
+.assign-aura i {
+  position: absolute;
+  display: block;
+  border-radius: 50%;
+  opacity: 0.5;
+  will-change: transform;
+}
+
+.assign-aura i:nth-child(1) {
+  top: -40px;
+  left: -30px;
+  width: 320px;
+  height: 320px;
+  background: radial-gradient(circle at center, color-mix(in srgb, var(--violet, #7c3aed) 42%, transparent) 0%, transparent 68%);
+  animation: aura-drift-a 18s ease-in-out infinite;
+}
+
+.assign-aura i:nth-child(2) {
+  top: -70px;
+  right: -40px;
+  left: auto;
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle at center, color-mix(in srgb, var(--live, #10b981) 34%, transparent) 0%, transparent 70%);
+  animation: aura-drift-b 22s ease-in-out infinite;
+}
+
+html[data-theme="dark"] .assign-aura i { opacity: 0.34; }
+
+@keyframes aura-drift-a {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%      { transform: translate3d(26px, 18px, 0) scale(1.08); }
+}
+
+@keyframes aura-drift-b {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1.05); }
+  50%      { transform: translate3d(-30px, 12px, 0) scale(0.95); }
+}
+
+/* Stat-tile entrance stagger (fades up in sequence) */
+.stat-tile {
+  animation: stagger-in 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(var(--tile-i, 0) * 70ms + 80ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assign-aura i { animation: none; }
+  .stat-tile { animation: none; }
 }
 
 /* ── Header ── */
@@ -196,13 +264,193 @@
 .stat-overdue { --accent: var(--danger, #ef4444); }
 .stat-done    { --accent: var(--green, #10b981); }
 
+.assign-stats-hint {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  text-align: center;
+  margin: -18px 0 22px;
+  opacity: 0.7;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .assign-stats-hint::after { content: ""; }
+}
+
 /* ── Segmented Control ── */
 .assign-controls {
   display: flex;
   align-items: center;
   gap: 12px;
   margin-bottom: 20px;
+  flex-wrap: wrap;
 }
+
+.assign-controls-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+/* Group-by toggle (Course / Date) */
+.assign-group-toggle {
+  display: inline-flex;
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: 99px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.assign-group-toggle button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 99px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s;
+}
+
+.assign-group-toggle button.active {
+  background: var(--card);
+  color: var(--text);
+  box-shadow: 0 1px 6px rgba(0,0,0,0.15);
+}
+
+@media (max-width: 420px) {
+  .assign-toggle-label { display: none; }
+  .assign-group-toggle button { padding: 7px 10px; }
+}
+
+/* Sort control */
+.assign-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px 0 12px;
+  height: 36px;
+  border-radius: 99px;
+  border: 1.5px solid var(--border);
+  background: var(--card);
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.assign-sort:hover { border-color: var(--violet, #7c3aed); color: var(--violet, #7c3aed); }
+
+.assign-sort select {
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+  padding: 0 2px;
+}
+
+.assign-sort select option { background: var(--card); color: var(--text); }
+
+/* Date-grouped view */
+.assign-date-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.assign-date-group {
+  animation: stagger-in 0.35s cubic-bezier(0.2,0.8,0.2,1) both;
+}
+
+.assign-date-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 2px 10px;
+}
+
+.assign-date-group-label {
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text);
+}
+
+.assign-date-group-count {
+  font-size: 11px;
+  font-weight: 700;
+  min-width: 18px;
+  text-align: center;
+  padding: 1px 7px;
+  border-radius: 99px;
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  color: var(--muted);
+}
+
+.assign-date-group .assign-tasks { padding: 0; }
+
+/* Bucket accent on the label + count */
+.dg-overdue .assign-date-group-label { color: #ef4444; }
+.dg-overdue .assign-date-group-count { color: #ef4444; border-color: rgba(239,68,68,0.35); background: rgba(239,68,68,0.1); }
+.dg-today   .assign-date-group-label { color: #f59e0b; }
+.dg-today   .assign-date-group-count { color: #f59e0b; border-color: rgba(245,158,11,0.35); background: rgba(245,158,11,0.1); }
+
+/* Course tag inside a date-grouped task row */
+.assign-task-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.assign-task-course-tag {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  padding: 2px 7px;
+  border-radius: 99px;
+}
+
+.assign-task-main .assign-task-title { min-width: 0; }
+
+/* Mini empty state for filtered-out lists */
+.assign-empty-mini {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+  padding: 48px 24px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.assign-empty-mini-action {
+  padding: 7px 18px;
+  border-radius: 99px;
+  border: 1.5px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.assign-empty-mini-action:hover { border-color: var(--violet, #7c3aed); color: var(--violet, #7c3aed); }
 
 .assign-seg {
   position: relative;
@@ -273,6 +521,12 @@
   border: 1.5px solid var(--border);
   background: var(--card);
   box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+  animation: fade-in-up 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: 0.12s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assign-spotlight { animation: none; }
 }
 
 .spotlight-label {

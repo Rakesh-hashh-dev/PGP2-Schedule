@@ -19,8 +19,8 @@
  *      site never waits on a cold parse.
  */
 
-const SHEET_ID = '1E0AaPYJi_sJXar2Wr12Di_0_MW92UdWMOn2BHkuSyUQ';
-const TERM_YEAR = 2026;        // the sheet's dates have no year
+const SHEET_ID = '1AB9tNharptnkuYGtBCAsadEwKU0fCnbvav5cTDrR1Ak';  // Term V (2025-27 batch), Sep–Dec 2026
+const TERM_YEAR = 2026;        // the sheet's dates have no year (Term V is Sep 5 – Dec 20 2026, single year)
 const CACHE_MINUTES = 10;      // <-- your acceptable delay
 
 // Change tracking: which entry types are worth recording as changes.
@@ -43,10 +43,9 @@ const SECTION_MAP = {
   'ab': 'AB',
 };
 // Known typos in the live sheet — normalize so legend lookup and student
-// enrollment matching don't silently miss (e.g. "MBP - 6 Guest" is MPB).
-const CODE_ALIASES = {
-  MBP: 'MPB',
-};
+// enrollment matching don't silently miss. Term-specific; empty for Term V.
+// (Add entries like { MBP: 'MPB' } only if a rollover surfaces a sheet typo.)
+const CODE_ALIASES = {};
 const MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
 
 const FORCE_TOKEN = "admin_force_123";
@@ -344,6 +343,18 @@ function parseTimetable(ss, legend) {
           .find(x => x && !/guest/i.test(x) && !/\d{1,2}[:.]\d{2}|\b[ap]m\b/i.test(x));
         if (rm) room = rm;
       }
+      // A "class" whose code isn't a real course (not in the legend) isn't a
+      // class: the sheet has festival/event banners (NUAKHAI, Dussehra,
+      // Foundation Day, …) and the odd stray token in a slot. Wide merges or
+      // multi-letter cells become holidays; stray 1–2 char tokens are skipped.
+      if (type === 'class' && !isGuest && code && !legend[code]) {
+        const label = cell.replace(/\s+/g, ' ').trim();
+        if (span.cols > 1 || label.replace(/[^A-Za-z]/g, '').length >= 3) {
+          type = 'holiday'; name = label; code = ''; session = '';
+        } else {
+          continue;
+        }
+      }
       // A cell merged vertically across section rows applies to every section
       // it spans — read each spanned row's own Section-column label rather
       // than trusting just the top row (where the merged value actually
@@ -380,7 +391,9 @@ function parseLegend(ss) {
   ss.getSheets().forEach(sh => {
     const rows = sh.getDataRange().getDisplayValues();
     for (let i = 0; i < rows.length; i++) {
-      const header = rows[i].map(c => String(c).trim().toLowerCase());
+      // Collapse internal whitespace/newlines: some header cells wrap across two
+      // lines (e.g. "Course\nCode"), which would otherwise fail an exact match.
+      const header = rows[i].map(c => String(c).replace(/\s+/g, ' ').trim().toLowerCase());
       const codeCol = header.findIndex(h => h === 'course code' || h === 'code');
       if (codeCol === -1) continue;
       const nameCol = header.findIndex(h => ['elective details', 'course name', 'course', 'elective'].indexOf(h) > -1);
@@ -497,9 +510,13 @@ function parseStudentEnrollments(ss) {
       let section = "Single";
       if (sectionColIdx !== -1) {
         section = String(data[r][sectionColIdx]).trim();
+        // Normalize the sheet's full labels ("Single Section" / "Section A/B")
+        // to the app's short forms ("Single" / "A" / "B") so autofill sections
+        // match the timetable's section tags. Unmapped values pass through.
+        section = SECTION_MAP[section.toLowerCase()] || section;
       }
 
-      // Only record valid sections
+      // Only record valid sections (blank = not yet assigned by admin → skip)
       if (section) {
         const hash = sha256(email);
         if (!students[hash]) students[hash] = {};
@@ -535,7 +552,7 @@ function parseDate(rawVal, dispVal) {
 function classify(raw) {
   const u = raw.toUpperCase();
   if (u.indexOf('LUNCH') > -1) return 'break';
-  if (/YOGA|INDEPENDENCE|MILAD|HOLIDAY/.test(u)) return 'holiday';
+  if (/YOGA|INDEPENDENCE|MILAD|HOLIDAY|TEACHER|GANDHI|DIWALI|DUSSEHRA|DASHERA|CHRISTMAS|NEW YEAR/.test(u)) return 'holiday';
   if (/EXAM|END TERM|REGISTRATION/.test(u)) return 'exam';
   return 'class';
 }

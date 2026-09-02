@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import "../styles/assignments.css";
-import { CheckCircle2, Circle, Plus, Trash2, X, ChevronDown, Check, Sparkles, BookOpen, Clock, AlertCircle } from "lucide-react";
+import { CheckCircle2, Circle, Plus, Trash2, X, ChevronDown, Check, Sparkles, BookOpen, Clock, AlertCircle, List, CalendarRange, ArrowDownUp } from "lucide-react";
 import { loadAssignments, pushAssignments } from "../lib/assignments.js";
 import { EmptyState } from "./ui.jsx";
 
@@ -41,6 +41,62 @@ function getCourseColor(code) {
   return COLORS[hash % COLORS.length];
 }
 
+// Deadline buckets for the "By date" grouping — mirrors the urgency scale but
+// splits "today" out from the 7-day window so the most pressing work reads first.
+const DATE_BUCKETS = [
+  { key: "overdue", label: "Overdue" },
+  { key: "today",   label: "Due today" },
+  { key: "week",    label: "This week" },
+  { key: "later",   label: "Later" },
+  { key: "nodate",  label: "No due date" },
+];
+
+function bucketOf(task) {
+  if (!task.dueDate) return "nodate";
+  const d = daysUntil(task.dueDate);
+  if (d < 0)  return "overdue";
+  if (d === 0) return "today";
+  if (d <= 7) return "week";
+  return "later";
+}
+
+function sortTasks(a, b, sortBy) {
+  if (sortBy === "title") return (a.title || "").localeCompare(b.title || "");
+  if (sortBy === "added")  return (b.createdAt || "").localeCompare(a.createdAt || ""); // newest first
+  // default "due": dated first (soonest → latest), undated last
+  if (!a.dueDate && !b.dueDate) return 0;
+  if (!a.dueDate) return 1;
+  if (!b.dueDate) return -1;
+  return new Date(a.dueDate) - new Date(b.dueDate);
+}
+
+const prefersReducedMotion = () =>
+  typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+// Animates a number from its previous value to the new target (easeOutCubic),
+// snapping instantly if the user prefers reduced motion.
+function useCountUp(target, duration = 650) {
+  const [val, setVal] = useState(target);
+  const prev = useRef(target);
+  useEffect(() => {
+    const from = prev.current;
+    const to = target;
+    prev.current = target;
+    if (prefersReducedMotion() || from === to) { setVal(to); return; }
+    let raf = 0;
+    const start = performance.now();
+    const tick = (now) => {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setVal(Math.round(from + (to - from) * eased));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, duration]);
+  return val;
+}
+
 function ProgressRing({ pct, color }) {
   const r = 14, circ = 2 * Math.PI * r;
   const dash = (pct / 100) * circ;
@@ -62,14 +118,18 @@ function ProgressRing({ pct, color }) {
   );
 }
 
-function StatTile({ val, label, icon: Icon, cls, active, pulse, onClick }) {
+function StatTile({ val, label, icon: Icon, cls, active, pulse, onClick, hint, index = 0 }) {
+  const shown = useCountUp(val);
   return (
     <button
       className={`stat-tile ${cls} ${active ? "stat-tile-active" : ""} ${pulse && val > 0 ? "stat-tile-pulse" : ""} ${val === 0 ? "stat-tile-zero" : ""}`}
+      style={{ "--tile-i": index }}
       onClick={onClick}
+      aria-pressed={active}
+      title={hint}
     >
       <div className="stat-tile-icon"><Icon size={16} /></div>
-      <div className="stat-tile-val">{val}</div>
+      <div className="stat-tile-val">{shown}</div>
       <div className="stat-tile-label">{label}</div>
     </button>
   );
@@ -77,7 +137,7 @@ function StatTile({ val, label, icon: Icon, cls, active, pulse, onClick }) {
 
 const SWIPE_THRESHOLD = 72;
 
-function SwipeableTaskRow({ task, onToggle, onDelete, onOpen }) {
+function SwipeableTaskRow({ task, onToggle, onDelete, onOpen, courseCode, courseColor }) {
   const [dx, setDx] = useState(0);
   const dragRef = useRef(null);
   const justSwiped = useRef(false);
@@ -142,7 +202,17 @@ function SwipeableTaskRow({ task, onToggle, onDelete, onOpen }) {
           {task.completed ? <CheckCircle2 size={20}/> : <Circle size={20}/>}
         </button>
         <div className="assign-task-content">
-          <div className="assign-task-title">{task.title || "Untitled Task"}</div>
+          <div className="assign-task-main">
+            {courseCode && (
+              <span
+                className="assign-task-course-tag"
+                style={{ color: courseColor, background: `color-mix(in srgb, ${courseColor} 15%, transparent)` }}
+              >
+                {courseCode}
+              </span>
+            )}
+            <span className="assign-task-title">{task.title || "Untitled Task"}</span>
+          </div>
           {task.description && <div className="assign-task-desc">{task.description}</div>}
         </div>
         {task.dueDate && !task.completed && (
@@ -160,10 +230,38 @@ export default function AssignmentsPanel({ enrolled, legend, userId }) {
   const [modalData, setModalData] = useState({ id: "", code: "", title: "", description: "", dueDate: "" });
   const [tab, setTab] = useState("open");
   const [filter, setFilter] = useState("all");
+  const [groupBy, setGroupBy] = useState("course"); // "course" | "date"
+  const [sortBy, setSortBy] = useState("due");       // "due" | "added" | "title"
   const [undoState, setUndoState] = useState(null);
   const undoTimer = useRef(null);
+  const auraRef = useRef(null);
+  const headRef = useRef(null);
 
   useEffect(() => () => clearTimeout(undoTimer.current), []);
+
+  // Scroll parallax: the ambient aura drifts slower than the page (depth) while
+  // the header gently lifts + fades as it scrolls away. Transform/opacity only,
+  // rAF-throttled, and disabled entirely under reduced-motion.
+  useEffect(() => {
+    if (prefersReducedMotion()) return;
+    let raf = 0;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const y = window.scrollY || window.pageYOffset || 0;
+        if (auraRef.current) auraRef.current.style.transform = `translate3d(0, ${(y * 0.35).toFixed(1)}px, 0)`;
+        if (headRef.current) {
+          const p = Math.min(1, y / 200);
+          headRef.current.style.transform = `translate3d(0, ${(y * -0.1).toFixed(1)}px, 0)`;
+          headRef.current.style.opacity = String(1 - p * 0.5);
+        }
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => { window.removeEventListener("scroll", onScroll); cancelAnimationFrame(raf); };
+  }, []);
 
   const updateAssignments = (next) => { setAssignments(next); pushAssignments(userId, next); };
 
@@ -208,6 +306,27 @@ export default function AssignmentsPanel({ enrolled, legend, userId }) {
     const u = getUrgencyState(task.dueDate);
     return filter === "soon" ? (u === "danger" || u === "warning") : u === "overdue";
   };
+
+  const isVisible = (task) => tab === "open" ? (!task.completed && matchesFilter(task)) : task.completed;
+
+  const totalVisible = useMemo(() => {
+    let n = 0;
+    courses.forEach(c => c.tasks.forEach(t => { if (isVisible(t)) n++; }));
+    return n;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [courses, tab, filter]);
+
+  // Flatten every visible task into deadline buckets for the "By date" grouping.
+  const dateGroups = useMemo(() => {
+    const map = { overdue: [], today: [], week: [], later: [], nodate: [] };
+    courses.forEach(c => c.tasks.forEach(t => {
+      if (!isVisible(t)) return;
+      map[bucketOf(t)].push({ task: t, course: c });
+    }));
+    Object.values(map).forEach(arr => arr.sort((a, b) => sortTasks(a.task, b.task, sortBy)));
+    return map;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [courses, tab, filter, sortBy]);
 
   const handleUpdateTask = (code, taskId, field, value) => {
     const next = { ...assignments };
@@ -266,13 +385,14 @@ export default function AssignmentsPanel({ enrolled, legend, userId }) {
   };
 
   const allClear = stats.pending === 0;
-  const showSpotlight = tab === "open" && filter === "all" && upNext.length > 0;
+  const showSpotlight = groupBy === "course" && tab === "open" && filter === "all" && upNext.length > 0;
   const [hero, ...rest] = upNext;
 
   return (
     <div className="assign-page">
+      <div className="assign-aura" ref={auraRef} aria-hidden="true"><i /><i /></div>
 
-      <div className="assign-head-wrapper">
+      <div className="assign-head-wrapper" ref={headRef}>
         <div className="assign-head">
           <h1>Assignments</h1>
           <span className="assign-sub">
@@ -284,11 +404,12 @@ export default function AssignmentsPanel({ enrolled, legend, userId }) {
       </div>
 
       <div className="assign-stats-grid">
-        <StatTile val={stats.pending}   label="Open"     icon={BookOpen}     cls="stat-open"    active={tab==="open" && filter==="all"}     onClick={() => { setTab("open"); setFilter("all"); }} />
-        <StatTile val={stats.dueSoon}   label="Due soon"  icon={Clock}        cls="stat-soon"    active={filter==="soon"}    pulse onClick={() => { setTab("open"); setFilter(f => f==="soon" ? "all" : "soon"); }} />
-        <StatTile val={stats.overdue}   label="Overdue"   icon={AlertCircle}  cls="stat-overdue" active={filter==="overdue"} pulse onClick={() => { setTab("open"); setFilter(f => f==="overdue" ? "all" : "overdue"); }} />
-        <StatTile val={stats.submitted} label="Done"      icon={CheckCircle2} cls="stat-done"    active={tab==="done"}              onClick={() => { setTab("done"); setFilter("all"); }} />
+        <StatTile val={stats.pending}   label="Open"     icon={BookOpen}     cls="stat-open"    index={0} active={tab==="open" && filter==="all"}  hint="Show all open work"      onClick={() => { setTab("open"); setFilter("all"); }} />
+        <StatTile val={stats.dueSoon}   label="Due soon"  icon={Clock}        cls="stat-soon"    index={1} active={filter==="soon"}    pulse hint="Filter: due within a week" onClick={() => { setTab("open"); setFilter(f => f==="soon" ? "all" : "soon"); }} />
+        <StatTile val={stats.overdue}   label="Overdue"   icon={AlertCircle}  cls="stat-overdue" index={2} active={filter==="overdue"} pulse hint="Filter: past due"         onClick={() => { setTab("open"); setFilter(f => f==="overdue" ? "all" : "overdue"); }} />
+        <StatTile val={stats.submitted} label="Done"      icon={CheckCircle2} cls="stat-done"    index={3} active={tab==="done"}             hint="Show completed work"      onClick={() => { setTab("done"); setFilter("all"); }} />
       </div>
+      <div className="assign-stats-hint">Tap a stat to filter your list</div>
 
       <div className="assign-controls">
         <div className="assign-seg" role="tablist">
@@ -304,6 +425,34 @@ export default function AssignmentsPanel({ enrolled, legend, userId }) {
             {filter === "soon" ? "Due soon" : "Overdue"} <X size={13} strokeWidth={3}/>
           </button>
         )}
+        <div className="assign-controls-right">
+          <div className="assign-group-toggle" role="group" aria-label="Group assignments">
+            <button
+              className={groupBy==="course" ? "active" : ""}
+              aria-pressed={groupBy==="course"}
+              title="Group by course"
+              onClick={() => setGroupBy("course")}
+            >
+              <List size={14} /> <span className="assign-toggle-label">Course</span>
+            </button>
+            <button
+              className={groupBy==="date" ? "active" : ""}
+              aria-pressed={groupBy==="date"}
+              title="Group by due date"
+              onClick={() => setGroupBy("date")}
+            >
+              <CalendarRange size={14} /> <span className="assign-toggle-label">Date</span>
+            </button>
+          </div>
+          <label className="assign-sort" title="Sort assignments">
+            <ArrowDownUp size={14} />
+            <select value={sortBy} onChange={e => setSortBy(e.target.value)} aria-label="Sort assignments">
+              <option value="due">Due date</option>
+              <option value="added">Recently added</option>
+              <option value="title">Title</option>
+            </select>
+          </label>
+        </div>
       </div>
 
       {showSpotlight && hero && (
@@ -361,53 +510,91 @@ export default function AssignmentsPanel({ enrolled, legend, userId }) {
       )}
 
       {!(tab === "open" && allClear) && !(tab === "done" && stats.submitted === 0) && (
-        <section className="assign-grid">
-          {courses.map((course, i) => {
-            const visibleTasks = tab === "open"
-              ? course.tasks.filter(t => !t.completed && matchesFilter(t))
-              : course.tasks.filter(t => t.completed);
-            if (visibleTasks.length === 0) return null;
-            const progress = course.tasks.length > 0 ? (course.doneCount / course.tasks.length) * 100 : 0;
-            const isOpen = !collapsedCards[course.code];
-            return (
-              <div
-                key={course.code}
-                className="assign-card"
-                style={{ "--course-color": course.color, animationDelay: `${i * 60}ms` }}
-              >
-                <div
-                  className="assign-card-header"
-                  onClick={() => setCollapsedCards(p => ({ ...p, [course.code]: !p[course.code] }))}
-                >
-                  <span className="assign-course-chip">{course.code}</span>
-                  <span className="assign-course-name">{course.name}</span>
-                  <div className="assign-card-meta">
-                    <button className="assign-add-mini" onClick={(e) => { e.stopPropagation(); openModal(course.code); }}>
-                      <Plus size={13} strokeWidth={3}/><span className="assign-add-label">Add</span>
-                    </button>
-                    <span className="assign-badge">{tab==="open" ? `${course.pendingCount} open` : `${course.doneCount} done`}</span>
-                    <ProgressRing pct={progress} color={course.color} />
-                    <ChevronDown size={16} className={`assign-chevron ${isOpen ? "open" : ""}`} />
+        totalVisible === 0 ? (
+          <div className="assign-empty-mini">
+            No assignments match this filter.
+            {tab === "open" && filter !== "all" && (
+              <button className="assign-empty-mini-action" onClick={() => setFilter("all")}>Clear filter</button>
+            )}
+          </div>
+        ) : groupBy === "date" ? (
+          <section className="assign-date-groups">
+            {DATE_BUCKETS.map(bucket => {
+              const items = dateGroups[bucket.key];
+              if (!items.length) return null;
+              return (
+                <div key={bucket.key} className={`assign-date-group dg-${bucket.key}`}>
+                  <div className="assign-date-group-head">
+                    <span className="assign-date-group-label">{bucket.label}</span>
+                    <span className="assign-date-group-count">{items.length}</span>
                   </div>
-                </div>
-
-                {isOpen && (
                   <div className="assign-tasks">
-                    {visibleTasks.map(task => (
+                    {items.map(({ task, course }) => (
                       <SwipeableTaskRow
                         key={task.id}
                         task={task}
+                        courseCode={course.code}
+                        courseColor={course.color}
                         onToggle={() => handleUpdateTask(course.code, task.id, "completed", !task.completed)}
                         onDelete={() => deleteWithUndo(course.code, task)}
                         onOpen={() => openModal(course.code, task)}
                       />
                     ))}
                   </div>
-                )}
-              </div>
-            );
-          })}
-        </section>
+                </div>
+              );
+            })}
+          </section>
+        ) : (
+          <section className="assign-grid">
+            {courses.map((course, i) => {
+              const visibleTasks = (tab === "open"
+                ? course.tasks.filter(t => !t.completed && matchesFilter(t))
+                : course.tasks.filter(t => t.completed)
+              ).slice().sort((a, b) => sortTasks(a, b, sortBy));
+              if (visibleTasks.length === 0) return null;
+              const progress = course.tasks.length > 0 ? (course.doneCount / course.tasks.length) * 100 : 0;
+              const isOpen = !collapsedCards[course.code];
+              return (
+                <div
+                  key={course.code}
+                  className="assign-card"
+                  style={{ "--course-color": course.color, animationDelay: `${i * 60}ms` }}
+                >
+                  <div
+                    className="assign-card-header"
+                    onClick={() => setCollapsedCards(p => ({ ...p, [course.code]: !p[course.code] }))}
+                  >
+                    <span className="assign-course-chip">{course.code}</span>
+                    <span className="assign-course-name">{course.name}</span>
+                    <div className="assign-card-meta">
+                      <button className="assign-add-mini" onClick={(e) => { e.stopPropagation(); openModal(course.code); }}>
+                        <Plus size={13} strokeWidth={3}/><span className="assign-add-label">Add</span>
+                      </button>
+                      <span className="assign-badge">{tab==="open" ? `${course.pendingCount} open` : `${course.doneCount} done`}</span>
+                      <ProgressRing pct={progress} color={course.color} />
+                      <ChevronDown size={16} className={`assign-chevron ${isOpen ? "open" : ""}`} />
+                    </div>
+                  </div>
+
+                  {isOpen && (
+                    <div className="assign-tasks">
+                      {visibleTasks.map(task => (
+                        <SwipeableTaskRow
+                          key={task.id}
+                          task={task}
+                          onToggle={() => handleUpdateTask(course.code, task.id, "completed", !task.completed)}
+                          onDelete={() => deleteWithUndo(course.code, task)}
+                          onOpen={() => openModal(course.code, task)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </section>
+        )
       )}
 
       {undoState && (

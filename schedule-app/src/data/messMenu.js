@@ -1,7 +1,9 @@
-// Mess menu — transcribed from "public/NEW MENU JUNE' 26 - JULY' 26.xlsx"
-// (MESS MENU IIM SAMBALPUR, 22 JUNE – 22 JULY 2026). When the institute
-// publishes a new sheet, update the items here and redeploy.
-// Day keys follow Date#getDay(): 0 = Sunday … 6 = Saturday.
+// Mess menu — transcribed 2026-09-02 from the institute's live mess sheet
+// (Google Sheet id 1ymPxm136OrP1B-OAgVKghXawblk19FxQR_37_5Fu2ms), the same
+// sheet the live feed (lib/messFeed.js) reads. This is the OFFLINE FALLBACK:
+// online, the app overlays the live feed on top of this. Keep it in sync when
+// the institute publishes a new cycle so first-paint / offline shows the
+// right menu. Day keys follow Date#getDay(): 0 = Sunday … 6 = Saturday.
 
 export const MEAL_TIMES = [
   { id: "breakfast", label: "Breakfast", start: "08:30", end: "10:30" },
@@ -13,10 +15,13 @@ export const MEAL_TIMES = [
 // Week-rotation anchor: a Monday that falls in a Week 1&3 week of the CURRENT
 // menu cycle. Used to resolve Week 1&3 vs Week 2&4 snacks by parity. Re-anchor
 // this whenever the institute publishes a new cycle (only the parity matters,
-// not the exact date). 2026-08-04: verified against the live sheet — Mon
-// 2026-07-27 is a Week 1&3 week, which puts Mon 2026-08-03 on Week 2&4
-// (Papdi Chat), matching what the mess actually served.
-const MENU_START = new Date(2026, 6, 27);
+// not the exact date). 2026-09-02: carried forward the parity phase from the
+// previously-verified July anchor (Mon 2026-07-27 = W1&3). Mon 2026-09-07 is
+// an even number of weeks (6) from it, so it is also a Week 1&3 Monday. If the
+// mess actually serves the W2&4 item on a day the app labels W1&3 (e.g. Mon
+// shows Hakka Noodles instead of Papdi Chaat), the new cycle reset the phase —
+// shift this anchor by one week (to 2026-09-14) to flip the parity.
+const MENU_START = new Date(2026, 8, 7);
 
 // Served every day alongside the day's breakfast mains
 export const DAILY_BREAKFAST = [
@@ -26,52 +31,52 @@ export const DAILY_BREAKFAST = [
 export const BASE_MENU = {
   0: { // Sunday
     breakfast: ["Dosa", "Sambhar", "Coconut Chutney"],
-    lunch: ["Plain Rice", "Aloo Capsicum", "Dal Makhani", "Dahi Tidkari", "Plain Curd", "Green Salad"],
-    snacksW13: ["Pani Puri", "Coffee"],
-    snacksW24: [], // sheet leaves Week 2&4 Sunday blank → falls back to Week 1&3
-    dinner: ["Plain Rice", "Paneer Butter Masala", "Chicken Kolhapuri", "Black Masoor Daal", "Roti", "Onion Laccha Salad", "Ice Cream"],
+    lunch: ["Plain Rice", "Aloo Chokha", "Baigan Bhaja", "Arhar Dal", "Boondi Raita", "Green Salad"],
+    snacksW13: ["Pani Puri", "Tea"],
+    snacksW24: ["Khaman Dhokla", "Tea"],
+    dinner: ["Plain Rice", "Paneer Butter Masala", "Butter Chicken", "Chana Dal", "Roti", "Onion Laccha Salad", "Ice Cream"],
   },
   1: { // Monday
-    breakfast: ["Uttapam", "Coconut Chutney", "Red Chutney"],
-    lunch: ["Onion Rice", "Rajma Masala", "Daal Bukhara", "Kaddu Chatpata", "Boondi Raita", "Green Salad"],
-    snacksW13: ["Kachori + Tamarind & Green Chutney", "Tea"],
-    snacksW24: ["Papdi Chaat with Dahi & Chutney", "Tea"],
-    dinner: ["Plain Rice", "Mix Veg", "Red Masoor Daal", "Black Chana Masala Dry", "Roti", "Green Salad"],
+    breakfast: ["Uttapam", "Red Chutney", "Coconut Chutney"],
+    lunch: ["Plain Rice", "Lobhiya Masala", "Navratan Korma", "Dal Makhni", "Buttermilk", "Green Salad"],
+    snacksW13: ["Papdi Chaat + Green Chutney + Dahi", "Tea"],
+    snacksW24: ["Hakka Noodles", "Tea"],
+    dinner: ["Plain Rice", "Black Chana Masala Dry", "Aloo Tomato Sabzi", "Navratan Dal", "Poori", "Green Salad", "Kheer"],
   },
   2: { // Tuesday
-    breakfast: ["Paneer Paratha", "Curd"],
-    lunch: ["Jeera Rice", "Aloo Bhujia", "Daal Tadka", "Soya Curry", "Buttermilk", "Green Salad"],
-    snacksW13: ["Corn Sandwich", "Coffee"],
-    snacksW24: ["Veg Chowmein", "Coffee"],
-    dinner: ["Plain Rice", "Chole Curry", "Navratan Dal", "Cabbage Matar", "Roti", "Green Salad", "Kheer"],
+    breakfast: ["Paneer Paratha", "Curd", "Green Chutney"],
+    lunch: ["Jeera Rice", "Rajma Masala", "Beans Peas Masala", "Drumstick Sambhar + Masoor Dal", "Plain Curd", "Green Salad"],
+    snacksW13: ["White Sauce Pasta", "Coffee"],
+    snacksW24: ["Aloo Sandwich", "Coffee"],
+    dinner: ["Plain Rice", "Lauki Chana Masala", "Chole Curry", "Dal Tadka", "Roti", "Green Salad", "Tomato Onion Chutney"],
   },
   3: { // Wednesday
-    breakfast: ["Tarri Poha", "Matar Sabji + Sev", "Omelette"],
-    lunch: ["Plain Rice", "Kadhi Pakore", "Red Masoor Daal", "Jeera Aloo with Amchur", "Boondi Raita", "Green Salad"],
-    snacksW13: ["Chole Kulche + Onion & Lemon", "Coffee"],
-    snacksW24: ["Fried Idli", "Coffee"],
-    dinner: ["Veg Biryani", "Chicken Biryani", "Matar Paneer", "Roti", "Vinegar Onion & Raita", "Gulab Jamun"],
+    breakfast: ["Idli + Vada + Omelette", "Sambhar", "Coconut Chutney"],
+    lunch: ["Lemon Rice", "Kashmiri Aloo Dum", "Raw Banana Curry", "Arhar Dal", "Cucumber Raita", "Green Salad"],
+    snacksW13: ["Bhel Puri", "Tea"],
+    snacksW24: ["Samosa Chaat", "Tea"],
+    dinner: ["Veg Biryani", "Paneer Tikka Masala", "Chicken Biryani", "Dal Tadka", "Roti", "Vinegar Onion & Raita", "Gulab Jamun"],
   },
   4: { // Thursday
-    breakfast: ["Poori", "Aloo Tomato Sabzi"],
-    lunch: ["Onion Rice", "Mix Veg Masala", "Chana Dal Fry", "Sambhar", "Plain Curd", "Green Salad"],
-    snacksW13: ["Samosa + Tamarind Chutney", "Tea"],
-    snacksW24: ["Vermicelli Upma", "Tea"],
-    dinner: ["Jeera Rice", "Mushroom Do Pyaza", "Dal Makhani", "Veg Manchurian", "Roti", "Onion Salad", "Sweet Corn Soup"],
+    breakfast: ["Aloo Paratha", "Curd", "Green Chutney"],
+    lunch: ["Plain Rice", "Kadhi Pakore", "Aloo Bhujiya", "Dal Lehsuni", "Boondi Raita", "Green Salad"],
+    snacksW13: ["Vada Pav", "Tea"],
+    snacksW24: ["Vegetable Macaroni", "Tea"],
+    dinner: ["Veg Pulao", "Dahi Bhindi", "Soyabean Curry", "Arhar Dal", "Roti", "Green Salad", "Thecha"],
   },
   5: { // Friday
-    breakfast: ["Idly + Vada", "Sambhar", "Coconut Chutney"],
-    lunch: ["Plain Rice", "Kurkuri Bhindi", "Dal Lehsuni", "Aloo Soyabean", "Masala Buttermilk", "Green Salad"],
-    snacksW13: ["Pav Bhaji", "Coffee"],
-    snacksW24: ["Vada Pav", "Coffee"],
-    dinner: ["Plain Rice", "Kadhai Paneer (Red Gravy)", "Butter Chicken", "Green Moong Daal", "Roti", "Green Salad", "Fruit Custard"],
+    breakfast: ["Tarri Poha + Omelette", "Matar Sabji", "Sev"],
+    lunch: ["Onion Rice", "Aloo Soyabean Curry", "Crispy Vegetable Latpata", "Lauki Dal", "Boondi Raita", "Green Salad"],
+    snacksW13: ["Dahi Bhalla + Imli + Green Chutney", "Coffee"],
+    snacksW24: ["Pav Bhaji", "Coffee"],
+    dinner: ["Plain Rice", "Kadhai Paneer (Red Gravy)", "Kadhai Chicken", "Rasam", "Roti", "Green Salad", "Besan Laddu"],
   },
   6: { // Saturday
-    breakfast: ["Aloo Paratha", "Green Chutney"],
-    lunch: ["Chole Bhature", "Jeera Rice", "Black Masoor Daal", "Lassi", "Green Salad"],
-    snacksW13: ["Red Sauce Pasta", "Tea"],
-    snacksW24: ["Vegetable Macaroni", "Tea"],
-    dinner: ["Veg Fried Rice", "Chilly Potato", "Mix Daal", "Mix Veg Kofta", "Roti", "Green Salad", "Hot n Sour Soup"],
+    breakfast: ["Moong Dal Chila", "Red Chutney"],
+    lunch: ["Plain Rice", "Chole Bhature", "Dal Tadka", "Plain Curd", "Green Salad"],
+    snacksW13: ["Fried Idli", "Tea"],
+    snacksW24: ["Moong Bhajiya", "Tea"],
+    dinner: ["Onion Rice", "Aloo Bhujiya", "Mushroom Masala", "Dal Makhni", "Roti", "Green Salad", "Manchow Soup"],
   },
 };
 

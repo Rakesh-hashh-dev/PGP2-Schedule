@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from "react";
 import "../styles/cmdk.css";
 import { Search, Clock, Calendar, ClipboardList, GraduationCap, Users, Megaphone, MapPin, X, Package, Zap, CalendarRange, CalendarOff } from "lucide-react";
 import { IS_LITE } from "../lib/edition.js";
+import { CalendarEventBadgeSVG } from "./CalendarSVGs.jsx";
 
-export default function CommandPalette({ isOpen, onClose, onViewChange, allClasses = [], friends = [] }) {
+export default function CommandPalette({ isOpen, onClose, onViewChange, allClasses = [], friends = [], onOpenCalendarExport }) {
   const [query, setQuery] = useState("");
   const inputRef = useRef(null);
 
@@ -55,6 +56,16 @@ export default function CommandPalette({ isOpen, onClose, onViewChange, allClass
 
   if (!isOpen) return null;
 
+  // Actions
+  const actionItems = [
+    {
+      id: "cal-export",
+      label: "Add subjects to Calendar (iOS / Android)",
+      icon: <CalendarEventBadgeSVG size={18} />,
+      perform: () => { onOpenCalendarExport?.(); onClose(); }
+    }
+  ].filter(i => i.label.toLowerCase().includes(q) || "calendar ical export sync google apple phone".includes(q));
+
   // Navigation Links. Lite exposes only its supported views (Social → Compare).
   const navItems = (IS_LITE
     ? [
@@ -79,7 +90,7 @@ export default function CommandPalette({ isOpen, onClose, onViewChange, allClass
       ]
   ).filter(i => i.label.toLowerCase().includes(q));
 
-  const hasResults = navItems.length > 0 || classMatches.length > 0 || friendMatches.length > 0;
+  const hasResults = navItems.length > 0 || actionItems.length > 0 || classMatches.length > 0 || friendMatches.length > 0;
 
   return (
     <div className="cmd-backdrop" onClick={onClose}>
@@ -98,6 +109,17 @@ export default function CommandPalette({ isOpen, onClose, onViewChange, allClass
         
         <div className="cmd-body">
           {!hasResults && <div className="cmd-empty">No results found for "{query}"</div>}
+
+          {actionItems.length > 0 && (
+            <div className="cmd-section">
+              <div className="cmd-section-title">Quick Actions</div>
+              {actionItems.map(item => (
+                <button key={item.id} className="cmd-item" onClick={item.perform}>
+                  {item.icon} <span>{item.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
 
           {navItems.length > 0 && (
             <div className="cmd-section">

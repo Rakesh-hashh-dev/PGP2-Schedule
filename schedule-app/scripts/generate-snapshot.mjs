@@ -23,7 +23,7 @@ const MIN_CLASSES = 100;
 
 // The feed doesn't carry the term number; normally inherited from the previous
 // snapshot, this is the fallback if that ever fails. Update once per term.
-const TERM_NUMBER_FALLBACK = "IV";
+const TERM_NUMBER_FALLBACK = "V";
 
 function writeMeta(meta) {
   fs.writeFileSync(META_PATH, JSON.stringify(meta, null, 2) + "\n");

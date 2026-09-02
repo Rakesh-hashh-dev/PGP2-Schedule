@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Megaphone, PlusCircle, MinusCircle, ArrowRightLeft, BookOpen, Info, ChevronDown, ChevronUp, ChevronRight, CheckCheck, AlertTriangle, Check, EyeOff, Volume2, VolumeX, CheckCircle2, Search, X } from "lucide-react";
+import { Megaphone, PlusCircle, MinusCircle, ArrowRightLeft, BookOpen, Info, ChevronDown, ChevronUp, ChevronRight, CheckCheck, AlertTriangle, Check, EyeOff, Volume2, VolumeX, CheckCircle2, Search, X, CalendarPlus } from "lucide-react";
 import { useNotificationState } from "../hooks/useNotificationState.js";
 import { useNotificationFeed, FEED_PAGE_SIZE } from "../hooks/useNotificationFeed.js";
 import { SwipeRow } from "./notifications/SwipeRow.jsx";
@@ -36,7 +36,7 @@ function relTime(iso) {
   return Math.floor(hrs / 24) + "d ago";
 }
 
-export default function NotificationsPage({ allChanges, myChanges, isAdmin, userId, userName, legend, readChangeKeys, changeKeyOf, onMarkReadMany, onMarkAllRead, onOpenDate, openPrefsSignal }) {
+export default function NotificationsPage({ allChanges, myChanges, isAdmin, userId, userName, legend, readChangeKeys, changeKeyOf, onMarkReadMany, onMarkAllRead, onOpenDate, openPrefsSignal, onOpenCalendarExport }) {
   const [pushStatus, setPushStatus] = useState("busy");
   const [showAll, setShowAll] = useState(false);
   const [kindFilter, setKindFilter] = useState("all");
@@ -253,7 +253,14 @@ export default function NotificationsPage({ allChanges, myChanges, isAdmin, user
             <Megaphone size={18} strokeWidth={2} />
             <h2>Announcements</h2>
           </div>
-          <div style={{ marginLeft: "auto" }}><PushToggle userId={userId} onStatusChange={setPushStatus} /></div>
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+            {onOpenCalendarExport && (
+              <button className="notif-markall mobile-only" onClick={onOpenCalendarExport} aria-label="Add to Calendar" title="Add to Calendar">
+                <CalendarPlus size={13} /> <span className="notif-btn-label">Add to Calendar</span>
+              </button>
+            )}
+            <PushToggle userId={userId} onStatusChange={setPushStatus} />
+          </div>
         </div>
         {pushStatus === "on" && <NotificationPrefsPanel userId={userId} openSignal={openPrefsSignal} />}
         <CohortPolls userId={userId} userName={userName} isAdmin={isAdmin} />
@@ -286,6 +293,11 @@ export default function NotificationsPage({ allChanges, myChanges, isAdmin, user
         {unreadCount > 0 && (
           <button className="notif-markall" onClick={() => trackSync(onMarkAllRead?.())} aria-label="Mark all read" title="Mark all announcements as read">
             <CheckCheck size={13} /> <span className="notif-btn-label">Mark all read</span>
+          </button>
+        )}
+        {onOpenCalendarExport && (
+          <button className="notif-markall mobile-only" onClick={onOpenCalendarExport} aria-label="Add to Calendar" title="Add to Calendar">
+            <CalendarPlus size={13} /> <span className="notif-btn-label">Add to Calendar</span>
           </button>
         )}
         <PushToggle userId={userId} onStatusChange={setPushStatus} />

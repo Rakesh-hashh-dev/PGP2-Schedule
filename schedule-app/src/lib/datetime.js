@@ -41,3 +41,60 @@ export function getSpecialDay(d) {
   if (month === 0 && date === 26) return { key: "republic", label: "Republic Day", short: "26 Jan" };
   return null;
 }
+
+// Time-bucketed greeting templates ("{name}" is substituted with the first name).
+// Add/remove lines freely — one is picked at random per page load within the
+// matching bucket. Keep each bucket non-empty.
+export const GREETINGS = {
+  lateNight: [ // 12am–4am
+    "Up late, {name}?",
+    "Burning the midnight oil, {name}?",
+    "Still awake before tomorrow's classes, {name}?",
+    "Mess is closed, {name} - hope you ate.",
+  ],
+  earlyMorning: [ // 4am–6am
+    "Early start, {name}?",
+    "Up before the mess even opens, {name}?",
+    "Beating the wake-up bell, {name}?",
+  ],
+  morning: [ // 6am–12pm
+    "Good morning, {name}",
+    "Breakfast before class, {name}?",
+    "Ready for today's classes, {name}?",
+    "Morning, {name} - first class awaits.",
+  ],
+  afternoon: [ // 12pm–5pm
+    "Good afternoon, {name}",
+    "Lunch break, {name}?",
+    "Halfway through the day, {name}.",
+    "Back from mess, {name}?",
+  ],
+  evening: [ // 5pm–9pm
+    "Good evening, {name}",
+    "Dinner o'clock soon, {name}?",
+    "Wrapping up classes, {name}?",
+    "Evening, {name} - assignments calling?",
+  ],
+  night: [ // 9pm–12am
+    "Winding down, {name}?",
+    "Prepping for tomorrow's classes, {name}?",
+    "Late-night library run, {name}?",
+    "Mess is shut, {name} - snack time?",
+  ],
+};
+
+function bucketFor(h) {
+  if (h < 4) return "lateNight";
+  if (h < 6) return "earlyMorning";
+  if (h < 12) return "morning";
+  if (h < 17) return "afternoon";
+  if (h < 21) return "evening";
+  return "night";
+}
+
+/** A Date + first name → a random time-aware greeting from GREETINGS, e.g. "Up late, Rakesh?". */
+export function getTimeGreeting(d, name) {
+  const options = GREETINGS[bucketFor(d.getHours())];
+  const pick = options[Math.floor(Math.random() * options.length)];
+  return pick.replace("{name}", name);
+}

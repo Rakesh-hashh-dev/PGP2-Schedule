@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import "../styles/admin.css";
 import "../styles/assignments.css";
 import "../styles/cmdk.css";
-import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil, BarChart2, GraduationCap, MessageSquare, CloudOff, Shield, Smartphone, Copy } from "lucide-react";
+import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil, BarChart2, GraduationCap, MessageSquare, CloudOff, Shield, Smartphone, Copy, Activity, ChevronRight, Clock3, Download, Filter } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { logAdminAction } from "../lib/adminAudit.js";
 import { LEGEND } from "../data/schedule.js";
@@ -16,6 +16,7 @@ import { WhatsNewPill, WhatsNewModal } from "./WhatsNew.jsx";
 // Render-stable "now" captured at module load — used for relative-time math in
 // render (inactivity windows, cron staleness) without an impure Date.now() call.
 const LOAD_NOW = Date.now();
+const LOAD_TODAY_START = new Date(LOAD_NOW).setHours(0, 0, 0, 0);
 
 // Event-time clock. Module-level indirection so the react-hooks/purity linter
 // (which flags a literal Date.now() reachable from render) stays happy — only
@@ -77,19 +78,48 @@ function Avatar({ name, email }) {
   return <div className="admin-avatar">{init.toUpperCase()}</div>;
 }
 
+function userSection(user) {
+  const keys = Object.keys(user?.courses || {});
+  if (keys.some(code => code.endsWith("_A"))) return "A";
+  if (keys.some(code => code.endsWith("_B"))) return "B";
+  return "—";
+}
+
+function userCourseCount(user) {
+  return Object.keys(user?.courses || {}).filter(code => !code.startsWith("_")).length;
+}
+
+function relativeUserActivity(value) {
+  if (!value) return "Never active";
+  const elapsed = Math.max(0, LOAD_NOW - new Date(value).getTime());
+  const minutes = Math.floor(elapsed / 60000);
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  return new Date(value).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+}
+
 // Shared centered-overlay modal shell — backdrop click / X both close, body
 // scrolls with a hidden scrollbar track. Width is per-modal (list modals want
 // more room than a short confirm), everything else (positioning, max-height,
 // close affordance) stays identical so a future fix only has to land once.
-function AdminModal({ title, onClose, width = 640, children }) {
+function AdminModal({ title, onClose, width = 640, subtitle, children }) {
   return (
-    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={onClose}>
-      <div className="admin-scroll-hide" style={{ background: "var(--bg)", width: "90%", maxWidth: width, borderRadius: 16, padding: 24, maxHeight: "80vh", overflowY: "auto", border: "1px solid var(--border)" }} onClick={e => e.stopPropagation()}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <h3 style={{ margin: 0 }}>{title}</h3>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer" }}><X size={20} /></button>
+    <div className="admin-modal-overlay" onClick={onClose}>
+      <div className="admin-modal-card admin-scroll-hide" style={{ maxWidth: width }} onClick={e => e.stopPropagation()}>
+        <div className="admin-modal-header">
+          <div>
+            <h3 className="admin-modal-title">{title}</h3>
+            {subtitle && <p className="admin-modal-subtitle">{subtitle}</p>}
+          </div>
+          <button onClick={onClose} className="admin-modal-close-btn" aria-label="Close modal"><X size={18} /></button>
         </div>
-        {children}
+        <div className="admin-modal-body">
+          {children}
+        </div>
       </div>
     </div>
   );
@@ -273,7 +303,11 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [selectedUser, setSelectedUser] = useState(null);
 
   const [activeUsersListModalOpen, setActiveUsersListModalOpen] = useState(false);
-  const [activeUsersSort, setActiveUsersSort] = useState("recent"); // "recent" | "name"
+  const [activeUsersSort, setActiveUsersSort] = useState("recent"); // "recent" | "oldest" | "name"
+  const [activeUsersSearch, setActiveUsersSearch] = useState("");
+  const [activeUsersSection, setActiveUsersSection] = useState("all"); // "all" | "A" | "B"
+  const [activeUsersPushOnly, setActiveUsersPushOnly] = useState(false);
+  const [activeCopiedToast, setActiveCopiedToast] = useState("");
   const [pushSubscribersModalOpen, setPushSubscribersModalOpen] = useState(false);
   const [pushSubscribersList, setPushSubscribersList] = useState([]);
 
@@ -283,6 +317,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [friendPingsCount, setFriendPingsCount] = useState("...");
   const [shareCodes, setShareCodes] = useState([]);
   const [userSectionFilter, setUserSectionFilter] = useState("All");
+  const [userStatusFilter, setUserStatusFilter] = useState("all");
+  const [userSort, setUserSort] = useState("recent");
 
   // Scheduled Announcements State
   const [announcementStart, setAnnouncementStart] = useState("");
@@ -597,7 +633,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               email: d.email,
               name: d.courses?._name || "Student",
               courses: d.courses,
-              last_seen_at: d.last_seen_at
+              last_seen_at: d.last_seen_at,
+              updated_at: d.updated_at,
             };
           });
           setAllUsers(usersWithNames);
@@ -1547,14 +1584,42 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     setRebuilding(false);
   }
 
+  const pushSubscriberIds = new Set(pushSubscribersList || []);
+  const userOpsStats = {
+    total: allUsers.length,
+    activeWeek: allUsers.filter(u => u.last_seen_at && LOAD_NOW - new Date(u.last_seen_at).getTime() <= 7 * 86400000).length,
+    needsSetup: allUsers.filter(u => userCourseCount(u) === 0).length,
+    atRisk: allUsers.filter(u => !u.last_seen_at || LOAD_NOW - new Date(u.last_seen_at).getTime() > 7 * 86400000).length,
+    neverSeen: allUsers.filter(u => !u.last_seen_at).length,
+    banned: allUsers.filter(u => flags.bannedUsers?.includes(u.user_id)).length,
+  };
+
   const filteredUsers = allUsers.filter(u => {
-    const matchesSearch = u.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          u.user_id?.toLowerCase().includes(searchQuery.toLowerCase());
+    const needle = searchQuery.trim().toLowerCase();
+    const matchesSearch = !needle || u.name?.toLowerCase().includes(needle) ||
+                          u.email?.toLowerCase().includes(needle) ||
+                          u.user_id?.toLowerCase().includes(needle);
     let matchesSection = true;
     if (userSectionFilter !== "All") {
        matchesSection = Object.keys(u.courses || {}).some(c => c.endsWith(`_${userSectionFilter}`));
     }
-    return matchesSearch && matchesSection;
+    const seenAge = u.last_seen_at ? LOAD_NOW - new Date(u.last_seen_at).getTime() : Infinity;
+    const matchesStatus = userStatusFilter === "all"
+      || (userStatusFilter === "today" && u.last_seen_at && new Date(u.last_seen_at).getTime() >= LOAD_TODAY_START)
+      || (userStatusFilter === "active7" && seenAge <= 7 * 86400000)
+      || (userStatusFilter === "attention" && seenAge > 7 * 86400000)
+      || (userStatusFilter === "inactive7" && u.last_seen_at && seenAge > 7 * 86400000)
+      || (userStatusFilter === "never" && !u.last_seen_at)
+      || (userStatusFilter === "setup" && userCourseCount(u) === 0)
+      || (userStatusFilter === "push" && pushSubscriberIds.has(u.user_id))
+      || (userStatusFilter === "banned" && flags.bannedUsers?.includes(u.user_id));
+    return matchesSearch && matchesSection && matchesStatus;
+  }).sort((a, b) => {
+    if (userSort === "name") return (a.name || "").localeCompare(b.name || "");
+    if (userSort === "courses") return userCourseCount(b) - userCourseCount(a) || (a.name || "").localeCompare(b.name || "");
+    const aSeen = a.last_seen_at ? new Date(a.last_seen_at).getTime() : 0;
+    const bSeen = b.last_seen_at ? new Date(b.last_seen_at).getTime() : 0;
+    return userSort === "oldest" ? aSeen - bSeen : bSeen - aSeen;
   });
 
   const cancelClass = (date, code, section) => {
@@ -1724,58 +1789,151 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
         </div>
       )}
 
-      {/* ── Hero Section ── */}
-      <section className="hero" style={{ marginBottom: 32, padding: "40px 20px", textAlign: "center", borderRadius: 24, position: "relative", overflow: "hidden" }}>
-        <div style={{ display: "inline-flex", background: "rgba(109, 91, 208, 0.1)", color: "var(--live)", padding: "12px 24px", borderRadius: 30, alignItems: "center", gap: 12, marginBottom: 16, flexWrap: "wrap", justifyContent: "center" }}>
-          <ShieldAlert size={28} />
-          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, letterSpacing: "-0.5px" }}>Admin Control Center</h1>
-          <button onClick={fetchDashboardData} disabled={statsLoading} style={{ background: "transparent", border: "none", color: "var(--live)", cursor: "pointer", padding: 4, display: "flex", alignItems: "center", justifyContent: "center", opacity: statsLoading ? 0.5 : 1 }} title="Refresh Data">
-            <RefreshCw size={20} className={statsLoading ? "spin-icon" : ""} />
-          </button>
-          <button onClick={() => setIsCommandPaletteOpen(true)} style={{ background: "transparent", border: "none", color: "var(--live)", cursor: "pointer", padding: 4, display: "flex", alignItems: "center", justifyContent: "center" }} title="Open Command Palette (Cmd+Shift+K)">
-            <Search size={20} />
-          </button>
-          <button onClick={() => setIsModernUi(!isModernUi)} style={{ background: "transparent", border: "none", color: "var(--live)", cursor: "pointer", padding: 4, display: "flex", alignItems: "center", justifyContent: "center" }} title={isModernUi ? "Switch to Legacy Mobile UI" : "Switch to Modern Mobile UI"}>
-            <Smartphone size={20} opacity={isModernUi ? 1 : 0.4} />
-          </button>
-        </div>
-        <p style={{ color: "var(--muted)", margin: "0 0 16px 0", fontSize: 16 }}>Global settings, feature flags, and user management.</p>
+      {/* ── Revamped Hero Command Center Banner ── */}
+      <section className="admin-hero-banner">
+        {/* Ambient background glow elements */}
+        <div className="admin-hero-glow-violet" />
+        <div className="admin-hero-glow-emerald" />
 
-        {presentAdmins.length > 0 && (
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 24, padding: "6px 14px", background: "var(--card)", border: "1px solid var(--border)", borderRadius: 30, fontSize: 13 }} title={presentAdmins.map(a => a.name).join(", ")}>
-            <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--live)", boxShadow: "0 0 0 3px rgba(31,169,113,0.2)" }} />
-            <span style={{ color: "var(--muted)" }}>
-              {presentAdmins.length === 1 ? "You're the only admin here" : `${presentAdmins.length} admins here: ${presentAdmins.map(a => a.name).join(", ")}`}
-            </span>
-          </div>
-        )}
-
-        <div className="admin-stats-grid">
-          <div style={{ background: "var(--card)", padding: "16px 32px", borderRadius: 16, border: "1px solid var(--border)", minWidth: 180 }} title="Total registered students (excluding dev/admin accounts)">
-            <div style={{ fontSize: 12, textTransform: "uppercase", fontWeight: 700, color: "var(--muted)", marginBottom: 8, letterSpacing: "1px" }}>Total Users</div>
-            <div style={{ fontSize: 36, fontWeight: 800, fontFamily: "var(--display)", color: "var(--text)" }}>{statsLoading ? "..." : totalUsers}</div>
-          </div>
-          <div style={{ background: "var(--card)", padding: "16px 32px", borderRadius: 16, border: "1px solid var(--border)", minWidth: 180, cursor: "pointer" }} title="Unique students active since midnight local time" onClick={() => setActiveUsersListModalOpen(true)}>
-            <div style={{ fontSize: 12, textTransform: "uppercase", fontWeight: 700, color: "var(--muted)", marginBottom: 8, letterSpacing: "1px" }}>Active Today</div>
-            <div style={{ fontSize: 36, fontWeight: 800, fontFamily: "var(--display)", color: "var(--text)", textDecoration: "underline", textDecorationColor: "var(--border)", textUnderlineOffset: 4 }}>{statsLoading ? "..." : activeUsers}</div>
-          </div>
-          <div style={{ background: "var(--card)", padding: "16px 32px", borderRadius: 16, border: "1px solid var(--border)", minWidth: 180 }} title="PostgreSQL database size (Free tier limit is 500MB)">
-            <div style={{ fontSize: 12, textTransform: "uppercase", fontWeight: 700, color: "var(--muted)", marginBottom: 8, letterSpacing: "1px", display: "flex", alignItems: "center", gap: 6 }}><Database size={14}/> DB Storage Used</div>
-            <div style={{ fontSize: 36, fontWeight: 800, fontFamily: "var(--display)", color: "var(--text)" }}>{statsLoading ? "..." : dbSize}</div>
-          </div>
-          <div style={{ background: "var(--card)", padding: "16px 32px", borderRadius: 16, border: "1px solid var(--border)", minWidth: 180, cursor: "pointer" }} title="Total devices enrolled for FCM web push notifications" onClick={() => setPushSubscribersModalOpen(true)}>
-            <div style={{ fontSize: 12, textTransform: "uppercase", fontWeight: 700, color: "var(--muted)", marginBottom: 8, letterSpacing: "1px", display: "flex", alignItems: "center", gap: 6 }}><BellRing size={14}/> Push Subscribers</div>
-            <div style={{ fontSize: 36, fontWeight: 800, fontFamily: "var(--display)", color: "var(--text)", textDecoration: "underline", textDecorationColor: "var(--border)", textUnderlineOffset: 4 }}>{statsLoading ? "..." : pushSubCount}</div>
-          </div>
-
-        </div>
-        <div style={{ marginTop: 24 }}>
-           <details style={{ cursor: "pointer", color: "var(--muted)", fontSize: 13 }}>
-              <summary>Keyboard Shortcuts</summary>
-              <div style={{ marginTop: 8, background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, padding: 12, display: "inline-block", textAlign: "left" }}>
-                 <div style={{ display: "flex", justifyContent: "space-between", gap: 32, marginBottom: 4 }}><span>Open Command Palette</span><kbd>Cmd/Ctrl + Shift + K</kbd></div>
+        {/* Top Header Row: Admin Profile on Left, Pill in Center, Presence/Unsaved on Right */}
+        <div className="admin-hero-top-row">
+          {/* Admin Profile Pill */}
+          {user && (
+            <div className="admin-hero-profile-pill">
+              <div className="admin-hero-profile-avatar-wrap">
+                {user?.imageUrl ? (
+                  <img src={user.imageUrl} alt={user?.fullName || "Admin"} className="admin-hero-profile-img" />
+                ) : (
+                  <div className="admin-hero-profile-fallback">
+                    {(`${user?.firstName?.[0] || ""}${user?.lastName?.[0] || ""}` || user?.fullName?.[0] || "A").toUpperCase()}
+                  </div>
+                )}
+                <span className="admin-hero-online-dot" />
               </div>
-           </details>
+              <span className="admin-hero-profile-name">{user?.fullName || user?.firstName || "Admin"}</span>
+            </div>
+          )}
+
+          {/* Center Pill: Admin Control Center + Quick Operations */}
+          <div className="admin-hero-control-pill">
+            <ShieldAlert size={20} className="admin-hero-shield-icon" />
+            <h1 className="admin-hero-control-title">Admin Control Center</h1>
+            <div className="admin-hero-pill-actions">
+              <button
+                onClick={fetchDashboardData}
+                disabled={statsLoading}
+                className="admin-hero-action-btn"
+                title="Refresh dashboard data"
+              >
+                <RefreshCw size={15} className={statsLoading ? "spin-icon" : ""} />
+              </button>
+              <button
+                onClick={() => setIsCommandPaletteOpen(true)}
+                className="admin-hero-action-btn"
+                title="Open Command Palette (⌘⇧K / Ctrl+Shift+K)"
+              >
+                <Search size={15} />
+              </button>
+              <button
+                onClick={() => setIsModernUi(!isModernUi)}
+                className="admin-hero-action-btn"
+                title={isModernUi ? "Switch to Legacy Mobile UI" : "Switch to Modern Mobile UI"}
+                style={{ opacity: isModernUi ? 1 : 0.45 }}
+              >
+                <Smartphone size={15} />
+              </button>
+            </div>
+          </div>
+
+          {/* Right Status Pill: Unsaved changes or presence */}
+          <div className="admin-hero-status-area">
+            {changesCount > 0 ? (
+              <div className="admin-hero-unsaved-pill">
+                <span className="admin-hero-unsaved-dot" />
+                <span>{changesCount} unsaved change{changesCount !== 1 ? "s" : ""}</span>
+              </div>
+            ) : presentAdmins.length > 0 ? (
+              <div className="admin-hero-presence-pill" title={presentAdmins.map(a => a.name).join(", ")}>
+                <span className="admin-hero-presence-dot" />
+                <span>{presentAdmins.length === 1 ? "You're the only admin here" : `${presentAdmins.length} admins online`}</span>
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        {/* Subtitle */}
+        <p className="admin-hero-tagline">Global settings, feature flags, and user management for TermFlow PGP2.</p>
+
+        {/* 4 KPI Stat Cards */}
+        <div className="admin-hero-stats-row">
+          {/* Total Users */}
+          <div className="admin-kpi-card accent-green" title="Total registered students (excluding dev/admin accounts)">
+            <div className="admin-kpi-header">
+              <span className="admin-kpi-label">TOTAL USERS</span>
+              <div className="admin-kpi-icon-wrap green"><Users size={14} /></div>
+            </div>
+            <div className="admin-kpi-value">{statsLoading ? "..." : totalUsers}</div>
+            <div className="admin-kpi-sub">Registered students</div>
+          </div>
+
+          {/* Active Today */}
+          <div
+            className="admin-kpi-card accent-violet clickable"
+            title="Unique students active since midnight (click to inspect)"
+            onClick={() => setActiveUsersListModalOpen(true)}
+          >
+            <div className="admin-kpi-header">
+              <span className="admin-kpi-label">ACTIVE TODAY</span>
+              <div className="admin-kpi-icon-wrap violet"><Activity size={14} /></div>
+            </div>
+            <div className="admin-kpi-value interactive">{statsLoading ? "..." : activeUsers}</div>
+            <div className="admin-kpi-sub">
+              <span>Since midnight</span>
+              <span className="admin-kpi-action-hint">↗ View</span>
+            </div>
+          </div>
+
+          {/* DB Storage Used */}
+          <div className="admin-kpi-card accent-amber" title="PostgreSQL database size (Free tier limit is 500MB)">
+            <div className="admin-kpi-header">
+              <span className="admin-kpi-label">DB STORAGE USED</span>
+              <div className="admin-kpi-icon-wrap amber"><Database size={14} /></div>
+            </div>
+            <div className="admin-kpi-value">{statsLoading ? "..." : dbSize}</div>
+            <div className="admin-kpi-sub">Free tier limit: 500 MB</div>
+          </div>
+
+          {/* Push Subscribers */}
+          <div
+            className="admin-kpi-card accent-blue clickable"
+            title="Total devices enrolled for FCM web push notifications (click to view)"
+            onClick={() => setPushSubscribersModalOpen(true)}
+          >
+            <div className="admin-kpi-header">
+              <span className="admin-kpi-label">PUSH SUBSCRIBERS</span>
+              <div className="admin-kpi-icon-wrap blue"><BellRing size={14} /></div>
+            </div>
+            <div className="admin-kpi-value interactive">{statsLoading ? "..." : pushSubCount}</div>
+            <div className="admin-kpi-sub">
+              <span>FCM active devices</span>
+              <span className="admin-kpi-action-hint">↗ View</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Keyboard Shortcuts Drawer */}
+        <div className="admin-hero-shortcuts-wrap">
+          <details className="admin-hero-shortcuts-details">
+            <summary className="admin-hero-shortcuts-summary">
+              <span>▶ Keyboard Shortcuts</span>
+            </summary>
+            <div className="admin-hero-shortcuts-panel">
+              <div className="admin-hero-shortcut-item">
+                <span>Open Command Palette</span>
+                <kbd>Cmd/Ctrl + Shift + K</kbd>
+              </div>
+            </div>
+          </details>
         </div>
       </section>
 
@@ -3846,8 +4004,41 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             )}
           </div>
         </section>
+          <section className="admin-users-overview admin-span-all admin-g-users">
+            <div className="admin-users-overview-head">
+              <div>
+                <span className="admin-users-kicker"><Users size={14} /> User operations</span>
+                <h2>Understand the cohort. Act on the exceptions.</h2>
+                <p>One place to monitor adoption, find a student, and take a safe account action.</p>
+              </div>
+              <button type="button" className="admin-btn outline" onClick={fetchDashboardData} disabled={statsLoading}>
+                <RefreshCw size={14} className={statsLoading ? "spin-icon" : ""} /> Refresh users
+              </button>
+            </div>
+            <div className="admin-users-metrics">
+              {[
+                { id: "all", label: "Registered", value: userOpsStats.total, note: "Production profiles", tone: "violet", Icon: Users },
+                { id: "active7", label: "Active in 7 days", value: userOpsStats.activeWeek, note: userOpsStats.total ? `${Math.round((userOpsStats.activeWeek / userOpsStats.total) * 100)}% of users` : "No users yet", tone: "green", Icon: Activity },
+                { id: "setup", label: "Need setup", value: userOpsStats.needsSetup, note: "No courses selected", tone: "amber", Icon: GraduationCap },
+                { id: "attention", label: "Need attention", value: userOpsStats.atRisk, note: `${userOpsStats.neverSeen} never active`, tone: "coral", Icon: AlertTriangle },
+              ].map(({ id, label, value, note, tone, Icon }) => (
+                <button type="button" className={`admin-users-metric is-${tone}`} key={id} onClick={() => { setUserStatusFilter(id); document.getElementById("admin-user-directory")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}>
+                  <span className="admin-users-metric-icon"><Icon size={17} /></span>
+                  <span><small>{label}</small><strong>{statsLoading ? "…" : value}</strong><em>{note}</em></span>
+                  <ChevronRight size={15} className="admin-users-metric-arrow" />
+                </button>
+              ))}
+            </div>
+            <div className="admin-users-attention">
+              <span><BellRing size={14} /> Push reach <strong>{pushSubscriberIds.size}</strong></span>
+              <button type="button" onClick={() => { setUserStatusFilter("never"); document.getElementById("admin-user-directory")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}>{userOpsStats.neverSeen} never active</button>
+              <button type="button" onClick={() => { setUserStatusFilter("banned"); document.getElementById("admin-user-directory")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}>{userOpsStats.banned} banned</button>
+              <span className="admin-users-attention-note">Metrics use the latest profile heartbeat and saved enrollment.</span>
+            </div>
+          </section>
+
           {/* Onboarding funnel */}
-          <section className="admin-card admin-g-users" style={{ display: "flex", flexDirection: "column" }}>
+          <section className="admin-card admin-g-users admin-users-funnel" style={{ display: "flex", flexDirection: "column" }}>
             <h2><BarChart2 size={20} color="var(--green)" /> Onboarding Funnel</h2>
             <p className="admin-subtext">Where students drop off between signing up and staying active. Push count is device-based; the rest are user counts.</p>
             {(() => {
@@ -3882,7 +4073,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
              {/* Enrollment Distribution */}
-             <section className="admin-card admin-g-users">
+             <section className="admin-card admin-g-users admin-users-enrollment">
                <h2><Database size={20} color="var(--violet)" /> Enrollment Stats</h2>
                <p className="admin-subtext">Top 5 most popular courses by enrollment.</p>
                <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
@@ -3906,83 +4097,97 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                </div>
              </section>
 
-        <section className="admin-card admin-directory-card admin-span-all admin-g-users">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-             <h2><Users size={20} color="var(--green)" /> User Directory</h2>
-             <button className="admin-btn outline" onClick={() => {
-                const csvRows = [["User ID", "Name", "Email", "Courses"]];
-                filteredUsers.forEach(u => {
-                   csvRows.push([
-                      u.user_id, 
-                      u.name || "", 
-                      u.email || "", 
-                      u.courses ? Object.keys(u.courses).filter(c => !c.startsWith("_")).join(";") : ""
-                   ].map(v => `"${v}"`).join(","));
-                });
-                const blob = new Blob([csvRows.join("\n")], { type: 'text/csv' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'user_export.csv';
-                a.click();
-             }} style={{ padding: "4px 10px", fontSize: 12 }}>Export Filtered to CSV</button>
-          </div>
-          <div className="admin-search-box" style={{ marginTop: 12 }}>
-            <Search size={16} color="var(--muted)" />
-            <input 
-              type="text" 
-              placeholder="Search users..." 
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-            />
-          </div>
-          <div style={{ marginBottom: 12, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ display: "flex", gap: 6 }}>
-              {["All", "A", "B"].map(sec => (
-                 <button key={sec} onClick={() => setUserSectionFilter(sec)} className={`admin-btn ${userSectionFilter === sec ? "" : "outline"}`} style={{ padding: "4px 10px", fontSize: 12 }}>
-                    {sec === "All" ? "All Sections" : `Section ${sec}`}
-                 </button>
-              ))}
+        <section id="admin-user-directory" className="admin-card admin-directory-card admin-span-all admin-g-users admin-users-directory">
+          <header className="admin-users-directory-head">
+            <div>
+              <span className="admin-users-kicker"><Search size={13} /> Directory</span>
+              <h2>User Directory</h2>
+              <p>Search by name, email, or ID. Filters can be combined.</p>
             </div>
+            <button className="admin-btn outline" onClick={() => exportCsv(
+              "termflow-users-filtered.csv",
+              ["User ID", "Name", "Email", "Section", "Courses", "Last active", "Push", "Banned"],
+              filteredUsers.map(u => [u.user_id, u.name || "", u.email || "", userSection(u), Object.keys(u.courses || {}).filter(c => !c.startsWith("_")).join(";"), u.last_seen_at || "", pushSubscriberIds.has(u.user_id) ? "Yes" : "No", flags.bannedUsers?.includes(u.user_id) ? "Yes" : "No"]),
+            )} disabled={filteredUsers.length === 0}><Download size={14} /> Export {filteredUsers.length}</button>
+          </header>
+
+          <div className="admin-users-toolbar">
+            <label className="admin-users-search">
+              <Search size={16} aria-hidden="true" />
+              <input type="search" placeholder="Search name, email, or user ID" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+              {searchQuery && <button type="button" onClick={() => setSearchQuery("")} aria-label="Clear search"><X size={14} /></button>}
+            </label>
+            <label className="admin-users-select"><Filter size={14} /><span>Section</span><select value={userSectionFilter} onChange={e => setUserSectionFilter(e.target.value)}><option value="All">All</option><option value="A">A</option><option value="B">B</option></select></label>
+            <label className="admin-users-select"><Clock3 size={14} /><span>Sort</span><select value={userSort} onChange={e => setUserSort(e.target.value)}><option value="recent">Recently active</option><option value="oldest">Least recently active</option><option value="name">Name A–Z</option><option value="courses">Most courses</option></select></label>
+          </div>
+
+          <div className="admin-users-segments" role="group" aria-label="Filter users by status">
+            {[
+              ["all", "All", userOpsStats.total], ["today", "Active today", activeUsers], ["active7", "Active 7d", userOpsStats.activeWeek],
+              ["inactive7", "Inactive 7d+", Math.max(0, userOpsStats.atRisk - userOpsStats.neverSeen)], ["never", "Never active", userOpsStats.neverSeen],
+              ["setup", "Needs setup", userOpsStats.needsSetup], ["push", "Push enabled", pushSubscriberIds.size], ["banned", "Banned", userOpsStats.banned],
+            ].map(([id, label, count]) => <button type="button" className={userStatusFilter === id ? "is-active" : ""} aria-pressed={userStatusFilter === id} onClick={() => setUserStatusFilter(id)} key={id}>{label}<span>{count}</span></button>)}
+          </div>
+
+          <div className="admin-users-results-bar">
+            <label>
+              <input type="checkbox" aria-label="Select all filtered users" checked={filteredUsers.length > 0 && filteredUsers.every(u => selectedUserIds.has(u.user_id))} onChange={e => {
+                const next = new Set(selectedUserIds);
+                filteredUsers.forEach(u => e.target.checked ? next.add(u.user_id) : next.delete(u.user_id));
+                setSelectedUserIds(next);
+              }} />
+              <span>Select visible</span>
+            </label>
+            <span><strong>{filteredUsers.length}</strong> of {allUsers.length} users</span>
           </div>
 
           {selectedUserIds.size > 0 && (
-             <div style={{ background: "var(--amber-transparent)", padding: "8px 12px", borderRadius: 8, border: "1px solid var(--amber)", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "var(--amber-text)" }}>{selectedUserIds.size} Users Selected</span>
-                <div style={{ display: "flex", gap: 8 }}>
+             <div className="admin-users-bulkbar">
+                <span><Check size={14} /> {selectedUserIds.size} selected</span>
+                <div>
                    <button className="admin-btn danger" onClick={() => {
                       if (!confirm(`Ban ${selectedUserIds.size} selected user${selectedUserIds.size > 1 ? "s" : ""}? Takes effect on next Deploy.`)) return;
                       const next = [...(flags.bannedUsers || [])];
                       selectedUserIds.forEach(id => { if(!next.includes(id)) next.push(id) });
                       setFlags({...flags, bannedUsers: next});
                       setSelectedUserIds(new Set());
-                   }} style={{ fontSize: 11, padding: "4px 8px" }}>Ban Selected</button>
+                   }}><Ban size={13} /> Ban</button>
                    
                    <button className="admin-btn outline" onClick={() => {
                       let next = [...(flags.bannedUsers || [])];
                       selectedUserIds.forEach(id => { next = next.filter(b => b !== id) });
                       setFlags({...flags, bannedUsers: next});
                       setSelectedUserIds(new Set());
-                   }} style={{ fontSize: 11, padding: "4px 8px" }}>Unban Selected</button>
+                   }}>Unban</button>
 
-                   <button className="admin-btn outline" onClick={pushSelectedUsers} style={{ fontSize: 11, padding: "4px 8px", borderColor: "var(--live)", color: "var(--live)" }}><BellRing size={12} /> Push Selected</button>
+                   <button className="admin-btn outline" onClick={pushSelectedUsers}><BellRing size={12} /> Push</button>
 
-                   <button className="admin-btn outline" onClick={() => setSelectedUserIds(new Set())} style={{ fontSize: 11, padding: "4px 8px" }}>Clear Selection</button>
+                   <button className="admin-btn outline" onClick={() => setSelectedUserIds(new Set())}>Clear</button>
                 </div>
              </div>
           )}
 
-          <div className="admin-user-list">
+          <div className="admin-users-table" role="table" aria-label="Users">
+            <div className="admin-users-table-head" role="row">
+              <span>User</span><span>Status</span><span>Enrollment</span><span>Push</span><span>Actions</span>
+            </div>
             {loadingUsers ? (
               <div className="admin-loading">Loading users...</div>
             ) : filteredUsers.length === 0 ? (
               <div className="admin-empty">No users found.</div>
             ) : (
-              filteredUsers.map(u => (
-                <div key={u.user_id} className="admin-user-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderBottom: "1px solid var(--border)", background: selectedUserIds.has(u.user_id) ? "var(--bg)" : "transparent" }}>
-                  <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
-                    <input 
+              filteredUsers.map(u => {
+                const banned = flags.bannedUsers?.includes(u.user_id);
+                const pushEnabled = pushSubscriberIds.has(u.user_id);
+                const courseCount = userCourseCount(u);
+                const seenAge = u.last_seen_at ? LOAD_NOW - new Date(u.last_seen_at).getTime() : Infinity;
+                const activityTone = !u.last_seen_at ? "never" : seenAge <= 86400000 ? "today" : seenAge <= 7 * 86400000 ? "week" : "inactive";
+                return (
+                <div key={u.user_id} className={`admin-users-table-row${selectedUserIds.has(u.user_id) ? " is-selected" : ""}`} role="row">
+                  <div className="admin-users-person" role="cell">
+                    <input
                        type="checkbox" 
+                       aria-label={`Select ${u.name || "user"}`}
                        checked={selectedUserIds.has(u.user_id)}
                        onChange={e => {
                           const next = new Set(selectedUserIds);
@@ -3990,19 +4195,20 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                           else next.delete(u.user_id);
                           setSelectedUserIds(next);
                        }}
-                       style={{ width: 16, height: 16, accentColor: "var(--violet)" }}
                     />
                     <Avatar name={u.name} email={u.user_id} />
-                    <div className="admin-user-info" onClick={() => setSelectedUser(u)} style={{ cursor: "pointer" }} title="Click to view full details">
-                      <div className="admin-user-name" style={{ color: flags.bannedUsers?.includes(u.user_id) ? "var(--danger)" : "inherit" }}>
-                         {u.name || "Student"} {flags.bannedUsers?.includes(u.user_id) && "(Banned)"}
-                      </div>
-                      <div className="admin-user-id">{u.email || u.user_id}</div>
-                    </div>
+                    <button type="button" className="admin-users-person-copy" onClick={() => setSelectedUser(u)} title="Open user details">
+                      <strong>{u.name || "Student"}{banned && <span className="admin-users-banned">Banned</span>}</strong>
+                      <span>{u.email || u.user_id}</span>
+                    </button>
                   </div>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button onClick={() => startImpersonation(u)} className="admin-btn-icon" title="Impersonate User" style={{ background: "transparent", border: "none", cursor: "pointer", padding: 6 }}>
-                      <VenetianMask size={20} color="var(--amber)" />
+                  <div className="admin-users-activity" role="cell"><span className={`is-${activityTone}`} /> <div><strong>{relativeUserActivity(u.last_seen_at)}</strong><small>{u.last_seen_at ? new Date(u.last_seen_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "No heartbeat recorded"}</small></div></div>
+                  <div className="admin-users-enrollment-cell" role="cell"><strong>{userSection(u) === "—" ? "No section" : `Section ${userSection(u)}`}</strong><span>{courseCount} course{courseCount === 1 ? "" : "s"}</span></div>
+                  <div className="admin-users-push-cell" role="cell"><span className={pushEnabled ? "is-on" : ""}><BellRing size={12} /> {pushEnabled ? "Enabled" : "Off"}</span></div>
+                  <div className="admin-users-row-actions" role="cell">
+                    <button onClick={() => setSelectedUser(u)} className="admin-btn-icon" title="Open user details" aria-label={`Open ${u.name || "user"} details`}><ChevronRight size={18} /></button>
+                    <button onClick={() => startImpersonation(u)} className="admin-btn-icon" title="Impersonate user" aria-label={`Impersonate ${u.name || "user"}`}>
+                      <VenetianMask size={18} />
                     </button>
                     <button onClick={() => {
                        const prevBanned = flags.bannedUsers || [];
@@ -4011,18 +4217,18 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                        setFlags({...flags, bannedUsers: next});
                        logAdminAction(admin_id, isBanned ? "unban_user" : "ban_user", { target_user: u.user_id });
                        removeWithUndo(`${isBanned ? "Unbanned" : "Banned"} ${u.name || "user"} (Deploy to apply)`, () => setFlags(f => ({ ...f, bannedUsers: prevBanned })));
-                    }} className="admin-btn-icon" title={flags.bannedUsers?.includes(u.user_id) ? "Unban User" : "Ban User"} style={{ background: "transparent", border: "none", cursor: "pointer", padding: 6 }}>
-                      <Ban size={20} color={flags.bannedUsers?.includes(u.user_id) ? "var(--danger)" : "var(--muted)"} />
+                    }} className={`admin-btn-icon${banned ? " is-danger" : ""}`} title={banned ? "Unban user" : "Ban user"} aria-label={`${banned ? "Unban" : "Ban"} ${u.name || "user"}`}>
+                      <Ban size={18} />
                     </button>
                   </div>
                 </div>
-              ))
+              )})
             )}
           </div>
         </section>
 
           {/* Inactive users + re-engagement */}
-          <section className="admin-card admin-g-users">
+          <section className="admin-card admin-g-users admin-users-inactive">
             <h2><Users size={20} color="var(--muted)" /> Inactive Users</h2>
             <p className="admin-subtext">Students not seen recently. Click a name for details, or send a gentle re-engagement push to the whole list.</p>
             <div className="admin-field-row" style={{ alignItems: "flex-end", maxWidth: 440 }}>
@@ -4047,7 +4253,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
              {/* Friend Pings & Share Codes */}
-             <section className="admin-card admin-g-users">
+             <section className="admin-card admin-g-users admin-users-social">
                <h2><Users size={20} color="var(--green)" /> Social Hygiene</h2>
                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                   <span style={{ fontSize: 13, color: "var(--muted)" }}>Pending Friend Pings</span>
@@ -4489,7 +4695,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
              </section>
 
         {/* Feedback Section */}
-        <section className="admin-card admin-g-users">
+        <section className="admin-card admin-g-users admin-users-feedback">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <h2><Terminal size={20} color="var(--green)" /> Feedback & Bug Reports</h2>
             <div style={{ display: "flex", gap: 6 }}>
@@ -5462,82 +5668,53 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
       {/* User X-Ray Modal */}
       {selectedUser && (
-        <>
-          <div className="notif-backdrop" onClick={() => setSelectedUser(null)} style={{ zIndex: 10000, backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)", background: "rgba(0,0,0,0.2)" }} />
-          <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "var(--card)", padding: 24, borderRadius: 16, width: "90%", maxWidth: 500, maxHeight: "85vh", overflowY: "auto", zIndex: 10001, border: "1px solid var(--border)", boxShadow: "0 10px 40px rgba(0,0,0,0.2)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h2 style={{ margin: 0, fontSize: 18, display: "flex", gap: 8, alignItems: "center" }}><Users size={18} color="var(--violet)" /> User Information</h2>
-              <button onClick={() => setSelectedUser(null)} style={{ background: "transparent", border: "none", color: "var(--muted)", cursor: "pointer" }}><XCircle size={18} /></button>
-            </div>
-            
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-                 <div style={{ flex: 1, minWidth: 0 }}>
-                    <strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase" }}>Name</strong>
-                    <div style={{ fontSize: 14, fontWeight: 600 }}>{selectedUser.name}</div>
-                 </div>
-                 {selectedUser.email && (
-                 <div style={{ textAlign: "right", flexShrink: 0 }}>
-                    <strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase" }}>Email</strong>
-                    <div style={{ fontSize: 13 }}>{selectedUser.email}</div>
-                 </div>
-                 )}
+        <AdminModal title="User profile" subtitle="Account context, access, and recent admin activity." onClose={() => setSelectedUser(null)} width={720}>
+          <div className="admin-user-xray">
+            <section className="admin-user-xray-hero">
+              <Avatar name={selectedUser.name} email={selectedUser.email || selectedUser.user_id} />
+              <div>
+                <div className="admin-user-xray-name"><h2>{selectedUser.name || "Student"}</h2>{flags.bannedUsers?.includes(selectedUser.user_id) && <span>Banned</span>}</div>
+                <p>{selectedUser.email || "No email stored"}</p>
+                <div className="admin-user-xray-id"><code>{selectedUser.user_id}</code><button type="button" onClick={() => navigator.clipboard?.writeText(selectedUser.user_id)} title="Copy user ID"><Copy size={13} /></button></div>
               </div>
-              
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-                 <div style={{ flex: 1, minWidth: 0 }}>
-                    <strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase" }}>User ID</strong>
-                    <div style={{ fontSize: 13, wordBreak: "break-all", color: "var(--text)" }}>{selectedUser.user_id}</div>
-                 </div>
-                 <div style={{ textAlign: "right", flexShrink: 0 }}>
-                    <strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase" }}>Last Active</strong>
-                    <div style={{ fontSize: 13, whiteSpace: "nowrap" }}>
-                      {selectedUser.last_seen_at ? new Date(selectedUser.last_seen_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "Never"}
-                    </div>
-                 </div>
-              </div>
+            </section>
 
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-                 <div style={{ flex: 1, minWidth: 0 }}>
-                    <strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase" }}>Section</strong>
-                    <div style={{ fontSize: 13 }}>
-                      {(() => { const keys = Object.keys(selectedUser.courses || {}); if (keys.some(c => c.endsWith("_A"))) return "A"; if (keys.some(c => c.endsWith("_B"))) return "B"; return "—"; })()}
-                    </div>
-                 </div>
-                 <div style={{ textAlign: "right", flexShrink: 0 }}>
-                    <strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase" }}>Push</strong>
-                    <div style={{ fontSize: 13 }}>
-                      {(pushSubscribersList || []).includes(selectedUser.user_id) ? <span style={{ color: "var(--live)" }}>Subscribed</span> : <span style={{ color: "var(--muted)" }}>Not subscribed</span>}
-                    </div>
-                 </div>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 4 }}>
-                 <strong style={{ color: "var(--muted)", fontSize: 12, textTransform: "uppercase" }}>Role:</strong>
-                 <select className="admin-input" value={flags.adminRoles?.[selectedUser.user_id] || "user"} onChange={e => {
+            <section className="admin-user-xray-metrics">
+              <div><span>Last active</span><strong>{relativeUserActivity(selectedUser.last_seen_at)}</strong><small>{selectedUser.last_seen_at ? new Date(selectedUser.last_seen_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "No heartbeat"}</small></div>
+              <div><span>Enrollment</span><strong>{userSection(selectedUser) === "—" ? "No section" : `Section ${userSection(selectedUser)}`}</strong><small>{userCourseCount(selectedUser)} courses selected</small></div>
+              <div><span>Push</span><strong className={pushSubscriberIds.has(selectedUser.user_id) ? "is-live" : ""}>{pushSubscriberIds.has(selectedUser.user_id) ? "Enabled" : "Off"}</strong><small>Notification access</small></div>
+              <div><span>Profile updated</span><strong>{selectedUser.updated_at ? new Date(selectedUser.updated_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "Unknown"}</strong><small>Latest profile save</small></div>
+            </section>
+
+            <div className="admin-user-xray-grid">
+              <section className="admin-user-xray-section">
+                <h3>Access role</h3>
+                <p>Changes are staged until the admin configuration is deployed.</p>
+                <select className="admin-input" value={flags.adminRoles?.[selectedUser.user_id] || "user"} onChange={e => {
                     const role = e.target.value;
                     const nextRoles = { ...(flags.adminRoles || {}) };
                     if (role === "user") delete nextRoles[selectedUser.user_id];
                     else nextRoles[selectedUser.user_id] = role;
                     setFlags({...flags, adminRoles: nextRoles});
-                 }} style={{ padding: "4px 8px", fontSize: 12, flex: 1 }}>
+                 }}>
                     <option value="user">Standard User</option>
                     <option value="monitor">Monitor (Read-only Admin)</option>
                     <option value="superadmin">Superadmin</option>
-                 </select>
-              </div>
-              <div>
-                <strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase", marginBottom: 4 }}>Enrolled Subjects</strong>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {selectedUser.courses ? Object.keys(selectedUser.courses).filter(c => !c.startsWith("_")).map(c => (
-                    <span key={c} style={{ background: "var(--bg)", padding: "2px 8px", borderRadius: 4, fontSize: 12, border: "1px solid var(--border)", color: "var(--text)" }}>{c}</span>
-                  )) : <span style={{ fontSize: 12, color: "var(--muted)" }}>No subjects enrolled.</span>}
+                </select>
+              </section>
+              <section className="admin-user-xray-section">
+                <h3>Enrolled courses</h3>
+                <p>The saved course keys currently shaping this user&apos;s schedule.</p>
+                <div className="admin-user-xray-courses">
+                  {userCourseCount(selectedUser) ? Object.keys(selectedUser.courses || {}).filter(c => !c.startsWith("_")).map(c => <span key={c}>{c}</span>) : <em>No courses selected.</em>}
                 </div>
-              </div>
-              
-              <div>
-                 <strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase", marginBottom: 4 }}>Admin Notes</strong>
-                 <textarea 
-                    className="admin-input" 
+              </section>
+            </div>
+
+            <section className="admin-user-xray-section">
+                 <h3>Private admin notes</h3>
+                 <p>Visible only inside Admin Tools and staged with the rest of the configuration.</p>
+                 <textarea className="admin-input"
                     placeholder="Private notes about this user..."
                     value={flags.adminNotes?.[selectedUser.user_id] || ""}
                     onChange={e => {
@@ -5547,27 +5724,31 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                           adminNotes: { ...(flags.adminNotes || {}), [selectedUser.user_id]: val }
                        });
                     }}
-                    style={{ width: "100%", minHeight: 60, padding: 8, fontSize: 12 }}
+                    rows={3}
                  />
-              </div>
+            </section>
 
-              <div>
-                 <strong style={{ color: "var(--muted)", fontSize: 12, display: "block", textTransform: "uppercase", marginBottom: 4 }}>Recent Activity</strong>
-                 <div style={{ maxHeight: 120, overflowY: "auto", fontSize: 11, background: "var(--bg)", padding: 8, borderRadius: 8, border: "1px solid var(--border)" }}>
+            <section className="admin-user-xray-section">
+                 <h3>Recent admin activity</h3>
+                 <div className="admin-user-xray-activity">
                     {auditLogs.filter(l => l.details?.target_user === selectedUser.user_id).length > 0 ? (
                        auditLogs.filter(l => l.details?.target_user === selectedUser.user_id).map(l => (
-                          <div key={l.id} style={{ marginBottom: 4, borderBottom: "1px solid var(--border)", paddingBottom: 4 }}>
-                             <span style={{ color: "var(--muted)" }}>{new Date(l.created_at).toLocaleDateString()}</span> - {l.action}
+                          <div key={l.id}>
+                             <span>{new Date(l.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span><strong>{l.action.replaceAll("_", " ")}</strong>
                           </div>
                        ))
                     ) : (
-                       <div style={{ color: "var(--muted)" }}>No recent admin actions recorded.</div>
+                       <p>No recent admin actions recorded.</p>
                     )}
                  </div>
-              </div>
+            </section>
 
-              <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border)", display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <button onClick={() => { setViewAsUser(selectedUser); setSelectedUser(null); }} className="admin-btn outline" style={{ flex: "1 1 140px", justifyContent: "center", display: "flex", alignItems: "center", gap: 8 }}>
+            <section className="admin-user-xray-actions">
+              <div>
+                <h3>Account actions</h3><p>Inspect or contact the user without changing their setup.</p>
+              </div>
+              <div>
+                <button onClick={() => { setViewAsUser(selectedUser); setSelectedUser(null); }} className="admin-btn outline">
                   <VenetianMask size={16} /> View as
                 </button>
                 <button onClick={async () => {
@@ -5576,7 +5757,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                    const res = await pushToUserIds([selectedUser.user_id], { title: "Message from Admin", body: msg.trim() });
                    if (res?.ok) { await logAdminAction(admin_id, "direct_push", { target_user: selectedUser.user_id }); alert("Push delivered."); }
                    else alert("Failed to send push.");
-                }} className="admin-btn outline" style={{ flex: "1 1 140px", justifyContent: "center", display: "flex", alignItems: "center", gap: 8 }}>
+                }} className="admin-btn outline">
                   <BellRing size={16} /> Direct Push
                 </button>
                 {selectedUser.courses?._status && new Date(selectedUser.courses._status.until).getTime() > LOAD_NOW && (
@@ -5589,10 +5770,15 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                         setAllUsers(allUsers.map(u => u.user_id === selectedUser.user_id ? { ...u, courses: updated } : u));
                         setSelectedUser({ ...selectedUser, courses: updated });
                      }
-                  }} className="admin-btn outline" style={{ flex: "1 1 140px", justifyContent: "center", display: "flex", alignItems: "center", gap: 8, color: "var(--amber)", borderColor: "var(--amber)" }}>
+                  }} className="admin-btn outline admin-user-xray-clear-status">
                     <Shield size={16} /> Clear Status
                   </button>
                 )}
+              </div>
+            </section>
+
+            <section className="admin-user-xray-danger">
+              <div><h3>Reset onboarding</h3><p>Clears the saved course setup. The user must configure TermFlow again.</p></div>
                 <button onClick={async () => {
                   if (flags.adminRoles && flags.adminRoles[admin_id] === "monitor") return alert("You don't have permission to reset user setups.");
                   if (typedConfirm("RESET", `Reset ${selectedUser.name || "this user"}'s setup? They will have to onboard again.`)) {
@@ -5602,13 +5788,12 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     setSelectedUser(null);
                     alert("User setup cleared.");
                   }
-                }} className="admin-btn outline" style={{ color: "var(--danger)", borderColor: "var(--danger)", width: "100%", justifyContent: "center", display: "flex", alignItems: "center", gap: 8 }}>
+                }} className="admin-btn outline">
                   <Trash2 size={16} /> Reset Setup
                 </button>
-              </div>
-            </div>
+            </section>
           </div>
-        </>
+        </AdminModal>
       )}
 
       {/* View-as (read-only impersonation) — renders a user's day + enabled features as they'd see them */}
@@ -6004,47 +6189,277 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
         </>
       )}
 
-      {activeUsersListModalOpen && (
-        <AdminModal title={`Active Users Today (${activeUsers})`} onClose={() => setActiveUsersListModalOpen(false)} width={640}>
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
-            <select value={activeUsersSort} onChange={e => setActiveUsersSort(e.target.value)} className="admin-input" style={{ width: "auto", fontSize: 12.5, padding: "6px 10px" }}>
-              <option value="recent">Sort: Most recent</option>
-              <option value="oldest">Sort: Oldest first</option>
-              <option value="name">Sort: Name (A-Z)</option>
-            </select>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {allUsers
-              .filter(u => u.last_seen_at && new Date(u.last_seen_at).getTime() >= new Date().setHours(0,0,0,0))
-              .sort((a, b) => {
-                if (activeUsersSort === "name") return (a.name || "").localeCompare(b.name || "");
-                const ta = new Date(a.last_seen_at).getTime();
-                const tb = new Date(b.last_seen_at).getTime();
-                return activeUsersSort === "oldest" ? ta - tb : tb - ta;
-              })
-              .map(u => (
-              <div key={u.user_id} style={{ background: "var(--card)", padding: "12px", borderRadius: 8, border: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }} onClick={() => { setSelectedUser(u); setActiveUsersListModalOpen(false); }}>
-                <div style={{ fontWeight: 600 }}>{u.name}</div>
-                <div style={{ fontSize: 12, color: "var(--muted)" }}>{new Date(u.last_seen_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+      {activeUsersListModalOpen && (() => {
+        const todayStart = new Date().setHours(0, 0, 0, 0);
+        const activeUsersToday = allUsers.filter(u => u.last_seen_at && new Date(u.last_seen_at).getTime() >= todayStart);
+        const secACount = activeUsersToday.filter(u => Object.keys(u.courses || {}).some(k => k.endsWith("_A"))).length;
+        const secBCount = activeUsersToday.filter(u => Object.keys(u.courses || {}).some(k => k.endsWith("_B"))).length;
+        const pushActiveCount = activeUsersToday.filter(u => (pushSubscribersList || []).includes(u.user_id)).length;
+
+        const filteredList = activeUsersToday
+          .filter(u => {
+            if (activeUsersSection !== "all") {
+              const keys = Object.keys(u.courses || {});
+              const hasSec = keys.some(c => c.endsWith(`_${activeUsersSection}`));
+              if (!hasSec) return false;
+            }
+            if (activeUsersPushOnly) {
+              if (!(pushSubscribersList || []).includes(u.user_id)) return false;
+            }
+            if (activeUsersSearch.trim()) {
+              const q = activeUsersSearch.toLowerCase().trim();
+              const matchName = (u.name || "").toLowerCase().includes(q);
+              const matchEmail = (u.email || "").toLowerCase().includes(q);
+              const matchId = (u.user_id || "").toLowerCase().includes(q);
+              return matchName || matchEmail || matchId;
+            }
+            return true;
+          })
+          .sort((a, b) => {
+            if (activeUsersSort === "name") return (a.name || "").localeCompare(b.name || "");
+            const ta = new Date(a.last_seen_at).getTime();
+            const tb = new Date(b.last_seen_at).getTime();
+            return activeUsersSort === "oldest" ? ta - tb : tb - ta;
+          });
+
+        function copyActiveUsersRoster() {
+          const text = filteredList.map((u, i) => `${i + 1}. ${u.name || "Unknown"} (${u.email || "No email"}) - Last active: ${new Date(u.last_seen_at).toLocaleTimeString()}`).join("\n");
+          navigator.clipboard?.writeText(text);
+          setActiveCopiedToast(`Copied ${filteredList.length} active students to clipboard!`);
+          setTimeout(() => setActiveCopiedToast(""), 3000);
+        }
+
+        return (
+          <AdminModal
+            title={
+              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Activity size={20} color="var(--live)" />
+                <span>Active Users Today</span>
+                <span className="admin-modal-live-pill">
+                  <span className="admin-hero-online-dot" style={{ position: "static", display: "inline-block", marginRight: 4 }} />
+                  {filteredList.length} / {activeUsersToday.length} Active
+                </span>
+              </span>
+            }
+            subtitle="Students with recorded session activity since midnight local time. Click any student row to view their complete profile, attendance, and course load."
+            onClose={() => { setActiveUsersListModalOpen(false); setActiveUsersSearch(""); }}
+            width={700}
+          >
+            {/* Top Metric Strip */}
+            <div className="admin-modal-stats">
+              <div className="admin-modal-stat-pill">
+                <span className="admin-modal-stat-pill-label">Total Active</span>
+                <span className="admin-modal-stat-pill-val" style={{ color: "var(--live)" }}>{activeUsersToday.length}</span>
               </div>
-            ))}
-          </div>
-        </AdminModal>
-      )}
+              <div className="admin-modal-stat-pill">
+                <span className="admin-modal-stat-pill-label">Section A</span>
+                <span className="admin-modal-stat-pill-val" style={{ color: "#0D9488" }}>{secACount}</span>
+              </div>
+              <div className="admin-modal-stat-pill">
+                <span className="admin-modal-stat-pill-label">Section B</span>
+                <span className="admin-modal-stat-pill-val" style={{ color: "#9333EA" }}>{secBCount}</span>
+              </div>
+              <div className="admin-modal-stat-pill">
+                <span className="admin-modal-stat-pill-label">Push Subscribers</span>
+                <span className="admin-modal-stat-pill-val" style={{ color: "var(--blue)" }}>{pushActiveCount}</span>
+              </div>
+            </div>
+
+            {/* Filter & Action Toolbar */}
+            <div className="admin-modal-toolbar">
+              <div className="admin-modal-search-wrap">
+                <Search size={14} className="search-icon" />
+                <input
+                  type="text"
+                  className="admin-modal-search-input"
+                  placeholder="Search by student name, email, or user ID…"
+                  value={activeUsersSearch}
+                  onChange={e => setActiveUsersSearch(e.target.value)}
+                />
+                {activeUsersSearch && (
+                  <button
+                    onClick={() => setActiveUsersSearch("")}
+                    style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "var(--muted)", cursor: "pointer", padding: 2, display: "flex" }}
+                    title="Clear search"
+                  >
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
+
+              {/* Section Segmented Filter */}
+              <div className="admin-modal-filter-pills">
+                {[["all", "All"], ["A", "Sec A"], ["B", "Sec B"]].map(([val, label]) => (
+                  <button
+                    key={val}
+                    className={`admin-modal-filter-btn ${activeUsersSection === val ? "active" : ""}`}
+                    onClick={() => setActiveUsersSection(val)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Push Subscribers Filter Toggle */}
+              <button
+                className={`admin-modal-filter-btn ${activeUsersPushOnly ? "active" : ""}`}
+                style={{ border: "1px solid var(--border)", borderRadius: 9, padding: "5px 9px", display: "inline-flex", alignItems: "center", gap: 4 }}
+                onClick={() => setActiveUsersPushOnly(!activeUsersPushOnly)}
+                title="Filter only users with web push enabled"
+              >
+                <BellRing size={11} color={activeUsersPushOnly ? "var(--blue)" : "var(--muted)"} /> Push Only
+              </button>
+
+              {/* Sort Dropdown */}
+              <select
+                value={activeUsersSort}
+                onChange={e => setActiveUsersSort(e.target.value)}
+                className="admin-input"
+                style={{ width: "auto", fontSize: 12, padding: "6px 8px", borderRadius: 9, minWidth: 130 }}
+              >
+                <option value="recent">Sort: Most recent</option>
+                <option value="oldest">Sort: Oldest first</option>
+                <option value="name">Sort: Name (A-Z)</option>
+              </select>
+
+              {/* Copy Roster Button */}
+              <button
+                onClick={copyActiveUsersRoster}
+                className="admin-btn outline"
+                style={{ padding: "6px 10px", fontSize: 12, borderRadius: 9, gap: 5, marginLeft: "auto" }}
+                title="Copy active students list to clipboard"
+              >
+                <Copy size={13} /> Copy List
+              </button>
+            </div>
+
+            {/* Copy Toast Notification */}
+            {activeCopiedToast && (
+              <div style={{ background: "var(--live-dim)", color: "var(--live)", border: "1px solid rgba(31,169,113,0.3)", borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 700, marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                <Check size={14} /> {activeCopiedToast}
+              </div>
+            )}
+
+            {/* Active User Cards List */}
+            <div className="admin-active-user-list admin-scroll-hide">
+              {filteredList.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "40px 16px", color: "var(--muted)" }}>
+                  <Users size={36} style={{ opacity: 0.3, marginBottom: 8, margin: "0 auto", display: "block" }} />
+                  <p style={{ margin: 0, fontWeight: 700, fontSize: 14 }}>No active students match your filters</p>
+                  {(activeUsersSearch || activeUsersSection !== "all" || activeUsersPushOnly) && (
+                    <button
+                      onClick={() => { setActiveUsersSearch(""); setActiveUsersSection("all"); setActiveUsersPushOnly(false); }}
+                      className="admin-btn outline"
+                      style={{ marginTop: 12, fontSize: 12, padding: "4px 10px" }}
+                    >
+                      Reset Filters
+                    </button>
+                  )}
+                </div>
+              ) : (
+                filteredList.map((u, i) => {
+                  const sec = (() => {
+                    const keys = Object.keys(u.courses || {});
+                    if (keys.some(c => c.endsWith("_A"))) return "A";
+                    if (keys.some(c => c.endsWith("_B"))) return "B";
+                    return null;
+                  })();
+                  const isPush = (pushSubscribersList || []).includes(u.user_id);
+                  const role = flags.adminRoles?.[u.user_id];
+                  const courseCount = Object.keys(u.courses || {}).length;
+                  const initials = (u.name || "?").split(" ").map(w => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "U";
+                  
+                  // Relative time calculation
+                  const diffMin = Math.floor((Date.now() - new Date(u.last_seen_at).getTime()) / 60000);
+                  const relTime = diffMin < 1 ? "Just now" : diffMin < 60 ? `${diffMin}m ago` : `${Math.floor(diffMin / 60)}h ago`;
+
+                  return (
+                    <div
+                      key={u.user_id || i}
+                      className="admin-active-user-row"
+                      onClick={() => {
+                        setSelectedUser(u);
+                        setActiveUsersListModalOpen(false);
+                      }}
+                      title="Click to view student profile, courses & attendance"
+                    >
+                      <div className="admin-active-user-left">
+                        <div className="admin-active-user-avatar">
+                          {initials}
+                          <span className="admin-active-user-dot" />
+                        </div>
+                        <div className="admin-active-user-meta">
+                          <div className="admin-active-user-name">{u.name || "Unknown Student"}</div>
+                          <div className="admin-active-user-tags">
+                            {sec && <span className={`admin-tag-sec ${sec}`}>Sec {sec}</span>}
+                            {isPush && <span className="admin-tag-push"><BellRing size={9} /> Push</span>}
+                            {role && <span className="admin-profile-role-badge" style={{ fontSize: 9 }}>{role}</span>}
+                            {courseCount > 0 && <span className="admin-tag-courses">• {courseCount} subjects</span>}
+                            {u.email && <span className="admin-tag-courses" style={{ opacity: 0.7 }}>• {u.email}</span>}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="admin-active-user-right">
+                        <div className="admin-active-user-time-pill" title={`Last active at ${new Date(u.last_seen_at).toLocaleString()}`}>
+                          <Clock3 size={12} color="var(--muted)" />
+                          <span>{new Date(u.last_seen_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          <span style={{ opacity: 0.6, fontSize: 10.5 }}>({relTime})</span>
+                        </div>
+                        <ChevronRight size={15} className="admin-active-user-chevron" />
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </AdminModal>
+        );
+      })()}
 
       {pushSubscribersModalOpen && (
-        <AdminModal title={`Push Subscribers (${pushSubCount})`} onClose={() => setPushSubscribersModalOpen(false)} width={500}>
+        <AdminModal
+          title={
+            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <BellRing size={18} color="var(--blue)" />
+              <span>Push Notification Subscribers ({pushSubCount})</span>
+            </span>
+          }
+          subtitle="Devices currently subscribed to web push broadcasts. Click any user to view details."
+          onClose={() => setPushSubscribersModalOpen(false)}
+          width={540}
+        >
           {pushSubscribersList.length > 0 ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {allUsers.filter(u => pushSubscribersList.includes(u.user_id)).map(u => (
-                <div key={u.user_id} style={{ background: "var(--card)", padding: "12px", borderRadius: 8, border: "1px solid var(--border)", cursor: "pointer" }} onClick={() => { setSelectedUser(u); setPushSubscribersModalOpen(false); }}>
-                  <div style={{ fontWeight: 600 }}>{u.name}</div>
-                </div>
-              ))}
+            <div className="admin-active-user-list admin-scroll-hide">
+              {allUsers.filter(u => pushSubscribersList.includes(u.user_id)).map(u => {
+                const initials = (u.name || "?").split(" ").map(w => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "U";
+                return (
+                  <div
+                    key={u.user_id}
+                    className="admin-active-user-row"
+                    onClick={() => { setSelectedUser(u); setPushSubscribersModalOpen(false); }}
+                  >
+                    <div className="admin-active-user-left">
+                      <div className="admin-active-user-avatar" style={{ background: "linear-gradient(135deg, var(--blue) 0%, #06B6D4 100%)" }}>
+                        {initials}
+                      </div>
+                      <div className="admin-active-user-meta">
+                        <div className="admin-active-user-name">{u.name}</div>
+                        <div className="admin-active-user-tags">
+                          <span className="admin-tag-push"><BellRing size={9} /> Enrolled Device</span>
+                          {u.email && <span className="admin-tag-courses">{u.email}</span>}
+                        </div>
+                      </div>
+                    </div>
+                    <ChevronRight size={15} className="admin-active-user-chevron" />
+                  </div>
+                );
+              })}
             </div>
           ) : (
-            <div style={{ color: "var(--muted)", textAlign: "center", padding: 24, background: "var(--card)", borderRadius: 12 }}>
-              <p style={{ margin: 0 }}>The push subscriber list requires a database update.</p>
+            <div style={{ color: "var(--muted)", textAlign: "center", padding: 28, background: "var(--bg)", borderRadius: 14, border: "1px solid var(--border)" }}>
+              <BellRing size={32} style={{ opacity: 0.3, marginBottom: 8, margin: "0 auto", display: "block" }} />
+              <p style={{ margin: 0, fontWeight: 600 }}>The push subscriber list requires a database update.</p>
               <p style={{ fontSize: 13, marginTop: 8 }}>Run the updated <code>get_admin_stats</code> SQL migration in Supabase to fetch user IDs securely.</p>
             </div>
           )}

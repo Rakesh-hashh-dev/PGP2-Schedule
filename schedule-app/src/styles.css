@@ -716,6 +716,7 @@ html[data-theme="dark"] .bar .logo {
 .livebar {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
   margin: 16px 0 0;
 }
@@ -1264,6 +1265,23 @@ html[data-theme="dark"] .tabs-wrapper {
   color: var(--violet);
 }
 
+
+.day-greeting {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 0;
+  padding-left: 2px;
+  font-family: var(--display);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.day-greeting-ico {
+  color: var(--violet);
+  flex-shrink: 0;
+}
 
 .view-date-header {
   display: flex;
@@ -7574,6 +7592,43 @@ html[data-theme="dark"] .tb.holiday.tb-tricolor {
   user-select: none;
 }
 
+/* Standalone group-header labels (Schedule, Recent) sit directly in the
+   menu, not inside a padded button, so they need their own spacing. */
+div.over-section-label {
+  padding: 8px 12px 4px;
+}
+
+.term-picker {
+  position: relative;
+}
+
+.term-picker-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--body);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
+}
+
+.term-picker-trigger:hover {
+  background: var(--card);
+}
+
+.term-picker-menu {
+  left: 0;
+  right: auto;
+  min-width: 200px;
+  padding: 6px;
+}
+
 .over-section-toggle .over-caret {
   color: var(--muted);
   margin-left: auto;
@@ -7590,6 +7645,44 @@ html[data-theme="dark"] .tb.holiday.tb-tricolor {
   margin-left: auto;
   color: var(--violet);
   flex: none;
+}
+
+.over-term-live-icon {
+  color: var(--live);
+}
+
+.over-term-badge {
+  margin-left: 6px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  background: var(--surface);
+  color: var(--muted);
+  flex: none;
+}
+
+.over-term-row {
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  gap: 2px !important;
+}
+
+.over-term-row-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.over-term-hint {
+  margin-left: 24px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+  white-space: nowrap;
 }
 
 /* Collapsible sub-group inside the overflow menu (e.g. Navigation options) */
@@ -8729,6 +8822,32 @@ html[data-theme="dark"] .bnav {
   height: 100%;
   border-radius: 2px;
   background: linear-gradient(90deg, #a78bfa, #6d5bd0);
+}
+
+.sb-term-picker-slot {
+  margin-top: 8px;
+}
+
+.sb-term-picker-slot .term-picker-trigger {
+  width: 100%;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .04em;
+  color: rgba(255, 255, 255, .75);
+  background: rgba(255, 255, 255, .06);
+  border-color: rgba(255, 255, 255, .1);
+}
+
+.sb-term-picker-slot .term-picker-trigger:hover {
+  background: rgba(255, 255, 255, .1);
+}
+
+.sb-term-picker-slot .over-caret {
+  margin-left: auto;
+}
+
+.sidebar.collapsed .sb-term-picker-slot {
+  display: none;
 }
 
 /* Scrollable middle body (nav + util strip + avatar) — logo stays fixed */

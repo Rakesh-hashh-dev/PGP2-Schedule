@@ -1,8 +1,9 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Suspense, lazy } from "react";
 import { createPortal } from "react-dom";
-import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, ChevronsLeft, ChevronsRight, Megaphone, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Sparkles, Wand2, BellRing, CalendarDays, ExternalLink, Download, Share, WifiOff, Zap, PanelBottom, PanelTop, PanelsTopLeft, Check, ChevronDown, Sun, Moon, Monitor, CalendarOff, CalendarRange, UtensilsCrossed, Package, Camera, Loader2, Wallet } from "lucide-react";
+import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, ChevronsLeft, ChevronsRight, Megaphone, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Sparkles, Wand2, BellRing, CalendarDays, ExternalLink, Download, Share, WifiOff, Zap, PanelBottom, PanelTop, PanelsTopLeft, Check, ChevronDown, Sun, Moon, Monitor, CalendarOff, CalendarRange, UtensilsCrossed, Package, Camera, Loader2, Wallet, Radio, History } from "lucide-react";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
+import DayGreeting from "./components/DayGreeting.jsx";
 import SemSummary from "./components/SemSummary.jsx";
 import Timeline from "./components/Timeline.jsx";
 import WeekAgenda from "./components/WeekAgenda.jsx";
@@ -25,11 +26,13 @@ import {
   swUpdateIsStale, clearSwSeen,
   LAST_USER_KEY, VIEW_KEY, PENDING_INVITE_KEY, USER_SCOPED_KEYS,
   readSetup, saveSetup,
-  NOTIF_KEY, loadLastSeen, READ_PINGS_KEY, loadReadPingIds,
-  READ_CHANGES_KEY, loadReadChangeKeys, CLEARED_GROUPS_KEY, loadClearedGroups,
+  NOTIF_KEY, loadLastSeen, READ_PINGS_KEY,
+  READ_CHANGES_KEY, CLEARED_GROUPS_KEY, loadClearedGroups,
 } from "./lib/appStorage.js";
 import TermFlowLoader from "./components/TermFlowLoader.jsx";
 import IndiaFlagIcon from "./components/IndiaFlagIcon.jsx";
+import DesktopSidebar from "./components/DesktopSidebar.jsx";
+import { ARCHIVED_TERMS } from "./data/archive/index.js";
 
 const AttendancePanel = lazy(() => import("./components/AttendancePanel.jsx"));
 const LeavePlanner = lazy(() => import("./components/LeavePlanner.jsx"));
@@ -48,19 +51,23 @@ const AssignmentsPanel = lazy(() => import("./components/AssignmentsPanel.jsx"))
 const WrappedView = lazy(() => import("./components/WrappedView.jsx"));
 const BoardPage = lazy(() => import("./components/BoardPage.jsx"));
 const SplitPage = lazy(() => import("./components/SplitPage.jsx"));
+const CalendarExportModal = lazy(() => import("./components/CalendarExportModal.jsx"));
 import DeadlineStrip from "./components/DeadlineStrip.jsx";
 import CancellationAlert from "./components/CancellationAlert.jsx";
 import { loadMyAway, isAwayNow, fmtAwayEnd } from "./lib/status.js";
 import { loadAttendance, saveAttendance, sessionKey, syncAttendanceFromCloud, pushMark, courseSkipStats } from "./lib/attendance.js";
-import { syncProfileFromCloud, pushProfile, pushReadState, stampProfileEmail } from "./lib/profile.js";
+import { syncProfileFromCloud, pushProfile, stampProfileEmail } from "./lib/profile.js";
 import { syncMigrationMap } from "./lib/migrationMap.js";
 import { useMigration } from "./lib/useMigration.js";
 import MigrationBanner from "./components/MigrationBanner.jsx";
-import { decodeSchedule, saveFriend, loadFriends, loadGroups, syncFriendsAndGroupsFromCloud, pushFriendsToCloud, deleteAllFriendPings, deleteFriendPing, removeFriendByCloudId, sendFriendPing, hasPendingFriendRequest, getOrCreateShareCode } from "./lib/friends.js";
+import { CalendarEventBadgeSVG } from "./components/CalendarSVGs.jsx";
+import { decodeSchedule, saveFriend, loadFriends, loadGroups, syncFriendsAndGroupsFromCloud, pushFriendsToCloud, deleteFriendPing, removeFriendByCloudId, sendFriendPing, hasPendingFriendRequest, getOrCreateShareCode } from "./lib/friends.js";
 import { supabase } from "./lib/supabase.js";
-import { fetchNotifications, subscribeToNotifications, markNotificationRead, markAllNotificationsRead } from "./lib/notifications.js";
+import { fetchNotifications, subscribeToNotifications, markNotificationRead } from "./lib/notifications.js";
 import { assignSubjectColors, subjectClass } from "./lib/subjectColors.js";
 import { haptic } from "./lib/haptics.js";
+import { useSidebar } from "./hooks/useSidebar.js";
+import { useNotifications, buildNotificationHandlers } from "./hooks/useNotifications.js";
 import MarkPrompt from "./components/MarkPrompt.jsx";
 import { WhatsNewPill, WhatsNewModal } from "./components/WhatsNew.jsx";
 import { resizeImage } from "./lib/board.js";
@@ -190,6 +197,18 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   });
   const [feedbackFlashTriggered, setFeedbackFlashTriggered] = useState(false);
   const [feedbackFlashConfig, setFeedbackFlashConfig] = useState(null);
+  // One-time nudge pointing students at a term's Wrapped recap once it archives.
+  const [seenWrappedNudges, setSeenWrappedNudges] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem("pgp2.seen-wrapped-nudge") || "[]")); } catch { return new Set(); }
+  });
+  function dismissWrappedNudge(termNumber) {
+    setSeenWrappedNudges(prev => {
+      const next = new Set(prev);
+      next.add(termNumber);
+      try { localStorage.setItem("pgp2.seen-wrapped-nudge", JSON.stringify([...next])); } catch { }
+      return next;
+    });
+  }
   function closeWhatsNew(items) {
     setWhatsNewOpen(false);
     setSeenWhatsNewIds(prev => {
@@ -280,6 +299,32 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // Glance is a shortcut peek, not a destination — don't make it the view the
   // app re-opens on next launch.
   useEffect(() => { if (view !== "glance") { try { localStorage.setItem(VIEW_KEY, view); } catch { } } }, [view]);
+  // Which term's schedule is being browsed — defaults to the live term; can be
+  // switched to an archived term for read-only browsing (see `activeTerm` etc.
+  // below, derived once `sd`/TERM are known).
+  const TERM_KEY = "pgp2.selected-term";
+  const TERM_LIVE_KEY = "pgp2.selected-term-live"; // live term at time of selection
+  const [selectedTerm, setSelectedTerm] = useState(() => {
+    try {
+      // A stored selection is only honored if (a) the live term hasn't rolled
+      // over since it was made, and (b) it names a currently-archived term.
+      // Otherwise fall back to null → the live term. This keeps the live term
+      // the default and stops a returning user whose old selection pointed at
+      // the previous (then-live) term from landing on that term's archive.
+      const storedLive = localStorage.getItem(TERM_LIVE_KEY);
+      if (storedLive !== (TERM?.number ?? null)) return null;
+      const stored = localStorage.getItem(TERM_KEY);
+      if (!stored || stored === TERM?.number) return null;
+      return ARCHIVED_TERMS.some(t => t.number === stored) ? stored : null;
+    } catch { return null; }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(TERM_LIVE_KEY, TERM?.number ?? "");
+      if (selectedTerm) localStorage.setItem(TERM_KEY, selectedTerm);
+      else localStorage.removeItem(TERM_KEY);
+    } catch { }
+  }, [selectedTerm]);
   useEffect(() => {
     if (!showAdminUI) {
       if (view === "admin") setView("today");
@@ -304,17 +349,29 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [weekOffset, setWeekOffset] = useState(0);
   const [mine, setMine] = useState(() => { const s = readSetup(); return s?.courses ? new Set(Object.keys(s.courses)) : null; });
   const [enrolled, setEnrolled] = useState(() => { const s = readSetup(); return s?.courses ?? null; });
+  // Enrollment snapshots for archived terms, keyed by term number (e.g. { "IV": { CODE: section, ... } }).
+  // Populated from the cloud profile's `_archivedCourses`; unused until a term switch happens.
+  const [archivedCourses, setArchivedCourses] = useState({});
   const [setup, setSetup] = useState(() => readSetup());
+  // Set when Onboarding is forced open because the live term rolled over and
+  // last term's course picks are now stale (see enrollmentStale below) — lets
+  // Onboarding show "Term rolled over" copy instead of the generic first-time
+  // setup screen.
+  const [reonboardFromTerm, setReonboardFromTerm] = useState(null);
   const [allocationApplied, setAllocationApplied] = useState(false);
   const [prefillPicked, setPrefillPicked] = useState(null);
   const [showSetupEdit, setShowSetupEdit] = useState(false);
+  // Edit-enrollment is a live-only action — guarded below (after isArchivedView
+  // is known) via openEditSetup(), used at every "Edit setup" entry point instead
+  // of calling setShowSetupEdit(true) directly.
   const [syncedAt, setSyncedAt] = useState(new Date());
-  const [notifOpen, setNotifOpen] = useState(false);
-  const [notifFilter, setNotifFilter] = useState("all"); // all | social | classes
   const notifOpenedAt = useRef(0);
   const [, setLastSeenTs] = useState(() => loadLastSeen());
-  const [readPingIds, setReadPingIds] = useState(() => loadReadPingIds());
-  const [readChangeKeys, setReadChangeKeys] = useState(() => loadReadChangeKeys());
+  const {
+    notifOpen, setNotifOpen, notifFilter, setNotifFilter,
+    readPingIds, setReadPingIds, readChangeKeys, setReadChangeKeys,
+    seenRecvGroupIds, setSeenRecvGroupIds, pings, setPings, alerts, setAlerts,
+  } = useNotifications();
   const [swUpdateFn, setSwUpdateFn] = useState(null);
   const [socialFlashToast, setSocialFlashToast] = useState(null);
   const [installPromptEvent, setInstallPromptEvent] = useState(null);
@@ -348,6 +405,12 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [sbProfileOpen, setSbProfileOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
+  const [calendarModalOpen, setCalendarModalOpen] = useState(false);
+  const [calendarModalConfig, setCalendarModalConfig] = useState(null);
+  const openCalendarExport = useCallback((config = null) => {
+    setCalendarModalConfig(config);
+    setCalendarModalOpen(true);
+  }, []);
   const [weather, setWeather] = useState(null);
   const [cloudChecked, setCloudChecked] = useState(false);
   const [clearedGroupIds, setClearedGroupIds] = useState(() => loadClearedGroups());
@@ -368,23 +431,11 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [jumpToDate, setJumpToDate] = useState(null);
   const [jumpToSession, setJumpToSession] = useState(null); // { date, code, start } — highlights the specific class row
 
-  // Received groups badge: track how many received groups were seen when Friends tab was last opened
-  const [pings, setPings] = useState([]);
-  // Unified notifications feed (class reminders, cancellations, summaries, admin
-  // broadcasts) from the `notifications` table — the redesigned event store.
-  const [alerts, setAlerts] = useState([]);
   // Bumped when "Notification settings" is chosen from the menu → auto-opens the
   // prefs dropdown on the Announcements page.
   const [notifPrefsSignal, setNotifPrefsSignal] = useState(0);
-  const [seenRecvGroupIds, setSeenRecvGroupIds] = useState(() => {
-    try { return new Set(JSON.parse(localStorage.getItem("pgp2.seen-recv-groups") || "[]")); }
-    catch { return new Set(); }
-  });
   const [, setSeenRecvCount] = useState(() => {
     try { return parseInt(localStorage.getItem("pgp2.recv-groups-count") || "0", 10); } catch { return 0; }
-  });
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    try { return localStorage.getItem("pgp2.sidebar") === "collapsed"; } catch { return false; }
   });
   // Tablet tier (768–1023px landscape): sidebar is forced to the collapsed icon
   // rail — there isn't room for the expanded panel next to content, so the
@@ -400,152 +451,30 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
   }, []);
-  const sbCollapsed = sidebarCollapsed || isTablet;
-  function toggleSidebar() {
-    setSidebarCollapsed(prev => {
-      const next = !prev;
-      try { localStorage.setItem("pgp2.sidebar", next ? "collapsed" : "expanded"); } catch { }
-      return next;
-    });
-    setSbTip(null);
-  }
-
-  // Sidebar visual style — "classic" (attached dark) or "aurora" (floating glass, animated)
-  const [sbStyle, setSbStyle] = useState(() => {
-    try { return localStorage.getItem("pgp2.sidebar-style") === "aurora" ? "aurora" : "classic"; } catch { return "classic"; }
-  });
-  function setSidebarStyle(s) {
-    setSbStyle(s);
-    try { localStorage.setItem("pgp2.sidebar-style", s); } catch { }
-  }
-
-  // Appearance — "light" | "dark" | "system". The pre-paint script in
-  // index.html applies the saved value before React mounts; this keeps
-  // <html data-theme> and the theme-color meta in sync from then on.
-  const [theme, setTheme] = useState(() => {
-    try {
-      const v = localStorage.getItem("pgp2.theme");
-      return v === "light" || v === "dark" || v === "system" ? v : "system";
-    } catch { return "system"; }
-  });
-  function pickTheme(t) {
-    setTheme(t);
-    try { localStorage.setItem("pgp2.theme", t); } catch { }
-  }
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const apply = () => {
-      const dark = theme === "dark" || (theme === "system" && mq.matches);
-      if (dark) document.documentElement.dataset.theme = "dark";
-      else delete document.documentElement.dataset.theme;
-      document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#101216" : "#15182B");
-    };
-    apply();
-    mq.addEventListener("change", apply);
-    return () => mq.removeEventListener("change", apply);
-  }, [theme]);
-
-  const [sbTip, setSbTip] = useState(null);
-  function showSbTip(e, label, always = false) {
-    if (!sbCollapsed && !always) return;
-    const r = e.currentTarget.getBoundingClientRect();
-    setSbTip({ label, top: r.top + r.height / 2, left: r.right + 10 });
-  }
-  function hideSbTip() { setSbTip(null); }
+  const {
+    sidebarCollapsed, sbCollapsed, toggleSidebar,
+    sbStyle, setSidebarStyle,
+    theme, pickTheme,
+    sbTip, showSbTip, hideSbTip,
+    mobileNavMode, pickNavMode, showBottomNav, showTopTabs,
+    bnavRef, bnavLens, bnavCompact,
+    onBnavPointerDown, onBnavPointerUp,
+    navMenuOpen, setNavMenuOpen,
+    themeMenuOpen, setThemeMenuOpen,
+    toolsSecOpen, setToolsSecOpen,
+    sbToolsOpen, setSbToolsOpen,
+    prefsSecOpen, setPrefsSecOpen,
+    aboutSecOpen, setAboutSecOpen,
+    adminSecOpen, setAdminSecOpen,
+    showRightScroll, setShowRightScroll,
+    showLeftScroll, setShowLeftScroll,
+  } = useSidebar({ isTablet, view, sysConfig });
 
   const tabsRef = useRef(null);
-  // Mobile navigation preference: "bottom" (dock only), "top" (tab strip only), or "both"
-  const [mobileNavMode, setMobileNavMode] = useState(() => {
-    try {
-      const v = localStorage.getItem("pgp2.mobile-nav");
-      if (v === "bottom" || v === "top" || v === "both") return v;
-      if (localStorage.getItem("pgp2.bottom-nav") === "hidden") return "top";
-      return "top";
-    } catch { return "top"; }
-  });
-  function pickNavMode(mode) {
-    setMobileNavMode(mode);
-    try { localStorage.setItem("pgp2.mobile-nav", mode); } catch { }
-  }
-  const showBottomNav = mobileNavMode !== "top";
-  const showTopTabs = mobileNavMode !== "bottom";
-
-  // ── Liquid-glass dock: sliding lens indicator + scroll recede ──
-  const bnavRef = useRef(null);
-  const [bnavLens, setBnavLens] = useState(null); // { x, w } px, or null until measured
-  const [bnavCompact, setBnavCompact] = useState(false);
-  useEffect(() => {
-    if (!showBottomNav) return;
-    let lastY = window.scrollY;
-    let acc = 0;        // accumulated same-direction scroll (hysteresis)
-    let compact = false;
-    let raf = 0;
-    let idleTimer = 0;
-    const apply = (v) => { if (compact !== v) { compact = v; setBnavCompact(v); } };
-    const onScroll = () => {
-      if (raf) return;
-      raf = requestAnimationFrame(() => {
-        raf = 0;
-        const y = window.scrollY;
-        const dy = y - lastY;
-        lastY = y;
-        // Ignore micro-jitter from elastic scroll / address-bar resize
-        if (Math.abs(dy) < 2) return;
-        // Accumulate in one direction; a direction change resets the tally,
-        // so only sustained movement flips the state — no mid-scroll bouncing
-        acc = (dy > 0) === (acc > 0) ? acc + dy : dy;
-        if (acc > 28 && y > 120) apply(true);
-        else if (acc < -16 || y <= 120) apply(false);
-        // Spring back after ~1s of no scrolling
-        clearTimeout(idleTimer);
-        idleTimer = setTimeout(() => { acc = 0; apply(false); }, 1000);
-      });
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      if (raf) cancelAnimationFrame(raf);
-      clearTimeout(idleTimer);
-    };
-  }, [showBottomNav]);
-  // Re-position the lens under the active button (used after view changes,
-  // resizes, and to snap back from a cancelled press)
-  const bnavMeasure = useCallback(() => {
-    const nav = bnavRef.current;
-    if (!nav) return;
-    const btn = nav.querySelector(".bnav-btn.on");
-    if (btn) setBnavLens({ x: btn.offsetLeft, w: btn.offsetWidth });
-    else setBnavLens(null);
-  }, []);
-  useLayoutEffect(() => {
-    if (!showBottomNav) return;
-    bnavMeasure();
-    window.addEventListener("resize", bnavMeasure);
-    return () => window.removeEventListener("resize", bnavMeasure);
-  }, [showBottomNav, view, sysConfig, bnavMeasure]);
-  // Instagram-dock feel: start the lens glide on touch-down, before the tap's
-  // click renders the (possibly heavy) new view — the transform transition
-  // runs on the compositor, so it stays smooth even while React is busy
-  const onBnavPointerDown = (e) => {
-    const btn = e.target.closest?.(".bnav-btn");
-    if (btn) {
-      setBnavLens({ x: btn.offsetLeft, w: btn.offsetWidth });
-      haptic(10);
-    }
-  };
-  // If the press never becomes a click (finger slid off), snap the lens back.
-  // click dispatches synchronously after pointerup, so by the time this
-  // timeout runs the view has either changed (measure is a no-op visually)
-  // or it hasn't (lens returns to the active button).
-  const onBnavPointerUp = () => { setTimeout(bnavMeasure, 0); };
-
-  const [navMenuOpen, setNavMenuOpen] = useState(false);
-  const [themeMenuOpen, setThemeMenuOpen] = useState(false);
-  // Overflow-menu collapsible sections (mobile ⋯ menu)
-  const [toolsSecOpen, setToolsSecOpen] = useState(false);
-  // Desktop sidebar "Tools" group — collapsed by default so the long tail of
-  // occasional-use pages doesn't flatten the whole nav's visual hierarchy.
-  const [sbToolsOpen, setSbToolsOpen] = useState(true);
+  const [termMenuOpen, setTermMenuOpen] = useState(false);
+  const [desktopTermMenuOpen, setDesktopTermMenuOpen] = useState(false);
+  const [termPickerPos, setTermPickerPos] = useState(null);
+  const termPickerTriggerRef = useRef(null);
   // "New"/"Beta" nav badges auto-expire once the user has opened that view —
   // they're a "look here" nudge, not a permanent status label.
   const [seenBadges, setSeenBadges] = useState(() => {
@@ -565,17 +494,12 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // user never loses their place; collapsed sidebar always shows the icons.
   const viewIsTool = TOOLS_VIEWS.includes(view);
   const showSbTools = IS_LITE || sbCollapsed || sbToolsOpen || viewIsTool;
-  const [prefsSecOpen, setPrefsSecOpen] = useState(false);
   const [messMenuOpen, setMessMenuOpen] = useState(false);
-  const [aboutSecOpen, setAboutSecOpen] = useState(false);
   // Split deep-link: a group id from a notification URL (?view=split&g=…)
   const [splitDeepLink, setSplitDeepLink] = useState(null);
   // Split invite: a group id to join from a shared link (?view=split&join=…)
   const [splitJoinLink, setSplitJoinLink] = useState(null);
-  const [adminSecOpen, setAdminSecOpen] = useState(false);
   const [showFriendsAgenda, setShowFriendsAgenda] = useState(false);
-  const [showRightScroll, setShowRightScroll] = useState(true);
-  const [showLeftScroll, setShowLeftScroll] = useState(false);
   const handleTabsScroll = () => {
     if (!tabsRef.current) return;
     const { scrollLeft, scrollWidth, clientWidth } = tabsRef.current;
@@ -747,7 +671,15 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           // not system_config — so we no longer apply messMenuOverrides here.
           setSysConfig(sysConfigRes.data);
         }
-        if (p?.courses) {
+        if (p?.archivedCourses) setArchivedCourses(p.archivedCourses);
+        // A profile's courses are only valid for the term they were picked in
+        // (_enrolledTerm, stamped on every pushProfile). If the live term has
+        // rolled over since this student last touched their enrollment, those
+        // picks are stale — the old ones are already safely archived server-side
+        // (see profile.js pushProfile), so just force them back into onboarding
+        // for the new term instead of silently rendering last term's schedule.
+        const enrollmentStale = p?.enrolledTerm && p.enrolledTerm !== TERM?.number;
+        if (p?.courses && !enrollmentStale) {
           setEnrolled(p.courses);
           setMine(new Set(Object.keys(p.courses)));
           setSetup(p);
@@ -785,6 +717,14 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               return merged;
             });
           }
+        } else if (enrollmentStale) {
+          // Local cache (readSetup()) may still hold last term's courses from
+          // before this load — clear the gate so Onboarding renders instead of
+          // last term's now-invalid schedule.
+          setSetup(null);
+          setEnrolled({});
+          setMine(new Set());
+          setReonboardFromTerm(p.enrolledTerm);
         }
         setAttendance(a);
         if (fg) {
@@ -1386,6 +1326,26 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
   const { TERM, LEGEND, CLASSES, CHANGES } = sd || { TERM: null, LEGEND: {}, CLASSES: [], CHANGES: [] };
 
+  // Term switcher: when browsing an archived term, shadow the live TERM/LEGEND/
+  // CLASSES/CHANGES with the archived entry's data for everything render-facing.
+  // Live-only actions (attendance marking, push, admin config, live feed sync)
+  // keep using the real TERM/CLASSES/sd — see `isArchivedView` gating below.
+  const archivedEntry = (TERM && selectedTerm != null && selectedTerm !== TERM.number)
+    ? ARCHIVED_TERMS.find(t => t.number === selectedTerm) || null
+    : null;
+  const activeTerm = archivedEntry ? archivedEntry.TERM : TERM;
+  const activeLegend = archivedEntry ? archivedEntry.LEGEND : LEGEND;
+  const activeClasses = archivedEntry ? archivedEntry.CLASSES : CLASSES;
+  const activeChanges = archivedEntry ? [] : CHANGES;
+  const isArchivedView = !!archivedEntry;
+  // Enrollment source for the term currently being browsed: live `enrolled`
+  // normally, or the frozen per-term snapshot when browsing an archived term.
+  const activeEnrolled = isArchivedView ? (archivedCourses[activeTerm?.number] || {}) : enrolled;
+  const activeMine = isArchivedView ? new Set(Object.keys(activeEnrolled)) : mine;
+  // Editing enrollment only makes sense for the live term — a no-op while
+  // browsing an archived term (every "Edit setup" entry point routes through this).
+  const openEditSetup = () => { if (!isArchivedView) setShowSetupEdit(true); };
+
   const sectionsByCode = useMemo(() => {
     if (!sd) return {};
     const m = {};
@@ -1434,6 +1394,91 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     if (enrolled) Object.keys(enrolled).forEach((c) => { if (LEGEND[c]) out[c] = LEGEND[c]; });
     return out;
   }, [enrolled, LEGEND]);
+
+  // Archived-aware counterparts of enrolled/mine/enrolledLegend, used by the
+  // components that support browsing an archived term (Attendance, Exams,
+  // Wrapped, Full Schedule) — falls back to the live values when not archived.
+  const activeEnrolledLegend = useMemo(() => {
+    if (!isArchivedView) return enrolledLegend;
+    const out = {};
+    Object.keys(activeEnrolled || {}).forEach((c) => { if (activeLegend[c]) out[c] = activeLegend[c]; });
+    return out;
+  }, [isArchivedView, activeEnrolled, activeLegend, enrolledLegend]);
+
+  // Same filtering as `visible` above, but against the archived term's data —
+  // only needed for WrappedView while browsing an archived term.
+  const activeVisible = useMemo(() => {
+    if (!isArchivedView) return visible;
+    if (!activeEnrolled || !activeMine) return [];
+    const seen = new Set();
+    return activeClasses.filter((c) => {
+      if (c.type === "class") {
+        const sec = activeEnrolled[c.code];
+        return sec !== undefined && (c.section === sec || c.section === "Single" || c.section === "All") && activeMine.has(c.code);
+      }
+      if (c.type === "exam") {
+        const key = c.date + c.slot + c.name;
+        if (seen.has(key)) return false;
+        const code = c.code || (c.name || "").match(/^([A-Za-z]{2,8})\b/)?.[1]?.toUpperCase();
+        if (code && Object.keys(activeLegend || {}).includes(code)) {
+          if (!activeMine.has(code)) return false;
+        }
+        seen.add(key); return true;
+      }
+      const key = c.date + c.slot + c.name;
+      if (seen.has(key)) return false; seen.add(key); return true;
+    });
+  }, [isArchivedView, activeClasses, activeEnrolled, activeMine, activeLegend, visible]);
+
+  // Prior-term input for Wrapped comparisons. Only use a saved enrollment
+  // snapshot; without it, comparing against the whole cohort timetable would
+  // produce a misleading personal recap.
+  const previousWrappedInput = useMemo(() => {
+    let previous = null;
+    if (isArchivedView) {
+      const index = ARCHIVED_TERMS.findIndex((term) => term.number === activeTerm?.number);
+      if (index > 0) previous = ARCHIVED_TERMS[index - 1];
+    } else {
+      const eligible = ARCHIVED_TERMS.filter((term) => !activeTerm?.start || term.TERM?.end < activeTerm.start);
+      previous = eligible[eligible.length - 1] || null;
+    }
+    if (!previous) return null;
+    const previousEnrolled = archivedCourses[previous.number];
+    if (!previousEnrolled || Object.keys(previousEnrolled).length === 0) return null;
+    const previousMine = new Set(Object.keys(previousEnrolled));
+    const seen = new Set();
+    const previousVisible = previous.CLASSES.filter((c) => {
+      if (c.type === "class") {
+        const section = previousEnrolled[c.code];
+        return section !== undefined && (c.section === section || c.section === "Single" || c.section === "All") && previousMine.has(c.code);
+      }
+      if (c.type === "exam") {
+        const key = c.date + c.slot + c.name;
+        if (seen.has(key)) return false;
+        const code = c.code || (c.name || "").match(/^([A-Za-z]{2,8})\b/)?.[1]?.toUpperCase();
+        if (code && Object.keys(previous.LEGEND || {}).includes(code) && !previousMine.has(code)) return false;
+        seen.add(key);
+        return true;
+      }
+      return false;
+    });
+    const previousLegend = {};
+    previousMine.forEach((code) => { if (previous.LEGEND[code]) previousLegend[code] = previous.LEGEND[code]; });
+    const currentEnd = activeTerm?.end ? new Date(`${activeTerm.end}T23:59:00`) : null;
+    const compareAtSamePoint = Boolean(!isArchivedView && activeTerm?.start && previous.TERM?.start && currentEnd && now < currentEnd);
+    let previousNow = new Date(`${previous.TERM.end}T23:59:00`);
+    if (compareAtSamePoint) {
+      const currentStart = new Date(`${activeTerm.start}T00:00:00`);
+      const previousStart = new Date(`${previous.TERM.start}T00:00:00`);
+      previousNow = new Date(Math.min(previousNow.getTime(), previousStart.getTime() + Math.max(0, now.getTime() - currentStart.getTime())));
+    }
+    return {
+      visible: previousVisible,
+      legend: previousLegend,
+      termLabel: `Term ${previous.number}${compareAtSamePoint ? " at the same point" : ""}`,
+      now: previousNow,
+    };
+  }, [isArchivedView, activeTerm?.number, activeTerm?.start, activeTerm?.end, archivedCourses, now]);
 
   // Assign stable subject colors before any child renders: enrolled courses
   // first (max hue separation for the user's own subjects), rest of the term
@@ -1541,6 +1586,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     setMine(new Set(Object.keys(courses)));
     setSetup(s);
     setShowSetupEdit(false);
+    setReonboardFromTerm(null);
   }
 
   const filteredChanges = useMemo(() => {
@@ -1626,93 +1672,23 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   }, [filteredChanges, todayList, readChangeKeys, now]);
   const receivedGroupCount = groups.filter(g => g.isReceived).length;
 
-  function markGroupsSeen() {
-    setSeenRecvCount(receivedGroupCount);
-    try { localStorage.setItem("pgp2.recv-groups-count", String(receivedGroupCount)); } catch { }
-  }
-
-  function markPingRead(pingId) {
-    if (!pingId) return;
-    if (pingId.startsWith("grp-")) {
-      const groupId = pingId.slice(4);
-      if (seenRecvGroupIds.has(groupId)) return;
-      const nextGroupIds = new Set([...seenRecvGroupIds, groupId]);
-      setSeenRecvGroupIds(nextGroupIds);
-      try { localStorage.setItem("pgp2.seen-recv-groups", JSON.stringify([...nextGroupIds])); } catch { }
-      pushReadState(userId, readPingIds, nextGroupIds, readChangeKeys);
-      return;
-    }
-    if (readPingIds.has(pingId)) return;
-    const nextPingIds = new Set([...readPingIds, pingId]);
-    setReadPingIds(nextPingIds);
-    try { localStorage.setItem(READ_PINGS_KEY, JSON.stringify([...nextPingIds])); } catch { }
-    pushReadState(userId, nextPingIds, seenRecvGroupIds, readChangeKeys);
-  }
-
-  // Notifications-table read state lives server-side (read_at). Optimistically
-  // flip it locally, then persist — realtime UPDATE reconciles other devices.
-  function markAlertRead(id) {
-    if (!id) return;
-    setAlerts(prev => prev.map(a => a.id === id && !a.read_at ? { ...a, read_at: new Date().toISOString() } : a));
-    markNotificationRead(id);
-  }
-
-  function markChangeRead(c) {
-    const key = changeKey(c);
-    if (readChangeKeys.has(key)) return;
-    const next = new Set([...readChangeKeys, key]);
-    setReadChangeKeys(next);
-    try { localStorage.setItem(READ_CHANGES_KEY, JSON.stringify([...next])); } catch { }
-    pushReadState(userId, readPingIds, seenRecvGroupIds, next);
-  }
-
-  // Batch variant: one state update + one sync push for a whole bundle.
-  // Returns the pushReadState promise so callers can show a "synced" indicator.
-  function markChangesRead(cs) {
-    const fresh = (cs || []).map(changeKey).filter(k => !readChangeKeys.has(k));
-    if (!fresh.length) return Promise.resolve();
-    const next = new Set([...readChangeKeys, ...fresh]);
-    setReadChangeKeys(next);
-    try { localStorage.setItem(READ_CHANGES_KEY, JSON.stringify([...next])); } catch { }
-    return pushReadState(userId, readPingIds, seenRecvGroupIds, next);
-  }
-
-  function markAllChangesRead() {
-    return markChangesRead((CHANGES || []).filter(c => isAdmin || !c.admin_only));
-  }
-
-  function markAllRead() {
-    const nextPings = new Set([...readPingIds, ...friendNotifItems.map(i => i.pingId).filter(Boolean)]);
-    setReadPingIds(nextPings);
-    try { localStorage.setItem(READ_PINGS_KEY, JSON.stringify([...nextPings])); } catch { }
-
-    const nextChanges = new Set([...readChangeKeys, ...filteredChanges.map(changeKey)]);
-    setReadChangeKeys(nextChanges);
-    try { localStorage.setItem(READ_CHANGES_KEY, JSON.stringify([...nextChanges])); } catch { }
-
-    const newIds = new Set([...seenRecvGroupIds, ...newRecvGroups.map(g => g.id)]);
-    setSeenRecvGroupIds(newIds);
-    try { localStorage.setItem("pgp2.seen-recv-groups", JSON.stringify([...newIds])); } catch { }
-
-    // Notifications-table rows: optimistic local flip + one server call.
-    if (unreadAlertCount > 0) {
-      const now = new Date().toISOString();
-      setAlerts(prev => prev.map(a => a.read_at ? a : { ...a, read_at: now }));
-      markAllNotificationsRead(userId);
-    }
-
-    pushReadState(userId, nextPings, newIds, nextChanges);
-  }
+  const {
+    markGroupsSeen, markPingRead, markAlertRead, markChangeRead, markChangesRead,
+    markAllChangesRead, markAllRead, removePingEverywhere, clearAllFriendNotifs,
+    handleOpenNotif, handleViewAllNotifs,
+  } = buildNotificationHandlers(
+    { notifOpen, setNotifOpen, readPingIds, setReadPingIds, readChangeKeys, setReadChangeKeys,
+      seenRecvGroupIds, setSeenRecvGroupIds, pings, setPings, setAlerts },
+    { userId, enrolled, changes: CHANGES, userName: user?.firstName || user?.username || "Student",
+      userImageUrl: user?.imageUrl,
+      filteredChanges, friendNotifItems, newRecvGroups, allRecvGroups,
+      receivedGroupCount, unreadAlertCount, isAdmin, changeKey,
+      setClearedGroupIds, setSeenRecvCount, setLastSeenTs, notifOpenedAt, setView }
+  );
 
   function flashFriendToast(msg) {
     setFriendToast(msg);
     setTimeout(() => setFriendToast(null), 4000);
-  }
-
-  // Drop a ping row everywhere it lives: server table + local list state
-  function removePingEverywhere(pingId) {
-    markNotificationRead(pingId);
-    setPings(prev => prev.filter(p => p.id !== pingId));
   }
 
   async function handleAcceptFriendRequest(item) {
@@ -1733,39 +1709,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   function handleDeclineFriendRequest(item) {
     deleteFriendPing(item.pingId);
     removePingEverywhere(item.pingId);
-  }
-
-  function clearAllFriendNotifs() {
-    deleteAllFriendPings(userId);          // drain any legacy friend_pings
-    pings.forEach(p => markNotificationRead(p.id)); // durably clear social rows
-    setPings([]);
-    setReadPingIds(new Set());
-    try { localStorage.removeItem(READ_PINGS_KEY); } catch { }
-    markGroupsSeen();
-    setClearedGroupIds(prev => {
-      const next = new Set([...prev, ...allRecvGroups.map(g => g.id)]);
-      try { localStorage.setItem(CLEARED_GROUPS_KEY, JSON.stringify([...next])); } catch { }
-      return next;
-    });
-  }
-
-  function handleOpenNotif() {
-    if (!notifOpen && filteredChanges.length > 0 && userId && enrolled) {
-      const latest = Math.max(...filteredChanges.map(c => new Date(c.ts).getTime()));
-      setLastSeenTs(latest);
-      try { localStorage.setItem(NOTIF_KEY, String(latest)); } catch { }
-      pushProfile(userId, enrolled, user?.firstName || user?.username || "Student", latest, user?.imageUrl);
-    }
-    if (!notifOpen) notifOpenedAt.current = Date.now();
-    setNotifOpen(o => !o);
-  }
-
-  function handleViewAllNotifs() {
-    // Guard against mobile tap-through: if the panel just opened (<350ms ago)
-    // the tap-up from the bell press lands on this button — ignore it.
-    if (Date.now() - notifOpenedAt.current < 350) return;
-    setNotifOpen(false);
-    setView("notifications");
   }
 
   // Presence heartbeat — stamps profiles.last_seen_at (at most once/hour) so
@@ -1817,6 +1760,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     }
   };
 
+  const mostRecentArchivedTerm = ARCHIVED_TERMS.length > 0 ? ARCHIVED_TERMS[ARCHIVED_TERMS.length - 1] : null;
+
   function fmtTermDate(val) {
     if (!val) return "";
     // Try ISO (YYYY-MM-DD) with midnight anchor first, then raw parse
@@ -1824,21 +1769,71 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     if (isNaN(d)) d = new Date(String(val).trim());
     return isNaN(d) ? "" : d.toLocaleDateString([], { day: "numeric", month: "short" });
   }
-  const termDateRange = TERM ? [fmtTermDate(TERM.start), fmtTermDate(TERM.end)].filter(Boolean).join(" – ") : "";
-  const termLabel = TERM?.number ? `Term ${TERM.number}${termDateRange ? ` · ${termDateRange}` : ""}` : termDateRange;
+  function pickTerm(num, live) {
+    setSelectedTerm(num);
+    flashFriendToast(live ? `Now viewing Term ${num} · Live` : `Now viewing Term ${num} · Archive (read-only)`);
+  }
+  const termDateRange = activeTerm ? [fmtTermDate(activeTerm.start), fmtTermDate(activeTerm.end)].filter(Boolean).join(" – ") : "";
+  const termLabel = activeTerm?.number ? `Term ${activeTerm.number}${isArchivedView ? " · Archive" : ""}${termDateRange ? ` · ${termDateRange}` : ""}` : termDateRange;
+  const termSwitcherEl = ARCHIVED_TERMS.length > 0 ? (
+    <div className="term-picker">
+      <button
+        className="term-picker-trigger"
+        aria-expanded={desktopTermMenuOpen}
+        ref={termPickerTriggerRef}
+        onClick={() => {
+          if (!desktopTermMenuOpen) {
+            const r = termPickerTriggerRef.current?.getBoundingClientRect();
+            if (r) setTermPickerPos({ top: r.bottom + 6, left: r.left, minWidth: r.width });
+          }
+          setDesktopTermMenuOpen(o => !o);
+        }}
+      >
+        {isArchivedView ? <History size={13} /> : <Radio size={13} className="over-term-live-icon" />}
+        Term {selectedTerm ?? TERM?.number}
+        <span className="over-term-badge">{isArchivedView ? "Archive" : "Live"}</span>
+        <ChevronDown size={12} className={`over-caret${desktopTermMenuOpen ? " open" : ""}`} />
+      </button>
+      {desktopTermMenuOpen && termPickerPos && createPortal(
+        <>
+          <div className="notif-backdrop" onClick={() => setDesktopTermMenuOpen(false)} />
+          <div className="over-menu term-picker-menu" style={{ position: "fixed", top: termPickerPos.top, left: termPickerPos.left, minWidth: Math.max(200, termPickerPos.minWidth) }}>
+            <button className="over-term-row" onClick={() => { pickTerm(TERM?.number ?? "", true); setDesktopTermMenuOpen(false); }}>
+              <span className="over-term-row-top">
+                <Radio size={14} className="over-term-live-icon" /> Term {TERM?.number}
+                {!isArchivedView && <Check size={14} className="over-check" />}
+              </span>
+              <span className="over-term-hint">Live</span>
+            </button>
+            {ARCHIVED_TERMS.map((t) => (
+              <button key={t.number} className="over-term-row" onClick={() => { pickTerm(t.number, false); setDesktopTermMenuOpen(false); }}>
+                <span className="over-term-row-top">
+                  <History size={14} /> Term {t.number}
+                  {selectedTerm === t.number && <Check size={14} className="over-check" />}
+                </span>
+                <span className="over-term-hint">View</span>
+              </button>
+            ))}
+          </div>
+        </>,
+        document.body
+      )}
+    </div>
+  ) : null;
   const termProgressPct = useMemo(() => {
-    if (!TERM?.start || !TERM?.end) return null;
-    const [sY, sM, sD] = TERM.start.split("-").map(Number);
-    const [eY, eM, eD] = TERM.end.split("-").map(Number);
+    if (isArchivedView) return 100; // archived terms are always complete
+    if (!activeTerm?.start || !activeTerm?.end) return null;
+    const [sY, sM, sD] = activeTerm.start.split("-").map(Number);
+    const [eY, eM, eD] = activeTerm.end.split("-").map(Number);
     const start = new Date(sY, sM - 1, sD).getTime();
     const end = new Date(eY, eM - 1, eD).getTime();
     if (!(end > start)) return null;
     return Math.min(100, Math.max(0, Math.round(((now.getTime() - start) / (end - start)) * 100)));
-  }, [TERM?.start, TERM?.end, now]);
+  }, [activeTerm?.start, activeTerm?.end, now, isArchivedView]);
   const termWeekInfo = useMemo(() => {
-    if (!TERM?.start || !TERM?.end) return null;
-    const [sY, sM, sD] = TERM.start.split("-").map(Number);
-    const [eY, eM, eD] = TERM.end.split("-").map(Number);
+    if (!activeTerm?.start || !activeTerm?.end) return null;
+    const [sY, sM, sD] = activeTerm.start.split("-").map(Number);
+    const [eY, eM, eD] = activeTerm.end.split("-").map(Number);
     const start = new Date(sY, sM - 1, sD).getTime();
     const end = new Date(eY, eM - 1, eD).getTime();
     if (!(end > start)) return null;
@@ -1870,7 +1865,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     </main>
   );
   const needsName = !(user?.firstName || user?.username);
-  if (!setup) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} termLabel={termLabel} onPullFromSheet={buildAllocationFromSheet} prefill={prefillPicked} cloudChecked={cloudChecked} waitingForAllocation={waitingForAllocation} needsName={needsName} />;
+  if (!setup) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} termLabel={termLabel} onPullFromSheet={buildAllocationFromSheet} prefill={prefillPicked} cloudChecked={cloudChecked} waitingForAllocation={waitingForAllocation} needsName={needsName} reonboardFromTerm={reonboardFromTerm} newTermLabel={TERM?.number} />;
   if (showSetupEdit) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} initialPicked={enrolled} onCancel={() => setShowSetupEdit(false)} termLabel={termLabel} onPullFromSheet={buildAllocationFromSheet} needsName={needsName} />;
 
   // Banned User Lockout
@@ -2124,7 +2119,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const renderSbUtilStrip = () => (
     <div className="sb-util-strip">
       {renderNotificationBell("sidebar")}
-      <button className="sb-util-btn" onMouseEnter={e => showSbTip(e, "Edit setup", true)} onMouseLeave={hideSbTip} onClick={() => { setShowSetupEdit(true); hideSbTip(); }} aria-label="Edit setup">
+      <button className="sb-util-btn" onMouseEnter={e => showSbTip(e, "Add to Calendar", true)} onMouseLeave={hideSbTip} onClick={() => { openCalendarExport(); hideSbTip(); }} aria-label="Add to Calendar">
+        <CalendarEventBadgeSVG size={16} />
+      </button>
+      <button className="sb-util-btn" onMouseEnter={e => showSbTip(e, "Edit setup", true)} onMouseLeave={hideSbTip} onClick={() => { openEditSetup(); hideSbTip(); }} aria-label="Edit setup">
         <Settings2 size={16} />
       </button>
       <button className="sb-util-btn" disabled={isOffline} onMouseEnter={e => showSbTip(e, isOffline ? "Offline" : syncing ? "Syncing…" : "Refresh", true)} onMouseLeave={hideSbTip} onClick={handleSync} aria-label="Refresh" style={{ opacity: isOffline ? 0.3 : 1 }}>
@@ -2254,195 +2252,20 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       )}
 
       {/* ── Desktop Sidebar ── */}
-      <aside className={`sidebar${sbCollapsed ? " collapsed" : ""}${sbStyle === "aurora" ? " sb-aurora" : ""}`}>
-        {sbStyle === "aurora" && (
-          <div className="sb-fx" aria-hidden="true"><i /><i /><span className="sb-grain" /></div>
-        )}
-        <div className="sb-brand">
-          <div className="sb-brand-mark" aria-hidden="true" />
-          <div className="logo"><img src="/termflow-icon.svg" alt="TermFlow" width={20} height={20} /></div>
-          <div className="sb-brand-text">
-            <div className="sb-brand-name">TermFlow {specialDay && <IndiaFlagIcon size={12} className="sb-brand-flag" />}</div>
-            <div className="sb-brand-sub">
-              <div>IIM Sambalpur</div>
-              <div className="sb-brand-date">{termLabel}</div>
-            </div>
-            {termProgressPct != null && (
-              <div className="sb-term-row" aria-hidden="true" title={termWeekInfo ? `${termWeekInfo.daysLeft} days left in term` : undefined}>
-                <div className="sb-term-progress">
-                  <div className="sb-term-progress-fill" style={{ width: `${termProgressPct}%` }} />
-                </div>
-                {termWeekInfo && <span className="sb-term-wk">WK {termWeekInfo.week}/{termWeekInfo.totalWeeks}</span>}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {isOffline && (
-          <div style={{ margin: "0 16px 12px 16px", padding: "6px 8px", background: "rgba(231, 76, 60, 0.1)", border: "1px solid var(--danger)", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: sbCollapsed ? "center" : "flex-start", gap: "8px", color: "var(--danger)", fontSize: "11px", fontWeight: 700 }}>
-            <CloudOff size={14} style={{ flexShrink: 0 }} /> {!sbCollapsed && <span>Offline Mode (Cached)</span>}
-          </div>
-        )}
-
-        <div className="sb-scroll-body">
-          <nav className="sb-nav">
-            <button className="sb-search-btn" onClick={() => setCmdOpen(true)}>
-              <div className="sb-search-left">
-                <Search size={16} />
-                <span className="sb-search-label">Search</span>
-              </div>
-              <span className="sb-search-shortcut">{isMac ? "⌘K" : "Ctrl K"}</span>
-            </button>
-
-            <div className="sb-nav-label">Schedule</div>
-            <button className={`sb-link${view === "today" ? " on" : ""}`} aria-current={view === "today" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Today")} onMouseLeave={hideSbTip} onClick={() => { setView("today"); setCompareTarget(null); hideSbTip(); }}>
-              <Clock size={18} /><span className="sb-link-label">Today</span>
-            </button>
-            <button className={`sb-link${view === "tomorrow" ? " on" : ""}`} aria-current={view === "tomorrow" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Tomorrow")} onMouseLeave={hideSbTip} onClick={() => { setView("tomorrow"); setCompareTarget(null); hideSbTip(); }}>
-              <Sunrise size={18} /><span className="sb-link-label">Tomorrow</span>
-            </button>
-
-            <div className="sb-nav-label">Track</div>
-            {enableAttendance && (
-              <button className={`sb-link${view === "attendance" ? " on" : ""}`} aria-current={view === "attendance" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Attendance")} onMouseLeave={hideSbTip} onClick={() => { setView("attendance"); setCompareTarget(null); hideSbTip(); }}>
-                <ClipboardList size={18} /><span className="sb-link-label">Attendance</span>
-              </button>
-            )}
-            {enableExams && (
-              <button className={`sb-link${view === "exams" ? " on" : ""}`} aria-current={view === "exams" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Exams")} onMouseLeave={hideSbTip} onClick={() => { setView("exams"); setCompareTarget(null); hideSbTip(); }}>
-                <GraduationCap size={18} /><span className="sb-link-label">Exams</span>
-              </button>
-            )}
-            {!IS_LITE && (
-              <button className={`sb-link${view === "assignments" ? " on" : ""}`} aria-current={view === "assignments" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Assignments")} onMouseLeave={hideSbTip} onClick={() => { setView("assignments"); setCompareTarget(null); hideSbTip(); }}>
-                <BookOpenCheck size={18} /><span className="sb-link-label">Assignments</span>
-              </button>
-            )}
-
-            <div className="sb-nav-label">{IS_LITE ? "Compare" : "Campus"}</div>
-            {!IS_LITE && (
-              <button className={`sb-link${view === "notifications" ? " on" : ""}`} aria-current={view === "notifications" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Announcements")} onMouseLeave={hideSbTip} onClick={() => { setView("notifications"); setCompareTarget(null); hideSbTip(); }}>
-                <Megaphone size={18} /><span className="sb-link-label">Announcements</span>
-                {unreadChangeCount > 0 && <span className="nav-badge">{unreadChangeCount > 9 ? "9+" : unreadChangeCount}</span>}
-              </button>
-            )}
-            {enableFriends && (
-              <button className={`sb-link${view === "friends" ? " on" : ""}`} aria-current={view === "friends" ? "page" : undefined} onMouseEnter={e => showSbTip(e, IS_LITE ? "Compare" : "Social")} onMouseLeave={hideSbTip} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); markBadgeSeen("social"); hideSbTip(); }}>
-                <Users size={18} /><span className="sb-link-label">{IS_LITE ? "Compare" : "Social"}</span> {!IS_LITE && showBadge("social") && <span className="beta-badge">Beta</span>}
-                {unreadFriendCount > 0 && <span className="nav-badge">{unreadFriendCount > 9 ? "9+" : unreadFriendCount}</span>}
-              </button>
-            )}
-            {!IS_LITE && (
-              <button className={`sb-link${view === "board" ? " on" : ""}`} aria-current={view === "board" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Campus Board")} onMouseLeave={hideSbTip} onClick={() => { setView("board"); setCompareTarget(null); markBadgeSeen("board"); hideSbTip(); }}>
-                <Package size={18} /><span className="sb-link-label">Campus Board</span> {showBadge("board") && <span className="beta-badge">New</span>}
-              </button>
-            )}
-
-            {!showSbTools && recentToolViews.filter(v => v !== view && TOOLS_VIEWS.includes(v) && (v !== "split" || !IS_LITE) && (v !== "wrapped" || (!IS_LITE && wrappedActive))).length > 0 && (
-              <>
-                <div className="sb-nav-label">Recent</div>
-                {recentToolViews.filter(v => v !== view && TOOLS_VIEWS.includes(v) && (v !== "split" || !IS_LITE) && (v !== "wrapped" || (!IS_LITE && wrappedActive))).map(v => {
-                  const { icon: Icon, label } = TOOLS_VIEW_META[v];
-                  return (
-                    <button key={v} className="sb-link" onMouseEnter={e => showSbTip(e, label)} onMouseLeave={hideSbTip} onClick={() => { setView(v); setCompareTarget(null); hideSbTip(); }}>
-                      <Icon size={18} /><span className="sb-link-label">{label}</span>
-                    </button>
-                  );
-                })}
-              </>
-            )}
-
-            {/* Mirrors the mobile ⋯ menu's Tools section — collapsed by default so
-                the occasional-use pages don't flatten the nav's visual hierarchy.
-                In lite the group is tiny (2 core items) so it renders expanded and
-                non-collapsible. */}
-            <button type="button" className="sb-tools-head" aria-expanded={showSbTools} onClick={() => { if (!sbCollapsed && !IS_LITE) setSbToolsOpen(o => !o); }}>
-              <span className="sb-nav-label">Tools</span>
-              {!sbCollapsed && !IS_LITE && <ChevronDown size={13} className={`sb-nav-caret${showSbTools ? " open" : ""}`} />}
-            </button>
-            {showSbTools && (<>
-              <button className={`sb-link${view === "fullSchedule" ? " on" : ""}`} aria-current={view === "fullSchedule" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Full timetable")} onMouseLeave={hideSbTip} onClick={() => { setView("fullSchedule"); setCompareTarget(null); hideSbTip(); }}>
-                <CalendarRange size={18} /><span className="sb-link-label">Full timetable</span>
-              </button>
-              {!IS_LITE && (
-                <button className="sb-link" onMouseEnter={e => showSbTip(e, "Mess menu")} onMouseLeave={hideSbTip} onClick={() => { setMessMenuOpen(true); hideSbTip(); }}>
-                  <UtensilsCrossed size={18} /><span className="sb-link-label">Mess menu</span>
-                </button>
-              )}
-              {!IS_LITE && (
-                <button className={`sb-link${view === "split" ? " on" : ""}`} aria-current={view === "split" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Split expenses")} onMouseLeave={hideSbTip} onClick={() => { setView("split"); setCompareTarget(null); markBadgeSeen("split"); hideSbTip(); }}>
-                  <Wallet size={18} /><span className="sb-link-label">Split</span> {showBadge("split") && <span className="beta-badge">New</span>}
-                </button>
-              )}
-              <button className={`sb-link${view === "leave" ? " on" : ""}`} aria-current={view === "leave" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Leave planner")} onMouseLeave={hideSbTip} onClick={() => { setView("leave"); setCompareTarget(null); hideSbTip(); }}>
-                <CalendarOff size={18} /><span className="sb-link-label">Leave planner</span>
-              </button>
-              {!IS_LITE && wrappedActive && (
-                <button className={`sb-link${view === "wrapped" ? " on" : ""}`} aria-current={view === "wrapped" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Term Wrapped")} onMouseLeave={hideSbTip} onClick={() => { setView("wrapped"); setCompareTarget(null); hideSbTip(); }}>
-                  <Sparkles size={18} /><span className="sb-link-label">Term Wrapped</span>
-                </button>
-              )}
-            </>)}
-          </nav>
-
-          {activeQuickLinks.length > 0 && (
-            <div className="sb-quicklinks">
-              <div className="sb-quicklinks-label">Quick Links</div>
-              {activeQuickLinks.map(ql => (
-                <a key={ql.id} className="sb-link sb-quicklink" href={ql.url} target="_blank" rel="noopener noreferrer" onMouseEnter={e => showSbTip(e, ql.title)} onMouseLeave={hideSbTip}>
-                  <ExternalLink size={18} /><span className="sb-link-label">{ql.title}</span>
-                </a>
-              ))}
-            </div>
-          )}
-
-          {showAdminUI && (
-            <>
-              <div className="sb-nav-label sb-nav-label-admin">Admin</div>
-              <nav className="sb-nav sb-nav-static">
-                <button className={`sb-link${view === "admin" ? " on" : ""}`} aria-current={view === "admin" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Admin Tools")} onMouseLeave={hideSbTip} onClick={() => { setView("admin"); setCompareTarget(null); hideSbTip(); }}>
-                  <Shield size={18} /><span className="sb-link-label">Admin Tools</span>
-                </button>
-              </nav>
-            </>
-          )}
-        </div>
-
-        <div className="sb-bottom">
-          <div className="sb-footer-card">
-            {sbCollapsed ? (
-              <>
-                {renderSbUtilStrip()}
-                <div className="sb-foot-sep" style={{ margin: "4px 8px" }} />
-                {renderSbAvatarWrap()}
-              </>
-            ) : (
-              <>
-                {renderSbAvatarWrap()}
-                <div className="sb-foot-sep" />
-                {renderSbUtilStrip()}
-                <div className="sb-sync-note">
-                  <span className="sb-sync-dot" style={{ animationDuration: syncing ? "1s" : "3s" }} />
-                  {syncing ? "Syncing…" : syncedAgo === 0 ? "Synced just now" : `Synced ${syncedAgo}m ago`}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-
-        {!isTablet && (
-          <button
-            className="sb-edge-handle sb-edge-tab"
-            onMouseEnter={e => showSbTip(e, sidebarCollapsed ? "Expand" : "Collapse")}
-            onMouseLeave={hideSbTip}
-            onClick={() => { toggleSidebar(); hideSbTip(); }}
-            aria-label="Toggle sidebar"
-            aria-expanded={!sidebarCollapsed}
-          >
-            {sidebarCollapsed ? <ChevronsRight size={12} /> : <ChevronsLeft size={12} />}
-          </button>
-        )}
-      </aside>
+      <DesktopSidebar
+        sbCollapsed={sbCollapsed} sbStyle={sbStyle} specialDay={specialDay} termLabel={termLabel}
+        termProgressPct={termProgressPct} termWeekInfo={termWeekInfo} termSwitcherEl={termSwitcherEl}
+        isOffline={isOffline} setCmdOpen={setCmdOpen} isMac={isMac} view={view} showSbTip={showSbTip}
+        hideSbTip={hideSbTip} setView={setView} setCompareTarget={setCompareTarget}
+        enableAttendance={enableAttendance} enableExams={enableExams} unreadChangeCount={unreadChangeCount}
+        enableFriends={enableFriends} markGroupsSeen={markGroupsSeen} markBadgeSeen={markBadgeSeen}
+        showBadge={showBadge} unreadFriendCount={unreadFriendCount} showSbTools={showSbTools}
+        recentToolViews={recentToolViews} TOOLS_VIEWS={TOOLS_VIEWS} wrappedActive={wrappedActive}
+        TOOLS_VIEW_META={TOOLS_VIEW_META} setSbToolsOpen={setSbToolsOpen} openCalendarExport={openCalendarExport}
+        setMessMenuOpen={setMessMenuOpen} activeQuickLinks={activeQuickLinks} showAdminUI={showAdminUI}
+        renderSbUtilStrip={renderSbUtilStrip} renderSbAvatarWrap={renderSbAvatarWrap} syncing={syncing}
+        syncedAgo={syncedAgo} isTablet={isTablet} sidebarCollapsed={sidebarCollapsed} toggleSidebar={toggleSidebar}
+      />
 
       {sbTip && createPortal(
         <div className="sb-float-tip" style={{ top: sbTip.top, left: sbTip.left }}>
@@ -2462,7 +2285,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           </div>
           <div className="bar-right" role="toolbar" aria-label="App actions">
             <div className="tb-wrap desktop-only">
-              <button className="sync" onClick={() => setShowSetupEdit(true)} aria-label="Edit setup"><Settings2 size={15} /></button>
+              <button className="sync" onClick={openEditSetup} aria-label="Edit setup"><Settings2 size={15} /></button>
               <span className="tooltip" role="tooltip">Edit setup</span>
             </div>
             <div className="tb-wrap desktop-only">
@@ -2570,9 +2393,42 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                     <button className="mobile-only" onClick={() => { setFilterModalOpen(true); setOverflowOpen(false); }}>
                       <SlidersHorizontal size={14} /> Filter subjects
                     </button>
-                    <button onClick={() => { setShowSetupEdit(true); setOverflowOpen(false); }}>
+                    <button onClick={() => { openEditSetup(); setOverflowOpen(false); }}>
                       <Settings2 size={14} /> Edit setup
                     </button>
+
+                    {/* ── Term (Live / Archive) ── */}
+                    {ARCHIVED_TERMS.length > 0 && (
+                      <>
+                        <div className="over-sep" />
+                        <button aria-expanded={termMenuOpen} onClick={() => setTermMenuOpen(o => !o)}>
+                          {isArchivedView ? <History size={14} /> : <Radio size={14} className="over-term-live-icon" />}
+                          Term {selectedTerm ?? TERM?.number}
+                          <span className="over-term-badge">{isArchivedView ? "Archive" : "Live"}</span>
+                          <ChevronDown size={13} className={`over-caret${termMenuOpen ? " open" : ""}`} />
+                        </button>
+                        {termMenuOpen && (
+                          <div className="over-sub">
+                            <button className="over-term-row" onClick={() => { pickTerm(TERM?.number ?? "", true); setTermMenuOpen(false); }}>
+                              <span className="over-term-row-top">
+                                <Radio size={14} className="over-term-live-icon" /> Term {TERM?.number}
+                                {!isArchivedView && <Check size={14} className="over-check" />}
+                              </span>
+                              <span className="over-term-hint">Live</span>
+                            </button>
+                            {ARCHIVED_TERMS.map((t) => (
+                              <button key={t.number} className="over-term-row" onClick={() => { pickTerm(t.number, false); setTermMenuOpen(false); }}>
+                                <span className="over-term-row-top">
+                                  <History size={14} /> Term {t.number}
+                                  {selectedTerm === t.number && <Check size={14} className="over-check" />}
+                                </span>
+                                <span className="over-term-hint">View</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
 
                     {/* ── Recent (Tools views visited recently, only while Tools itself
                          is collapsed — avoids showing the same item twice) ── */}
@@ -2742,7 +2598,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           </span>
         </div>
 
-        <div className="desk-layout" style={view === "friends" || view === "admin" ? { gridTemplateColumns: "1fr" } : {}}>
+        <div className="desk-layout" style={view === "friends" || view === "admin" || view === "wrapped" ? { gridTemplateColumns: "minmax(0, 1fr)" } : {}}>
           <main className="main-col">
             {showTopTabs && (
             <div className="tabs-wrapper">
@@ -2804,6 +2660,17 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 {unseenWhatsNew.length > 0 && (
                   <WhatsNewPill item={unseenWhatsNew[0]} count={unseenWhatsNew.length} onOpen={() => setWhatsNewOpen(true)} />
                 )}
+                {!IS_LITE && mostRecentArchivedTerm && todayISO >= (TERM?.start || "9999") && !seenWrappedNudges.has(mostRecentArchivedTerm.number) && (
+                  <WhatsNewPill
+                    item={{ emoji: "🎓", title: `Your Term ${mostRecentArchivedTerm.number} Wrapped is ready` }}
+                    onOpen={() => {
+                      setSelectedTerm(mostRecentArchivedTerm.number);
+                      setView("wrapped");
+                      setCompareTarget(null);
+                      dismissWrappedNudge(mostRecentArchivedTerm.number);
+                    }}
+                  />
+                )}
                 {activeGlobalAnnouncement && (
                   <div className="announcement-banner warning">
                     <Megaphone size={18} style={{ flexShrink: 0 }} />
@@ -2831,6 +2698,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                     ))}
                   </div>
                 )}
+                {view === "today" && <DayGreeting now={now} name={user?.firstName || user?.username} />}
                 <div className="view-date-header">
                   <span className="vdh-label">
                     {view === "notifications" ? `${filteredChanges.length} update${filteredChanges.length !== 1 ? "s" : ""}`
@@ -3034,26 +2902,27 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                     />
                     : view === "exams"
                       ? <ExamsPanel
-                        allClasses={CLASSES}
-                        enrolled={enrolled}
-                        legend={enrolledLegend}
-                        allCodes={Object.keys(LEGEND)}
+                        allClasses={activeClasses}
+                        enrolled={activeEnrolled}
+                        legend={activeEnrolledLegend}
+                        allCodes={Object.keys(activeLegend)}
                         now={now}
-                        termNumber={TERM?.number}
-                        termStart={TERM?.start}
-                        termEnd={TERM?.end}
+                        termNumber={activeTerm?.number}
+                        termStart={activeTerm?.start}
+                        termEnd={activeTerm?.end}
                         attendance={attendance}
+                        onOpenCalendarExport={isArchivedView ? undefined : openCalendarExport}
                       />
                       : view === "attendance"
                         ? <AttendancePanel
-                          allClasses={CLASSES}
+                          allClasses={activeClasses}
                           now={now}
                           attendance={attendance}
-                          enrolled={enrolled}
-                          legend={enrolledLegend}
-                          markAttendance={markAttendance}
+                          enrolled={activeEnrolled}
+                          legend={activeEnrolledLegend}
+                          markAttendance={isArchivedView ? undefined : markAttendance}
                           weather={weather}
-                          termNumber={TERM?.number}
+                          termNumber={activeTerm?.number}
                         />
                         : view === "notifications"
                           ? <NotificationsPage
@@ -3069,11 +2938,12 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                               onMarkAllRead={markAllChangesRead}
                               onOpenDate={(c) => { setJumpToSession({ date: c.date, code: c.code, start: c.start }); setView("fullSchedule"); }}
                               openPrefsSignal={notifPrefsSignal}
+                              onOpenCalendarExport={isArchivedView ? undefined : openCalendarExport}
                             />
                           : view === "admin" && isAdmin
                             ? <AdminDashboard user={user} startImpersonation={startImpersonation} syncLogs={syncLogs} timeOverride={timeOverride} setTimeOverride={setTimeOverride} allChanges={CHANGES} />
                             : view === "fullSchedule"
-                              ? <FullSchedulePage allClasses={CLASSES} enrolled={enrolled} legend={enrolledLegend} termLabel={termLabel} onBack={() => setView("today")} jumpToDate={jumpToDate} setJumpToDate={setJumpToDate} jumpToSession={jumpToSession} setJumpToSession={setJumpToSession} />
+                              ? <FullSchedulePage allClasses={activeClasses} enrolled={activeEnrolled} legend={activeEnrolledLegend} termLabel={termLabel} onBack={() => setView("today")} jumpToDate={jumpToDate} setJumpToDate={setJumpToDate} jumpToSession={jumpToSession} setJumpToSession={setJumpToSession} onOpenCalendarExport={isArchivedView ? undefined : openCalendarExport} />
                               : view === "leave"
                                 ? <LeavePlanner
                                     allClasses={CLASSES}
@@ -3108,12 +2978,14 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                   />
                               : view === "wrapped"
                                 ? <WrappedView
-                                    visible={visible}
-                                    legend={enrolledLegend}
+                                    visible={activeVisible}
+                                    legend={activeEnrolledLegend}
                                     attendance={attendance}
                                     now={now}
                                     termLabel={termLabel}
                                     userName={user?.firstName || user?.username || "Student"}
+                                    isArchived={isArchivedView}
+                                    previousTerm={previousWrappedInput}
                                     onBack={() => { setView("today"); setCompareTarget(null); }}
                                   />
                               : view === "glance"
@@ -3181,14 +3053,14 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               )}
             </div>
           </main>
-          <aside className={view !== "week" ? "side-col hide-mobile" : "side-col side-col-week"} style={view === "friends" || view === "admin" ? { display: "none" } : {}}>
+          <aside className={view !== "week" ? "side-col hide-mobile" : "side-col side-col-week"} style={view === "friends" || view === "admin" || view === "wrapped" ? { display: "none" } : {}}>
             <WeekAgenda visible={visible} now={now} offset={weekOffset} setOffset={setWeekOffset} todayISO={todayISO} onViewFullSchedule={(iso) => { setJumpToDate(iso); setView("fullSchedule"); }} />
           </aside>
 
-          {/* Floating Schedule button & Modal for the Friends and Admin views —
+          {/* Floating Schedule button & Modal for wide-content views —
               the docked agenda is hidden there so the wide content gets the full
               row; desktop only (.fr-agenda-fab is display:none below 900px) */}
-          {(view === "friends" || view === "admin" || view === "week") && (
+          {(view === "friends" || view === "admin" || view === "week" || view === "wrapped") && (
             <>
               <button className={`fr-agenda-fab${view === "week" ? " week-fab" : ""}`} onClick={() => setShowFriendsAgenda(true)} title="View Schedule">
                 <Calendar size={22} />
@@ -3248,6 +3120,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                     <p>Click "View Full Schedule" on the dashboard to see every upcoming class for the entire term laid out cleanly.</p>
                   </div>
                   <div className="fs-help-card">
+                    <h3><CalendarEventBadgeSVG size={16} /> Add to Calendar (iOS &amp; Android)</h3>
+                    <p>Sync all your classes and exams into Apple Calendar (iOS) or Google Calendar (Android) with custom alarms and reminders in just one tap.</p>
+                  </div>
+                  <div className="fs-help-card">
                     <h3><Users size={16} color="var(--violet)" /> Friend Sync</h3>
                     <p>Head to the Social tab, add your squad, and compare schedules side-by-side to find overlapping free slots. You can even form custom Groups!</p>
                   </div>
@@ -3281,8 +3157,24 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             onViewChange={(v) => setView(v)}
             allClasses={CLASSES}
             friends={friends}
+            onOpenCalendarExport={openCalendarExport}
           />
         </Suspense>
+
+        {calendarModalOpen && (
+          <Suspense fallback={null}>
+            <CalendarExportModal
+              isOpen={calendarModalOpen}
+              onClose={() => setCalendarModalOpen(false)}
+              allClasses={CLASSES}
+              enrolled={enrolled}
+              legend={LEGEND}
+              termLabel={termLabel}
+              initialSelectedCodes={calendarModalConfig?.initialSelectedCodes}
+              initialIncludeExams={calendarModalConfig?.initialIncludeExams ?? true}
+            />
+          </Suspense>
+        )}
 
         {filterModalOpen && (
           <div className="filter-modal-overlay" onClick={() => setFilterModalOpen(false)}>
@@ -3292,7 +3184,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 <button onClick={() => setFilterModalOpen(false)}><X size={18} /></button>
               </div>
               <div className="filter-modal-scroll">
-                 <SubjectFilter legend={enrolledLegend} mine={mine} setMine={setMine} forceOpen={true} onEditSetup={() => { setShowSetupEdit(true); setFilterModalOpen(false); }} />
+                 <SubjectFilter legend={enrolledLegend} mine={mine} setMine={setMine} forceOpen={true} onEditSetup={() => { openEditSetup(); setFilterModalOpen(false); }} />
               </div>
             </div>
           </div>

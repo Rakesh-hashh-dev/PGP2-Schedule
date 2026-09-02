@@ -1,8 +1,9 @@
 import React, { useMemo, useState, useEffect } from "react";
 import "../styles/fullschedule.css";
-import { ArrowLeft, Clock, MapPin, User, SlidersHorizontal, X, ArrowUp, Calendar, ChevronLeft, ChevronRight, List, CalendarDays, GraduationCap } from "lucide-react";
+import { ArrowLeft, Clock, MapPin, User, SlidersHorizontal, X, ArrowUp, Calendar, ChevronLeft, ChevronRight, List, CalendarDays, GraduationCap, CalendarClock } from "lucide-react";
 import { subjectClass } from "../lib/subjectColors.js";
 import { isExamSession } from "../lib/attendance.js";
+import { CalendarEventBadgeSVG } from "./CalendarSVGs.jsx";
 
 function examCategory(name, session) {
   const n = (name || "").toLowerCase();
@@ -55,7 +56,7 @@ const HOUR_W = 96;  // px per hour (horizontal week view)
 const LANE_H = 64;  // px per lane row
 const TODAY = isoOf(new Date());
 
-export default React.memo(function FullSchedulePage({ allClasses, enrolled, legend, termLabel, onBack, jumpToDate, setJumpToDate, jumpToSession, setJumpToSession }) {
+export default React.memo(function FullSchedulePage({ allClasses, enrolled, legend, termLabel, onBack, jumpToDate, setJumpToDate, jumpToSession, setJumpToSession, onOpenCalendarExport }) {
   const [filterCodes, setFilterCodes] = useState([]);
   const [showAllClasses, setShowAllClasses] = useState(false);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
@@ -301,21 +302,55 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
 
   const totalSessions = filtered.length;
 
+  const nextUpcomingLabel = useMemo(() => {
+    if (!nextUpcomingCls) return null;
+    const t = new Date(`${nextUpcomingCls.date}T${nextUpcomingCls.start}:00`);
+    const diffMin = Math.floor((t - new Date()) / 60000);
+    if (diffMin <= 0) return null;
+    if (diffMin < 60) return `in ${diffMin}m`;
+    const h = Math.floor(diffMin / 60), m = diffMin % 60;
+    return m > 0 ? `in ${h}h ${m}m` : `in ${h}h`;
+  }, [nextUpcomingCls, nowMin]);
+
   return (
     <div className="fs-page">
-      {/* Header */}
-      <div className="fs-header">
-        <button className="fr-btn fr-btn-secondary fs-back" onClick={onBack}>
-          <ArrowLeft size={16} /> Back
-        </button>
-        <div className="fs-header-info">
-          <h1 className="fs-title">Full Schedule</h1>
-          <span className="fs-subtitle">
-            {filterCodes.length === 1
-              ? (legend[filterCodes[0]]?.name || filterCodes[0])
-              : `${filterCodes.length > 1 ? filterCodes.length : subjectCodes.length} subjects`} · {totalSessions} sessions
-            {termLabel && <> · {termLabel}</>}
-          </span>
+      {/* Hero Header */}
+      <div className="fs-hero">
+        <div className="fs-hero-top">
+          <button className="fs-back" onClick={onBack}>
+            <ArrowLeft size={14} /> Back
+          </button>
+          <div className="fs-header-info">
+            <h1 className="fs-title">Full Schedule</h1>
+            <span className="fs-subtitle">
+              {filterCodes.length === 1
+                ? (legend[filterCodes[0]]?.name || filterCodes[0])
+                : filterCodes.length > 1
+                  ? `${filterCodes.length} subjects filtered`
+                  : (!showAllClasses ? "My Schedule" : "Whole Timetable")}
+              {termLabel && <> · {termLabel}</>}
+            </span>
+          </div>
+        </div>
+        <div className="fs-hero-stats">
+          <div className="fs-stat-item">
+            <span className="fs-stat-value">{totalSessions}</span>
+            <span className="fs-stat-label">Sessions</span>
+          </div>
+          <div className="fs-stat-item">
+            <span className="fs-stat-value">
+              {filterCodes.length > 0 ? filterCodes.length : subjectCodes.length}
+            </span>
+            <span className="fs-stat-label">Subjects</span>
+          </div>
+          {nextUpcomingLabel && nextUpcomingCls && (
+            <div className="fs-stat-item">
+              <span className="fs-stat-value" style={{ fontSize: "14px", fontWeight: 700, letterSpacing: "-.01em", color: "var(--violet)" }}>
+                {nextUpcomingCls.code}
+              </span>
+              <span className="fs-stat-label">Next · {nextUpcomingLabel}</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -335,6 +370,16 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
         </div>
 
         <div className="cal-controls-right">
+          {onOpenCalendarExport && (
+            <button
+              className="cal-ctrl-btn"
+              onClick={() => onOpenCalendarExport(filterCodes.length > 0 && !filterCodes.includes("__EXAMS__") ? { initialSelectedCodes: filterCodes } : null)}
+              title="Add schedule to Apple / Google Calendar"
+            >
+              <CalendarEventBadgeSVG size={15} /> Add to Calendar
+            </button>
+          )}
+
           <button
             className={`cal-ctrl-btn${filterCodes.length > 0 ? " cal-ctrl-btn-on" : ""}`}
             onClick={() => setFilterModalOpen(true)}
@@ -446,6 +491,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                   const section = enrolled ? enrolled[code] : null;
                   const showSection = section && section !== "Single";
                   const isOn = filterCodes.includes(code);
+                  const sessionCount = baseClasses.filter(c => c.code === code).length;
                   return (
                     <button
                       key={code}
@@ -453,7 +499,6 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                       onClick={() => {
                         setFilterCodes(isOn ? filterCodes.filter(c => c !== code) : [...filterCodes, code]);
                       }}
-                      style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
                     >
                       {code}
                       {showSection && !showAllClasses && (
@@ -466,6 +511,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                           {section}
                         </span>
                       )}
+                      <span className="fs-chip-count">{sessionCount}</span>
                     </button>
                   );
                 })}
@@ -498,17 +544,16 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
       {viewMode === "list" && (
         <div className="fs-list">
           {grouped.length === 0 ? (
-            <p className="fr-empty" style={{ textAlign: "center", padding: "40px 0" }}>No sessions found.</p>
+            <div className="fs-empty">
+              <CalendarClock size={40} className="fs-empty-icon" />
+              <span className="fs-empty-text">No sessions found</span>
+            </div>
           ) : (
             grouped.map((entry, idx) => {
               if (entry.type === "free") {
                 return (
                   <div key={entry.date} id={`day-${entry.date}`} className="fs-free-day">
-                    <span className="fs-free-date">
-                      {fmtDate(entry.date)} 
-                      <span style={{ opacity: 0.5, margin: "0 6px" }}>·</span> 
-                      <span style={{ fontWeight: 600 }}>No classes</span>
-                    </span>
+                    <span className="fs-free-date">{fmtDate(entry.date)} · No classes</span>
                   </div>
                 );
               }
@@ -521,7 +566,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                   const dow = dObj.toLocaleDateString([], { weekday: "short" });
                   const dNum = dObj.getDate();
                   const dMo = dObj.toLocaleDateString([], { month: "short" });
-                  nextLabel = `${dow}, ${dMo} ${dNum} · ${nextCls.code}`;
+                  nextLabel = `→ Next: ${dow}, ${dMo} ${dNum} · ${nextCls.code}`;
                 }
                 const gapDays = [];
                 const fd = new Date(entry.from);
@@ -533,10 +578,9 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
 
                 return (
                   <details key={`gap-${idx}`} className="fs-gap-row">
-                    <summary className="fs-gap-summary">
-                      <span className="fs-gap-range">{fmtShort(entry.from)} – {fmtShort(entry.to)}</span>
-                      <span className="fs-gap-label">No classes · {entry.count} days</span>
-                      {nextLabel && <span className="fs-gap-next">→ Next: {nextLabel}</span>}
+                    <summary className="fs-gap-pill">
+                      📅 {fmtShort(entry.from)} – {fmtShort(entry.to)} · {entry.count} free days
+                      {nextLabel && <span className="fs-gap-next">{nextLabel}</span>}
                     </summary>
                     <div className="fs-gap-bubbles">
                       {gapDays.map((d, di) => <span key={di} className="fs-gap-bubble">{d}</span>)}
@@ -546,10 +590,14 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                 );
               }
               const { date, items } = entry;
+              const isToday = date === TODAY;
               return (
                 <div key={date} id={`day-${date}`} className="fs-day">
-                  <div className="fs-day-header">
-                    <span className="fs-day-label">{fmtDate(date)}</span>
+                  <div className={`fs-day-header${isToday ? " fs-day-header-today" : ""}`}>
+                    <span className={`fs-day-label${isToday ? " fs-day-label-today" : ""}`}>
+                      {fmtDate(date)}
+                      {isToday && <span className="fs-day-today-badge">Today</span>}
+                    </span>
                     <span className="fs-day-count">{items.length} session{items.length > 1 ? "s" : ""}</span>
                   </div>
                   <div className="fs-day-items">
@@ -594,7 +642,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                                 </div>
                               </div>
                               <div className="fs-card-meta">
-                                <span className="fs-meta-item"><Clock size={13} /> {c.start} – {c.end}</span>
+                                <span className="fs-meta-item fs-meta-time"><Clock size={12} /> {c.start} – {c.end}</span>
                                 {c.room && (
                                   <span className="fs-meta-item"><MapPin size={13} />
                                     <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.room + " exam hall")}`} target="_blank" rel="noreferrer" className="fs-meta-link">
@@ -613,7 +661,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                         <div
                           key={i}
                           data-class-key={`${c.date}-${c.code}-${c.start}`}
-                          className={`fs-card ${isNow ? "fs-card-now" : ""}`}
+                          className={`fs-card ${subjCls} ${isNow ? "fs-card-now" : ""}`}
                           style={{ animationDelay: `${i * 0.055}s` }}
                         >
                           <div className={`fs-card-accent ${subjCls}`} />
@@ -638,9 +686,9 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                               {countdownStr && <span className="fs-upcoming-badge">{countdownStr}</span>}
                             </div>
                             <div className="fs-card-meta">
-                              <span className="fs-meta-item"><Clock size={13} /> {c.start} – {c.end}</span>
+                              <span className="fs-meta-item fs-meta-time"><Clock size={12} /> {c.start} – {c.end}</span>
                               <span className="fs-meta-item">
-                                <MapPin size={13} /> 
+                                <MapPin size={13} />
                                 {c.room ? (
                                   <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.room + " classroom")}`} target="_blank" rel="noreferrer" className="fs-meta-link">
                                     {c.room}
@@ -670,6 +718,11 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
               <ChevronLeft size={16} />
             </button>
             <span className="cal-nav-label">{weekLabel}</span>
+            {calWeek !== getWeekStart(TODAY) && (
+              <button className="cal-today-btn" onClick={() => setCalWeek(getWeekStart(TODAY))}>
+                Today
+              </button>
+            )}
             <button className="cal-nav-btn" onClick={() => shiftWeek(1)} aria-label="Next week">
               <ChevronRight size={16} />
             </button>
@@ -856,6 +909,10 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
               const hasCls = cell.inMonth && classes.length > 0;
               const hasExam = cell.inMonth && examClasses.length > 0;
               const D = parseInt(cell.iso.split("-")[2]);
+              // Deduplicate subject codes for dots (up to 4 unique subjects shown)
+              const allUniqueCodes = [...new Set(regularClasses.map(c => c.code).filter(Boolean))];
+              const dotCodes = allUniqueCodes.slice(0, 4);
+              const extraDots = allUniqueCodes.length - dotCodes.length;
               return (
                 <div
                   key={i}
@@ -868,10 +925,18 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                       <GraduationCap size={9} />
                     </div>
                   )}
-                  {hasCls && (
-                    <div className="cal-month-count-wrap">
-                      {regularClasses.length > 0 && <span className="cal-month-count">{regularClasses.length}</span>}
-                      {regularClasses.length > 0 && <span className="cal-month-count-label">{regularClasses.length === 1 ? "class" : "classes"}</span>}
+                  {hasCls && dotCodes.length > 0 && (
+                    <div className="cal-month-dots">
+                      {dotCodes.map(code => (
+                        <span
+                          key={code}
+                          className={`cal-month-dot ${subjectClass(code)}`}
+                          title={code}
+                        />
+                      ))}
+                      {extraDots > 0 && (
+                        <span className="cal-month-dot-more">+{extraDots}</span>
+                      )}
                     </div>
                   )}
                 </div>

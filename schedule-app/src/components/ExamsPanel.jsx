@@ -1,9 +1,11 @@
 import React, { useMemo, useState } from "react";
 import "../styles/exams.css";
 import { GraduationCap, Clock, BookOpen, Trophy, CalendarDays, List, ChevronLeft, ChevronRight, Layers, FileText, CalendarClock, ChevronDown, User, MapPin, AlertTriangle, BookOpenCheck } from "lucide-react";
-import { sessionKey, isExamSession, courseSkipStats } from "../lib/attendance.js";
+import { sessionKey, courseSkipStats } from "../lib/attendance.js";
+import { clsDate } from "../lib/datetime.js";
 import { loadAssignments } from "../lib/assignments.js";
 import { subjectClass } from "../lib/subjectColors.js";
+import { CalendarEventBadgeSVG } from "./CalendarSVGs.jsx";
 import { EmptyState } from "./ui.jsx";
 
 function daysBetween(a, b) {
@@ -390,7 +392,7 @@ function CourseCountdown({ courses, allClasses, enrolled, attendance, now }) {
   );
 }
 
-export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, allCodes, now, termNumber, termStart, termEnd, attendance }) {
+export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, allCodes, now, termNumber, termStart, termEnd, attendance, onOpenCalendarExport }) {
   const codes = Object.keys(enrolled || {});
   const [cdView, setCdView] = useState("list"); // "list" | "calendar"
   const [examFilter, setExamFilter] = useState("mine"); // "mine" | "all"
@@ -418,34 +420,36 @@ export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, al
   // ── Exam entries ──
   const exams = useMemo(() => {
     if (!allClasses) return [];
-    const list = allClasses
-      .filter(c => {
-        // Is it an exam?
-        const isExam = c.type === "exam" || (c.type === "class" && isExamSession(c));
-        if (!isExam) return false;
+    const targetCodes = examFilter === "mine" ? codes : allCodes;
+    const isSpecialCaseExam = (c) => c.type === "exam" && (c.name === "Term Registration" || c.name === "Lunch\r\nBreak");
 
-        // Does it apply to me? Subject-specific exams (code set, or subject baked
-        // into the name like "SAPM MID Term Exam") are hidden unless enrolled.
-        // Generic exams (no identifiable subject) apply to everyone.
-        if (examFilter === "mine") {
-          const subjectCode = examSubjectCode(c, allCodes);
-          if (subjectCode && !codes.includes(subjectCode)) return false;
-        }
-        return true;
+    return allClasses
+      .filter(c => {
+        if (c.type !== "exam") return false;
+        if (isSpecialCaseExam(c)) return false;
+        const code = examSubjectCode(c, allCodes);
+        if (!code) return true;
+        return targetCodes.includes(code);
       })
       .map(c => {
-        const [Y, M, D] = c.date.split("-").map(Number);
-        const dt = new Date(Y, M - 1, D);
-        const days = daysBetween(now, dt);
-        return { ...c, dt, days, category: examCategory(c.name, c.session), tone: cdTone(days) };
+        const code = examSubjectCode(c, allCodes);
+        const info = code ? legend[code] : null;
+        const days = daysBetween(now, clsDate(c, "start"));
+        return {
+          ...c,
+          subjectCode: code,
+          subjectName: info?.name || c.name,
+          category: examCategory(c.name, c.session),
+          days,
+          tone: cdTone(days),
+          rawCredits: info?.credits,
+        };
       })
-      .sort((a, b) => a.dt - b.dt);
+      .sort((a, b) => a.days - b.days);
+  }, [allClasses, examFilter, codes, allCodes, legend, now]);
 
-    return list;
-  }, [allClasses, now, codes, examFilter, allCodes]);
-
-  const upcoming = exams.filter(e => e.days >= 0);
-  const past = exams.filter(e => e.days < 0);
+  const upcoming = useMemo(() => exams.filter(e => e.days >= 0), [exams]);
+  const past = useMemo(() => exams.filter(e => e.days < 0), [exams]);
 
   const progressPct = useMemo(() => {
     if (!allClasses || !codes.length) return 0;
@@ -478,9 +482,32 @@ export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, al
 
   return (
     <div className="exam-page">
-      <div className="exam-head">
-        <h1>Exams & Credits</h1>
-        <span className="att-sub">{termNumber ? `Term ${["", "I", "II", "III", "IV", "V", "VI"][termNumber] || termNumber}` : "This term"}</span>
+      <div className="exam-head" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
+        <div>
+          <h1>Exams & Credits</h1>
+          <span className="att-sub">{termNumber ? `Term ${["", "I", "II", "III", "IV", "V", "VI"][termNumber] || termNumber}` : "This term"}</span>
+        </div>
+        {onOpenCalendarExport && (
+          <button
+            className="exam-cal-sync-btn"
+            onClick={() => onOpenCalendarExport({ initialIncludeExams: true, initialSelectedCodes: null })}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              fontSize: "12.5px",
+              padding: "7px 12px",
+              borderRadius: "10px",
+              background: "rgba(139, 92, 246, 0.15)",
+              border: "1px solid rgba(139, 92, 246, 0.3)",
+              color: "#c084fc",
+              fontWeight: 600,
+              cursor: "pointer"
+            }}
+          >
+            <CalendarEventBadgeSVG size={16} /> Sync Exams to Calendar
+          </button>
+        )}
       </div>
 
       {/* ── Credit Summary Hero ── */}

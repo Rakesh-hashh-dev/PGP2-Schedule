@@ -1,21 +1,17 @@
-// Academic area per course code.
+// Academic area per course code. Rebuilt for Term V (2025-27 batch) from the
+// schedule sheet's "Faculty Details" tab (Area column). Update at each term
+// rollover — unknown codes fall back to "Other" (see withAreas in lib/sheet.js).
 export const AREA = {
   // Finance & Accounting
-  SAPM: "F&A", FPWM: "F&A", IB: "F&A", OFD: "F&A",
+  BAV: "F&A", FISM: "F&A", FME: "F&A", BOM: "F&A",
+  EF: "F&A",     // Entrepreneurship & Finance (sheet: "STM & F&A")
   // Marketing
-  BM: "MKTG", AMR: "MKTG", BBM: "MKTG",
-  PP:  "MKTG",   // Pricing and Policy — could be Economics
-  PMA: "MKTG",   // Product Management and Analytics — could be ISM
+  FMCG: "MKTG", CBM: "MKTG", DM: "MKTG", SDM: "MKTG", CRM: "MKTG", RMS: "MKTG",
   // Information Systems / Digital
-  AIB: "ISM", ADE: "ISM", BAMD: "ISM", DVB: "ISM",
-  WAI: "ISM",    // Working with AI
-  DPM:  "ISM",   // Digital Product Management — could be MKTG/STM
-  TCBA: "ISM",   // Tech Consulting & Business Analysis — could be STM
+  ECOM: "ISM", MDT: "ISM", AAIM: "ISM",
   // Strategy
-  CS: "STM", IBS: "STM",
-  MPB: "STM",    // Managing Platform Business — could be ISM
+  MCBPP: "STM", SLTDM: "STM", BMD: "STM", MST: "STM",
+  GTSDM: "STM",  // Game Theory & Strategic Decision Making (sheet area: GMPEE)
   // Operations
-  PM: "OPS", SCM: "OPS",
-  // OB & HR
-  GPP: "OB&HR",  // Games People Play — could be Strategy (game theory)
+  SOM: "OPS", SP: "OPS", AOA: "OPS", SCA: "OPS", LWM: "OPS", DSC: "OPS",
 };
