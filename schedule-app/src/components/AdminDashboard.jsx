@@ -541,6 +541,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [modalCode, setModalCode] = useState("");
   const [modalName, setModalName] = useState("");
   const [modalIsNew, setModalIsNew] = useState(false);
+  const [modalNewType, setModalNewType] = useState("class"); // "class" | "exam" — type for a newly added entry
 
   // Modern Mobile UI Toggle
   const [isModernUi, setIsModernUi] = useState(() => {
@@ -1842,6 +1843,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     setModalRoom(c.room || "");
     setModalStart(c.start || "");
     setModalEnd(c.end || "");
+    setModalNewType(c.type === "exam" ? "exam" : "class");
   };
 
   return (
@@ -6015,6 +6017,33 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     <label>Title</label>
                     <input type="text" className="admin-input" value={modalName} onChange={e => setModalName(e.target.value)} placeholder="e.g. WAI End Term" />
                   </div>
+                  <div className="admin-field">
+                    <label>Type</label>
+                    <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                      {[["class", "Class"], ["exam", "Exam"]].map(([val, label]) => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => setModalNewType(val)}
+                          style={{
+                            flex: 1,
+                            padding: "8px 0",
+                            borderRadius: 8,
+                            border: `2px solid ${modalNewType === val ? "var(--blue)" : "var(--border)"}`,
+                            background: modalNewType === val ? "color-mix(in srgb, var(--blue) 12%, transparent)" : "var(--bg)",
+                            color: modalNewType === val ? "var(--blue)" : "var(--muted)",
+                            fontWeight: modalNewType === val ? 700 : 500,
+                            fontSize: 13,
+                            cursor: "pointer",
+                            transition: "all 0.15s",
+                          }}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    <span style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 4, display: "block" }}>Exams don't count toward attendance or “sessions left”.</span>
+                  </div>
                 </div>
               ) : (
                 <>
@@ -6160,7 +6189,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     if (modalEnd)   changes.end   = modalEnd;
                     if (modalIsNew) {
                       changes.name = modalName;
-                      changes.type = "class"; // base type, can be marked as exam later
+                      changes.type = modalNewType === "exam" ? "exam" : "class"; // set at creation; still toggleable later
                     } else if (modalName !== (liveEditorModal.name || "")) {
                       // renaming an existing class (e.g. a custom entry titled "Custom Class")
                       changes.name = modalName;
