@@ -1340,8 +1340,17 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const isArchivedView = !!archivedEntry;
   // Enrollment source for the term currently being browsed: live `enrolled`
   // normally, or the frozen per-term snapshot when browsing an archived term.
-  const activeEnrolled = isArchivedView ? (archivedCourses[activeTerm?.number] || {}) : enrolled;
-  const activeMine = isArchivedView ? new Set(Object.keys(activeEnrolled)) : mine;
+  // Filtered to the selected term's legend so a term shows only ITS subjects —
+  // stale codes left in a profile from a previous term (before re-onboarding)
+  // never leak into Attendance / Exams / Wrapped / Full Schedule.
+  const activeEnrolled = useMemo(() => {
+    const base = isArchivedView ? (archivedCourses[activeTerm?.number] || {}) : (enrolled || {});
+    const leg = activeLegend || {};
+    const out = {};
+    for (const code of Object.keys(base)) if (leg[code]) out[code] = base[code];
+    return out;
+  }, [isArchivedView, archivedCourses, activeTerm, enrolled, activeLegend]);
+  const activeMine = useMemo(() => new Set(Object.keys(activeEnrolled)), [activeEnrolled]);
   // Editing enrollment only makes sense for the live term — a no-op while
   // browsing an archived term (every "Edit setup" entry point routes through this).
   const openEditSetup = () => { if (!isArchivedView) setShowSetupEdit(true); };
