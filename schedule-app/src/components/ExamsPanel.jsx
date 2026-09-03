@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import "../styles/exams.css";
 import { GraduationCap, Clock, BookOpen, Trophy, CalendarDays, List, ChevronLeft, ChevronRight, Layers, FileText, CalendarClock, ChevronDown, User, MapPin, AlertTriangle, BookOpenCheck } from "lucide-react";
-import { sessionKey, courseSkipStats } from "../lib/attendance.js";
+import { sessionKey, courseSkipStats, isExamSession } from "../lib/attendance.js";
 import { clsDate } from "../lib/datetime.js";
 import { loadAssignments } from "../lib/assignments.js";
 import { subjectClass } from "../lib/subjectColors.js";
@@ -256,8 +256,7 @@ function CourseCountdown({ courses, allClasses, enrolled, attendance, now }) {
         .filter(cl => {
           if (cl.type !== "class" || cl.code !== c.code) return false;
           if (cl.section !== "Single" && cl.section !== section) return false;
-          const s = (cl.session || "").toLowerCase();
-          if (s.includes("mid term") || s.includes("end term") || s.includes("quiz")) return false;
+          if (isExamSession(cl)) return false;
           return true;
         })
         .sort((a, b) => a.date.localeCompare(b.date));
@@ -423,13 +422,24 @@ export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, al
     const targetCodes = examFilter === "mine" ? codes : allCodes;
     const isSpecialCaseExam = (c) => c.type === "exam" && (c.name === "Term Registration" || c.name === "Lunch\r\nBreak");
 
+    const seen = new Set();
     return allClasses
       .filter(c => {
-        if (c.type !== "exam") return false;
+        // Real exam rows (END TERM / Registration) PLUS mid-terms — the sheet
+        // delivers those as type:"class" with a "MID TERM" session because the
+        // feed's classify() only promotes END TERM/EXAM/REGISTRATION to exams.
+        // isExamSession catches mid/end term + quiz across separator variants.
+        const isExam = c.type === "exam" || (c.type === "class" && isExamSession(c));
+        if (!isExam) return false;
         if (isSpecialCaseExam(c)) return false;
         const code = examSubjectCode(c, allCodes);
-        if (!code) return true;
-        return targetCodes.includes(code);
+        if (code && !targetCodes.includes(code)) return false;
+        // Dedup: mid-terms are single-section today, but guard against any
+        // per-section duplication so each subject's exam shows once.
+        const key = `${c.date}|${code || c.name}|${examCategory(c.name, c.session)}|${c.start || ""}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
       })
       .map(c => {
         const code = examSubjectCode(c, allCodes);

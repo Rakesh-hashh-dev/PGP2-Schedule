@@ -12,7 +12,11 @@ export function sessionKey(c) {
  */
 export function isExamSession(c) {
   const s = (c.session || "").toLowerCase();
-  return s.includes("mid term") || s.includes("end term") || s.includes("quiz");
+  // Tolerate the separator the sheet actually uses — "mid term", "mid-term",
+  // "midterm", "mid  term" all mean the same thing (likewise end term). A plain
+  // `includes("mid term")` missed the hyphen/no-space variants, letting those
+  // exam rows leak into attendance and out of the Exams tab.
+  return /mid[\s-]*term/.test(s) || /end[\s-]*term/.test(s) || s.includes("quiz");
 }
 
 /**

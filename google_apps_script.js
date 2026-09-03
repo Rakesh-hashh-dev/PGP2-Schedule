@@ -315,7 +315,7 @@ function parseTimetable(ss, legend) {
     for (let s = 0; s < SLOTS.length; s++) {
       const cell = String(row[3 + s] || '').trim();
       if (!cell) continue;
-      const type = classify(cell);
+      let type = classify(cell);
       let code = '', session = '', name = cell, faculty = '', room = '';
       if (type === 'class') {
         // Collapse line breaks first — guest cells look like "DVB-9\n(Guest Session)"

@@ -1,9 +1,22 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { ArrowRight, Info, X, Settings2, Download } from "lucide-react";
+import { ArrowRight, Info, X, Settings2, Download, ChevronDown } from "lucide-react";
 import { subjectClass } from "../lib/subjectColors.js";
 
 const AREA_LABEL = { "F&A": "Finance & Accounting", MKTG: "Marketing", ISM: "Information Systems", STM: "Strategy", OPS: "Operations", "OB&HR": "OB & HR", Other: "Other" };
 const AREA_ORDER = ["F&A", "MKTG", "ISM", "STM", "OPS", "OB&HR", "Other"];
+
+// Sum credits for a { code: section } pick map against a legend { code: { credits } }.
+function sumCredits(picks, leg) {
+  if (!picks || !leg) return 0;
+  return Object.keys(picks).reduce((acc, code) => {
+    const n = parseFloat(leg[code]?.credits);
+    return acc + (Number.isNaN(n) ? 0 : n);
+  }, 0);
+}
+// 18 → "18", 19.5 → "19.5" (drops trailing .0).
+function fmtCr(n) {
+  return Number.isInteger(n) ? String(n) : n.toFixed(1);
+}
 
 export default function Onboarding({ legend, sectionsByCode, onDone, initialPicked, onCancel, termLabel, onPullFromSheet, prefill, cloudChecked, waitingForAllocation, needsName, reonboardFromTerm, newTermLabel, liveTerm, priorTerm, priorLegend, priorPicked }) {
   const isEditing = !!initialPicked;
@@ -11,6 +24,7 @@ export default function Onboarding({ legend, sectionsByCode, onDone, initialPick
   const [name, setName] = useState("");
   const [pulling, setPulling] = useState(false);
   const [pullMsg, setPullMsg] = useState(null);
+  const [priorOpen, setPriorOpen] = useState(false);
   const prefillApplied = useRef(false);
   useEffect(() => {
     if (prefillApplied.current || !prefill || Object.keys(prefill).length === 0) return;
@@ -44,7 +58,16 @@ export default function Onboarding({ legend, sectionsByCode, onDone, initialPick
   }, [priorLegend]);
 
   const allCodes = useMemo(() => Object.keys(legend || {}), [legend]);
-  const count = Object.keys(picked).length;
+  // Count/submit only picks that belong to THIS term's legend. A profile can
+  // still carry a previous term's codes (Term IV & V share none), which would
+  // otherwise inflate the count and the schedule shows nothing for them anyway.
+  const validCodes = useMemo(() => Object.keys(picked).filter((c) => legend?.[c]), [picked, legend]);
+  const count = validCodes.length;
+  const liveCredits = useMemo(() => sumCredits(picked, legend), [picked, legend]);
+  const priorValidCodes = useMemo(() => Object.keys(priorPicked || {}).filter((c) => priorLegend?.[c]), [priorPicked, priorLegend]);
+  const priorCount = priorValidCodes.length;
+  const priorCredits = useMemo(() => sumCredits(priorPicked, priorLegend), [priorPicked, priorLegend]);
+  const showPrior = !!(priorTerm && priorTerm !== liveTerm && priorCount > 0);
   const allOn = count === allCodes.length && allCodes.length > 0;
 
   async function handlePullFromSheet() {
@@ -198,12 +221,22 @@ export default function Onboarding({ legend, sectionsByCode, onDone, initialPick
         ))}
 
         {priorTerm && priorTerm !== liveTerm && priorGroups.length > 0 && priorPicked && Object.keys(priorPicked).length > 0 && (
-          <div className="ob-prior">
-            <div className="ob-prior-head">
-              <span className="ob-prior-tag">Term {priorTerm} · Completed</span>
-              <span className="ob-prior-note">Archived &amp; read-only — view from the term picker</span>
-            </div>
-            {priorGroups.map(([area, list]) => (
+          <div className={`ob-prior${priorOpen ? " is-open" : ""}`}>
+            <button
+              type="button"
+              className="ob-prior-head"
+              onClick={() => setPriorOpen((o) => !o)}
+              aria-expanded={priorOpen}
+            >
+              <span className="ob-prior-head-l">
+                <span className="ob-prior-tag">Term {priorTerm} · Completed</span>
+                <span className="ob-prior-note">
+                  {Object.keys(priorPicked).length} subject{Object.keys(priorPicked).length === 1 ? "" : "s"} · archived &amp; read-only
+                </span>
+              </span>
+              <ChevronDown className="ob-prior-caret" size={18} aria-hidden="true" />
+            </button>
+            {priorOpen && priorGroups.map(([area, list]) => (
               <div key={area} className="ob-grp">
                 <div className="ob-grp-h">{AREA_LABEL[area] || area}</div>
                 <div className="oc-list">
@@ -233,8 +266,38 @@ export default function Onboarding({ legend, sectionsByCode, onDone, initialPick
 
       <div className="ob-foot">
         <div className="ob-foot-inner">
-          <span className="ob-count">{count} {count === 1 ? "subject" : "subjects"} selected</span>
-          <button className="ob-cta" disabled={count === 0 || (needsName && !name.trim())} onClick={() => onDone({ ...picked }, name)}>
+          <div className="ob-count">
+            <div className="ob-count-line ob-count-line--live">
+              <span className="ob-count-term">{liveTerm ? `Term ${liveTerm}` : "Selected"}</span>
+              <span className="ob-count-stat">
+                <span className="ob-count-num">{count}</span>
+                <span className="ob-count-unit">{count === 1 ? "subject" : "subjects"}</span>
+              </span>
+              {liveCredits > 0 && (
+                <span className="ob-count-stat">
+                  <span className="ob-count-num">{fmtCr(liveCredits)}</span>
+                  <span className="ob-count-unit">cr</span>
+                </span>
+              )}
+            </div>
+            {showPrior && (
+              <div className="ob-count-line ob-count-line--prior">
+                <span className="ob-count-term">Term {priorTerm}</span>
+                <span className="ob-count-stat">
+                  <span className="ob-count-num">{priorCount}</span>
+                  <span className="ob-count-unit">{priorCount === 1 ? "subject" : "subjects"}</span>
+                </span>
+                {priorCredits > 0 && (
+                  <span className="ob-count-stat">
+                    <span className="ob-count-num">{fmtCr(priorCredits)}</span>
+                    <span className="ob-count-unit">cr</span>
+                  </span>
+                )}
+                <span className="ob-count-archived">archived</span>
+              </div>
+            )}
+          </div>
+          <button className="ob-cta" disabled={count === 0 || (needsName && !name.trim())} onClick={() => onDone(Object.fromEntries(validCodes.map((c) => [c, picked[c]])), name)}>
             {isEditing ? "Save changes" : "Show my schedule"} <ArrowRight size={18} />
           </button>
         </div>
