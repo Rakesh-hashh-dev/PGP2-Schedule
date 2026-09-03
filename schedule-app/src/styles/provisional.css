@@ -1,0 +1,38 @@
+/* "Section not assigned yet" notice — see ProvisionalSectionNotice.jsx.
+   Amber rather than the cancellation banner's red: nothing is wrong, the roster
+   just hasn't been filled in. Mirrors .cx-alert's geometry so the two stack
+   cleanly when both are on screen. */
+.ps-note {
+  display: flex; gap: 12px; align-items: flex-start;
+  background: color-mix(in srgb, var(--amber) 8%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--amber) 30%, var(--border));
+  border-radius: 14px; padding: 13px 15px; margin-bottom: 14px;
+}
+.ps-note-ico {
+  flex-shrink: 0; width: 32px; height: 32px; border-radius: 9px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--amber) 15%, transparent);
+  color: var(--amber-text, var(--amber));
+}
+.ps-note-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.ps-note-title { font-size: 13.5px; font-weight: 700; color: var(--text); }
+.ps-note-list {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.ps-note-list li {
+  font-size: 12.5px; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ps-note-list strong { font-weight: 600; color: var(--text); }
+.ps-note-sub { margin: 2px 0 0; font-size: 11.5px; line-height: 1.45; color: var(--muted); }
+.ps-note-dismiss {
+  flex-shrink: 0; width: 22px; height: 22px; border-radius: 6px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: none; color: var(--muted); cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+.ps-note-dismiss:hover, .ps-note-dismiss:focus-visible {
+  background: color-mix(in srgb, var(--amber) 14%, transparent);
+  color: var(--text); outline: none;
+}

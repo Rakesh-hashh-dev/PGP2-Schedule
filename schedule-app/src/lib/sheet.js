@@ -1,6 +1,6 @@
 import { AREA } from "../data/areas.js";
 // Eager import — snapshot is bundled, no network round-trip needed for fallback
-import { TERM, LEGEND, CLASSES } from "../data/schedule.js";
+import { TERM, LEGEND, CLASSES, STUDENTS } from "../data/schedule.js";
 
 const FEED_URL = "https://script.google.com/macros/s/AKfycbwOCmpZAbzN7hRkb-xx6-SDejt3c45E5NBZ0NHuJW8CBRYO4ROJfwE_MI_g4aODwo08Gg/exec";
 
@@ -18,10 +18,14 @@ export async function sha256hex(str) {
 const CACHE_KEY = "pgp2-feed-cache";
 
 // Courses that have only one combined section but whose feed occasionally emits
-// a stray "B" row — renamed to "Single". Term-specific; empty for Term V (the
-// sheet tags single-section courses correctly). Repopulate only if a rollover
-// surfaces a mis-sectioned course.
-const SINGLE_SECTION_B = new Set([]);
+// a stray "B" row — renamed to "Single". Term-specific; repopulate on rollover
+// whenever a course shows a lone "B" alongside "Single" rows and no "A" at all.
+//
+// Term V: CRM (1 stray row, 27 Oct session 13) and SCA (2 stray rows, 31 Oct
+// sessions 19-20). Both courses are single-section, and every enrolled student
+// is allocated "Single" in the sheet, so without this the `visible` filter in
+// App.jsx hid those three classes from everyone.
+const SINGLE_SECTION_B = new Set(["CRM", "SCA"]);
 function normalizeSingleSection(c) {
   if (c.type !== "class") return c;
   // Repair guest cells the feed regex failed on: a line break in the sheet cell
@@ -44,6 +48,20 @@ function normalizeSingleSection(c) {
 function cleanFaculty(f) {
   if (!f) return f;
   return f.replace(/\s+/g, " ").replace(/\s*&\s*/g, " & ").trim();
+}
+
+// The sheet's room column is sometimes used for the guest speaker or their
+// company instead of a venue ("Zoho", "Mr. Procyon Mukherjee"), which then
+// renders as the room. Two tells, both precise enough to leave real rooms
+// alone: a personal title, or a value that already appears in the session /
+// class name — a genuine room number never does.
+export function cleanRoom(c) {
+  const room = (c.room || "").trim();
+  if (!room) return "";
+  if (/^(mr|mrs|ms|dr|prof)\.?\s/i.test(room)) return "";
+  const context = `${c.session || ""} ${c.name || ""}`.toLowerCase();
+  if (context.includes(room.toLowerCase())) return "";
+  return room;
 }
 
 // A feed "class" whose code isn't a real course (not in the legend) isn't a
@@ -75,13 +93,18 @@ function withAreas(data) {
       ...c,
       area: c.code ? (AREA[c.code] || "Other") : "",
       faculty: cleanFaculty(c.faculty),
+      room: cleanRoom(c),
     }));
   // Preserve static fields (like number) that the live feed may omit
   const term = data.TERM ? { number: TERM.number, ...data.TERM } : data.TERM;
   return { ...data, TERM: term, LEGEND: legend, CLASSES: classes };
 }
 
-const STATIC_SNAPSHOT = withAreas({ TERM, LEGEND, CLASSES, CHANGES: [] });
+// `_source` marks how fresh a payload is. Onboarding's auto-allocation needs it:
+// a student missing from a stale bundled STUDENTS map must not be written off as
+// "no allocation" — it has to wait for the live feed before giving up. Anything
+// restored from the cache came from a live fetch, so it keeps its own marker.
+const STATIC_SNAPSHOT = withAreas({ TERM, LEGEND, CLASSES, STUDENTS, CHANGES: [], _source: "snapshot" });
 
 // Synchronous — returns localStorage cache if present, otherwise the static snapshot.
 // Called before any async work so the UI renders immediately.
@@ -122,7 +145,9 @@ export async function fetchSchedule(force = false) {
     
     if (data?.error) throw new Error(data.error);
     if (data?.unchanged && cached?.data) {
-      return { ...withAreas(cached.data), _meta: { status: "success", message: "No changes from live sheet (using cache)", ts: new Date().toISOString() } };
+      // The server just confirmed the cache is current, so this counts as live
+      // even if the cached payload predates _source being written.
+      return { ...withAreas(cached.data), _source: "live", _meta: { status: "success", message: "No changes from live sheet (using cache)", ts: new Date().toISOString() } };
     }
 
     if (!data?.CLASSES?.length) throw new Error("empty feed");
@@ -141,7 +166,9 @@ export async function fetchSchedule(force = false) {
       });
     }
 
-    const result = withAreas({ CHANGES: [], ...data, CLASSES: classes });
+    // STUDENTS ahead of the spread so the live map wins when present and the
+    // bundled one only fills a gap; _source after it so the feed can't spoof it.
+    const result = withAreas({ CHANGES: [], STUDENTS, ...data, CLASSES: classes, _source: "live" });
     try { localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data: result })); } catch {}
     result._meta = { status: "success", message: `Successfully fetched ${classes.length} classes from live sheet.`, ts: new Date().toISOString() };
     return result;

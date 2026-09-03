@@ -14,7 +14,7 @@ import { ymd } from "../lib/datetime.js";
 import AdminCommandPalette from "./AdminCommandPalette";
 import FeedbackFlashToast from "./FeedbackFlashToast.jsx";
 import { WhatsNewPill, WhatsNewModal } from "./WhatsNew.jsx";
-import { PETS } from "./greetingPets.jsx";
+import { PETS, getPetByKey } from "./greetingPets.jsx";
 
 // Render-stable "now" captured at module load — used for relative-time math in
 // render (inactivity windows, cron staleness) without an impure Date.now() call.
@@ -4975,8 +4975,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 ...(flags.greetingPets || {}),
               };
               const updateGreetingPets = patch => setFlags({ ...flags, greetingPets: { ...greetingPets, ...patch } });
+              // getPetByKey (not a raw find) so a config still carrying the
+              // legacy "turtle" key previews the rover the admin actually picked.
               const previewPet = greetingPets.mode === "featured"
-                ? PETS.find(pet => pet.key === greetingPets.petKey) || PETS[0]
+                ? getPetByKey(greetingPets.petKey)
                 : PETS[0];
               const PreviewPet = previewPet.Svg;
               return (
@@ -5008,7 +5010,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     {greetingPets.mode === "featured" && (
                       <label className="admin-field" style={{ flex: "1 1 130px", margin: 0 }}>
                         <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", display: "block", marginBottom: 5 }}>FEATURED PET</span>
-                        <select className="admin-input" disabled={!greetingPets.enabled} value={greetingPets.petKey} onChange={e => updateGreetingPets({ petKey: e.target.value })}>
+                        <select className="admin-input" disabled={!greetingPets.enabled} value={previewPet.key} onChange={e => updateGreetingPets({ petKey: e.target.value })}>
                           <option value="cat">Cat</option><option value="fox">Fox</option><option value="dog">Dog</option><option value="bunny">Bunny</option><option value="penguin">Penguin</option><option value="panda">Panda</option><option value="chick">Chick</option><option value="koala">Koala</option><option value="otter">Otter</option><option value="turtle">Rover</option><option value="raccoon">Raccoon</option><option value="capybara">Capybara</option>
                         </select>
                       </label>

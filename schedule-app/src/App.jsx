@@ -20,6 +20,7 @@ import { MessMenuStandalone } from "./components/MessMenuModal.jsx";
 import { setMessMenuOverrides } from "./data/messMenu.js";
 import { fetchMessMenu } from "./lib/messFeed.js";
 import { getSnapshot, fetchSchedule, sha256hex } from "./lib/sheet.js";
+import { taughtSectionsByCode, provisionalSectionCodes } from "./lib/sections.js";
 import { lookupOverride, buildOverrideAdds } from "./lib/overrides.js";
 import { toMin, ymd, clsDate, prettyDate, timeAgo, getSpecialDay } from "./lib/datetime.js";
 import {
@@ -54,6 +55,7 @@ const SplitPage = lazy(() => import("./components/SplitPage.jsx"));
 const CalendarExportModal = lazy(() => import("./components/CalendarExportModal.jsx"));
 import DeadlineStrip from "./components/DeadlineStrip.jsx";
 import CancellationAlert from "./components/CancellationAlert.jsx";
+import ProvisionalSectionNotice from "./components/ProvisionalSectionNotice.jsx";
 import { loadMyAway, isAwayNow, fmtAwayEnd } from "./lib/status.js";
 import { loadAttendance, saveAttendance, sessionKey, syncAttendanceFromCloud, pushMark, courseSkipStats } from "./lib/attendance.js";
 import { syncProfileFromCloud, pushProfile, stampProfileEmail } from "./lib/profile.js";
@@ -847,8 +849,12 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       });
       return fetchSchedule().then((data) => {
         if (!alive) return;
-        setScheduleData(data);
-        setSyncedAt(new Date());
+        // A failed fetch resolves with the bundled snapshot. Keep whatever we
+        // already have instead — it is never worse, and it stops a flaky feed
+        // from downgrading live data (STUDENTS included) mid-session.
+        const failed = data._meta?.status === "error";
+        setScheduleData(prev => (failed && prev ? prev : data));
+        if (!failed) setSyncedAt(new Date());
         if (data._meta) setSyncLogs(prev => [data._meta, ...prev].slice(0, 1000));
       }).catch(e => {
         if (!alive) return;
@@ -1258,7 +1264,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     }
     const email = user?.primaryEmailAddress?.emailAddress;
     if (!email) return;
-    // STUDENTS only arrives in the live feed — wait for it rather than marking done early.
+    // A bundled STUDENTS map ships with the snapshot so onboarding still works
+    // when the feed is down; only a totally absent map is worth waiting for.
     if (!scheduleData.STUDENTS) return;
 
     let cancelled = false;
@@ -1266,7 +1273,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       if (cancelled) return;
       const allocation = scheduleData.STUDENTS?.[hash];
       if (!allocation || Object.keys(allocation).length === 0) {
-        setAllocationApplied(true);
+        // Not in the map. If that map is the bundled snapshot it may simply
+        // predate this student, so hold out for the live feed rather than
+        // concluding they have no allocation and dropping them into a manual pick.
+        if (scheduleData._source === "live") setAllocationApplied(true);
         return;
       }
       // Build the same shape handleOnboardingDone expects: { code: "A" | "B" | "Single" }
@@ -1284,9 +1294,39 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     return () => { cancelled = true; };
   }, [scheduleData, isSignedIn, allocationApplied, cloudChecked, setup, userId, user]);
 
-  // True while cloudChecked but STUDENTS hasn't arrived yet (live feed still in-flight).
-  // Used to show a "Fetching timetable allocation…" notice in Onboarding.
-  const waitingForAllocation = cloudChecked && !setup && !readSetup() && !scheduleData?.STUDENTS;
+  // True while a new user's allocation is still unresolved — either the live
+  // feed hasn't landed, or it has but the bundled map didn't list them yet.
+  // Drives the "Fetching timetable allocation…" notice in Onboarding, and the
+  // retry below.
+  const waitingForAllocation =
+    cloudChecked && !setup && !readSetup() && !allocationApplied && scheduleData?._source !== "live";
+
+  // The 10-minute background poll is far too slow to sit through on the
+  // onboarding screen, and the Apps Script feed fails often enough that the
+  // first attempt regularly misses. Retry on a short backoff for as long as the
+  // allocation is unresolved; the poll above remains the long-run safety net.
+  useEffect(() => {
+    if (!isSignedIn || !waitingForAllocation) return;
+    const DELAYS = [15000, 30000, 60000, 120000];
+    let alive = true;
+    let attempt = 0;
+    let timer;
+    function scheduleRetry() {
+      if (!alive || attempt >= DELAYS.length) return;
+      timer = window.setTimeout(runRetry, DELAYS[attempt++]);
+    }
+    function runRetry() {
+      fetchSchedule()
+        .then(data => {
+          if (!alive) return;
+          if (data?._source === "live") setScheduleData(data);
+          else scheduleRetry();
+        })
+        .catch(() => { if (alive) scheduleRetry(); });
+    }
+    scheduleRetry();
+    return () => { alive = false; window.clearTimeout(timer); };
+  }, [isSignedIn, waitingForAllocation]);
 
   // Apply Admin Overrides (Term data & Cancellations)
   const sd = useMemo(() => {
@@ -1341,22 +1381,16 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // browsing an archived term (every "Edit setup" entry point routes through this).
   const openEditSetup = () => { if (!isArchivedView) setShowSetupEdit(true); };
 
-  const sectionsByCode = useMemo(() => {
-    if (!sd) return {};
-    const m = {};
-    sd.CLASSES.forEach((c) => {
-      if (c.type === "class" && c.code) (m[c.code] = m[c.code] || new Set()).add(c.section);
-    });
-    const out = {};
-    Object.keys(m).forEach((k) => {
-      // Combined guest sessions are "Single"/"All" entries visible to every
-      // section — don't offer them as an enrollment choice for sectioned courses.
-      const secs = [...m[k]];
-      const real = secs.filter((s) => s !== "Single" && s !== "All");
-      out[k] = (real.length ? real : secs).sort();
-    });
-    return out;
-  }, [sd]);
+  const sectionsByCode = useMemo(() => (sd ? taughtSectionsByCode(sd.CLASSES) : {}), [sd]);
+
+  // Courses whose allocated section isn't one the course actually teaches — the
+  // roster script reports a not-yet-allocated course as "Single", which matches
+  // no row of an A/B timetable. See lib/sections.js for the full reasoning; this
+  // is what keeps ECOM's 111 students from seeing zero classes.
+  const provisionalSections = useMemo(
+    () => provisionalSectionCodes(enrolled, sectionsByCode),
+    [enrolled, sectionsByCode]
+  );
 
   const visible = useMemo(() => {
     if (!enrolled || !mine) return [];
@@ -1364,7 +1398,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     return CLASSES.filter((c) => {
       if (c.type === "class") {
         const sec = enrolled[c.code];
-        return sec !== undefined && (c.section === sec || c.section === "Single" || c.section === "All") && mine.has(c.code);
+        // Provisional courses fall through to every section: showing both A and
+        // B is noisy, but it is the only honest option while the real section is
+        // unknown, and far better than the course vanishing.
+        return sec !== undefined && (c.section === sec || c.section === "Single" || c.section === "All" || provisionalSections.has(c.code)) && mine.has(c.code);
       }
       // Exams: the feed leaves `code` blank; try to infer the course code from
       // the entry name (e.g. "SAPM MID Term Exam" → "SAPM") and gate on enrollment.
@@ -1382,7 +1419,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       const key = c.date + c.slot + c.name;
       if (seen.has(key)) return false; seen.add(key); return true;
     });
-  }, [CLASSES, enrolled, mine, LEGEND]);
+  }, [CLASSES, enrolled, mine, LEGEND, provisionalSections]);
 
   const enrolledLegend = useMemo(() => {
     const out = {};
@@ -2750,6 +2787,13 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               <div className="mobile-only">
                 <WeekGlance visible={visible} now={now} offset={weekOffset} todayISO={todayISO} collapsible />
               </div>
+            )}
+            {(view === "today" || view === "tomorrow") && !compareTarget && provisionalSections.size > 0 && (
+              <ProvisionalSectionNotice
+                codes={[...provisionalSections]}
+                legend={enrolledLegend}
+                sectionsByCode={sectionsByCode}
+              />
             )}
             {(view === "today" || view === "tomorrow") && !compareTarget && (
               <CancellationAlert

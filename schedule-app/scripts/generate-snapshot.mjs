@@ -65,7 +65,9 @@ async function main() {
       area: AREA[code] || "Other",
     };
   }
-  // Keep only timetable fields — STUDENTS/CHANGES/buildTs must not be bundled
+  // Keep only timetable fields — CHANGES/buildTs must not be bundled.
+  // STUDENTS is bundled (below) as an onboarding fallback: it is the one thing
+  // the app cannot degrade without, since auto-allocation has no other source.
   const CLASSES = feed.CLASSES.map(
     ({ date, day, section, slot, start, end, type, code, session, name, faculty, room }) => ({
       date, day, section, slot, start, end, type, code, session, name, faculty,
@@ -73,10 +75,17 @@ async function main() {
     })
   );
 
+  // Onboarding fallback. Keys are SHA-256 hashes of lowercased emails, so this
+  // exposes nothing the (public, anonymous) feed does not already serve. The
+  // live feed always takes priority; this only covers a feed outage.
+  const STUDENTS =
+    feed.STUDENTS && typeof feed.STUDENTS === "object" ? feed.STUDENTS : {};
+
   const out =
     "export const TERM=" + JSON.stringify(TERM) + ";\n" +
     "export const LEGEND=" + JSON.stringify(LEGEND) + ";\n" +
-    "export const CLASSES=" + JSON.stringify(CLASSES) + ";\n";
+    "export const CLASSES=" + JSON.stringify(CLASSES) + ";\n" +
+    "export const STUDENTS=" + JSON.stringify(STUDENTS) + ";\n";
   fs.writeFileSync(SNAPSHOT_PATH, out);
 
   writeMeta({
@@ -84,13 +93,15 @@ async function main() {
     ts: new Date().toISOString(),
     classes: CLASSES.length,
     courses: Object.keys(LEGEND).length,
+    students: Object.keys(STUDENTS).length,
     termStart: TERM.start,
     termEnd: TERM.end,
     feedBuildTs: feed.buildTs || null,
     error: null,
   });
   console.log(
-    `[snapshot] OK — ${CLASSES.length} classes, ${Object.keys(LEGEND).length} courses, term ${TERM.start} → ${TERM.end}`
+    `[snapshot] OK — ${CLASSES.length} classes, ${Object.keys(LEGEND).length} courses, ` +
+      `${Object.keys(STUDENTS).length} students, term ${TERM.start} → ${TERM.end}`
   );
 }
 

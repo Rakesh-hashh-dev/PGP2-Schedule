@@ -83,7 +83,12 @@ export const GREETINGS = {
   ],
 };
 
-function bucketFor(h) {
+/**
+ * Which greeting band an hour falls in. Exported so callers can tell when the
+ * greeting has actually gone stale (the band changed) rather than re-rolling a
+ * new random line on every clock tick.
+ */
+export function getGreetingBucket(h) {
   if (h < 4) return "lateNight";
   if (h < 6) return "earlyMorning";
   if (h < 12) return "morning";
@@ -94,7 +99,7 @@ function bucketFor(h) {
 
 /** A Date + first name → a random time-aware greeting from GREETINGS, e.g. "Up late, Rakesh?". */
 export function getTimeGreeting(d, name) {
-  const options = GREETINGS[bucketFor(d.getHours())];
+  const options = GREETINGS[getGreetingBucket(d.getHours())];
   const pick = options[Math.floor(Math.random() * options.length)];
   return pick.replace("{name}", name);
 }

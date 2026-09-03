@@ -1284,33 +1284,41 @@ html[data-theme="dark"] .tabs-wrapper {
 }
 
 /* Pet-of-the-day companion in the daily greeting */
+.dg-pet-shell { position: relative; display: inline-flex; flex: none; isolation: isolate; }
 .dg-pet {
   --pet-turn: 0deg;
+  --pet-accent: var(--violet);
   position: relative;
   isolation: isolate;
   flex: none;
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
   line-height: 0;
+  cursor: pointer;
   transform-origin: 50% 100%;
-  filter: drop-shadow(0 2px 3px color-mix(in srgb, var(--text) 12%, transparent));
+  filter: drop-shadow(0 3px 4px color-mix(in srgb, var(--text) 15%, transparent));
   animation: dgPetBob 2.9s ease-in-out infinite;
 }
+.dg-pet:focus-visible { outline: 2px solid var(--violet); outline-offset: 3px; border-radius: 9px; }
+.dg-pet::after { position: absolute; z-index: 2; right: -2px; bottom: 0; width: 7px; height: 7px; border: 2px solid var(--bg); border-radius: 50%; background: #78c99d; box-shadow: 0 1px 3px color-mix(in srgb, var(--text) 18%, transparent); content: ""; }
 .dg-pet::before {
   position: absolute;
   z-index: -1;
   inset: 7px 3px 1px;
   border: 0;
   border-radius: 50%;
-  background:
-    radial-gradient(ellipse at 50% 82%, color-mix(in srgb, var(--violet) 13%, transparent), transparent 68%);
-  box-shadow: none;
+  background: radial-gradient(ellipse at 50% 78%, color-mix(in srgb, var(--pet-accent) 23%, transparent), transparent 67%);
+  box-shadow: inset 0 1px color-mix(in srgb, #fff 34%, transparent);
   content: "";
+  animation: dgPetAura 3.6s ease-in-out infinite;
 }
-.dg-pet-toggle { display: inline-grid; place-items: center; width: 22px; height: 22px; margin-left: 1px; padding: 0; border: 1px solid var(--border); border-radius: 50%; background: transparent; color: var(--muted); font-size: 13px; line-height: 1; cursor: pointer; opacity: .7; transition: color 160ms ease, border-color 160ms ease, background 160ms ease, opacity 160ms ease; }
 .sb-pop-pref { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px; border: 1px solid rgba(196, 181, 253, .28); border-radius: 10px; background: rgba(255, 255, 255, .07); color: #f8f7ff; font: inherit; font-size: 12px; font-weight: 650; cursor: pointer; text-align: left; }.sb-pop-pref:hover, .sb-pop-pref:focus-visible { background: rgba(139, 92, 246, .24); border-color: rgba(196, 181, 253, .55); outline: none; }.sb-pop-pref strong { padding: 3px 7px; border-radius: 999px; background: rgba(167, 139, 250, .2); color: #ddd6fe; font-size: 10px; text-transform: uppercase; letter-spacing: .45px; }
-.dg-pet-toggle:hover, .dg-pet-toggle:focus-visible { color: var(--violet); border-color: color-mix(in srgb, var(--violet) 45%, var(--border)); background: color-mix(in srgb, var(--violet) 9%, transparent); opacity: 1; outline: none; }.dg-pet-toggle.is-on { color: var(--violet); opacity: .9; }
-html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at 50% 84%, color-mix(in srgb, var(--violet) 18%, transparent), transparent 67%); }
+html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at 50% 84%, color-mix(in srgb, var(--pet-accent) 22%, transparent), transparent 67%); }
 .dg-pet svg {
   position: relative;
   z-index: 1;
@@ -1318,11 +1326,14 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
   height: 100%;
   display: block;
   overflow: visible;
+  filter: saturate(1.1) contrast(1.045) drop-shadow(0 1px 0 color-mix(in srgb, #fff 20%, transparent));
+  transform: translateY(-.4px);
 }
 .dg-pet-eyes {
   transform-box: fill-box;
   transform-origin: center;
   animation: dgPetBlink 5.2s ease-in-out infinite;
+  filter: drop-shadow(0 .35px .3px color-mix(in srgb, #fff 32%, transparent));
 }
 .dg-pet-face, .dg-pet-ear, .dg-pet-wing, .dg-pet-tail, .dg-pet-tuft, .dg-pet-accessory {
   transform-box: fill-box;
@@ -1343,8 +1354,10 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
   58% { transform: translateY(-1px) rotate(calc(var(--pet-turn) * -0.45)); }
 }
 @keyframes dgPetBlink {
-  0%, 90%, 100% { transform: scaleY(1); }
-  95% { transform: scaleY(0.12); }
+  0%, 57%, 90%, 100% { transform: translateX(0) scaleY(1); }
+  63% { transform: translateX(.45px) scaleY(1); }
+  68% { transform: translateX(0) scaleY(1); }
+  95% { transform: translateX(0) scaleY(0.12); }
 }
 @keyframes dgPetBreathe { 0%, 100% { transform: scale(1); } 52% { transform: scale(1.025, .985); } }
 @keyframes dgPetEarLeft { 0%, 62%, 100% { transform: rotate(0); } 68% { transform: rotate(-11deg); } 74% { transform: rotate(3deg); } }
@@ -1354,21 +1367,38 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 @keyframes dgPetWingRight { 0%, 68%, 100% { transform: rotate(0); } 76% { transform: rotate(17deg); } 84% { transform: rotate(-5deg); } 91% { transform: rotate(8deg); } }
 @keyframes dgPetTuft { 0%, 100% { transform: rotate(-3deg); } 44% { transform: rotate(4deg); } 70% { transform: rotate(-1deg); } }
 @keyframes dgPetAccessory { 0%, 100% { transform: translateY(0) rotate(0); } 52% { transform: translateY(.5px) rotate(3deg); } }
+@keyframes dgPetAura { 0%, 100% { transform: scale(.94); opacity: .72; } 52% { transform: scale(1.06); opacity: 1; } }
+@keyframes dgPetHappy { 0%, 100% { transform: translateY(0) rotate(0) scale(1); } 25% { transform: translateY(-5px) rotate(-8deg) scale(1.04); } 52% { transform: translateY(-1px) rotate(7deg) scale(1.02); } 76% { transform: translateY(-3px) rotate(-4deg) scale(1.03); } }
+@keyframes dgPetPlay { 0%, 100% { transform: translateX(0) translateY(0) rotate(0); } 20% { transform: translateX(-4px) translateY(-3px) rotate(-10deg); } 47% { transform: translateX(4px) translateY(-6px) rotate(11deg); } 73% { transform: translateX(-2px) translateY(-2px) rotate(-5deg); } }
+@keyframes dgPetTreat { 0%, 100% { transform: translateY(0) scale(1); } 30% { transform: translateY(2px) scale(.94, 1.06); } 58% { transform: translateY(-4px) scale(1.06, .94); } }
+.dg-pet[data-reaction="pet"] { animation: dgPetHappy 720ms cubic-bezier(.2,.9,.3,1) both; }
+.dg-pet[data-reaction="play"] { animation: dgPetPlay 820ms cubic-bezier(.2,.9,.3,1) both; }
+.dg-pet[data-reaction="treat"] { animation: dgPetTreat 720ms cubic-bezier(.2,.9,.3,1) both; }
+.dg-pet[data-reaction] .dg-pet-tail { animation-duration: .32s; }
+.dg-pet[data-reaction="play"] .dg-pet-wing, .dg-pet[data-reaction="play"] .dg-pet-ear { animation-duration: .28s; }
+.dg-pet-tray { position: absolute; z-index: 10; top: calc(100% + 8px); left: -5px; display: grid; gap: 7px; min-width: 195px; padding: 9px; border: 1px solid color-mix(in srgb, var(--violet) 23%, var(--border)); border-radius: 12px; background: color-mix(in srgb, var(--bg) 95%, var(--violet)); box-shadow: 0 10px 25px color-mix(in srgb, var(--text) 14%, transparent); font-family: var(--sans); font-size: 12px; line-height: 1.35; animation: dgPetTrayIn 160ms ease-out both; }
+.dg-pet-tray::before { position: absolute; top: -5px; left: 16px; width: 8px; height: 8px; border-top: 1px solid color-mix(in srgb, var(--violet) 23%, var(--border)); border-left: 1px solid color-mix(in srgb, var(--violet) 23%, var(--border)); background: color-mix(in srgb, var(--bg) 95%, var(--violet)); transform: rotate(45deg); content: ""; }
+.dg-pet-tray-label { position: relative; color: var(--text); font-weight: 650; }
+.dg-pet-actions { display: flex; gap: 5px; }
+.dg-pet-actions button { flex: 1; padding: 5px 6px; border: 1px solid color-mix(in srgb, var(--violet) 20%, var(--border)); border-radius: 7px; background: color-mix(in srgb, var(--violet) 8%, var(--bg)); color: var(--text); font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; transition: transform 130ms ease, background 130ms ease, border-color 130ms ease; }
+.dg-pet-actions button:hover, .dg-pet-actions button:focus-visible { border-color: color-mix(in srgb, var(--violet) 52%, var(--border)); background: color-mix(in srgb, var(--violet) 17%, var(--bg)); outline: none; }
+.dg-pet-tray button:active { transform: translateY(1px) scale(.97); }
+@keyframes dgPetTrayIn { from { opacity: 0; transform: translateY(-4px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @media (prefers-reduced-motion: reduce) {
-  .dg-pet, .dg-pet *, .dg-pet-eyes { animation: none; }
+  .dg-pet, .dg-pet::before, .dg-pet *, .dg-pet-eyes, .dg-pet-tray { animation: none; }
 }
-.dg-pet[data-pet="cat"], .dg-pet[data-pet="bunny"], .dg-pet[data-pet="koala"] { --pet-turn: -2deg; }
-.dg-pet[data-pet="fox"], .dg-pet[data-pet="chick"], .dg-pet[data-pet="otter"] { --pet-turn: 2.5deg; }
-.dg-pet[data-pet="dog"], .dg-pet[data-pet="capybara"] { --pet-turn: -1.2deg; }
-.dg-pet[data-pet="penguin"], .dg-pet[data-pet="turtle"] { --pet-turn: 1.4deg; }
-.dg-pet[data-pet="panda"], .dg-pet[data-pet="raccoon"] { --pet-turn: -1.7deg; }
+.dg-pet[data-pet="cat"], .dg-pet[data-pet="bunny"], .dg-pet[data-pet="koala"] { --pet-turn: -2deg; --pet-accent: #d88bac; }
+.dg-pet[data-pet="fox"], .dg-pet[data-pet="chick"], .dg-pet[data-pet="otter"] { --pet-turn: 2.5deg; --pet-accent: #e98a50; }
+.dg-pet[data-pet="dog"], .dg-pet[data-pet="capybara"] { --pet-turn: -1.2deg; --pet-accent: #c99659; }
+.dg-pet[data-pet="penguin"], .dg-pet[data-pet="rover"] { --pet-turn: 1.4deg; --pet-accent: #79a9c8; }
+.dg-pet[data-pet="panda"], .dg-pet[data-pet="raccoon"] { --pet-turn: -1.7deg; --pet-accent: #8993a7; }
 .dg-pet[data-pet="fox"] .dg-pet-tail, .dg-pet[data-pet="otter"] .dg-pet-tail { animation-delay: -0.6s; }
 .dg-pet[data-pet="penguin"] .dg-pet-wing { animation-duration: 2s; }
 .dg-pet[data-pet="chick"] .dg-pet-wing { animation-duration: 1.8s; }
 .dg-pet[data-pet="bunny"] .dg-pet-ear, .dg-pet[data-pet="koala"] .dg-pet-ear { animation-duration: 2.35s; }
-.dg-pet[data-motion="off"], .dg-pet[data-motion="off"] * { animation: none; }
+.dg-pet[data-motion="off"], .dg-pet[data-motion="off"]::before, .dg-pet[data-motion="off"] * { animation: none; }
 @media (hover: hover) {
-  .dg-pet { transition: filter 180ms ease; }
+  .dg-pet { transition: filter 180ms ease, transform 180ms ease; }
   .dg-pet:hover { filter: drop-shadow(0 4px 7px color-mix(in srgb, var(--violet) 34%, transparent)); }
 }
 
