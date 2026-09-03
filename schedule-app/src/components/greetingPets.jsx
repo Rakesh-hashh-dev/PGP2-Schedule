@@ -1,0 +1,226 @@
+/* eslint-disable react-refresh/only-export-components */
+// This module deliberately exports the pet registry (PETS) and a helper
+// (getPetOfTheDay) alongside the presentational SVG components, so Fast Refresh's
+// "components only" rule doesn't apply — the pets are static and rarely edited.
+
+// "Pet of the day" companions for the daily greeting.
+//
+// Each pet is a small inline SVG (no external assets → CSP-safe) drawn with
+// flat, mid-tone illustrative colors that read on both light and dark grounds.
+// White-bodied pets carry a faint outline so they don't vanish on the light
+// theme. The eyes live in a `.dg-pet-eyes` group so CSS can blink them, and the
+// whole figure gets a gentle idle bob — both disabled under reduced-motion
+// (see styles.css). One pet is chosen per local day and kept stable through it.
+
+const EYE = "#22242e";
+
+function Cat() {
+  return (
+    <svg viewBox="0 0 32 32" role="img" aria-label="cat">
+      <path className="dg-pet-tail" d="M24 22c4 0 4.8 4.8 1.3 5.7-1.6.4-2.8-.5-2.4-1.4.4-.8 2 .1 2-1.6 0-1.2-.8-1.8-2-1.7z" fill="#737c92" />
+      <path className="dg-pet-ear dg-pet-ear-left" d="M8 7l3.5 7-5.5-1z" fill="#8b93a7" />
+      <path className="dg-pet-ear dg-pet-ear-right" d="M24 7l-3.5 7 5.5-1z" fill="#8b93a7" />
+      <path d="M9 8.5l1.6 4-3-.6z" fill="#f0a6c0" />
+      <path d="M23 8.5l-1.6 4 3-.6z" fill="#f0a6c0" />
+      <circle className="dg-pet-face" cx="16" cy="18" r="10" fill="#8b93a7" />
+      <path d="M16 9.3l-1.4 4.6h2.8z" fill="#70798e" opacity=".8" />
+      <path d="M11.2 23c1.8 2 7.8 2 9.6 0-.8 2.4-2.6 3.5-4.8 3.5s-4-1.1-4.8-3.5z" fill="#dce1eb" opacity=".9" />
+      <g className="dg-pet-eyes">
+        <circle cx="12.4" cy="17" r="1.7" fill={EYE} />
+        <circle cx="19.6" cy="17" r="1.7" fill={EYE} />
+      </g>
+      <circle cx="16" cy="19.4" r="1.1" fill="#f0779a" />
+      <path d="M14.4 21.2q1.6 1.5 3.2 0" fill="none" stroke={EYE} strokeWidth="1" strokeLinecap="round" />
+      <path className="dg-pet-accessory" d="M10.2 24.2c3.5 1.5 8.1 1.5 11.6 0l.4 1.6c-3.8 1.7-8.4 1.7-12.2 0z" fill="#e9829e" />
+      <circle className="dg-pet-accessory" cx="16" cy="25.8" r="1.05" fill="#f6ca59" />
+      <path d="M6 18h4M6 20l4-.6M22 18h4M22 19.4l4 .6" stroke="#c8ccd6" strokeWidth=".8" strokeLinecap="round" opacity=".7" />
+    </svg>
+  );
+}
+
+function Fox() {
+  return (
+    <svg viewBox="0 0 32 32" role="img" aria-label="fox">
+      <path className="dg-pet-tail" d="M20 20.8c5.6-3.1 8.6.4 6.7 4.6-1.4 3-5.5 3.5-7.1 1.4 1.3-.2 2.7-1.1 3.1-2.6.4-1.5-1-2.3-2.7-1.5z" fill="#d96438" />
+      <path className="dg-pet-tail" d="M21.8 26c1.4-.7 2.3-1.9 2.5-3.1 1.9.3 2.6 1.7 1.9 3.1-.8 1.6-3 2-4.4 1.2z" fill="#fff5e8" />
+      <path className="dg-pet-ear dg-pet-ear-left" d="M6.1 5.3l8.2 4.1-5.8 7.4z" fill="#e87842" />
+      <path className="dg-pet-ear dg-pet-ear-right" d="M25.9 5.3l-8.2 4.1 5.8 7.4z" fill="#e87842" />
+      <path d="M7.9 7.7l4.1 2-3.2 3.7z" fill="#4d2a2b" />
+      <path d="M24.1 7.7l-4.1 2 3.2 3.7z" fill="#4d2a2b" />
+      <path className="dg-pet-face" d="M16 8.3c4.8 0 7.7 2.3 8.1 6.9l.5 4.3-3.7 5.7L16 27.5l-4.9-2.3-3.7-5.7.5-4.3c.4-4.6 3.3-6.9 8.1-6.9z" fill="#eb7d43" />
+      <path d="M16 10.2l-1.8 5.7L16 19.2l1.8-3.3z" fill="#f7ad70" opacity=".75" />
+      <path d="M8.3 17.2l4.8 1.1L16 22l2.9-3.7 4.8-1.1-.5 3.6-3.6 4.8-3.6 1.3-3.6-1.3-3.6-4.8z" fill="#fff6ea" />
+      <path d="M9.2 18.3l4.2.9L16 22l-1.9 1.2-3.9-2.6zM22.8 18.3l-4.2.9L16 22l1.9 1.2 3.9-2.6z" fill="#f5e2ce" />
+      <g className="dg-pet-eyes">
+        <path d="M10.2 15.9q2.1-2 4.1 0-2 1.8-4.1 0z" fill={EYE} />
+        <path d="M21.8 15.9q-2.1-2-4.1 0 2 1.8 4.1 0z" fill={EYE} />
+        <circle cx="12.2" cy="15.5" r=".38" fill="#fff" />
+        <circle cx="19.8" cy="15.5" r=".38" fill="#fff" />
+      </g>
+      <path d="M16 20.8l-1.55-1.25h3.1z" fill="#382528" />
+      <path d="M16 21.5v1.1M16 22.6q-1.35.8-2-.25M16 22.6q1.35.8 2-.25" fill="none" stroke="#382528" strokeWidth=".68" strokeLinecap="round" />
+      <circle cx="10.5" cy="20.8" r=".72" fill="#e96e61" opacity=".72" /><circle cx="21.5" cy="20.8" r=".72" fill="#e96e61" opacity=".72" />
+    </svg>
+  );
+}
+
+function Dog() {
+  return (
+    <svg viewBox="0 0 32 32" role="img" aria-label="dog">
+      <path className="dg-pet-tail" d="M23 22c4.5-.4 5.8 4.2 2.4 5.5-1.7.6-3-.2-2.7-1.2.3-.9 2.2.1 2.2-1.6 0-1.1-.8-1.6-2-1.4z" fill="#c58c49" />
+      <path className="dg-pet-ear dg-pet-ear-left" d="M6 11c-1 4 0 7 2 8l3-6z" fill="#b07a3e" />
+      <path className="dg-pet-ear dg-pet-ear-right" d="M26 11c1 4 0 7-2 8l-3-6z" fill="#b07a3e" />
+      <circle className="dg-pet-face" cx="16" cy="17" r="10" fill="#d7a35e" />
+      <path d="M10 10.7c2.1-1.7 4.6-2.4 6.6-1.9-1.5.8-2.7 2.1-3.1 3.7z" fill="#bd8547" opacity=".9" />
+      <ellipse cx="16" cy="21" rx="6" ry="5" fill="#f0ddc2" />
+      <g className="dg-pet-eyes">
+        <circle cx="12.6" cy="15.5" r="1.7" fill={EYE} />
+        <circle cx="19.4" cy="15.5" r="1.7" fill={EYE} />
+      </g>
+      <ellipse cx="16" cy="19.5" rx="1.6" ry="1.3" fill="#3a2e2a" />
+      <path d="M16 20.8v2.4" stroke="#3a2e2a" strokeWidth="1" strokeLinecap="round" />
+      <path d="M16 23.2q2 0 2.4-1.4" fill="#f0779a" />
+      <path className="dg-pet-accessory" d="M10.1 23.2c3.3 1.4 8.5 1.4 11.8 0l.3 1.5c-3.7 1.7-8.7 1.7-12.4 0z" fill="#5d83bd" />
+      <circle className="dg-pet-accessory" cx="16" cy="25" r="1" fill="#f4cf5c" />
+    </svg>
+  );
+}
+
+function Bunny() {
+  return (
+    <svg viewBox="0 0 32 32" role="img" aria-label="bunny">
+      <path className="dg-pet-tail" d="M23.5 23c3.4.6 3.8 4.2 1.2 4.8-1.6.3-2.6-.8-2-1.6.4-.7 1.7.4 1.8-.8.1-.8-.7-1.4-1.7-1.3z" fill="#e5e7ed" />
+      <rect className="dg-pet-ear dg-pet-ear-left" x="10.5" y="2" width="3.6" height="12" rx="1.8" fill="#f2f3f6" stroke="#d7dae2" strokeWidth=".7" />
+      <rect className="dg-pet-ear dg-pet-ear-right" x="17.9" y="2" width="3.6" height="12" rx="1.8" fill="#f2f3f6" stroke="#d7dae2" strokeWidth=".7" />
+      <rect x="11.4" y="3.4" width="1.8" height="9" rx=".9" fill="#f3b3c8" />
+      <rect x="18.8" y="3.4" width="1.8" height="9" rx=".9" fill="#f3b3c8" />
+      <circle className="dg-pet-face" cx="16" cy="19" r="9.5" fill="#f2f3f6" stroke="#d7dae2" strokeWidth=".7" />
+      <ellipse cx="16" cy="24.6" rx="4" ry="2.7" fill="#fff" opacity=".6" />
+      <g className="dg-pet-eyes">
+        <circle cx="12.6" cy="18" r="1.6" fill={EYE} />
+        <circle cx="19.4" cy="18" r="1.6" fill={EYE} />
+      </g>
+      <path d="M16 20.4l-1.3-1.2h2.6z" fill="#f0779a" />
+      <circle cx="10.8" cy="21" r="1.6" fill="#f7c9d8" opacity=".8" />
+      <circle cx="21.2" cy="21" r="1.6" fill="#f7c9d8" opacity=".8" />
+      <path className="dg-pet-accessory" d="M16 25.6l-2.6-1.7-1.8 1.9 1.8 1.7 2.6-1.5 2.6 1.5 1.8-1.7-1.8-1.9z" fill="#af79bb" />
+      <circle className="dg-pet-accessory" cx="16" cy="25.6" r="1.15" fill="#f4c45e" />
+    </svg>
+  );
+}
+
+function Penguin() {
+  return (
+    <svg viewBox="0 0 32 32" role="img" aria-label="penguin">
+      <path className="dg-pet-wing dg-pet-wing-left" d="M8 17c-3.2 1.2-3.3 6.8-.7 7.2 1.8.2 2.5-2.4 2-5.3z" fill="#454d5d" />
+      <path className="dg-pet-wing dg-pet-wing-right" d="M24 17c3.2 1.2 3.3 6.8.7 7.2-1.8.2-2.5-2.4-2-5.3z" fill="#454d5d" />
+      <ellipse className="dg-pet-face" cx="16" cy="17" rx="10" ry="11" fill="#333947" />
+      <ellipse cx="16" cy="19" rx="6.2" ry="8" fill="#f6f7f9" />
+      <path className="dg-pet-accessory" d="M9 20.8c4.2 1.6 9.8 1.6 14 0l-.5 2.3c-3.9 1.5-9.1 1.5-13 0z" fill="#77a9c8" />
+      <g className="dg-pet-eyes">
+        <circle cx="12.8" cy="14.5" r="1.6" fill="#f6f7f9" />
+        <circle cx="19.2" cy="14.5" r="1.6" fill="#f6f7f9" />
+        <circle cx="12.8" cy="14.5" r=".8" fill={EYE} />
+        <circle cx="19.2" cy="14.5" r=".8" fill={EYE} />
+      </g>
+      <path d="M16 16.4l-2 1.4 2 1.4 2-1.4z" fill="#f0a94e" />
+      <ellipse cx="12.2" cy="27" rx="2.8" ry="1.1" fill="#f0a94e" /><ellipse cx="19.8" cy="27" rx="2.8" ry="1.1" fill="#f0a94e" />
+    </svg>
+  );
+}
+
+function Panda() {
+  return (
+    <svg viewBox="0 0 32 32" role="img" aria-label="panda">
+      <circle className="dg-pet-ear dg-pet-ear-left" cx="8.5" cy="8.5" r="3.4" fill="#2a2d36" />
+      <circle className="dg-pet-ear dg-pet-ear-right" cx="23.5" cy="8.5" r="3.4" fill="#2a2d36" />
+      <circle className="dg-pet-face" cx="16" cy="17" r="10" fill="#f4f5f8" stroke="#dfe2e9" strokeWidth=".7" />
+      <ellipse cx="12" cy="16.5" rx="2.6" ry="3.2" fill="#2a2d36" transform="rotate(-12 12 16.5)" />
+      <ellipse cx="20" cy="16.5" rx="2.6" ry="3.2" fill="#2a2d36" transform="rotate(12 20 16.5)" />
+      <g className="dg-pet-eyes">
+        <circle cx="12" cy="16.5" r="1" fill="#f4f5f8" />
+        <circle cx="20" cy="16.5" r="1" fill="#f4f5f8" />
+      </g>
+      <ellipse cx="16" cy="20" rx="1.5" ry="1.1" fill="#2a2d36" />
+      <path d="M16 21v1.6M16 22.6q-1.4 0-1.8-1M16 22.6q1.4 0 1.8-1" fill="none" stroke="#2a2d36" strokeWidth=".8" strokeLinecap="round" />
+      <ellipse cx="9.5" cy="21.2" rx="1.5" ry=".8" fill="#f2b7c0" opacity=".55" /><ellipse cx="22.5" cy="21.2" rx="1.5" ry=".8" fill="#f2b7c0" opacity=".55" />
+      <path className="dg-pet-accessory" d="M23.3 25.2c2-3 3.2-3.1 3.7-2.4.5.8-1 1.5-1.6 2.6.9-.4 1.8-.2 1.8.6 0 1.2-2.2 1.8-4.6.7z" fill="#79b878" />
+    </svg>
+  );
+}
+
+function Chick() {
+  return (
+    <svg viewBox="0 0 32 32" role="img" aria-label="chick">
+      <path className="dg-pet-tuft" d="M13 5l1.5 4h-4z" fill="#f6c34a" />
+      <path className="dg-pet-tuft" d="M19 5l-1.5 4h4z" fill="#f6c34a" />
+      <path className="dg-pet-wing dg-pet-wing-left" d="M8.5 19c-3.4.5-3.8 4.3-1.2 5.3 1.7.6 3.1-1.8 2.7-4.4z" fill="#efbb48" />
+      <path className="dg-pet-wing dg-pet-wing-right" d="M23.5 19c3.4.5 3.8 4.3 1.2 5.3-1.7.6-3.1-1.8-2.7-4.4z" fill="#efbb48" />
+      <circle className="dg-pet-face" cx="16" cy="18" r="10" fill="#fbd85f" />
+      <ellipse cx="16" cy="21.5" rx="5.4" ry="4.8" fill="#ffe989" opacity=".65" />
+      <g className="dg-pet-eyes">
+        <circle cx="12.6" cy="16.5" r="1.7" fill={EYE} />
+        <circle cx="19.4" cy="16.5" r="1.7" fill={EYE} />
+      </g>
+      <path d="M16 18.4l-2.6 1.6h5.2z" fill="#f0894e" />
+      <circle cx="10.6" cy="20" r="1.5" fill="#f7a26a" opacity=".8" />
+      <circle cx="21.4" cy="20" r="1.5" fill="#f7a26a" opacity=".8" />
+      <ellipse cx="12.4" cy="27" rx="2.5" ry="1" fill="#f0894e" /><ellipse cx="19.6" cy="27" rx="2.5" ry="1" fill="#f0894e" />
+    </svg>
+  );
+}
+
+function Koala() { return <svg viewBox="0 0 32 32" role="img" aria-label="koala"><circle className="dg-pet-ear dg-pet-ear-left" cx="8" cy="10" r="5.2" fill="#aeb7c4" /><circle className="dg-pet-ear dg-pet-ear-right" cx="24" cy="10" r="5.2" fill="#aeb7c4" /><circle cx="8" cy="10" r="3.4" fill="#dfe4eb" /><circle cx="24" cy="10" r="3.4" fill="#dfe4eb" /><circle className="dg-pet-face" cx="16" cy="18" r="10.2" fill="#b9c2cf" /><ellipse cx="16" cy="20.5" rx="5.8" ry="5" fill="#e7ebf0" /><g className="dg-pet-eyes"><circle cx="12.3" cy="16.9" r="1.8" fill="#3a404d" /><circle cx="19.7" cy="16.9" r="1.8" fill="#3a404d" /><circle cx="12.7" cy="16.4" r=".4" fill="#fff" /><circle cx="20.1" cy="16.4" r=".4" fill="#fff" /></g><ellipse cx="16" cy="19.4" rx="2.15" ry="2.6" fill="#4b5361" /><path className="dg-pet-accessory" d="M21.8 24.3c2.4-3.4 4.2-3.2 4.5-2.1.3 1-1.3 1.6-2.1 2.8 1-.4 2.1.1 1.8 1-.5 1.5-2.8 1.5-4.2.2z" fill="#79b878" /></svg>; }
+
+function Otter() { return <svg viewBox="0 0 32 32" role="img" aria-label="otter"><path className="dg-pet-tail" d="M22 23c5.8-.8 6.9 3 4.6 4.8-2 1.6-5.4.2-4.6-1.1.6-1 2.8.4 3.1-1.2.2-1.2-1.1-1.6-3-1.1z" fill="#9a6847" /><circle className="dg-pet-ear dg-pet-ear-left" cx="9.2" cy="10.3" r="3.2" fill="#9a6847" /><circle className="dg-pet-ear dg-pet-ear-right" cx="22.8" cy="10.3" r="3.2" fill="#9a6847" /><circle className="dg-pet-face" cx="16" cy="18" r="10.2" fill="#aa7653" /><ellipse cx="16" cy="21" rx="6.8" ry="4.8" fill="#e4c6a5" /><g className="dg-pet-eyes"><circle cx="12.4" cy="16.5" r="1.55" fill={EYE} /><circle cx="19.6" cy="16.5" r="1.55" fill={EYE} /></g><ellipse cx="16" cy="19.2" rx="1.8" ry="1.25" fill="#4a3027" /><path d="M16 20.4v1.2M16 21.6q-1.6 1-2.2-.2M16 21.6q1.6 1 2.2-.2" fill="none" stroke="#4a3027" strokeWidth=".75" strokeLinecap="round" /><path d="M7 19h4M7 21l4-.7M21 19h4M21 20.3l4 .7" stroke="#76503b" strokeWidth=".7" strokeLinecap="round" /></svg>; }
+
+function Rover() { return <svg viewBox="0 0 32 32" role="img" aria-label="friendly mini rover"><path className="dg-pet-tail" d="M10 22H7.5c-2.5 0-2.5 5 0 5H10zM22 22h2.5c2.5 0 2.5 5 0 5H22z" fill="#4c586b" /><rect x="7" y="20.5" width="18" height="7" rx="3.2" fill="#64748b" /><rect x="9" y="22.2" width="14" height="3.6" rx="1.8" fill="#323d4d" /><path d="M10.2 24h2.6m2 0h2.6m2 0h2.6" stroke="#9aa9b9" strokeWidth=".9" strokeLinecap="round" /><path className="dg-pet-accessory" d="M16 10V6.5m0 0 1.5-1.5" stroke="#6d7e93" strokeWidth="1.1" strokeLinecap="round" /><circle className="dg-pet-accessory" cx="18" cy="5.2" r="1.25" fill="#f3be4d" /><rect className="dg-pet-face" x="7.3" y="10" width="17.4" height="12.8" rx="5" fill="#aebdcc" /><path d="M9.5 13.3h13v6.5h-13z" fill="#344151" /><g className="dg-pet-eyes"><circle cx="12.6" cy="16.5" r="2.05" fill="#dff6fa" /><circle cx="19.4" cy="16.5" r="2.05" fill="#dff6fa" /><circle cx="12.9" cy="16.5" r="1.05" fill="#314454" /><circle cx="19.7" cy="16.5" r="1.05" fill="#314454" /><circle cx="13.25" cy="16.05" r=".32" fill="#fff" /><circle cx="20.05" cy="16.05" r=".32" fill="#fff" /></g><path d="M13.7 20.5q2.3 1.5 4.6 0" fill="none" stroke="#596d7e" strokeWidth=".85" strokeLinecap="round" /><circle cx="9.4" cy="12.2" r=".8" fill="#78c99d" /></svg>; }
+
+function Raccoon() { return <svg viewBox="0 0 32 32" role="img" aria-label="raccoon"><path className="dg-pet-tail" d="M22 23c5.4-.9 6.7 2.4 4.8 4.4-1.8 1.9-5.1.6-4.6-.7.4-1 2.6.1 3-1.3.3-1.1-1.1-1.5-3.2-1z" fill="#707887" /><path className="dg-pet-tail" d="M24.2 23.5l1.2 3.8M22.8 24.1l1.2 3.3" stroke="#4c5361" strokeWidth="1.1" /><circle className="dg-pet-ear dg-pet-ear-left" cx="8.5" cy="9" r="3.7" fill="#626b7a" /><circle className="dg-pet-ear dg-pet-ear-right" cx="23.5" cy="9" r="3.7" fill="#626b7a" /><circle className="dg-pet-face" cx="16" cy="18" r="10" fill="#9ba4b2" /><path d="M8.7 15.5c2.8-2.5 5-.7 7.3.2 2.3-.9 4.5-2.7 7.3-.2l-1.2 5.3c-2.3 1.2-4.1.2-6.1-.5-2 .7-3.8 1.7-6.1.5z" fill="#48515f" /><g className="dg-pet-eyes"><circle cx="12" cy="17" r="1.25" fill="#f7f8fa" /><circle cx="20" cy="17" r="1.25" fill="#f7f8fa" /></g><ellipse cx="16" cy="20.5" rx="1.6" ry="1.15" fill="#353b47" /><path d="M14.2 22.2q1.8 1.2 3.6 0" fill="none" stroke="#353b47" strokeWidth=".75" strokeLinecap="round" /></svg>; }
+
+function Capybara() { return <svg viewBox="0 0 32 32" role="img" aria-label="capybara"><path className="dg-pet-tail" d="M22 23c5-.2 6 3.3 3.7 4.8-1.8 1.2-4.6-.1-3.6-1.2.7-.8 2.2.5 2.7-.9.3-1-1-1.5-2.7-1.2z" fill="#9b6f4e" /><circle className="dg-pet-ear dg-pet-ear-left" cx="9.5" cy="10" r="2.8" fill="#9e7150" /><circle className="dg-pet-ear dg-pet-ear-right" cx="22.5" cy="10" r="2.8" fill="#9e7150" /><path className="dg-pet-face" d="M16 8.8c5.7 0 9.4 3.5 9.4 8.8 0 5.5-3.9 8.9-9.4 8.9s-9.4-3.4-9.4-8.9c0-5.3 3.7-8.8 9.4-8.8z" fill="#ad7d58" /><ellipse cx="16" cy="20.7" rx="6" ry="4.4" fill="#c99a71" /><g className="dg-pet-eyes"><circle cx="12.2" cy="16.3" r="1.25" fill={EYE} /><circle cx="19.8" cy="16.3" r="1.25" fill={EYE} /></g><ellipse cx="16" cy="19.2" rx="2" ry="1.15" fill="#604334" /><path d="M16 20.4v1.1M16 21.5q-1.5.8-2.1-.15M16 21.5q1.5.8 2.1-.15" fill="none" stroke="#604334" strokeWidth=".7" strokeLinecap="round" /><path className="dg-pet-accessory" d="M10.3 24.2c3.4 1.3 8 1.3 11.4 0l.3 1.3c-3.5 1.6-8.5 1.6-12 0z" fill="#e0ae47" /></svg>; }
+
+// Order is stable — the day's index maps into this list.
+export const PETS = [
+  { key: "cat", label: "Cat", Svg: Cat },
+  { key: "fox", label: "Fox", Svg: Fox },
+  { key: "dog", label: "Dog", Svg: Dog },
+  { key: "bunny", label: "Bunny", Svg: Bunny },
+  { key: "penguin", label: "Penguin", Svg: Penguin },
+  { key: "panda", label: "Panda", Svg: Panda },
+  { key: "chick", label: "Chick", Svg: Chick },
+  { key: "koala", label: "Koala", Svg: Koala },
+  { key: "otter", label: "Otter", Svg: Otter },
+  { key: "turtle", label: "Rover", Svg: Rover },
+  { key: "raccoon", label: "Raccoon", Svg: Raccoon },
+  { key: "capybara", label: "Capybara", Svg: Capybara },
+];
+
+export function getPetByKey(key) {
+  return PETS.find(pet => pet.key === key) || PETS[0];
+}
+
+const STORE_KEY = "pgp2.pet-of-day";
+
+function dayKey(d) {
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+
+/**
+ * The companion for `now`'s local day: a random pet chosen once per day and
+ * kept stable for the rest of it (persisted in localStorage). Falls back to a
+ * fresh random pick when storage is unavailable.
+ */
+export function getPetOfTheDay(now = new Date()) {
+  const key = dayKey(now);
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) {
+      const { date, idx } = JSON.parse(raw);
+      if (date === key && PETS[idx]) return PETS[idx];
+    }
+  } catch { /* private mode / blocked — just pick fresh */ }
+  const idx = Math.floor(Math.random() * PETS.length);
+  try { localStorage.setItem(STORE_KEY, JSON.stringify({ date: key, idx })); } catch { /* ignore */ }
+  return PETS[idx];
+}

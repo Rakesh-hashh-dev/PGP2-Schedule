@@ -402,6 +402,14 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [syncing, setSyncing] = useState(false);
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [greetingPetsEnabled, setGreetingPetsEnabled] = useState(() => {
+    try { return localStorage.getItem("pgp2.greeting-pets-enabled") !== "false"; } catch { return true; }
+  });
+  const toggleGreetingPets = () => setGreetingPetsEnabled(value => {
+    const next = !value;
+    try { localStorage.setItem("pgp2.greeting-pets-enabled", String(next)); } catch { /* blocked storage */ }
+    return next;
+  });
   const [sbProfileOpen, setSbProfileOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
@@ -2107,6 +2115,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             <button className={sbStyle === "aurora" ? "on" : ""} onClick={() => setSidebarStyle("aurora")}>Aurora</button>
           </div>
         </div>
+        <div className="sb-pop-sep" />
+        <button className="sb-pop-pref" onClick={toggleGreetingPets} aria-pressed={greetingPetsEnabled}>
+          Your Pet <strong>{greetingPetsEnabled ? "On" : "Off"}</strong>
+        </button>
         <button className="sb-pop-signout" onClick={() => signOut()}>
           <LogOut size={14} /> Sign out
         </button>
@@ -2510,6 +2522,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                             </button>
                           </div>
                         )}
+                        <button onClick={toggleGreetingPets} aria-pressed={greetingPetsEnabled}>
+                          Your Pet {greetingPetsEnabled ? "on" : "off"}
+                        </button>
                         <button className="mobile-only" aria-expanded={navMenuOpen} onClick={() => setNavMenuOpen(o => !o)}>
                           <PanelsTopLeft size={14} /> Navigation
                           <ChevronDown size={13} className={`over-caret${navMenuOpen ? " open" : ""}`} />
@@ -2696,7 +2711,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                     ))}
                   </div>
                 )}
-                {view === "today" && <DayGreeting now={now} name={user?.firstName || user?.username} />}
+                {view === "today" && <DayGreeting now={now} name={user?.firstName || user?.username} petSettings={sysConfig?.flags?.greetingPets} userPetsEnabled={greetingPetsEnabled} />}
                 <div className="view-date-header">
                   <span className="vdh-label">
                     {view === "notifications" ? `${filteredChanges.length} update${filteredChanges.length !== 1 ? "s" : ""}`
@@ -2939,7 +2954,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                               onOpenCalendarExport={isArchivedView ? undefined : openCalendarExport}
                             />
                           : view === "admin" && isAdmin
-                            ? <AdminDashboard user={user} startImpersonation={startImpersonation} syncLogs={syncLogs} timeOverride={timeOverride} setTimeOverride={setTimeOverride} allChanges={CHANGES} />
+                            ? <AdminDashboard user={user} startImpersonation={startImpersonation} syncLogs={syncLogs} timeOverride={timeOverride} setTimeOverride={setTimeOverride} allChanges={CHANGES} onConfigSaved={flags => setSysConfig(current => ({ ...(current || {}), flags }))} />
                             : view === "fullSchedule"
                               ? <FullSchedulePage allClasses={activeClasses} enrolled={activeEnrolled} legend={activeEnrolledLegend} termLabel={termLabel} onBack={() => setView("today")} jumpToDate={jumpToDate} setJumpToDate={setJumpToDate} jumpToSession={jumpToSession} setJumpToSession={setJumpToSession} onOpenCalendarExport={isArchivedView ? undefined : openCalendarExport} />
                               : view === "leave"

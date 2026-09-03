@@ -14,6 +14,7 @@ import { ymd } from "../lib/datetime.js";
 import AdminCommandPalette from "./AdminCommandPalette";
 import FeedbackFlashToast from "./FeedbackFlashToast.jsx";
 import { WhatsNewPill, WhatsNewModal } from "./WhatsNew.jsx";
+import { PETS } from "./greetingPets.jsx";
 
 // Render-stable "now" captured at module load — used for relative-time math in
 // render (inactivity windows, cron staleness) without an impure Date.now() call.
@@ -164,6 +165,7 @@ const FLAG_LABELS = {
   maintenanceMode: "Maintenance mode",
   dispatchEnabled: "Push dispatch",
   wrappedReleaseDate: "TermFlow Wrapped release",
+  greetingPets: "Greeting companions",
   heroBackdrop: "Hero backdrop strategy",
   classOverrides: "Class overrides",
   bannedUsers: "Banned users",
@@ -245,7 +247,7 @@ function summarizeConfigChanges(orig, cur) {
   return out.sort((a, b) => a.label.localeCompare(b.label));
 }
 
-export default function AdminDashboard({ user, startImpersonation, syncLogs = [], timeOverride, setTimeOverride, allChanges = [] }) {
+export default function AdminDashboard({ user, startImpersonation, syncLogs = [], timeOverride, setTimeOverride, allChanges = [], onConfigSaved }) {
   const [totalUsers, setTotalUsers] = useState(null);
   const [activeUsers, setActiveUsers] = useState(0);
   const [statsLoading, setStatsLoading] = useState(true);
@@ -274,7 +276,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     bannedUsers: [],
     classOverrides: {},
     abTests: {},
-    dispatchEnabled: true
+    dispatchEnabled: true,
+    greetingPets: { enabled: true, mode: "daily", petKey: "cat", motion: true }
   });
   
   const [popularCourses, setPopularCourses] = useState([]);
@@ -943,6 +946,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
         setForceDeployReady(false);
         setOriginalFlags(newFlags);
         setLoadedUpdatedAt(nextUpdatedAt);
+        onConfigSaved?.(newFlags);
         setSaveMsg("Successfully saved to cloud!");
         setTimeout(() => setSaveMsg(""), 3000);
         logAdminAction(admin_id, "save_config", {
@@ -4961,6 +4965,61 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                   </label>
                 ))}
             </div>
+
+            {(() => {
+              const greetingPets = {
+                enabled: true,
+                mode: "daily",
+                petKey: "cat",
+                motion: true,
+                ...(flags.greetingPets || {}),
+              };
+              const updateGreetingPets = patch => setFlags({ ...flags, greetingPets: { ...greetingPets, ...patch } });
+              const previewPet = greetingPets.mode === "featured"
+                ? PETS.find(pet => pet.key === greetingPets.petKey) || PETS[0]
+                : PETS[0];
+              const PreviewPet = previewPet.Svg;
+              return (
+                <div className="admin-field" style={{ marginTop: 18, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 13, fontWeight: 750, cursor: "pointer" }}>
+                    <input type="checkbox" checked={greetingPets.enabled} onChange={e => updateGreetingPets({ enabled: e.target.checked })} />
+                    <Sparkles size={15} color="var(--violet)" /> Daily greeting companions
+                  </label>
+                  <p className="admin-subtext" style={{ margin: "6px 0 12px" }}>Control the animated mascot beside every student&apos;s Today greeting. Deploy Config to publish this cohort-wide.</p>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 12px", marginBottom: 12, border: "1px solid var(--border)", borderRadius: 12, background: "color-mix(in srgb, var(--violet) 4%, var(--bg))", opacity: greetingPets.enabled ? 1 : 0.52 }}>
+                    <span className="dg-pet" data-pet={previewPet.key} data-motion={greetingPets.motion ? "on" : "off"} aria-hidden="true" style={{ width: 38, height: 38 }}>
+                      <PreviewPet />
+                    </span>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 750, color: "var(--text)" }}>{greetingPets.enabled ? "Student greeting preview" : "Companions are hidden"}</div>
+                      <div style={{ marginTop: 2, fontSize: 11, color: "var(--muted)" }}>
+                        {greetingPets.mode === "featured" ? `${previewPet.label} is featured for everyone.` : `Daily surprise — ${previewPet.label} shown as an example.`} {greetingPets.motion ? "Motion on." : "Motion off."}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end", opacity: greetingPets.enabled ? 1 : 0.55 }}>
+                    <label className="admin-field" style={{ flex: "1 1 150px", margin: 0 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", display: "block", marginBottom: 5 }}>COMPANION MODE</span>
+                      <select className="admin-input" disabled={!greetingPets.enabled} value={greetingPets.mode} onChange={e => updateGreetingPets({ mode: e.target.value })}>
+                        <option value="daily">Daily surprise</option>
+                        <option value="featured">Featured companion</option>
+                      </select>
+                    </label>
+                    {greetingPets.mode === "featured" && (
+                      <label className="admin-field" style={{ flex: "1 1 130px", margin: 0 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", display: "block", marginBottom: 5 }}>FEATURED PET</span>
+                        <select className="admin-input" disabled={!greetingPets.enabled} value={greetingPets.petKey} onChange={e => updateGreetingPets({ petKey: e.target.value })}>
+                          <option value="cat">Cat</option><option value="fox">Fox</option><option value="dog">Dog</option><option value="bunny">Bunny</option><option value="penguin">Penguin</option><option value="panda">Panda</option><option value="chick">Chick</option><option value="koala">Koala</option><option value="otter">Otter</option><option value="turtle">Rover</option><option value="raccoon">Raccoon</option><option value="capybara">Capybara</option>
+                        </select>
+                      </label>
+                    )}
+                    <label style={{ display: "flex", alignItems: "center", gap: 7, paddingBottom: 9, fontSize: 12, fontWeight: 650, cursor: greetingPets.enabled ? "pointer" : "not-allowed" }}>
+                      <input type="checkbox" disabled={!greetingPets.enabled} checked={greetingPets.motion} onChange={e => updateGreetingPets({ motion: e.target.checked })} /> Motion
+                    </label>
+                  </div>
+                </div>
+              );
+            })()}
             
             <div className="admin-field" style={{ marginTop: 16 }}>
               <label style={{ display: "block", marginBottom: 8, fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "1px" }}>TermFlow Wrapped Release</label>

@@ -1283,6 +1283,95 @@ html[data-theme="dark"] .tabs-wrapper {
   flex-shrink: 0;
 }
 
+/* Pet-of-the-day companion in the daily greeting */
+.dg-pet {
+  --pet-turn: 0deg;
+  position: relative;
+  isolation: isolate;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  line-height: 0;
+  transform-origin: 50% 100%;
+  filter: drop-shadow(0 2px 3px color-mix(in srgb, var(--text) 12%, transparent));
+  animation: dgPetBob 2.9s ease-in-out infinite;
+}
+.dg-pet::before {
+  position: absolute;
+  z-index: -1;
+  inset: 7px 3px 1px;
+  border: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at 50% 82%, color-mix(in srgb, var(--violet) 13%, transparent), transparent 68%);
+  box-shadow: none;
+  content: "";
+}
+.dg-pet-toggle { display: inline-grid; place-items: center; width: 22px; height: 22px; margin-left: 1px; padding: 0; border: 1px solid var(--border); border-radius: 50%; background: transparent; color: var(--muted); font-size: 13px; line-height: 1; cursor: pointer; opacity: .7; transition: color 160ms ease, border-color 160ms ease, background 160ms ease, opacity 160ms ease; }
+.sb-pop-pref { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px; border: 1px solid rgba(196, 181, 253, .28); border-radius: 10px; background: rgba(255, 255, 255, .07); color: #f8f7ff; font: inherit; font-size: 12px; font-weight: 650; cursor: pointer; text-align: left; }.sb-pop-pref:hover, .sb-pop-pref:focus-visible { background: rgba(139, 92, 246, .24); border-color: rgba(196, 181, 253, .55); outline: none; }.sb-pop-pref strong { padding: 3px 7px; border-radius: 999px; background: rgba(167, 139, 250, .2); color: #ddd6fe; font-size: 10px; text-transform: uppercase; letter-spacing: .45px; }
+.dg-pet-toggle:hover, .dg-pet-toggle:focus-visible { color: var(--violet); border-color: color-mix(in srgb, var(--violet) 45%, var(--border)); background: color-mix(in srgb, var(--violet) 9%, transparent); opacity: 1; outline: none; }.dg-pet-toggle.is-on { color: var(--violet); opacity: .9; }
+html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at 50% 84%, color-mix(in srgb, var(--violet) 18%, transparent), transparent 67%); }
+.dg-pet svg {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+.dg-pet-eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: dgPetBlink 5.2s ease-in-out infinite;
+}
+.dg-pet-face, .dg-pet-ear, .dg-pet-wing, .dg-pet-tail, .dg-pet-tuft, .dg-pet-accessory {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.dg-pet-face { transform-origin: 50% 100%; animation: dgPetBreathe 3.3s ease-in-out infinite; }
+.dg-pet-eyes { animation-duration: 3.8s; }
+.dg-pet-ear-left { transform-origin: 100% 100%; animation: dgPetEarLeft 2.8s ease-in-out infinite; }
+.dg-pet-ear-right { transform-origin: 0 100%; animation: dgPetEarRight 2.8s ease-in-out infinite; }
+.dg-pet-tail { transform-origin: 0 100%; animation: dgPetTail 1.55s ease-in-out infinite; }
+.dg-pet-wing-left { transform-origin: 100% 100%; animation: dgPetWingLeft 2.35s ease-in-out infinite; }
+.dg-pet-wing-right { transform-origin: 0 100%; animation: dgPetWingRight 2.35s ease-in-out infinite; }
+.dg-pet-tuft { transform-origin: 50% 100%; animation: dgPetTuft 2.05s ease-in-out infinite; }
+.dg-pet-accessory { transform-origin: 50% 0; animation: dgPetAccessory 2.4s ease-in-out infinite; }
+@keyframes dgPetBob {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  45% { transform: translateY(-2px) rotate(var(--pet-turn)); }
+  58% { transform: translateY(-1px) rotate(calc(var(--pet-turn) * -0.45)); }
+}
+@keyframes dgPetBlink {
+  0%, 90%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.12); }
+}
+@keyframes dgPetBreathe { 0%, 100% { transform: scale(1); } 52% { transform: scale(1.025, .985); } }
+@keyframes dgPetEarLeft { 0%, 62%, 100% { transform: rotate(0); } 68% { transform: rotate(-11deg); } 74% { transform: rotate(3deg); } }
+@keyframes dgPetEarRight { 0%, 62%, 100% { transform: rotate(0); } 68% { transform: rotate(11deg); } 74% { transform: rotate(-3deg); } }
+@keyframes dgPetTail { 0%, 100% { transform: rotate(-5deg); } 32% { transform: rotate(9deg); } 66% { transform: rotate(-2deg); } }
+@keyframes dgPetWingLeft { 0%, 68%, 100% { transform: rotate(0); } 76% { transform: rotate(-17deg); } 84% { transform: rotate(5deg); } 91% { transform: rotate(-8deg); } }
+@keyframes dgPetWingRight { 0%, 68%, 100% { transform: rotate(0); } 76% { transform: rotate(17deg); } 84% { transform: rotate(-5deg); } 91% { transform: rotate(8deg); } }
+@keyframes dgPetTuft { 0%, 100% { transform: rotate(-3deg); } 44% { transform: rotate(4deg); } 70% { transform: rotate(-1deg); } }
+@keyframes dgPetAccessory { 0%, 100% { transform: translateY(0) rotate(0); } 52% { transform: translateY(.5px) rotate(3deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .dg-pet, .dg-pet *, .dg-pet-eyes { animation: none; }
+}
+.dg-pet[data-pet="cat"], .dg-pet[data-pet="bunny"], .dg-pet[data-pet="koala"] { --pet-turn: -2deg; }
+.dg-pet[data-pet="fox"], .dg-pet[data-pet="chick"], .dg-pet[data-pet="otter"] { --pet-turn: 2.5deg; }
+.dg-pet[data-pet="dog"], .dg-pet[data-pet="capybara"] { --pet-turn: -1.2deg; }
+.dg-pet[data-pet="penguin"], .dg-pet[data-pet="turtle"] { --pet-turn: 1.4deg; }
+.dg-pet[data-pet="panda"], .dg-pet[data-pet="raccoon"] { --pet-turn: -1.7deg; }
+.dg-pet[data-pet="fox"] .dg-pet-tail, .dg-pet[data-pet="otter"] .dg-pet-tail { animation-delay: -0.6s; }
+.dg-pet[data-pet="penguin"] .dg-pet-wing { animation-duration: 2s; }
+.dg-pet[data-pet="chick"] .dg-pet-wing { animation-duration: 1.8s; }
+.dg-pet[data-pet="bunny"] .dg-pet-ear, .dg-pet[data-pet="koala"] .dg-pet-ear { animation-duration: 2.35s; }
+.dg-pet[data-motion="off"], .dg-pet[data-motion="off"] * { animation: none; }
+@media (hover: hover) {
+  .dg-pet { transition: filter 180ms ease; }
+  .dg-pet:hover { filter: drop-shadow(0 4px 7px color-mix(in srgb, var(--violet) 34%, transparent)); }
+}
+
 .view-date-header {
   display: flex;
   align-items: center;
