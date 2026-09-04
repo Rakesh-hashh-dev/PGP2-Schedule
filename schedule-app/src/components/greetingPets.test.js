@@ -31,6 +31,13 @@ describe("getPetByKey", () => {
     expect(getPetByKey("turtle").key).toBe("rover");
   });
 
+  // The capybara was retired for the axolotl after the roster shipped. Anyone
+  // who had adopted one must land on the replacement, not silently fall back
+  // to PETS[0] and appear to have lost their companion.
+  it("maps the legacy 'capybara' key onto the axolotl", () => {
+    expect(getPetByKey("capybara").key).toBe("axolotl");
+  });
+
   it("falls back to the first pet for unknown or missing keys", () => {
     expect(getPetByKey("griffin")).toBe(PETS[0]);
     expect(getPetByKey(undefined)).toBe(PETS[0]);

@@ -8,9 +8,8 @@ import { fileURLToPath } from 'node:url'
 import { resolve } from 'node:path'
 import { visualizer } from 'rollup-plugin-visualizer'
 
-// Absolute path to this file's dir (schedule-app/) so the lite build — whose
-// config lives in lite/ and imports makeConfig from here — still resolves the
-// shared src/, public/, and output dirs correctly regardless of where Vite runs.
+// Absolute path to this file's dir (schedule-app/), used to resolve dist/,
+// public/, and the stats/report outputs regardless of the cwd Vite runs from.
 const APP_DIR = fileURLToPath(new URL('.', import.meta.url));
 
 // Semver from package.json (bump with `npm version patch|minor|major`),
@@ -76,7 +75,7 @@ function asyncCssPlugin() {
   };
 }
 
-// Shared app icons — reused by both editions (lite has no distinct icon set yet).
+// Shared app icons.
 const FULL_ICONS = [
   { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
   { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
@@ -136,55 +135,16 @@ const FULL_MANIFEST = {
   ],
 };
 
-// Edition-aware config factory. Full builds call makeConfig({ edition: 'full' })
-// (the default export below); the lite build (lite/vite.config.js) calls
-// makeConfig({ edition: 'lite' }) to swap root/outDir, inject VITE_EDITION, and
-// use a lite PWA manifest — all while sharing the same src/ and public/.
-export function makeConfig({ edition = 'full' } = {}) {
-  const isLite = edition === 'lite';
-  // Both editions share the same root + index.html (so /src/main.jsx resolves
-  // identically); lite only differs by output dir, manifest, and the injected
-  // VITE_EDITION flag. Edition branding on the html <title> is set at runtime.
-  const root = APP_DIR;
-  const outDir = resolve(APP_DIR, isLite ? 'dist-lite' : 'dist');
-  const publicDir = resolve(APP_DIR, 'public');
+const root = APP_DIR;
+const outDir = resolve(APP_DIR, 'dist');
+const publicDir = resolve(APP_DIR, 'public');
+const manifest = FULL_MANIFEST;
 
-  const manifest = isLite
-    ? {
-        name: 'TermFlow Lite',
-        short_name: 'Lite',
-        description: 'PGP2 timetable, attendance & compare — a lighter TermFlow',
-        theme_color: '#15182B',
-        background_color: '#15182B',
-        display: 'standalone',
-        start_url: '/',
-        scope: '/',
-        orientation: 'portrait',
-        icons: FULL_ICONS,
-        // Lite only surfaces the schedule-core shortcuts.
-        shortcuts: [
-          {
-            name: 'Today',
-            short_name: 'Today',
-            url: '/?view=today',
-            icons: [{ src: 'shortcut-today.png', sizes: '192x192', purpose: 'any maskable' }],
-          },
-          {
-            name: 'Attendance',
-            short_name: 'Attendance',
-            url: '/?view=attendance',
-            icons: [{ src: 'shortcut-attendance.png', sizes: '192x192', purpose: 'any maskable' }],
-          },
-        ],
-      }
-    : FULL_MANIFEST;
-
-  return defineConfig({
+export default defineConfig({
   root,
   publicDir,
   define: {
     __APP_VERSION__: JSON.stringify(BUILD_VERSION),
-    'import.meta.env.VITE_EDITION': JSON.stringify(edition),
   },
   plugins: [
     react(),
@@ -262,12 +222,10 @@ export function makeConfig({ edition = 'full' } = {}) {
       sourcemaps: { filesToDeleteAfterUpload: [resolve(outDir, '**/*.map')] },
       telemetry: false,
     }),
-    visualizer({ filename: resolve(APP_DIR, isLite ? 'stats-lite.html' : 'stats.html'), open: false }),
+    visualizer({ filename: resolve(APP_DIR, 'stats.html'), open: false }),
   ].filter(Boolean),
   build: {
     outDir,
-    // Lite's outDir (dist-lite) sits outside its root (lite/), so Vite needs
-    // explicit permission to empty it.
     emptyOutDir: true,
     sourcemap: SENTRY_UPLOAD ? 'hidden' : false,
     target: 'esnext',
@@ -298,7 +256,4 @@ export function makeConfig({ edition = 'full' } = {}) {
       }
     }
   }
-  });
-}
-
-export default makeConfig({ edition: 'full' });
+});

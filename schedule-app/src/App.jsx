@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Suspense, lazy } from "react";
 import { createPortal } from "react-dom";
-import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, ChevronsLeft, ChevronsRight, Megaphone, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Sparkles, Wand2, BellRing, CalendarDays, ExternalLink, Download, Share, WifiOff, Zap, PanelBottom, PanelTop, PanelsTopLeft, Check, ChevronDown, Sun, Moon, Monitor, CalendarOff, CalendarRange, UtensilsCrossed, Package, Camera, Loader2, Wallet, Radio, History } from "lucide-react";
+import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, ChevronsLeft, ChevronsRight, Megaphone, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Sparkles, Wand2, BellRing, CalendarDays, ExternalLink, Download, Share, WifiOff, Zap, PanelBottom, PanelTop, PanelsTopLeft, Check, ChevronDown, Sun, Moon, Monitor, CalendarOff, CalendarRange, UtensilsCrossed, Package, Camera, Loader2, Wallet, Radio, History, PawPrint } from "lucide-react";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
 import DayGreeting from "./components/DayGreeting.jsx";
@@ -52,12 +52,14 @@ const AssignmentsPanel = lazy(() => import("./components/AssignmentsPanel.jsx"))
 const WrappedView = lazy(() => import("./components/WrappedView.jsx"));
 const BoardPage = lazy(() => import("./components/BoardPage.jsx"));
 const SplitPage = lazy(() => import("./components/SplitPage.jsx"));
+const PetPage = lazy(() => import("./components/PetPage.jsx"));
 const CalendarExportModal = lazy(() => import("./components/CalendarExportModal.jsx"));
 import DeadlineStrip from "./components/DeadlineStrip.jsx";
 import CancellationAlert from "./components/CancellationAlert.jsx";
 import ProvisionalSectionNotice from "./components/ProvisionalSectionNotice.jsx";
 import { loadMyAway, isAwayNow, fmtAwayEnd } from "./lib/status.js";
 import { loadAttendance, saveAttendance, sessionKey, syncAttendanceFromCloud, pushMark, courseSkipStats } from "./lib/attendance.js";
+import { usePet } from "./hooks/usePet.js";
 import { syncProfileFromCloud, pushProfile, stampProfileEmail } from "./lib/profile.js";
 import { syncMigrationMap } from "./lib/migrationMap.js";
 import { useMigration } from "./lib/useMigration.js";
@@ -73,18 +75,18 @@ import { useNotifications, buildNotificationHandlers } from "./hooks/useNotifica
 import MarkPrompt from "./components/MarkPrompt.jsx";
 import { WhatsNewPill, WhatsNewModal } from "./components/WhatsNew.jsx";
 import { resizeImage } from "./lib/board.js";
-import { IS_LITE, LITE_VIEWS } from "./lib/edition.js";
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent || "");
 
 // Views that live behind the sidebar's collapsed Tools accordion / the
 // mobile overflow menu's Tools section — candidates for the "Recent" row.
-const TOOLS_VIEWS = ["fullSchedule", "split", "leave", "wrapped"];
+const TOOLS_VIEWS = ["fullSchedule", "split", "leave", "wrapped", "pet"];
 const TOOLS_VIEW_META = {
   fullSchedule: { icon: CalendarRange, label: "Full timetable" },
   split:        { icon: Wallet,        label: "Split" },
   leave:        { icon: CalendarOff,   label: "Leave planner" },
   wrapped:      { icon: Sparkles,      label: "Term Wrapped" },
+  pet:          { icon: PawPrint,      label: "Companion" },
 };
 
 // Alert type → rc-dot colour, mirroring the Recent-changes kind palette
@@ -178,8 +180,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // ── One-time dev→prod data restore (prod instance only) ────────
   const migrationState = useMigration({ isSignedIn, userId, email: userEmail });
 
-  // Admin tools are full-app only — admins use the full edition to manage config.
-  const showAdminUI = !IS_LITE && isAdmin && adminMode;
+  const showAdminUI = isAdmin && adminMode;
   const [sysConfig, setSysConfig] = useState(null);
   const [helpModalOpen, setHelpModalOpen] = useState(false);
   const [dismissedAnnouncements, setDismissedAnnouncements] = useState(() => {
@@ -293,8 +294,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       if (v === "courses") return "exams"; // retired view → its new home
       if (v === "insights") return "today"; // retired view
       if (v === "glance") return "today"; // peek surface, never sticky
-      // Lite excludes several views — fall back to Today rather than a dead end.
-      if (IS_LITE && !LITE_VIEWS.includes(v)) return "today";
       return v;
     } catch { return "today"; }
   });
@@ -401,6 +400,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     };
   }, []);
   const [attendance, setAttendance] = useState(() => loadAttendance());
+  // Pet companion. Local copy paints immediately; the hook reconciles with the
+  // `pet_state` row and merges anything earned offline. See lib/pet.js.
+  const { pet: myPet, actions: petActions, XP: petXP, keyFor: petKeyFor } = usePet(userId, { xpRate: sysConfig?.flags?.greetingPets?.xpRate });
   const [syncing, setSyncing] = useState(false);
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -503,7 +505,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // Sidebar Tools group stays open when the active page lives inside it, so the
   // user never loses their place; collapsed sidebar always shows the icons.
   const viewIsTool = TOOLS_VIEWS.includes(view);
-  const showSbTools = IS_LITE || sbCollapsed || sbToolsOpen || viewIsTool;
+  const showSbTools = sbCollapsed || sbToolsOpen || viewIsTool;
   const [messMenuOpen, setMessMenuOpen] = useState(false);
   // Split deep-link: a group id from a notification URL (?view=split&g=…)
   const [splitDeepLink, setSplitDeepLink] = useState(null);
@@ -568,14 +570,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // tapped while the app is already open (PWA or an existing tab, where the
   // mount effect never re-runs) still gets picked up.
   useEffect(() => {
-    const DEEP_LINK_VIEWS = new Set(
-      IS_LITE
-        ? LITE_VIEWS
-        : [
-            "today", "tomorrow", "week", "attendance", "exams", "assignments",
-            "notifications", "friends", "leave", "glance", "board", "split",
-          ]
-    );
+    const DEEP_LINK_VIEWS = new Set([
+      "today", "tomorrow", "week", "attendance", "exams", "assignments", "pet",
+      "notifications", "friends", "leave", "glance", "board", "split",
+    ]);
     const captureFromUrl = () => {
       const params = new URLSearchParams(window.location.search);
       const code = params.get("f");
@@ -1535,6 +1533,14 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   }, [CLASSES, enrolled, attendance, LEGEND]);
 
   const todayISO = ymd(now);
+
+  // One small award per local day the app is opened. The ledger key IS the day,
+  // so this stays idempotent across reloads, tabs and a midnight rollover
+  // without tracking any streak state of its own.
+  useEffect(() => {
+    if (!userId) return;
+    petActions.awardXp(petKeyFor.streak(todayISO), petXP.streak);
+  }, [userId, todayISO, petActions, petKeyFor, petXP]);
   const tomorrowISO = ymd(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
 
   // The "Term N Wrapped is ready" nudge runs only for the first 3 days of the
@@ -1783,6 +1789,11 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       return next;
     });
     pushMark(userId, key, status);
+    // Marking a class is the pet's main XP source — deliberately, so progress
+    // tracks something the student was going to do anyway rather than tapping.
+    // Keyed by session, so un-marking and re-marking (or a cloud re-sync
+    // replaying the same rows) can never pay out twice.
+    if (status !== null) petActions.awardXp(petKeyFor.attendance(key), petXP.attendance, now);
   }
 
   const handleSync = async () => {
@@ -1943,15 +1954,21 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   }
 
   const enableExams = sysConfig?.flags?.enableExams !== false;
-  // Lite keeps the friends graph (Compare needs it) but hard-disables the rich
-  // social extras — status lines, meetups, free-nudges, away-sharing — which
-  // strips them from both the Today view and the (minimal) Compare page.
   const enableFriends = sysConfig?.flags?.enableFriends !== false;
   const enableAttendance = sysConfig?.flags?.enableAttendance !== false;
-  const enableStatus = !IS_LITE && sysConfig?.flags?.enableStatus !== false;
-  const enableMeetups = !IS_LITE && sysConfig?.flags?.enableMeetups !== false;
-  const enableFreeNudge = !IS_LITE && sysConfig?.flags?.enableFreeNudge !== false;
-  const enableAwayShare = !IS_LITE && sysConfig?.flags?.enableAwayShare !== false;
+  const enableStatus = sysConfig?.flags?.enableStatus !== false;
+  const enableMeetups = sysConfig?.flags?.enableMeetups !== false;
+  const enableFreeNudge = sysConfig?.flags?.enableFreeNudge !== false;
+  const enableAwayShare = sysConfig?.flags?.enableAwayShare !== false;
+  // The companion feature (adoption, the pet page, XP, friends' pets) rides
+  // three switches: the admin's pet kill switch, a separate admin switch for
+  // the companion layer specifically, and the student's own opt-out. Someone
+  // who turned pets off shouldn't meet them again on other people's cards.
+  // `companion` absent ⇒ on, so a prod config saved before this shipped keeps
+  // working without a migration.
+  const enableCompanion = sysConfig?.flags?.greetingPets?.enabled !== false
+    && sysConfig?.flags?.greetingPets?.companion !== false
+    && greetingPetsEnabled;
 
   const announcementTargetMatches = (target) => {
     if (!target || target === "global") return true;
@@ -2065,7 +2082,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                         ))}
                       </div>
                       <div className="np-sec-foot">
-                        <button className="np-link" onClick={() => { setNotifOpen(false); setView("friends"); }}>{IS_LITE ? "Go to Compare" : "Go to Social"}</button>
+                        <button className="np-link" onClick={() => { setNotifOpen(false); setView("friends"); }}>Go to Social</button>
                         <button className="np-link np-link-danger" onClick={clearAllFriendNotifs}>Clear all</button>
                       </div>
                     </section>
@@ -2308,6 +2325,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         enableFriends={enableFriends} markGroupsSeen={markGroupsSeen} markBadgeSeen={markBadgeSeen}
         showBadge={showBadge} unreadFriendCount={unreadFriendCount} showSbTools={showSbTools}
         recentToolViews={recentToolViews} TOOLS_VIEWS={TOOLS_VIEWS} wrappedActive={wrappedActive}
+        companionEnabled={enableCompanion}
         TOOLS_VIEW_META={TOOLS_VIEW_META} setSbToolsOpen={setSbToolsOpen} openCalendarExport={openCalendarExport}
         setMessMenuOpen={setMessMenuOpen} activeQuickLinks={activeQuickLinks} showAdminUI={showAdminUI}
         renderSbUtilStrip={renderSbUtilStrip} renderSbAvatarWrap={renderSbAvatarWrap} syncing={syncing}
@@ -2479,11 +2497,11 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
                     {/* ── Recent (Tools views visited recently, only while Tools itself
                          is collapsed — avoids showing the same item twice) ── */}
-                    {!toolsSecOpen && recentToolViews.filter(v => v !== view && TOOLS_VIEWS.includes(v) && (v !== "split" || !IS_LITE) && (v !== "wrapped" || (!IS_LITE && wrappedActive))).length > 0 && (
+                    {!toolsSecOpen && recentToolViews.filter(v => v !== view && TOOLS_VIEWS.includes(v) && (v !== "pet" || enableCompanion) && (v !== "wrapped" || wrappedActive)).length > 0 && (
                       <>
                         <div className="over-sep" />
                         <div className="over-section-label">Recent</div>
-                        {recentToolViews.filter(v => v !== view && TOOLS_VIEWS.includes(v) && (v !== "split" || !IS_LITE) && (v !== "wrapped" || (!IS_LITE && wrappedActive))).map(v => {
+                        {recentToolViews.filter(v => v !== view && TOOLS_VIEWS.includes(v) && (v !== "pet" || enableCompanion) && (v !== "wrapped" || wrappedActive)).map(v => {
                           const { icon: Icon, label } = TOOLS_VIEW_META[v];
                           return (
                             <button key={v} onClick={() => { setView(v); setCompareTarget(null); setOverflowOpen(false); }}>
@@ -2505,25 +2523,24 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                         <button onClick={() => { setView("fullSchedule"); setCompareTarget(null); setOverflowOpen(false); }}>
                           <CalendarRange size={14} /> Full timetable
                         </button>
-                        {!IS_LITE && (
-                          <button onClick={() => { setMessMenuOpen(true); setOverflowOpen(false); }}>
-                            <UtensilsCrossed size={14} /> Mess menu
-                          </button>
-                        )}
-                        {!IS_LITE && (
-                          <button onClick={() => { setView("split"); setCompareTarget(null); setOverflowOpen(false); }}>
-                            <Wallet size={14} /> Split
-                          </button>
-                        )}
+                        <button onClick={() => { setMessMenuOpen(true); setOverflowOpen(false); }}>
+                          <UtensilsCrossed size={14} /> Mess menu
+                        </button>
+                        <button onClick={() => { setView("split"); setCompareTarget(null); setOverflowOpen(false); }}>
+                          <Wallet size={14} /> Split
+                        </button>
                         <button onClick={() => { setView("leave"); setCompareTarget(null); setOverflowOpen(false); }}>
                           <CalendarOff size={14} /> Leave planner
                         </button>
-                        {!IS_LITE && (
-                          <button onClick={() => { setView("board"); setCompareTarget(null); setOverflowOpen(false); }}>
-                            <Package size={14} /> Campus Board
+                        {enableCompanion && (
+                          <button onClick={() => { setView("pet"); setCompareTarget(null); setOverflowOpen(false); }}>
+                            <PawPrint size={14} /> Companion
                           </button>
                         )}
-                        {!IS_LITE && wrappedActive && (
+                        <button onClick={() => { setView("board"); setCompareTarget(null); setOverflowOpen(false); }}>
+                          <Package size={14} /> Campus Board
+                        </button>
+                        {wrappedActive && (
                           <button onClick={() => { setView("wrapped"); setCompareTarget(null); setOverflowOpen(false); }}>
                             <Sparkles size={14} /> Term Wrapped
                           </button>
@@ -2672,31 +2689,17 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                     <GraduationCap size={15} /> <span className="tab-label">Exams</span>
                   </button>
                 )}
-                {!IS_LITE && (
-                  <button className={`tab ${view === "notifications" ? "on" : ""}`} aria-label="Announcements" onClick={() => { setView("notifications"); setCompareTarget(null); }}>
-                    <Megaphone size={15} /> <span className="tab-label">Announcements</span>
-                    {unreadChangeCount > 0 && <span className="nav-badge">{unreadChangeCount}</span>}
-                  </button>
-                )}
-                {!IS_LITE && (
-                  <button className={`tab ${view === "assignments" ? "on" : ""}`} aria-label="Assignments" onClick={() => { setView("assignments"); setCompareTarget(null); }}>
-                    <BookOpenCheck size={15} /> <span className="tab-label">Assignments</span>
-                  </button>
-                )}
+                <button className={`tab ${view === "notifications" ? "on" : ""}`} aria-label="Announcements" onClick={() => { setView("notifications"); setCompareTarget(null); }}>
+                  <Megaphone size={15} /> <span className="tab-label">Announcements</span>
+                  {unreadChangeCount > 0 && <span className="nav-badge">{unreadChangeCount}</span>}
+                </button>
+                <button className={`tab ${view === "assignments" ? "on" : ""}`} aria-label="Assignments" onClick={() => { setView("assignments"); setCompareTarget(null); }}>
+                  <BookOpenCheck size={15} /> <span className="tab-label">Assignments</span>
+                </button>
                 {enableFriends && (
-                  <button className={`tab ${view === "friends" ? "on" : ""}`} aria-label={IS_LITE ? "Compare" : "Social"} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); markBadgeSeen("social"); }}>
-                    <Users size={15} /> <span className="tab-label">{IS_LITE ? "Compare" : "Social"}</span> {!IS_LITE && showBadge("social") && <span className="beta-badge tab-label">Beta</span>}
+                  <button className={`tab ${view === "friends" ? "on" : ""}`} aria-label="Social" onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); markBadgeSeen("social"); }}>
+                    <Users size={15} /> <span className="tab-label">Social</span> {showBadge("social") && <span className="beta-badge tab-label">Beta</span>}
                     {unreadFriendCount > 0 && <span className="nav-badge">{unreadFriendCount}</span>}
-                  </button>
-                )}
-                {IS_LITE && (
-                  <button className={`tab ${view === "fullSchedule" ? "on" : ""}`} aria-label="Full timetable" onClick={() => { setView("fullSchedule"); setCompareTarget(null); }}>
-                    <CalendarRange size={15} /> <span className="tab-label">Timetable</span>
-                  </button>
-                )}
-                {IS_LITE && (
-                  <button className={`tab ${view === "leave" ? "on" : ""}`} aria-label="Leave planner" onClick={() => { setView("leave"); setCompareTarget(null); }}>
-                    <CalendarOff size={15} /> <span className="tab-label">Leave</span>
                   </button>
                 )}
               </nav>
@@ -2710,7 +2713,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 {unseenWhatsNew.length > 0 && (
                   <WhatsNewPill item={unseenWhatsNew[0]} count={unseenWhatsNew.length} onOpen={() => setWhatsNewOpen(true)} />
                 )}
-                {!IS_LITE && mostRecentArchivedTerm && todayISO >= (TERM?.start || "9999") && (!wrappedNudgeUntil || todayISO <= wrappedNudgeUntil) && !seenWrappedNudges.has(mostRecentArchivedTerm.number) && (
+                {mostRecentArchivedTerm && todayISO >= (TERM?.start || "9999") && (!wrappedNudgeUntil || todayISO <= wrappedNudgeUntil) && !seenWrappedNudges.has(mostRecentArchivedTerm.number) && (
                   <WhatsNewPill
                     item={{ emoji: "🎓", title: `Your Term ${mostRecentArchivedTerm.number} Wrapped is ready` }}
                     onOpen={() => {
@@ -2748,7 +2751,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                     ))}
                   </div>
                 )}
-                {view === "today" && <DayGreeting now={now} name={user?.firstName || user?.username} petSettings={sysConfig?.flags?.greetingPets} userPetsEnabled={greetingPetsEnabled} />}
+                {view === "today" && <DayGreeting now={now} name={user?.firstName || user?.username} petSettings={sysConfig?.flags?.greetingPets} userPetsEnabled={greetingPetsEnabled} pet={myPet} petActions={petActions} companionEnabled={enableCompanion} />}
                 <div className="view-date-header">
                   <span className="vdh-label">
                     {view === "notifications" ? `${filteredChanges.length} update${filteredChanges.length !== 1 ? "s" : ""}`
@@ -2810,12 +2813,12 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 <CalendarOff size={16} />
                 <span>
                   <strong>You&rsquo;re on leave</strong>
-                  <span>Back on {fmtAwayEnd(myAway.to)}{IS_LITE ? "" : " · friends can see this too"}</span>
+                  <span>Back on {fmtAwayEnd(myAway.to)} · friends can see this too</span>
                 </span>
                 <span className="away-banner-go">Manage →</span>
               </button>
             )}
-            {view === "today" && !compareTarget && !IS_LITE && wrappedActive && (
+            {view === "today" && !compareTarget && wrappedActive && (
               <button type="button" className="wrapped-banner" onClick={() => { setView("wrapped"); setCompareTarget(null); }}>
                 <Sparkles size={18} />
                 <span>
@@ -2920,8 +2923,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                   />
                   : view === "friends"
                     ? <FriendsPanel
-                      lite={IS_LITE}
-                      userId={user?.id}
+                                            userId={user?.id}
                       userName={user?.firstName || user?.username || "Student"}
                       enrolled={enrolled}
                       legend={LEGEND}
@@ -2936,6 +2938,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       onAcceptFriend={handleAcceptFriendRequest}
                       onDeclineFriend={handleDeclineFriendRequest}
                       statusEnabled={enableStatus}
+                      petsEnabled={enableCompanion}
                       onOpenLeave={() => { setView("leave"); setCompareTarget(null); }}
                       onCompare={(f) => setCompareTarget({ mode: "friend", friendData: f })}
                       onGroupCompare={(g) => {
@@ -3017,7 +3020,19 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                     onAwayChange={setMyAway}
                                   />
                               : view === "assignments"
-                                ? <AssignmentsPanel enrolled={enrolled} legend={enrolledLegend} userId={userId} />
+                                ? <AssignmentsPanel
+                                    enrolled={enrolled}
+                                    legend={enrolledLegend}
+                                    userId={userId}
+                                    onTaskCompleted={taskId => petActions.awardXp(petKeyFor.deadline(taskId), petXP.deadline)}
+                                  />
+                              : view === "pet" && enableCompanion
+                                ? <PetPage
+                                    pet={myPet}
+                                    petActions={petActions}
+                                    now={now}
+                                    onBack={() => { setView("today"); setCompareTarget(null); }}
+                                  />
                               : view === "board"
                                 ? <BoardPage
                                     userId={userId}
@@ -3098,8 +3113,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                       <Timeline list={todayList} current={current} now={now} dateLabel={prettyDate(todayISO)} attendance={attendance} markAttendance={markAttendance} skipInfo={skipInfo} syncStatus={<span className="live"><span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} />
                                     </>}
               </Suspense>
-              {view === "today" && !compareTarget && !IS_LITE && <MessCard now={now} userId={userId} friends={enableStatus ? friends : []} />}
-              {view === "tomorrow" && !compareTarget && !IS_LITE && (
+              {view === "today" && !compareTarget && <MessCard now={now} userId={userId} friends={enableStatus ? friends : []} />}
+              {view === "tomorrow" && !compareTarget && (
                 <div className="dl-section-wrap">
                   <DeadlineStrip
                     visible={visible}
@@ -3316,30 +3331,21 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 <span className="bnav-icon"><GraduationCap size={19} /></span>
               </button>
             )}
-            {!IS_LITE && (
-              <button className={`bnav-btn${view === "notifications" ? " on" : ""}`} aria-label="Announcements" aria-current={view === "notifications" ? "page" : undefined} onClick={() => { setView("notifications"); setCompareTarget(null); }}>
-                <span className="bnav-icon">
-                  <Megaphone size={19} />
-                  {unreadChangeCount > 0 && <span className="bnav-dot" />}
-                </span>
-              </button>
-            )}
-            {!IS_LITE && (
-              <button className={`bnav-btn${view === "assignments" ? " on" : ""}`} aria-label="Assignments" aria-current={view === "assignments" ? "page" : undefined} onClick={() => { setView("assignments"); setCompareTarget(null); }}>
-                <span className="bnav-icon"><BookOpenCheck size={19} /></span>
-              </button>
-            )}
+            <button className={`bnav-btn${view === "notifications" ? " on" : ""}`} aria-label="Announcements" aria-current={view === "notifications" ? "page" : undefined} onClick={() => { setView("notifications"); setCompareTarget(null); }}>
+              <span className="bnav-icon">
+                <Megaphone size={19} />
+                {unreadChangeCount > 0 && <span className="bnav-dot" />}
+              </span>
+            </button>
+            <button className={`bnav-btn${view === "assignments" ? " on" : ""}`} aria-label="Assignments" aria-current={view === "assignments" ? "page" : undefined} onClick={() => { setView("assignments"); setCompareTarget(null); }}>
+              <span className="bnav-icon"><BookOpenCheck size={19} /></span>
+            </button>
             {enableFriends && (
-              <button className={`bnav-btn${view === "friends" ? " on" : ""}`} aria-label={IS_LITE ? "Compare" : "Social"} aria-current={view === "friends" ? "page" : undefined} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); }}>
+              <button className={`bnav-btn${view === "friends" ? " on" : ""}`} aria-label="Social" aria-current={view === "friends" ? "page" : undefined} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); }}>
                 <span className="bnav-icon">
                   <Users size={19} />
                   {unreadFriendCount > 0 && <span className="bnav-dot" />}
                 </span>
-              </button>
-            )}
-            {IS_LITE && (
-              <button className={`bnav-btn${view === "leave" ? " on" : ""}`} aria-label="Leave planner" aria-current={view === "leave" ? "page" : undefined} onClick={() => { setView("leave"); setCompareTarget(null); }}>
-                <span className="bnav-icon"><CalendarOff size={19} /></span>
               </button>
             )}
           </nav>

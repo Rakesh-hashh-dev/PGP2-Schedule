@@ -329,11 +329,14 @@ function GroupChat({ group, userId, userName }) {
 
 function toMinFP(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function ymdFP(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
+import { getPetByKey } from "./greetingPets.jsx";
+import { fetchFriendPets } from "../lib/petStorage.js";
+
 export default function FriendsPanel({
-  lite = false,
   userId, userName, enrolled, friends, setFriends,
   groups, setGroups, allClasses, now, onCompare, onGroupCompare, onOpenLeave,
   statusEnabled = true, meetupsEnabled = true, nudgeEnabled = true, awayEnabled = true,
+  petsEnabled = true,
   planDraft = null, onPlanDraftConsumed,
   friendNotifItems = [], onAcceptFriend, onDeclineFriend,
 }) {
@@ -460,6 +463,17 @@ export default function FriendsPanel({
     fetchFriendPresence(friendCloudKey.split(",")).then(map => { if (alive) setFriendStatuses(map); });
     return () => { alive = false; };
   }, [statusEnabled, awayEnabled, friendCloudKey]);
+
+  // Friends' companions. Same batched-by-cloudId shape as presence above, but
+  // through the definer-side RPC — pet_state itself is self-only, and the RPC
+  // returns key/name/level and nothing else (no XP, no ledger, no timestamps).
+  const [friendPets, setFriendPets] = useState({});
+  useEffect(() => {
+    if (!petsEnabled || !friendCloudKey) return undefined;
+    let alive = true;
+    fetchFriendPets(friendCloudKey.split(",")).then(map => { if (alive) setFriendPets(map); });
+    return () => { alive = false; };
+  }, [petsEnabled, friendCloudKey]);
 
   // "Ping me when free" (Phase C): pending nudges keyed by the friend's id
   const [myNudges, setMyNudges] = useState({});
@@ -918,6 +932,7 @@ export default function FriendsPanel({
     const presence = f.cloudId ? friendStatuses[f.cloudId] : null;
     const selfStatus = statusEnabled ? presence?.status || null : null;
     const away = awayEnabled && isAwayNow(presence?.away) ? presence.away : null;
+    const theirPet = petsEnabled && f.cloudId ? friendPets[f.cloudId] : null;
     return (
       <div key={f.id} className={`fr-friend-card ${isCompact ? "compact" : ""} ${f.isFavourite && !isCompact ? "favourite-glow" : ""}`} style={{ '--accent': c1 }}>
         <div className="fr-friend-avatar" style={{ background: `linear-gradient(135deg, ${c1} 0%, ${c2} 100%)`, boxShadow: `0 4px 16px ${c1}66` }}>
@@ -927,6 +942,16 @@ export default function FriendsPanel({
           <span className="fr-friend-name">{f.name}</span>
           <div className="fr-friend-meta-row">
             <span className="fr-friend-meta">{fCourseCount} course{fCourseCount !== 1 ? "s" : ""}</span>
+            {theirPet && (
+              <span className="fr-friend-pet" title={`${theirPet.name || getPetByKey(theirPet.key).label} · Level ${theirPet.level}`}>
+                {/* data-motion="off": a friends list can hold dozens of these,
+                    and idle-animating every one is a real cost for decoration. */}
+                <span className="dg-pet fr-friend-pet-art" data-pet={theirPet.key} data-motion="off" aria-hidden="true">
+                  {(() => { const P = getPetByKey(theirPet.key).Svg; return <P />; })()}
+                </span>
+                {theirPet.name || getPetByKey(theirPet.key).label} · Lv {theirPet.level}
+              </span>
+            )}
           </div>
           {away && (
             <span className="fr-friend-status fr-friend-away">
@@ -1464,7 +1489,7 @@ export default function FriendsPanel({
       {/* ── Page Header ── */}
       <div className="fr-page-hdr">
         <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-          <h2 className="fr-page-hdr-title">{lite ? "Compare" : "Social"}</h2>
+          <h2 className="fr-page-hdr-title">Social</h2>
           {(friends.length > 0 || groups.length > 0) && (
             <span style={{ fontSize: 14, color: "var(--muted)", fontWeight: 500 }}>
               {friends.length} friend{friends.length !== 1 ? 's' : ''} · {groups.length} group{groups.length !== 1 ? 's' : ''}

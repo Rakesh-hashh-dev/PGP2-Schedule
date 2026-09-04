@@ -1,0 +1,72 @@
+/* Pet companion page. The pet art itself is styled by the shared `.dg-pet`
+   rules in styles.css — this file only sizes it up and lays out the page, so
+   moods, idle animation and the reduced-motion guard stay in one place. */
+
+.pet-page { display: grid; gap: 12px; padding-bottom: 24px; font-family: var(--sans); }
+
+.pet-head { display: flex; align-items: center; gap: 10px; }
+.pet-head h2 { flex: 1; margin: 0; font-size: 19px; font-weight: 800; letter-spacing: -.01em; }
+.pet-head-lvl { flex: none; padding: 3px 9px; border: 1px solid color-mix(in srgb, var(--violet) 28%, var(--border)); border-radius: 999px; background: color-mix(in srgb, var(--violet) 12%, var(--bg)); color: var(--violet); font-size: 11px; font-weight: 800; }
+.pet-back { display: grid; flex: none; place-items: center; width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 9px; background: var(--card); color: var(--text); cursor: pointer; }
+.pet-back:hover { border-color: color-mix(in srgb, var(--violet) 45%, var(--border)); }
+
+.pet-card { padding: 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--card); }
+.pet-h3 { display: flex; align-items: baseline; justify-content: space-between; margin: 0 0 10px; font-size: 13px; font-weight: 800; }
+.pet-h3-note { color: var(--muted); font-size: 11px; font-weight: 600; }
+
+/* ── Habitat ───────────────────────────────────────────────── */
+.pet-habitat { display: grid; justify-items: center; gap: 4px; text-align: center; }
+.pet-hero { width: 116px; height: 116px; }
+.pet-hero::after { display: none; }  /* the little "online" dot is greeting-only */
+.pet-mood { margin: 6px 0 0; font-size: 14px; font-weight: 700; }
+.pet-seen { margin: 0; color: var(--muted); font-size: 11.5px; }
+
+.pet-xp { width: 100%; max-width: 340px; margin-top: 12px; }
+.pet-xp-bar { overflow: hidden; height: 8px; border-radius: 5px; background: color-mix(in srgb, var(--violet) 14%, var(--bg)); }
+.pet-xp-fill { height: 100%; border-radius: 5px; background: linear-gradient(90deg, color-mix(in srgb, var(--violet) 58%, var(--bg)), var(--violet)); transition: width 460ms cubic-bezier(.2,.9,.3,1); }
+.pet-xp-nums { display: flex; justify-content: space-between; margin-top: 5px; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+
+.pet-care { display: flex; gap: 7px; margin-top: 13px; }
+.pet-btn { padding: 7px 15px; border: 1px solid color-mix(in srgb, var(--violet) 22%, var(--border)); border-radius: 9px; background: color-mix(in srgb, var(--violet) 8%, var(--bg)); color: var(--text); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; transition: transform 130ms ease, background 130ms ease, border-color 130ms ease; }
+.pet-btn:hover, .pet-btn:focus-visible { border-color: color-mix(in srgb, var(--violet) 52%, var(--border)); background: color-mix(in srgb, var(--violet) 17%, var(--bg)); outline: none; }
+.pet-btn:active { transform: translateY(1px) scale(.97); }
+.pet-btn-primary { border-color: var(--violet); background: var(--violet); color: #fff; }
+.pet-btn-primary:hover, .pet-btn-primary:focus-visible { border-color: var(--violet); background: color-mix(in srgb, var(--violet) 86%, #000); }
+.pet-care-note { margin: 9px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+
+/* ── XP breakdown ──────────────────────────────────────────── */
+.pet-sources { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.pet-sources li { display: grid; grid-template-columns: minmax(96px, 1fr) 2fr auto; align-items: center; gap: 9px; font-size: 12px; }
+.pet-source-label { color: var(--text); font-weight: 600; }
+.pet-source-track { overflow: hidden; height: 6px; border-radius: 4px; background: color-mix(in srgb, var(--violet) 12%, var(--bg)); }
+.pet-source-fill { display: block; height: 100%; border-radius: 4px; background: color-mix(in srgb, var(--violet) 62%, var(--bg)); }
+.pet-source-xp { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+
+/* ── Roster ────────────────────────────────────────────────── */
+.pet-roster { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+.pet-slot { position: relative; display: grid; justify-items: center; gap: 3px; padding: 10px 5px 8px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); color: var(--text); font: inherit; cursor: pointer; transition: transform 130ms ease, background 130ms ease, border-color 130ms ease; }
+.pet-slot:hover:not(:disabled), .pet-slot:focus-visible { border-color: color-mix(in srgb, var(--violet) 45%, var(--border)); background: color-mix(in srgb, var(--violet) 8%, var(--bg)); outline: none; }
+.pet-slot:active:not(:disabled) { transform: translateY(1px) scale(.98); }
+.pet-slot.on { border-color: var(--violet); background: color-mix(in srgb, var(--violet) 13%, var(--bg)); }
+.pet-slot.locked { cursor: default; opacity: .5; }
+.pet-slot.locked .pet-slot-art { filter: grayscale(1); }
+.pet-slot-art { width: 46px; height: 46px; }
+.pet-slot-art::after, .pet-slot-art::before { display: none; }
+.pet-slot-name { font-size: 10.5px; font-weight: 700; }
+.pet-slot-badge { position: absolute; top: 5px; right: 5px; display: grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: var(--violet); color: #fff; }
+.pet-slot-lock { display: inline-flex; align-items: center; gap: 3px; color: var(--muted); font-size: 9.5px; font-weight: 700; }
+
+/* ── Adoption + details ────────────────────────────────────── */
+.pet-adopt { display: grid; gap: 12px; }
+.pet-adopt-lede { margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+.pet-adopt-confirm { display: flex; gap: 8px; }
+.pet-input { flex: 1; min-width: 0; padding: 7px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg); color: var(--text); font: inherit; font-size: 12.5px; }
+.pet-input:focus-visible { border-color: var(--violet); outline: none; }
+.pet-field { display: grid; gap: 5px; margin-bottom: 11px; font-size: 12px; font-weight: 600; }
+.pet-field-row { display: flex; align-items: center; gap: 8px; margin-bottom: 0; font-weight: 600; }
+.pet-field-row input { accent-color: var(--violet); }
+
+@media (max-width: 520px) {
+  .pet-hero { width: 96px; height: 96px; }
+  .pet-sources li { grid-template-columns: minmax(84px, 1fr) 1.4fr auto; }
+}

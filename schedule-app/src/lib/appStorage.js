@@ -41,6 +41,9 @@ export const USER_SCOPED_KEYS = [
   "pgp2.friends", "pgp2.groups", "pgp2.my_share_code",
   "pgp2.setup", "pgp2-notif-seen", "pgp2.read-ping-ids", "pgp2.read-change-keys",
   "pgp2.seen-recv-groups", "pgp2.recv-groups-count", "pgp2.sidebar", VIEW_KEY,
+  // Without this, signing in as someone else on a shared laptop shows them the
+  // previous student's companion until the cloud read lands.
+  "pgp2.pet",
 ];
 
 // ── Onboarding / course setup ───────────────────────────────────

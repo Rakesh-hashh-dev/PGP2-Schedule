@@ -46,25 +46,42 @@ function Cat() {
 function Fox() {
   return (
     <svg viewBox="0 0 32 32" aria-hidden="true">
-      <path className="dg-pet-tail" d="M20 20.8c5.6-3.1 8.6.4 6.7 4.6-1.4 3-5.5 3.5-7.1 1.4 1.3-.2 2.7-1.1 3.1-2.6.4-1.5-1-2.3-2.7-1.5z" fill="#d96438" />
-      <path className="dg-pet-tail" d="M21.8 26c1.4-.7 2.3-1.9 2.5-3.1 1.9.3 2.6 1.7 1.9 3.1-.8 1.6-3 2-4.4 1.2z" fill="#fff5e8" />
-      <path className="dg-pet-ear dg-pet-ear-left" d="M6.1 5.3l8.2 4.1-5.8 7.4z" fill="#e87842" />
-      <path className="dg-pet-ear dg-pet-ear-right" d="M25.9 5.3l-8.2 4.1 5.8 7.4z" fill="#e87842" />
-      <path d="M7.9 7.7l4.1 2-3.2 3.7z" fill="#4d2a2b" />
-      <path d="M24.1 7.7l-4.1 2 3.2 3.7z" fill="#4d2a2b" />
-      <path className="dg-pet-face" d="M16 8.3c4.8 0 7.7 2.3 8.1 6.9l.5 4.3-3.7 5.7L16 27.5l-4.9-2.3-3.7-5.7.5-4.3c.4-4.6 3.3-6.9 8.1-6.9z" fill="#eb7d43" />
-      <path d="M16 10.2l-1.8 5.7L16 19.2l1.8-3.3z" fill="#f7ad70" opacity=".75" />
-      <path d="M8.3 17.2l4.8 1.1L16 22l2.9-3.7 4.8-1.1-.5 3.6-3.6 4.8-3.6 1.3-3.6-1.3-3.6-4.8z" fill="#fff6ea" />
-      <path d="M9.2 18.3l4.2.9L16 22l-1.9 1.2-3.9-2.6zM22.8 18.3l-4.2.9L16 22l1.9 1.2 3.9-2.6z" fill="#f5e2ce" />
-      <g className="dg-pet-eyes">
-        <path d="M10.2 15.9q2.1-2 4.1 0-2 1.8-4.1 0z" fill={EYE} />
-        <path d="M21.8 15.9q-2.1-2-4.1 0 2 1.8 4.1 0z" fill={EYE} />
-        <circle cx="12.2" cy="15.5" r=".38" fill="#fff" />
-        <circle cx="19.8" cy="15.5" r=".38" fill="#fff" />
+      {/* Flat, front-facing illustrated head — no backing plate, so the
+          silhouette carries it. Sized to fill the canvas like the rest of
+          the roster (r≈9.5, matching the other pets' ~10) rather than the
+          smaller head that fitted inside the earlier badge disc.
+
+          Ears are groups, not single paths, so the orange, the cream inner
+          and the dark tip rotate together as one ear (the axolotl's gills
+          already use this pattern). */}
+      <g className="dg-pet-ear dg-pet-ear-left">
+        <path d="M8.25 11.55 5.5 2.3 14.25 8.3z" fill="#d9762f" />
+        <path d="M8.38 10.05 6.75 5.05 12.5 8.3z" fill="#ffd9b4" opacity=".85" />
+        <path d="M5.5 2.3 6.33 5.08 8.13 4.1z" fill="#3a2a22" />
       </g>
-      <path d="M16 20.8l-1.55-1.25h3.1z" fill="#382528" />
-      <path d="M16 21.5v1.1M16 22.6q-1.35.8-2-.25M16 22.6q1.35.8 2-.25" fill="none" stroke="#382528" strokeWidth=".68" strokeLinecap="round" />
-      <circle cx="10.5" cy="20.8" r=".72" fill="#e96e61" opacity=".72" /><circle cx="21.5" cy="20.8" r=".72" fill="#e96e61" opacity=".72" />
+      <g className="dg-pet-ear dg-pet-ear-right">
+        <path d="M23.75 11.55 26.5 2.3 17.75 8.3z" fill="#d9762f" />
+        <path d="M23.62 10.05 25.25 5.05 19.5 8.3z" fill="#ffd9b4" opacity=".85" />
+        <path d="M26.5 2.3 25.67 5.08 23.87 4.1z" fill="#3a2a22" />
+      </g>
+      <circle className="dg-pet-face" cx="16" cy="16.8" r="9.5" fill="#e07f38" />
+      <ellipse cx="12.5" cy="11.55" rx="3.25" ry="2.13" fill="#fff" opacity=".14" transform="rotate(-18 12.5 11.55)" />
+      {/* White cheek ruff — the fox cue in this style, and a second moving
+          layer: it rides the tuft cadence (2.05s), out of phase with the
+          ears (2.8s) and the head's breathe (3.3s). */}
+      <path className="dg-pet-tuft" d="M10.38 14.3 2.6 17.8 9.25 19.43 3.4 22.8 10.75 22.55z" fill="#fdf7ee" />
+      <path className="dg-pet-tuft" d="M21.62 14.3 29.4 17.8 22.75 19.43 28.6 22.8 21.25 22.55z" fill="#fdf7ee" />
+      <path d="M16 16.05c-3.38 0-5.63 2.25-5.5 5.13.13 3 2.5 5.5 5.5 6.38 3-.88 5.38-3.38 5.5-6.38.13-2.88-2.13-5.13-5.5-5.13z" fill="#fdf7ee" />
+      <g className="dg-pet-eyes">
+        <circle cx="12.13" cy="14.8" r="1.88" fill={EYE} />
+        <circle cx="19.88" cy="14.8" r="1.88" fill={EYE} />
+        <circle cx="12.69" cy="14.18" r=".48" fill="#fff" />
+        <circle cx="19.31" cy="14.18" r=".48" fill="#fff" />
+      </g>
+      <path d="M16 19.05l-1.69 1.56h3.38z" fill="#2b2320" />
+      <path d="M16 20.61v1.38M16 21.99q-1.5 1.06-2.38-.19M16 21.99q1.5 1.06 2.38-.19" fill="none" stroke="#2b2320" strokeWidth=".81" strokeLinecap="round" />
+      <path className="dg-pet-accessory" d="M10.5 26.3c3.5 1.5 7.5 1.5 11 0l.38 1.63c-3.88 1.75-7.88 1.75-11.75 0z" fill="#5f9ea0" />
+      <circle className="dg-pet-accessory" cx="16" cy="28.3" r="1.06" fill="#f6ca59" />
     </svg>
   );
 }
@@ -183,7 +200,7 @@ function Rover() { return <svg viewBox="0 0 32 32" aria-hidden="true"><path clas
 
 function Raccoon() { return <svg viewBox="0 0 32 32" aria-hidden="true"><path className="dg-pet-tail" d="M22 23c5.4-.9 6.7 2.4 4.8 4.4-1.8 1.9-5.1.6-4.6-.7.4-1 2.6.1 3-1.3.3-1.1-1.1-1.5-3.2-1z" fill="#707887" /><path className="dg-pet-tail" d="M24.2 23.5l1.2 3.8M22.8 24.1l1.2 3.3" stroke="#4c5361" strokeWidth="1.1" /><circle className="dg-pet-ear dg-pet-ear-left" cx="8.5" cy="9" r="3.7" fill="#626b7a" /><circle className="dg-pet-ear dg-pet-ear-right" cx="23.5" cy="9" r="3.7" fill="#626b7a" /><circle className="dg-pet-face" cx="16" cy="18" r="10" fill="#9ba4b2" /><path d="M8.7 15.5c2.8-2.5 5-.7 7.3.2 2.3-.9 4.5-2.7 7.3-.2l-1.2 5.3c-2.3 1.2-4.1.2-6.1-.5-2 .7-3.8 1.7-6.1.5z" fill="#48515f" /><g className="dg-pet-eyes"><circle cx="12" cy="17" r="1.25" fill="#f7f8fa" /><circle cx="20" cy="17" r="1.25" fill="#f7f8fa" /></g><ellipse cx="16" cy="20.5" rx="1.6" ry="1.15" fill="#353b47" /><path d="M14.2 22.2q1.8 1.2 3.6 0" fill="none" stroke="#353b47" strokeWidth=".75" strokeLinecap="round" /></svg>; }
 
-function Capybara() { return <svg viewBox="0 0 32 32" aria-hidden="true"><path className="dg-pet-tail" d="M22 23c5-.2 6 3.3 3.7 4.8-1.8 1.2-4.6-.1-3.6-1.2.7-.8 2.2.5 2.7-.9.3-1-1-1.5-2.7-1.2z" fill="#9b6f4e" /><circle className="dg-pet-ear dg-pet-ear-left" cx="9.5" cy="10" r="2.8" fill="#9e7150" /><circle className="dg-pet-ear dg-pet-ear-right" cx="22.5" cy="10" r="2.8" fill="#9e7150" /><path className="dg-pet-face" d="M16 8.8c5.7 0 9.4 3.5 9.4 8.8 0 5.5-3.9 8.9-9.4 8.9s-9.4-3.4-9.4-8.9c0-5.3 3.7-8.8 9.4-8.8z" fill="#ad7d58" /><ellipse cx="16" cy="20.7" rx="6" ry="4.4" fill="#c99a71" /><g className="dg-pet-eyes"><circle cx="12.2" cy="16.3" r="1.25" fill={EYE} /><circle cx="19.8" cy="16.3" r="1.25" fill={EYE} /></g><ellipse cx="16" cy="19.2" rx="2" ry="1.15" fill="#604334" /><path d="M16 20.4v1.1M16 21.5q-1.5.8-2.1-.15M16 21.5q1.5.8 2.1-.15" fill="none" stroke="#604334" strokeWidth=".7" strokeLinecap="round" /><path className="dg-pet-accessory" d="M10.3 24.2c3.4 1.3 8 1.3 11.4 0l.3 1.3c-3.5 1.6-8.5 1.6-12 0z" fill="#e0ae47" /></svg>; }
+function Axolotl() { return <svg viewBox="0 0 32 32" aria-hidden="true"><g className="dg-pet-axolotl-bubbles" fill="none" stroke="#f9d9e8" strokeWidth=".8"><circle cx="25.5" cy="8" r="1.15" /><circle cx="27.8" cy="11.4" r=".65" /><circle cx="5.2" cy="13" r=".7" /></g><path className="dg-pet-tail" d="M22.5 21.5c5.4-.9 6.8 3.8 3.9 5.4-2.4 1.3-4.8-.8-3.2-1.7 1.1-.6 2.5.8 2.9-.5.3-1-1.3-1.6-3.3-1z" fill="#d76f9d" /><path className="dg-pet-face" d="M16 8.4c5.9 0 9.8 3.8 9.8 9.1 0 5.6-4.1 9.2-9.8 9.2s-9.8-3.6-9.8-9.2c0-5.3 3.9-9.1 9.8-9.1z" fill="#f59bc3" /><path d="M10.2 11.5c1.1-1.3 2.2-1.9 3.1-2.1M21.8 11.5c-1.1-1.3-2.2-1.9-3.1-2.1" fill="none" stroke="#ffd4e7" strokeWidth="1.1" strokeLinecap="round" /><g className="dg-pet-ear dg-pet-ear-left dg-pet-axolotl-gill" fill="#e76ea8"><path d="M8.6 12.7 3.5 9.5l2.1-1.3-3.1-2.1 2-1.1 5.1 4.2z" /><path d="m8.4 16.2-5.9 1.3 1.1 1.9-3.7.6 1.6 1.7 6.8-1.1z" /></g><g className="dg-pet-ear dg-pet-ear-right dg-pet-axolotl-gill" fill="#e76ea8"><path d="m23.4 12.7 5.1-3.2-2.1-1.3 3.1-2.1-2-1.1-5.1 4.2z" /><path d="m23.6 16.2 5.9 1.3-1.1 1.9 3.7.6-1.6 1.7-6.8-1.1z" /></g><ellipse cx="16" cy="20.7" rx="6.6" ry="4.4" fill="#ffc2da" /><g className="dg-pet-eyes"><circle cx="12" cy="16.5" r="1.35" fill={EYE} /><circle cx="20" cy="16.5" r="1.35" fill={EYE} /><circle cx="11.6" cy="16.1" r=".35" fill="#fff" /><circle cx="19.6" cy="16.1" r=".35" fill="#fff" /></g><circle cx="9.8" cy="19" r=".75" fill="#f48fb9" opacity=".65" /><circle cx="22.2" cy="19" r=".75" fill="#f48fb9" opacity=".65" /><path d="M16 19.2v1.4m0 0q-1.6 1.2-2.5 0m2.5 0q1.6 1.2 2.5 0" fill="none" stroke="#9b416d" strokeWidth=".8" strokeLinecap="round" /><path className="dg-pet-accessory" d="M10.1 24.2c3.7 1.4 8.1 1.4 11.8 0l.4 1.5c-3.9 1.6-8.7 1.6-12.6 0z" fill="#7c5ce0" /></svg>; }
 
 // Order is stable — the day's index maps into this list, so reordering or
 // removing an entry changes which pet every past/future date resolves to.
@@ -199,14 +216,14 @@ export const PETS = [
   { key: "otter", label: "Otter", Svg: Otter },
   { key: "rover", label: "Rover", Svg: Rover },
   { key: "raccoon", label: "Raccoon", Svg: Raccoon },
-  { key: "capybara", label: "Capybara", Svg: Capybara },
+  { key: "axolotl", label: "Axolotl", Svg: Axolotl },
 ];
 
 // The rover shipped as a turtle originally and admin configs saved in prod may
 // still carry the old key. Map it forward so a saved "featured pet" keeps
 // pointing at the pet the admin actually chose instead of silently falling
 // back to the first entry.
-const LEGACY_KEYS = { turtle: "rover" };
+const LEGACY_KEYS = { turtle: "rover", capybara: "axolotl" };
 
 export function getPetByKey(key) {
   const resolved = LEGACY_KEYS[key] || key;

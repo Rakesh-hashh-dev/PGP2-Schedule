@@ -8,8 +8,6 @@ export default defineConfig([
   globalIgnores([
     'dist',
     'dev-dist',
-    'dist-lite',
-    'lite/dist',
     '**/dev-dist',
     'backups',
   ]),

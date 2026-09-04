@@ -6,19 +6,18 @@
 import {
   Search, Clock, Sunrise, ClipboardList, GraduationCap, BookOpenCheck,
   Megaphone, Users, Package, ChevronDown, CalendarRange, UtensilsCrossed,
-  Wallet, CalendarOff, Sparkles, ExternalLink, Shield, ChevronsRight,
+  Wallet, CalendarOff, Sparkles, PawPrint, ExternalLink, Shield, ChevronsRight,
   ChevronsLeft, CloudOff,
 } from "lucide-react";
 import IndiaFlagIcon from "./IndiaFlagIcon.jsx";
 import { CalendarEventBadgeSVG } from "./CalendarSVGs.jsx";
-import { IS_LITE } from "../lib/edition.js";
 
 export default function DesktopSidebar({
   sbCollapsed, sbStyle, specialDay, termLabel, termProgressPct, termWeekInfo,
   termSwitcherEl, isOffline, setCmdOpen, isMac, view, showSbTip, hideSbTip,
   setView, setCompareTarget, enableAttendance, enableExams, unreadChangeCount,
   enableFriends, markGroupsSeen, markBadgeSeen, showBadge, unreadFriendCount,
-  showSbTools, recentToolViews, TOOLS_VIEWS, wrappedActive, TOOLS_VIEW_META,
+  showSbTools, recentToolViews, TOOLS_VIEWS, wrappedActive, TOOLS_VIEW_META, companionEnabled,
   setSbToolsOpen, openCalendarExport, setMessMenuOpen, activeQuickLinks,
   showAdminUI, renderSbUtilStrip, renderSbAvatarWrap, syncing, syncedAgo,
   isTablet, sidebarCollapsed, toggleSidebar,
@@ -84,35 +83,29 @@ export default function DesktopSidebar({
               <GraduationCap size={18} /><span className="sb-link-label">Exams</span>
             </button>
           )}
-          {!IS_LITE && (
-            <button className={`sb-link${view === "assignments" ? " on" : ""}`} aria-current={view === "assignments" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Assignments")} onMouseLeave={hideSbTip} onClick={() => { setView("assignments"); setCompareTarget(null); hideSbTip(); }}>
-              <BookOpenCheck size={18} /><span className="sb-link-label">Assignments</span>
-            </button>
-          )}
+          <button className={`sb-link${view === "assignments" ? " on" : ""}`} aria-current={view === "assignments" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Assignments")} onMouseLeave={hideSbTip} onClick={() => { setView("assignments"); setCompareTarget(null); hideSbTip(); }}>
+            <BookOpenCheck size={18} /><span className="sb-link-label">Assignments</span>
+          </button>
 
-          <div className="sb-nav-label">{IS_LITE ? "Compare" : "Campus"}</div>
-          {!IS_LITE && (
-            <button className={`sb-link${view === "notifications" ? " on" : ""}`} aria-current={view === "notifications" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Announcements")} onMouseLeave={hideSbTip} onClick={() => { setView("notifications"); setCompareTarget(null); hideSbTip(); }}>
-              <Megaphone size={18} /><span className="sb-link-label">Announcements</span>
-              {unreadChangeCount > 0 && <span className="nav-badge">{unreadChangeCount > 9 ? "9+" : unreadChangeCount}</span>}
-            </button>
-          )}
+          <div className="sb-nav-label">Campus</div>
+          <button className={`sb-link${view === "notifications" ? " on" : ""}`} aria-current={view === "notifications" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Announcements")} onMouseLeave={hideSbTip} onClick={() => { setView("notifications"); setCompareTarget(null); hideSbTip(); }}>
+            <Megaphone size={18} /><span className="sb-link-label">Announcements</span>
+            {unreadChangeCount > 0 && <span className="nav-badge">{unreadChangeCount > 9 ? "9+" : unreadChangeCount}</span>}
+          </button>
           {enableFriends && (
-            <button className={`sb-link${view === "friends" ? " on" : ""}`} aria-current={view === "friends" ? "page" : undefined} onMouseEnter={e => showSbTip(e, IS_LITE ? "Compare" : "Social")} onMouseLeave={hideSbTip} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); markBadgeSeen("social"); hideSbTip(); }}>
-              <Users size={18} /><span className="sb-link-label">{IS_LITE ? "Compare" : "Social"}</span> {!IS_LITE && showBadge("social") && <span className="beta-badge">Beta</span>}
+            <button className={`sb-link${view === "friends" ? " on" : ""}`} aria-current={view === "friends" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Social")} onMouseLeave={hideSbTip} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); markBadgeSeen("social"); hideSbTip(); }}>
+              <Users size={18} /><span className="sb-link-label">Social</span> {showBadge("social") && <span className="beta-badge">Beta</span>}
               {unreadFriendCount > 0 && <span className="nav-badge">{unreadFriendCount > 9 ? "9+" : unreadFriendCount}</span>}
             </button>
           )}
-          {!IS_LITE && (
-            <button className={`sb-link${view === "board" ? " on" : ""}`} aria-current={view === "board" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Campus Board")} onMouseLeave={hideSbTip} onClick={() => { setView("board"); setCompareTarget(null); markBadgeSeen("board"); hideSbTip(); }}>
-              <Package size={18} /><span className="sb-link-label">Campus Board</span> {showBadge("board") && <span className="beta-badge">New</span>}
-            </button>
-          )}
+          <button className={`sb-link${view === "board" ? " on" : ""}`} aria-current={view === "board" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Campus Board")} onMouseLeave={hideSbTip} onClick={() => { setView("board"); setCompareTarget(null); markBadgeSeen("board"); hideSbTip(); }}>
+            <Package size={18} /><span className="sb-link-label">Campus Board</span> {showBadge("board") && <span className="beta-badge">New</span>}
+          </button>
 
-          {!showSbTools && recentToolViews.filter(v => v !== view && TOOLS_VIEWS.includes(v) && (v !== "split" || !IS_LITE) && (v !== "wrapped" || (!IS_LITE && wrappedActive))).length > 0 && (
+          {!showSbTools && recentToolViews.filter(v => v !== view && TOOLS_VIEWS.includes(v) && (v !== "pet" || companionEnabled) && (v !== "wrapped" || wrappedActive)).length > 0 && (
             <>
               <div className="sb-nav-label">Recent</div>
-              {recentToolViews.filter(v => v !== view && TOOLS_VIEWS.includes(v) && (v !== "split" || !IS_LITE) && (v !== "wrapped" || (!IS_LITE && wrappedActive))).map(v => {
+              {recentToolViews.filter(v => v !== view && TOOLS_VIEWS.includes(v) && (v !== "pet" || companionEnabled) && (v !== "wrapped" || wrappedActive)).map(v => {
                 const { icon: Icon, label } = TOOLS_VIEW_META[v];
                 return (
                   <button key={v} className="sb-link" onMouseEnter={e => showSbTip(e, label)} onMouseLeave={hideSbTip} onClick={() => { setView(v); setCompareTarget(null); hideSbTip(); }}>
@@ -123,9 +116,9 @@ export default function DesktopSidebar({
             </>
           )}
 
-          <button type="button" className="sb-tools-head" aria-expanded={showSbTools} onClick={() => { if (!sbCollapsed && !IS_LITE) setSbToolsOpen(o => !o); }}>
+          <button type="button" className="sb-tools-head" aria-expanded={showSbTools} onClick={() => { if (!sbCollapsed) setSbToolsOpen(o => !o); }}>
             <span className="sb-nav-label">Tools</span>
-            {!sbCollapsed && !IS_LITE && <ChevronDown size={13} className={`sb-nav-caret${showSbTools ? " open" : ""}`} />}
+            {!sbCollapsed && <ChevronDown size={13} className={`sb-nav-caret${showSbTools ? " open" : ""}`} />}
           </button>
           {showSbTools && (<>
             <button className={`sb-link${view === "fullSchedule" ? " on" : ""}`} aria-current={view === "fullSchedule" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Full timetable")} onMouseLeave={hideSbTip} onClick={() => { setView("fullSchedule"); setCompareTarget(null); hideSbTip(); }}>
@@ -134,20 +127,21 @@ export default function DesktopSidebar({
             <button className="sb-link" onMouseEnter={e => showSbTip(e, "Add to Calendar")} onMouseLeave={hideSbTip} onClick={() => { openCalendarExport(); hideSbTip(); }}>
               <CalendarEventBadgeSVG size={18} /><span className="sb-link-label">Add to Calendar</span>
             </button>
-            {!IS_LITE && (
-              <button className="sb-link" onMouseEnter={e => showSbTip(e, "Mess menu")} onMouseLeave={hideSbTip} onClick={() => { setMessMenuOpen(true); hideSbTip(); }}>
-                <UtensilsCrossed size={18} /><span className="sb-link-label">Mess menu</span>
-              </button>
-            )}
-            {!IS_LITE && (
-              <button className={`sb-link${view === "split" ? " on" : ""}`} aria-current={view === "split" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Split expenses")} onMouseLeave={hideSbTip} onClick={() => { setView("split"); setCompareTarget(null); markBadgeSeen("split"); hideSbTip(); }}>
-                <Wallet size={18} /><span className="sb-link-label">Split</span> {showBadge("split") && <span className="beta-badge">New</span>}
+            <button className="sb-link" onMouseEnter={e => showSbTip(e, "Mess menu")} onMouseLeave={hideSbTip} onClick={() => { setMessMenuOpen(true); hideSbTip(); }}>
+              <UtensilsCrossed size={18} /><span className="sb-link-label">Mess menu</span>
+            </button>
+            <button className={`sb-link${view === "split" ? " on" : ""}`} aria-current={view === "split" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Split expenses")} onMouseLeave={hideSbTip} onClick={() => { setView("split"); setCompareTarget(null); markBadgeSeen("split"); hideSbTip(); }}>
+              <Wallet size={18} /><span className="sb-link-label">Split</span> {showBadge("split") && <span className="beta-badge">New</span>}
+            </button>
+            {companionEnabled && (
+              <button className={`sb-link${view === "pet" ? " on" : ""}`} aria-current={view === "pet" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Companion")} onMouseLeave={hideSbTip} onClick={() => { setView("pet"); setCompareTarget(null); markBadgeSeen("pet"); hideSbTip(); }}>
+                <PawPrint size={18} /><span className="sb-link-label">Companion</span> {showBadge("pet") && <span className="beta-badge">New</span>}
               </button>
             )}
             <button className={`sb-link${view === "leave" ? " on" : ""}`} aria-current={view === "leave" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Leave planner")} onMouseLeave={hideSbTip} onClick={() => { setView("leave"); setCompareTarget(null); hideSbTip(); }}>
               <CalendarOff size={18} /><span className="sb-link-label">Leave planner</span>
             </button>
-            {!IS_LITE && wrappedActive && (
+            {wrappedActive && (
               <button className={`sb-link${view === "wrapped" ? " on" : ""}`} aria-current={view === "wrapped" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Term Wrapped")} onMouseLeave={hideSbTip} onClick={() => { setView("wrapped"); setCompareTarget(null); hideSbTip(); }}>
                 <Sparkles size={18} /><span className="sb-link-label">Term Wrapped</span>
               </button>

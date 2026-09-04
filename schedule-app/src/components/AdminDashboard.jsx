@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import "../styles/admin.css";
 import "../styles/assignments.css";
 import "../styles/cmdk.css";
-import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil, BarChart2, GraduationCap, MessageSquare, CloudOff, Shield, Smartphone, Copy, Activity, ChevronRight, Clock3, Download, Filter, Eye, ListFilter } from "lucide-react";
+import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil, BarChart2, GraduationCap, MessageSquare, CloudOff, Shield, Smartphone, Copy, Activity, ChevronRight, Clock3, Download, Filter, Eye, ListFilter, PawPrint } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { logAdminAction } from "../lib/adminAudit.js";
 import { LEGEND } from "../data/schedule.js";
@@ -277,7 +277,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     classOverrides: {},
     abTests: {},
     dispatchEnabled: true,
-    greetingPets: { enabled: true, mode: "daily", petKey: "cat", motion: true }
+    greetingPets: { enabled: true, mode: "daily", petKey: "cat", motion: true, companion: true, xpRate: 1 }
   });
   
   const [popularCourses, setPopularCourses] = useState([]);
@@ -317,6 +317,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [auditLogs, setAuditLogs] = useState([]);
   const [announcementTarget, setAnnouncementTarget] = useState("global");
   const [selectedUser, setSelectedUser] = useState(null);
+  const [petLevelDraft, setPetLevelDraft] = useState(1);
+  const [petLevelBusy, setPetLevelBusy] = useState(false);
+  const [petLevelMessage, setPetLevelMessage] = useState("");
 
   const [activeUsersListModalOpen, setActiveUsersListModalOpen] = useState(false);
   const [activeUsersSort, setActiveUsersSort] = useState("recent"); // "recent" | "oldest" | "name"
@@ -505,6 +508,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [dbLoadedAt, setDbLoadedAt] = useState(null);
   const [dbSelectedRow, setDbSelectedRow] = useState(null);
   const [moderationSearch, setModerationSearch] = useState("");
+  const [moderationSort, setModerationSort] = useState("expiry");
   const [moderationBusyId, setModerationBusyId] = useState(null);
   const [moderationMessage, setModerationMessage] = useState("");
 
@@ -1308,6 +1312,22 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     const total = overrideClasses + announcements + quickLinks;
     return { overrideDays, overrideClasses, announcements, quickLinks, total };
   })();
+  const systemOverview = (() => {
+    const maintenance = flags.maintenanceMode ? "Live lockout" : flags.maintenanceWindow?.start || flags.maintenanceWindow?.end ? "Window scheduled" : "Open";
+    const staleJobs = cronHealth?.filter(job => !job.last_run || (job.status || "").toLowerCase() !== "succeeded" || LOAD_NOW - new Date(job.last_run).getTime() > 20 * 60000).length || 0;
+    const items = [
+      ...(changesCount ? [{ id: "changes", tone: "watch", title: `${changesCount} staged change${changesCount === 1 ? "" : "s"}`, detail: "Review and deploy when the configuration is ready.", action: "Review changes", onClick: () => setReviewOpen(true) }] : []),
+      ...(staleJobs ? [{ id: "jobs", tone: "risk", title: `${staleJobs} automation job${staleJobs === 1 ? " needs" : "s need"} attention`, detail: "Open Insights for the latest cron and service health.", action: "Open health", onClick: () => setActiveTab("insights") }] : []),
+      ...(flags.maintenanceMode ? [{ id: "maintenance", tone: "risk", title: "Maintenance lockout is live", detail: "Non-admin students cannot access TermFlow until it is turned off and deployed.", action: "Review lockout", onClick: () => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" }) }] : []),
+    ];
+    return { maintenance, staleJobs, items: items.slice(0, 3) };
+  })();
+  const broadcastOverview = (() => {
+    const today = new Date(LOAD_NOW).toISOString().slice(0, 10);
+    const activeBanners = (flags.scheduledAnnouncements || []).filter(item => item.start <= today && today <= item.end).length;
+    const scheduledItems = (flags.scheduledAnnouncements || []).filter(item => item.start > today).length + (flags.scheduledPushes || []).length + (flags.quickLinks || []).filter(item => item.start > today).length;
+    return { activeBanners, scheduledItems, subscribers: Number(pushSubCount) || 0 };
+  })();
 
   // ── Broadcast agenda: all scheduled pushes/announcements/deploys, next 21 days ──
   const broadcastAgenda = (() => {
@@ -1483,6 +1503,20 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     const status = u.courses?._status || {};
     return `${u.name || ""} ${u.email || ""} ${status.text || ""} ${status.emoji || ""}`.toLowerCase().includes(normalizedModerationSearch);
   });
+  const moderationExpiringSoon = activeStatusUsers.filter(u => {
+    const until = new Date(u.courses?._status?.until).getTime();
+    return Number.isFinite(until) && until - LOAD_NOW <= 60 * 60000;
+  });
+  const visibleStatusUsers = [...filteredStatusUsers].sort((a, b) => {
+    if (moderationSort === "name") return (a.name || "").localeCompare(b.name || "");
+    if (moderationSort === "recent") return new Date(b.courses?._status?.until || 0) - new Date(a.courses?._status?.until || 0);
+    return new Date(a.courses?._status?.until || 0) - new Date(b.courses?._status?.until || 0);
+  });
+  const insightIssues = [
+    ...(moderationExpiringSoon.length ? [{ id: "statuses", tone: "watch", title: `${moderationExpiringSoon.length} status${moderationExpiringSoon.length === 1 ? "" : "es"} expire within an hour`, detail: "Review the live-status queue before they disappear.", action: "Review statuses", tab: "moderation" }] : []),
+    ...(ghostUsers.length ? [{ id: "inactive", tone: "watch", title: `${ghostUsers.length} students have been inactive for 7+ days`, detail: "Use the engagement controls to decide whether outreach is warranted.", action: "Review users", tab: "users" }] : []),
+    ...(cronHealth?.filter(job => !job.last_run || (job.status || "").toLowerCase() !== "succeeded" || LOAD_NOW - new Date(job.last_run).getTime() > 20 * 60000).length ? [{ id: "cron", tone: "risk", title: "A scheduled service needs attention", detail: "A cron job is stale, paused, or last reported an error.", action: "Open health", tab: "insights" }] : []),
+  ].slice(0, 3);
   const dbColumns = dbRows.length ? Object.keys(dbRows[0]) : [];
   const filteredDbRows = dbRows.filter(row => {
     const term = dbSearch.trim().toLowerCase();
@@ -2720,6 +2754,12 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               </div>
             </section>
           )}
+                <section className="admin-card admin-span-all admin-g-broadcast broadcast-command-deck" style={{ gridColumn: "1 / -1" }}>
+          <div className="broadcast-command-head"><div><span className="broadcast-eyebrow">Audience communications</span><h2><Megaphone size={20} color="var(--amber)" /> Broadcast command deck</h2><p className="admin-subtext">Plan the message, confirm the audience, then choose the channel that fits the urgency.</p></div><button type="button" className="admin-btn outline" onClick={fetchDashboardData} disabled={statsLoading}><RefreshCw size={14} className={statsLoading ? "spin-icon" : ""} /> Refresh data</button></div>
+          <div className="broadcast-command-metrics"><div><span>Live banners</span><strong>{broadcastOverview.activeBanners}</strong><small>currently visible in-app</small></div><div><span>Queued content</span><strong>{broadcastOverview.scheduledItems}</strong><small>future pushes, banners and links</small></div><div><span>Push-ready devices</span><strong>{broadcastOverview.subscribers}</strong><small>subscribed devices, not students</small></div></div>
+          <div className="broadcast-channel-guide"><button type="button" onClick={() => setOpenBcast(current => ({ ...current, announcements: true }))}><Megaphone size={16} /><span><strong>Banner</strong><small>Persistent, date-bound information</small></span><ChevronRight size={15} /></button><button type="button" onClick={() => setOpenBcast(current => ({ ...current, push: true }))}><BellRing size={16} /><span><strong>Push</strong><small>Time-sensitive reach to subscribed devices</small></span><ChevronRight size={15} /></button><button type="button" onClick={() => setOpenBcast(current => ({ ...current, social: true }))}><Sparkles size={16} /><span><strong>Social flash</strong><small>Immediate message to active users</small></span><ChevronRight size={15} /></button></div>
+        </section>
+
                 {/* ── 1. Broadcast Studio (Announcements + Push + Social Flash + Quiet Hours) ── */}
         <section className="admin-card admin-span-all admin-g-broadcast" style={{ gridColumn: "1 / -1" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
@@ -4606,6 +4646,47 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
              </div>
           </section>
 
+          <section className="admin-card admin-span-all admin-g-insights insights-brief" style={{ gridColumn: "1 / -1" }}>
+            <div className="insights-section-head">
+              <div>
+                <span className="insights-eyebrow">Start here</span>
+                <h2><Activity size={20} color="var(--violet)" /> Operations brief</h2>
+                <p className="admin-subtext">The few signals worth acting on now, separated from the full reporting detail below.</p>
+              </div>
+              <button type="button" className="admin-btn outline insights-refresh" onClick={fetchDashboardData} disabled={statsLoading}>
+                <RefreshCw size={14} className={statsLoading ? "spin-icon" : ""} /> {statsLoading ? "Refreshing…" : "Refresh signals"}
+              </button>
+            </div>
+            <div className="insights-brief-grid">
+              <div className="insights-scorecard">
+                <span>Weekly reach</span>
+                <strong>{typeof totalUsers === "number" && totalUsers ? Math.round((activeTiers.wau / totalUsers) * 100) : 0}%</strong>
+                <small>{activeTiers.wau} of {typeof totalUsers === "number" ? totalUsers : "—"} students seen in the last 7 days</small>
+                <div className="insights-progress"><i style={{ width: `${typeof totalUsers === "number" && totalUsers ? Math.min(100, Math.round((activeTiers.wau / totalUsers) * 100)) : 0}%` }} /></div>
+              </div>
+              <div className="insights-scorecard">
+                <span>Push readiness</span>
+                <strong>{typeof totalUsers === "number" && totalUsers ? Math.round((Number(pushSubCount) / totalUsers) * 100) : 0}%</strong>
+                <small>{pushSubCount} subscribed device{Number(pushSubCount) === 1 ? "" : "s"} available for urgent updates</small>
+                <div className="insights-progress is-blue"><i style={{ width: `${typeof totalUsers === "number" && totalUsers ? Math.min(100, Math.round((Number(pushSubCount) / totalUsers) * 100)) : 0}%` }} /></div>
+              </div>
+              <div className="insights-scorecard">
+                <span>Attendance watch</span>
+                <strong>{skipStats.reduce((sum, [, count]) => sum + Number(count || 0), 0)}</strong>
+                <small>recorded absences across the top {skipStats.length || 0} course{skipStats.length === 1 ? "" : "s"}</small>
+                <div className="insights-scorecard-foot">{skipStats[0]?.[0] ? `${skipStats[0][0]} currently leads the watchlist` : "No absence signal yet"}</div>
+              </div>
+            </div>
+            <div className="insights-attention" aria-live="polite">
+              <div className="insights-attention-head"><strong>Attention queue</strong><span>{insightIssues.length ? `${insightIssues.length} item${insightIssues.length === 1 ? "" : "s"}` : "Clear"}</span></div>
+              {insightIssues.length ? insightIssues.map(issue => <div className={`insights-attention-row is-${issue.tone}`} key={issue.id}>
+                <span className="insights-attention-dot" aria-hidden="true" />
+                <div><strong>{issue.title}</strong><small>{issue.detail}</small></div>
+                <button type="button" className="admin-btn outline" onClick={() => { setActiveTab(issue.tab); window.scrollTo({ top: 0, behavior: "smooth" }); }}>{issue.action}<ChevronRight size={14} /></button>
+              </div>) : <div className="insights-clear-state"><Check size={17} /> Nothing requiring immediate action from the available signals.</div>}
+            </div>
+          </section>
+
           {/* Active-user tiers (DAU/WAU/MAU) */}
           <section className="admin-card admin-g-insights insights-metric-card">
             <h2><BarChart2 size={20} color="var(--live)" /> Active Users</h2>
@@ -4833,8 +4914,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
         </section>
 
           <section className="admin-card admin-span-all admin-g-system system-ops-console" style={{ gridColumn: "1 / -1" }}>
-            <div className="system-ops-head"><div><span className="system-ops-eyebrow">Operational control</span><h2><ShieldAlert size={20} color="var(--violet)" /> System control centre</h2><p className="admin-subtext">A high-level read on deployment readiness, scheduled automation, and the quickest safe actions.</p></div><div className="system-ops-status"><span /> Admin controls online</div></div>
-            <div className="system-ops-metrics"><div><strong>{configDrift.total}</strong><span>config drift items</span></div><div><strong>{(flags.scheduledConfigDeploys || []).length}</strong><span>scheduled deploys</span></div><div><strong>{presentAdmins.length}</strong><span>admins present</span></div><div className={snapshotMeta.status === "success" ? "is-healthy" : "is-risk"}><strong>{snapshotMeta.status === "success" ? "OK" : "!"}</strong><span>snapshot automation</span></div></div>
+            <div className="system-ops-head"><div><span className="system-ops-eyebrow">Platform operations</span><h2><ShieldAlert size={20} color="var(--violet)" /> System command centre</h2><p className="admin-subtext">A practical read of what is live, what is staged, and the safest next move.</p></div><div className={`system-ops-status ${systemOverview.items.some(item => item.tone === "risk") ? "is-watch" : ""}`}><span /> {systemOverview.items.some(item => item.tone === "risk") ? "Attention needed" : "Controls ready"}</div></div>
+            <div className="system-ops-metrics"><div><strong>{changesCount}</strong><span>staged changes</span></div><div><strong>{configDrift.total}</strong><span>config drift items</span></div><div><strong>{(flags.scheduledConfigDeploys || []).length}</strong><span>scheduled deploys</span></div><div className={snapshotMeta.status === "success" ? "is-healthy" : "is-risk"}><strong>{snapshotMeta.status === "success" ? "OK" : "!"}</strong><span>snapshot automation</span></div></div>
+            <div className="system-state-strip"><span><Shield size={15} /> Access <strong>{systemOverview.maintenance}</strong></span><span><Activity size={15} /> Automation <strong>{systemOverview.staleJobs ? `${systemOverview.staleJobs} issue${systemOverview.staleJobs === 1 ? "" : "s"}` : "healthy from last check"}</strong></span><span><Users size={15} /> Presence <strong>{presentAdmins.length || 1} admin{presentAdmins.length === 1 ? "" : "s"} online</strong></span></div>
+            {systemOverview.items.length > 0 && <div className="system-attention-queue">{systemOverview.items.map(item => <div className={`system-attention-row is-${item.tone}`} key={item.id}><span aria-hidden="true" /><div><strong>{item.title}</strong><small>{item.detail}</small></div><button type="button" className="admin-btn outline" onClick={item.onClick}>{item.action}<ChevronRight size={14} /></button></div>)}</div>}
             <div className="system-ops-actions"><button type="button" className="admin-btn outline" onClick={checkApiHealth} disabled={healthChecking}><Activity size={14} /> {healthChecking ? "Checking…" : "Check services"}</button><button type="button" className="admin-btn outline" onClick={forceRefresh}><RefreshCw size={14} /> Force client sync</button><button type="button" className="admin-btn outline" onClick={_exportConfigJSON}><Download size={14} /> Export config</button><button type="button" className="admin-btn outline" onClick={() => setReviewOpen(true)}><FileText size={14} /> Review staged changes</button></div>
           </section>
           {/* Maintenance scheduler */}
@@ -4972,6 +5055,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 mode: "daily",
                 petKey: "cat",
                 motion: true,
+                // Both absent in any config saved before the companion shipped,
+                // so the defaults here ARE the back-compat story — no migration.
+                companion: true,
+                xpRate: 1,
                 ...(flags.greetingPets || {}),
               };
               const updateGreetingPets = patch => setFlags({ ...flags, greetingPets: { ...greetingPets, ...patch } });
@@ -5011,13 +5098,44 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                       <label className="admin-field" style={{ flex: "1 1 130px", margin: 0 }}>
                         <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", display: "block", marginBottom: 5 }}>FEATURED PET</span>
                         <select className="admin-input" disabled={!greetingPets.enabled} value={previewPet.key} onChange={e => updateGreetingPets({ petKey: e.target.value })}>
-                          <option value="cat">Cat</option><option value="fox">Fox</option><option value="dog">Dog</option><option value="bunny">Bunny</option><option value="penguin">Penguin</option><option value="panda">Panda</option><option value="chick">Chick</option><option value="koala">Koala</option><option value="otter">Otter</option><option value="turtle">Rover</option><option value="raccoon">Raccoon</option><option value="capybara">Capybara</option>
+                          {PETS.map(pet => <option key={pet.key} value={pet.key}>{pet.label}</option>)}
                         </select>
                       </label>
                     )}
                     <label style={{ display: "flex", alignItems: "center", gap: 7, paddingBottom: 9, fontSize: 12, fontWeight: 650, cursor: greetingPets.enabled ? "pointer" : "not-allowed" }}>
                       <input type="checkbox" disabled={!greetingPets.enabled} checked={greetingPets.motion} onChange={e => updateGreetingPets({ motion: e.target.checked })} /> Motion
                     </label>
+                  </div>
+
+                  {/* Companion layer — adoption, the pet page, XP and friends'
+                      pets. Separate from the switch above so the decorative
+                      greeting pet can stay while the game is turned off. */}
+                  <div style={{ marginTop: 14, paddingTop: 13, borderTop: "1px dashed var(--border)", opacity: greetingPets.enabled ? 1 : 0.55 }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 13, fontWeight: 750, cursor: greetingPets.enabled ? "pointer" : "not-allowed" }}>
+                      <input type="checkbox" disabled={!greetingPets.enabled} checked={greetingPets.companion !== false} onChange={e => updateGreetingPets({ companion: e.target.checked })} />
+                      <PawPrint size={15} color="var(--violet)" /> Adoptable companion
+                    </label>
+                    <p className="admin-subtext" style={{ margin: "6px 0 10px" }}>
+                      Lets students adopt and name a pet that levels up from marked classes and cleared deadlines, unlocks the Companion page, and shows friends&apos; pets on their cards. Turn off to leave only the decorative greeting pet.
+                    </p>
+                    <label className="admin-field" style={{ maxWidth: 220, margin: 0 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", display: "block", marginBottom: 5 }}>XP RATE</span>
+                      <select
+                        className="admin-input"
+                        disabled={!greetingPets.enabled || greetingPets.companion === false}
+                        value={String(greetingPets.xpRate ?? 1)}
+                        onChange={e => updateGreetingPets({ xpRate: Number(e.target.value) })}
+                      >
+                        <option value="0.5">0.5× — slower</option>
+                        <option value="1">1× — normal</option>
+                        <option value="1.5">1.5×</option>
+                        <option value="2">2× — double</option>
+                        <option value="3">3× — max</option>
+                      </select>
+                    </label>
+                    <p className="admin-subtext" style={{ margin: "7px 0 0" }}>
+                      Applies to XP earned from now on. Already-banked XP keeps what it was worth, and the rate is clamped to 0.25&times;&ndash;3&times; client-side, so a bad config can neither freeze progress nor max the cohort.
+                    </p>
                   </div>
                 </div>
               );
@@ -5536,21 +5654,30 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
           <section className="admin-card admin-span-all admin-g-moderation moderation-workspace" style={{ gridColumn: "1 / -1" }}>
             <div className="admin-workspace-head">
-              <div><h2><Shield size={20} color="var(--violet)" /> Live status moderation</h2><p className="admin-subtext">Review the statuses currently visible on student cards. Clearing a status is immediate and recorded in the audit trail.</p></div>
+              <div><span className="moderation-eyebrow">Student-facing content</span><h2><Shield size={20} color="var(--violet)" /> Live status moderation</h2><p className="admin-subtext">Review what is visible on student cards. Inspect a student before acting; clearing is immediate and recorded in the audit trail.</p></div>
               <div className="admin-count-chip"><Activity size={14} /> {activeStatusUsers.length} active</div>
+            </div>
+            <div className="moderation-summary-grid">
+              <div><span>Active now</span><strong>{activeStatusUsers.length}</strong><small>visible student statuses</small></div>
+              <div className={moderationExpiringSoon.length ? "is-watch" : ""}><span>Ending within 1h</span><strong>{moderationExpiringSoon.length}</strong><small>will disappear soon</small></div>
+              <div><span>Latest expiry</span><strong>{activeStatusUsers.length ? new Date(Math.max(...activeStatusUsers.map(u => new Date(u.courses?._status?.until || 0).getTime()))).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—"}</strong><small>furthest scheduled expiry</small></div>
             </div>
             <div className="admin-workspace-toolbar">
               <label className="admin-search-control"><Search size={15} /><input value={moderationSearch} onChange={e => setModerationSearch(e.target.value)} placeholder="Search a student or status" aria-label="Search active statuses" /></label>
-              <span className="admin-toolbar-note">{filteredStatusUsers.length} shown</span>
+              <label className="admin-select-control"><ListFilter size={15} /><select value={moderationSort} onChange={e => setModerationSort(e.target.value)} aria-label="Sort active statuses"><option value="expiry">Expires soonest</option><option value="recent">Expires latest</option><option value="name">Student name</option></select></label>
+              <span className="admin-toolbar-note">{visibleStatusUsers.length} shown</span>
             </div>
             {moderationMessage && <div className={`admin-inline-notice ${moderationMessage.startsWith("Could not") ? "is-error" : ""}`}>{moderationMessage}</div>}
             <div className="moderation-list">
-              {filteredStatusUsers.length === 0 ? <div className="admin-empty">{activeStatusUsers.length ? "No active statuses match this search." : "No active user statuses right now."}</div> : filteredStatusUsers.map(u => {
+              {visibleStatusUsers.length === 0 ? <div className="admin-empty">{activeStatusUsers.length ? "No active statuses match this search." : "No active user statuses right now."}</div> : visibleStatusUsers.map(u => {
                 const status = u.courses._status;
-                return <article key={u.user_id} className="moderation-row">
+                const expiresAt = new Date(status.until);
+                const minutesLeft = Math.max(0, Math.ceil((expiresAt.getTime() - LOAD_NOW) / 60000));
+                const expiresSoon = minutesLeft <= 60;
+                return <article key={u.user_id} className={`moderation-row ${expiresSoon ? "is-expiring" : ""}`} role="button" tabIndex={0} onClick={() => setSelectedUser(u)} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedUser(u); } }}>
                   <Avatar name={u.name} email={u.email || u.user_id} />
-                  <div className="moderation-status"><strong>{u.name || "Unnamed student"}</strong><span>{status.emoji || "💬"} {status.text || "No status message"}</span><small>Expires {new Date(status.until).toLocaleString()}</small></div>
-                  <button type="button" onClick={() => clearUserStatus(u)} disabled={moderationBusyId === u.user_id} className="admin-btn outline moderation-clear"><Trash2 size={14} /> {moderationBusyId === u.user_id ? "Clearing…" : "Clear"}</button>
+                  <div className="moderation-status"><strong>{u.name || "Unnamed student"}</strong><span>{status.emoji || "💬"} {status.text || "No status message"}</span><small className={expiresSoon ? "is-expiring" : ""}>{expiresSoon ? `${minutesLeft} min remaining` : `Expires ${expiresAt.toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`}</small></div>
+                  <div className="moderation-actions"><button type="button" onClick={e => { e.stopPropagation(); setSelectedUser(u); }} className="admin-btn outline moderation-inspect"><Eye size={14} /> Inspect</button><button type="button" onClick={e => { e.stopPropagation(); clearUserStatus(u); }} disabled={moderationBusyId === u.user_id} className="admin-btn outline moderation-clear"><Trash2 size={14} /> {moderationBusyId === u.user_id ? "Clearing…" : "Clear"}</button></div>
                 </article>;
               })}
             </div>
@@ -5788,6 +5915,53 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     }}
                     rows={3}
                  />
+            </section>
+
+            <section className="admin-user-xray-section">
+              <h3><PawPrint size={15} /> Companion level</h3>
+              <p>Grant this student enough XP to reach a level. Earned XP and completed-event history are retained, so this action never lowers progress.</p>
+              <div className="admin-field-row" style={{ alignItems: "flex-end", maxWidth: 360 }}>
+                <label className="admin-field" style={{ flex: "1 1 120px", margin: 0 }}>
+                  <span>Target level</span>
+                  <select
+                    className="admin-input"
+                    value={petLevelDraft}
+                    disabled={petLevelBusy}
+                    onChange={e => setPetLevelDraft(Number(e.target.value))}
+                  >
+                    {Array.from({ length: 12 }, (_, index) => index + 1).map(level => <option key={level} value={level}>Level {level}</option>)}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  className="admin-btn outline"
+                  disabled={petLevelBusy}
+                  onClick={async () => {
+                    if (!confirm(`Grant ${selectedUser.name || "this student"} at least Level ${petLevelDraft}? Earned progress will not be removed.`)) return;
+                    setPetLevelBusy(true); setPetLevelMessage("");
+                    const { data, error } = await supabase.rpc("admin_set_pet_level", {
+                      p_user_id: selectedUser.user_id,
+                      p_level: petLevelDraft,
+                    });
+                    setPetLevelBusy(false);
+                    if (error) {
+                      setPetLevelMessage(`Could not update companion: ${error.message}`);
+                      return;
+                    }
+                    const result = Array.isArray(data) ? data[0] : data;
+                    const actualLevel = result?.level ?? petLevelDraft;
+                    setPetLevelMessage(`Companion is now at least Level ${actualLevel}.`);
+                    await logAdminAction(admin_id, "grant_pet_level", {
+                      target_user: selectedUser.user_id,
+                      requested_level: petLevelDraft,
+                      resulting_level: actualLevel,
+                    });
+                  }}
+                >
+                  <PawPrint size={14} /> {petLevelBusy ? "Granting…" : "Grant level"}
+                </button>
+              </div>
+              {petLevelMessage && <p className="admin-subtext" style={{ margin: "9px 0 0", color: petLevelMessage.startsWith("Could not") ? "var(--danger)" : "var(--live)" }}>{petLevelMessage}</p>}
             </section>
 
             <section className="admin-user-xray-section">
@@ -6148,7 +6322,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               </div>
 
               {/* Cancel button */}
-              <button onClick={() => {
+              <button type="button" onClick={() => {
                 const ident = classIdent(liveEditorModal);
                 const overrideKey = makeOverrideKey(ident, modalSection);
                 const nextOverrides = { ...(flags.classOverrides || {}) };
@@ -6174,7 +6348,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 const existing = flags.classOverrides?.[liveEditorModal.date]?.[overrideKey];
                 const isExamOverride = existing?.type === "exam";
                 return (
-                  <button onClick={() => {
+                  <button type="button" onClick={() => {
                     const nextOverrides = { ...(flags.classOverrides || {}) };
                     nextOverrides[liveEditorModal.date] = { ...(nextOverrides[liveEditorModal.date] || {}) };
                     if (isExamOverride) {
@@ -6223,7 +6397,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 <label>New Room</label>
                 <div style={{ display: "flex", gap: 8 }}>
                   <input type="text" placeholder="e.g. C-104" className="admin-input" style={{ flex: 1 }} value={modalRoom} onChange={e => setModalRoom(e.target.value)} />
-                  <button onClick={() => {
+                  <button type="button" onClick={() => {
                     // New classes use the typed code; existing rows use their
                     // identity (code, or name for code-less exam entries).
                     const codeToUse = modalIsNew ? modalCode : classIdent(liveEditorModal);
@@ -6267,7 +6441,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
               {/* Remove existing override */}
               {lookupOverride(flags.classOverrides?.[liveEditorModal.date], liveEditorModal) && (
-                <button onClick={() => {
+                <button type="button" onClick={() => {
                   const ident = classIdent(liveEditorModal);
                   const nextOverrides = { ...(flags.classOverrides || {}) };
                   nextOverrides[liveEditorModal.date] = { ...nextOverrides[liveEditorModal.date] };

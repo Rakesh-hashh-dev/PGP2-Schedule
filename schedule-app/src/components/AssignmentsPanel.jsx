@@ -223,7 +223,7 @@ function SwipeableTaskRow({ task, onToggle, onDelete, onOpen, courseCode, course
   );
 }
 
-export default function AssignmentsPanel({ enrolled, legend, userId }) {
+export default function AssignmentsPanel({ enrolled, legend, userId, onTaskCompleted }) {
   const [assignments, setAssignments] = useState(() => loadAssignments());
   const [modalOpen, setModalOpen] = useState(false);
   const [collapsedCards, setCollapsedCards] = useState({});
@@ -333,6 +333,9 @@ export default function AssignmentsPanel({ enrolled, legend, userId }) {
     const tasks = [...(next[code] || [])];
     const idx = tasks.findIndex(t => t.id === taskId);
     if (idx !== -1) { tasks[idx] = { ...tasks[idx], [field]: value }; next[code] = tasks; updateAssignments(next); }
+    // Clearing a deadline feeds the pet. Keyed by task id, so ticking a task
+    // off, undoing and ticking it again pays out exactly once.
+    if (idx !== -1 && field === "completed" && value === true) onTaskCompleted?.(taskId);
   };
 
   const handleDeleteTask = (code, taskId) => {

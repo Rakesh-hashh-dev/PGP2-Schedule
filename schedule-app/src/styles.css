@@ -1267,6 +1267,12 @@ html[data-theme="dark"] .tabs-wrapper {
 
 
 .day-greeting {
+  /* Positioned so the pet tray paints above the Hero card below it. `.hero` is
+     position:relative with z-index auto, so without this the greeting sits in
+     the non-positioned layer and anything hanging out of it is covered. 20 is
+     well under the app's popovers/modals (50+). */
+  position: relative;
+  z-index: 20;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1288,6 +1294,17 @@ html[data-theme="dark"] .tabs-wrapper {
 .dg-pet {
   --pet-turn: 0deg;
   --pet-accent: var(--violet);
+  /* Mood knobs. Neutral here = today's idle look, so a pet with no mood (the
+     daily rotation, the admin preview) is pixel-identical to before. Every
+     mood below moves these rather than defining its own keyframes — the base
+     keyframes read them, so the animated and static postures can never drift
+     apart. See docs/pet-companion-plan.md §6 Phase 3. */
+  --pet-ear-droop: 0deg;
+  --pet-eye-open: 1;
+  --pet-lean: 0deg;
+  --pet-aura: 1;
+  --pet-sat: 1;
+  --pet-dot: #78c99d;
   position: relative;
   isolation: isolate;
   flex: none;
@@ -1305,7 +1322,7 @@ html[data-theme="dark"] .tabs-wrapper {
   animation: dgPetBob 2.9s ease-in-out infinite;
 }
 .dg-pet:focus-visible { outline: 2px solid var(--violet); outline-offset: 3px; border-radius: 9px; }
-.dg-pet::after { position: absolute; z-index: 2; right: -2px; bottom: 0; width: 7px; height: 7px; border: 2px solid var(--bg); border-radius: 50%; background: #78c99d; box-shadow: 0 1px 3px color-mix(in srgb, var(--text) 18%, transparent); content: ""; }
+.dg-pet::after { position: absolute; z-index: 2; right: -2px; bottom: 0; width: 7px; height: 7px; border: 2px solid var(--bg); border-radius: 50%; background: var(--pet-dot); box-shadow: 0 1px 3px color-mix(in srgb, var(--text) 18%, transparent); content: ""; }
 .dg-pet::before {
   position: absolute;
   z-index: -1;
@@ -1326,8 +1343,8 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
   height: 100%;
   display: block;
   overflow: visible;
-  filter: saturate(1.1) contrast(1.045) drop-shadow(0 1px 0 color-mix(in srgb, #fff 20%, transparent));
-  transform: translateY(-.4px);
+  filter: saturate(calc(1.1 * var(--pet-sat))) contrast(1.045) drop-shadow(0 1px 0 color-mix(in srgb, #fff 20%, transparent));
+  transform: translateY(-.4px) rotate(var(--pet-lean));
 }
 .dg-pet-eyes {
   transform-box: fill-box;
@@ -1354,20 +1371,20 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
   58% { transform: translateY(-1px) rotate(calc(var(--pet-turn) * -0.45)); }
 }
 @keyframes dgPetBlink {
-  0%, 57%, 90%, 100% { transform: translateX(0) scaleY(1); }
-  63% { transform: translateX(.45px) scaleY(1); }
-  68% { transform: translateX(0) scaleY(1); }
-  95% { transform: translateX(0) scaleY(0.12); }
+  0%, 57%, 90%, 100% { transform: translateX(0) scaleY(var(--pet-eye-open)); }
+  63% { transform: translateX(.45px) scaleY(var(--pet-eye-open)); }
+  68% { transform: translateX(0) scaleY(var(--pet-eye-open)); }
+  95% { transform: translateX(0) scaleY(calc(var(--pet-eye-open) * 0.12)); }
 }
 @keyframes dgPetBreathe { 0%, 100% { transform: scale(1); } 52% { transform: scale(1.025, .985); } }
-@keyframes dgPetEarLeft { 0%, 62%, 100% { transform: rotate(0); } 68% { transform: rotate(-11deg); } 74% { transform: rotate(3deg); } }
-@keyframes dgPetEarRight { 0%, 62%, 100% { transform: rotate(0); } 68% { transform: rotate(11deg); } 74% { transform: rotate(-3deg); } }
+@keyframes dgPetEarLeft { 0%, 62%, 100% { transform: rotate(var(--pet-ear-droop)); } 68% { transform: rotate(calc(var(--pet-ear-droop) - 11deg)); } 74% { transform: rotate(calc(var(--pet-ear-droop) + 3deg)); } }
+@keyframes dgPetEarRight { 0%, 62%, 100% { transform: rotate(calc(var(--pet-ear-droop) * -1)); } 68% { transform: rotate(calc(var(--pet-ear-droop) * -1 + 11deg)); } 74% { transform: rotate(calc(var(--pet-ear-droop) * -1 - 3deg)); } }
 @keyframes dgPetTail { 0%, 100% { transform: rotate(-5deg); } 32% { transform: rotate(9deg); } 66% { transform: rotate(-2deg); } }
 @keyframes dgPetWingLeft { 0%, 68%, 100% { transform: rotate(0); } 76% { transform: rotate(-17deg); } 84% { transform: rotate(5deg); } 91% { transform: rotate(-8deg); } }
 @keyframes dgPetWingRight { 0%, 68%, 100% { transform: rotate(0); } 76% { transform: rotate(17deg); } 84% { transform: rotate(-5deg); } 91% { transform: rotate(8deg); } }
 @keyframes dgPetTuft { 0%, 100% { transform: rotate(-3deg); } 44% { transform: rotate(4deg); } 70% { transform: rotate(-1deg); } }
 @keyframes dgPetAccessory { 0%, 100% { transform: translateY(0) rotate(0); } 52% { transform: translateY(.5px) rotate(3deg); } }
-@keyframes dgPetAura { 0%, 100% { transform: scale(.94); opacity: .72; } 52% { transform: scale(1.06); opacity: 1; } }
+@keyframes dgPetAura { 0%, 100% { transform: scale(.94); opacity: calc(.72 * var(--pet-aura)); } 52% { transform: scale(1.06); opacity: var(--pet-aura); } }
 @keyframes dgPetHappy { 0%, 100% { transform: translateY(0) rotate(0) scale(1); } 25% { transform: translateY(-5px) rotate(-8deg) scale(1.04); } 52% { transform: translateY(-1px) rotate(7deg) scale(1.02); } 76% { transform: translateY(-3px) rotate(-4deg) scale(1.03); } }
 @keyframes dgPetPlay { 0%, 100% { transform: translateX(0) translateY(0) rotate(0); } 20% { transform: translateX(-4px) translateY(-3px) rotate(-10deg); } 47% { transform: translateX(4px) translateY(-6px) rotate(11deg); } 73% { transform: translateX(-2px) translateY(-2px) rotate(-5deg); } }
 @keyframes dgPetTreat { 0%, 100% { transform: translateY(0) scale(1); } 30% { transform: translateY(2px) scale(.94, 1.06); } 58% { transform: translateY(-4px) scale(1.06, .94); } }
@@ -1379,17 +1396,114 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 .dg-pet-tray { position: absolute; z-index: 10; top: calc(100% + 8px); left: -5px; display: grid; gap: 7px; min-width: 195px; padding: 9px; border: 1px solid color-mix(in srgb, var(--violet) 23%, var(--border)); border-radius: 12px; background: color-mix(in srgb, var(--bg) 95%, var(--violet)); box-shadow: 0 10px 25px color-mix(in srgb, var(--text) 14%, transparent); font-family: var(--sans); font-size: 12px; line-height: 1.35; animation: dgPetTrayIn 160ms ease-out both; }
 .dg-pet-tray::before { position: absolute; top: -5px; left: 16px; width: 8px; height: 8px; border-top: 1px solid color-mix(in srgb, var(--violet) 23%, var(--border)); border-left: 1px solid color-mix(in srgb, var(--violet) 23%, var(--border)); background: color-mix(in srgb, var(--bg) 95%, var(--violet)); transform: rotate(45deg); content: ""; }
 .dg-pet-tray-label { position: relative; color: var(--text); font-weight: 650; }
+/* The adopt tray holds a 3-pet picker and a name field; the care tray is just a
+   line and three buttons. Only widen the one that needs it. */
+.dg-pet-tray.adopting { min-width: 236px; }
 .dg-pet-actions { display: flex; gap: 5px; }
 .dg-pet-actions button { flex: 1; padding: 5px 6px; border: 1px solid color-mix(in srgb, var(--violet) 20%, var(--border)); border-radius: 7px; background: color-mix(in srgb, var(--violet) 8%, var(--bg)); color: var(--text); font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; transition: transform 130ms ease, background 130ms ease, border-color 130ms ease; }
 .dg-pet-actions button:hover, .dg-pet-actions button:focus-visible { border-color: color-mix(in srgb, var(--violet) 52%, var(--border)); background: color-mix(in srgb, var(--violet) 17%, var(--bg)); outline: none; }
 .dg-pet-tray button:active { transform: translateY(1px) scale(.97); }
+/* Level + XP bar. `.dg-pet-bar` is aria-hidden — the accessible name on the pet
+   button already announces the level, so the bar is decoration. */
+.dg-pet-meta { display: flex; align-items: center; gap: 6px; }
+.dg-pet-lvl { flex: none; color: var(--violet); font-size: 11px; font-weight: 800; letter-spacing: .02em; }
+.dg-pet-bar { position: relative; overflow: hidden; flex: 1; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--violet) 16%, var(--bg)); }
+.dg-pet-bar-fill { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, color-mix(in srgb, var(--violet) 62%, var(--bg)), var(--violet)); transition: width 420ms cubic-bezier(.2,.9,.3,1); }
+.dg-pet-xp { flex: none; color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+.dg-pet-hint { color: var(--muted); font-size: 10.5px; line-height: 1.3; }
+/* Adoption picker — only rendered before a companion exists. */
+.dg-pet-pick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+.dg-pet-pick-btn { display: grid; justify-items: center; gap: 2px; padding: 6px 3px; border: 1px solid color-mix(in srgb, var(--violet) 18%, var(--border)); border-radius: 9px; background: color-mix(in srgb, var(--violet) 6%, var(--bg)); color: var(--text); font: inherit; cursor: pointer; transition: transform 130ms ease, background 130ms ease, border-color 130ms ease; }
+.dg-pet-pick-btn:hover, .dg-pet-pick-btn:focus-visible { border-color: color-mix(in srgb, var(--violet) 45%, var(--border)); background: color-mix(in srgb, var(--violet) 14%, var(--bg)); outline: none; }
+.dg-pet-pick-btn.on { border-color: var(--violet); background: color-mix(in srgb, var(--violet) 20%, var(--bg)); }
+.dg-pet-pick-btn .dg-pet { width: 30px; height: 30px; }
+.dg-pet-pick-btn .dg-pet::after, .dg-pet-pick-btn .dg-pet::before { display: none; }
+.dg-pet-pick-label { font-size: 9.5px; font-weight: 700; }
+.dg-pet-name { width: 100%; padding: 5px 7px; border: 1px solid color-mix(in srgb, var(--violet) 22%, var(--border)); border-radius: 7px; background: var(--bg); color: var(--text); font: inherit; font-size: 11px; }
+.dg-pet-name:focus-visible { border-color: var(--violet); outline: none; }
 @keyframes dgPetTrayIn { from { opacity: 0; transform: translateY(-4px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @media (prefers-reduced-motion: reduce) {
   .dg-pet, .dg-pet::before, .dg-pet *, .dg-pet-eyes, .dg-pet-tray { animation: none; }
 }
+/* Cosmetic toggle — every pet SVG already isolates its collar/leaf/scarf in
+   its own group, so hiding it needs no new art. */
+.dg-pet[data-accessory="off"] .dg-pet-accessory { display: none; }
+
+/* ── Moods ──────────────────────────────────────────────────────
+   Each mood sets the knobs declared on .dg-pet and retimes the existing part
+   animations. No new keyframes and no new artwork: every pet SVG already
+   isolates its ears, eyes, tail, wings and accessory into their own groups, so
+   twelve pets get six moods for the price of one stylesheet block.
+
+   The static transforms directly below are the reduced-motion story: with
+   `animation: none` the parts would otherwise sit at their neutral pose and
+   every mood would look identical. A running animation overrides them, and the
+   keyframes are built around the same variables, so motion and no-motion always
+   agree about which way the ears point. */
+.dg-pet-eyes { transform: scaleY(var(--pet-eye-open)); }
+.dg-pet-ear-left { transform: rotate(var(--pet-ear-droop)); }
+.dg-pet-ear-right { transform: rotate(calc(var(--pet-ear-droop) * -1)); }
+
+/* Ears up, everything quick, aura bright. */
+.dg-pet[data-mood="excited"] { --pet-ear-droop: -7deg; --pet-aura: 1.15; animation-duration: 1.35s; }
+.dg-pet[data-mood="excited"] .dg-pet-tail { animation-duration: .48s; }
+.dg-pet[data-mood="excited"] .dg-pet-wing { animation-duration: .8s; }
+.dg-pet[data-mood="excited"] .dg-pet-ear { animation-duration: 1.1s; }
+.dg-pet[data-mood="excited"] .dg-pet-face { animation-duration: 1.5s; }
+.dg-pet[data-mood="excited"] .dg-pet-tuft { animation-duration: .9s; }
+
+.dg-pet[data-mood="happy"] { --pet-ear-droop: -3deg; --pet-aura: 1.06; animation-duration: 2.1s; }
+.dg-pet[data-mood="happy"] .dg-pet-tail { animation-duration: .85s; }
+.dg-pet[data-mood="happy"] .dg-pet-wing { animation-duration: 1.6s; }
+.dg-pet[data-mood="happy"] .dg-pet-face { animation-duration: 2.4s; }
+
+/* "content" is the baseline — deliberately no overrides at all. */
+
+/* Eyes almost shut, ears folded, everything slowed right down. */
+.dg-pet[data-mood="sleepy"] {
+  --pet-ear-droop: 27deg; --pet-eye-open: .16; --pet-lean: 4deg;
+  --pet-aura: .5; --pet-sat: .82; --pet-dot: #d9b45e;
+  animation-duration: 5.8s;
+}
+.dg-pet[data-mood="sleepy"] .dg-pet-tail { animation-duration: 3.6s; }
+.dg-pet[data-mood="sleepy"] .dg-pet-wing { animation-duration: 5s; }
+.dg-pet[data-mood="sleepy"] .dg-pet-ear { animation-duration: 5.4s; }
+.dg-pet[data-mood="sleepy"] .dg-pet-face { animation-duration: 5.2s; }
+.dg-pet[data-mood="sleepy"] .dg-pet-eyes { animation-duration: 7s; }
+.dg-pet[data-mood="sleepy"] .dg-pet-tuft, .dg-pet[data-mood="sleepy"] .dg-pet-accessory { animation-duration: 4.6s; }
+
+.dg-pet[data-mood="bored"] {
+  --pet-ear-droop: 15deg; --pet-eye-open: .84; --pet-lean: 2deg;
+  --pet-aura: .8; --pet-sat: .93; --pet-dot: #c7b6a4;
+  animation-duration: 4.3s;
+}
+.dg-pet[data-mood="bored"] .dg-pet-tail { animation-duration: 2.8s; }
+.dg-pet[data-mood="bored"] .dg-pet-ear { animation-duration: 4.1s; }
+.dg-pet[data-mood="bored"] .dg-pet-face { animation-duration: 4s; }
+
+/* The lowest mood there is: wistful, never distressed. Nothing here reads as
+   sick or dying — see docs/pet-companion-plan.md §2. */
+.dg-pet[data-mood="missing"] {
+  --pet-ear-droop: 21deg; --pet-eye-open: .74; --pet-lean: 3deg;
+  --pet-aura: .66; --pet-sat: .86; --pet-dot: #b3a79c;
+  animation-duration: 5.1s;
+}
+.dg-pet[data-mood="missing"] .dg-pet-tail { animation-duration: 3.3s; }
+.dg-pet[data-mood="missing"] .dg-pet-ear { animation-duration: 4.8s; }
+.dg-pet[data-mood="missing"] .dg-pet-face { animation-duration: 4.7s; }
+
+/* A care tap should feel instant, so a reaction overrides the mood's timing
+   even when the pet is meant to be half-asleep. */
+.dg-pet[data-reaction] .dg-pet-ear, .dg-pet[data-reaction] .dg-pet-face { animation-duration: .5s; }
+.dg-pet[data-reaction] .dg-pet-eyes { animation-duration: 2.2s; }
 .dg-pet[data-pet="cat"], .dg-pet[data-pet="bunny"], .dg-pet[data-pet="koala"] { --pet-turn: -2deg; --pet-accent: #d88bac; }
 .dg-pet[data-pet="fox"], .dg-pet[data-pet="chick"], .dg-pet[data-pet="otter"] { --pet-turn: 2.5deg; --pet-accent: #e98a50; }
-.dg-pet[data-pet="dog"], .dg-pet[data-pet="capybara"] { --pet-turn: -1.2deg; --pet-accent: #c99659; }
+.dg-pet[data-pet="dog"] { --pet-turn: -1.2deg; --pet-accent: #c99659; }
+.dg-pet[data-pet="axolotl"] { --pet-turn: 1.8deg; --pet-accent: #e76ea8; }
+.dg-pet[data-pet="axolotl"] .dg-pet-axolotl-gill { animation: dgPetAxolotlGills 1.55s ease-in-out infinite; }
+.dg-pet[data-pet="axolotl"] .dg-pet-axolotl-bubbles { transform-box: fill-box; transform-origin: center; animation: dgPetAxolotlBubbles 3.2s ease-in infinite; }
+@keyframes dgPetAxolotlGills { 0%, 100% { transform: rotate(0) scale(1); } 48% { transform: rotate(-7deg) scale(1.06); } }
+@keyframes dgPetAxolotlBubbles { 0%, 20% { opacity: 0; transform: translateY(2px) scale(.72); } 42% { opacity: .85; } 100% { opacity: 0; transform: translateY(-5px) scale(1.08); } }
 .dg-pet[data-pet="penguin"], .dg-pet[data-pet="rover"] { --pet-turn: 1.4deg; --pet-accent: #79a9c8; }
 .dg-pet[data-pet="panda"], .dg-pet[data-pet="raccoon"] { --pet-turn: -1.7deg; --pet-accent: #8993a7; }
 .dg-pet[data-pet="fox"] .dg-pet-tail, .dg-pet[data-pet="otter"] .dg-pet-tail { animation-delay: -0.6s; }

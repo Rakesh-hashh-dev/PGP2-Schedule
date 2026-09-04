@@ -1,8 +1,30 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getGreetingBucket, getTimeGreeting } from "../lib/datetime.js";
 import { dayKey, getPetByKey, getPetOfTheDay } from "./greetingPets.jsx";
+import {
+  CARE_ACTIONS, STARTER_KEYS, careLeft, careUsedToday, isAdopted, levelProgress, moodFor, xpOf,
+} from "../lib/pet.js";
 
-export default function DayGreeting({ now, name, petSettings, userPetsEnabled = true }) {
+// Flavour per action, per mood-neutral. The pet's *name* carries the warmth, so
+// these stay short — the tray is a 195px popover, not a chat window.
+const CARE_LINES = {
+  pet: ["leans into the pats.", "melts a little."],
+  play: ["is ready to play!", "does a tiny victory lap."],
+  treat: ["saved that for later.", "accepts. Tail-powered gratitude engaged."],
+};
+
+const MOOD_LINE = {
+  excited: "is bouncing off the walls.",
+  happy: "is having a good day.",
+  content: "is hanging out.",
+  sleepy: "is dozing off.",
+  bored: "is looking for something to do.",
+  missing: "missed you.",
+};
+
+export default function DayGreeting({
+  now, name, petSettings, userPetsEnabled = true, pet, petActions, companionEnabled = true,
+}) {
   const [greeting, setGreeting] = useState(null);
   // Which (day, time-band) the current greeting line was picked for.
   const [greetingStamp, setGreetingStamp] = useState(null);
@@ -10,14 +32,13 @@ export default function DayGreeting({ now, name, petSettings, userPetsEnabled = 
   const [petReaction, setPetReaction] = useState("");
   // Tagged with the pet it was written about, so a message can't outlive its pet.
   const [petMessage, setPetMessage] = useState(null);
+  const [adoptChoice, setAdoptChoice] = useState(null);
+  const [adoptName, setAdoptName] = useState("");
   const reactionTimer = useRef(null);
   const shellRef = useRef(null);
 
   // `now` ticks every second, but the greeting only goes stale when the day or
   // the time-of-day band changes — so re-pick on that, not on every tick.
-  // Re-picking per tick would reshuffle the random line constantly; never
-  // re-picking (the original behaviour) left a tab open overnight showing
-  // yesterday's pet and "Good evening" at 9am.
   const stamp = `${dayKey(now)}|${getGreetingBucket(now.getHours())}`;
   if (name && greetingStamp !== stamp) {
     setGreetingStamp(stamp);
@@ -27,34 +48,50 @@ export default function DayGreeting({ now, name, petSettings, userPetsEnabled = 
   // Pure function of the date, so it needs no state — but memoise on the key so
   // the object identity (and the SVG below) survives the live clock's renders.
   const petKeyOfDay = getPetOfTheDay(now).key;
-  const pet = useMemo(() => getPetByKey(petKeyOfDay), [petKeyOfDay]);
+  const dailyPet = useMemo(() => getPetByKey(petKeyOfDay), [petKeyOfDay]);
 
+  // With the companion layer off (admin kill switch), the greeting keeps its
+  // decorative daily pet but offers nothing persistent — no adoption, no care.
+  const adopted = companionEnabled && isAdopted(pet);
   const petsEnabled = petSettings?.enabled !== false && userPetsEnabled;
-  const displayPet = petSettings?.mode === "featured"
-    ? getPetByKey(petSettings.petKey)
-    : pet;
   const motionEnabled = petSettings?.motion !== false;
+
+  // An adopted companion outranks the daily rotation and the admin's featured
+  // pick — those exist to give un-adopted students something to meet.
+  const displayPet = adopted
+    ? getPetByKey(pet.petKey)
+    : (petSettings?.mode === "featured" ? getPetByKey(petSettings.petKey) : dailyPet);
+
   // Memoise the SVG element so the live clock's re-renders don't rebuild it.
   const petEl = useMemo(() => (displayPet ? <displayPet.Svg /> : null), [displayPet]);
   useEffect(() => () => window.clearTimeout(reactionTimer.current), []);
 
-  // A message only stands while its own pet is on screen: the day rolling over
-  // or an admin switching the featured pet retires it, since the line names the
-  // pet by label.
+  // Derived here rather than in usePet: both depend on the live clock, and the
+  // hook would have to re-render once a second to keep them fresh.
+  const mood = adopted ? moodFor(pet, now) : "content";
+  const progress = adopted ? levelProgress(xpOf(pet)) : null;
+  const left = adopted ? careLeft(pet, now) : 0;
+
+  const petLabel = adopted && pet.name ? pet.name : displayPet?.label;
+
+  // A message only stands while its own pet is on screen: the day rolling over,
+  // an admin switching the featured pet, or adopting retires it.
   const trayLabel = petMessage?.key === displayPet?.key
-    ? petMessage.text
-    : `${displayPet?.label} is hanging out.`;
+    ? `${petLabel} ${petMessage.text}`
+    : `${petLabel} ${MOOD_LINE[mood]}`;
 
   // Closing drops the last reaction line too, so reopening the tray greets you
   // afresh instead of replaying "Treat accepted" from an hour ago.
   const closeTray = useCallback(() => {
     setIsPetTrayOpen(false);
     setPetMessage(null);
+    setAdoptChoice(null);
+    setAdoptName("");
   }, []);
 
   // Dismiss on Escape or an outside click, like the app's other popovers.
   useEffect(() => {
-    if (!isPetTrayOpen) return;
+    if (!isPetTrayOpen) return undefined;
     const onKeyDown = e => { if (e.key === "Escape") closeTray(); };
     const onPointerDown = e => {
       if (!shellRef.current?.contains(e.target)) closeTray();
@@ -68,18 +105,37 @@ export default function DayGreeting({ now, name, petSettings, userPetsEnabled = 
   }, [isPetTrayOpen, closeTray]);
 
   const reactWithPet = action => {
-    const messages = {
-      pet: [`${displayPet.label} leans into the pats.`, "That was a very good scratch."],
-      play: [`${displayPet.label} is ready to play!`, "A tiny victory lap for you."],
-      treat: [`${displayPet.label} saved that treat for later.`, "Treat accepted. Tail-powered gratitude activated."],
-    };
-    const options = messages[action];
-    setPetMessage({ key: displayPet.key, text: options[Math.floor(Math.random() * options.length)] });
+    if (!adopted || !petActions) return;
+    const wasFree = careLeft(pet, now) > 0;
+    // Cycle the flavour line off the care counter rather than Math.random:
+    // deterministic (so it stays a pure function of state) but still different
+    // on the next tap.
+    const used = careUsedToday(pet, now);
+    petActions.care(action, now);
+    const options = CARE_LINES[action];
+    setPetMessage({
+      key: displayPet.key,
+      // Over-cap taps still animate and still get a line — the pet should never
+      // feel unresponsive — but they say so rather than implying more XP.
+      text: wasFree
+        ? options[used % options.length]
+        : "has had plenty of attention today.",
+    });
     setPetReaction(action);
     window.clearTimeout(reactionTimer.current);
     reactionTimer.current = window.setTimeout(() => setPetReaction(""), 1150);
   };
+
+  const confirmAdopt = () => {
+    if (!adoptChoice || !petActions) return;
+    petActions.adopt(adoptChoice, adoptName.trim() || getPetByKey(adoptChoice).label, now);
+    setAdoptChoice(null);
+    setAdoptName("");
+    setPetMessage(null);
+  };
+
   if (!greeting) return null;
+
   return (
     <div className="day-greeting">
       {petsEnabled && displayPet && (
@@ -89,25 +145,100 @@ export default function DayGreeting({ now, name, petSettings, userPetsEnabled = 
             className="dg-pet"
             data-pet={displayPet.key}
             data-motion={motionEnabled ? "on" : "off"}
+            data-mood={adopted ? mood : undefined}
+            data-accessory={adopted && pet.cosmetics?.accessory === false ? "off" : undefined}
             data-reaction={petReaction || undefined}
             onClick={() => (isPetTrayOpen ? closeTray() : setIsPetTrayOpen(true))}
             aria-expanded={isPetTrayOpen}
             aria-controls="daily-pet-actions"
             // Doubles as the hover tooltip and the accessible name — the SVG
             // itself is aria-hidden so the pet isn't announced twice.
-            aria-label={`Spend a moment with ${displayPet.label}`}
-            title={`Spend a moment with ${displayPet.label}`}
+            aria-label={adopted ? `${petLabel}, level ${progress.level}` : `Meet ${displayPet.label}`}
+            title={adopted ? `${petLabel} · Lv ${progress.level}` : `Meet ${displayPet.label}`}
           >
             {petEl}
           </button>
+
           {isPetTrayOpen && (
-            <span className="dg-pet-tray" id="daily-pet-actions" role="group" aria-label={`${displayPet.label} companion actions`}>
-              <span className="dg-pet-tray-label">{trayLabel}</span>
-              <span className="dg-pet-actions">
-                <button type="button" onClick={() => reactWithPet("pet")}>Pet</button>
-                <button type="button" onClick={() => reactWithPet("play")}>Play</button>
-                <button type="button" onClick={() => reactWithPet("treat")}>Treat</button>
-              </span>
+            <span
+              className={`dg-pet-tray${!adopted && companionEnabled ? " adopting" : ""}`}
+              id="daily-pet-actions"
+              role="group"
+              aria-label={adopted ? `${petLabel} companion actions` : "Adopt a companion"}
+            >
+              {adopted ? (
+                <>
+                  <span className="dg-pet-tray-label">{trayLabel}</span>
+                  <span className="dg-pet-meta">
+                    <span className="dg-pet-lvl">Lv {progress.level}</span>
+                    <span className="dg-pet-bar" aria-hidden="true">
+                      <span className="dg-pet-bar-fill" style={{ width: `${progress.pct}%` }} />
+                    </span>
+                    <span className="dg-pet-xp">
+                      {progress.maxed ? "Max" : `${progress.into}/${progress.need}`}
+                    </span>
+                  </span>
+                  <span className="dg-pet-actions">
+                    {CARE_ACTIONS.map(action => (
+                      <button key={action} type="button" onClick={() => reactWithPet(action)}>
+                        {action[0].toUpperCase() + action.slice(1)}
+                      </button>
+                    ))}
+                  </span>
+                  <span className="dg-pet-hint">
+                    {left > 0
+                      ? `${left} treat${left === 1 ? "" : "s"} left today`
+                      : "Mark your classes to keep earning XP"}
+                  </span>
+                </>
+              ) : !companionEnabled ? (
+                // Companion layer off: the daily pet is decoration again, so the
+                // tray says hello and offers nothing that would need saving.
+                <span className="dg-pet-tray-label">{displayPet.label} is hanging out.</span>
+              ) : (
+                <>
+                  <span className="dg-pet-tray-label">Adopt a companion?</span>
+                  <span className="dg-pet-hint">
+                    It levels up as you mark classes and clear deadlines.
+                  </span>
+                  <span className="dg-pet-pick">
+                    {STARTER_KEYS.map(key => {
+                      const option = getPetByKey(key);
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          className={`dg-pet-pick-btn${adoptChoice === key ? " on" : ""}`}
+                          aria-pressed={adoptChoice === key}
+                          onClick={() => setAdoptChoice(key)}
+                          title={option.label}
+                        >
+                          <span className="dg-pet" data-pet={key} data-motion="off" aria-hidden="true">
+                            <option.Svg />
+                          </span>
+                          <span className="dg-pet-pick-label">{option.label}</span>
+                        </button>
+                      );
+                    })}
+                  </span>
+                  {adoptChoice && (
+                    <>
+                      <input
+                        className="dg-pet-name"
+                        value={adoptName}
+                        maxLength={24}
+                        placeholder={`Name your ${getPetByKey(adoptChoice).label.toLowerCase()}`}
+                        aria-label="Companion name"
+                        onChange={e => setAdoptName(e.target.value)}
+                        onKeyDown={e => { if (e.key === "Enter") confirmAdopt(); }}
+                      />
+                      <span className="dg-pet-actions">
+                        <button type="button" onClick={confirmAdopt}>Adopt</button>
+                      </span>
+                    </>
+                  )}
+                </>
+              )}
             </span>
           )}
         </span>
