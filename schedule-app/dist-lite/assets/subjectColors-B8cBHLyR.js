@@ -1,1 +1,0 @@
-var t=new Map;function e(e=[],r=[]){t.clear();const n=[...[...new Set(e)].filter(Boolean).sort(),...[...new Set(r)].filter(Boolean).sort()];let o=0;for(const a of n)t.has(a)||t.set(a,o++%10)}function r(e){return`subj-${function(e){if(!e)return 0;const r=t.get(e);return void 0!==r?r:Array.from(e).reduce((t,e)=>t+e.charCodeAt(0),0)%10}(e)}`}export{r as n,e as t};

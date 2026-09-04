@@ -1,1 +1,0 @@
-var e=["today","tomorrow","week","exams","attendance","leave","fullSchedule","friends"];export{e as t};

@@ -1,1 +1,0 @@
-import{n as s}from"./rolldown-runtime-DdACKOZr.js";import{t as o}from"./supabase-gTq172GT.js";var e=s({supabase:()=>n}),n=o(void 0,void 0,{accessToken:async()=>window.Clerk?.session?window.Clerk.session.getToken():null});export{e as n,n as t};
