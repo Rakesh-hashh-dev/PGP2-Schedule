@@ -290,11 +290,22 @@ describe("unlocks", () => {
     expect(new Set(all).size).toBe(all.length);
     expect(new Set(all).size).toBe(PETS.length);
   });
-  it("grows with level and is complete by level 10", () => {
+  it("grows with level and is complete at MAX_LEVEL", () => {
     expect(unlockedAtLevel(1)).toEqual(STARTER_KEYS);
     expect(unlockedAtLevel(2)).toContain("fox");
     expect(unlockedAtLevel(1)).not.toContain("fox");
-    expect(unlockedAtLevel(10)).toHaveLength(PETS.length);
+    // The curve runs to 12, so the roster should too: 11 and 12 used to unlock
+    // nothing, which made the last two level-ups feel empty.
+    expect(unlockedAtLevel(10)).not.toHaveLength(PETS.length);
+    expect(unlockedAtLevel(MAX_LEVEL)).toHaveLength(PETS.length);
+    expect(unlockedAtLevel(MAX_LEVEL)).toContain("spark");
+    expect(unlockedAtLevel(MAX_LEVEL)).toContain("leafy");
+  });
+
+  it("gives every level from 2 to MAX_LEVEL something new", () => {
+    for (let level = 2; level <= MAX_LEVEL; level++) {
+      expect(newlyUnlocked(level - 1, level), `level ${level} unlocks nothing`).toHaveLength(1);
+    }
   });
   it("reports what a level-up just earned", () => {
     expect(newlyUnlocked(1, 2)).toEqual(["fox"]);
@@ -476,22 +487,35 @@ describe("admin-granted XP", () => {
     expect(xpOf({ ...p, grantedXp: 700 })).toBe(700 + XP.attendance);
   });
 
-  it("defaults to 0 and rejects junk", () => {
+  it("defaults to 0 and rejects junk, but keeps negatives", () => {
     expect(emptyPet().grantedXp).toBe(0);
-    expect(normalize({ ...emptyPet(), grantedXp: -5 }).grantedXp).toBe(0);
     expect(normalize({ ...emptyPet(), grantedXp: "700" }).grantedXp).toBe(0);
+    // A penalty is a legitimate value now: admins can reduce XP, and the old
+    // `> 0 ? x : 0` clamp would have silently discarded every reduction.
+    expect(normalize({ ...emptyPet(), grantedXp: -5 }).grantedXp).toBe(-5);
   });
 
   it("raises the level the same way earned XP would", () => {
     expect(levelFor(xpOf({ ...adopted(), grantedXp: xpToReach(5) }))).toBe(5);
   });
 
-  it("takes the max on merge, so a stale cache cannot erase a grant", () => {
+  it("lowers the total when negative, and never past zero", () => {
+    const p = award(adopted(), "att:2026-09-04:SCM_A", XP.attendance, at("2026-09-04T10:00:00"));
+    expect(xpOf({ ...p, grantedXp: -5 })).toBe(XP.attendance - 5);
+    // The server clamps so the total floors at 0; this is the client's own
+    // guard so a corrupt cached row can't drive a negative bar or level.
+    expect(xpOf({ ...p, grantedXp: -99999 })).toBe(0);
+    expect(levelFor(xpOf({ ...p, grantedXp: -99999 }))).toBe(1);
+  });
+
+  it("takes the recent copy on merge, so a penalty is not undone", () => {
     const base = adopted();
-    const cloud = { ...base, grantedXp: 700, lastSeen: 1 };
-    const stale = { ...base, grantedXp: 0, lastSeen: 2 };
-    expect(mergePets(stale, cloud).grantedXp).toBe(700);
-    expect(mergePets(cloud, stale).grantedXp).toBe(700);
+    // `max` was right while this could only grow, but it would resurrect a
+    // reduced grant: max(-200, 0) === 0.
+    const cloud = { ...base, grantedXp: -200, lastSeen: 2 };
+    const stale = { ...base, grantedXp: 0, lastSeen: 1 };
+    expect(mergePets(stale, cloud).grantedXp).toBe(-200);
+    expect(mergePets(cloud, stale).grantedXp).toBe(-200);
   });
 
   it("is reported as its own source so the parts still sum to the total", () => {
@@ -499,5 +523,14 @@ describe("admin-granted XP", () => {
     const rows = xpBySource(p);
     expect(rows.find(r => r.prefix === "grant")?.xp).toBe(700);
     expect(rows.reduce((n, r) => n + r.xp, 0)).toBe(xpOf(p));
+  });
+
+  it("labels a reduction as an adjustment, and still sums", () => {
+    const earned = award(adopted(), "att:2026-09-04:SCM_A", 100, at("2026-09-04T10:00:00"));
+    const p = { ...earned, grantedXp: -40 };
+    const row = xpBySource(p).find(r => r.prefix === "grant");
+    expect(row.label).toBe("Adjustment");
+    expect(row.xp).toBe(-40);
+    expect(xpBySource(p).reduce((n, r) => n + r.xp, 0)).toBe(xpOf(p));
   });
 });

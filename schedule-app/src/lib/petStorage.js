@@ -97,6 +97,7 @@ export function fromRow(row) {
     adoptedAt: row.adopted_at ?? null,
     baseXp: row.base_xp ?? 0,
     grantedXp: row.granted_xp ?? 0,
+    companionEnabled: row.companion_enabled !== false,
     awarded: row.awarded ?? {},
     care: row.care ?? { day: null, used: 0 },
     lastSeen: Number(row.last_seen) || 0,
@@ -124,7 +125,15 @@ export async function syncPetFromCloud(userId) {
     if (error) { console.warn("[pet] sync failed:", error.message); return local; }
 
     const remote = fromRow(data);
-    const merged = prune(remote ? mergePets(local, remote) : local);
+    // grantedXp is the server's alone — a signed admin adjustment the client
+    // never writes. Take it verbatim from the row rather than through the
+    // merge, so a stale cache can't resurrect a grant that was reduced or
+    // reset while this device was away.
+    const merged = prune(
+      remote
+        ? { ...mergePets(local, remote), grantedXp: remote.grantedXp, companionEnabled: remote.companionEnabled }
+        : local,
+    );
     savePetLocal(userId, merged);
     // Push back when the local side contributed something the row didn't have,
     // so an offline stretch lands the moment the app is online again.

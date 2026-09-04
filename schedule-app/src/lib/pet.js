@@ -51,6 +51,9 @@ export const STARTER_KEYS = ["cat", "dog", "bunny"];
 export const UNLOCKS = {
   2: "fox", 3: "penguin", 4: "panda", 5: "chick", 6: "koala",
   7: "otter", 8: "rover", 9: "raccoon", 10: "axolotl",
+  // 11 and 12 previously unlocked nothing — the roster ran out before the
+  // curve did, so the last two level-ups gave no new companion.
+  11: "spark", 12: "leafy",
 };
 
 // ── State ───────────────────────────────────────────────────────
@@ -69,7 +72,8 @@ export function emptyPet() {
     name: "",
     adoptedAt: null,
     baseXp: 0,         // XP from ledger entries since pruned
-    grantedXp: 0,      // admin-granted XP; server-owned, never written here
+    grantedXp: 0,      // signed admin adjustment; server-owned, never written here
+    companionEnabled: true, // per-student kill switch; server-owned too
     awarded: {},       // { eventKey: [ymd, xp] }
     care: { day: null, used: 0 },
     lastSeen: 0,
@@ -93,7 +97,8 @@ function isNormalized(raw) {
   if (raw.petKey !== null && typeof raw.petKey !== "string") return false;
   if (typeof raw.name !== "string" || raw.name.length > 24) return false;
   if (!Number.isFinite(raw.baseXp) || raw.baseXp < 0) return false;
-  if (!Number.isFinite(raw.grantedXp) || raw.grantedXp < 0) return false;
+  if (!Number.isFinite(raw.grantedXp)) return false;
+  if (typeof raw.companionEnabled !== "boolean") return false;
   if (!Number.isFinite(raw.lastSeen) || raw.lastSeen < 0) return false;
   if (!raw.awarded || typeof raw.awarded !== "object" || Array.isArray(raw.awarded)) return false;
   for (const v of Object.values(raw.awarded)) {
@@ -135,7 +140,10 @@ export function normalize(raw) {
     petKey: typeof raw.petKey === "string" ? raw.petKey : null,
     name: typeof raw.name === "string" ? raw.name.slice(0, 24) : "",
     baseXp: Number.isFinite(raw.baseXp) && raw.baseXp > 0 ? raw.baseXp : 0,
-    grantedXp: Number.isFinite(raw.grantedXp) && raw.grantedXp > 0 ? raw.grantedXp : 0,
+    grantedXp: Number.isFinite(raw.grantedXp) ? raw.grantedXp : 0,
+    // Defaults ON: a row written before this column existed, or a cache from
+    // an older build, must not read as "switched off".
+    companionEnabled: raw.companionEnabled !== false,
     awarded,
     care: {
       day: typeof raw.care?.day === "string" ? raw.care.day : null,
@@ -201,7 +209,7 @@ export function xpOf(state) {
   const s = normalize(state);
   let total = s.baseXp + s.grantedXp;
   for (const [, xp] of Object.values(s.awarded)) total += xp;
-  return total;
+  return Math.max(0, total);
 }
 
 /** Cumulative XP needed to *reach* `level` (level 1 costs nothing). */
@@ -368,7 +376,13 @@ export function xpBySource(state, sinceDay = null) {
     .filter(([prefix]) => totals[prefix])
     .map(([prefix, label]) => ({ prefix, label, xp: totals[prefix] }));
   if (!sinceDay && s.baseXp > 0) out.push({ prefix: "base", label: "Earlier", xp: s.baseXp });
-  if (!sinceDay && s.grantedXp > 0) out.push({ prefix: "grant", label: "Granted", xp: s.grantedXp });
+  if (!sinceDay && s.grantedXp !== 0) {
+    out.push({
+      prefix: "grant",
+      label: s.grantedXp > 0 ? "Granted" : "Adjustment",
+      xp: s.grantedXp,
+    });
+  }
   return out;
 }
 
@@ -443,9 +457,11 @@ export function mergePets(a, b) {
   return {
     ...recent,
     baseXp: Math.max(left.baseXp, right.baseXp),
-    // Server-owned: the cloud copy is authoritative, so take the larger rather
-    // than letting a stale local cache erase a grant made while offline.
-    grantedXp: Math.max(left.grantedXp, right.grantedXp),
+    // Server-owned and now signed, so `max` would quietly undo a penalty
+    // (max(-200, 0) === 0). The more recently touched copy wins here, and
+    // syncPetFromCloud overrides it from the remote row anyway.
+    grantedXp: recent.grantedXp,
+    companionEnabled: recent.companionEnabled,
     awarded: { ...older.awarded, ...recent.awarded },
     care: careDay,
     lastSeen: Math.max(left.lastSeen, right.lastSeen),

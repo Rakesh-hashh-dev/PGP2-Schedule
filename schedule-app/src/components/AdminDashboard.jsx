@@ -320,6 +320,33 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [petLevelDraft, setPetLevelDraft] = useState(1);
   const [petLevelBusy, setPetLevelBusy] = useState(false);
   const [petLevelMessage, setPetLevelMessage] = useState("");
+  const [petXpDraft, setPetXpDraft] = useState(100);
+  // The inspector's live view of the selected student's companion. pet_state is
+  // self-only under RLS, so this can only come from the definer-side RPC —
+  // without it every button in that panel is fire-and-forget.
+  const [petState, setPetState] = useState(null);
+  const [petStateNonce, setPetStateNonce] = useState(0);
+  const [petUnlockDraft, setPetUnlockDraft] = useState(PETS[0]?.key || "cat");
+
+  // Reload whenever the inspector opens a different student, or after any
+  // mutation bumps the nonce — so the panel always shows what actually landed
+  // rather than what was requested.
+  useEffect(() => {
+    const uid = selectedUser?.user_id;
+    if (!uid) return undefined;
+    let alive = true;
+    supabase.rpc("admin_get_pet_state", { p_user_id: uid }).then(({ data, error }) => {
+      if (!alive) return;
+      setPetState(error ? null : (Array.isArray(data) ? data[0] ?? null : data ?? null));
+    });
+    return () => { alive = false; };
+  }, [selectedUser?.user_id, petStateNonce]);
+  // Cohort-wide companion controls, kept separate from the per-user ones so a
+  // busy/failed bulk run can never be mistaken for the single-student panel.
+  const [petBulkDraft, setPetBulkDraft] = useState(100);
+  const [petBulkLevelDraft, setPetBulkLevelDraft] = useState(1);
+  const [petBulkBusy, setPetBulkBusy] = useState(false);
+  const [petBulkMessage, setPetBulkMessage] = useState("");
 
   const [activeUsersListModalOpen, setActiveUsersListModalOpen] = useState(false);
   const [activeUsersSort, setActiveUsersSort] = useState("recent"); // "recent" | "oldest" | "name"
@@ -5140,7 +5167,107 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 </div>
               );
             })()}
-            
+
+            {/* Cohort-wide companion XP. These take effect immediately on every
+                adopted pet — they are RPC calls, not flags, so there is no
+                Deploy step to undo them. Hence the explicit counts and the
+                typed confirmation on the destructive one. */}
+            <div className="admin-field" style={{ marginTop: 16 }}>
+              <label style={{ display: "block", marginBottom: 8, fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "1px" }}>Companion XP — all students</label>
+              <p className="admin-subtext" style={{ margin: "0 0 10px" }}>
+                Applies to every student who has adopted a companion. Adjustments sit
+                beside earned XP rather than replacing it, so classes, deadlines and
+                streaks are never deleted and any change here can be undone with
+                &ldquo;Reset adjustments&rdquo;. Totals floor at zero.
+              </p>
+
+              <div className="admin-field-row" style={{ alignItems: "flex-end", maxWidth: 460 }}>
+                <label className="admin-field" style={{ flex: "1 1 110px", margin: 0 }}>
+                  <span>XP amount</span>
+                  <input
+                    className="admin-input"
+                    type="number"
+                    min="1"
+                    step="10"
+                    value={petBulkDraft}
+                    disabled={petBulkBusy}
+                    onChange={e => setPetBulkDraft(Math.max(1, Number(e.target.value) || 0))}
+                  />
+                </label>
+                {[["Add to all", 1], ["Remove from all", -1]].map(([label, sign]) => (
+                  <button
+                    key={label}
+                    type="button"
+                    className="admin-btn outline"
+                    disabled={petBulkBusy || petBulkDraft < 1}
+                    onClick={async () => {
+                      const delta = sign * petBulkDraft;
+                      if (!confirm(`${sign > 0 ? "Add" : "Remove"} ${petBulkDraft} XP ${sign > 0 ? "to" : "from"} EVERY student with a companion?\n\nThis takes effect immediately. Earned history is kept, and this can be undone by applying the opposite amount.`)) return;
+                      setPetBulkBusy(true); setPetBulkMessage("");
+                      const { data, error } = await supabase.rpc("admin_bulk_adjust_pet_xp", { p_delta: delta });
+                      setPetBulkBusy(false);
+                      if (error) { setPetBulkMessage(`Could not update companions: ${error.message}`); return; }
+                      setPetBulkMessage(`${sign > 0 ? "Added" : "Removed"} ${petBulkDraft} XP ${sign > 0 ? "to" : "from"} ${data} companion${data === 1 ? "" : "s"}.`);
+                      await logAdminAction(admin_id, "bulk_adjust_pet_xp", { delta, affected: data });
+                    }}
+                  >
+                    {petBulkBusy ? "Working…" : label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="admin-field-row" style={{ alignItems: "flex-end", maxWidth: 460, marginTop: 10 }}>
+                <label className="admin-field" style={{ flex: "1 1 110px", margin: 0 }}>
+                  <span>Set everyone to</span>
+                  <select
+                    className="admin-input"
+                    value={petBulkLevelDraft}
+                    disabled={petBulkBusy}
+                    onChange={e => setPetBulkLevelDraft(Number(e.target.value))}
+                  >
+                    {Array.from({ length: 12 }, (_, index) => index + 1).map(level => <option key={level} value={level}>Level {level}</option>)}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  className="admin-btn outline"
+                  disabled={petBulkBusy}
+                  onClick={async () => {
+                    // The only cohort action that can take progress away from
+                    // students who earned it, so it asks for the level typed back.
+                    const typed = prompt(`Set EVERY companion to exactly Level ${petBulkLevelDraft}?\n\nStudents who earned beyond this will be reduced to match — it flattens the leaderboard. Earned history is kept and "Reset adjustments" undoes it.\n\nType ${petBulkLevelDraft} to confirm:`);
+                    if (typed === null) return;
+                    if (typed.trim() !== String(petBulkLevelDraft)) { setPetBulkMessage("Cancelled — confirmation did not match."); return; }
+                    setPetBulkBusy(true); setPetBulkMessage("");
+                    const { data, error } = await supabase.rpc("admin_bulk_set_pet_level", { p_level: petBulkLevelDraft });
+                    setPetBulkBusy(false);
+                    if (error) { setPetBulkMessage(`Could not update companions: ${error.message}`); return; }
+                    setPetBulkMessage(`Set ${data} companion${data === 1 ? "" : "s"} to Level ${petBulkLevelDraft}.`);
+                    await logAdminAction(admin_id, "bulk_set_pet_level", { level: petBulkLevelDraft, affected: data });
+                  }}
+                >
+                  Set all to level
+                </button>
+                <button
+                  type="button"
+                  className="admin-btn outline"
+                  disabled={petBulkBusy}
+                  onClick={async () => {
+                    if (!confirm("Reset every admin adjustment?\n\nAll companions fall back to purely earned XP. Grants and reductions are cleared; nothing students earned is affected.")) return;
+                    setPetBulkBusy(true); setPetBulkMessage("");
+                    const { data, error } = await supabase.rpc("admin_bulk_reset_pet_adjustments");
+                    setPetBulkBusy(false);
+                    if (error) { setPetBulkMessage(`Could not reset companions: ${error.message}`); return; }
+                    setPetBulkMessage(data === 0 ? "No companions had adjustments to reset." : `Reset adjustments on ${data} companion${data === 1 ? "" : "s"}.`);
+                    await logAdminAction(admin_id, "bulk_reset_pet_adjustments", { affected: data });
+                  }}
+                >
+                  Reset adjustments
+                </button>
+              </div>
+              {petBulkMessage && <p className="admin-subtext" style={{ margin: "9px 0 0", color: petBulkMessage.startsWith("Could not") ? "var(--danger)" : "var(--live)" }}>{petBulkMessage}</p>}
+            </div>
+
             <div className="admin-field" style={{ marginTop: 16 }}>
               <label style={{ display: "block", marginBottom: 8, fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "1px" }}>TermFlow Wrapped Release</label>
               {(() => {
@@ -5918,10 +6045,96 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             </section>
 
             <section className="admin-user-xray-section">
-              <h3><PawPrint size={15} /> Companion level</h3>
-              <p>Grant this student enough XP to reach a level. Earned XP and completed-event history are retained, so this action never lowers progress.</p>
-              <div className="admin-field-row" style={{ alignItems: "flex-end", maxWidth: 360 }}>
-                <label className="admin-field" style={{ flex: "1 1 120px", margin: 0 }}>
+              <h3><PawPrint size={15} /> Companion XP &amp; level</h3>
+              <p>
+                Adjustments are stored separately from earned XP, so a student&rsquo;s
+                classes, deadlines and streaks are never deleted &mdash; a reduction can be
+                undone by adding the same amount back. Total XP floors at zero.
+              </p>
+
+              {/* Live state. Without this the buttons below were fire-and-forget:
+                  no way to see whether a grant landed, or that a reduction is
+                  already in place. */}
+              {!petState ? (
+                <p className="admin-subtext" style={{ margin: "0 0 12px" }}>No companion record for this student yet.</p>
+              ) : (
+                <div className="admin-field" style={{ margin: "0 0 14px", padding: "10px 12px", border: "1px solid var(--border)", borderRadius: 10 }}>
+                  {petState.pet_key ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                      <span className="dg-pet" data-pet={petState.pet_key} data-motion="off" aria-hidden="true" style={{ width: 34, height: 34, flex: "none" }}>
+                        {(() => { const P = getPetByKey(petState.pet_key).Svg; return <P />; })()}
+                      </span>
+                      <div>
+                        <strong>{petState.name || getPetByKey(petState.pet_key).label}</strong>
+                        <span className="admin-subtext"> &middot; Level {petState.level}</span>
+                        <div className="admin-subtext">
+                          {petState.earned_xp} earned
+                          {petState.granted_xp !== 0 && (
+                            <> {petState.granted_xp > 0 ? "+" : "−"}{Math.abs(petState.granted_xp)} adjustment</>
+                          )}
+                          {" = "}<strong>{petState.total_xp} XP</strong>
+                        </div>
+                        <div className="admin-subtext">
+                          Adopted {petState.adopted_at || "—"}
+                          {petState.companion_enabled === false && <> &middot; <strong style={{ color: "var(--danger)" }}>companion switched off</strong></>}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="admin-subtext" style={{ margin: 0 }}>
+                      Not adopted{petState.earned_xp > 0 ? ` — but ${petState.earned_xp} XP is banked and will apply the moment they adopt.` : "."}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <div className="admin-field-row" style={{ alignItems: "flex-end", maxWidth: 420 }}>
+                <label className="admin-field" style={{ flex: "1 1 110px", margin: 0 }}>
+                  <span>XP amount</span>
+                  <input
+                    className="admin-input"
+                    type="number"
+                    min="1"
+                    step="10"
+                    value={petXpDraft}
+                    disabled={petLevelBusy}
+                    onChange={e => setPetXpDraft(Math.max(1, Number(e.target.value) || 0))}
+                  />
+                </label>
+                {[["Add XP", 1], ["Remove XP", -1]].map(([label, sign]) => (
+                  <button
+                    key={label}
+                    type="button"
+                    className="admin-btn outline"
+                    disabled={petLevelBusy || petXpDraft < 1}
+                    onClick={async () => {
+                      const delta = sign * petXpDraft;
+                      const who = selectedUser.name || "this student";
+                      if (!confirm(`${sign > 0 ? "Add" : "Remove"} ${petXpDraft} XP ${sign > 0 ? "to" : "from"} ${who}? Earned history is kept either way.`)) return;
+                      setPetLevelBusy(true); setPetLevelMessage("");
+                      const { data, error } = await supabase.rpc("admin_adjust_pet_xp", {
+                        p_user_id: selectedUser.user_id,
+                        p_delta: delta,
+                      });
+                      setPetLevelBusy(false);
+                      if (error) { setPetLevelMessage(`Could not update companion: ${error.message}`); return; }
+                      const result = Array.isArray(data) ? data[0] : data;
+                      setPetLevelMessage(`Companion is now Level ${result?.level} (${result?.total_xp} XP).`);
+                      await logAdminAction(admin_id, "adjust_pet_xp", {
+                        target_user: selectedUser.user_id,
+                        delta,
+                        resulting_level: result?.level,
+                        resulting_xp: result?.total_xp,
+                      });
+                    }}
+                  >
+                    {petLevelBusy ? "Working…" : label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="admin-field-row" style={{ alignItems: "flex-end", maxWidth: 420, marginTop: 10 }}>
+                <label className="admin-field" style={{ flex: "1 1 110px", margin: 0 }}>
                   <span>Target level</span>
                   <select
                     className="admin-input"
@@ -5959,6 +6172,148 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                   }}
                 >
                   <PawPrint size={14} /> {petLevelBusy ? "Granting…" : "Grant level"}
+                </button>
+                {/* The destructive sibling: unlike "Grant", this pins the student
+                    to exactly the chosen level, so someone who earned beyond it
+                    loses that lead. Worded and confirmed accordingly. */}
+                <button
+                  type="button"
+                  className="admin-btn outline"
+                  disabled={petLevelBusy}
+                  onClick={async () => {
+                    const who = selectedUser.name || "this student";
+                    if (!confirm(`Set ${who} to exactly Level ${petLevelDraft}?\n\nIf they earned more than this, their progress will be reduced to match. Earned history is kept and this can be undone.`)) return;
+                    setPetLevelBusy(true); setPetLevelMessage("");
+                    const { data, error } = await supabase.rpc("admin_set_pet_level_exact", {
+                      p_user_id: selectedUser.user_id,
+                      p_level: petLevelDraft,
+                    });
+                    setPetLevelBusy(false);
+                    if (error) { setPetLevelMessage(`Could not update companion: ${error.message}`); return; }
+                    const result = Array.isArray(data) ? data[0] : data;
+                    setPetLevelMessage(`Companion set to Level ${result?.level} (${result?.total_xp} XP).`);
+                    await logAdminAction(admin_id, "set_pet_level_exact", {
+                      target_user: selectedUser.user_id,
+                      requested_level: petLevelDraft,
+                      resulting_level: result?.level,
+                      resulting_xp: result?.total_xp,
+                    });
+                  }}
+                >
+                  Set exactly
+                </button>
+              </div>
+
+              {/* Moderation and recovery. `name` is student-controlled free text
+                  that get_friend_pets shows to peers, and nothing filters it —
+                  clearing is the only remedy for an abusive one. */}
+              <div className="admin-field-row" style={{ alignItems: "flex-end", maxWidth: 560, marginTop: 14, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  className="admin-btn outline"
+                  disabled={petLevelBusy || !petState?.granted_xp}
+                  onClick={async () => {
+                    if (!confirm("Clear this student's admin adjustment? Their companion returns to purely earned XP.")) return;
+                    setPetLevelBusy(true); setPetLevelMessage("");
+                    const { data, error } = await supabase.rpc("admin_reset_pet_adjustment", { p_user_id: selectedUser.user_id });
+                    setPetLevelBusy(false); setPetStateNonce(n => n + 1);
+                    if (error) { setPetLevelMessage(`Could not reset: ${error.message}`); return; }
+                    const r = Array.isArray(data) ? data[0] : data;
+                    setPetLevelMessage(`Adjustment cleared — back to Level ${r?.level} (${r?.total_xp} XP).`);
+                    await logAdminAction(admin_id, "reset_pet_adjustment", { target_user: selectedUser.user_id, resulting_level: r?.level });
+                  }}
+                >
+                  Reset adjustment
+                </button>
+                <button
+                  type="button"
+                  className="admin-btn outline"
+                  disabled={petLevelBusy || !petState?.name}
+                  onClick={async () => {
+                    if (!confirm(`Clear the name "${petState?.name}"? Their companion falls back to its species name and they can rename it themselves.`)) return;
+                    setPetLevelBusy(true); setPetLevelMessage("");
+                    const { data, error } = await supabase.rpc("admin_clear_pet_name", { p_user_id: selectedUser.user_id });
+                    setPetLevelBusy(false); setPetStateNonce(n => n + 1);
+                    if (error) { setPetLevelMessage(`Could not clear name: ${error.message}`); return; }
+                    setPetLevelMessage(`Cleared the name "${data}".`);
+                    await logAdminAction(admin_id, "clear_pet_name", { target_user: selectedUser.user_id, cleared_name: data });
+                  }}
+                >
+                  Clear name
+                </button>
+                <button
+                  type="button"
+                  className="admin-btn outline"
+                  disabled={petLevelBusy || !petState}
+                  onClick={async () => {
+                    setPetLevelBusy(true); setPetLevelMessage("");
+                    const { error } = await supabase.rpc("admin_reset_pet_care", { p_user_id: selectedUser.user_id });
+                    setPetLevelBusy(false); setPetStateNonce(n => n + 1);
+                    setPetLevelMessage(error ? `Could not reset care: ${error.message}` : "Today's care budget reset.");
+                    if (!error) await logAdminAction(admin_id, "reset_pet_care", { target_user: selectedUser.user_id });
+                  }}
+                >
+                  Reset care budget
+                </button>
+                <button
+                  type="button"
+                  className="admin-btn outline"
+                  disabled={petLevelBusy || !petState}
+                  onClick={async () => {
+                    const on = petState?.companion_enabled === false;
+                    if (!confirm(on
+                      ? "Switch the companion back on for this student?"
+                      : "Switch the companion OFF for this student? The greeting pet, the Companion page and their XP all stop showing. Earned XP is kept and this is reversible.")) return;
+                    setPetLevelBusy(true); setPetLevelMessage("");
+                    const { error } = await supabase.rpc("admin_set_pet_companion", { p_user_id: selectedUser.user_id, p_enabled: on });
+                    setPetLevelBusy(false); setPetStateNonce(n => n + 1);
+                    setPetLevelMessage(error ? `Could not update: ${error.message}` : `Companion switched ${on ? "on" : "off"} for this student.`);
+                    if (!error) await logAdminAction(admin_id, "set_pet_companion", { target_user: selectedUser.user_id, enabled: on });
+                  }}
+                >
+                  {petState?.companion_enabled === false ? "Switch companion on" : "Switch companion off"}
+                </button>
+              </div>
+
+              <div className="admin-field-row" style={{ alignItems: "flex-end", maxWidth: 560, marginTop: 10, flexWrap: "wrap" }}>
+                <label className="admin-field" style={{ flex: "1 1 140px", margin: 0 }}>
+                  <span>Unlock companion</span>
+                  <select className="admin-input" value={petUnlockDraft} disabled={petLevelBusy} onChange={e => setPetUnlockDraft(e.target.value)}>
+                    {PETS.map(pet => <option key={pet.key} value={pet.key}>{pet.label}</option>)}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  className="admin-btn outline"
+                  disabled={petLevelBusy || !petState}
+                  onClick={async () => {
+                    setPetLevelBusy(true); setPetLevelMessage("");
+                    const { error } = await supabase.rpc("admin_grant_pet_unlock", { p_user_id: selectedUser.user_id, p_pet_key: petUnlockDraft });
+                    setPetLevelBusy(false); setPetStateNonce(n => n + 1);
+                    setPetLevelMessage(error ? `Could not unlock: ${error.message}` : `Unlocked ${getPetByKey(petUnlockDraft).label}.`);
+                    if (!error) await logAdminAction(admin_id, "grant_pet_unlock", { target_user: selectedUser.user_id, pet_key: petUnlockDraft });
+                  }}
+                >
+                  Unlock
+                </button>
+                {/* Destructive: sends them back to the adoption prompt. Earned XP
+                    survives (it lives on the account, not the animal), so this is
+                    a fresh start rather than a wipe. */}
+                <button
+                  type="button"
+                  className="admin-btn outline"
+                  disabled={petLevelBusy || !petState?.pet_key}
+                  onClick={async () => {
+                    if (!confirm("Un-adopt this student's companion?\n\nThey go back to the adoption prompt. Earned XP is kept — it lives on the account, not the animal — so re-adopting restores their level.")) return;
+                    setPetLevelBusy(true); setPetLevelMessage("");
+                    const { data, error } = await supabase.rpc("admin_reset_pet", { p_user_id: selectedUser.user_id });
+                    setPetLevelBusy(false); setPetStateNonce(n => n + 1);
+                    if (error) { setPetLevelMessage(`Could not un-adopt: ${error.message}`); return; }
+                    setPetLevelMessage(`Un-adopted (was ${getPetByKey(data).label}). Earned XP kept.`);
+                    await logAdminAction(admin_id, "reset_pet", { target_user: selectedUser.user_id, previous_pet: data });
+                  }}
+                >
+                  Un-adopt
                 </button>
               </div>
               {petLevelMessage && <p className="admin-subtext" style={{ margin: "9px 0 0", color: petLevelMessage.startsWith("Could not") ? "var(--danger)" : "var(--live)" }}>{petLevelMessage}</p>}

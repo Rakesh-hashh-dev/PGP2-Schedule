@@ -646,7 +646,12 @@
   margin-bottom: 10px;
 }
 
-.admin-field label {
+/* Two shapes in use: a wrapper div holding a <label>, and a <label> that IS
+   the field with its caption in a <span>. The second form is better for
+   a11y (the caption is inside the control's label) but was unstyled, so
+   those captions rendered at the page's base size instead of as small caps. */
+.admin-field label,
+.admin-field > span {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: .05em;

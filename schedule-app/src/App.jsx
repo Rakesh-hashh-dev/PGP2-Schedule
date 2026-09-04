@@ -1966,9 +1966,13 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // who turned pets off shouldn't meet them again on other people's cards.
   // `companion` absent ⇒ on, so a prod config saved before this shipped keeps
   // working without a migration.
+  // ...and ANDed with the per-student switch an admin can flip from the Users
+  // inspector, which is server-owned (pinned by the pet_state trigger) so it
+  // can't be undone client-side.
   const enableCompanion = sysConfig?.flags?.greetingPets?.enabled !== false
     && sysConfig?.flags?.greetingPets?.companion !== false
-    && greetingPetsEnabled;
+    && greetingPetsEnabled
+    && myPet?.companionEnabled !== false;
 
   const announcementTargetMatches = (target) => {
     if (!target || target === "global") return true;

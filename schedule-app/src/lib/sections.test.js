@@ -67,13 +67,23 @@ describe("against the shipped snapshot", () => {
   const snap = getSnapshot();
   const taught = taughtSectionsByCode(snap.CLASSES);
 
-  it("catches the real ECOM mismatch and nothing else", () => {
-    // Every student's allocation, checked against what each course teaches.
+  it("does not flag the current cohort", () => {
+    // ECOM is the mismatch this guard was written for: 111 students were
+    // allocated "Single" against an A/B timetable, so the plain filter showed
+    // them no ECOM classes at all. That allocation was corrected upstream on
+    // 2026-09-04 (they now split A:55 / B:56), so the live snapshot should
+    // flag nothing.
+    //
+    // This assertion tracks the source sheet, not our logic — the guard's
+    // mechanism is pinned by the two tests below, which do not depend on how
+    // students happen to be allocated today. If this starts failing, a NEW
+    // allocation mismatch has appeared upstream: fix it in the sheet, and
+    // only then update this expectation.
     const flagged = new Set();
     for (const alloc of Object.values(snap.STUDENTS)) {
       for (const code of provisionalSectionCodes(alloc, taught)) flagged.add(code);
     }
-    expect([...flagged]).toEqual(["ECOM"]);
+    expect([...flagged]).toEqual([]);
   });
 
   it("would have hidden every ECOM class without the guard", () => {
