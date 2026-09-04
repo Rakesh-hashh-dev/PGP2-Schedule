@@ -52,10 +52,11 @@ export async function syncProfileFromCloud(userId) {
     const cleanCourses = Object.fromEntries(Object.entries(raw).filter(([k]) => !k.startsWith('_')));
     const assignments = raw._assignments || {};
     const droppedCodes = raw._droppedCodes || [];
+    const manualSections = raw._manualSections || [];
     const archivedCourses = raw._archivedCourses || {};
     const enrolledTerm = raw._enrolledTerm;
     try { localStorage.setItem("pgp2.assignments", JSON.stringify(assignments)); } catch {}
-    const s = { courses: cleanCourses, lastSeenNotif: remoteSeen, readPingIds, seenGroupIds, readChangeKeys, assignments, droppedCodes, archivedCourses, enrolledTerm, imageUrl: raw._imageUrl };
+    const s = { courses: cleanCourses, lastSeenNotif: remoteSeen, readPingIds, seenGroupIds, readChangeKeys, assignments, droppedCodes, manualSections, archivedCourses, enrolledTerm, imageUrl: raw._imageUrl };
     writeLocal({ courses: cleanCourses });
     return s;
   }
@@ -69,7 +70,7 @@ export async function syncProfileFromCloud(userId) {
   return null;
 }
 
-export async function pushProfile(userId, courses, userName, optionalLastSeenNotif, imageUrl, droppedCodes) {
+export async function pushProfile(userId, courses, userName, optionalLastSeenNotif, imageUrl, droppedCodes, manualSections) {
   const s = { courses };
   writeLocal(s);
   if (!userId) return s;
@@ -130,6 +131,20 @@ export async function pushProfile(userId, courses, userName, optionalLastSeenNot
       if (droppedCodes.length) dbCourses._droppedCodes = droppedCodes;
     } else if (remote._droppedCodes) {
       dbCourses._droppedCodes = remote._droppedCodes;
+    }
+
+    // Courses whose section the student deliberately set to something other
+    // than the admin roster's allocation. The roster sync leaves these alone;
+    // every other course follows the sheet. Last-write-wins for the same
+    // reason as droppedCodes — a student re-aligning with the sheet must be
+    // able to clear their override.
+    // Assigned even when empty: the generic meta carry-over below would
+    // otherwise restore the stale cloud value and make a cleared override
+    // un-clearable.
+    if (manualSections !== undefined) {
+      dbCourses._manualSections = manualSections;
+    } else if (remote._manualSections) {
+      dbCourses._manualSections = remote._manualSections;
     }
 
     // Carry over cloud meta keys this write path doesn't own (_status,

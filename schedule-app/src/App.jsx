@@ -20,7 +20,7 @@ import { MessMenuStandalone } from "./components/MessMenuModal.jsx";
 import { setMessMenuOverrides } from "./data/messMenu.js";
 import { fetchMessMenu } from "./lib/messFeed.js";
 import { getSnapshot, fetchSchedule, sha256hex } from "./lib/sheet.js";
-import { taughtSectionsByCode, provisionalSectionCodes } from "./lib/sections.js";
+import { taughtSectionsByCode, provisionalSectionCodes, applyRosterAllocation, manualSectionCodes, unscheduledCodes } from "./lib/sections.js";
 import { lookupOverride, buildOverrideAdds } from "./lib/overrides.js";
 import { toMin, ymd, clsDate, prettyDate, timeAgo, getSpecialDay } from "./lib/datetime.js";
 import {
@@ -1204,9 +1204,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     document.body.classList.toggle("theme-tricolor", !!specialDay);
   }, [specialDay]);
 
-  // Auto-sync section overrides from live sheet.
-  // Also adds new courses from the sheet's STUDENTS roster that the user
-  // wasn't enrolled in yet (e.g. WAI added after initial onboarding).
+  // Auto-sync section allocations from the live sheet.
+  // Adds new courses from the sheet's STUDENTS roster that the user wasn't
+  // enrolled in yet (e.g. WAI added after initial onboarding), and corrects the
+  // section of courses they already hold — see the section-drift note below.
   useEffect(() => {
     const students = scheduleData?.STUDENTS;
     const email = user?.primaryEmailAddress?.emailAddress?.toLowerCase();
@@ -1215,39 +1216,29 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       (async () => {
         const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(email));
         const hash = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-        const overrides = students[hash];
+        const allocation = students[hash];
         const droppedCodes = setup?.droppedCodes || [];
-        if (overrides) {
-          let changed = false;
-          const nextEnrolled = { ...enrolled };
-          for (const [code, rawSection] of Object.entries(overrides)) {
-            // Never resurrect a course the student deliberately dropped via
-            // setup-edit — the admin roster sheet isn't updated on drop, so
-            // without this it silently reappears on the next feed sync.
-            if (!(code in nextEnrolled) && droppedCodes.includes(code)) continue;
-            // Normalise whatever value the sheet uses → A | B | Single
-            const s = String(rawSection).trim();
-            const section = s === "A" || s === "B" ? s : "Single";
-            // Only sync from the sheet for courses the student isn't already
-            // enrolled in (i.e. new additions from the roster). If the student
-            // is already enrolled, their manually-chosen section takes priority —
-            // don't let the sheet silently override a deliberate edit-setup change.
-            if (!(code in nextEnrolled)) {
-              nextEnrolled[code] = section;
-              changed = true;
-            }
-          }
+        const manualSections = setup?.manualSections || [];
+        if (allocation) {
+          const { courses: nextEnrolled, added, changed } = applyRosterAllocation(enrolled, allocation, {
+            droppedCodes,
+            manualSections,
+            taught: taughtSectionsByCode(scheduleData?.CLASSES),
+          });
           if (changed) {
             setEnrolled(nextEnrolled);
-            setMine(new Set(Object.keys(nextEnrolled)));
+            // Only a genuinely new course touches the subject filter — a section
+            // correction must not silently un-hide subjects the student filtered out.
+            if (added) setMine(new Set(Object.keys(nextEnrolled)));
             const newSetup = { ...setup, courses: nextEnrolled };
             setSetup(newSetup);
-            pushProfile(userId, nextEnrolled, user?.firstName || user?.username || "Student", undefined, user?.imageUrl);
+            saveSetup(newSetup);
+            pushProfile(userId, nextEnrolled, user?.firstName || user?.username || "Student", undefined, user?.imageUrl, droppedCodes, manualSections);
           }
         }
       })();
     }
-  }, [scheduleData?.STUDENTS, user, enrolled, setup, userId]);
+  }, [scheduleData, user, enrolled, setup, userId]);
 
   // Auto-fill onboarding from the feed's STUDENTS map for brand-new users.
   // Returning users keep their saved setup (localStorage or cloud) — the guards
@@ -1388,6 +1379,14 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const provisionalSections = useMemo(
     () => provisionalSectionCodes(enrolled, sectionsByCode),
     [enrolled, sectionsByCode]
+  );
+
+  // Enrolled courses with no sessions in the timetable at all (e.g. a legend
+  // entry published before its schedule). Only meaningful once live data has
+  // landed — the bundled snapshot lagging the sheet is not evidence of a gap.
+  const unscheduledCourses = useMemo(
+    () => (sd?._source === "live" ? unscheduledCodes(enrolled, sectionsByCode) : []),
+    [sd?._source, enrolled, sectionsByCode]
   );
 
   const visible = useMemo(() => {
@@ -1620,7 +1619,14 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     const prevDropped = setup?.droppedCodes || [];
     const newlyDropped = Object.keys(prevCourses).filter((c) => !(c in courses));
     const droppedCodes = [...new Set([...prevDropped, ...newlyDropped])].filter((c) => !(c in courses));
-    const s = { courses, droppedCodes };
+    // Sections the student deliberately set *against* the roster, so the sync
+    // above leaves them alone. Deviating from an allocation the sheet already
+    // publishes is a real choice; picking a section for a course the sheet has
+    // no allocation for yet is only a guess, so it stays sheet-owned and gets
+    // corrected the moment the admin fills the course tab's Section column.
+    // Recomputed from scratch each time: re-aligning with the sheet clears it.
+    const manualSections = manualSectionCodes(courses, (await buildAllocationFromSheet()) || {});
+    const s = { courses, droppedCodes, manualSections };
     saveSetup(s);
     const trimmed = (enteredName || "").trim();
     // If the user typed a name (they had none from Clerk), persist it to Clerk so
@@ -1630,7 +1636,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       try { await user.update({ firstName: trimmed }); } catch { /* non-blocking */ }
     }
     const name = trimmed || user?.firstName || user?.username || "Student";
-    pushProfile(userId, courses, name, undefined, user?.imageUrl, droppedCodes);
+    pushProfile(userId, courses, name, undefined, user?.imageUrl, droppedCodes, manualSections);
     setEnrolled(courses);
     setMine(new Set(Object.keys(courses)));
     setSetup(s);
@@ -2795,9 +2801,11 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 <WeekGlance visible={visible} now={now} offset={weekOffset} todayISO={todayISO} collapsible />
               </div>
             )}
-            {(view === "today" || view === "tomorrow") && !compareTarget && provisionalSections.size > 0 && (
+            {(view === "today" || view === "tomorrow") && !compareTarget &&
+              (provisionalSections.size > 0 || unscheduledCourses.length > 0) && (
               <ProvisionalSectionNotice
                 codes={[...provisionalSections]}
+                unscheduled={unscheduledCourses}
                 legend={enrolledLegend}
                 sectionsByCode={sectionsByCode}
               />

@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { taughtSectionsByCode, provisionalSectionCodes } from "./sections.js";
+import {
+  taughtSectionsByCode,
+  provisionalSectionCodes,
+  applyRosterAllocation,
+  manualSectionCodes,
+  unscheduledCodes,
+} from "./sections.js";
 import { getSnapshot } from "./sheet.js";
 
 const cls = (code, section, type = "class") => ({ code, section, type });
@@ -105,5 +111,85 @@ describe("against the shipped snapshot", () => {
     for (const code of ["CRM", "SCA", "AAIM", "AOA", "BOM", "DSC"]) {
       expect(provisionalSectionCodes({ [code]: "Single" }, taught).has(code)).toBe(false);
     }
+  });
+});
+
+describe("applyRosterAllocation", () => {
+  const taught = { BAV: ["A", "B"], CRM: ["Single"] };
+
+  it("adds a course the roster gained after onboarding", () => {
+    const out = applyRosterAllocation({ DM: "A" }, { DM: "A", BAV: "B" }, { taught });
+    expect(out.courses).toEqual({ DM: "A", BAV: "B" });
+    expect(out.added).toBe(true);
+  });
+
+  it("never resurrects a deliberately dropped course", () => {
+    const out = applyRosterAllocation({ DM: "A" }, { DM: "A", BAV: "B" }, { taught, droppedCodes: ["BAV"] });
+    expect(out.changed).toBe(false);
+  });
+
+  // The BAV case: the Section column was blank at onboarding, so the student
+  // added the course by hand and guessed A. Today's allocation says B.
+  it("corrects a guessed section once the sheet allocates", () => {
+    const out = applyRosterAllocation({ BAV: "A" }, { BAV: "B" }, { taught });
+    expect(out.courses.BAV).toBe("B");
+    expect(out.changed).toBe(true);
+    expect(out.added).toBe(false); // must not reset the subject filter
+  });
+
+  it("leaves a deliberate override alone", () => {
+    const out = applyRosterAllocation({ BAV: "A" }, { BAV: "B" }, { taught, manualSections: ["BAV"] });
+    expect(out.courses.BAV).toBe("A");
+    expect(out.changed).toBe(false);
+  });
+
+  it("ignores a sheet section the timetable never teaches", () => {
+    const out = applyRosterAllocation({ CRM: "Single" }, { CRM: "B" }, { taught });
+    expect(out.courses.CRM).toBe("Single");
+    expect(out.changed).toBe(false);
+  });
+
+  it("still corrects a course with no rows in the timetable yet", () => {
+    const out = applyRosterAllocation({ BAV: "A" }, { BAV: "B" }, { taught: {} });
+    expect(out.courses.BAV).toBe("B");
+  });
+
+  it("returns the original object when nothing applies", () => {
+    const enrolled = { BAV: "B" };
+    expect(applyRosterAllocation(enrolled, { BAV: "B" }, { taught }).courses).toBe(enrolled);
+  });
+});
+
+describe("manualSectionCodes", () => {
+  it("flags only a pick that contradicts a published allocation", () => {
+    expect(manualSectionCodes({ BAV: "A", DM: "B" }, { BAV: "B", DM: "B" })).toEqual(["BAV"]);
+  });
+
+  it("treats a guess against an unallocated course as sheet-owned", () => {
+    // BAV absent from the sheet — exactly the pre-allocation state.
+    expect(manualSectionCodes({ BAV: "A" }, { DM: "B" })).toEqual([]);
+  });
+
+  it("clears an override once the student re-aligns with the sheet", () => {
+    expect(manualSectionCodes({ BAV: "B" }, { BAV: "B" })).toEqual([]);
+  });
+});
+
+describe("unscheduledCodes", () => {
+  // BMD: in the term legend (so it's pickable at onboarding) but the master
+  // timetable has no sessions and there's no roster tab for it either.
+  it("flags an enrolled course the timetable has no sessions for", () => {
+    expect(unscheduledCodes({ BMD: "Single", DM: "A" }, { DM: ["A", "B"] })).toEqual(["BMD"]);
+  });
+
+  it("says nothing about a course that is scheduled", () => {
+    expect(unscheduledCodes({ DM: "A" }, { DM: ["A", "B"] })).toEqual([]);
+  });
+
+  it("does not double-report a provisional course", () => {
+    const taught = { BAV: ["A", "B"] };
+    const enrolled = { BAV: "Single" };
+    expect(unscheduledCodes(enrolled, taught)).toEqual([]);
+    expect([...provisionalSectionCodes(enrolled, taught)]).toEqual(["BAV"]);
   });
 });
