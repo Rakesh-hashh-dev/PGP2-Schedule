@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { renderToStaticMarkup } from "react-dom/server";
 import { PETS, dayKey, getPetByKey, getPetOfTheDay } from "./greetingPets.jsx";
 
 describe("PETS registry", () => {
@@ -82,5 +84,56 @@ describe("dayKey", () => {
 
   it("changes at local midnight", () => {
     expect(dayKey(new Date(2026, 8, 4, 23, 59))).not.toBe(dayKey(new Date(2026, 8, 5, 0, 1)));
+  });
+});
+
+// Personality is opt-in per pet, and a pet that never got a signature reads as
+// a colour swap of its neighbours — which is exactly the failure this feature
+// exists to prevent, and it is invisible from the roster.
+describe("signature micro-motion", () => {
+  const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+  // Spark and Leafy are excluded on purpose: their staged sequences are what
+  // reaching level 11 and 12 buys, and a signature on everything would flatten
+  // that back out.
+  const PREMIUM = ["spark", "leafy"];
+
+  it("gives every non-premium pet one", () => {
+    for (const pet of PETS) {
+      if (PREMIUM.includes(pet.key)) continue;
+      const html = renderToStaticMarkup(<pet.Svg />);
+      expect(html, `${pet.key} has no dg-pet-sig element`).toContain("dg-pet-sig");
+    }
+  });
+
+  it("backs every signature class in the markup with a keyframe", () => {
+    for (const pet of PETS) {
+      const html = renderToStaticMarkup(<pet.Svg />);
+      for (const cls of html.match(/dg-pet-sig-[a-z-]+/g) || []) {
+        expect(css, `no rule for .${cls}`).toContain(`.${cls} {`);
+      }
+    }
+  });
+
+  // The axolotl's gills used to be `.dg-pet[data-pet="axolotl"] .part` at
+  // (0,3,0), which outran both motion guards — it kept animating for readers
+  // who asked for stillness, and inside the 17px friends badge.
+  it("keeps every signature rule below the motion guards", () => {
+    const rules = css.match(/^\.dg-pet-sig[a-z-]* \{[^}]*\}/gm) || [];
+    expect(rules.length).toBeGreaterThan(10);
+    for (const rule of rules) {
+      expect(rule, `signature uses the animation shorthand: ${rule}`).not.toMatch(/[^-]animation\s*:/);
+    }
+    // Comments stripped first: the block above documents the old axolotl
+    // selector by name, and matching prose would fail this for the wrong reason.
+    const code = css.replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(code, "a signature is still scoped by [data-pet]")
+      .not.toMatch(/\[data-pet="[a-z]+"\][^{]*\.dg-pet-sig/);
+  });
+
+  it("runs the signature block before both motion guards", () => {
+    const first = css.indexOf(".dg-pet-sig {");
+    expect(first).toBeGreaterThan(-1);
+    expect(first).toBeLessThan(css.indexOf("@media (prefers-reduced-motion: reduce)"));
+    expect(first).toBeLessThan(css.indexOf('.dg-pet[data-motion="off"],'));
   });
 });

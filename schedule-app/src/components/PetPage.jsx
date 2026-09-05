@@ -4,7 +4,7 @@ import { PETS, getPetByKey } from "./greetingPets.jsx";
 import {
   CARE_ACTIONS, HATS, MAX_DEVOTION, MAX_LEVEL, STARTER_KEYS, UNLOCKS,
   careLeft, devotionFor, hatRequirement, hatsFor, hoursSince, isAdopted,
-  levelProgress, moodFor, unlockedFor, xpBySource, xpOf,
+  levelProgress, moodFor, unlockedFor, visibleHat, xpBySource, xpOf,
 } from "../lib/pet.js";
 import PetSleepCue from "./PetSleepCue.jsx";
 import PetHat from "./PetHat.jsx";
@@ -45,7 +45,7 @@ function unlockLevel(key) {
   return found ? Number(found[0]) : null;
 }
 
-export default function PetPage({ pet, petActions, petContext, now, onBack }) {
+export default function PetPage({ pet, petActions, petContext, petSettings, now, onBack }) {
   const [nameDraft, setNameDraft] = useState(null);
   const [adoptChoice, setAdoptChoice] = useState(null);
 
@@ -60,8 +60,16 @@ export default function PetPage({ pet, petActions, petContext, now, onBack }) {
   const sources = useMemo(() => xpBySource(pet), [pet]);
   const current = adopted ? getPetByKey(pet.petKey) : null;
   const accessoryOn = pet?.cosmetics?.accessory !== false;
-  const hat = pet?.cosmetics?.hat ?? null;
-  const earnedHats = useMemo(() => new Set(hatsFor(pet)), [pet]);
+  // Cohort policy, defaulting ON: a config written before the wardrobe shipped
+  // must not read as "everything withdrawn".
+  const wardrobeOn = petSettings?.wardrobe !== false;
+  const hatsOff = useMemo(() => petSettings?.hatsOff || [], [petSettings?.hatsOff]);
+  const signaturesOn = petSettings?.signatures !== false;
+  const hat = visibleHat(pet, { wardrobe: wardrobeOn, hatsOff });
+  const earnedHats = useMemo(
+    () => new Set(hatsFor(pet, { wardrobe: wardrobeOn, hatsOff })),
+    [pet, wardrobeOn, hatsOff]
+  );
   const devotion = devotionFor(xp);
 
   if (!adopted) {
@@ -158,6 +166,7 @@ export default function PetPage({ pet, petActions, petContext, now, onBack }) {
           data-motion="on"
           data-mood={mood}
           data-beat={beat || undefined}
+          data-sig={signaturesOn ? undefined : "off"}
           data-accessory={accessoryOn ? "on" : "off"}
           aria-hidden="true"
           {...gaze}
@@ -269,9 +278,10 @@ export default function PetPage({ pet, petActions, petContext, now, onBack }) {
         </p>
       </section>
 
+      {wardrobeOn && (
       <section className="pet-card">
         <h3 className="pet-h3">
-          Wardrobe <span className="pet-h3-note">{earnedHats.size} of {HATS.length}</span>
+          Wardrobe <span className="pet-h3-note">{earnedHats.size} of {HATS.filter(h => !hatsOff.includes(h.key)).length}</span>
         </h3>
         <div className="pet-wardrobe">
           <button
@@ -283,7 +293,7 @@ export default function PetPage({ pet, petActions, petContext, now, onBack }) {
             <span className="pet-hat-art" aria-hidden="true" />
             <span className="pet-slot-name">None</span>
           </button>
-          {HATS.map(option => {
+          {HATS.filter(option => !hatsOff.includes(option.key)).map(option => {
             const isEarned = earnedHats.has(option.key);
             const isOn = hat === option.key;
             return (
@@ -314,6 +324,7 @@ export default function PetPage({ pet, petActions, petContext, now, onBack }) {
               : "More arrive as you level. The last two only after level 12."}
         </p>
       </section>
+      )}
 
       <section className="pet-card">
         <h3 className="pet-h3">Details</h3>

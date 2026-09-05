@@ -8,7 +8,7 @@ import {
   xpOf, xpToReach, levelFor, levelProgress, award, keyFor,
   careUsedToday, careLeft, canCare, care,
   hoursSince, moodFor, MOODS,
-  devotionFor, hatsFor, hatRequirement, setCosmetic, normalize as normalizePet,
+  devotionFor, hatsFor, hatRequirement, setCosmetic, visibleHat, normalize as normalizePet,
   DEVOTION_STEP, MAX_DEVOTION, MAX_LEVEL as MAXLVL, xpToReach,
   unlockedAtLevel, unlockedFor, newlyUnlocked,
   prune, mergePets, publicSummary, xpBySource,
@@ -657,7 +657,8 @@ describe("hats", () => {
   it("unlocks by level, in registry order", () => {
     expect(hatsFor(at_xp(0))).toEqual([]);
     expect(hatsFor(at_xp(xpToReach(2)))).toEqual(["bow"]);
-    expect(hatsFor(at_xp(xpToReach(4)))).toEqual(["bow", "cap"]);
+    expect(hatsFor(at_xp(xpToReach(3)))).toEqual(["bow", "bloom"]);
+    expect(hatsFor(at_xp(xpToReach(5)))).toEqual(["bow", "bloom", "cap", "phones"]);
   });
 
   it("keeps the last two behind devotion, not level", () => {
@@ -671,6 +672,8 @@ describe("hats", () => {
 
   it("describes what a locked hat still needs", () => {
     expect(hatRequirement("cap")).toBe("Level 4");
+    expect(hatRequirement("devil")).toBe("Level 7");
+    expect(hatRequirement("grad")).toBe("Level 10");
     expect(hatRequirement("halo")).toBe("Devotion 3");
     expect(hatRequirement("nope")).toBe(null);
   });
@@ -683,6 +686,33 @@ describe("hats", () => {
     const grown = at_xp(xpToReach(4));
     expect(setCosmetic(grown, "hat", "cap").cosmetics.hat).toBe("cap");
     expect(setCosmetic(setCosmetic(grown, "hat", "cap"), "hat", null).cosmetics.hat).toBe(null);
+  });
+
+  // Cohort policy, applied at render time only.
+  it("hides a withdrawn hat without un-earning it", () => {
+    const grown = setCosmetic(at_xp(xpToReach(4)), "hat", "cap");
+    expect(grown.cosmetics.hat).toBe("cap");
+    expect(visibleHat(grown)).toBe("cap");
+    // Withdrawn: not drawn, not offered...
+    expect(visibleHat(grown, { hatsOff: ["cap"] })).toBe(null);
+    expect(hatsFor(grown, { hatsOff: ["cap"] })).not.toContain("cap");
+    // ...but the student's choice is untouched, so re-enabling restores it.
+    expect(grown.cosmetics.hat).toBe("cap");
+    expect(visibleHat(grown, { hatsOff: [] })).toBe("cap");
+  });
+
+  it("hides everything when the wardrobe is switched off", () => {
+    const grown = setCosmetic(at_xp(xpToReach(6)), "hat", "specs");
+    expect(hatsFor(grown, { wardrobe: false })).toEqual([]);
+    expect(visibleHat(grown, { wardrobe: false })).toBe(null);
+    expect(grown.cosmetics.hat).toBe("specs");
+  });
+
+  // A config written before the wardrobe shipped has none of these keys.
+  it("defaults to everything available", () => {
+    const grown = setCosmetic(at_xp(xpToReach(4)), "hat", "cap");
+    expect(visibleHat(grown, {})).toBe("cap");
+    expect(hatsFor(grown, {})).toContain("cap");
   });
 
   it("still toggles the boolean accessory", () => {

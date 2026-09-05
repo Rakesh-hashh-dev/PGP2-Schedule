@@ -69,9 +69,14 @@ export const MAX_DEVOTION = 10;
  */
 export const HATS = [
   { key: "bow", label: "Ribbon", level: 2 },
+  { key: "bloom", label: "Flower crown", level: 3 },
   { key: "cap", label: "Cap", level: 4 },
+  { key: "phones", label: "Headphones", level: 5 },
   { key: "specs", label: "Specs", level: 6 },
+  { key: "devil", label: "Little devil", level: 7 },
   { key: "beanie", label: "Beanie", level: 8 },
+  { key: "shades", label: "Shades", level: 9 },
+  { key: "grad", label: "Grad cap", level: 10 },
   { key: "party", label: "Party hat", level: 11 },
   { key: "crown", label: "Crown", level: MAX_LEVEL },
   { key: "halo", label: "Halo", devotion: 3 },
@@ -246,6 +251,10 @@ export function switchTo(state, petKey) {
 export function setCosmetic(state, key, value) {
   const s = normalize(state);
   if (key === "hat") {
+    // Validated against what was EARNED, not against cohort policy: this
+    // function is what storage round-trips through, and a hat withdrawn while
+    // a student was offline must not silently wipe their saved choice on the
+    // next load. Policy is applied at render time by `visibleHat`.
     const hat = value && hatsFor(s).includes(value) ? value : null;
     if (s.cosmetics.hat === hat) return s;
     return { ...s, cosmetics: { ...s.cosmetics, hat } };
@@ -314,12 +323,37 @@ export function devotionFor(xp) {
   };
 }
 
-/** Hat keys this pet has earned, in registry order. */
-export function hatsFor(state) {
+/**
+ * Hat keys this pet can wear right now, in registry order.
+ *
+ * Two independent gates: what the student earned, and what the cohort config
+ * still allows. `hatsOff` is the admin withdrawing a specific wearable — the
+ * flower crown in exam week, the devil horns because someone complained.
+ */
+export function hatsFor(state, { wardrobe = true, hatsOff = [] } = {}) {
+  if (wardrobe === false) return [];
   const xp = xpOf(state);
   const level = levelFor(xp);
   const { tier } = devotionFor(xp);
-  return HATS.filter(h => (h.devotion ? tier >= h.devotion : level >= h.level)).map(h => h.key);
+  return HATS
+    .filter(h => !hatsOff.includes(h.key))
+    .filter(h => (h.devotion ? tier >= h.devotion : level >= h.level))
+    .map(h => h.key);
+}
+
+/**
+ * The hat to actually draw, or null.
+ *
+ * Withdrawing a wearable hides it; it does NOT clear the student's choice.
+ * Erasing `cosmetics.hat` would be a one-way door — an admin toggling the
+ * devil horns off for a day would silently strip them from everyone who had
+ * earned and chosen them, and turning it back on would return a cohort of
+ * bare-headed pets. Hiding is reversible; deleting is not.
+ */
+export function visibleHat(state, opts = {}) {
+  const hat = normalize(state).cosmetics.hat;
+  if (!hat) return null;
+  return hatsFor(state, opts).includes(hat) ? hat : null;
 }
 
 /** The requirement line for a hat that is still locked, or null once earned. */

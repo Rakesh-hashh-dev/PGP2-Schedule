@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getGreetingBucket, getTimeGreeting } from "../lib/datetime.js";
 import { dayKey, getPetByKey, getPetOfTheDay } from "./greetingPets.jsx";
 import {
-  CARE_ACTIONS, careLeft, careUsedToday, isAdopted, levelProgress, moodFor, xpOf,
+  CARE_ACTIONS, careLeft, careUsedToday, isAdopted, levelProgress, moodFor, visibleHat, xpOf,
 } from "../lib/pet.js";
 import PetSleepCue from "./PetSleepCue.jsx";
 import PetHat from "./PetHat.jsx";
@@ -158,6 +158,7 @@ export default function DayGreeting({
             data-accessory={adopted && pet.cosmetics?.accessory === false ? "off" : undefined}
             data-reaction={petReaction || undefined}
             data-beat={petReaction ? undefined : beat || undefined}
+            data-sig={petSettings?.signatures === false ? "off" : undefined}
             {...gaze}
             onClick={() => (isPetTrayOpen ? closeTray() : setIsPetTrayOpen(true))}
             aria-expanded={isPetTrayOpen}
@@ -168,7 +169,7 @@ export default function DayGreeting({
             title={adopted ? `${petLabel} · Lv ${progress.level}` : `Meet ${displayPet.label}`}
           >
             {petEl}
-            <PetHat hat={adopted ? pet.cosmetics?.hat : null} />
+            <PetHat hat={adopted ? visibleHat(pet, { wardrobe: petSettings?.wardrobe !== false, hatsOff: petSettings?.hatsOff || [] }) : null} />
             <PetSleepCue />
           </button>
 

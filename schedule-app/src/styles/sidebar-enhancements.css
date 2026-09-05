@@ -28,16 +28,16 @@
   .sb-link .nav-badge { min-width: 21px; height: 19px; display: inline-grid; place-items: center; color: #fff; font-variant-numeric: tabular-nums; }
   .sb-unseen-dot { width: 7px; height: 7px; margin-left: auto; border-radius: 50%; background: #c4b5fd; box-shadow: 0 0 8px rgba(196,181,253,.85); }
 
-  .sb-customize { margin: 13px 5px 6px; color: rgba(255,255,255,.6); font-size: 11px; }
-  .sb-customize summary { display: flex; align-items: center; gap: 7px; padding: 8px 9px; border-radius: 8px; cursor: pointer; list-style: none; }
+  .sb-customize { margin: 13px 5px 6px; color: rgba(255,255,255,.6); font-size: 11px; font-family: var(--body); }
+  .sb-customize summary { display: flex; align-items: center; gap: 7px; padding: 8px 9px; border-radius: 8px; cursor: pointer; list-style: none; font-family: var(--body); }
   .sb-customize summary::-webkit-details-marker { display: none; }
   .sb-customize summary:hover, .sb-customize summary:focus-visible { background: rgba(255,255,255,.07); color: #fff; outline: none; }
-  .sb-customize fieldset { display: grid; gap: 5px; margin: 5px 0 0; padding: 8px; border: 1px solid rgba(255,255,255,.1); border-radius: 9px; }
-  .sb-customize legend { padding: 0 3px; color: rgba(255,255,255,.48); font-size: 9px; }
+  .sb-customize fieldset { display: grid; gap: 5px; margin: 5px 0 0; padding: 8px; border: 1px solid rgba(255,255,255,.1); border-radius: 9px; font-family: var(--body); }
+  .sb-customize legend { padding: 0 3px; color: rgba(255,255,255,.48); font-size: 9px; font-family: var(--body); }
   .sb-customize legend svg { vertical-align: -2px; }
-  .sb-customize label { display: flex; align-items: center; gap: 7px; min-height: 20px; cursor: pointer; }
+  .sb-customize label { display: flex; align-items: center; gap: 7px; min-height: 20px; cursor: pointer; font-family: var(--body); }
   .sb-customize input { accent-color: #a78bfa; }
-  .sb-compact-option { margin: 7px 9px 4px; }
+  .sb-compact-option { margin: 7px 9px 4px; font-family: var(--body); }
 
   .sidebar.collapsed .sb-class-status, .sidebar.collapsed .sb-customize, .sidebar.collapsed .sb-unseen-dot { display: none; }
 

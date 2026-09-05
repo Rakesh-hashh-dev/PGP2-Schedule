@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { safeUrl } from "../lib/safeUrl.js";
 
 function SocialSvg({ color = "#8B5CF6" }) {
   return (
@@ -110,9 +111,9 @@ export default function SocialFlashToast({ config, onClose }) {
         <div className="social-flash-body">
           <div className="social-flash-title">{config.title || "Social Notification"}</div>
           <div className="social-flash-message">{config.message || "You have a new update!"}</div>
-          {config.url && (
+          {safeUrl(config.url) && (
             <a
-              href={config.url}
+              href={safeUrl(config.url)}
               target="_blank"
               rel="noopener noreferrer"
               className="social-flash-action"

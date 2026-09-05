@@ -2,9 +2,10 @@ import { useState, useEffect, useRef } from "react";
 import "../styles/admin.css";
 import "../styles/assignments.css";
 import "../styles/cmdk.css";
-import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil, BarChart2, GraduationCap, MessageSquare, CloudOff, Shield, Smartphone, Copy, Activity, ChevronRight, Clock3, Download, Filter, Eye, ListFilter, PawPrint } from "lucide-react";
+import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil, BarChart2, GraduationCap, PartyPopper, MessageSquare, CloudOff, Shield, Smartphone, Copy, Activity, ChevronRight, Clock3, Download, Filter, Eye, ListFilter, PawPrint, Shirt } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { logAdminAction } from "../lib/adminAudit.js";
+import { safeUrl } from "../lib/safeUrl.js";
 import { LEGEND } from "../data/schedule.js";
 import snapshotMeta from "../data/snapshot-meta.json";
 import { getSnapshot } from "../lib/sheet.js";
@@ -15,6 +16,8 @@ import AdminCommandPalette from "./AdminCommandPalette";
 import FeedbackFlashToast from "./FeedbackFlashToast.jsx";
 import { WhatsNewPill, WhatsNewModal } from "./WhatsNew.jsx";
 import { PETS, getPetByKey } from "./greetingPets.jsx";
+import PetHat from "./PetHat.jsx";
+import { HATS, hatRequirement } from "../lib/pet.js";
 
 // Render-stable "now" captured at module load — used for relative-time math in
 // render (inactivity windows, cron staleness) without an impure Date.now() call.
@@ -286,7 +289,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     classOverrides: {},
     abTests: {},
     dispatchEnabled: true,
-    greetingPets: { enabled: true, mode: "daily", petKey: "cat", motion: true, companion: true, xpRate: 1 }
+    greetingPets: { enabled: true, mode: "daily", petKey: "cat", motion: true, companion: true, xpRate: 1, signatures: true, wardrobe: true, hatsOff: [] }
   });
   
   const [popularCourses, setPopularCourses] = useState([]);
@@ -1242,7 +1245,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     // 4. send-push edge fn reachable
     try {
       const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
-        method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`, "x-push-key": "__health_check__" },
+        // No x-push-key: a liveness probe shouldn't carry the admin secret.
+        // The function answers 401, which is itself proof it's up.
+        method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
         body: JSON.stringify({ __healthcheck: true }),
       });
       checks.push({ name: "send-push fn", ok: resp.status < 500, detail: `HTTP ${resp.status}` });
@@ -1874,7 +1879,6 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          "x-push-key": localStorage.getItem("pgp2.push-admin-key") || "__health_check__",
         },
         body: JSON.stringify({ __healthcheck: true }),
       });
@@ -1920,7 +1924,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     setModalRoom(c.room || "");
     setModalStart(c.start || "");
     setModalEnd(c.end || "");
-    setModalNewType(c.type === "exam" ? "exam" : "class");
+    setModalNewType(c.type === "exam" ? "exam" : c.type === "event" ? "event" : "class");
   };
 
   return (
@@ -2267,9 +2271,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     const override = lookupOverride(overridesForDate, c);
                     const isCancelled = override?.type === "cancelled";
                     const isExam = override?.type === "exam";
+                    const isEvent = override?.type === "event" || (!override?.type && c.type === "event");
                     const hasRoomChange = !!override?.room;
                     const hasTimeChange = !!override?.start || !!override?.end;
-                    const isModified = hasRoomChange || hasTimeChange || isExam;
+                    const isModified = hasRoomChange || hasTimeChange || isExam || isEvent;
                     const isGuest = (c.session || "").toLowerCase().includes("guest");
                     const displayRoom = override?.room || c.room;
                     const displayStart = override?.start || c.start;
@@ -2306,10 +2311,11 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                           logAdminAction(admin_id, "swap_time_slots", { date: liveEditorDate, src: srcKey, dst: dstKey });
                         }}
                         style={{
-                          border: `1px solid ${isCancelled ? "var(--danger)" : isModified ? "var(--amber)" : isGuest ? "var(--violet)" : "var(--border)"}`,
-                          borderRadius: 12, background: isCancelled ? "rgba(231,76,60,0.04)" : isModified ? "rgba(245,158,11,0.04)" : "var(--bg)",
+                          border: `1px solid ${isCancelled ? "var(--danger)" : isEvent ? "var(--live, #10B981)" : isExam ? "var(--violet)" : isModified ? "var(--amber)" : isGuest ? "var(--violet)" : "var(--border)"}`,
+                          borderRadius: 12,
+                          background: isCancelled ? "rgba(231,76,60,0.04)" : isEvent ? "linear-gradient(135deg, rgba(16,185,129,0.08), rgba(245,158,11,0.05))" : isModified ? "rgba(245,158,11,0.04)" : "var(--bg)",
                           opacity: isCancelled ? 0.75 : 1, transition: "border-color 0.15s, box-shadow 0.15s",
-                          boxShadow: isBeingDragged ? "0 4px 20px rgba(0,0,0,0.15)" : "none",
+                          boxShadow: isBeingDragged ? "0 4px 20px rgba(0,0,0,0.15)" : isEvent ? "0 0 12px rgba(16,185,129,0.18)" : "none",
                         }}>
                         {/* Card main row */}
                         <div className="sched-class-row">
@@ -2320,8 +2326,24 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                             <div className="sched-class-title" style={{ textDecoration: isCancelled ? "line-through" : "none" }}>
                               {c.code ? `${c.code} — ` : ""}{c.name || LEGEND[c.code]?.name || "Class"}
                               {isCancelled && <span style={{ fontSize: 10, fontWeight: 800, background: "var(--danger)", color: "#fff", padding: "1px 7px", borderRadius: 4 }}>CANCELLED</span>}
-                              {isExam && !isCancelled && <span style={{ fontSize: 10, fontWeight: 800, background: "var(--violet)", color: "#fff", padding: "1px 7px", borderRadius: 4 }}>EXAM</span>}
-                              {isModified && !isCancelled && !isExam && <span style={{ fontSize: 10, fontWeight: 800, background: "var(--amber)", color: "#000", padding: "1px 7px", borderRadius: 4 }}>OVERRIDDEN</span>}
+                              {isEvent && !isCancelled && (
+                                <span style={{
+                                  fontSize: 10,
+                                  fontWeight: 800,
+                                  background: "linear-gradient(135deg, #10B981, #059669)",
+                                  color: "#fff",
+                                  padding: "1px 8px",
+                                  borderRadius: 4,
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: 3,
+                                  boxShadow: "0 1px 4px rgba(16,185,129,0.3)"
+                                }}>
+                                  <PartyPopper size={11} /> CELEBRATION
+                                </span>
+                              )}
+                              {isExam && !isCancelled && !isEvent && <span style={{ fontSize: 10, fontWeight: 800, background: "var(--violet)", color: "#fff", padding: "1px 7px", borderRadius: 4 }}>EXAM</span>}
+                              {isModified && !isCancelled && !isExam && !isEvent && <span style={{ fontSize: 10, fontWeight: 800, background: "var(--amber)", color: "#000", padding: "1px 7px", borderRadius: 4 }}>OVERRIDDEN</span>}
                               {isGuest && <span style={{ fontSize: 10, fontWeight: 800, background: "var(--violet)", color: "#fff", padding: "1px 7px", borderRadius: 4 }}>GUEST</span>}
                             </div>
                             <div className="sched-class-meta" style={{ textDecoration: isCancelled ? "line-through" : "none" }}>
@@ -2626,14 +2648,15 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
               {/* Summary metrics */}
               {(() => {
-                let nCancelled = 0, nRoom = 0, nTime = 0, nExam = 0, nCustom = 0;
+                let nCancelled = 0, nRoom = 0, nTime = 0, nExam = 0, nEvent = 0, nCustom = 0;
                 Object.values(flags.classOverrides).forEach(day => Object.values(day).forEach(ovr => {
                   if (ovr.type === "cancelled") nCancelled++;
                   else if (ovr.type === "exam") nExam++;
+                  else if (ovr.type === "event") nEvent++;
                   else if (ovr.type === "class") nCustom++;
                   else { if (ovr.room) nRoom++; if (ovr.start || ovr.end) nTime++; }
                 }));
-                const total = nCancelled + nRoom + nTime + nExam + nCustom;
+                const total = nCancelled + nRoom + nTime + nExam + nEvent + nCustom;
                 return (
                   <div className="aco-filters">
                     {[
@@ -2642,6 +2665,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                       { label: `${nRoom} Room`, color: "var(--blue)", bg: "rgba(59,130,246,0.06)", filter: "room" },
                       { label: `${nTime} Time`, color: "var(--amber)", bg: "rgba(245,158,11,0.06)", filter: "time" },
                       { label: `${nExam} Exam`, color: "var(--violet)", bg: "rgba(109,91,208,0.08)", filter: "exam" },
+                      { label: `${nEvent} Event`, color: "var(--live, #10B981)", bg: "rgba(16,185,129,0.08)", filter: "event" },
                       { label: `${nCustom} Custom`, color: "var(--live)", bg: "rgba(31,169,113,0.06)", filter: "custom" },
                     ].map(chip => (
                       <button key={chip.filter} onClick={() => setOvrFilterType(chip.filter)} className="aco-chip" aria-pressed={ovrFilterType === chip.filter}
@@ -2669,6 +2693,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                   Object.entries(classes).map(([code, override]) => {
                     const isCancelled = override.type === "cancelled";
                     const isExam = override.type === "exam";
+                    const isEvent = override.type === "event";
                     const isCustom = override.type === "class";
                     const hasRoom = !!override.room;
                     const hasTime = !!override.start || !!override.end;
@@ -2682,14 +2707,16 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     const matchesType = ovrFilterType === "all"
                       || (ovrFilterType === "cancelled" && isCancelled)
                       || (ovrFilterType === "exam" && isExam)
+                      || (ovrFilterType === "event" && isEvent)
                       || (ovrFilterType === "custom" && isCustom)
-                      || (ovrFilterType === "room" && hasRoom && !isCancelled && !isExam)
-                      || (ovrFilterType === "time" && hasTime && !isCancelled && !isExam);
+                      || (ovrFilterType === "room" && hasRoom && !isCancelled && !isExam && !isEvent)
+                      || (ovrFilterType === "time" && hasTime && !isCancelled && !isExam && !isEvent);
                     const matchesSearch = !ovrSearch || displayCode.toLowerCase().includes(ovrSearch.toLowerCase()) || (override.room || "").toLowerCase().includes(ovrSearch.toLowerCase());
                     if (!matchesType || !matchesSearch) return null;
 
                     // Type badge
                     const typeBadge = isCancelled ? { label: "CANCELLED", color: "var(--danger)", bg: "rgba(231,76,60,0.10)" }
+                      : isEvent ? { label: "🎉 EVENT", color: "var(--live, #10B981)", bg: "rgba(16,185,129,0.14)" }
                       : isExam ? { label: "EXAM", color: "var(--violet)", bg: "rgba(109,91,208,0.10)" }
                       : isCustom ? { label: "CUSTOM CLASS", color: "var(--live)", bg: "rgba(31,169,113,0.10)" }
                       : hasRoom && hasTime ? { label: `ROOM+TIME`, color: "var(--amber)", bg: "rgba(245,158,11,0.10)" }
@@ -3770,7 +3797,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     <input type="date" value={qlEnd} onChange={e => setQlEnd(e.target.value)} className="admin-input" style={{ flex: "1 1 130px", padding: "8px" }} title="End Date (Inclusive)" />
                     <button className="admin-btn primary" style={{ flex: "1 1 130px" }} onClick={() => {
                       if (!qlTitle || !qlUrl || !qlStart || !qlEnd) return alert("Fill all fields.");
-                      const newItem = { id: Date.now().toString(), title: qlTitle, url: qlUrl, start: qlStart, end: qlEnd };
+                      const safe = safeUrl(qlUrl);
+                      if (!safe) return alert("That URL isn't allowed — links must start with http://, https:// or mailto:.");
+                      const newItem = { id: Date.now().toString(), title: qlTitle, url: safe, start: qlStart, end: qlEnd };
                       setFlags({...flags, quickLinks: [...(flags.quickLinks || []), newItem]});
                       setQlTitle(""); setQlUrl(""); setQlStart(""); setQlEnd("");
                     }}>
@@ -5137,6 +5166,12 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 // so the defaults here ARE the back-compat story — no migration.
                 companion: true,
                 xpRate: 1,
+                // Absent in every config written before signature motion and
+                // the wardrobe shipped. Defaulting them ON is the back-compat
+                // story — the same call made for `companion` above.
+                signatures: true,
+                wardrobe: true,
+                hatsOff: [],
                 ...(flags.greetingPets || {}),
               };
               const updateGreetingPets = patch => setFlags({ ...flags, greetingPets: { ...greetingPets, ...patch } });
@@ -5213,6 +5248,87 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     </label>
                     <p className="admin-subtext" style={{ margin: "7px 0 0" }}>
                       Applies to XP earned from now on. Already-banked XP keeps what it was worth, and the rate is clamped to 0.25&times;&ndash;3&times; client-side, so a bad config can neither freeze progress nor max the cohort.
+                    </p>
+                  </div>
+
+                  {/* Presentation controls. Nothing here touches progression:
+                      withdrawing a wearable hides it, it does not un-earn it,
+                      and turning it back on returns every student to the hat
+                      they had chosen. */}
+                  <div style={{ marginTop: 14, paddingTop: 13, borderTop: "1px dashed var(--border)", opacity: greetingPets.enabled && greetingPets.companion !== false ? 1 : 0.55 }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 13, fontWeight: 750, cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        disabled={!greetingPets.enabled}
+                        checked={greetingPets.signatures !== false}
+                        onChange={e => updateGreetingPets({ signatures: e.target.checked })}
+                      />
+                      <Sparkles size={15} color="var(--violet)" /> Signature micro-motion
+                    </label>
+                    <p className="admin-subtext" style={{ margin: "6px 0 12px" }}>
+                      The one small loop each companion has of its own — the dog pants, the panda chews, the robot&apos;s status light blinks. Off leaves the shared idle, the moods and the reactions running. Readers who have asked their device for reduced motion never see any of it either way.
+                    </p>
+
+                    <label style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 13, fontWeight: 750, cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        disabled={!greetingPets.enabled || greetingPets.companion === false}
+                        checked={greetingPets.wardrobe !== false}
+                        onChange={e => updateGreetingPets({ wardrobe: e.target.checked })}
+                      />
+                      <Shirt size={15} color="var(--violet)" /> Wardrobe
+                    </label>
+                    <p className="admin-subtext" style={{ margin: "6px 0 10px" }}>
+                      {HATS.length} wearables, earned by level — the last two only past level 12, by devotion. Off hides the whole section and every hat on every pet.
+                    </p>
+
+                    {greetingPets.wardrobe !== false && (() => {
+                      const hatsOff = greetingPets.hatsOff || [];
+                      const toggleHat = key => updateGreetingPets({
+                        hatsOff: hatsOff.includes(key) ? hatsOff.filter(k => k !== key) : [...hatsOff, key],
+                      });
+                      return (
+                        <div style={{ opacity: greetingPets.enabled && greetingPets.companion !== false ? 1 : 0.55 }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(84px, 1fr))", gap: 7 }}>
+                            {HATS.map(h => {
+                              const withdrawn = hatsOff.includes(h.key);
+                              return (
+                                <button
+                                  key={h.key}
+                                  type="button"
+                                  disabled={!greetingPets.enabled || greetingPets.companion === false}
+                                  aria-pressed={!withdrawn}
+                                  title={withdrawn ? `${h.label} — withdrawn` : `${h.label} — ${hatRequirement(h.key)}`}
+                                  onClick={() => toggleHat(h.key)}
+                                  style={{
+                                    display: "grid", justifyItems: "center", gap: 2, padding: "7px 4px 5px",
+                                    border: `1px solid ${withdrawn ? "var(--border)" : "var(--violet)"}`,
+                                    borderRadius: 10,
+                                    background: withdrawn ? "var(--bg)" : "color-mix(in srgb, var(--violet) 12%, var(--bg))",
+                                    color: "var(--text)", font: "inherit", cursor: "pointer",
+                                    opacity: withdrawn ? 0.5 : 1,
+                                  }}
+                                >
+                                  <span className="dg-pet" style={{ display: "inline-grid", position: "relative", width: 34, height: 34 }} data-motion="off" aria-hidden="true">
+                                    <PetHat hat={h.key} />
+                                  </span>
+                                  <span style={{ fontSize: 9.5, fontWeight: 700, lineHeight: 1.2, textAlign: "center" }}>{h.label}</span>
+                                  <span style={{ fontSize: 8.5, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".3px" }}>
+                                    {withdrawn ? "withdrawn" : hatRequirement(h.key)}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <p className="admin-subtext" style={{ margin: "9px 0 0" }}>
+                            Tap to withdraw one. A withdrawn wearable disappears from the wardrobe and stops being drawn — but it is <strong>not</strong> un-earned: anyone already wearing it keeps the choice, and turning it back on puts it straight back on their pet. {hatsOff.length > 0 && `${hatsOff.length} withdrawn.`}
+                          </p>
+                        </div>
+                      );
+                    })()}
+
+                    <p className="admin-subtext" style={{ margin: "10px 0 0" }}>
+                      To give one student a wearable early, raise their companion&apos;s level in the student inspector — hats are earned from level, so there is no separate grant to make.
                     </p>
                   </div>
                 </div>
@@ -5322,7 +5438,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             <div className="admin-field" style={{ marginTop: 16 }}>
               <label style={{ display: "block", marginBottom: 8, fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "1px" }}>TermFlow Wrapped Release</label>
               {(() => {
-                const WRAPPED_MIN_DATE = "2026-08-27"; // hard floor — mirrored in App.jsx gating
+                const WRAPPED_MIN_DATE = "2026-12-14"; // hard floor (last week of Term V) — mirrored in App.jsx gating
                 const todayStr = new Date().toISOString().split("T")[0];
                 const rel = flags.wrappedReleaseDate || "";
                 const effective = rel && rel < WRAPPED_MIN_DATE ? WRAPPED_MIN_DATE : rel;
@@ -5346,7 +5462,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                         type="button"
                         className="admin-btn"
                         onClick={() => setFlags({ ...flags, wrappedReleaseDate: todayStr > WRAPPED_MIN_DATE ? todayStr : WRAPPED_MIN_DATE })}
-                        title="Release immediately (or on 27 Aug 2026 if that hasn't arrived yet)"
+                        title="Release immediately (or on 14 Dec 2026 if that hasn't arrived yet)"
                       >
                         Push now
                       </button>
@@ -5357,7 +5473,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                       )}
                     </div>
                     <div className="admin-subtext" style={{ marginTop: 6 }}>
-                      {status} Earliest allowed release is 27 Aug 2026 (dates before it are clamped). Hidden from everyone — including admins — until this date arrives; there's no QA bypass, so preview it by scheduling a date and unscheduling after. Remember to hit <b>Deploy Config to Cloud</b>.
+                      {status} Earliest allowed release is 14 Dec 2026 (dates before it are clamped). Automatically unlocked in the last week of Term V (14–20 Dec 2026). Remember to hit <b>Deploy Config to Cloud</b>.
                     </div>
                   </>
                 );
@@ -6661,7 +6777,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                   <div className="admin-field">
                     <label>Type</label>
                     <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                      {[["class", "Class"], ["exam", "Exam"]].map(([val, label]) => (
+                      {[["class", "Class"], ["exam", "Exam"], ["event", "🎉 Celebration Event"]].map(([val, label]) => (
                         <button
                           key={val}
                           type="button"
@@ -6688,11 +6804,36 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 </div>
               ) : (
                 <>
-                  <div style={{ fontWeight: 700, color: "var(--text)" }}>{liveEditorModal.code} — {liveEditorModal.name || "Class"}</div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
+                    <div style={{ fontWeight: 700, color: "var(--text)" }}>{liveEditorModal.code ? `${liveEditorModal.code} — ` : "— "}{liveEditorModal.name || "Class"}</div>
+                    {(() => {
+                      const ident = classIdent(liveEditorModal);
+                      const overrideKey = makeOverrideKey(ident, modalSection);
+                      const existing = flags.classOverrides?.[liveEditorModal.date]?.[overrideKey];
+                      const isEv = existing?.type === "event" || (!existing?.type && liveEditorModal.type === "event");
+                      if (!isEv) return null;
+                      return (
+                        <span style={{
+                          fontSize: 11,
+                          fontWeight: 800,
+                          background: "linear-gradient(135deg, #10B981, #059669)",
+                          color: "#fff",
+                          padding: "2px 8px",
+                          borderRadius: 6,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                          boxShadow: "0 1px 6px rgba(16, 185, 129, 0.3)"
+                        }}>
+                          <PartyPopper size={12} /> Celebration
+                        </span>
+                      );
+                    })()}
+                  </div>
                   <div style={{ color: "var(--muted)", fontSize: 13 }}>{liveEditorModal.date} | {liveEditorModal.start} – {liveEditorModal.end} | Section {liveEditorModal.section}</div>
                   <div className="admin-field" style={{ marginTop: 12 }}>
                     <label>Class Name</label>
-                    <input type="text" className="admin-input" value={modalName} onChange={e => setModalName(e.target.value)} placeholder="e.g. WAI Guest Lecture" />
+                    <input type="text" className="admin-input" value={modalName} onChange={e => setModalName(e.target.value)} placeholder="e.g. Teachers Day" />
                   </div>
                 </>
               )}
@@ -6785,6 +6926,50 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 );
               })()}
 
+              {/* Mark as Event (Celebration) toggle */}
+              {(() => {
+                const ident = classIdent(liveEditorModal);
+                const overrideKey = makeOverrideKey(ident, modalSection);
+                const existing = flags.classOverrides?.[liveEditorModal.date]?.[overrideKey];
+                const isEventOverride = existing?.type === "event" || (!existing?.type && liveEditorModal.type === "event");
+                return (
+                  <button type="button" onClick={() => {
+                    const nextOverrides = { ...(flags.classOverrides || {}) };
+                    nextOverrides[liveEditorModal.date] = { ...(nextOverrides[liveEditorModal.date] || {}) };
+                    if (isEventOverride) {
+                      // Remove only the event type flag, keep other overrides intact
+                      const rest = { ...existing };
+                      delete rest.type;
+                      if (Object.keys(rest).length === 0) {
+                        delete nextOverrides[liveEditorModal.date][overrideKey];
+                        if (Object.keys(nextOverrides[liveEditorModal.date]).length === 0) delete nextOverrides[liveEditorModal.date];
+                      } else {
+                        nextOverrides[liveEditorModal.date][overrideKey] = rest;
+                      }
+                      logAdminAction(admin_id, "clear_event_flag", { date: liveEditorModal.date, class: overrideKey });
+                    } else {
+                      // "All Sections" must supersede any per-section override.
+                      if (modalSection === "All") {
+                        delete nextOverrides[liveEditorModal.date][`${ident}_A`];
+                        delete nextOverrides[liveEditorModal.date][`${ident}_B`];
+                      }
+                      nextOverrides[liveEditorModal.date][overrideKey] = { ...existing, type: "event" };
+                      logAdminAction(admin_id, "mark_as_event", { date: liveEditorModal.date, class: overrideKey });
+                    }
+                    setFlags({ ...flags, classOverrides: nextOverrides });
+                    setLiveEditorModal(null);
+                  }} className={`admin-btn ${isEventOverride ? "" : "outline"}`} style={{
+                    color: isEventOverride ? "#fff" : "var(--live, #10B981)",
+                    borderColor: "var(--live, #10B981)",
+                    background: isEventOverride ? "linear-gradient(135deg, #10B981, #059669)" : "rgba(16, 185, 129, 0.07)",
+                    boxShadow: isEventOverride ? "0 2px 10px rgba(16, 185, 129, 0.35)" : "none",
+                    fontWeight: isEventOverride ? 700 : 600,
+                  }}>
+                    <PartyPopper size={16} /> {isEventOverride ? "Remove Celebration Flag" : "Mark as Event (Celebration)"}
+                  </button>
+                );
+              })()}
+
               {/* Time range */}
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <div className="admin-field" style={{ flex: 1 }}>
@@ -6830,7 +7015,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     if (modalEnd)   changes.end   = modalEnd;
                     if (modalIsNew) {
                       changes.name = modalName;
-                      changes.type = modalNewType === "exam" ? "exam" : "class"; // set at creation; still toggleable later
+                      changes.type = modalNewType; // set at creation; still toggleable later
                     } else if (modalName !== (liveEditorModal.name || "")) {
                       // renaming an existing class (e.g. a custom entry titled "Custom Class")
                       changes.name = modalName;

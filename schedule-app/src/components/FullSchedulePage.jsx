@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from "react";
 import "../styles/fullschedule.css";
-import { ArrowLeft, Clock, MapPin, User, SlidersHorizontal, X, ArrowUp, Calendar, ChevronLeft, ChevronRight, List, CalendarDays, GraduationCap, CalendarClock } from "lucide-react";
+import { ArrowLeft, Clock, MapPin, User, SlidersHorizontal, X, ArrowUp, Calendar, ChevronLeft, ChevronRight, List, CalendarDays, GraduationCap, CalendarClock, PartyPopper } from "lucide-react";
 import { subjectClass } from "../lib/subjectColors.js";
 import { isExamSession } from "../lib/attendance.js";
 import { CalendarEventBadgeSVG } from "./CalendarSVGs.jsx";
@@ -126,6 +126,10 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
       .filter(c => c.type === "exam" || (c.type === "class" && isExamSession(c)))
       .map(c => ({ ...c, isExam: true }));
 
+    const eventRows = allClasses
+      .filter(c => c.type === "event")
+      .map(c => ({ ...c, isEvent: true }));
+
     let classes;
     if (showAllClasses) {
       classes = allClasses.filter(c => c.type === "class" && !isExamSession(c));
@@ -147,7 +151,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
           return enrolledCodes.includes(c.code);
         });
 
-    const combined = [...classes, ...filteredExams];
+    const combined = [...classes, ...filteredExams, ...eventRows];
     return combined.sort((a, b) => a.date.localeCompare(b.date) || toMin(a.start) - toMin(b.start));
   }, [allClasses, enrolled, showAllClasses]);
 
@@ -651,6 +655,44 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                                   </span>
                                 )}
                                 {c.faculty && <span className="fs-meta-item"><User size={13} /> {c.faculty}</span>}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (c.isEvent) {
+                        return (
+                          <div
+                            key={i}
+                            data-class-key={`${c.date}-${c.code || c.name}-${c.start}`}
+                            className="fs-card fs-card-event"
+                            style={{ animationDelay: `${i * 0.055}s`, borderLeft: "3px solid #10B981" }}
+                          >
+                            <div className="fs-card-accent" style={{ background: "linear-gradient(135deg, #10B981, #059669)" }} />
+                            <div className="fs-card-body">
+                              <div className="fs-card-top">
+                                <span className="fs-card-name" style={{ color: "var(--live, #10B981)", display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700 }}>
+                                  <PartyPopper size={14} />
+                                  {c.name || (c.code ? `${c.code} Event` : "Celebration Event")}
+                                </span>
+                                <div style={{ display: "flex", alignItems: "center", gap: "6px", marginLeft: "auto" }}>
+                                  <span style={{ fontSize: 10, fontWeight: 800, background: "linear-gradient(135deg, #10B981, #059669)", color: "#fff", padding: "1px 7px", borderRadius: 4 }}>🎉 CELEBRATION</span>
+                                  {c.code && <span className={`ses ${subjectClass(c.code)} fs-exam-code`}>{c.code}</span>}
+                                </div>
+                              </div>
+                              <div className="fs-card-meta">
+                                <span className="fs-meta-item fs-meta-time"><Clock size={12} /> {c.start} – {c.end}</span>
+                                {c.room && <span className="fs-meta-item"><MapPin size={12} /> {c.room}</span>}
+                                {showSection && (
+                                  <span style={{
+                                    fontSize: "10px", fontWeight: "700", padding: "2px 6px",
+                                    background: "var(--surface)", borderRadius: "6px",
+                                    color: "var(--muted)", letterSpacing: "0.5px", textTransform: "uppercase"
+                                  }}>
+                                    Sec {c.section}
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </div>

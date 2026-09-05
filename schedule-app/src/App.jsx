@@ -23,6 +23,7 @@ import { fetchMessMenu } from "./lib/messFeed.js";
 import { getSnapshot, fetchSchedule, sha256hex } from "./lib/sheet.js";
 import { taughtSectionsByCode, provisionalSectionCodes, applyRosterAllocation, manualSectionCodes, unscheduledCodes } from "./lib/sections.js";
 import { lookupOverride, buildOverrideAdds } from "./lib/overrides.js";
+import { safeUrl } from "./lib/safeUrl.js";
 import { toMin, ymd, clsDate, prettyDate, timeAgo, getSpecialDay } from "./lib/datetime.js";
 import {
   swUpdateIsStale, clearSwSeen,
@@ -1430,7 +1431,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         }
         seen.add(key); return true;
       }
-      const key = c.date + c.slot + c.name;
+      const key = c.date + (c.slot || c.start || "") + (c.code || "") + c.name;
       if (seen.has(key)) return false; seen.add(key); return true;
     });
   }, [CLASSES, enrolled, mine, LEGEND, provisionalSections]);
@@ -1471,7 +1472,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         }
         seen.add(key); return true;
       }
-      const key = c.date + c.slot + c.name;
+      const key = c.date + (c.slot || c.start || "") + (c.code || "") + c.name;
       if (seen.has(key)) return false; seen.add(key); return true;
     });
   }, [isArchivedView, activeClasses, activeEnrolled, activeMine, activeLegend, visible]);
@@ -1567,15 +1568,22 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // shortcut, so the banner doesn't linger all term.
   const wrappedNudgeUntil = useMemo(() => (TERM?.start ? ymd(new Date(`${TERM.start}T00:00:00`)) : null), []);
 
-  // TermFlow Wrapped release gate: hidden from EVERYONE — admins included —
-  // until the admin explicitly pushes it (Admin Tools → Feature Flags →
-  // flags.wrappedReleaseDate), and never before 27 Aug 2026, the hard floor
-  // below. No QA bypass: to preview it, an admin sets/pushes a release date
-  // like anyone else, then unschedules it afterwards. todayISO honours the
-  // admin time-override so a launch can still be rehearsed.
-  const WRAPPED_MIN_DATE = "2026-08-27";
+  // TermFlow Wrapped release gate: shown automatically in the last week of Term V
+  // (e.g. 14 Dec 2026 – 20 Dec 2026), or when explicitly pushed by an admin.
+  // Earliest floor is 14 Dec 2026 so prior terms' stored release flags do not leak into Term V.
+  const isTermVLastWeek = useMemo(() => {
+    const curTerm = (activeTerm?.number === "V" ? activeTerm : null) || (TERM?.number === "V" ? TERM : null);
+    if (!curTerm?.end) return false;
+    const [eY, eM, eD] = curTerm.end.split("-").map(Number);
+    // Last week runs from 6 days before the term end date through the end date (14 Dec – 20 Dec 2026)
+    const lastWeekStartDate = new Date(eY, eM - 1, eD - 6);
+    const lastWeekStartISO = ymd(lastWeekStartDate);
+    return todayISO >= lastWeekStartISO && todayISO <= curTerm.end;
+  }, [activeTerm, TERM, todayISO]);
+
+  const WRAPPED_MIN_DATE = "2026-12-14";
   const wrappedRelease = sysConfig?.flags?.wrappedReleaseDate;
-  const wrappedActive = !!wrappedRelease && todayISO >= wrappedRelease && todayISO >= WRAPPED_MIN_DATE;
+  const wrappedActive = isTermVLastWeek || (!!wrappedRelease && todayISO >= wrappedRelease && todayISO >= WRAPPED_MIN_DATE);
 
   const weekRangeLabel = useMemo(() => {
     const monday = new Date(now);
@@ -2043,10 +2051,13 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     announcementTargetMatches(a.target)
   );
 
-  // Quick links (admin flags.quickLinks) — date-windowed links for the sidebar
-  const activeQuickLinks = (sysConfig?.flags?.quickLinks || []).filter(q =>
-    q?.title && q.url && q.start && q.end && todayISO >= q.start && todayISO <= q.end
-  );
+  // Quick links (admin flags.quickLinks) — date-windowed links for the sidebar.
+  // safeUrl drops any link whose scheme isn't http/https/mailto, so a planted
+  // `javascript:` url can't reach an href in the sidebar or the mobile chips.
+  const activeQuickLinks = (sysConfig?.flags?.quickLinks || [])
+    .filter(q => q?.title && q.url && q.start && q.end && todayISO >= q.start && todayISO <= q.end)
+    .map(q => ({ ...q, url: safeUrl(q.url) }))
+    .filter(q => q.url);
 
   // What's New feature announcements (admin flags.whatsNew, newest first)
   const whatsNewItems = (sysConfig?.flags?.whatsNew || []).filter(w => w?.id && w.title);
@@ -2865,7 +2876,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 <span className="away-banner-go">Manage →</span>
               </button>
             )}
-            {view === "today" && !compareTarget && wrappedActive && (
+            {view === "today" && !compareTarget && !isArchivedView && isTermVLastWeek && (
               <button type="button" className="wrapped-banner" onClick={() => { setView("wrapped"); setCompareTarget(null); }}>
                 <Sparkles size={18} />
                 <span>
@@ -3078,6 +3089,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                     pet={myPet}
                                     petActions={petActions}
                                     petContext={petContext}
+                                    petSettings={sysConfig?.flags?.greetingPets}
                                     now={now}
                                     onBack={() => { setView("today"); setCompareTarget(null); }}
                                   />

@@ -17,6 +17,7 @@ function TypeBadge({ type, name }) {
     );
   }
   if (type === "exam") return <span className="tb exam">Exam / Admin</span>;
+  if (type === "event") return <span className="tb event celebration">🎉 Event</span>;
   if (type === "break") return <span className="tb break">Break</span>;
   return null;
 }
@@ -281,7 +282,7 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
                   <span className="nowrule" />
                 </li>
               )}
-              <li className={`row${isCur ? " cur" : ""}${c.type !== "class" ? " soft" : ""}${isPast ? " past" : ""}${isNext ? " next-up" : ""}${isFirst ? " first-up" : ""}`}>
+              <li className={`row${isCur ? " cur" : ""}${c.type !== "class" ? " soft" : ""}${c.type === "event" ? " row-event-celebration" : ""}${isPast ? " past" : ""}${isNext ? " next-up" : ""}${isFirst ? " first-up" : ""}`}>
                 <div className="row-time">
                   <span className="rt-start">{c.start}</span>
                   <span className="rt-end">{c.end}</span>
@@ -313,7 +314,11 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
                           {c.section === "Single" && <span className="single-tag">all</span>}
                           {!isPast && attKey && !attStatus && <SkipHint info={skipInfo?.[c.code]} name={c.name} />}
                         </>
-                      : <TypeBadge type={c.type} name={c.name} />}
+                      : <>
+                          <TypeBadge type={c.type} name={c.name} />
+                          {c.type === "event" && c.room && <span className="row-loc" style={{ marginLeft: 8 }}><MapPin size={13} /> {c.room}</span>}
+                          {c.type === "event" && c.section && c.section !== "Single" && c.section !== "All" && <span className="single-tag">Sec {c.section}</span>}
+                        </>}
                   </div>
                 </div>
                 {canMark && (
