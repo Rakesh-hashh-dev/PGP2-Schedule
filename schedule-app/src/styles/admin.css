@@ -64,7 +64,10 @@
 
 @media (max-width: 768px) {
   .admin-page {
-    padding: 16px 12px;
+    padding: 8px 0 80px;
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
   }
 }
 
@@ -85,9 +88,42 @@
 
 @media (max-width: 768px) {
   .admin-hero-banner {
-    padding: 24px 16px 20px;
-    border-radius: 20px;
-    margin-bottom: 24px;
+    padding: 16px 12px 14px;
+    border-radius: 16px;
+    margin-bottom: 16px;
+  }
+  .admin-hero-control-pill {
+    padding: 5px 8px 5px 12px;
+    gap: 6px;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .admin-hero-control-title {
+    font-size: 13px;
+    white-space: nowrap;
+    letter-spacing: -0.2px;
+  }
+  .admin-hero-shield-icon {
+    width: 16px;
+    height: 16px;
+  }
+  .admin-hero-action-btn {
+    width: 26px;
+    height: 26px;
+  }
+  .admin-hero-action-btn svg {
+    width: 13px;
+    height: 13px;
+  }
+  .admin-hero-presence-pill,
+  .admin-hero-unsaved-pill {
+    font-size: 11px;
+    padding: 4px 10px;
+  }
+  .admin-hero-tagline {
+    font-size: 12px;
+    line-height: 1.4;
+    margin: 4px 0 16px;
   }
 }
 
@@ -331,11 +367,8 @@
   }
 }
 
-@media (max-width: 580px) {
-  .admin-hero-stats-row {
-    grid-template-columns: 1fr;
-  }
-}
+/* The phone sizing for these cards lives at the end of this file — it has to
+   come after the .admin-kpi-* base rules to win on source order. */
 
 .admin-kpi-card {
   position: relative;
@@ -530,8 +563,11 @@
     margin-bottom: 24px;
   }
 
-  .admin-masonry > .admin-span-all {
+  .admin-masonry > .admin-span-all,
+  .admin-masonry[data-active-tab="broadcast"] > .admin-g-broadcast {
     column-span: all;
+    width: 100%;
+    box-sizing: border-box;
   }
 }
 
@@ -1170,16 +1206,36 @@
 }
 
 @media (max-width: 560px) {
-  .admin-users-overview { padding: 19px 15px; border-radius: 18px; }
-  .admin-users-overview-head,
-  .admin-users-directory-head { flex-direction: column; align-items: stretch; }
-  .admin-users-overview-head .admin-btn,
-  .admin-users-directory-head .admin-btn { width: 100%; }
-  .admin-users-metrics { grid-template-columns: 1fr; margin-top: 18px; }
-  .admin-users-metric { padding: 12px; }
-  .admin-users-directory-head { padding: 18px 15px 15px; }
-  .admin-users-toolbar { grid-template-columns: 1fr; padding-inline: 15px; }
-  .admin-users-search { grid-column: auto; }
+  .admin-users-overview { padding: 14px 12px; border-radius: 16px; }
+  .admin-users-overview h2 { font-size: 17px; line-height: 1.25; margin: 6px 0 4px; }
+  .admin-users-overview-head p { font-size: 11.5px; line-height: 1.4; }
+  .admin-users-overview-head { flex-direction: column; align-items: stretch; gap: 10px; }
+  .admin-users-overview-head .admin-btn { width: 100%; min-height: 38px; }
+  .admin-users-directory-head { display: flex; flex-direction: row; align-items: flex-start; justify-content: space-between; gap: 8px; padding: 12px 14px 6px; }
+  .admin-users-directory-head h2 { font-size: 16px; margin: 2px 0 1px; }
+  .admin-users-directory-head p { font-size: 11px; margin: 0; line-height: 1.3; }
+  .admin-users-directory-head .admin-btn { width: auto; min-height: 28px; padding: 3px 9px; font-size: 10.5px; border-radius: 7px; white-space: nowrap; flex-shrink: 0; margin-top: 2px; }
+  .admin-users-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+  .admin-users-metric {
+    grid-template-columns: 32px minmax(0, 1fr);
+    padding: 10px 8px;
+    gap: 8px;
+    border-radius: 12px;
+  }
+  .admin-users-metric-icon { width: 32px; height: 32px; border-radius: 9px; }
+  .admin-users-metric-arrow { display: none; }
+  .admin-users-metric strong { font-size: 20px; margin: 1px 0 2px; }
+  .admin-users-metric small,
+  .admin-users-metric em { font-size: 9.5px; line-height: 1.2; }
+  .admin-users-attention { margin-top: 10px; padding-top: 10px; gap: 6px; font-size: 10.5px; }
+  .admin-users-attention button { min-height: 28px; padding: 3px 8px; font-size: 10px; }
+  .admin-users-toolbar { grid-template-columns: 1fr 1fr; gap: 6px; padding: 0 14px 8px; }
+  .admin-users-search { grid-column: 1 / -1; min-height: 34px; padding: 0 9px; border-radius: 8px; font-size: 12px; }
+  .admin-users-search input { font-size: 12px; }
+  .admin-users-select { min-height: 32px; padding: 0 8px; border-radius: 8px; gap: 4px; }
+  .admin-users-select svg { width: 12px; height: 12px; }
+  .admin-users-select > span { font-size: 8px; }
+  .admin-users-select select { font-size: 11px; }
   .admin-users-segments { padding-inline: 15px; }
   .admin-users-results-bar,
   .admin-users-bulkbar { padding-inline: 15px; }
@@ -1247,21 +1303,30 @@
 
 @media (max-width: 640px) {
   .admin-page {
-      padding: 20px 16px 100px;
-      /* extra bottom padding clears the mobile bottom-nav bar */
+      padding: 8px 0 100px;
+      width: 100%;
+      box-sizing: border-box;
     }
 
-  .modern-ui .admin-card {
-      padding: 12px 10px;
+  .modern-ui .admin-card,
+  .admin-card {
+      padding: 14px 12px;
       border-radius: 16px;
+      box-sizing: border-box;
     }
     
   .modern-ui .admin-grid-2 {
       grid-template-columns: 1fr !important;
     }
 
+  .schedule-bulk-tools[style*="grid-template-columns"],
+  .admin-masonry > section[style*="grid-template-columns"] {
+      grid-template-columns: 1fr !important;
+      gap: 16px !important;
+    }
+
   .modern-ui .admin-input, .modern-ui .admin-card select, .modern-ui .admin-card textarea {
-      font-size: 16px !important;
+      font-size: 14px !important;
     }
 
   .modern-ui .admin-stats-grid {
@@ -1321,11 +1386,12 @@
 
 @media (max-width: 400px) {
   .admin-page {
-      padding: 16px 12px 100px;
+      padding: 6px 0 100px;
+      width: 100%;
     }
 
   .admin-card {
-      padding: 14px 12px;
+      padding: 12px 10px;
     }
 }
 
@@ -1407,9 +1473,9 @@
 @media (max-width: 640px) {
   .admin-tabs {
     gap: 4px;
-    padding: 6px;
-    margin-bottom: 20px;
-    border-radius: 14px;
+    padding: 5px 4px;
+    margin-bottom: 16px;
+    border-radius: 12px;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
@@ -1421,7 +1487,10 @@
 
   .admin-tab {
     flex: 0 0 auto;
-    padding: 9px 15px;
+    padding: 7px 11px;
+    min-height: 38px;
+    font-size: 12.5px;
+    gap: 5px;
     scroll-snap-align: start;
   }
 }
@@ -2116,25 +2185,30 @@
 
 @media (max-width: 480px) {
   .admin-page {
-    padding-inline: 12px;
+    padding-inline: 0;
   }
 
   .admin-masonry > .admin-card {
-    padding: 15px 12px;
-    border-radius: 15px;
+    padding: 14px 12px;
+    border-radius: 14px;
   }
 
   .admin-masonry > .admin-card h2 {
     gap: 8px;
+    font-size: 16px;
   }
 
   .admin-masonry > .admin-card [style*="display: flex"] > .admin-btn,
   .admin-masonry > .admin-card [style*="display: flex"] > button.admin-btn {
-    flex: 1 1 140px;
+    flex: 1 1 120px;
   }
 
   .schedule-ops-metrics,
-  .system-ops-metrics,
+  .system-ops-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
   .database-table-picker {
     grid-template-columns: 1fr;
   }
@@ -2214,3 +2288,2378 @@
   }
 }
 
+
+/* ══════════════════════════════════════════════════════════════════════════
+   BROADCAST STUDIO — extracted layout
+   These rows used to be inline flexbox in AdminDashboard.jsx, which meant no
+   media query could reach them. The classes below own the layout so the
+   mobile block further down can restack them.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.bcast-studio-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.bcast-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.bcast-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.bcast-tab svg { flex: none; }
+
+.bcast-acc {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--bg);
+  transition: border-color 0.15s;
+}
+
+.bcast-acc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 48px;
+  padding: 12px 16px;
+  cursor: pointer;
+}
+
+.bcast-acc-head:focus-visible {
+  outline: 2px solid var(--violet);
+  outline-offset: -2px;
+}
+
+.bcast-acc-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+}
+
+.bcast-acc-title svg { flex: none; }
+
+.bcast-acc-toggle {
+  flex: none;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.bcast-acc-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border-top: 1px solid var(--border);
+}
+
+/* Label on the left, a row of small chips on the right. */
+.bcast-field-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.bcast-field-label {
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.bcast-preset-row,
+.bcast-chip-row,
+.bcast-icon-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-width: 0;
+}
+
+.bcast-chip-row-label,
+.bcast-icon-row-label {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.bcast-chip-row-label { text-transform: uppercase; }
+
+.bcast-preset-chip {
+  padding: 4px 9px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.bcast-preset-chip:hover { border-color: var(--violet); color: var(--text); }
+
+.bcast-icon-btn {
+  min-width: 28px;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--card);
+  font-size: 13px;
+  line-height: 1.2;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.bcast-control-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Selects size themselves to their widest <option> — a subject list blows the
+   card open on a phone unless they are allowed to shrink. */
+.bcast-control {
+  min-width: 0;
+  max-width: 100%;
+  padding: 8px;
+  border-radius: 8px;
+}
+
+.bcast-control--date { flex: 1 1 130px; }
+.bcast-control--audience { flex: 2 1 170px; }
+.bcast-control--severity { flex: 1.5 1 140px; }
+
+.bcast-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bcast-tpl-input {
+  flex: 1 1 140px;
+  min-width: 0;
+  max-width: 180px;
+}
+
+.bcast-list-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.bcast-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.bcast-filter-chip {
+  padding: 5px 11px;
+  border-radius: 16px;
+  font-family: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.bcast-search-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.bcast-search-input {
+  width: 150px;
+  min-width: 0;
+  padding: 5px 9px;
+  font-size: 12px;
+}
+
+.bcast-item-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.bcast-item-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.bcast-item-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 6px;
+}
+
+@media (max-width: 640px) {
+  .bcast-studio-head { gap: 12px; }
+
+  /* Three channel toggles, one tap target each, no ragged wrap. */
+  .bcast-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+    gap: 5px;
+  }
+
+  .bcast-tab {
+    min-height: 40px;
+    padding: 6px 4px;
+    font-size: 11.5px;
+    gap: 4px;
+  }
+
+  .bcast-acc-head { padding: 12px 13px; }
+  .bcast-acc-body { gap: 13px; padding: 13px; }
+  .bcast-acc-toggle { font-size: 12px; }
+
+  /* Caption above, controls below — side by side leaves no room for either. */
+  .bcast-field-head {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .bcast-preset-chip { padding: 6px 11px; font-size: 11.5px; }
+  .bcast-icon-btn { min-width: 34px; min-height: 32px; font-size: 15px; }
+
+  /* Date pickers stay paired; the long audience/severity menus get a line. */
+  .bcast-control--audience,
+  .bcast-control--severity { flex: 1 1 100%; }
+  .bcast-control--date { flex: 1 1 calc(50% - 4px); }
+
+  .bcast-actions > .admin-btn { flex: 1 1 100%; justify-content: center; }
+  .bcast-tpl-input { flex: 1 1 100%; max-width: none; }
+
+  .bcast-list-toolbar { align-items: stretch; flex-direction: column; }
+  .bcast-filter-chip { padding: 6px 12px; }
+  .bcast-search-row { width: 100%; }
+  .bcast-search-input { flex: 1 1 auto; width: auto; min-height: 36px; }
+
+  .bcast-item-head { align-items: stretch; flex-direction: column; }
+  .bcast-item-actions { justify-content: flex-end; }
+  .bcast-item-actions .admin-btn { min-height: 32px; padding: 4px 12px; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   USER DIRECTORY — stacked rows on a phone
+   The directory row is a 790px-wide five-column grid. Below 700px it becomes
+   a card: identity and actions on the first line, then activity, then
+   enrollment and push state, so nothing needs a sideways scroll.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 700px) {
+  /* .admin-directory-card clamps the whole section to 420px and clips the
+     overflow. Head + toolbar + segments + results bar already eat that on a
+     phone, so the user list was cropped to nothing. Let the card grow and
+     scroll the page instead of the list. */
+  .admin-users-directory.admin-directory-card {
+    max-height: none;
+  }
+
+  .admin-users-table { max-height: none; overflow: visible; }
+
+  .admin-users-table-head { display: none; }
+
+  .admin-users-table-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    min-width: 0;
+    gap: 10px 12px;
+    padding: 13px 15px;
+  }
+
+  .admin-users-person { grid-column: 1; grid-row: 1; }
+  .admin-users-person-copy > strong { font-size: 13.5px; }
+  .admin-users-person-copy > span { font-size: 11px; }
+
+  .admin-users-row-actions { grid-column: 2; grid-row: 1; }
+  .admin-users-row-actions .admin-btn-icon { width: 36px; height: 36px; }
+
+  .admin-users-activity { grid-column: 1 / -1; }
+  .admin-users-activity strong { font-size: 12px; }
+  .admin-users-activity small { font-size: 10.5px; }
+
+  .admin-users-enrollment-cell { grid-column: 1; align-self: center; }
+  .admin-users-enrollment-cell strong { font-size: 12px; }
+  .admin-users-enrollment-cell span { font-size: 10.5px; }
+
+  .admin-users-push-cell { grid-column: 2; justify-self: end; align-self: center; }
+  .admin-users-push-cell > span { padding: 5px 9px; font-size: 10.5px; }
+
+  .admin-users-segments button { min-height: 34px; padding: 6px 11px; font-size: 11px; }
+  .admin-users-segments button span { font-size: 9.5px; }
+  .admin-users-results-bar { font-size: 11.5px; }
+  .admin-users-attention { flex-wrap: wrap; font-size: 11px; }
+  .admin-users-attention button { min-height: 30px; }
+  .admin-users-metric small,
+  .admin-users-metric em { font-size: 11px; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ADMIN-WIDE MOBILE SAFETY
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* A <select> is as wide as its longest option unless told otherwise, and the
+   audience menus list every subject. Without this the control pushes its card
+   past the viewport on every narrow screen, at every breakpoint. */
+.admin-page select,
+.admin-page input,
+.admin-page textarea,
+.admin-page .admin-input,
+.admin-page .admin-textarea {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.admin-page select.admin-input { text-overflow: ellipsis; }
+
+@media (max-width: 640px) {
+  /* Anything still overflowing scrolls inside its own card rather than
+     widening the document and breaking every card below it. */
+  /* break-word, not anywhere: `anywhere` also shrinks min-content width, so
+     a squeezed column would split words like "Registration" mid-syllable. */
+  .admin-masonry > .admin-card,
+  .admin-masonry > section {
+    max-width: 100%;
+    overflow-wrap: break-word;
+  }
+
+  .admin-masonry .admin-btn {
+    min-height: 40px;
+    touch-action: manipulation;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   BROADCAST STUDIO — sizing pass for phones
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.bcast-acc-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.bcast-acc-name {
+  min-width: 0;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.bcast-acc-badge {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.bcast-acc-badge.is-realtime {
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%);
+  color: #fff;
+  font-size: 9px;
+}
+
+.bcast-acc-toggle em { font-style: normal; margin-left: 4px; }
+
+.bcast-preview-stage {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.bcast-preview-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.bcast-test-btn { padding: 5px 11px; font-size: 11.5px; }
+
+.bcast-flash-send {
+  background: var(--violet, #8B5CF6);
+  color: #fff;
+  border-color: var(--violet, #8B5CF6);
+}
+
+.bcast-quiet-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.bcast-quiet-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+}
+
+.bcast-quiet-times {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.bcast-quiet-times .admin-input {
+  width: auto;
+  min-width: 0;
+  padding: 5px 8px;
+  font-size: 12px;
+}
+
+.bcast-quiet-times > span { color: var(--muted); font-size: 12px; }
+
+.bcast-quiet-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.bcast-quiet-status > span {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+@media (max-width: 640px) {
+  .bcast-acc-stack { gap: 11px; }
+  .bcast-acc-name { font-size: 13px; }
+  .bcast-acc-badge { padding: 2px 6px; font-size: 10px; }
+
+  /* Only the arrow survives — the word costs ~70px the title needs. */
+  .bcast-acc-toggle em { display: none; }
+
+  .bcast-preview-stage { padding: 10px; }
+  .bcast-preview-banner { gap: 8px; padding: 10px 11px; font-size: 12.5px; }
+
+  .bcast-test-btn { width: 100%; justify-content: center; }
+  .bcast-flash-send { flex: 1 1 100%; justify-content: center; }
+
+  .bcast-quiet-row {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .bcast-quiet-controls { align-items: stretch; flex-direction: column; gap: 8px; }
+  .bcast-quiet-times .admin-input { flex: 1 1 0; min-height: 36px; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   TARGET COURSES — pill wrap on desktop, dropdown on a phone
+   28 course pills stack into 28 full-width rows below 480px (an older rule
+   gives every .admin-btn in a flex row `flex: 1 1 140px`). Below 640px the
+   list collapses behind a summary button and reopens as a compact grid.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.bcast-course-bulk {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+
+.bcast-course-link {
+  padding: 2px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.bcast-course-link.is-primary { color: var(--blue); }
+
+/* Hidden on desktop — the grid below is always open there. */
+.bcast-course-toggle { display: none; }
+
+.bcast-course-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.bcast-course-chip {
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--bg);
+  color: var(--muted);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: border-color .15s ease, background .15s ease, color .15s ease;
+}
+
+.bcast-course-chip:hover { border-color: var(--violet); color: var(--text); }
+
+.bcast-course-chip.is-selected {
+  border-color: var(--violet);
+  background: color-mix(in srgb, var(--violet) 16%, var(--card));
+  color: var(--violet);
+}
+
+.bcast-course-chip:focus-visible {
+  outline: 2px solid var(--violet);
+  outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  .bcast-course-field .bcast-field-head {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .bcast-course-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+    min-height: 42px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  .bcast-course-toggle svg {
+    flex: none;
+    color: var(--muted);
+    transition: transform .18s ease;
+  }
+
+  .bcast-course-toggle svg.is-open { transform: rotate(90deg); }
+
+  .bcast-course-toggle[aria-expanded="true"] {
+    border-color: var(--violet);
+    border-radius: 11px 11px 0 0;
+  }
+
+  /* The dropdown body: three codes per row, scrolls once the list is long. */
+  .bcast-course-grid {
+    display: none;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    max-height: 232px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding: 9px;
+    border: 1px solid var(--violet);
+    border-top: 0;
+    border-radius: 0 0 11px 11px;
+    background: var(--card);
+  }
+
+  .bcast-course-grid.is-open { display: grid; }
+
+  .bcast-course-chip {
+    min-height: 34px;
+    padding: 5px 4px;
+    border-radius: 9px;
+    text-align: center;
+  }
+
+  .bcast-course-bulk { justify-content: flex-start; font-size: 12px; }
+  .bcast-course-link { min-height: 28px; font-size: 12px; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   USER DIRECTORY — density pass
+   The first mobile pass made the directory visible; this one removes the
+   dead space it left. Toolbar goes 2-up, and each user row collapses from
+   four loose bands into three single-line ones.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 700px) {
+  .admin-users-directory-head { display: flex; flex-direction: row; align-items: flex-start; justify-content: space-between; gap: 8px; padding: 12px 14px 6px; }
+  .admin-users-directory-head h2 { font-size: 16px; margin: 2px 0 1px; }
+  .admin-users-directory-head p { font-size: 11px; margin: 0; line-height: 1.3; }
+  .admin-users-directory-head .admin-btn { width: auto; min-height: 28px; padding: 3px 9px; font-size: 10.5px; border-radius: 7px; white-space: nowrap; flex-shrink: 0; margin-top: 2px; }
+
+  /* Section and Sort pair up — on their own rows each wasted half a line to
+     empty space on the right of the value. */
+  .admin-users-toolbar {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    padding: 0 14px 8px;
+  }
+
+  .admin-users-search {
+    grid-column: 1 / -1;
+    min-height: 34px;
+    padding: 0 9px;
+    border-radius: 8px;
+    font-size: 12px;
+  }
+  .admin-users-search input { font-size: 12px; }
+
+  .admin-users-select {
+    min-height: 32px;
+    min-width: 0;
+    padding: 0 8px;
+    border-radius: 8px;
+    gap: 4px;
+  }
+  .admin-users-select svg { width: 12px; height: 12px; }
+
+  .admin-users-search svg,
+  .admin-users-select svg { flex: none; }
+  .admin-users-select > span { flex: none; font-size: 8.5px; }
+  .admin-users-select select {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    font-size: 11.5px;
+    text-overflow: ellipsis;
+  }
+
+  .admin-users-segments { gap: 5px; padding: 0 14px 11px; }
+  .admin-users-results-bar { padding: 9px 14px; }
+
+  /* Row: identity + actions, then activity + push, then enrollment.
+     Every band is one line, so nothing trails off into white space. */
+  .admin-users-table-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 7px 10px;
+    padding: 11px 14px;
+  }
+
+  .admin-users-person { gap: 9px; }
+  .admin-users-person-copy > span { margin-top: 1px; }
+
+  .admin-users-row-actions { align-self: center; gap: 2px; }
+  .admin-users-row-actions .admin-btn-icon { width: 32px; height: 32px; }
+  .admin-users-row-actions .admin-btn-icon svg { width: 17px; height: 17px; }
+
+  /* One line: dot + "6m ago". The absolute timestamp repeats it and cost a
+     whole band of its own. */
+  .admin-users-activity { grid-column: 1; gap: 7px; }
+  .admin-users-activity small { display: none; }
+  .admin-users-activity strong { font-size: 11.5px; font-weight: 650; }
+
+  .admin-users-push-cell { grid-column: 2; grid-row: 2; justify-self: end; }
+  .admin-users-push-cell > span { padding: 4px 8px; font-size: 10px; }
+
+  /* "No section · 8 courses" instead of two stacked lines. */
+  .admin-users-enrollment-cell {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    grid-column: 1 / -1;
+    gap: 5px;
+  }
+
+  .admin-users-enrollment-cell strong { font-size: 11.5px; font-weight: 650; }
+  .admin-users-enrollment-cell span { margin-top: 0; font-size: 11px; }
+
+  .admin-users-enrollment-cell strong::after {
+    margin-left: 5px;
+    color: var(--muted);
+    content: "·";
+    font-weight: 400;
+  }
+}
+
+@media (max-width: 400px) {
+  .admin-users-toolbar { grid-template-columns: 1fr 1fr; gap: 5px; }
+  .admin-users-directory-head,
+  .admin-users-toolbar,
+  .admin-users-segments,
+  .admin-users-results-bar,
+  .admin-users-bulkbar,
+  .admin-users-table-row { padding-inline: 12px; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   BROADCAST COMMAND DECK — compact on a phone
+   Stacking the three metrics and three channel cards into single columns
+   made the deck ~500px tall before the studio below it even started. The
+   metrics turn into label-left / number-right strips, and the channel picker
+   into a 3-up icon grid.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 700px) {
+  .broadcast-command-deck { padding: 16px 14px; }
+
+  .broadcast-command-head { gap: 10px; margin-bottom: 13px; }
+  .broadcast-command-head h2 { margin: 3px 0 4px; font-size: 16px; }
+  .broadcast-command-head .admin-subtext { font-size: 11.5px; line-height: 1.45; }
+  .broadcast-command-head .admin-btn { width: 100%; min-height: 38px; }
+
+  .broadcast-command-metrics { gap: 7px; }
+
+  /* Caption and label on the left, the figure on the right, one strip each. */
+  .broadcast-command-metrics > div {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "label value"
+      "caption value";
+    align-items: center;
+    column-gap: 10px;
+    padding: 9px 12px;
+    border-radius: 10px;
+  }
+
+  .broadcast-command-metrics span { grid-area: label; font-size: 9.5px; }
+
+  .broadcast-command-metrics strong {
+    grid-area: value;
+    align-self: center;
+    margin: 0;
+    font-size: 21px;
+  }
+
+  .broadcast-command-metrics small {
+    grid-area: caption;
+    overflow: hidden;
+    margin-top: 2px;
+    font-size: 10.5px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Three tap targets across, icon over label. The one-line descriptions
+     duplicate the Broadcast Studio headings directly below. */
+  .broadcast-channel-guide {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    margin-top: 11px;
+  }
+
+  .broadcast-channel-guide button {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    gap: 5px;
+    padding: 10px 6px;
+    border-radius: 10px;
+    text-align: center;
+  }
+
+  .broadcast-channel-guide button > svg:first-child { margin-bottom: 1px; }
+  .broadcast-channel-guide button > svg:last-child { display: none; }
+  .broadcast-channel-guide small { display: none; }
+  .broadcast-channel-guide strong { font-size: 11.5px; line-height: 1.25; white-space: normal; }
+}
+
+@media (max-width: 380px) {
+  .broadcast-command-metrics strong { font-size: 19px; }
+  .broadcast-channel-guide strong { font-size: 11px; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   DAY EDITOR CLASS ROWS
+   Cancel / Room / Edit are ~230px of fixed-width buttons. Beside them the
+   title column collapsed to about 30px on a phone, so class names broke
+   mid-word ("Regist / ration"). Below 640px the actions move to their own
+   full-width line and the title gets the whole row.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.sched-class-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+}
+
+.sched-class-handle {
+  flex-shrink: 0;
+  color: var(--muted);
+  cursor: grab;
+}
+
+.sched-class-info { flex: 1; min-width: 0; }
+
+.sched-class-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.sched-class-meta {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.sched-class-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 6px;
+}
+
+.sched-class-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.sched-class-btn svg { flex: none; }
+
+.sched-quickroom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px 12px;
+}
+
+.sched-quickroom .admin-input { flex: 1; min-width: 0; }
+
+@media (max-width: 640px) {
+  .sched-class-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 9px 10px;
+    padding: 11px 12px;
+  }
+
+  .sched-class-title { gap: 6px; font-size: 13.5px; line-height: 1.3; }
+  .sched-class-meta { margin-top: 2px; font-size: 11.5px; line-height: 1.4; }
+
+  /* Full width, three equal targets — they no longer starve the title. */
+  .sched-class-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-column: 1 / -1;
+    gap: 6px;
+  }
+
+  .sched-class-btn { min-height: 36px; padding: 6px 4px; }
+
+  .sched-quickroom { padding: 0 12px 11px; }
+  .sched-quickroom .admin-btn { padding: 6px 12px; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   HERO KPI CARDS — compact on a phone
+   These rules used to sit above the .admin-kpi-* base declarations, so every
+   one of them lost on source order and the cards rendered at full desktop
+   size (38px figures) on a 320px screen. Kept here, after the base block.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 640px) {
+  .admin-hero-tagline { margin: 4px 0 16px; font-size: 12.5px; }
+
+  .admin-hero-stats-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .admin-kpi-card {
+    padding: 10px 11px 9px;
+    border-radius: 12px;
+  }
+
+  .admin-kpi-header { margin-bottom: 5px; }
+
+  .admin-kpi-label {
+    font-size: 8.5px;
+    letter-spacing: 0.045em;
+    line-height: 1.25;
+  }
+
+  .admin-kpi-icon-wrap {
+    flex: none;
+    width: 21px;
+    height: 21px;
+    border-radius: 6px;
+  }
+
+  .admin-kpi-icon-wrap svg { width: 12px; height: 12px; }
+
+  .admin-kpi-value {
+    margin-bottom: 2px;
+    font-size: 21px;
+    font-weight: 800;
+    letter-spacing: -0.4px;
+    line-height: 1.1;
+  }
+
+  .admin-kpi-sub {
+    gap: 5px;
+    font-size: 9.5px;
+    line-height: 1.3;
+  }
+
+  /* Only the clickable cards wrap their caption in a <span>; the plain ones
+     are a bare text node and stay free to wrap onto a second line. */
+  .admin-kpi-sub > span:first-child {
+    overflow: hidden;
+    min-width: 0;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .admin-kpi-action-hint { flex: none; font-size: 8.5px; opacity: 1; }
+
+  .admin-hero-shortcuts-wrap { margin-top: 14px; }
+  .admin-hero-shortcuts-details { font-size: 11px; }
+}
+
+@media (max-width: 380px) {
+  .admin-hero-control-title { font-size: 12px; }
+  .admin-kpi-card { padding: 9px 9px 8px; }
+  .admin-kpi-value { font-size: 19px; }
+  .admin-kpi-label { font-size: 8px; letter-spacing: 0.03em; }
+  .admin-kpi-icon-wrap { width: 19px; height: 19px; }
+  .admin-kpi-icon-wrap svg { width: 11px; height: 11px; }
+}
+
+/* ── Command deck, second pass: squeeze the remaining vertical slack ────────
+   Refresh stops eating a full row, the metric strips lose their internal
+   padding, and the channel tiles tighten up. */
+
+@media (max-width: 700px) {
+  .broadcast-command-deck { padding: 14px 13px; }
+
+  .broadcast-command-head {
+    align-items: center;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 9px;
+    margin-bottom: 11px;
+  }
+
+  .broadcast-command-head > div:first-child { flex: 1 1 100%; }
+  .broadcast-command-head h2 { margin: 2px 0 3px; font-size: 15.5px; }
+  .broadcast-command-head .admin-subtext { font-size: 11px; line-height: 1.4; }
+
+  /* Auto width, aligned right — it was claiming a full-width row of its own. */
+  .broadcast-command-head .admin-btn {
+    width: auto;
+    min-height: 32px;
+    margin-left: auto;
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+
+  .broadcast-command-metrics { gap: 6px; }
+
+  .broadcast-command-metrics > div {
+    column-gap: 8px;
+    padding: 7px 11px;
+    border-radius: 9px;
+  }
+
+  .broadcast-command-metrics span { font-size: 9px; }
+  .broadcast-command-metrics strong { font-size: 19px; }
+  .broadcast-command-metrics small { margin-top: 1px; font-size: 10px; }
+
+  .broadcast-channel-guide { gap: 5px; margin-top: 9px; }
+
+  .broadcast-channel-guide button {
+    gap: 4px;
+    padding: 8px 4px;
+    border-radius: 9px;
+  }
+
+  .broadcast-channel-guide strong { font-size: 11px; }
+}
+
+@media (max-width: 380px) {
+  .broadcast-command-metrics strong { font-size: 18px; }
+  .broadcast-channel-guide strong { font-size: 10.5px; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   BROADCAST MISSION CONTROL
+   The agenda row put kind, label and time on one line with an 88px minimum
+   on the kind — the label was left ~40px and ellipsed to nothing. On a phone
+   the row splits: kind and time on top, the label on its own line beneath.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.bmc-section-label {
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.bmc-day-head {
+  margin: 6px 0 2px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.bmc-agenda-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.bmc-agenda-row.is-collision {
+  border-color: var(--amber);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.bmc-agenda-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.bmc-agenda-kind {
+  min-width: 88px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.bmc-agenda-label {
+  overflow: hidden;
+  flex: 1;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bmc-agenda-when {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.bmc-details {
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.bmc-summary {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.bmc-stat-card {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.bmc-stat-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.bmc-stat-title {
+  overflow: hidden;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bmc-stat-date {
+  flex: none;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.bmc-stat-nums {
+  display: flex;
+  gap: 14px;
+  font-size: 11.5px;
+}
+
+.bmc-stat-bar {
+  position: relative;
+  height: 5px;
+  overflow: hidden;
+  margin-top: 4px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--card);
+}
+
+@media (max-width: 640px) {
+  .bmc-section-label { margin-bottom: 6px; font-size: 10.5px; }
+  .bmc-day-head { margin: 5px 0 2px; font-size: 10px; }
+
+  /* dot + kind + time on line one, the full label on line two. */
+  .bmc-agenda-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 3px 8px;
+    padding: 8px 10px;
+  }
+
+  .bmc-agenda-kind { min-width: 0; font-size: 10px; letter-spacing: .04em; }
+  .bmc-agenda-when { font-size: 10px; }
+
+  /* Two lines beat an ellipsis that leaves nothing readable. */
+  .bmc-agenda-label {
+    display: -webkit-box;
+    grid-column: 2 / -1;
+    overflow: hidden;
+    font-size: 12.5px;
+    line-height: 1.35;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .bmc-details { padding-top: 10px; }
+  .bmc-summary { font-size: 12.5px; }
+
+  .bmc-stat-card { padding: 8px 10px; }
+  .bmc-stat-title { font-size: 12px; }
+  .bmc-stat-date { font-size: 10px; }
+
+  /* Three figures never fit on one 320px line. */
+  .bmc-stat-nums {
+    flex-wrap: wrap;
+    gap: 2px 10px;
+    font-size: 11px;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SCHEDULE COMMAND CENTRE — header, week ribbon, day toolbar, undo bar
+   (the class rows inside it are handled by the .sched-class-* block above)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.scc-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.scc-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.scc-head-btn { padding: 7px 14px; font-size: 13px; }
+
+/* A horizontal strip of days. The admin-wide mobile net forces `flex-wrap:
+   wrap` onto inline flex rows, which would break this into stacked rows —
+   as a class it keeps nowrap and scrolls instead. */
+.scc-week-ribbon {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  overflow-x: auto;
+  margin-bottom: 16px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-inline: contain;
+}
+
+.scc-week-ribbon::-webkit-scrollbar { display: none; }
+
+.scc-day {
+  position: relative;
+  flex: 0 0 auto;
+  min-width: 56px;
+  padding: 8px 6px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  text-align: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: border-color 0.15s;
+}
+
+.scc-day.is-today { background: rgba(109, 91, 208, 0.06); }
+
+.scc-day.is-active {
+  border: 2px solid var(--blue);
+  background: rgba(59, 130, 246, 0.10);
+}
+
+.scc-day-label {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.scc-day-num {
+  color: var(--text);
+  font-family: var(--display);
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.scc-day-count { margin-top: 2px; color: var(--muted); font-size: 10px; }
+
+.scc-day.is-active .scc-day-label,
+.scc-day.is-active .scc-day-num { color: var(--blue); }
+
+.scc-day-override {
+  position: absolute;
+  top: 5px;
+  right: 7px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--amber);
+}
+
+.scc-day-today {
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: var(--violet);
+}
+
+.scc-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.scc-datenav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.scc-datenav-step {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.scc-dateinput { min-width: 0; padding: 7px 12px; border-radius: 8px; }
+
+.scc-sections { display: flex; gap: 4px; }
+
+.scc-section-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.scc-section-btn.is-active {
+  border: 1.5px solid var(--blue);
+  background: rgba(59, 130, 246, 0.10);
+  color: var(--blue);
+  font-weight: 700;
+}
+
+.scc-undo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  border: 1px solid rgba(109, 91, 208, 0.3);
+  border-radius: 10px;
+  background: rgba(109, 91, 208, 0.07);
+  font-size: 13px;
+}
+
+.scc-undo-label { flex: 1; min-width: 0; color: var(--muted); }
+.scc-undo-label b { color: var(--text); }
+
+.scc-undo-actions {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 10px;
+}
+
+.scc-undo-btn {
+  padding: 3px 9px;
+  border: 1px solid var(--violet);
+  border-radius: 6px;
+  background: none;
+  color: var(--violet);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.scc-undo-more { color: var(--muted); font-size: 11px; white-space: nowrap; }
+
+.scc-undo-clear {
+  padding: 2px 6px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+@media (max-width: 640px) {
+  .scc-head { gap: 10px; margin-bottom: 13px; }
+  .scc-head h2 { font-size: 16px; }
+  .scc-head .admin-subtext { font-size: 11.5px; line-height: 1.45; }
+
+  /* Add Class / Holiday split the width instead of stacking full-width. */
+  .scc-head-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+    gap: 6px;
+  }
+
+  .scc-head-btn {
+    min-height: 38px;
+    padding: 7px 8px;
+    font-size: 12.5px;
+  }
+
+  .scc-week-ribbon { gap: 5px; margin-bottom: 12px; }
+  .scc-day { min-width: 48px; padding: 7px 4px; border-radius: 10px; }
+  .scc-day-label { font-size: 9px; letter-spacing: 0.3px; }
+  .scc-day-num { font-size: 15px; }
+  .scc-day-count { font-size: 9px; }
+
+  .scc-toolbar { gap: 8px; margin-bottom: 12px; }
+  .scc-datenav { flex: 1 1 100%; }
+  .scc-dateinput { flex: 1; min-height: 38px; }
+  .scc-datenav-step { min-width: 38px; min-height: 38px; }
+
+  /* Three equal thirds — they were three loose pills on a half-empty row. */
+  .scc-sections {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+    gap: 5px;
+  }
+
+  .scc-section-btn { min-height: 34px; padding: 6px 4px; font-size: 12px; }
+
+  /* Label above, controls below — four items never fit on one line. */
+  .scc-undo {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+    padding: 9px 11px;
+    font-size: 12px;
+  }
+
+  .scc-undo-actions { justify-content: flex-start; gap: 8px; }
+  .scc-undo-btn { min-height: 30px; font-size: 12px; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SCHEDULE OPERATIONS — compact on a phone
+   The 2×2 metric grid was already in place, but each tile still carried its
+   desktop 25px figure and 12/14px padding, so the four of them ran ~180px.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 640px) {
+  .schedule-ops-head { gap: 9px; }
+  .schedule-ops-head h2 { margin: 2px 0 4px; font-size: 16px; }
+  .schedule-ops-head .admin-subtext { font-size: 11.5px; line-height: 1.45; }
+  .schedule-ops-eyebrow { font-size: 9.5px; }
+
+  .schedule-ops-live {
+    align-self: flex-start;
+    padding: 5px 9px;
+    font-size: 11px;
+  }
+
+  .schedule-ops-metrics {
+    gap: 6px;
+    margin: 12px 0 11px;
+  }
+
+  .schedule-ops-metrics > div {
+    padding: 8px 10px;
+    border-radius: 9px;
+  }
+
+  .schedule-ops-metrics strong { font-size: 19px; }
+
+  .schedule-ops-metrics span {
+    margin-top: 1px;
+    font-size: 9.5px;
+    line-height: 1.3;
+  }
+
+  /* Three buttons, two columns: the third takes the full width beneath. */
+  .schedule-ops-actions { gap: 6px; }
+
+  .schedule-ops-actions .admin-btn {
+    min-height: 36px;
+    padding: 7px 8px;
+    font-size: 12.5px;
+  }
+
+  .schedule-ops-actions .admin-btn:last-child { grid-column: 1 / -1; }
+}
+
+@media (max-width: 380px) {
+  .schedule-ops-metrics strong { font-size: 18px; }
+  .schedule-ops-actions .admin-btn:last-child { grid-column: auto; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   HOLIDAY / DAY-OFF — From / To / Cancel All
+   The row carried inline `align-items: flex-end`, which beats the stylesheet.
+   Once .admin-field-row stacks below 560px that cross-axis value right-aligns
+   the button against the card edge; as a class the alignment is reachable.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.sched-range-row,
+.admin-inline-form {
+  align-items: flex-end;
+  max-width: 560px;
+}
+
+.sched-range-btn,
+.admin-inline-form-btn {
+  flex: 0 0 auto;
+  margin-bottom: 10px;
+  padding: 9px 16px;
+}
+
+.sched-range-note { color: var(--muted); font-size: 12px; }
+
+@media (max-width: 640px) {
+  .schedule-action-card h2 { font-size: 16px; }
+  .schedule-action-card .admin-subtext { font-size: 11.5px; line-height: 1.45; }
+
+  /* .admin-field-row turns to a column at 560px — this row wants to stay a
+     wrapping row so the two dates can share a line. */
+  .sched-range-row,
+  .admin-inline-form {
+    align-items: stretch;
+    flex-direction: row;
+    flex-wrap: wrap;
+    max-width: none;
+    gap: 9px;
+  }
+
+  /* Two dates share a line; the destructive action gets its own. */
+  .sched-range-row .admin-field,
+  .admin-inline-form .admin-field {
+    flex: 1 1 calc(50% - 5px) !important;
+    width: auto !important;
+    margin-bottom: 0;
+  }
+
+  .sched-range-btn,
+  .admin-inline-form-btn {
+    flex: 1 1 100%;
+    min-height: 40px;
+    margin-bottom: 0;
+    padding: 9px 12px;
+  }
+
+  .sched-range-note { font-size: 11.5px; line-height: 1.45; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ROOM RELOCATION — paste-parser disclosure + the four-field range row
+   (the range row reuses .sched-range-row from the Holiday card above)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.sched-paste { margin-bottom: 12px; }
+
+.sched-paste-summary {
+  color: var(--live);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sched-paste-body { margin-top: 8px; }
+
+.sched-paste-input { width: 100%; resize: vertical; }
+
+.sched-paste-btn { margin-top: 6px; }
+
+@media (max-width: 640px) {
+  .sched-paste-summary { min-height: 32px; font-size: 12.5px; }
+  .sched-paste-input { font-size: 16px; } /* 16px stops iOS zooming on focus */
+  .sched-paste-btn { width: 100%; min-height: 38px; justify-content: center; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ROOM & TIME CONFLICTS
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.sched-conflict-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sched-conflict-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--amber);
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.08);
+  font-size: 13px;
+}
+
+.sched-conflict-where { min-width: 0; }
+
+.sched-conflict-codes {
+  flex: none;
+  color: var(--amber-text, var(--amber));
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  /* The clashing codes are the point of the row, so they lead. */
+  .sched-conflict-row {
+    align-items: flex-start;
+    flex-direction: column-reverse;
+    gap: 2px;
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  .sched-conflict-codes { font-size: 12.5px; }
+  .sched-conflict-where { color: var(--muted); font-size: 11.5px; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   CLASS EDITOR — six fields that pair up instead of stacking six deep
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.sched-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.sched-editor-actions .admin-btn { padding: 9px 16px; }
+
+@media (max-width: 640px) {
+  /* .admin-field-row goes to a column at 560px, which would leave Date, Code,
+     Section, Start, End and Room as six full-width rows. A two-up grid keeps
+     the natural pairs together: code+section, and the start/end time range. */
+  .admin-field-row.sched-editor-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 9px;
+    margin-bottom: 10px;
+  }
+
+  .admin-field-row.sched-editor-row .admin-field {
+    width: auto !important;
+    min-width: 0;
+    margin-bottom: 0;
+    flex-basis: auto !important;
+  }
+
+  /* Date and Classroom read better across the full width. */
+  .admin-field-row.sched-editor-row .sched-ed-wide { grid-column: 1 / -1; }
+
+  .sched-editor-actions { gap: 7px; }
+
+  .sched-editor-actions .admin-btn {
+    flex: 1 1 100%;
+    min-height: 40px;
+    justify-content: center;
+    padding: 9px 12px;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   COPY OVERRIDES + BULK CSV IMPORTER
+   The two-up split and its 32px gutter used to be inline on the section, so
+   nothing could tighten the gap once the halves stacked on a phone.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.schedule-bulk-tools {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 32px;
+}
+
+.sched-bulk-btn { margin-top: 12px; }
+
+.sched-bulk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.sched-csv-input {
+  margin-top: 12px;
+  font-family: var(--mono, monospace);
+  font-size: 12px;
+  white-space: pre;
+}
+
+.sched-csv-preview {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  font-size: 12px;
+}
+
+@media (max-width: 640px) {
+  .schedule-bulk-tools { gap: 18px; }
+  .schedule-bulk-tools h2 { font-size: 16px; }
+  .schedule-bulk-tools .admin-subtext { font-size: 11.5px; line-height: 1.45; }
+
+  /* One row of CSV is far wider than the screen; let it scroll in place
+     rather than wrap and misrepresent the line structure. 16px keeps iOS
+     from zooming the viewport when the field takes focus. */
+  .sched-csv-input {
+    overflow-x: auto;
+    font-size: 16px;
+    line-height: 1.5;
+  }
+
+  .sched-bulk-btn,
+  .sched-bulk-actions .admin-btn {
+    width: 100%;
+    min-height: 40px;
+    justify-content: center;
+  }
+
+  .sched-csv-preview { font-size: 11.5px; overflow-wrap: anywhere; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ACTIVE CLASS OVERRIDES
+   The row squeezed a fixed-width badge and a fixed-width action cluster
+   against the date + code, which was the only part able to shrink.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.aco-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 12px 0 14px;
+}
+
+.aco-chip {
+  padding: 5px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: all 0.15s;
+}
+
+.aco-search {
+  width: 180px;
+  min-width: 0;
+  margin-left: auto;
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
+.aco-stale {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--amber);
+  border-radius: 10px;
+  background: rgba(245, 158, 11, 0.08);
+  font-size: 13px;
+}
+
+.aco-stale .admin-btn { border-color: var(--amber); color: var(--amber); }
+
+.aco-row {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  transition: border-color 0.15s;
+}
+
+.aco-row.is-editing {
+  border-color: var(--blue);
+  background: rgba(59, 130, 246, 0.03);
+}
+
+.aco-row-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+}
+
+.aco-badge {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+.aco-info { flex: 1; min-width: 0; }
+.aco-title { font-size: 13px; font-weight: 700; }
+.aco-meta { margin-top: 2px; color: var(--muted); font-size: 11px; }
+
+.aco-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.aco-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.aco-del {
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.aco-edit {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 14px;
+  border-top: 1px solid var(--border);
+  background: rgba(59, 130, 246, 0.03);
+}
+
+.aco-edit-field { flex: 1; min-width: 100px; }
+.aco-edit-btn { margin-bottom: 10px; padding: 8px 16px; }
+
+@media (max-width: 640px) {
+  .aco-filters { gap: 6px; margin: 10px 0 12px; }
+  .aco-chip { padding: 5px 11px; font-size: 11.5px; }
+
+  /* Search drops below the chips instead of being squeezed onto their line. */
+  .aco-search {
+    order: 1;
+    width: 100%;
+    min-height: 36px;
+    margin-left: 0;
+    font-size: 16px; /* stops iOS zooming the viewport on focus */
+  }
+
+  .aco-stale {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 9px;
+    padding: 9px 11px;
+    font-size: 12px;
+  }
+
+  .aco-stale .admin-btn { justify-content: center; min-height: 36px; }
+
+  /* Badge and actions share the top line; the date + code get the full
+     width beneath rather than the ~80px left between two fixed clusters. */
+  .aco-row-main {
+    display: grid;
+    grid-template-columns: minmax(0, auto) 1fr;
+    align-items: center;
+    gap: 8px 10px;
+    padding: 10px 12px;
+  }
+
+  .aco-badge {
+    overflow: hidden;
+    justify-self: start;
+    max-width: 100%;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .aco-actions { grid-column: 2; justify-self: end; gap: 6px; }
+  .aco-btn { min-height: 30px; }
+  .aco-del { min-width: 32px; min-height: 30px; justify-content: center; }
+
+  .aco-info { grid-column: 1 / -1; }
+  .aco-title { font-size: 12.5px; }
+  .aco-meta { font-size: 10.5px; line-height: 1.35; }
+
+  /* Room full width, then the start/end pair, then the buttons. */
+  .aco-edit {
+    align-items: stretch;
+    gap: 9px;
+    padding: 11px 12px;
+  }
+
+  .aco-edit-field {
+    flex: 1 1 calc(50% - 5px);
+    min-width: 0;
+    margin-bottom: 0;
+  }
+
+  .aco-edit-field--wide { flex: 1 1 100%; }
+
+  .aco-edit-btn {
+    flex: 1 1 calc(50% - 5px);
+    min-height: 38px;
+    margin-bottom: 0;
+    padding: 8px 10px;
+  }
+}
+
+/* ── App Content Hub: emoji + title pair ───────────────────────────────────
+   The emoji box is a 4-character field; letting the shared field row stack it
+   full-width above the title wastes a whole line on a phone. */
+
+.content-emoji-field { flex: 0 0 90px; }
+
+@media (max-width: 640px) {
+  .admin-field-row.content-emoji-row {
+    display: grid;
+    grid-template-columns: 76px minmax(0, 1fr);
+    gap: 9px;
+  }
+
+  .admin-field-row.content-emoji-row .admin-field {
+    width: auto !important;
+    min-width: 0;
+    margin-bottom: 0;
+    flex-basis: auto !important;
+  }
+
+  .content-emoji-field .admin-input { text-align: center; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ONBOARDING FUNNEL
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.funnel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.funnel-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+
+.funnel-label { min-width: 0; font-weight: 600; }
+
+.funnel-value { flex: none; white-space: nowrap; }
+.funnel-value > span { color: var(--muted); }
+
+.funnel-track {
+  height: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+}
+
+.funnel-fill { height: 100%; }
+
+@media (max-width: 640px) {
+  .funnel-list { gap: 9px; }
+
+  /* Label and figure hold one line — the admin-wide net would otherwise wrap
+     them and strand the count under its own label. */
+  .funnel-head {
+    align-items: baseline;
+    flex-wrap: nowrap;
+    gap: 8px;
+    font-size: 12px;
+  }
+
+  .funnel-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .funnel-value { font-size: 11.5px; }
+  .funnel-track { height: 7px; }
+}
+
+/* ── Enrollment Stats: same bar-list shape as the funnel, one step smaller ── */
+
+.enroll-list { gap: 12px; margin-top: 12px; }
+.enroll-list .funnel-head { font-size: 12px; }
+.enroll-list .funnel-track { height: 6px; }
+
+@media (max-width: 640px) {
+  .enroll-list { gap: 10px; }
+  .enroll-list .funnel-head { font-size: 11.5px; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   USER OPERATIONS (overview) — compact on a phone
+   The four metric buttons stack one per row, each with a 38px icon tile and
+   label / figure / note on three separate lines — about 290px of card for
+   four numbers. Same treatment as the broadcast deck: label and note on the
+   left, figure on the right, one strip each.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 640px) {
+  .admin-users-overview { padding: 16px 13px; border-radius: 16px; }
+  .admin-users-overview-head { gap: 10px; }
+  .admin-users-overview h2 { margin: 6px 0 4px; font-size: 18px; }
+  .admin-users-kicker { font-size: 9.5px; }
+
+  .admin-users-overview-head p,
+  .admin-users-directory-head p { font-size: 11.5px; line-height: 1.45; }
+
+  .admin-users-overview-head .admin-btn { min-height: 38px; font-size: 12.5px; }
+
+  .admin-users-metrics { gap: 6px; margin-top: 13px; }
+
+  .admin-users-metric {
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+    gap: 9px;
+    padding: 9px 11px;
+    border-radius: 12px;
+  }
+
+  .admin-users-metric-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+  }
+
+  .admin-users-metric-icon svg { width: 15px; height: 15px; }
+
+  .admin-users-metric > span:nth-child(2) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "label value"
+      "note  value";
+    align-items: center;
+    column-gap: 8px;
+  }
+
+  .admin-users-metric small { grid-area: label; font-size: 10px; font-weight: 700; }
+
+  .admin-users-metric strong {
+    grid-area: value;
+    align-self: center;
+    margin: 0;
+    font-size: 20px;
+  }
+
+  .admin-users-metric em { grid-area: note; margin-top: 1px; font-size: 10px; }
+
+  .admin-users-metric-arrow { width: 14px; height: 14px; }
+
+  /* Push reach / never active / banned sit as one wrapped chip row, with the
+     explanatory note dropped to its own line beneath. */
+  .admin-users-attention {
+    gap: 7px;
+    margin-top: 11px;
+    padding-top: 11px;
+    font-size: 10.5px;
+  }
+
+  .admin-users-attention button { min-height: 28px; padding: 4px 9px; }
+  .admin-users-attention-note { width: 100%; margin-left: 0; line-height: 1.4; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   INACTIVE USERS
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.inactive-form { max-width: 440px; }
+
+.inactive-msg { margin-bottom: 8px; font-size: 12px; }
+
+.inactive-count { margin-bottom: 8px; color: var(--muted); font-size: 13px; }
+.inactive-count b { color: var(--text); }
+
+.inactive-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.inactive-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.inactive-row:hover { border-color: var(--violet); }
+
+.inactive-name {
+  overflow: hidden;
+  min-width: 0;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inactive-seen { flex: none; color: var(--muted); white-space: nowrap; }
+
+@media (max-width: 640px) {
+  .inactive-form { max-width: none; }
+  .inactive-count { font-size: 12px; }
+  .inactive-list { max-height: 260px; }
+
+  .inactive-row {
+    align-items: center;
+    flex-wrap: nowrap;
+    min-height: 38px;
+    padding: 7px 10px;
+  }
+
+  .inactive-name { font-size: 12.5px; }
+  .inactive-seen { font-size: 11px; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SOCIAL HYGIENE
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.social-stat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.social-stat-label { color: var(--muted); font-size: 13px; }
+.social-stat-value { flex: none; font-size: 16px; font-weight: 800; }
+
+.social-subhead {
+  margin: 16px 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.social-code-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 150px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.social-code-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  font-size: 12px;
+}
+
+.social-code { flex: none; font-weight: 700; letter-spacing: 1px; }
+
+.social-code-owner {
+  overflow: hidden;
+  min-width: 0;
+  max-width: 120px;
+  color: var(--muted);
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .social-stat { margin-bottom: 10px; }
+  .social-stat-label { font-size: 12px; }
+  .social-subhead { margin: 13px 0 7px; font-size: 10.5px; }
+  .social-code-list { max-height: 200px; }
+
+  .social-code-row {
+    align-items: center;
+    flex-wrap: nowrap;
+    min-height: 34px;
+    padding: 6px 10px;
+  }
+
+  /* The owner name takes whatever the code leaves, rather than a fixed 120px
+     that either clips early or crowds the code. */
+  .social-code-owner { max-width: none; font-size: 11.5px; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   FEEDBACK & BUG REPORTS
+   The action row carried three buttons, a divider and four tag chips on one
+   line. The tags are a separate concern from the actions, so they now get
+   their own row instead of wrapping unpredictably between them.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.fb-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.fb-filters { display: flex; flex: none; gap: 6px; }
+.fb-filter { padding: 4px 8px; font-size: 12px; }
+
+.fb-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 300px;
+  margin-top: 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.fb-item {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.fb-item-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.fb-item-meta { min-width: 0; color: var(--muted); font-size: 12px; }
+.fb-item-status { flex: none; font-size: 12px; font-weight: 700; }
+.fb-item-body { color: var(--text); font-size: 14px; }
+
+.fb-item-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.fb-action { padding: 4px 10px; font-size: 12px; }
+
+.fb-item-tags {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.fb-tag {
+  padding: 2px 9px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+@media (max-width: 640px) {
+  /* Title and filters stop competing for one line. */
+  .fb-head { align-items: stretch; flex-direction: column; gap: 9px; }
+  .fb-head h2 { font-size: 16px; margin-bottom: 0; }
+  .fb-filters { width: 100%; }
+  .fb-filter { flex: 1; min-height: 34px; justify-content: center; }
+
+  .fb-list { max-height: 340px; margin-top: 12px; }
+  .fb-item { padding: 10px; }
+
+  /* Timestamp + name wrap under the status rather than crushing it. */
+  .fb-item-head { align-items: flex-start; gap: 8px; }
+  .fb-item-meta { font-size: 10.5px; line-height: 1.4; }
+  .fb-item-status { font-size: 10.5px; }
+  .fb-item-body { font-size: 13px; line-height: 1.45; }
+
+  .fb-item-actions { gap: 6px; }
+
+  .fb-action {
+    flex: 1 1 calc(50% - 3px);
+    min-height: 34px;
+    justify-content: center;
+    padding: 5px 8px;
+    font-size: 11.5px;
+  }
+
+  .fb-item-tags { gap: 5px; }
+  .fb-tag { min-height: 28px; padding: 3px 11px; }
+}

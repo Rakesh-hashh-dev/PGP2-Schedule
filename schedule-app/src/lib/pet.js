@@ -47,6 +47,40 @@ export const LEDGER_DAYS = 30;
 // its tests) stay free of JSX.
 export const STARTER_KEYS = ["cat", "dog", "bunny"];
 
+/**
+ * XP past level 12, per "devotion" tier.
+ *
+ * MAX_LEVEL used to be the end of the feature: every pet was unlocked by level
+ * 12, so a student who maxed out in week six earned XP that did nothing for
+ * the rest of term. Devotion is the sink — it never gates anything you need,
+ * only cosmetics and a quiet glow, so falling behind still costs nothing.
+ */
+export const DEVOTION_STEP = 400;
+export const MAX_DEVOTION = 10;
+
+/**
+ * Wearables. `accessory` (the collar/leaf/scarf baked into every pet SVG)
+ * stays a boolean for backwards compatibility; `hat` is a slot that holds one
+ * key from here, drawn as a shared overlay so no pet needed new art.
+ *
+ * Gated by `level` or by `devotion` — never by both. The devotion hats are
+ * the only thing in the feature that a maxed-out pet can still be working
+ * toward, which is the whole point of them.
+ */
+export const HATS = [
+  { key: "bow", label: "Ribbon", level: 2 },
+  { key: "cap", label: "Cap", level: 4 },
+  { key: "specs", label: "Specs", level: 6 },
+  { key: "beanie", label: "Beanie", level: 8 },
+  { key: "party", label: "Party hat", level: 11 },
+  { key: "crown", label: "Crown", level: MAX_LEVEL },
+  { key: "halo", label: "Halo", devotion: 3 },
+  { key: "ember", label: "Ember", devotion: 6 },
+];
+
+/** Fast membership test for `normalize`, which runs on every storage read. */
+const HAT_KEYS = new Set(HATS.map(h => h.key));
+
 /** level → pet key unlocked on reaching it. All 12 are earned by level 10. */
 export const UNLOCKS = {
   2: "fox", 3: "penguin", 4: "panda", 5: "chick", 6: "koala",
@@ -78,7 +112,7 @@ export function emptyPet() {
     care: { day: null, used: 0 },
     lastSeen: 0,
     unlocked: [],
-    cosmetics: { accessory: true },
+    cosmetics: { accessory: true, hat: null },
   };
 }
 
@@ -111,6 +145,7 @@ function isNormalized(raw) {
   if (!Number.isInteger(care.used) || care.used < 0 || care.used > CARE_DAILY_CAP) return false;
   if (!Array.isArray(raw.unlocked) || raw.unlocked.some(k => typeof k !== "string")) return false;
   if (!raw.cosmetics || typeof raw.cosmetics.accessory !== "boolean") return false;
+  if (raw.cosmetics.hat !== null && !HAT_KEYS.has(raw.cosmetics.hat)) return false;
   return true;
 }
 
@@ -151,7 +186,12 @@ export function normalize(raw) {
     },
     lastSeen: Number.isFinite(raw.lastSeen) && raw.lastSeen > 0 ? raw.lastSeen : 0,
     unlocked: Array.isArray(raw.unlocked) ? raw.unlocked.filter(k => typeof k === "string") : [],
-    cosmetics: { accessory: raw.cosmetics?.accessory !== false },
+    cosmetics: {
+      accessory: raw.cosmetics?.accessory !== false,
+      // An unknown key means a hat this build no longer ships (or a hand-edited
+      // row). Bare-headed is always a valid pet, so degrade rather than reject.
+      hat: HAT_KEYS.has(raw.cosmetics?.hat) ? raw.cosmetics.hat : null,
+    },
   };
 }
 
@@ -192,14 +232,26 @@ export function switchTo(state, petKey) {
 }
 
 /**
- * Toggle a cosmetic. Currently only `accessory` (the collar / leaf / scarf that
- * every SVG already carries in its own `.dg-pet-accessory` group), so this is a
- * visibility switch rather than new art.
+ * Set a cosmetic.
+ *
+ * Two shapes share one function: `accessory` is a boolean (the collar / leaf /
+ * scarf every SVG already carries in its own `.dg-pet-accessory` group, so it
+ * is a visibility switch rather than new art), and `hat` is a slot holding one
+ * key from `HATS` — or null for none.
+ *
+ * A hat that is not unlocked yet is refused here rather than in the UI: this is
+ * the function the storage layer round-trips through, so a hand-edited row
+ * cannot smuggle a level-12 crown onto a level-2 pet.
  */
-export function setCosmetic(state, key, on) {
+export function setCosmetic(state, key, value) {
   const s = normalize(state);
-  if (s.cosmetics[key] === Boolean(on)) return s;
-  return { ...s, cosmetics: { ...s.cosmetics, [key]: Boolean(on) } };
+  if (key === "hat") {
+    const hat = value && hatsFor(s).includes(value) ? value : null;
+    if (s.cosmetics.hat === hat) return s;
+    return { ...s, cosmetics: { ...s.cosmetics, hat } };
+  }
+  if (s.cosmetics[key] === Boolean(value)) return s;
+  return { ...s, cosmetics: { ...s.cosmetics, [key]: Boolean(value) } };
 }
 
 // ── XP & levels ─────────────────────────────────────────────────
@@ -237,6 +289,44 @@ export function levelProgress(xp) {
   const into = total - floor;
   const need = ceil - floor;
   return { level, into, need, pct: Math.round((into / need) * 100), maxed: false };
+}
+
+/**
+ * Progress past MAX_LEVEL, as a "devotion" tier.
+ *
+ * Deliberately not a second level bar: it unlocks nothing but cosmetics, it is
+ * never shown as a rank against anybody else, and it tops out too. A student
+ * who maxes their pet and then stops is not punished for it — they simply keep
+ * the pet they earned.
+ */
+export function devotionFor(xp) {
+  const cap = xpToReach(MAX_LEVEL);
+  const over = Math.max(0, (xp || 0) - cap);
+  const raw = Math.floor(over / DEVOTION_STEP);
+  const tier = Math.min(MAX_DEVOTION, raw);
+  if (tier >= MAX_DEVOTION) return { tier, into: 0, need: 0, pct: 100, capped: true };
+  return {
+    tier,
+    into: over - tier * DEVOTION_STEP,
+    need: DEVOTION_STEP,
+    pct: Math.round(((over - tier * DEVOTION_STEP) / DEVOTION_STEP) * 100),
+    capped: false,
+  };
+}
+
+/** Hat keys this pet has earned, in registry order. */
+export function hatsFor(state) {
+  const xp = xpOf(state);
+  const level = levelFor(xp);
+  const { tier } = devotionFor(xp);
+  return HATS.filter(h => (h.devotion ? tier >= h.devotion : level >= h.level)).map(h => h.key);
+}
+
+/** The requirement line for a hat that is still locked, or null once earned. */
+export function hatRequirement(key) {
+  const hat = HATS.find(h => h.key === key);
+  if (!hat) return null;
+  return hat.devotion ? `Devotion ${hat.devotion}` : `Level ${hat.level}`;
 }
 
 /**
@@ -316,7 +406,24 @@ export function care(state, action, now = new Date(), rate = 1) {
 
 // ── Mood ────────────────────────────────────────────────────────
 
-export const MOODS = ["excited", "happy", "content", "sleepy", "bored", "missing"];
+/**
+ * Every mood, brightest first. Three groups, and the order below is also the
+ * order `moodFor` tries them in:
+ *
+ *   moments   celebrating, proud — short latches fired by something that just
+ *             happened. Session-only (see `usePet`), never persisted.
+ *   context   focused, restless, relaxed — what the *timetable* is doing. The
+ *             pet lives inside a schedule app; before this it was the only
+ *             thing in the app that didn't know what day it was.
+ *   baseline  the original clock-and-attention ladder.
+ */
+export const MOODS = [
+  "celebrating", "proud", "excited", "focused", "restless",
+  "happy", "rooting", "content", "relaxed", "tired", "sleepy", "bored", "missing",
+];
+
+/** How long a one-off "moment" mood holds the pet before it drops back. */
+export const MOMENT_MS = 30_000;
 
 /** Hours since the pet was last interacted with. `Infinity` if never. */
 export function hoursSince(state, now = new Date()) {
@@ -331,18 +438,56 @@ export function hoursSince(state, now = new Date()) {
  * weeks and dead phones are normal here; guilt mechanics would make this
  * feature a liability. See docs/pet-companion-plan.md §2.
  */
-export function moodFor(state, now = new Date()) {
+/** Local hour the pet starts reading as tired. Bedtime ("sleepy") is 22:00. */
+const EVENING_HOUR = 19;
+
+/** Minutes before a class starts that the pet begins to fidget. */
+export const RESTLESS_MINS = 10;
+
+/** How far ahead an exam counts as "this week" for the pet's benefit. */
+export const EXAM_HORIZON_DAYS = 5;
+
+/**
+ * @typedef {object} MoodContext
+ * @property {boolean} [inClass]      A class or exam is in session right now.
+ * @property {number|null} [minsToClass] Minutes until the next one starts.
+ * @property {number|null} [classesToday] Today's class count; null ⇒ unknown.
+ * @property {boolean} [examSoon]    An exam falls within the next few days.
+ * @property {number} [momentUntil]   Epoch ms a `moment` mood holds until.
+ * @property {string} [moment]        Which one: "celebrating" or "proud".
+ */
+
+export function moodFor(state, now = new Date(), ctx = {}) {
   const s = normalize(state);
   if (!isAdopted(s)) return "content";
   const hrs = hoursSince(s, now);
   const hour = now.getHours();
+  // A moment outranks everything, the clock included: levelling up at 2am is
+  // still worth celebrating, and a pet that slept through it would be a bug.
+  if (ctx.moment && ctx.momentUntil > now.getTime()) return ctx.moment;
+  // In class beats bedtime too — a 20:00 exam should read alert, not dozing.
+  if (ctx.inClass) return "focused";
   // Night reads as sleepy regardless of attention — a pet that's wide awake at
   // 3am is uncanny, and it gives the late-night crowd something to notice.
   if ((hour >= 22 || hour < 6) && hrs >= 0.25) return "sleepy";
+  // About to start. Positive, never reproachful: this is an animal noticing
+  // something is about to happen, not a nag about being late. See §2.
+  if (ctx.minsToClass != null && ctx.minsToClass >= 0 && ctx.minsToClass <= RESTLESS_MINS) return "restless";
+  // The evening winds down before bedtime does. Same rule as night — the clock
+  // outranks attention — so the pet flags the end of a long day back at you
+  // instead of staying breezy until it abruptly falls asleep at 22:00.
+  if (hour >= EVENING_HOUR && hrs >= 0.25) return "tired";
   const cared = careUsedToday(s, now);
   if (cared >= 2 && hrs < 2) return "excited";
   if (cared >= 1 && hrs < 6) return "happy";
-  if (hrs < 24) return "content";
+  // Exam week. The app already knows the calendar, so the pet may as well: it
+  // sits up and stays close. Pointedly NOT anxious or nagging — the one thing
+  // this feature must never do is add pressure to the week that has the most
+  // of it already (§2). It simply outranks the quieter baselines.
+  if (hrs < 24 && ctx.examSoon) return "rooting";
+  // "relaxed" is just "content" on a day with nothing scheduled — a Sunday
+  // should not look identical to a five-class Wednesday.
+  if (hrs < 24) return ctx.classesToday === 0 ? "relaxed" : "content";
   if (hrs < 72) return "bored";
   return "missing";
 }
@@ -477,5 +622,8 @@ export function mergePets(a, b) {
 export function publicSummary(state) {
   const s = normalize(state);
   if (!isAdopted(s)) return null;
+  // Deliberately no hat: `get_friend_pets` projects key/name/level only, and
+  // widening it needs a migration. Adding the field here first would ship a
+  // frontend that reads a column prod does not have yet.
   return { key: s.petKey, name: s.name, level: levelFor(xpOf(s)) };
 }

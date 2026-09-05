@@ -265,7 +265,16 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
   // Top-level tab for the admin dashboard. Sections are grouped via `admin-g-*`
   // classes and shown/hidden with CSS keyed off [data-active-tab] on the masonry.
-  const [activeTab, setActiveTab] = useState("broadcast");
+  // Which tab was open last, so a refresh lands where the admin left off.
+  const ADMIN_TAB_KEY = "pgp2.admin-tab";
+  const ADMIN_TABS = ["broadcast", "schedule", "users", "insights", "moderation", "database", "system"];
+  const [activeTab, setActiveTab] = useState(() => {
+    try {
+      const stored = localStorage.getItem(ADMIN_TAB_KEY);
+      return ADMIN_TABS.includes(stored) ? stored : "broadcast";
+    } catch { return "broadcast"; }
+  });
+  useEffect(() => { try { localStorage.setItem(ADMIN_TAB_KEY, activeTab); } catch { } }, [activeTab]);
   const [previewTheme, setPreviewTheme] = useState("dark"); // announcement banner preview
 
   const [flags, setFlags] = useState({
@@ -485,6 +494,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   // Feedback Flash Config
   const [feedbackFlashes, setFeedbackFlashes] = useState([]);
   const [previewFlashId, setPreviewFlashId] = useState(null);
+  // Which flash has its course picker expanded. Only consulted below 640px —
+  // on a wider screen CSS keeps every panel open and hides the toggle.
+  const [openCourseTargets, setOpenCourseTargets] = useState(null);
   // Minute tick so flash status badges/countdowns stay current while the page sits open
   const [flashNow, setFlashNow] = useState(() => Date.now());
   useEffect(() => {
@@ -2118,17 +2130,17 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           {/* ── Live Schedule Command Centre ── */}
           <section className="admin-card admin-span-all admin-g-schedule" style={{ gridColumn: "1 / -1" }}>
             {/* Header */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+            <div className="scc-head">
               <div>
                 <h2 style={{ marginBottom: 4 }}><CalendarDays size={20} color="var(--blue)" /> Schedule Command Centre</h2>
                 <p className="admin-subtext" style={{ margin: 0 }}>Click a class card for quick cancel, room move, or full edit. Drag two cards to swap their time slots.</p>
               </div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <button className="admin-btn primary" style={{ padding: "7px 14px", fontSize: 13 }}
+              <div className="scc-head-actions">
+                <button className="admin-btn primary scc-head-btn"
                   onClick={() => openLiveEditorModal({ date: liveEditorDate, code: "", name: "", type: "class", section: "All" }, true)}>
                   + Add Class
                 </button>
-                <button className="admin-btn outline" style={{ padding: "7px 14px", fontSize: 13, borderColor: "var(--danger)", color: "var(--danger)" }}
+                <button className="admin-btn outline scc-head-btn" style={{ borderColor: "var(--danger)", color: "var(--danger)" }}
                   onClick={() => {
                     const dayClasses = liveSchedule.filter(c => c.date === liveEditorDate && c.type !== "break");
                     if (dayClasses.length === 0) return alert("No classes to cancel on this date.");
@@ -2156,16 +2168,16 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 return { iso, label: d.toLocaleDateString("en-IN", { weekday: "short" }), num: d.getDate(), count, hasOverride, isToday: iso === today };
               });
               return (
-                <div style={{ display: "flex", gap: 6, marginBottom: 16, overflowX: "auto" }}>
+                <div className="scc-week-ribbon">
                   {weekDays.map(d => (
                     <button key={d.iso}
                       onClick={() => setLiveEditorDate(d.iso)}
-                      style={{ flex: "0 0 auto", minWidth: 56, padding: "8px 6px", borderRadius: 12, border: liveEditorDate === d.iso ? "2px solid var(--blue)" : "1px solid var(--border)", background: liveEditorDate === d.iso ? "rgba(59,130,246,0.10)" : d.isToday ? "rgba(109,91,208,0.06)" : "var(--bg)", cursor: "pointer", textAlign: "center", position: "relative", transition: "border-color 0.15s" }}>
-                      <div style={{ fontSize: 10, fontWeight: 600, color: liveEditorDate === d.iso ? "var(--blue)" : "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>{d.label}</div>
-                      <div style={{ fontSize: 16, fontWeight: 800, color: liveEditorDate === d.iso ? "var(--blue)" : "var(--text)", fontFamily: "var(--display)" }}>{d.num}</div>
-                      <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>{d.count > 0 ? `${d.count} cls` : "—"}</div>
-                      {d.hasOverride && <span style={{ position: "absolute", top: 5, right: 7, width: 6, height: 6, borderRadius: "50%", background: "var(--amber)" }} title="Has overrides" />}
-                      {d.isToday && <div style={{ position: "absolute", bottom: 4, left: "50%", transform: "translateX(-50%)", width: 4, height: 4, borderRadius: "50%", background: "var(--violet)" }} />}
+                      className={`scc-day${liveEditorDate === d.iso ? " is-active" : ""}${d.isToday ? " is-today" : ""}`}>
+                      <div className="scc-day-label">{d.label}</div>
+                      <div className="scc-day-num">{d.num}</div>
+                      <div className="scc-day-count">{d.count > 0 ? `${d.count} cls` : "—"}</div>
+                      {d.hasOverride && <span className="scc-day-override" title="Has overrides" />}
+                      {d.isToday && <div className="scc-day-today" />}
                     </button>
                   ))}
                 </div>
@@ -2173,19 +2185,18 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             })()}
 
             {/* Day toolbar: date picker + section filter */}
-            <div style={{ display: "flex", gap: 10, marginBottom: 16, alignItems: "center", flexWrap: "wrap" }}>
-              <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                <button onClick={() => { const d = new Date(liveEditorDate); d.setDate(d.getDate() - 1); setLiveEditorDate(ymd(d)); }}
-                  style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 10px", cursor: "pointer", color: "var(--muted)" }}>‹</button>
-                <input type="date" className="admin-input" value={liveEditorDate} onChange={e => setLiveEditorDate(e.target.value)}
-                  style={{ padding: "7px 12px", borderRadius: 8 }} />
-                <button onClick={() => { const d = new Date(liveEditorDate); d.setDate(d.getDate() + 1); setLiveEditorDate(ymd(d)); }}
-                  style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 10px", cursor: "pointer", color: "var(--muted)" }}>›</button>
+            <div className="scc-toolbar">
+              <div className="scc-datenav">
+                <button aria-label="Previous day" onClick={() => { const d = new Date(liveEditorDate); d.setDate(d.getDate() - 1); setLiveEditorDate(ymd(d)); }}
+                  className="scc-datenav-step">‹</button>
+                <input type="date" className="admin-input scc-dateinput" aria-label="Editor date" value={liveEditorDate} onChange={e => setLiveEditorDate(e.target.value)} />
+                <button aria-label="Next day" onClick={() => { const d = new Date(liveEditorDate); d.setDate(d.getDate() + 1); setLiveEditorDate(ymd(d)); }}
+                  className="scc-datenav-step">›</button>
               </div>
-              <div style={{ display: "flex", gap: 4 }}>
+              <div className="scc-sections" role="group" aria-label="Section filter">
                 {["All", "A", "B"].map(s => (
                   <button key={s} onClick={() => setCmdSection(s)}
-                    style={{ padding: "6px 14px", borderRadius: 8, border: cmdSection === s ? "1.5px solid var(--blue)" : "1px solid var(--border)", background: cmdSection === s ? "rgba(59,130,246,0.10)" : "var(--bg)", cursor: "pointer", fontSize: 13, fontWeight: cmdSection === s ? 700 : 500, color: cmdSection === s ? "var(--blue)" : "var(--muted)" }}>
+                    className={`scc-section-btn${cmdSection === s ? " is-active" : ""}`} aria-pressed={cmdSection === s}>
                     {s === "All" ? "All Sections" : `Sec ${s}`}
                   </button>
                 ))}
@@ -2194,14 +2205,16 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
             {/* Undo stack bar */}
             {cmdUndoStack.length > 0 && (
-              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: "rgba(109,91,208,0.07)", border: "1px solid rgba(109,91,208,0.3)", borderRadius: 10, marginBottom: 14, fontSize: 13 }}>
-                <span style={{ flex: 1, color: "var(--muted)" }}>Staged: <b style={{ color: "var(--text)" }}>{cmdUndoStack[0].label}</b></span>
-                <button onClick={() => {
-                  setFlags(f => ({ ...f, classOverrides: cmdUndoStack[0].prevOverrides }));
-                  setCmdUndoStack(s => s.slice(1));
-                }} style={{ background: "none", color: "var(--violet)", fontWeight: 700, cursor: "pointer", fontSize: 13, padding: "2px 8px", borderRadius: 6, border: "1px solid var(--violet)" }}>↩ Undo</button>
-                {cmdUndoStack.length > 1 && <span style={{ fontSize: 11, color: "var(--muted)" }}>(+{cmdUndoStack.length - 1} more)</span>}
-                <button onClick={() => setCmdUndoStack([])} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 11, padding: "2px 6px" }}>Clear all</button>
+              <div className="scc-undo">
+                <span className="scc-undo-label">Staged: <b>{cmdUndoStack[0].label}</b></span>
+                <div className="scc-undo-actions">
+                  <button onClick={() => {
+                    setFlags(f => ({ ...f, classOverrides: cmdUndoStack[0].prevOverrides }));
+                    setCmdUndoStack(s => s.slice(1));
+                  }} className="scc-undo-btn">↩ Undo</button>
+                  {cmdUndoStack.length > 1 && <span className="scc-undo-more">(+{cmdUndoStack.length - 1} more)</span>}
+                  <button onClick={() => setCmdUndoStack([])} className="scc-undo-clear">Clear all</button>
+                </div>
               </div>
             )}
 
@@ -2299,30 +2312,30 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                           boxShadow: isBeingDragged ? "0 4px 20px rgba(0,0,0,0.15)" : "none",
                         }}>
                         {/* Card main row */}
-                        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px" }}>
+                        <div className="sched-class-row">
                           {/* Drag handle */}
-                          <div style={{ cursor: "grab", color: "var(--muted)", flexShrink: 0 }} title="Drag to swap time slot">⇅</div>
+                          <div className="sched-class-handle" title="Drag to swap time slot">⇅</div>
                           {/* Class info */}
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)", textDecoration: isCancelled ? "line-through" : "none", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                              {c.code} — {c.name || LEGEND[c.code]?.name || "Class"}
+                          <div className="sched-class-info">
+                            <div className="sched-class-title" style={{ textDecoration: isCancelled ? "line-through" : "none" }}>
+                              {c.code ? `${c.code} — ` : ""}{c.name || LEGEND[c.code]?.name || "Class"}
                               {isCancelled && <span style={{ fontSize: 10, fontWeight: 800, background: "var(--danger)", color: "#fff", padding: "1px 7px", borderRadius: 4 }}>CANCELLED</span>}
                               {isExam && !isCancelled && <span style={{ fontSize: 10, fontWeight: 800, background: "var(--violet)", color: "#fff", padding: "1px 7px", borderRadius: 4 }}>EXAM</span>}
                               {isModified && !isCancelled && !isExam && <span style={{ fontSize: 10, fontWeight: 800, background: "var(--amber)", color: "#000", padding: "1px 7px", borderRadius: 4 }}>OVERRIDDEN</span>}
                               {isGuest && <span style={{ fontSize: 10, fontWeight: 800, background: "var(--violet)", color: "#fff", padding: "1px 7px", borderRadius: 4 }}>GUEST</span>}
                             </div>
-                            <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3, textDecoration: isCancelled ? "line-through" : "none" }}>
+                            <div className="sched-class-meta" style={{ textDecoration: isCancelled ? "line-through" : "none" }}>
                               {displayStart}–{displayEnd} · Sec: {c.section === "Single" ? "All" : c.section} · Room: {displayRoom || "TBD"}
                             </div>
                           </div>
                           {/* Action buttons */}
-                          <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                          <div className="sched-class-actions">
                             {isCancelled ? (
                               <button title="Restore class" onClick={() => {
                                 const prev = flags.classOverrides;
                                 restoreClass(liveEditorDate, ident, c.section);
                                 setCmdUndoStack(s => [{ label: `Restored: ${c.code} on ${liveEditorDate}`, prevOverrides: prev }, ...s.slice(0, 9)]);
-                              }} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "var(--live)", display: "flex", alignItems: "center", gap: 4 }}>
+                              }} className="sched-class-btn" style={{ color: "var(--live)" }}>
                                 <RefreshCw size={12} /> Restore
                               </button>
                             ) : (
@@ -2331,28 +2344,28 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                                 const prev = flags.classOverrides;
                                 cancelClass(liveEditorDate, ident, c.section);
                                 setCmdUndoStack(s => [{ label: `Cancelled: ${c.code} on ${liveEditorDate}`, prevOverrides: prev }, ...s.slice(0, 9)]);
-                              }} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid var(--danger)", background: "var(--bg)", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "var(--danger)", display: "flex", alignItems: "center", gap: 4 }}>
+                              }} className="sched-class-btn" style={{ borderColor: "var(--danger)", color: "var(--danger)" }}>
                                 <XCircle size={12} /> Cancel
                               </button>
                             )}
                             <button title="Quick room change" onClick={() => {
                               setCmdQuickRoom(isQuickRoomOpen ? null : { date: liveEditorDate, classKey: ident + "_" + c.section });
                               setCmdQuickRoomValue(displayRoom || "");
-                            }} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${isQuickRoomOpen ? "var(--blue)" : "var(--border)"}`, background: isQuickRoomOpen ? "rgba(59,130,246,0.10)" : "var(--bg)", cursor: "pointer", fontSize: 12, fontWeight: 600, color: isQuickRoomOpen ? "var(--blue)" : "var(--muted)", display: "flex", alignItems: "center", gap: 4 }}>
+                            }} className="sched-class-btn" style={{ borderColor: isQuickRoomOpen ? "var(--blue)" : "var(--border)", background: isQuickRoomOpen ? "rgba(59,130,246,0.10)" : "var(--bg)", color: isQuickRoomOpen ? "var(--blue)" : "var(--muted)" }}>
                               📍 Room
                             </button>
-                            <button title="Full edit (timing, name, section, exam)" onClick={() => openLiveEditorModal(c)} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "var(--muted)", display: "flex", alignItems: "center", gap: 4 }}>
+                            <button title="Full edit (timing, name, section, exam)" onClick={() => openLiveEditorModal(c)} className="sched-class-btn">
                               <Pencil size={12} /> Edit
                             </button>
                           </div>
                         </div>
                         {/* Quick room inline input */}
                         {isQuickRoomOpen && (
-                          <div style={{ display: "flex", gap: 8, padding: "0 14px 12px 14px", alignItems: "center" }}>
+                          <div className="sched-quickroom">
                             <input autoFocus type="text" placeholder="New room (e.g. C-104)" className="admin-input"
                               value={cmdQuickRoomValue} onChange={e => setCmdQuickRoomValue(e.target.value)}
                               onKeyDown={e => { if (e.key === "Enter") document.getElementById("cmd-quick-room-save-" + idx)?.click(); if (e.key === "Escape") setCmdQuickRoom(null); }}
-                              style={{ flex: 1, padding: "6px 10px", fontSize: 13 }} />
+                              style={{ padding: "6px 10px", fontSize: 13 }} />
                             <button id={"cmd-quick-room-save-" + idx}
                               onClick={() => {
                                 if (!cmdQuickRoomValue.trim()) return;
@@ -2420,13 +2433,13 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           <section className="admin-card admin-span-all admin-g-schedule schedule-action-card schedule-action-card--holiday" style={{ gridColumn: "1 / -1" }}>
             <h2><XCircle size={20} color="var(--danger)" /> Holiday / Day-off</h2>
             <p className="admin-subtext">Cancel every class across a date range in one action (e.g. a festival break). Stages overrides — Review &amp; Deploy Config to apply.</p>
-            <div className="admin-field-row" style={{ maxWidth: 560, alignItems: "flex-end" }}>
+            <div className="admin-field-row sched-range-row">
               <div className="admin-field"><label>From</label><input type="date" className="admin-input" value={holidayStart} onChange={e => setHolidayStart(e.target.value)} /></div>
               <div className="admin-field"><label>To</label><input type="date" className="admin-input" value={holidayEnd} onChange={e => setHolidayEnd(e.target.value)} /></div>
-              <button className="admin-btn danger" style={{ flex: "0 0 auto", marginBottom: 10, padding: "9px 16px" }} onClick={applyHolidayCancel}><XCircle size={15} /> Cancel All</button>
+              <button className="admin-btn danger sched-range-btn" onClick={applyHolidayCancel}><XCircle size={15} /> Cancel All</button>
             </div>
             {holidayStart && holidayEnd && holidayEnd >= holidayStart && (
-              <div style={{ fontSize: 12, color: "var(--muted)" }}>{liveSchedule.filter(c => c.date >= holidayStart && c.date <= holidayEnd && c.type !== "break").length} class(es) will be cancelled in this range.</div>
+              <div className="sched-range-note">{liveSchedule.filter(c => c.date >= holidayStart && c.date <= holidayEnd && c.type !== "break").length} class(es) will be cancelled in this range.</div>
             )}
           </section>
 
@@ -2434,22 +2447,22 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           <section className="admin-card admin-span-all admin-g-schedule schedule-action-card schedule-action-card--relocation" style={{ gridColumn: "1 / -1" }}>
             <h2><CalendarDays size={20} color="var(--blue)" /> Room Relocation</h2>
             <p className="admin-subtext">Move every class from one room to another across a date range (e.g. "all A01 classes → A04 until 2 Aug"). Stages room overrides — Review &amp; Deploy to apply.</p>
-            <details style={{ marginBottom: 12 }}>
-              <summary style={{ cursor: "pointer", fontSize: 13, color: "var(--live)", fontWeight: 600 }}>📋 Paste from email / notice</summary>
-              <div style={{ marginTop: 8 }}>
-                <textarea className="admin-input" rows={3} value={relocEmail} onChange={e => setRelocEmail(e.target.value)} placeholder="e.g. Kindly note that room A01 will be shifted to A04 from 5 Aug to 12 Aug 2026." style={{ width: "100%", resize: "vertical" }} />
-                <button className="admin-btn outline" style={{ marginTop: 6 }} onClick={parseRelocationEmail}><Search size={14} /> Parse &amp; pre-fill</button>
+            <details className="sched-paste">
+              <summary className="sched-paste-summary">📋 Paste from email / notice</summary>
+              <div className="sched-paste-body">
+                <textarea className="admin-input sched-paste-input" rows={3} value={relocEmail} onChange={e => setRelocEmail(e.target.value)} placeholder="e.g. Kindly note that room A01 will be shifted to A04 from 5 Aug to 12 Aug 2026." aria-label="Paste a room-change notice" />
+                <button className="admin-btn outline sched-paste-btn" onClick={parseRelocationEmail}><Search size={14} /> Parse &amp; pre-fill</button>
               </div>
             </details>
-            <div className="admin-field-row" style={{ alignItems: "flex-end", flexWrap: "wrap" }}>
+            <div className="admin-field-row sched-range-row">
               <div className="admin-field"><label>From room</label><input className="admin-input" value={relocFrom} onChange={e => setRelocFrom(e.target.value)} placeholder="A01" /></div>
               <div className="admin-field"><label>To room</label><input className="admin-input" value={relocTo} onChange={e => setRelocTo(e.target.value)} placeholder="A04" /></div>
               <div className="admin-field"><label>From date</label><input type="date" className="admin-input" value={relocStart} onChange={e => setRelocStart(e.target.value)} /></div>
               <div className="admin-field"><label>To date</label><input type="date" className="admin-input" value={relocEnd} onChange={e => setRelocEnd(e.target.value)} /></div>
-              <button className="admin-btn primary" style={{ flex: "0 0 auto", marginBottom: 10 }} onClick={applyRoomRelocation}><CalendarDays size={15} /> Relocate</button>
+              <button className="admin-btn primary sched-range-btn" onClick={applyRoomRelocation}><CalendarDays size={15} /> Relocate</button>
             </div>
             {relocFrom.trim() && relocStart && relocEnd && relocEnd >= relocStart && (
-              <div style={{ fontSize: 12, color: "var(--muted)" }}>{liveSchedule.filter(c => c.date >= relocStart && c.date <= relocEnd && c.type !== "break" && (c.room || "").toLowerCase() === relocFrom.trim().toLowerCase()).length} class(es) in {relocFrom.trim()} will move.</div>
+              <div className="sched-range-note">{liveSchedule.filter(c => c.date >= relocStart && c.date <= relocEnd && c.type !== "break" && (c.room || "").toLowerCase() === relocFrom.trim().toLowerCase()).length} class(es) in {relocFrom.trim()} will move.</div>
             )}
           </section>
 
@@ -2460,11 +2473,11 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             {scheduleConflicts.length === 0 ? (
               <div className="admin-empty">No conflicts detected.</div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div className="sched-conflict-list">
                 {scheduleConflicts.map((c, i) => (
-                  <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "8px 12px", background: "rgba(245,158,11,0.08)", border: "1px solid var(--amber)", borderRadius: 8, fontSize: 13 }}>
-                    <span><b>{c.room}</b> @ {c.start} · {c.date}</span>
-                    <span style={{ color: "var(--amber-text, var(--amber))", fontWeight: 700 }}>{c.codes.join(" vs ")}</span>
+                  <div key={i} className="sched-conflict-row">
+                    <span className="sched-conflict-where"><b>{c.room}</b> @ {c.start} · {c.date}</span>
+                    <span className="sched-conflict-codes">{c.codes.join(" vs ")}</span>
                   </div>
                 ))}
               </div>
@@ -2475,8 +2488,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           <section className="admin-card admin-span-all admin-g-schedule schedule-action-card schedule-action-card--editor" style={{ gridColumn: "1 / -1" }}>
             <h2><CalendarDays size={20} color="var(--blue)" /> Class Editor</h2>
             <p className="admin-subtext">Globally change the classroom or timings for a specific class on a given date.</p>
-            <div className="admin-field-row" style={{ marginTop: 10 }}>
-              <div className="admin-field">
+            <div className="admin-field-row sched-editor-row" style={{ marginTop: 10 }}>
+              <div className="admin-field sched-ed-wide">
                 <label>Date</label>
                 <input type="date" className="admin-input" value={roomOverrideDate} onChange={e => setRoomOverrideDate(e.target.value)} />
               </div>
@@ -2493,7 +2506,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 </select>
               </div>
             </div>
-            <div className="admin-field-row">
+            <div className="admin-field-row sched-editor-row">
               <div className="admin-field">
                 <label>New Start <span className="admin-optional">(optional)</span></label>
                 <input type="time" className="admin-input" value={roomOverrideStart} onChange={e => setRoomOverrideStart(e.target.value)} />
@@ -2502,13 +2515,13 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 <label>New End <span className="admin-optional">(optional)</span></label>
                 <input type="time" className="admin-input" value={roomOverrideEnd} onChange={e => setRoomOverrideEnd(e.target.value)} />
               </div>
-              <div className="admin-field">
+              <div className="admin-field sched-ed-wide">
                 <label>New Classroom <span className="admin-optional">(optional)</span></label>
                 <input type="text" placeholder="e.g. C-104" className="admin-input" value={roomOverrideRoom} onChange={e => setRoomOverrideRoom(e.target.value)} />
               </div>
             </div>
-            <div style={{ display: "flex", gap: 10, marginTop: 4, flexWrap: "wrap" }}>
-               <button className="admin-btn blue" onClick={handleAddRoomOverride} style={{ padding: "9px 16px" }}><CalendarDays size={15} /> Save Change</button>
+            <div className="sched-editor-actions">
+               <button className="admin-btn blue" onClick={handleAddRoomOverride}><CalendarDays size={15} /> Save Change</button>
                {roomOverrideDate && roomOverrideClass && flags.classOverrides?.[roomOverrideDate]?.[roomOverrideSection === "All" ? roomOverrideClass : `${roomOverrideClass}_${roomOverrideSection}`] && (
                  <button onClick={() => {
                     const overrideKey = roomOverrideSection === "All" ? roomOverrideClass : `${roomOverrideClass}_${roomOverrideSection}`;
@@ -2522,17 +2535,17 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     setRoomOverrideStart("");
                     setRoomOverrideEnd("");
                     setRoomOverrideSection("All");
-                 }} className="admin-btn outline" style={{ padding: "9px 16px", borderColor: "var(--danger)", color: "var(--danger)" }}>Remove Override</button>
+                 }} className="admin-btn outline" style={{ borderColor: "var(--danger)", color: "var(--danger)" }}>Remove Override</button>
                )}
             </div>
           </section>
 
           {/* Bulk Overrides & Copy */}
-          <section className="admin-card admin-span-all admin-g-schedule schedule-bulk-tools" style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 32 }}>
+          <section className="admin-card admin-span-all admin-g-schedule schedule-bulk-tools" style={{ gridColumn: "1 / -1" }}>
              <div>
                 <h2><CalendarDays size={20} color="var(--violet)" /> Copy Overrides</h2>
                 <p className="admin-subtext">Duplicate all overrides (cancellations/rooms) from one day to another.</p>
-                <div className="admin-field-row" style={{ marginTop: 12 }}>
+                <div className="admin-field-row sched-editor-row" style={{ marginTop: 12 }}>
                    <div className="admin-field">
                       <label>Source Date</label>
                       <input type="date" className="admin-input" value={copySourceDate} onChange={e => setCopySourceDate(e.target.value)} />
@@ -2542,7 +2555,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                       <input type="date" className="admin-input" value={copyTargetDate} onChange={e => setCopyTargetDate(e.target.value)} />
                    </div>
                 </div>
-                <button className="admin-btn outline" style={{ marginTop: 12 }} onClick={() => {
+                <button className="admin-btn outline sched-bulk-btn" onClick={() => {
                    if(!copySourceDate || !copyTargetDate) return alert("Select both dates.");
                    if(!flags.classOverrides?.[copySourceDate]) return alert("No overrides found on source date.");
                    if(!window.confirm(`Copy all overrides from ${copySourceDate} to ${copyTargetDate}?`)) return;
@@ -2551,13 +2564,14 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                    next[copyTargetDate] = JSON.parse(JSON.stringify(next[copySourceDate]));
                    setFlags({...flags, classOverrides: next});
                    setCopySourceDate(""); setCopyTargetDate("");
-                }}>Copy to Target Date</button>
+                }} >Copy to Target Date</button>
              </div>
              <div>
                 <h2><FileText size={20} color="var(--blue)" /> Bulk CSV Importer</h2>
                 <p className="admin-subtext">Format: Date,Code,Section,Room,Start,End,Cancel(true/false)</p>
-                <textarea className="admin-textarea" value={bulkCsv} onChange={e => setBulkCsv(e.target.value)} placeholder="2026-07-20,BM,A,C-104,10:00,11:30,false&#10;2026-07-21,QM,B,,,,true" rows={4} style={{ marginTop: 12, fontFamily: "monospace", fontSize: 12, whiteSpace: "pre" }}></textarea>
-                <button className="admin-btn outline" style={{ marginTop: 12 }} onClick={() => {
+                <textarea className="admin-textarea sched-csv-input" value={bulkCsv} onChange={e => setBulkCsv(e.target.value)} placeholder="2026-07-20,BM,A,C-104,10:00,11:30,false&#10;2026-07-21,QM,B,,,,true" rows={4} aria-label="Bulk override CSV"></textarea>
+                <div className="sched-bulk-actions">
+                <button className="admin-btn outline" onClick={() => {
                    if (!bulkCsv.trim()) return;
                    try {
                       const next = {...flags.classOverrides};
@@ -2590,9 +2604,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                       alert("Invalid CSV format. " + e.message);
                    }
                 }}>Import CSV</button>
-                <button className="admin-btn outline" style={{ marginTop: 12, marginLeft: 8 }} onClick={previewCsvImport}>Preview (dry run)</button>
+                <button className="admin-btn outline" onClick={previewCsvImport}>Preview (dry run)</button>
+                </div>
                 {csvPreview && (
-                   <div style={{ marginTop: 10, padding: 12, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }}>
+                   <div className="sched-csv-preview">
                       <div style={{ fontWeight: 700, marginBottom: 6 }}>
                         {csvPreview.valid} valid row(s)
                         {csvPreview.invalid.length > 0 && <span style={{ color: "var(--danger)" }}> · {csvPreview.invalid.length} invalid (line {csvPreview.invalid.join(", ")})</span>}
@@ -2620,7 +2635,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 }));
                 const total = nCancelled + nRoom + nTime + nExam + nCustom;
                 return (
-                  <div style={{ display: "flex", gap: 12, marginTop: 12, marginBottom: 14, flexWrap: "wrap" }}>
+                  <div className="aco-filters">
                     {[
                       { label: `${total} Total`, color: "var(--text)", bg: "var(--bg)", filter: "all" },
                       { label: `${nCancelled} Cancelled`, color: "var(--danger)", bg: "rgba(231,76,60,0.06)", filter: "cancelled" },
@@ -2629,21 +2644,21 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                       { label: `${nExam} Exam`, color: "var(--violet)", bg: "rgba(109,91,208,0.08)", filter: "exam" },
                       { label: `${nCustom} Custom`, color: "var(--live)", bg: "rgba(31,169,113,0.06)", filter: "custom" },
                     ].map(chip => (
-                      <button key={chip.filter} onClick={() => setOvrFilterType(chip.filter)}
-                        style={{ padding: "5px 14px", borderRadius: 20, border: `1.5px solid ${ovrFilterType === chip.filter ? chip.color : "var(--border)"}`, background: ovrFilterType === chip.filter ? chip.bg : "transparent", color: ovrFilterType === chip.filter ? chip.color : "var(--muted)", cursor: "pointer", fontSize: 12, fontWeight: 700, transition: "all 0.15s" }}>
+                      <button key={chip.filter} onClick={() => setOvrFilterType(chip.filter)} className="aco-chip" aria-pressed={ovrFilterType === chip.filter}
+                        style={{ borderColor: ovrFilterType === chip.filter ? chip.color : "var(--border)", background: ovrFilterType === chip.filter ? chip.bg : "transparent", color: ovrFilterType === chip.filter ? chip.color : "var(--muted)" }}>
                         {chip.label}
                       </button>
                     ))}
-                    <input type="text" placeholder="Search code or room…" value={ovrSearch} onChange={e => setOvrSearch(e.target.value)}
-                      className="admin-input" style={{ marginLeft: "auto", width: 180, padding: "5px 10px", fontSize: 12 }} />
+                    <input type="text" placeholder="Search code or room…" value={ovrSearch} onChange={e => setOvrSearch(e.target.value)} aria-label="Search overrides"
+                      className="admin-input aco-search" />
                   </div>
                 );
               })()}
 
               {/* Stale overrides alert */}
               {staleOverrideDates.length > 0 && (
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", padding: "10px 14px", background: "rgba(245,158,11,0.08)", border: "1px solid var(--amber)", borderRadius: 10, marginBottom: 12 }}>
-                  <span style={{ fontSize: 13 }}><AlertTriangle size={15} color="var(--amber)" style={{ verticalAlign: "middle", marginRight: 6 }} />{staleOverrideDates.length} override date(s) are in the past — students still download them.</span>
+                <div className="aco-stale">
+                  <span><AlertTriangle size={15} color="var(--amber)" style={{ verticalAlign: "middle", marginRight: 6 }} />{staleOverrideDates.length} override date(s) are in the past — students still download them.</span>
                   <button className="admin-btn outline" onClick={purgeStaleOverrides} style={{ borderColor: "var(--amber)", color: "var(--amber)" }}><Trash2 size={14} /> Purge expired</button>
                 </div>
               )}
@@ -2682,25 +2697,25 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                       : { label: `TIME: ${override.start || "?"}–${override.end || "?"}`, color: "var(--amber)", bg: "rgba(245,158,11,0.10)" };
 
                     return (
-                      <div key={rowKey} style={{ borderRadius: 10, border: `1px solid ${isEditing ? "var(--blue)" : "var(--border)"}`, background: isEditing ? "rgba(59,130,246,0.03)" : "var(--bg)", overflow: "hidden", transition: "border-color 0.15s" }}>
+                      <div key={rowKey} className={`aco-row${isEditing ? " is-editing" : ""}`}>
                         {/* Main row */}
-                        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px" }}>
+                        <div className="aco-row-main">
                           {/* Type badge */}
-                          <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 6, background: typeBadge.bg, color: typeBadge.color, flexShrink: 0, letterSpacing: "0.5px" }}>{typeBadge.label}</span>
+                          <span className="aco-badge" style={{ background: typeBadge.bg, color: typeBadge.color }}>{typeBadge.label}</span>
                           {/* Info */}
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontWeight: 700, fontSize: 13 }}>
+                          <div className="aco-info">
+                            <div className="aco-title">
                               {new Date(date + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short" })} — {displayCode}
                             </div>
                             {override.modifiedAt && (
-                              <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
+                              <div className="aco-meta">
                                 Modified {new Date(override.modifiedAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                                 {override.modifiedBy ? ` · ${allUsers.find(u => u.user_id === override.modifiedBy)?.name || "admin"}` : ""}
                               </div>
                             )}
                           </div>
                           {/* Actions */}
-                          <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
+                          <div className="aco-actions">
                             {isCancelled && (
                               <button title="Restore class" onClick={() => {
                                 const prev = flags.classOverrides;
@@ -2710,7 +2725,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                                 if (Object.keys(forDate).length === 0) delete next[date]; else next[date] = forDate;
                                 setFlags({ ...flags, classOverrides: next });
                                 removeWithUndo(`Override removed — ${displayCode}`, () => setFlags(f => ({ ...f, classOverrides: prev })));
-                              }} style={{ background: "none", border: "1px solid var(--live)", borderRadius: 6, cursor: "pointer", color: "var(--live)", fontSize: 12, fontWeight: 600, padding: "3px 10px", display: "flex", alignItems: "center", gap: 4 }}>
+                              }} className="aco-btn" style={{ borderColor: "var(--live)", color: "var(--live)" }}>
                                 <RefreshCw size={12} /> Restore
                               </button>
                             )}
@@ -2719,7 +2734,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                                 if (isEditing) { setOvrEditKey(null); return; }
                                 setOvrEditKey(rowKey);
                                 setOvrEditValues({ room: override.room || "", start: override.start || "", end: override.end || "" });
-                              }} style={{ background: "none", border: `1px solid ${isEditing ? "var(--blue)" : "var(--border)"}`, borderRadius: 6, cursor: "pointer", color: isEditing ? "var(--blue)" : "var(--muted)", fontSize: 12, fontWeight: 600, padding: "3px 10px", display: "flex", alignItems: "center", gap: 4 }}>
+                              }} className="aco-btn" style={{ borderColor: isEditing ? "var(--blue)" : "var(--border)", color: isEditing ? "var(--blue)" : "var(--muted)" }}>
                                 <Pencil size={12} /> {isEditing ? "Close" : "Edit"}
                               </button>
                             )}
@@ -2732,27 +2747,27 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                               setFlags({ ...flags, classOverrides: next });
                               removeWithUndo(`Override removed — ${displayCode}`, () => setFlags(f => ({ ...f, classOverrides: prev })));
                               if (isEditing) setOvrEditKey(null);
-                            }} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", alignItems: "center" }}>
+                            }} className="aco-del" aria-label="Delete override">
                               <Trash2 size={15} color="var(--danger)" />
                             </button>
                           </div>
                         </div>
                         {/* Inline edit form */}
                         {isEditing && (
-                          <div style={{ borderTop: "1px solid var(--border)", padding: "12px 14px", display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap", background: "rgba(59,130,246,0.03)" }}>
-                            <div className="admin-field" style={{ flex: 1, minWidth: 100 }}>
+                          <div className="aco-edit">
+                            <div className="admin-field aco-edit-field aco-edit-field--wide">
                               <label>Room</label>
                               <input type="text" placeholder="e.g. C-104" className="admin-input" value={ovrEditValues.room} onChange={e => setOvrEditValues(v => ({ ...v, room: e.target.value }))} />
                             </div>
-                            <div className="admin-field" style={{ flex: 1, minWidth: 100 }}>
+                            <div className="admin-field aco-edit-field">
                               <label>New Start</label>
                               <input type="time" className="admin-input" value={ovrEditValues.start} onChange={e => setOvrEditValues(v => ({ ...v, start: e.target.value }))} />
                             </div>
-                            <div className="admin-field" style={{ flex: 1, minWidth: 100 }}>
+                            <div className="admin-field aco-edit-field">
                               <label>New End</label>
                               <input type="time" className="admin-input" value={ovrEditValues.end} onChange={e => setOvrEditValues(v => ({ ...v, end: e.target.value }))} />
                             </div>
-                            <button className="admin-btn primary" style={{ marginBottom: 10, padding: "8px 16px" }}
+                            <button className="admin-btn primary aco-edit-btn"
                               onClick={() => {
                                 if (!ovrEditValues.room && !ovrEditValues.start && !ovrEditValues.end) return alert("Enter at least one change.");
                                 const next = { ...flags.classOverrides };
@@ -2771,7 +2786,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                               }}>
                               <Check size={14} /> Save Changes
                             </button>
-                            <button className="admin-btn outline" style={{ marginBottom: 10, padding: "8px 14px" }} onClick={() => setOvrEditKey(null)}>Cancel</button>
+                            <button className="admin-btn outline aco-edit-btn" onClick={() => setOvrEditKey(null)}>Cancel</button>
                           </div>
                         )}
                       </div>
@@ -2789,76 +2804,81 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
                 {/* ── 1. Broadcast Studio (Announcements + Push + Social Flash + Quiet Hours) ── */}
         <section className="admin-card admin-span-all admin-g-broadcast" style={{ gridColumn: "1 / -1" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+          <div className="bcast-studio-head">
             <div>
               <h2 style={{ marginBottom: 4 }}><Megaphone size={20} color="var(--amber)" /> Broadcast Studio</h2>
               <p className="admin-subtext" style={{ margin: 0 }}>Compose and dispatch banners, push notifications, and live toast alerts to students.</p>
             </div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <div className="bcast-tabs" role="group" aria-label="Broadcast channels">
               <button
                 type="button"
+                className="bcast-tab"
+                aria-pressed={openBcast.announcements}
                 onClick={() => setOpenBcast(o => ({ ...o, announcements: !o.announcements }))}
                 style={{
-                  padding: "6px 12px", borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: "pointer",
                   border: openBcast.announcements ? "1.5px solid var(--amber)" : "1px solid var(--border)",
                   background: openBcast.announcements ? "rgba(245,158,11,0.12)" : "var(--bg)",
                   color: openBcast.announcements ? "var(--amber)" : "var(--muted)",
-                  display: "flex", alignItems: "center", gap: 6
                 }}>
                 <Megaphone size={14} /> Banners {(flags.scheduledAnnouncements || []).length > 0 ? `(${flags.scheduledAnnouncements.length})` : ""}
               </button>
               <button
                 type="button"
+                className="bcast-tab"
+                aria-pressed={openBcast.push}
                 onClick={() => setOpenBcast(o => ({ ...o, push: !o.push }))}
                 style={{
-                  padding: "6px 12px", borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: "pointer",
                   border: openBcast.push ? "1.5px solid var(--live)" : "1px solid var(--border)",
                   background: openBcast.push ? "rgba(31,169,113,0.12)" : "var(--bg)",
                   color: openBcast.push ? "var(--live)" : "var(--muted)",
-                  display: "flex", alignItems: "center", gap: 6
                 }}>
                 <BellRing size={14} /> Web Push {(flags.scheduledPushes || []).length > 0 ? `(${flags.scheduledPushes.length})` : ""}
               </button>
               <button
                 type="button"
+                className="bcast-tab"
+                aria-pressed={openBcast.social}
                 onClick={() => setOpenBcast(o => ({ ...o, social: !o.social }))}
                 style={{
-                  padding: "6px 12px", borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: "pointer",
                   border: openBcast.social ? "1.5px solid var(--violet)" : "1px solid var(--border)",
                   background: openBcast.social ? "rgba(139,92,246,0.12)" : "var(--bg)",
                   color: openBcast.social ? "var(--violet)" : "var(--muted)",
-                  display: "flex", alignItems: "center", gap: 6
                 }}>
                 <Sparkles size={14} /> Social Flash
               </button>
             </div>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div className="bcast-acc-stack">
                         {/* ── Accordion 1: In-App Scheduled Announcements ── */}
-            <div style={{ border: `1px solid ${openBcast.announcements ? "var(--amber)" : "var(--border)"}`, borderRadius: 12, overflow: "hidden", background: "var(--bg)", transition: "border-color 0.15s" }}>
+            <div className="bcast-acc" style={{ borderColor: openBcast.announcements ? "var(--amber)" : "var(--border)" }}>
               <div
+                className="bcast-acc-head"
+                role="button"
+                tabIndex={0}
+                aria-expanded={openBcast.announcements}
+                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenBcast(o => ({ ...o, announcements: !o.announcements })); } }}
                 onClick={() => setOpenBcast(o => ({ ...o, announcements: !o.announcements }))}
-                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", cursor: "pointer", background: openBcast.announcements ? "rgba(245,158,11,0.06)" : "transparent" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                style={{ background: openBcast.announcements ? "rgba(245,158,11,0.06)" : "transparent" }}>
+                <div className="bcast-acc-title">
                   <Megaphone size={17} color="var(--amber)" />
-                  <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text)" }}>In-App Banner Announcements</span>
+                  <span className="bcast-acc-name">In-App Banner Announcements</span>
                   {(flags.scheduledAnnouncements || []).length > 0 && (
-                    <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 10, background: "rgba(245,158,11,0.15)", color: "var(--amber)" }}>
+                    <span className="bcast-acc-badge" style={{ background: "rgba(245,158,11,0.15)", color: "var(--amber)" }}>
                       {flags.scheduledAnnouncements.length} active
                     </span>
                   )}
                 </div>
-                <span style={{ color: "var(--muted)", fontSize: 13, fontWeight: 600 }}>{openBcast.announcements ? "▲ Collapse" : "▼ Expand"}</span>
+                <span className="bcast-acc-toggle">{openBcast.announcements ? "▲" : "▼"}<em>{openBcast.announcements ? "Collapse" : "Expand"}</em></span>
               </div>
 
               {openBcast.announcements && (
-                <div style={{ padding: "16px", borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 14 }}>
+                <div className="bcast-acc-body">
                   
                   {/* Template presets library */}
                   {(flags.announcementTemplates || []).length > 0 && (
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase" }}>Templates:</span>
+                    <div className="bcast-chip-row">
+                      <span className="bcast-chip-row-label">Templates:</span>
                       {(flags.announcementTemplates || []).map(t => (
                         <span key={t.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--card)", border: "1px solid var(--border)", borderRadius: 20, padding: "3px 6px 3px 10px", fontSize: 11.5 }}>
                           <button type="button" onClick={() => applyAnnouncementTemplate(t)} title={t.text} style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--text)", fontWeight: 600, padding: 0 }}>{t.label}</button>
@@ -2870,9 +2890,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
                   {/* Date range presets row */}
                   <div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                      <label style={{ fontSize: 11.5, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Schedule &amp; Dates</label>
-                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                    <div className="bcast-field-head">
+                      <label className="bcast-field-label">Schedule &amp; Dates</label>
+                      <div className="bcast-preset-row">
                         {[
                           { label: "Today", days: 0 },
                           { label: "Next 3 Days", days: 3 },
@@ -2894,17 +2914,17 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                               setAnnouncementStart(start);
                               setAnnouncementEnd(end);
                             }}
-                            style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "2px 8px", fontSize: 11, fontWeight: 600, color: "var(--muted)", cursor: "pointer" }}>
+                            className="bcast-preset-chip">
                             {p.label}
                           </button>
                         ))}
                       </div>
                     </div>
 
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      <input type="date" value={announcementStart} onChange={e => setAnnouncementStart(e.target.value)} className="admin-input" style={{ flex: "1 1 130px", padding: "8px", borderRadius: 8 }} title="Start Date" />
-                      <input type="date" value={announcementEnd} onChange={e => setAnnouncementEnd(e.target.value)} className="admin-input" style={{ flex: "1 1 130px", padding: "8px", borderRadius: 8 }} title="End Date (Inclusive)" />
-                      <select className="admin-input" value={announcementTarget} onChange={e => setAnnouncementTarget(e.target.value)} style={{ flex: "2 1 170px", padding: "8px", borderRadius: 8 }}>
+                    <div className="bcast-control-row">
+                      <input type="date" value={announcementStart} onChange={e => setAnnouncementStart(e.target.value)} className="admin-input bcast-control bcast-control--date" title="Start Date" aria-label="Announcement start date" />
+                      <input type="date" value={announcementEnd} onChange={e => setAnnouncementEnd(e.target.value)} className="admin-input bcast-control bcast-control--date" title="End Date (Inclusive)" aria-label="Announcement end date" />
+                      <select className="admin-input bcast-control bcast-control--audience" value={announcementTarget} onChange={e => setAnnouncementTarget(e.target.value)} aria-label="Announcement audience">
                         <option value="global">🌐 Global (All Students)</option>
                         <option value="section_A">🅰️ Section A Only</option>
                         <option value="section_B">🅱️ Section B Only</option>
@@ -2915,7 +2935,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                           ))}
                         </optgroup>
                       </select>
-                      <select className="admin-input" value={announcementSeverity} onChange={e => setAnnouncementSeverity(e.target.value)} style={{ flex: "1.5 1 140px", padding: "8px", borderRadius: 8 }} title="Banner severity / colour">
+                      <select className="admin-input bcast-control bcast-control--severity" value={announcementSeverity} onChange={e => setAnnouncementSeverity(e.target.value)} title="Banner severity / colour" aria-label="Banner severity">
                         <option value="info">🟣 Info (Purple)</option>
                         <option value="warning">🟡 Warning (Amber)</option>
                         <option value="urgent">🔴 Urgent (Red)</option>
@@ -2934,13 +2954,13 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
                   {/* Message composition with quick emoji helpers */}
                   <div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                      <label style={{ fontSize: 11.5, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Announcement Message</label>
-                      <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                        <span style={{ fontSize: 11, color: "var(--muted)", marginRight: 4 }}>Add icon:</span>
+                    <div className="bcast-field-head">
+                      <label className="bcast-field-label">Announcement Message</label>
+                      <div className="bcast-icon-row">
+                        <span className="bcast-icon-row-label">Add icon:</span>
                         {["⚡", "📢", "🚨", "🎉", "🎓", "ℹ️", "🗓️", "🔔"].map(em => (
                           <button key={em} type="button" onClick={() => setAnnouncement(prev => prev ? `${em} ${prev}` : `${em} `)}
-                            style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 6, padding: "1px 5px", fontSize: 12, cursor: "pointer" }}>
+                            className="bcast-icon-btn" aria-label={`Prefix message with ${em}`}>
                             {em}
                           </button>
                         ))}
@@ -2958,8 +2978,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                   {/* Realtime student preview */}
                   {announcement.trim() && (
                     <div>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--muted)" }}>Student In-App Live Preview</span>
+                      <div className="bcast-field-head">
+                        <span className="bcast-field-label">Student In-App Live Preview</span>
                         <button type="button" onClick={() => setPreviewTheme(previewTheme === "dark" ? "light" : "dark")} style={{ background: "transparent", border: "1px solid var(--border)", borderRadius: 8, padding: "3px 10px", fontSize: 11, fontWeight: 600, color: "var(--text)", cursor: "pointer" }}>
                           {previewTheme === "dark" ? "🌙 Dark" : "☀️ Light"} mode preview
                         </button>
@@ -2972,8 +2992,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                           : "var(--amber, #F59E0B)";
                         const fg = announcementSeverity === "warning" ? "#000" : "#fff";
                         return (
-                          <div style={{ padding: 14, borderRadius: 12, border: "1px solid var(--border)", background: previewTheme === "dark" ? "#101216" : "#F3F1EA" }}>
-                            <div style={{ background: bg, color: fg, padding: "11px 14px", borderRadius: 10, display: "flex", gap: 10, alignItems: "center", fontWeight: 600, fontSize: 13.5, boxShadow: "0 2px 8px rgba(0,0,0,0.15)" }}>
+                          <div className="bcast-preview-stage" style={{ background: previewTheme === "dark" ? "#101216" : "#F3F1EA" }}>
+                            <div className="bcast-preview-banner" style={{ background: bg, color: fg }}>
                               <Megaphone size={16} style={{ flexShrink: 0 }} />
                               <span style={{ flex: 1, lineHeight: 1.4 }}>{announcement}</span>
                               <X size={15} style={{ flexShrink: 0, opacity: 0.75, cursor: "pointer" }} />
@@ -2985,7 +3005,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                   )}
 
                   {/* Action buttons */}
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                  <div className="bcast-actions">
                     <button className="admin-btn primary" onClick={() => {
                       if (!announcement.trim() || !announcementStart || !announcementEnd) return alert("Please fill message and start/end dates.");
                       const newItem = { id: Date.now().toString(), message: announcement.trim(), target: announcementTarget, start: announcementStart, end: announcementEnd, severity: announcementSeverity };
@@ -2994,7 +3014,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     }}>
                       <Megaphone size={14} /> Add Scheduled Announcement
                     </button>
-                    <input className="admin-input" value={tplLabel} onChange={e => setTplLabel(e.target.value)} placeholder="Template name (e.g. Exam)" style={{ flex: "1 1 140px", maxWidth: 180 }} />
+                    <input className="admin-input bcast-tpl-input" value={tplLabel} onChange={e => setTplLabel(e.target.value)} placeholder="Template name (e.g. Exam)" aria-label="Template name" />
                     <button className="admin-btn outline" onClick={saveAnnouncementTemplate} disabled={!announcement.trim() || !tplLabel.trim()} title="Save the current message + severity as a reusable template"><Save size={14} /> Save template</button>
                   </div>
 
@@ -3034,8 +3054,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
                     return (
                       <div style={{ marginTop: 8, borderTop: "1px solid var(--border)", paddingTop: 14 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
-                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        <div className="bcast-list-toolbar">
+                          <div className="bcast-filter-row">
                             {[
                               { id: "all", label: `All (${items.length})` },
                               { id: "active", label: `🟢 Live Now (${nActive})` },
@@ -3043,14 +3063,15 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                               { id: "expired", label: `🔴 Expired (${nExpired})` },
                             ].map(f => (
                               <button key={f.id} type="button" onClick={() => setAnnFilter(f.id)}
-                                style={{ padding: "4px 10px", borderRadius: 16, border: annFilter === f.id ? "1.5px solid var(--blue)" : "1px solid var(--border)", background: annFilter === f.id ? "rgba(59,130,246,0.10)" : "var(--card)", color: annFilter === f.id ? "var(--blue)" : "var(--muted)", fontSize: 12, fontWeight: annFilter === f.id ? 700 : 500, cursor: "pointer" }}>
+                                className="bcast-filter-chip" aria-pressed={annFilter === f.id}
+                                style={{ border: annFilter === f.id ? "1.5px solid var(--blue)" : "1px solid var(--border)", background: annFilter === f.id ? "rgba(59,130,246,0.10)" : "var(--card)", color: annFilter === f.id ? "var(--blue)" : "var(--muted)", fontWeight: annFilter === f.id ? 700 : 500 }}>
                                 {f.label}
                               </button>
                             ))}
                           </div>
-                          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                            <input type="text" placeholder="Search banners…" value={annSearch} onChange={e => setAnnSearch(e.target.value)}
-                              className="admin-input" style={{ width: 150, padding: "4px 8px", fontSize: 12 }} />
+                          <div className="bcast-search-row">
+                            <input type="text" placeholder="Search banners…" value={annSearch} onChange={e => setAnnSearch(e.target.value)} aria-label="Search banners"
+                              className="admin-input bcast-search-input" />
                             {nExpired > 0 && (
                               <button type="button" onClick={() => {
                                 if (!confirm(`Remove all ${nExpired} expired announcement(s)?`)) return;
@@ -3080,8 +3101,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
                               return (
                                 <div key={a.id} style={{ borderRadius: 10, border: `1px solid ${isEditing ? "var(--blue)" : isLive ? "var(--live)" : "var(--border)"}`, background: isEditing ? "rgba(59,130,246,0.03)" : "var(--card)", padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
-                                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10, justifyContent: "space-between" }}>
-                                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                  <div className="bcast-item-head">
+                                    <div className="bcast-item-meta">
                                       <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 6, background: statusTag.bg, color: statusTag.color, letterSpacing: "0.5px" }}>
                                         {statusTag.label}
                                       </span>
@@ -3092,7 +3113,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                                         Target: <b style={{ color: "var(--text)" }}>{a.target === "global" ? "Everyone" : a.target}</b> · {a.start} to {a.end}
                                       </span>
                                     </div>
-                                    <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                                    <div className="bcast-item-actions">
                                       {/* Clone button */}
                                       <button type="button" title="Duplicate announcement" onClick={() => {
                                         const copy = { ...a, id: Date.now().toString(), message: `(Copy) ${a.message}` };
@@ -3131,17 +3152,17 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                                   ) : (
                                     /* Inline Edit Form */
                                     <div style={{ borderTop: "1px solid var(--border)", paddingTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
-                                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                                        <input type="date" value={editAnnStart} onChange={e => setEditAnnStart(e.target.value)} className="admin-input" style={{ flex: "1 1 120px", padding: "6px" }} />
-                                        <input type="date" value={editAnnEnd} onChange={e => setEditAnnEnd(e.target.value)} className="admin-input" style={{ flex: "1 1 120px", padding: "6px" }} />
-                                        <select className="admin-input" value={editAnnTarget} onChange={e => setEditAnnTarget(e.target.value)} style={{ flex: "1.5 1 140px", padding: "6px" }}>
+                                      <div className="bcast-control-row">
+                                        <input type="date" value={editAnnStart} onChange={e => setEditAnnStart(e.target.value)} className="admin-input bcast-control bcast-control--date" aria-label="Start date" />
+                                        <input type="date" value={editAnnEnd} onChange={e => setEditAnnEnd(e.target.value)} className="admin-input bcast-control bcast-control--date" aria-label="End date" />
+                                        <select className="admin-input bcast-control bcast-control--audience" value={editAnnTarget} onChange={e => setEditAnnTarget(e.target.value)} aria-label="Audience">
                                           <option value="global">🌐 Global</option>
                                           <option value="section_A">🅰️ Section A</option>
                                           <option value="section_B">🅱️ Section B</option>
                                           <option value="has_friends">👥 Social</option>
                                           {Object.keys(LEGEND || {}).map(c => <option key={c} value={`subject_${c}`}>{c}</option>)}
                                         </select>
-                                        <select className="admin-input" value={editAnnSeverity} onChange={e => setEditAnnSeverity(e.target.value)} style={{ flex: "1 1 120px", padding: "6px" }}>
+                                        <select className="admin-input bcast-control bcast-control--severity" value={editAnnSeverity} onChange={e => setEditAnnSeverity(e.target.value)} aria-label="Severity">
                                           <option value="info">🟣 Info</option>
                                           <option value="warning">🟡 Warning</option>
                                           <option value="urgent">🔴 Urgent</option>
@@ -3150,7 +3171,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                                         </select>
                                       </div>
                                       <textarea className="admin-textarea" rows={2} value={editAnnMsg} onChange={e => setEditAnnMsg(e.target.value)} />
-                                      <div style={{ display: "flex", gap: 8 }}>
+                                      <div className="bcast-actions">
                                         <button className="admin-btn primary" style={{ padding: "6px 14px", fontSize: 12.5 }} onClick={() => {
                                           if (!editAnnMsg.trim() || !editAnnStart || !editAnnEnd) return alert("Fill all fields.");
                                           setFlags({
@@ -3186,24 +3207,29 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               )}
             </div>
 {/* ── Accordion 2: Push Notifications ── */}
-            <div style={{ border: `1px solid ${openBcast.push ? "var(--live)" : "var(--border)"}`, borderRadius: 12, overflow: "hidden", background: "var(--bg)", transition: "border-color 0.15s" }}>
+            <div className="bcast-acc" style={{ borderColor: openBcast.push ? "var(--live)" : "var(--border)" }}>
               <div
+                className="bcast-acc-head"
+                role="button"
+                tabIndex={0}
+                aria-expanded={openBcast.push}
+                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenBcast(o => ({ ...o, push: !o.push })); } }}
                 onClick={() => setOpenBcast(o => ({ ...o, push: !o.push }))}
-                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", cursor: "pointer", background: openBcast.push ? "rgba(31,169,113,0.06)" : "transparent" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                style={{ background: openBcast.push ? "rgba(31,169,113,0.06)" : "transparent" }}>
+                <div className="bcast-acc-title">
                   <BellRing size={17} color="var(--live)" />
-                  <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text)" }}>Web Push Notifications</span>
+                  <span className="bcast-acc-name">Web Push Notifications</span>
                   {(flags.scheduledPushes || []).length > 0 && (
-                    <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 10, background: "rgba(31,169,113,0.15)", color: "var(--live)" }}>
+                    <span className="bcast-acc-badge" style={{ background: "rgba(31,169,113,0.15)", color: "var(--live)" }}>
                       {flags.scheduledPushes.length} queued
                     </span>
                   )}
                 </div>
-                <span style={{ color: "var(--muted)", fontSize: 13, fontWeight: 600 }}>{openBcast.push ? "▲ Collapse" : "▼ Expand"}</span>
+                <span className="bcast-acc-toggle">{openBcast.push ? "▲" : "▼"}<em>{openBcast.push ? "Collapse" : "Expand"}</em></span>
               </div>
 
               {openBcast.push && (
-                <div style={{ padding: "16px", borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 12 }}>
+                <div className="bcast-acc-body">
                   {/* Saved push templates */}
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
                     {(flags.pushTemplates || []).map(t => (
@@ -3312,20 +3338,25 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             </div>
 
             {/* ── Accordion 3: Social Flash Notifications ── */}
-            <div style={{ border: `1px solid ${openBcast.social ? "var(--violet)" : "var(--border)"}`, borderRadius: 12, overflow: "hidden", background: "var(--bg)", transition: "border-color 0.15s" }}>
+            <div className="bcast-acc" style={{ borderColor: openBcast.social ? "var(--violet)" : "var(--border)" }}>
               <div
+                className="bcast-acc-head"
+                role="button"
+                tabIndex={0}
+                aria-expanded={openBcast.social}
+                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenBcast(o => ({ ...o, social: !o.social })); } }}
                 onClick={() => setOpenBcast(o => ({ ...o, social: !o.social }))}
-                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", cursor: "pointer", background: openBcast.social ? "rgba(139,92,246,0.06)" : "transparent" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                style={{ background: openBcast.social ? "rgba(139,92,246,0.06)" : "transparent" }}>
+                <div className="bcast-acc-title">
                   <Sparkles size={17} color="var(--violet)" />
-                  <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text)" }}>Social Flash Toast Notifications</span>
-                  <span style={{ background: "linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%)", color: "#fff", fontSize: "9px", fontWeight: 800, padding: "2px 6px", borderRadius: "8px" }}>REALTIME</span>
+                  <span className="bcast-acc-name">Social Flash Toast Notifications</span>
+                  <span className="bcast-acc-badge is-realtime">REALTIME</span>
                 </div>
-                <span style={{ color: "var(--muted)", fontSize: 13, fontWeight: 600 }}>{openBcast.social ? "▲ Collapse" : "▼ Expand"}</span>
+                <span className="bcast-acc-toggle">{openBcast.social ? "▲" : "▼"}<em>{openBcast.social ? "Collapse" : "Expand"}</em></span>
               </div>
 
               {openBcast.social && (
-                <div style={{ padding: "16px", borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 12 }}>
+                <div className="bcast-acc-body">
                   <div className="admin-field">
                     <label>Title</label>
                     <input className="admin-input" value={socialFlashTitle} onChange={e => setSocialFlashTitle(e.target.value)} placeholder="⚡ New Social Update" />
@@ -3361,9 +3392,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
                   {/* Toast preview */}
                   <div style={{ marginTop: 4 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                      <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Live Toast Preview ({socialFlashDuration / 1000}s)</span>
-                      <button type="button" onClick={testSocialFlashLocal} className="admin-btn outline" style={{ fontSize: 11.5, padding: "4px 10px", color: "var(--violet)", borderColor: "rgba(139,92,246,0.3)" }}>
+                    <div className="bcast-field-head">
+                      <span className="bcast-field-label">Live Toast Preview ({socialFlashDuration / 1000}s)</span>
+                      <button type="button" onClick={testSocialFlashLocal} className="admin-btn outline bcast-test-btn" style={{ color: "var(--violet)", borderColor: "rgba(139,92,246,0.3)" }}>
                         <Sparkles size={13} /> Test Toast on Screen
                       </button>
                     </div>
@@ -3410,24 +3441,12 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     </div>
                   </div>
 
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div className="bcast-actions">
                     <button
                       type="button"
-                      className="admin-btn primary"
+                      className="admin-btn primary bcast-flash-send"
                       disabled={socialFlashSending}
                       onClick={triggerSocialFlashBroadcast}
-                      style={{
-                        background: "var(--violet, #8B5CF6)",
-                        color: "#fff",
-                        padding: "9px 16px",
-                        borderRadius: 8,
-                        fontWeight: 700,
-                        fontSize: 13,
-                        cursor: "pointer",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 6
-                      }}
                     >
                       <Sparkles size={14} />
                       {socialFlashSending ? "Pushing Live..." : "Push Social Flash to All Users"}
@@ -3444,21 +3463,21 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </div>
 
           {/* ── Footer Row: Quiet Hours Guard ── */}
-          <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <div className="bcast-quiet-row">
+            <div className="bcast-quiet-controls">
               <label className="admin-flag-item" style={{ margin: 0, fontSize: 13 }}>
                 <input type="checkbox" checked={!!quietHours.enabled} onChange={e => setFlags({ ...flags, quietHours: { ...quietHours, enabled: e.target.checked } })} />
                 <span style={{ fontWeight: 600 }}>Quiet Hours Guard (IST)</span>
               </label>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, opacity: quietHours.enabled ? 1 : 0.45 }}>
-                <input type="time" className="admin-input" style={{ width: "auto", padding: "4px 8px", fontSize: 12 }} value={quietHours.start || "23:00"} disabled={!quietHours.enabled} onChange={e => setFlags({ ...flags, quietHours: { ...quietHours, start: e.target.value } })} />
-                <span style={{ fontSize: 12, color: "var(--muted)" }}>to</span>
-                <input type="time" className="admin-input" style={{ width: "auto", padding: "4px 8px", fontSize: 12 }} value={quietHours.end || "07:00"} disabled={!quietHours.enabled} onChange={e => setFlags({ ...flags, quietHours: { ...quietHours, end: e.target.value } })} />
+              <div className="bcast-quiet-times" style={{ opacity: quietHours.enabled ? 1 : 0.45 }}>
+                <input type="time" className="admin-input" aria-label="Quiet hours start" value={quietHours.start || "23:00"} disabled={!quietHours.enabled} onChange={e => setFlags({ ...flags, quietHours: { ...quietHours, start: e.target.value } })} />
+                <span>to</span>
+                <input type="time" className="admin-input" aria-label="Quiet hours end" value={quietHours.end || "07:00"} disabled={!quietHours.enabled} onChange={e => setFlags({ ...flags, quietHours: { ...quietHours, end: e.target.value } })} />
               </div>
             </div>
             {quietHours.enabled && (() => { const q = inQuietHours(flashNow); return (
-              <div style={{ fontSize: 12, color: q ? "var(--danger)" : "var(--live)", display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ width: 8, height: 8, borderRadius: "50%", background: q ? "var(--danger)" : "var(--live)" }} />
+              <div className="bcast-quiet-status" style={{ color: q ? "var(--danger)" : "var(--live)" }}>
+                <span style={{ background: q ? "var(--danger)" : "var(--live)" }} />
                 {q ? "Within quiet hours (warning active)" : "Outside quiet hours (normal)"}
               </div>
             ); })()}
@@ -3472,7 +3491,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
           {/* Scheduled Timeline Agenda */}
           <div style={{ marginTop: 12, marginBottom: 16 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 8 }}>Scheduled Timeline Agenda</div>
+            <div className="bmc-section-label">Scheduled Timeline Agenda</div>
             {broadcastAgenda.length === 0 ? (
               <div className="admin-empty" style={{ padding: "16px 0" }}>Nothing scheduled. Queued pushes, announcements &amp; deploys will appear here.</div>
             ) : (
@@ -3484,12 +3503,12 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                   const sameSlot = prev && (prev.sort || "").slice(0, 13) === (it.sort || "").slice(0, 13);
                   return (
                     <div key={i}>
-                      {newDay && <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--muted)", margin: "6px 0 2px" }}>{day ? new Date(day).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" }) : "Undated"}</div>}
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: sameSlot ? "rgba(245,158,11,0.08)" : "var(--bg)", borderRadius: 8, border: `1px solid ${sameSlot ? "var(--amber)" : "var(--border)"}` }} title={sameSlot ? "Fires in the same slot as the item above — possible collision" : ""}>
-                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: it.color, flexShrink: 0 }} />
-                        <span style={{ fontSize: 12, fontWeight: 700, color: it.color, minWidth: 88 }}>{it.kind}</span>
-                        <span style={{ fontSize: 13, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.label}</span>
-                        <span style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap" }}>{it.when}{it.end ? ` → ${it.end}` : ""}</span>
+                      {newDay && <div className="bmc-day-head">{day ? new Date(day).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" }) : "Undated"}</div>}
+                      <div className={`bmc-agenda-row${sameSlot ? " is-collision" : ""}`} title={sameSlot ? "Fires in the same slot as the item above — possible collision" : ""}>
+                        <span className="bmc-agenda-dot" style={{ background: it.color }} />
+                        <span className="bmc-agenda-kind" style={{ color: it.color }}>{it.kind}</span>
+                        <span className="bmc-agenda-label">{it.label}</span>
+                        <span className="bmc-agenda-when">{it.when}{it.end ? ` → ${it.end}` : ""}</span>
                       </div>
                     </div>
                   );
@@ -3500,8 +3519,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
           {/* Collapsible Queued Pushes */}
           {flags.scheduledPushes && flags.scheduledPushes.length > 0 && (
-            <details style={{ borderTop: "1px solid var(--border)", paddingTop: 12, marginBottom: 12 }}>
-              <summary style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", cursor: "pointer" }}>
+            <details className="bmc-details" style={{ marginBottom: 12 }}>
+              <summary className="bmc-summary">
                 Queued Push Notifications ({flags.scheduledPushes.length})
               </summary>
               <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
@@ -3523,8 +3542,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           )}
 
           {/* Collapsible Push Delivery Analytics */}
-          <details style={{ borderTop: "1px solid var(--border)", paddingTop: 12 }} open>
-            <summary style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", cursor: "pointer" }}>
+          <details className="bmc-details" open>
+            <summary className="bmc-summary">
               Push Delivery Analytics
             </summary>
             <div style={{ marginTop: 10 }}>
@@ -3538,17 +3557,17 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     const dPct = s.total ? Math.round((s.delivered / s.total) * 100) : 0;
                     const oPct = s.total ? Math.round((s.opened / s.total) * 100) : 0;
                     return (
-                      <div key={s.dedup_key} style={{ padding: "8px 12px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
-                          <span style={{ fontSize: 12.5, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title || "(no title)"}</span>
-                          <span style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap" }}>{new Date(s.sent_at).toLocaleDateString()}</span>
+                      <div key={s.dedup_key} className="bmc-stat-card">
+                        <div className="bmc-stat-head">
+                          <span className="bmc-stat-title">{s.title || "(no title)"}</span>
+                          <span className="bmc-stat-date">{new Date(s.sent_at).toLocaleDateString()}</span>
                         </div>
-                        <div style={{ display: "flex", gap: 14, fontSize: 11.5 }}>
+                        <div className="bmc-stat-nums">
                           <span><b>{s.total}</b> sent</span>
                           <span style={{ color: "var(--blue)" }}><b>{s.delivered}</b> delivered ({dPct}%)</span>
                           <span style={{ color: "var(--live)" }}><b>{s.opened}</b> opened ({oPct}%)</span>
                         </div>
-                        <div style={{ height: 5, background: "var(--card)", borderRadius: 3, overflow: "hidden", border: "1px solid var(--border)", marginTop: 4, position: "relative" }}>
+                        <div className="bmc-stat-bar">
                           <div style={{ position: "absolute", inset: 0, width: `${dPct}%`, background: "var(--blue)", opacity: 0.35 }} />
                           <div style={{ position: "absolute", inset: 0, width: `${oPct}%`, background: "var(--live)" }} />
                         </div>
@@ -3563,73 +3582,78 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
         {/* ── 3. Content Hub (What's New + Quick Links + Update Prompt) ── */}
         <section className="admin-card admin-span-all admin-g-broadcast" style={{ gridColumn: "1 / -1" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+          <div className="bcast-studio-head">
             <div>
               <h2 style={{ marginBottom: 4 }}><Sparkles size={20} color="var(--violet)" /> App Content Hub</h2>
               <p className="admin-subtext" style={{ margin: 0 }}>Publish in-app feature notes, dynamic sidebar links, and client update prompts.</p>
             </div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <div className="bcast-tabs" role="group" aria-label="Content sections">
               <button
                 type="button"
+                className="bcast-tab"
+                aria-pressed={openContent.whatsNew}
                 onClick={() => setOpenContent(o => ({ ...o, whatsNew: !o.whatsNew }))}
                 style={{
-                  padding: "6px 12px", borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: "pointer",
                   border: openContent.whatsNew ? "1.5px solid var(--violet)" : "1px solid var(--border)",
                   background: openContent.whatsNew ? "rgba(109,91,208,0.12)" : "var(--bg)",
                   color: openContent.whatsNew ? "var(--violet)" : "var(--muted)",
-                  display: "flex", alignItems: "center", gap: 6
                 }}>
                 <Sparkles size={14} /> What&rsquo;s New {(flags.whatsNew || []).length > 0 ? `(${flags.whatsNew.length})` : ""}
               </button>
               <button
                 type="button"
+                className="bcast-tab"
+                aria-pressed={openContent.quickLinks}
                 onClick={() => setOpenContent(o => ({ ...o, quickLinks: !o.quickLinks }))}
                 style={{
-                  padding: "6px 12px", borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: "pointer",
                   border: openContent.quickLinks ? "1.5px solid var(--blue)" : "1px solid var(--border)",
                   background: openContent.quickLinks ? "rgba(59,130,246,0.12)" : "var(--bg)",
                   color: openContent.quickLinks ? "var(--blue)" : "var(--muted)",
-                  display: "flex", alignItems: "center", gap: 6
                 }}>
                 <Flag size={14} /> Quick Links {(flags.quickLinks || []).length > 0 ? `(${flags.quickLinks.length})` : ""}
               </button>
               <button
                 type="button"
+                className="bcast-tab"
+                aria-pressed={openContent.updatePrompt}
                 onClick={() => setOpenContent(o => ({ ...o, updatePrompt: !o.updatePrompt }))}
                 style={{
-                  padding: "6px 12px", borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: "pointer",
                   border: openContent.updatePrompt ? "1.5px solid var(--live)" : "1px solid var(--border)",
                   background: openContent.updatePrompt ? "rgba(31,169,113,0.12)" : "var(--bg)",
                   color: openContent.updatePrompt ? "var(--live)" : "var(--muted)",
-                  display: "flex", alignItems: "center", gap: 6
                 }}>
                 <RefreshCw size={14} /> Update Prompt
               </button>
             </div>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div className="bcast-acc-stack">
             {/* ── Content Section 1: What's New ── */}
-            <div style={{ border: `1px solid ${openContent.whatsNew ? "var(--violet)" : "var(--border)"}`, borderRadius: 12, overflow: "hidden", background: "var(--bg)", transition: "border-color 0.15s" }}>
+            <div className="bcast-acc" style={{ borderColor: openContent.whatsNew ? "var(--violet)" : "var(--border)" }}>
               <div
+                className="bcast-acc-head"
+                role="button"
+                tabIndex={0}
+                aria-expanded={openContent.whatsNew}
+                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenContent(o => ({ ...o, whatsNew: !o.whatsNew })); } }}
                 onClick={() => setOpenContent(o => ({ ...o, whatsNew: !o.whatsNew }))}
-                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", cursor: "pointer", background: openContent.whatsNew ? "rgba(109,91,208,0.06)" : "transparent" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                style={{ background: openContent.whatsNew ? "rgba(109,91,208,0.06)" : "transparent" }}>
+                <div className="bcast-acc-title">
                   <Sparkles size={17} color="var(--violet)" />
-                  <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text)" }}>What&rsquo;s New (Feature Updates)</span>
+                  <span className="bcast-acc-name">What&rsquo;s New (Feature Updates)</span>
                   {(flags.whatsNew || []).length > 0 && (
-                    <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 10, background: "rgba(109,91,208,0.15)", color: "var(--violet)" }}>
+                    <span className="bcast-acc-badge" style={{ background: "rgba(109,91,208,0.15)", color: "var(--violet)" }}>
                       {flags.whatsNew.length} entries
                     </span>
                   )}
                 </div>
-                <span style={{ color: "var(--muted)", fontSize: 13, fontWeight: 600 }}>{openContent.whatsNew ? "▲ Collapse" : "▼ Expand"}</span>
+                <span className="bcast-acc-toggle">{openContent.whatsNew ? "▲" : "▼"}<em>{openContent.whatsNew ? "Collapse" : "Expand"}</em></span>
               </div>
 
               {openContent.whatsNew && (
-                <div style={{ padding: "16px", borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 12 }}>
-                  <div className="admin-field-row">
-                    <div className="admin-field" style={{ flex: "0 0 90px" }}>
+                <div className="bcast-acc-body">
+                  <div className="admin-field-row content-emoji-row">
+                    <div className="admin-field content-emoji-field">
                       <label>Emoji</label>
                       <input className="admin-input" value={wnEmoji} onChange={e => setWnEmoji(e.target.value)} placeholder="🔔" maxLength={4} />
                     </div>
@@ -3714,24 +3738,29 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             </div>
 
             {/* ── Content Section 2: Dynamic Quick Links ── */}
-            <div style={{ border: `1px solid ${openContent.quickLinks ? "var(--blue)" : "var(--border)"}`, borderRadius: 12, overflow: "hidden", background: "var(--bg)", transition: "border-color 0.15s" }}>
+            <div className="bcast-acc" style={{ borderColor: openContent.quickLinks ? "var(--blue)" : "var(--border)" }}>
               <div
+                className="bcast-acc-head"
+                role="button"
+                tabIndex={0}
+                aria-expanded={openContent.quickLinks}
+                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenContent(o => ({ ...o, quickLinks: !o.quickLinks })); } }}
                 onClick={() => setOpenContent(o => ({ ...o, quickLinks: !o.quickLinks }))}
-                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", cursor: "pointer", background: openContent.quickLinks ? "rgba(59,130,246,0.06)" : "transparent" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                style={{ background: openContent.quickLinks ? "rgba(59,130,246,0.06)" : "transparent" }}>
+                <div className="bcast-acc-title">
                   <Flag size={17} color="var(--blue)" />
-                  <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text)" }}>Dynamic Quick Links</span>
+                  <span className="bcast-acc-name">Dynamic Quick Links</span>
                   {(flags.quickLinks || []).length > 0 && (
-                    <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 10, background: "rgba(59,130,246,0.15)", color: "var(--blue)" }}>
+                    <span className="bcast-acc-badge" style={{ background: "rgba(59,130,246,0.15)", color: "var(--blue)" }}>
                       {flags.quickLinks.length} active
                     </span>
                   )}
                 </div>
-                <span style={{ color: "var(--muted)", fontSize: 13, fontWeight: 600 }}>{openContent.quickLinks ? "▲ Collapse" : "▼ Expand"}</span>
+                <span className="bcast-acc-toggle">{openContent.quickLinks ? "▲" : "▼"}<em>{openContent.quickLinks ? "Collapse" : "Expand"}</em></span>
               </div>
 
               {openContent.quickLinks && (
-                <div style={{ padding: "16px", borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 12 }}>
+                <div className="bcast-acc-body">
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <input type="text" placeholder="Link Title (e.g. Exam Portal)" value={qlTitle} onChange={e => setQlTitle(e.target.value)} className="admin-input" style={{ flex: 1, padding: "8px", minWidth: 150 }} />
                     <input type="url" placeholder="https://..." value={qlUrl} onChange={e => setQlUrl(e.target.value)} className="admin-input" style={{ flex: 2, padding: "8px", minWidth: 200 }} />
@@ -3783,19 +3812,24 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             </div>
 
             {/* ── Content Section 3: Update Prompt Text ── */}
-            <div style={{ border: `1px solid ${openContent.updatePrompt ? "var(--live)" : "var(--border)"}`, borderRadius: 12, overflow: "hidden", background: "var(--bg)", transition: "border-color 0.15s" }}>
+            <div className="bcast-acc" style={{ borderColor: openContent.updatePrompt ? "var(--live)" : "var(--border)" }}>
               <div
+                className="bcast-acc-head"
+                role="button"
+                tabIndex={0}
+                aria-expanded={openContent.updatePrompt}
+                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenContent(o => ({ ...o, updatePrompt: !o.updatePrompt })); } }}
                 onClick={() => setOpenContent(o => ({ ...o, updatePrompt: !o.updatePrompt }))}
-                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", cursor: "pointer", background: openContent.updatePrompt ? "rgba(31,169,113,0.06)" : "transparent" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                style={{ background: openContent.updatePrompt ? "rgba(31,169,113,0.06)" : "transparent" }}>
+                <div className="bcast-acc-title">
                   <RefreshCw size={17} color="var(--live)" />
-                  <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text)" }}>Update Prompt Text</span>
+                  <span className="bcast-acc-name">Update Prompt Text</span>
                 </div>
-                <span style={{ color: "var(--muted)", fontSize: 13, fontWeight: 600 }}>{openContent.updatePrompt ? "▲ Collapse" : "▼ Expand"}</span>
+                <span className="bcast-acc-toggle">{openContent.updatePrompt ? "▲" : "▼"}<em>{openContent.updatePrompt ? "Collapse" : "Expand"}</em></span>
               </div>
 
               {openContent.updatePrompt && (
-                <div style={{ padding: "16px", borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 12 }}>
+                <div className="bcast-acc-body">
                   <div className="admin-field">
                     <label>Title</label>
                     <input className="admin-input" value={updatePromptTitle} onChange={e => setUpdatePromptTitle(e.target.value)} placeholder="TermFlow just got better" />
@@ -4088,38 +4122,54 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     </div>
                   </div>
 
-                  {/* Target Courses Selector */}
-                  <div className="admin-field">
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                      <label>Target Courses <span className="admin-optional">({(ff.subjects || []).length === 0 ? "All Courses / Everyone" : `${ff.subjects.length} selected`})</span></label>
-                      <div style={{ display: "flex", gap: 6 }}>
+                  {/* Target Courses Selector — a wrap of pills on a wide screen,
+                      a collapsed dropdown on a phone (28 courses is 28 rows there). */}
+                  {(() => {
+                    const picked = ff.subjects || [];
+                    const isOpen = openCourseTargets === ff.id;
+                    const summary = picked.length === 0 ? "All courses / Everyone" : `${picked.length} selected`;
+                    return (
+                  <div className="admin-field bcast-course-field">
+                    <div className="bcast-field-head">
+                      <label>Target Courses <span className="admin-optional">({picked.length === 0 ? "All Courses / Everyone" : `${picked.length} selected`})</span></label>
+                      <div className="bcast-course-bulk">
                         <button type="button" onClick={() => {
                           setFeedbackFlashes(feedbackFlashes.map(f => f.id === ff.id ? { ...f, subjects: Object.keys(LEGEND) } : f));
-                        }} style={{ background: "none", border: "none", color: "var(--blue)", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>
+                        }} className="bcast-course-link is-primary">
                           Select All
                         </button>
-                        <span style={{ color: "var(--muted)" }}>|</span>
+                        <span aria-hidden="true">|</span>
                         <button type="button" onClick={() => {
                           setFeedbackFlashes(feedbackFlashes.map(f => f.id === ff.id ? { ...f, subjects: [] } : f));
-                        }} style={{ background: "none", border: "none", color: "var(--muted)", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>
+                        }} className="bcast-course-link">
                           Clear All (Everyone)
                         </button>
                       </div>
                     </div>
 
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    <button
+                      type="button"
+                      className="bcast-course-toggle"
+                      aria-expanded={isOpen}
+                      onClick={() => setOpenCourseTargets(isOpen ? null : ff.id)}
+                    >
+                      <span>{summary}</span>
+                      <ChevronRight size={16} className={isOpen ? "is-open" : ""} />
+                    </button>
+
+                    <div className={`bcast-course-grid${isOpen ? " is-open" : ""}`}>
                       {Object.keys(LEGEND).map(code => {
-                        const isSelected = (ff.subjects || []).includes(code);
+                        const isSelected = picked.includes(code);
                         return (
                           <button
                             key={code}
                             type="button"
                             onClick={() => {
-                              const newSubjects = isSelected ? (ff.subjects || []).filter(c => c !== code) : [...(ff.subjects || []), code];
+                              const newSubjects = isSelected ? picked.filter(c => c !== code) : [...picked, code];
                               setFeedbackFlashes(feedbackFlashes.map(f => f.id === ff.id ? { ...f, subjects: newSubjects } : f));
                             }}
-                            className={`admin-btn ${isSelected ? "primary" : "outline"}`}
-                            style={{ padding: "4px 9px", fontSize: 11.5, borderRadius: 16 }}
+                            className={`bcast-course-chip${isSelected ? " is-selected" : ""}`}
+                            aria-pressed={isSelected}
                             title={LEGEND[code].name}
                           >
                             {code}
@@ -4128,6 +4178,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                       })}
                     </div>
                   </div>
+                    );
+                  })()}
                 </div>
               );
             })}
@@ -4203,19 +4255,19 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               ];
               const max = Math.max(funnel.signedUp, 1);
               return (
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div className="funnel-list">
                   {steps.map((s, i) => {
                     const pct = Math.round((s.n / max) * 100);
                     const prev = i > 0 ? steps[i - 1].n : null;
                     const drop = prev != null && prev > 0 ? Math.round(((prev - s.n) / prev) * 100) : null;
                     return (
                       <div key={s.label}>
-                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
-                          <span style={{ fontWeight: 600 }}>{s.label}</span>
-                          <span><b>{s.n}</b> <span style={{ color: "var(--muted)" }}>({pct}%{drop != null && drop > 0 ? `, −${drop}%` : ""})</span></span>
+                        <div className="funnel-head">
+                          <span className="funnel-label">{s.label}</span>
+                          <span className="funnel-value"><b>{s.n}</b> <span>({pct}%{drop != null && drop > 0 ? `, −${drop}%` : ""})</span></span>
                         </div>
-                        <div style={{ height: 8, background: "var(--bg)", borderRadius: 4, overflow: "hidden", border: "1px solid var(--border)" }}>
-                          <div style={{ height: "100%", width: `${pct}%`, background: s.color }} />
+                        <div className="funnel-track">
+                          <div className="funnel-fill" style={{ width: `${pct}%`, background: s.color }} />
                         </div>
                       </div>
                     );
@@ -4229,19 +4281,19 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
              <section className="admin-card admin-g-users admin-users-enrollment">
                <h2><Database size={20} color="var(--violet)" /> Enrollment Stats</h2>
                <p className="admin-subtext">Top 5 most popular courses by enrollment.</p>
-               <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
+               <div className="funnel-list enroll-list">
                   {popularCourses.length === 0 ? <div className="admin-empty">No data.</div> : 
                      popularCourses.slice(0, 5).map(([code, count]) => {
                         const max = popularCourses[0][1];
                         const pct = Math.round((count / max) * 100);
                         return (
                            <div key={code}>
-                              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
-                                 <span style={{ fontWeight: 600 }}>{code}</span>
-                                 <span style={{ color: "var(--muted)" }}>{count} enrolled</span>
+                              <div className="funnel-head">
+                                 <span className="funnel-label" title={LEGEND?.[code]?.name || code}>{code}</span>
+                                 <span className="funnel-value"><span>{count} enrolled</span></span>
                               </div>
-                              <div style={{ height: 6, background: "var(--bg)", borderRadius: 4, overflow: "hidden", border: "1px solid var(--border)" }}>
-                                 <div style={{ height: "100%", width: `${pct}%`, background: "var(--violet)" }}></div>
+                              <div className="funnel-track">
+                                 <div className="funnel-fill" style={{ width: `${pct}%`, background: "var(--violet)" }}></div>
                               </div>
                            </div>
                         )
@@ -4384,23 +4436,23 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           <section className="admin-card admin-g-users admin-users-inactive">
             <h2><Users size={20} color="var(--muted)" /> Inactive Users</h2>
             <p className="admin-subtext">Students not seen recently. Click a name for details, or send a gentle re-engagement push to the whole list.</p>
-            <div className="admin-field-row" style={{ alignItems: "flex-end", maxWidth: 440 }}>
+            <div className="admin-field-row admin-inline-form inactive-form">
               <div className="admin-field">
                 <label>Inactive for at least (days)</label>
                 <input type="number" min={1} max={120} className="admin-input" value={inactiveDays} onChange={e => setInactiveDays(Math.max(1, Number(e.target.value) || 1))} />
               </div>
-              <button className="admin-btn primary" style={{ flex: "0 0 auto", marginBottom: 10 }} onClick={sendReEngagement} disabled={reEngaging}>
+              <button className="admin-btn primary admin-inline-form-btn" onClick={sendReEngagement} disabled={reEngaging}>
                 <BellRing size={14} /> {reEngaging ? "Sending…" : `Nudge ${inactiveUsers.length}`}
               </button>
             </div>
-            {reEngageMsg && <div style={{ fontSize: 12, color: reEngageMsg.startsWith("Queued") ? "var(--live)" : "var(--danger)", marginBottom: 8 }}>{reEngageMsg}</div>}
-            <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 8 }}><b style={{ color: "var(--text)" }}>{inactiveUsers.length}</b> of {allUsers.length} users inactive {inactiveDays}+ days</div>
-            <div style={{ maxHeight: 220, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
+            {reEngageMsg && <div className="inactive-msg" style={{ color: reEngageMsg.startsWith("Queued") ? "var(--live)" : "var(--danger)" }}>{reEngageMsg}</div>}
+            <div className="inactive-count"><b>{inactiveUsers.length}</b> of {allUsers.length} users inactive {inactiveDays}+ days</div>
+            <div className="inactive-list">
               {inactiveUsers.slice(0, 50).map(u => (
-                <div key={u.user_id} onClick={() => setSelectedUser(u)} style={{ display: "flex", justifyContent: "space-between", padding: "6px 10px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)", fontSize: 12, cursor: "pointer" }}>
-                  <span style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.name || "Student"}</span>
-                  <span style={{ color: "var(--muted)", whiteSpace: "nowrap" }}>{u.last_seen_at ? new Date(u.last_seen_at).toLocaleDateString() : "never seen"}</span>
-                </div>
+                <button type="button" key={u.user_id} onClick={() => setSelectedUser(u)} className="inactive-row">
+                  <span className="inactive-name">{u.name || "Student"}</span>
+                  <span className="inactive-seen">{u.last_seen_at ? new Date(u.last_seen_at).toLocaleDateString() : "never seen"}</span>
+                </button>
               ))}
             </div>
           </section>
@@ -4408,15 +4460,13 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
              {/* Friend Pings & Share Codes */}
              <section className="admin-card admin-g-users admin-users-social">
                <h2><Users size={20} color="var(--green)" /> Social Hygiene</h2>
-               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                  <span style={{ fontSize: 13, color: "var(--muted)" }}>Pending Friend Pings</span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                     <span style={{ fontWeight: 800, fontSize: 16 }}>{friendPingsCount}</span>
-                  </div>
+               <div className="social-stat">
+                  <span className="social-stat-label">Pending Friend Pings</span>
+                  <span className="social-stat-value">{friendPingsCount}</span>
                </div>
-               
-               <h3 style={{ fontSize: 12, textTransform: "uppercase", color: "var(--muted)", margin: "16px 0 8px 0", letterSpacing: "1px" }}>Active Share Codes</h3>
-               <div style={{ maxHeight: 150, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
+
+               <h3 className="social-subhead">Active Share Codes</h3>
+               <div className="social-code-list">
                   {shareCodes.length === 0 ? <div className="admin-empty">No active share codes.</div> : 
                      [...shareCodes].sort((a, b) => {
                         const nameA = allUsers.find(u => u.user_id === a.user_id)?.name;
@@ -4427,9 +4477,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                      }).map(sc => {
                         const owner = allUsers.find(u => u.user_id === sc.user_id);
                         return (
-                           <div key={sc.code} style={{ display: "flex", justifyContent: "space-between", padding: "6px 12px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)", fontSize: 12 }}>
-                              <span style={{ fontWeight: 700, letterSpacing: "1px" }}>{sc.code}</span>
-                              <span style={{ color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 120 }}>{owner?.name ? owner.name : sc.user_id}</span>
+                           <div key={sc.code} className="social-code-row">
+                              <span className="social-code">{sc.code}</span>
+                              <span className="social-code-owner">{owner?.name ? owner.name : sc.user_id}</span>
                            </div>
                         )
                      })
@@ -4891,27 +4941,27 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
         {/* Feedback Section */}
         <section className="admin-card admin-g-users admin-users-feedback">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div className="fb-head">
             <h2><Terminal size={20} color="var(--green)" /> Feedback & Bug Reports</h2>
-            <div style={{ display: "flex", gap: 6 }}>
-               <button onClick={() => setFeedbackFilter("all")} className={`admin-btn ${feedbackFilter === "all" ? "" : "outline"}`} style={{ padding: "4px 8px", fontSize: 12 }}>All</button>
-               <button onClick={() => setFeedbackFilter("pending")} className={`admin-btn ${feedbackFilter === "pending" ? "" : "outline"}`} style={{ padding: "4px 8px", fontSize: 12 }}>Pending Only</button>
+            <div className="fb-filters">
+               <button onClick={() => setFeedbackFilter("all")} className={`admin-btn fb-filter ${feedbackFilter === "all" ? "" : "outline"}`} aria-pressed={feedbackFilter === "all"}>All</button>
+               <button onClick={() => setFeedbackFilter("pending")} className={`admin-btn fb-filter ${feedbackFilter === "pending" ? "" : "outline"}`} aria-pressed={feedbackFilter === "pending"}>Pending Only</button>
             </div>
           </div>
-          <div style={{ maxHeight: 300, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, marginTop: 16 }}>
+          <div className="fb-list">
             {feedbackList.filter(f => feedbackFilter === "all" || f.status === "pending").length === 0 ? <div className="admin-empty">No feedback found.</div> : 
              feedbackList.filter(f => feedbackFilter === "all" || f.status === "pending").map(f => {
                const fUser = allUsers.find(u => u.user_id === f.user_id);
                return (
-               <div key={f.id} style={{ padding: "12px", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8 }}>
-                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                   <span style={{ fontSize: 12, color: "var(--muted)" }}>{new Date(f.created_at).toLocaleString()} • {fUser ? fUser.name : f.user_id}</span>
-                   <span style={{ fontSize: 12, fontWeight: 700, color: f.status === "resolved" ? "var(--green)" : "var(--amber)" }}>{f.status.toUpperCase()}</span>
+               <div key={f.id} className="fb-item">
+                 <div className="fb-item-head">
+                   <span className="fb-item-meta">{new Date(f.created_at).toLocaleString()} • {fUser ? fUser.name : f.user_id}</span>
+                   <span className="fb-item-status" style={{ color: f.status === "resolved" ? "var(--green)" : "var(--amber)" }}>{f.status.toUpperCase()}</span>
                  </div>
-                 <div style={{ fontSize: 14, color: "var(--text)" }}>{f.message}</div>
-                 <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
+                 <div className="fb-item-body">{f.message}</div>
+                 <div className="fb-item-actions">
                    {f.status === "pending" && (
-                     <button onClick={() => markFeedbackResolved(f.id)} className="admin-btn outline" style={{ padding: "4px 10px", fontSize: 12, color: "var(--green)", borderColor: "var(--green)" }}>Mark Resolved</button>
+                     <button onClick={() => markFeedbackResolved(f.id)} className="admin-btn outline fb-action" style={{ color: "var(--green)", borderColor: "var(--green)" }}>Mark Resolved</button>
                    )}
                    {f.user_id && (
                      <button onClick={async () => {
@@ -4920,10 +4970,11 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                        const res = await pushToUserIds([f.user_id], { title: "Reply from TermFlow admin", body: msg.trim() });
                        if (res?.ok) { await logAdminAction(admin_id, "feedback_reply", { feedback: f.id }); alert("Reply push queued."); }
                        else alert("Failed: " + (res?.data?.error || "error"));
-                     }} className="admin-btn outline" style={{ padding: "4px 10px", fontSize: 12 }}><BellRing size={12} /> Reply</button>
+                     }} className="admin-btn outline fb-action"><BellRing size={12} /> Reply</button>
                    )}
-                   <button onClick={() => { setWnTitle(f.message.slice(0, 58)); setWnDesc(f.message); setWnEmoji("✨"); setActiveTab("broadcast"); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="admin-btn outline" style={{ padding: "4px 10px", fontSize: 12 }} title="Prefill a What's New entry from this feedback"><Sparkles size={12} /> To What&rsquo;s New</button>
-                   <span style={{ width: 1, height: 18, background: "var(--border)" }} />
+                   <button onClick={() => { setWnTitle(f.message.slice(0, 58)); setWnDesc(f.message); setWnEmoji("✨"); setActiveTab("broadcast"); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="admin-btn outline fb-action" title="Prefill a What's New entry from this feedback"><Sparkles size={12} /> To What&rsquo;s New</button>
+                 </div>
+                 <div className="fb-item-tags">
                    {["bug", "idea", "dup", "wontfix"].map(t => {
                      const on = (flags.feedbackTags?.[f.id] || []).includes(t);
                      return (
@@ -4931,7 +4982,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                          const cur = flags.feedbackTags?.[f.id] || [];
                          const next = on ? cur.filter(x => x !== t) : [...cur, t];
                          setFlags({ ...flags, feedbackTags: { ...(flags.feedbackTags || {}), [f.id]: next } });
-                       }} style={{ padding: "2px 9px", fontSize: 11, fontWeight: 600, borderRadius: 20, border: "1px solid var(--border)", background: on ? "var(--violet)" : "transparent", color: on ? "#fff" : "var(--muted)", cursor: "pointer" }}>{t}</button>
+                       }} className="fb-tag" aria-pressed={on} style={{ background: on ? "var(--violet)" : "transparent", color: on ? "#fff" : "var(--muted)" }}>{t}</button>
                      );
                    })}
                  </div>
@@ -5331,7 +5382,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
              {/* A/B Testing — managed from flags.abTests */}
 
-<section className="admin-card admin-g-broadcast">
+<section className="admin-card admin-span-all admin-g-broadcast" style={{ gridColumn: "1 / -1" }}>
             <h2><Megaphone size={20} color="var(--amber)" /> All Announcements</h2>
             <div className="admin-subtext" style={{ marginBottom: 16 }}>Live feed of all schedule changes (including admin-only data quality issues).</div>
             

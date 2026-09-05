@@ -1,29 +1,79 @@
-// Desktop sidebar (<aside className="sidebar">), extracted from App.jsx.
-// Structural move only — every className/conditional/handler is unchanged,
-// just relocated behind props. `renderSbAvatarWrap`/`renderSbUtilStrip` stay
-// as render-prop functions from App.jsx since they close over a large amount
-// of profile/sync/admin state that isn't worth prop-drilling separately.
+// Desktop sidebar (<aside className="sidebar">).
+//
+// The nav is data-driven off `lib/navItems.js`; this file owns only the chrome
+// around it (brand, search, quick links, admin, footer, edge handle).
+// `renderSbAvatarWrap`/`renderSbUtilStrip` stay as render-prop functions from
+// App.jsx since they close over a large amount of profile/sync/admin state
+// that isn't worth prop-drilling separately.
+import { Fragment, useState } from "react";
 import {
-  Search, Clock, Sunrise, ClipboardList, GraduationCap, BookOpenCheck,
-  Megaphone, Users, Package, ChevronDown, CalendarRange, UtensilsCrossed,
-  Wallet, CalendarOff, Sparkles, PawPrint, ExternalLink, Shield, ChevronsRight,
-  ChevronsLeft, CloudOff,
+  Search, ChevronDown, ExternalLink, Shield, ChevronsRight, ChevronsLeft, CloudOff, Pin, SlidersHorizontal,
 } from "lucide-react";
 import IndiaFlagIcon from "./IndiaFlagIcon.jsx";
-import { CalendarEventBadgeSVG } from "./CalendarSVGs.jsx";
+import SbLink from "./SbLink.jsx";
+import { NAV_GROUPS, itemsForGroup } from "../lib/navItems.js";
+// SidebarClassStatus is intentionally parked for a future sidebar iteration.
+// import SidebarClassStatus from "./SidebarClassStatus.jsx";
+import { SIDEBAR_PINS_KEY, SIDEBAR_COMPACT_KEY, MAX_SIDEBAR_PINS, normalizeSidebarPins, toggleSidebarPin } from "../lib/sidebarPreferences.js";
+import "../styles/sidebar-enhancements.css";
 
 export default function DesktopSidebar({
   sbCollapsed, sbStyle, specialDay, termLabel, termProgressPct, termWeekInfo,
   termSwitcherEl, isOffline, setCmdOpen, isMac, view, showSbTip, hideSbTip,
   setView, setCompareTarget, enableAttendance, enableExams, unreadChangeCount,
   enableFriends, markGroupsSeen, markBadgeSeen, showBadge, unreadFriendCount,
-  showSbTools, recentToolViews, TOOLS_VIEWS, wrappedActive, TOOLS_VIEW_META, companionEnabled,
-  setSbToolsOpen, openCalendarExport, setMessMenuOpen, activeQuickLinks,
-  showAdminUI, renderSbUtilStrip, renderSbAvatarWrap, syncing, syncedAgo,
-  isTablet, sidebarCollapsed, toggleSidebar,
+  showSbTools, wrappedActive, companionEnabled, setSbToolsOpen,
+  setMessMenuOpen, activeQuickLinks, showAdminUI, renderSbUtilStrip,
+  renderSbAvatarWrap, syncing, syncedAgo, isTablet, sidebarCollapsed, toggleSidebar,
 }) {
+  const [pins, setPins] = useState(() => {
+    try { return normalizeSidebarPins(JSON.parse(localStorage.getItem(SIDEBAR_PINS_KEY))); } catch { return []; }
+  });
+  const [compact, setCompact] = useState(() => {
+    try { return localStorage.getItem(SIDEBAR_COMPACT_KEY) === "true"; } catch { return false; }
+  });
+  const changePin = id => {
+    const updated = toggleSidebarPin(pins, id);
+    setPins(updated);
+    try { localStorage.setItem(SIDEBAR_PINS_KEY, JSON.stringify(updated)); } catch { /* storage unavailable */ }
+  };
+  const changeCompact = checked => {
+    setCompact(checked);
+    try { localStorage.setItem(SIDEBAR_COMPACT_KEY, String(checked)); } catch { /* storage unavailable */ }
+  };
+
+  // Feature flags, keyed by the `gate` names used in NAV_ITEMS.
+  const flags = { enableAttendance, enableExams, enableFriends, companionEnabled, wrappedActive };
+  const available = NAV_GROUPS.flatMap(group => itemsForGroup(group.id, flags));
+  const pinnedItems = pins.map(id => available.find(item => item.id === id)).filter(Boolean);
+  // Unread counters and extra select-time side effects, keyed the same way.
+  const counts = { unreadChangeCount, unreadFriendCount };
+  const effects = { markGroupsSeen };
+  const actions = { openMessMenu: () => setMessMenuOpen(true) };
+
+  const onSelect = (item) => {
+    if (item.badge) markBadgeSeen(item.badge.key);
+    if (item.effect) effects[item.effect]?.();
+    if (item.action) { actions[item.action]?.(); return; }
+    setView(item.view);
+    setCompareTarget(null);
+  };
+
+  const renderItem = (item) => (
+    <SbLink
+      key={item.id}
+      item={item}
+      active={Boolean(item.view) && view === item.view}
+      badge={item.badge && showBadge(item.badge.key) ? item.badge.label : null}
+      count={item.count ? counts[item.count] : 0}
+      onSelect={onSelect}
+      showSbTip={showSbTip}
+      hideSbTip={hideSbTip}
+    />
+  );
+
   return (
-    <aside className={`sidebar${sbCollapsed ? " collapsed" : ""}${sbStyle === "aurora" ? " sb-aurora" : ""}`}>
+    <aside aria-label="Desktop navigation" onKeyDown={e => { if (e.key === "Escape") hideSbTip(); }} className={`sidebar${sbCollapsed ? " collapsed" : ""}${sbStyle === "aurora" ? " sb-aurora" : ""}${compact ? " sb-compact" : ""}`}>
       {sbStyle === "aurora" && (
         <div className="sb-fx" aria-hidden="true"><i /><i /><span className="sb-grain" /></div>
       )}
@@ -48,15 +98,21 @@ export default function DesktopSidebar({
         </div>
       </div>
 
+      {/* Parked: retain the component for a future current-class sidebar card.
+      <SidebarClassStatus current={current} todayISO={todayISO} isArchivedView={isArchivedView}
+        onOpen={onOpenClass} showSbTip={showSbTip} hideSbTip={hideSbTip} /> */}
+
       {isOffline && (
-        <div style={{ margin: "0 16px 12px 16px", padding: "6px 8px", background: "rgba(231, 76, 60, 0.1)", border: "1px solid var(--danger)", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: sbCollapsed ? "center" : "flex-start", gap: "8px", color: "var(--danger)", fontSize: "11px", fontWeight: 700 }}>
-          <CloudOff size={14} style={{ flexShrink: 0 }} /> {!sbCollapsed && <span>Offline Mode (Cached)</span>}
+        <div className="sb-offline">
+          <CloudOff size={14} /> {!sbCollapsed && <span>Offline Mode (Cached)</span>}
         </div>
       )}
 
-      <div className="sb-scroll-body">
+      <div className="sb-scroll-body" onScroll={hideSbTip}>
         <nav className="sb-nav">
-          <button className="sb-search-btn" onClick={() => setCmdOpen(true)}>
+          <button className="sb-search-btn" aria-label="Search"
+            onMouseEnter={e => showSbTip(e, "Search")} onMouseLeave={hideSbTip}
+            onFocus={e => showSbTip(e, "Search")} onBlur={hideSbTip} onClick={() => { setCmdOpen(true); hideSbTip(); }}>
             <div className="sb-search-left">
               <Search size={16} />
               <span className="sb-search-label">Search</span>
@@ -64,90 +120,55 @@ export default function DesktopSidebar({
             <span className="sb-search-shortcut">{isMac ? "⌘K" : "Ctrl K"}</span>
           </button>
 
-          <div className="sb-nav-label">Schedule</div>
-          <button className={`sb-link${view === "today" ? " on" : ""}`} aria-current={view === "today" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Today")} onMouseLeave={hideSbTip} onClick={() => { setView("today"); setCompareTarget(null); hideSbTip(); }}>
-            <Clock size={18} /><span className="sb-link-label">Today</span>
-          </button>
-          <button className={`sb-link${view === "tomorrow" ? " on" : ""}`} aria-current={view === "tomorrow" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Tomorrow")} onMouseLeave={hideSbTip} onClick={() => { setView("tomorrow"); setCompareTarget(null); hideSbTip(); }}>
-            <Sunrise size={18} /><span className="sb-link-label">Tomorrow</span>
-          </button>
-
-          <div className="sb-nav-label">Track</div>
-          {enableAttendance && (
-            <button className={`sb-link${view === "attendance" ? " on" : ""}`} aria-current={view === "attendance" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Attendance")} onMouseLeave={hideSbTip} onClick={() => { setView("attendance"); setCompareTarget(null); hideSbTip(); }}>
-              <ClipboardList size={18} /><span className="sb-link-label">Attendance</span>
-            </button>
-          )}
-          {enableExams && (
-            <button className={`sb-link${view === "exams" ? " on" : ""}`} aria-current={view === "exams" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Exams")} onMouseLeave={hideSbTip} onClick={() => { setView("exams"); setCompareTarget(null); hideSbTip(); }}>
-              <GraduationCap size={18} /><span className="sb-link-label">Exams</span>
-            </button>
-          )}
-          <button className={`sb-link${view === "assignments" ? " on" : ""}`} aria-current={view === "assignments" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Assignments")} onMouseLeave={hideSbTip} onClick={() => { setView("assignments"); setCompareTarget(null); hideSbTip(); }}>
-            <BookOpenCheck size={18} /><span className="sb-link-label">Assignments</span>
-          </button>
-
-          <div className="sb-nav-label">Campus</div>
-          <button className={`sb-link${view === "notifications" ? " on" : ""}`} aria-current={view === "notifications" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Announcements")} onMouseLeave={hideSbTip} onClick={() => { setView("notifications"); setCompareTarget(null); hideSbTip(); }}>
-            <Megaphone size={18} /><span className="sb-link-label">Announcements</span>
-            {unreadChangeCount > 0 && <span className="nav-badge">{unreadChangeCount > 9 ? "9+" : unreadChangeCount}</span>}
-          </button>
-          {enableFriends && (
-            <button className={`sb-link${view === "friends" ? " on" : ""}`} aria-current={view === "friends" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Social")} onMouseLeave={hideSbTip} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); markBadgeSeen("social"); hideSbTip(); }}>
-              <Users size={18} /><span className="sb-link-label">Social</span> {showBadge("social") && <span className="beta-badge">Beta</span>}
-              {unreadFriendCount > 0 && <span className="nav-badge">{unreadFriendCount > 9 ? "9+" : unreadFriendCount}</span>}
-            </button>
-          )}
-          <button className={`sb-link${view === "board" ? " on" : ""}`} aria-current={view === "board" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Campus Board")} onMouseLeave={hideSbTip} onClick={() => { setView("board"); setCompareTarget(null); markBadgeSeen("board"); hideSbTip(); }}>
-            <Package size={18} /><span className="sb-link-label">Campus Board</span> {showBadge("board") && <span className="beta-badge">New</span>}
-          </button>
-
-          {!showSbTools && recentToolViews.filter(v => v !== view && TOOLS_VIEWS.includes(v) && (v !== "pet" || companionEnabled) && (v !== "wrapped" || wrappedActive)).length > 0 && (
-            <>
-              <div className="sb-nav-label">Recent</div>
-              {recentToolViews.filter(v => v !== view && TOOLS_VIEWS.includes(v) && (v !== "pet" || companionEnabled) && (v !== "wrapped" || wrappedActive)).map(v => {
-                const { icon: Icon, label } = TOOLS_VIEW_META[v];
-                return (
-                  <button key={v} className="sb-link" onMouseEnter={e => showSbTip(e, label)} onMouseLeave={hideSbTip} onClick={() => { setView(v); setCompareTarget(null); hideSbTip(); }}>
-                    <Icon size={18} /><span className="sb-link-label">{label}</span>
-                  </button>
-                );
-              })}
-            </>
-          )}
-
-          <button type="button" className="sb-tools-head" aria-expanded={showSbTools} onClick={() => { if (!sbCollapsed) setSbToolsOpen(o => !o); }}>
-            <span className="sb-nav-label">Tools</span>
-            {!sbCollapsed && <ChevronDown size={13} className={`sb-nav-caret${showSbTools ? " open" : ""}`} />}
-          </button>
-          {showSbTools && (<>
-            <button className={`sb-link${view === "fullSchedule" ? " on" : ""}`} aria-current={view === "fullSchedule" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Full timetable")} onMouseLeave={hideSbTip} onClick={() => { setView("fullSchedule"); setCompareTarget(null); hideSbTip(); }}>
-              <CalendarRange size={18} /><span className="sb-link-label">Full timetable</span>
-            </button>
-            <button className="sb-link" onMouseEnter={e => showSbTip(e, "Add to Calendar")} onMouseLeave={hideSbTip} onClick={() => { openCalendarExport(); hideSbTip(); }}>
-              <CalendarEventBadgeSVG size={18} /><span className="sb-link-label">Add to Calendar</span>
-            </button>
-            <button className="sb-link" onMouseEnter={e => showSbTip(e, "Mess menu")} onMouseLeave={hideSbTip} onClick={() => { setMessMenuOpen(true); hideSbTip(); }}>
-              <UtensilsCrossed size={18} /><span className="sb-link-label">Mess menu</span>
-            </button>
-            <button className={`sb-link${view === "split" ? " on" : ""}`} aria-current={view === "split" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Split expenses")} onMouseLeave={hideSbTip} onClick={() => { setView("split"); setCompareTarget(null); markBadgeSeen("split"); hideSbTip(); }}>
-              <Wallet size={18} /><span className="sb-link-label">Split</span> {showBadge("split") && <span className="beta-badge">New</span>}
-            </button>
-            {companionEnabled && (
-              <button className={`sb-link${view === "pet" ? " on" : ""}`} aria-current={view === "pet" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Companion")} onMouseLeave={hideSbTip} onClick={() => { setView("pet"); setCompareTarget(null); markBadgeSeen("pet"); hideSbTip(); }}>
-                <PawPrint size={18} /><span className="sb-link-label">Companion</span> {showBadge("pet") && <span className="beta-badge">New</span>}
-              </button>
-            )}
-            <button className={`sb-link${view === "leave" ? " on" : ""}`} aria-current={view === "leave" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Leave planner")} onMouseLeave={hideSbTip} onClick={() => { setView("leave"); setCompareTarget(null); hideSbTip(); }}>
-              <CalendarOff size={18} /><span className="sb-link-label">Leave planner</span>
-            </button>
-            {wrappedActive && (
-              <button className={`sb-link${view === "wrapped" ? " on" : ""}`} aria-current={view === "wrapped" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Term Wrapped")} onMouseLeave={hideSbTip} onClick={() => { setView("wrapped"); setCompareTarget(null); hideSbTip(); }}>
-                <Sparkles size={18} /><span className="sb-link-label">Term Wrapped</span>
-              </button>
-            )}
-          </>)}
+          {NAV_GROUPS.map(group => {
+            const items = itemsForGroup(group.id, flags).filter(item => !pinnedItems.some(pin => pin.id === item.id));
+            if (items.length === 0 && !group.collapsible) return null;
+            if (!group.collapsible) {
+              return (
+                <Fragment key={group.id}>
+                  <div className="sb-nav-label">{group.label}</div>
+                  {items.map(renderItem)}
+                </Fragment>
+              );
+            }
+            // The one collapsible group. Its rows stay mounted only while open;
+            // a collapsed rail always shows them, since there is no room for a
+            // disclosure affordance at 68px wide.
+            return (
+              <Fragment key={group.id}>
+                {pinnedItems.length > 0 && <>
+                  <div className="sb-nav-label">Pinned</div>
+                  {pinnedItems.map(renderItem)}
+                </>}
+                {items.length > 0 && <button
+                  type="button"
+                  className="sb-tools-head"
+                  aria-expanded={showSbTools}
+                  onClick={() => { if (!sbCollapsed) setSbToolsOpen(o => !o); }}
+                >
+                  <span className="sb-nav-label">{group.label}</span>
+                  {!showSbTools && items.some(item => item.badge && showBadge(item.badge.key)) && <span className="sb-unseen-dot" role="img" aria-label="Unseen features in More" />}
+                  {!sbCollapsed && <ChevronDown size={13} className={`sb-nav-caret${showSbTools ? " open" : ""}`} />}
+                </button>}
+                {showSbTools && items.map(renderItem)}
+              </Fragment>
+            );
+          })}
         </nav>
+
+        <details className="sb-customize">
+          <summary><SlidersHorizontal size={13} /> Customize sidebar</summary>
+          <label className="sb-compact-option"><input type="checkbox" checked={compact} onChange={e => changeCompact(e.target.checked)} /> Compact mode</label>
+          <fieldset>
+            <legend><Pin size={12} /> Pin up to {MAX_SIDEBAR_PINS} pages ({pins.length}/{MAX_SIDEBAR_PINS})</legend>
+            {available.filter(item => item.view).map(item => <label key={item.id}>
+              <input type="checkbox" checked={pins.includes(item.id)} disabled={!pins.includes(item.id) && pins.length >= MAX_SIDEBAR_PINS} onChange={() => changePin(item.id)} /> {item.label}
+            </label>)}
+            {pins.filter(id => !available.some(item => item.id === id)).map(id => <label key={id}>
+              <input type="checkbox" checked onChange={() => changePin(id)} /> {id} (unavailable)
+            </label>)}
+          </fieldset>
+        </details>
 
         {activeQuickLinks.length > 0 && (
           <div className="sb-quicklinks">

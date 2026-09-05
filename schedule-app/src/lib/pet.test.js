@@ -8,6 +8,8 @@ import {
   xpOf, xpToReach, levelFor, levelProgress, award, keyFor,
   careUsedToday, careLeft, canCare, care,
   hoursSince, moodFor, MOODS,
+  devotionFor, hatsFor, hatRequirement, setCosmetic, normalize as normalizePet,
+  DEVOTION_STEP, MAX_DEVOTION, MAX_LEVEL as MAXLVL, xpToReach,
   unlockedAtLevel, unlockedFor, newlyUnlocked,
   prune, mergePets, publicSummary, xpBySource,
 } from "./pet.js";
@@ -192,7 +194,7 @@ describe("mood", () => {
     s = care(s, "pet", noon);
     s = care(s, "play", noon);
     expect(moodFor(s, noon)).toBe("excited");
-    expect(moodFor(s, at("2026-09-04T20:00:00"))).toBe("content");
+    expect(moodFor(s, at("2026-09-04T18:30:00"))).toBe("content");
   });
   it("is happy after a single tap", () => {
     const s = care(adopted(noon), "treat", noon);
@@ -203,6 +205,21 @@ describe("mood", () => {
     expect(moodFor(s, at("2026-09-05T18:00:00"))).toBe("bored");
     expect(moodFor(s, at("2026-09-09T12:00:00"))).toBe("missing");
     expect(moodFor(s, at("2027-09-09T12:00:00"))).toBe("missing");
+  });
+  it("reads tired through the evening, before bedtime", () => {
+    const s = adopted(noon);
+    expect(moodFor(s, at("2026-09-04T18:45:00"))).toBe("content");
+    expect(moodFor(s, at("2026-09-04T19:00:00"))).toBe("tired");
+    expect(moodFor(s, at("2026-09-04T21:59:00"))).toBe("tired");
+    expect(moodFor(s, at("2026-09-04T22:00:00"))).toBe("sleepy");
+  });
+  it("lets the evening outrank a good day, like night does", () => {
+    const evening = at("2026-09-04T20:00:00");
+    let s = care(adopted(noon), "pet", evening);
+    s = care(s, "play", evening);
+    // Just tapped, so it perks up — then winds back down.
+    expect(moodFor(s, evening)).toBe("excited");
+    expect(moodFor(s, at("2026-09-04T20:30:00"))).toBe("tired");
   });
   it("sleeps at night regardless of attention", () => {
     const s = adopted(noon);
@@ -215,10 +232,56 @@ describe("mood", () => {
     expect(moodFor(s, night)).toBe("happy");
     expect(moodFor(s, at("2026-09-04T23:50:00"))).toBe("sleepy");
   });
+  it("reads focused in class, ahead of bedtime", () => {
+    const s = adopted(noon);
+    expect(moodFor(s, noon, { inClass: true })).toBe("focused");
+    // A 20:00 exam is not a reason to fall asleep.
+    expect(moodFor(s, at("2026-09-04T23:30:00"), { inClass: true })).toBe("focused");
+  });
+  it("fidgets in the last ten minutes before a class", () => {
+    const s = adopted(noon);
+    expect(moodFor(s, noon, { minsToClass: 11 })).toBe("content");
+    expect(moodFor(s, noon, { minsToClass: 10 })).toBe("restless");
+    expect(moodFor(s, noon, { minsToClass: 0 })).toBe("restless");
+    // A class that started already is `inClass`, not a negative countdown.
+    expect(moodFor(s, noon, { minsToClass: -3 })).toBe("content");
+    // Night still wins: nobody is fidgeting for an 06:00 class at 03:00.
+    expect(moodFor(s, at("2026-09-05T03:00:00"), { minsToClass: 5 })).toBe("sleepy");
+  });
+  it("is relaxed on a day with nothing scheduled", () => {
+    const s = adopted(noon);
+    expect(moodFor(s, noon, { classesToday: 0 })).toBe("relaxed");
+    expect(moodFor(s, noon, { classesToday: 3 })).toBe("content");
+    // Unknown (schedule not loaded yet) must not read as a day off.
+    expect(moodFor(s, noon, {})).toBe("content");
+    // A day off you have been petting is still a good day, not just a quiet one.
+    expect(moodFor(care(s, "pet", noon), noon, { classesToday: 0 })).toBe("happy");
+  });
+  it("lets a moment outrank everything, then expires", () => {
+    const s = adopted(noon);
+    const t = noon.getTime();
+    const night = at("2026-09-04T23:30:00");
+    expect(moodFor(s, noon, { moment: "celebrating", momentUntil: t + 30_000 })).toBe("celebrating");
+    expect(moodFor(s, noon, { moment: "proud", momentUntil: t + 30_000, inClass: true })).toBe("proud");
+    // Levelling up at 23:30 still gets celebrated.
+    expect(moodFor(s, night, { moment: "celebrating", momentUntil: night.getTime() + 1000 })).toBe("celebrating");
+    // Expired latches are ignored, not sticky.
+    expect(moodFor(s, noon, { moment: "celebrating", momentUntil: t - 1 })).toBe("content");
+  });
+  it("roots for you when an exam is close", () => {
+    const s = adopted(noon);
+    expect(moodFor(s, noon, { examSoon: true })).toBe("rooting");
+    // Outranks a quiet day, but never the things actually happening now.
+    expect(moodFor(s, noon, { examSoon: true, classesToday: 0 })).toBe("rooting");
+    expect(moodFor(s, noon, { examSoon: true, inClass: true })).toBe("focused");
+    expect(moodFor(s, noon, { examSoon: true, minsToClass: 3 })).toBe("restless");
+    // And it is a baseline, not a trump: a well-tended pet is still happy.
+    expect(moodFor(care(s, "pet", noon), noon, { examSoon: true })).toBe("happy");
+  });
   it("never reports a punishing mood", () => {
     const s = adopted(noon);
     for (const d of ["2026-09-04T13:00:00", "2026-09-06T12:00:00", "2027-01-01T12:00:00"]) {
-      expect(["excited", "happy", "content", "sleepy", "bored", "missing"]).toContain(moodFor(s, at(d)));
+      expect(MOODS).toContain(moodFor(s, at(d)));
     }
   });
 });
@@ -448,9 +511,35 @@ describe("mood ↔ CSS coverage", () => {
     const seen = new Set();
     for (const iso of [
       "2026-09-04T12:30:00", "2026-09-04T23:30:00", "2026-09-05T03:00:00",
-      "2026-09-05T18:00:00", "2026-09-09T12:00:00",
+      "2026-09-04T20:00:00", "2026-09-05T18:00:00", "2026-09-09T12:00:00",
     ]) seen.add(moodFor(s, at(iso)));
+    for (const ctx of [
+      { inClass: true }, { minsToClass: 2 }, { classesToday: 0 },
+      { moment: "celebrating", momentUntil: Date.now() + 5000 },
+      { moment: "proud", momentUntil: Date.now() + 5000 },
+    ]) seen.add(moodFor(s, at("2026-09-04T12:30:00"), ctx));
+    expect(seen.size).toBeGreaterThan(5);
     for (const mood of seen) expect(MOODS).toContain(mood);
+  });
+
+  // A rule existing is not the same as a rule being visible. Two moods that
+  // set the same knobs render the same animal, and every other test here
+  // stays green while they do — this is the one that notices.
+  it("gives every mood a distinct pose", () => {
+    const KNOBS = ["--pet-ear-droop", "--pet-eye-open", "--pet-lean", "--pet-aura", "--pet-sat", "--pet-dot"];
+    const poses = new Map();
+    for (const mood of MOODS) {
+      if (mood === "content") continue;
+      // The mood's own block — the one that sets the knobs, not the part
+      // rules that only retime an animation.
+      const block = css.match(new RegExp(`\\.dg-pet\\[data-mood="${mood}"\\] \\{([^}]*)\\}`));
+      expect(block, `no knob block for [data-mood="${mood}"]`).toBeTruthy();
+      const pose = KNOBS
+        .map(k => (block[1].match(new RegExp(`${k}:\\s*([^;]+)`)) || [, "default"])[1].trim())
+        .join("|");
+      expect(poses.has(pose), `[data-mood="${mood}"] poses identically to "${poses.get(pose)}"`).toBe(false);
+      poses.set(pose, mood);
+    }
   });
 
   it("no mood rule uses the `animation` shorthand, which would defeat the reduced-motion guard", () => {
@@ -532,5 +621,77 @@ describe("admin-granted XP", () => {
     expect(row.label).toBe("Adjustment");
     expect(row.xp).toBe(-40);
     expect(xpBySource(p).reduce((n, r) => n + r.xp, 0)).toBe(xpOf(p));
+  });
+});
+
+describe("devotion", () => {
+  const cap = xpToReach(MAXLVL);
+
+  it("is zero until the level curve runs out", () => {
+    expect(devotionFor(0).tier).toBe(0);
+    expect(devotionFor(cap).tier).toBe(0);
+    expect(devotionFor(cap + DEVOTION_STEP - 1).tier).toBe(0);
+  });
+
+  it("climbs one tier per step and reports progress into the next", () => {
+    expect(devotionFor(cap + DEVOTION_STEP).tier).toBe(1);
+    expect(devotionFor(cap + DEVOTION_STEP * 2.5).tier).toBe(2);
+    const half = devotionFor(cap + DEVOTION_STEP * 1.5);
+    expect(half.into).toBe(DEVOTION_STEP / 2);
+    expect(half.pct).toBe(50);
+  });
+
+  it("tops out rather than running forever", () => {
+    const far = devotionFor(cap + DEVOTION_STEP * 500);
+    expect(far.tier).toBe(MAX_DEVOTION);
+    expect(far.capped).toBe(true);
+    expect(far.pct).toBe(100);
+  });
+});
+
+describe("hats", () => {
+  /** A pet sitting on exactly `xp`. */
+  const at_xp = n => award(adopted(), "att:seed", n);
+  const cap = xpToReach(MAXLVL);
+
+  it("unlocks by level, in registry order", () => {
+    expect(hatsFor(at_xp(0))).toEqual([]);
+    expect(hatsFor(at_xp(xpToReach(2)))).toEqual(["bow"]);
+    expect(hatsFor(at_xp(xpToReach(4)))).toEqual(["bow", "cap"]);
+  });
+
+  it("keeps the last two behind devotion, not level", () => {
+    const maxed = hatsFor(at_xp(cap));
+    expect(maxed).toContain("crown");
+    expect(maxed).not.toContain("halo");
+    expect(hatsFor(at_xp(cap + DEVOTION_STEP * 3))).toContain("halo");
+    expect(hatsFor(at_xp(cap + DEVOTION_STEP * 3))).not.toContain("ember");
+    expect(hatsFor(at_xp(cap + DEVOTION_STEP * 6))).toContain("ember");
+  });
+
+  it("describes what a locked hat still needs", () => {
+    expect(hatRequirement("cap")).toBe("Level 4");
+    expect(hatRequirement("halo")).toBe("Devotion 3");
+    expect(hatRequirement("nope")).toBe(null);
+  });
+
+  // The UI disables locked hats, but this is the function storage round-trips
+  // through — a hand-edited row must not be able to smuggle one on.
+  it("refuses a hat the pet has not earned", () => {
+    const young = at_xp(0);
+    expect(setCosmetic(young, "hat", "crown").cosmetics.hat).toBe(null);
+    const grown = at_xp(xpToReach(4));
+    expect(setCosmetic(grown, "hat", "cap").cosmetics.hat).toBe("cap");
+    expect(setCosmetic(setCosmetic(grown, "hat", "cap"), "hat", null).cosmetics.hat).toBe(null);
+  });
+
+  it("still toggles the boolean accessory", () => {
+    expect(setCosmetic(adopted(), "accessory", false).cosmetics.accessory).toBe(false);
+    expect(setCosmetic(adopted(), "accessory", true).cosmetics.accessory).toBe(true);
+  });
+
+  it("drops a hat key this build no longer ships", () => {
+    expect(normalizePet({ cosmetics: { accessory: true, hat: "sombrero" } }).cosmetics.hat).toBe(null);
+    expect(normalizePet({ cosmetics: { accessory: true, hat: "cap" } }).cosmetics.hat).toBe("cap");
   });
 });

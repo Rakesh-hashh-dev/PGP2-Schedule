@@ -264,7 +264,12 @@ export default function NotificationsPage({ allChanges, myChanges, isAdmin, user
         </div>
         {pushStatus === "on" && <NotificationPrefsPanel userId={userId} openSignal={openPrefsSignal} />}
         <CohortPolls userId={userId} userName={userName} isAdmin={isAdmin} />
-        <EmptyState icon={CheckCircle2} title="You're all caught up" sub="No recent announcements for your subjects." />
+        <EmptyState
+          icon={CheckCircle2}
+          title="You're all caught up"
+          sub="No recent announcements for your subjects."
+          action={onOpenCalendarExport && <button className="notif-show-all-link" onClick={onOpenCalendarExport}><CalendarPlus size={13} /> Add your classes to calendar</button>}
+        />
       </div>
     );
   }

@@ -152,9 +152,11 @@ export function useSidebar({ isTablet, view, sysConfig }) {
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   // Overflow-menu collapsible sections (mobile ⋯ menu)
   const [toolsSecOpen, setToolsSecOpen] = useState(false);
-  // Desktop sidebar "Tools" group — collapsed by default so the long tail of
+  // Desktop sidebar "More" group — collapsed by default so the long tail of
   // occasional-use pages doesn't flatten the whole nav's visual hierarchy.
-  const [sbToolsOpen, setSbToolsOpen] = useState(true);
+  // (This read `true` for a while, silently contradicting the comment and
+  // making the sidebar's "Recent" shortcut unreachable.)
+  const [sbToolsOpen, setSbToolsOpen] = useState(false);
   const [prefsSecOpen, setPrefsSecOpen] = useState(false);
   const [aboutSecOpen, setAboutSecOpen] = useState(false);
   const [adminSecOpen, setAdminSecOpen] = useState(false);

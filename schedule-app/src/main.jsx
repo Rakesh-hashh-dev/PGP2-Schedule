@@ -49,15 +49,26 @@ window.addEventListener("appinstalled", () => {
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 
+// Dev-only pet mood contact sheet (`?moodsheet`). The whole component is
+// behind `import.meta.env.DEV`, so it is tree-shaken out of a real build —
+// and it renders instead of the app, with no Clerk and no service worker in
+// the way, because all it needs is styles.css.
+const showMoodSheet = import.meta.env.DEV && new URLSearchParams(location.search).has("moodsheet");
+const PetMoodSheet = lazy(() => import("./components/PetMoodSheet.jsx"));
+
 root.render(
-  <React.StrictMode>
-    <Suspense fallback={
-      <main className="loading-screen">
-        <TermFlowLoader variant="splash" size={96} />
-        <p className="loading-label">Starting up…</p>
-      </main>
-    }>
-      <ClerkApp />
-    </Suspense>
-  </React.StrictMode>
+  showMoodSheet
+    ? <Suspense fallback={null}><PetMoodSheet /></Suspense>
+    : (
+      <React.StrictMode>
+        <Suspense fallback={
+          <main className="loading-screen">
+            <TermFlowLoader variant="splash" size={96} />
+            <p className="loading-label">Starting up…</p>
+          </main>
+        }>
+          <ClerkApp />
+        </Suspense>
+      </React.StrictMode>
+    )
 );

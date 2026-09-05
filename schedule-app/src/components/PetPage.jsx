@@ -2,16 +2,26 @@ import { useMemo, useState } from "react";
 import { ArrowLeft, Check, Lock } from "lucide-react";
 import { PETS, getPetByKey } from "./greetingPets.jsx";
 import {
-  CARE_ACTIONS, MAX_LEVEL, STARTER_KEYS, UNLOCKS,
-  careLeft, hoursSince, isAdopted, levelProgress, moodFor,
-  unlockedFor, xpBySource, xpOf,
+  CARE_ACTIONS, HATS, MAX_DEVOTION, MAX_LEVEL, STARTER_KEYS, UNLOCKS,
+  careLeft, devotionFor, hatRequirement, hatsFor, hoursSince, isAdopted,
+  levelProgress, moodFor, unlockedFor, xpBySource, xpOf,
 } from "../lib/pet.js";
+import PetSleepCue from "./PetSleepCue.jsx";
+import PetHat from "./PetHat.jsx";
+import { usePetBeat } from "../hooks/usePetBeat.js";
+import { usePetGaze } from "../hooks/usePetGaze.js";
 import "../styles/pet.css";
 
 const MOOD_COPY = {
+  celebrating: "Levelled up — look at them go.",
+  proud: "Proud of you for clearing that.",
   excited: "Bouncing off the walls.",
+  focused: "Sitting in on class with you.",
+  restless: "Fidgeting — class is nearly on.",
   happy: "Having a good day.",
   content: "Hanging out, quite content.",
+  relaxed: "Nothing scheduled. Blissful.",
+  tired: "Winding down after a long day.",
   sleepy: "Curled up, dozing.",
   bored: "A bit bored — say hello?",
   missing: "Missed you while you were gone.",
@@ -35,19 +45,24 @@ function unlockLevel(key) {
   return found ? Number(found[0]) : null;
 }
 
-export default function PetPage({ pet, petActions, now, onBack }) {
+export default function PetPage({ pet, petActions, petContext, now, onBack }) {
   const [nameDraft, setNameDraft] = useState(null);
   const [adoptChoice, setAdoptChoice] = useState(null);
 
   const adopted = isAdopted(pet);
   const xp = xpOf(pet);
   const progress = levelProgress(xp);
-  const mood = adopted ? moodFor(pet, now) : "content";
+  const mood = adopted ? moodFor(pet, now, petContext) : "content";
+  const beat = usePetBeat(mood, adopted);
+  const gaze = usePetGaze(true);
   const left = careLeft(pet, now);
   const unlocked = useMemo(() => new Set(unlockedFor(pet)), [pet]);
   const sources = useMemo(() => xpBySource(pet), [pet]);
   const current = adopted ? getPetByKey(pet.petKey) : null;
   const accessoryOn = pet?.cosmetics?.accessory !== false;
+  const hat = pet?.cosmetics?.hat ?? null;
+  const earnedHats = useMemo(() => new Set(hatsFor(pet)), [pet]);
+  const devotion = devotionFor(xp);
 
   if (!adopted) {
     return (
@@ -63,6 +78,21 @@ export default function PetPage({ pet, petActions, now, onBack }) {
             Pick a companion. It levels up as you mark classes and clear deadlines —
             not by tapping it.
           </p>
+          {adoptChoice && (
+            <div className="pet-adopt-hero">
+              <span
+                className="dg-pet pet-hero"
+                data-pet={adoptChoice}
+                data-motion="on"
+                data-mood="excited"
+                aria-hidden="true"
+                {...gaze}
+              >
+                {(() => { const Chosen = getPetByKey(adoptChoice).Svg; return <Chosen />; })()}
+              </span>
+              <p className="pet-mood">Ready when you are.</p>
+            </div>
+          )}
           <div className="pet-roster">
             {STARTER_KEYS.map(key => {
               const option = getPetByKey(key);
@@ -127,10 +157,14 @@ export default function PetPage({ pet, petActions, now, onBack }) {
           data-pet={current.key}
           data-motion="on"
           data-mood={mood}
+          data-beat={beat || undefined}
           data-accessory={accessoryOn ? "on" : "off"}
           aria-hidden="true"
+          {...gaze}
         >
           <current.Svg />
+          <PetHat hat={hat} />
+          <PetSleepCue />
         </span>
         <p className="pet-mood">{MOOD_COPY[mood]}</p>
         {seen && <p className="pet-seen">Last together {seen}</p>}
@@ -144,6 +178,20 @@ export default function PetPage({ pet, petActions, now, onBack }) {
             <span>{progress.maxed ? "Fully grown" : `${progress.into} / ${progress.need} to Lv ${progress.level + 1}`}</span>
           </div>
         </div>
+
+        {/* Past level 12 the XP bar is pinned at 100% and every pet is already
+            unlocked, so without this the rest of term earns nothing at all. */}
+        {progress.maxed && (
+          <div className="pet-xp pet-devotion">
+            <div className="pet-xp-bar" aria-hidden="true">
+              <div className="pet-xp-fill is-devotion" style={{ width: `${devotion.pct}%` }} />
+            </div>
+            <div className="pet-xp-nums">
+              <span>Devotion {devotion.tier}{devotion.capped ? " · max" : ""}</span>
+              <span>{devotion.capped ? "Nothing left to prove" : `${devotion.into} / ${devotion.need} to ${devotion.tier + 1}`}</span>
+            </div>
+          </div>
+        )}
 
         <div className="pet-care">
           {CARE_ACTIONS.map(action => (
@@ -218,6 +266,52 @@ export default function PetPage({ pet, petActions, now, onBack }) {
         <p className="pet-care-note">
           Switching is free — XP belongs to you, not the animal.
           {progress.level < MAX_LEVEL && " Keep levelling to meet the rest."}
+        </p>
+      </section>
+
+      <section className="pet-card">
+        <h3 className="pet-h3">
+          Wardrobe <span className="pet-h3-note">{earnedHats.size} of {HATS.length}</span>
+        </h3>
+        <div className="pet-wardrobe">
+          <button
+            type="button"
+            className={`pet-hat-slot${hat === null ? " on" : ""}`}
+            aria-pressed={hat === null}
+            onClick={() => petActions.setCosmetic("hat", null)}
+          >
+            <span className="pet-hat-art" aria-hidden="true" />
+            <span className="pet-slot-name">None</span>
+          </button>
+          {HATS.map(option => {
+            const isEarned = earnedHats.has(option.key);
+            const isOn = hat === option.key;
+            return (
+              <button
+                key={option.key}
+                type="button"
+                className={`pet-hat-slot${isOn ? " on" : ""}${isEarned ? "" : " locked"}`}
+                disabled={!isEarned}
+                aria-pressed={isOn}
+                aria-label={isEarned ? `Wear the ${option.label}` : `${option.label}, needs ${hatRequirement(option.key)}`}
+                onClick={() => isEarned && petActions.setCosmetic("hat", isOn ? null : option.key)}
+              >
+                <span className="pet-hat-art" aria-hidden="true">
+                  <PetHat hat={option.key} />
+                </span>
+                <span className="pet-slot-name">{option.label}</span>
+                {isOn && <span className="pet-slot-badge"><Check size={11} strokeWidth={3} /></span>}
+                {!isEarned && <span className="pet-slot-lock"><Lock size={10} /> {hatRequirement(option.key)}</span>}
+              </button>
+            );
+          })}
+        </div>
+        <p className="pet-care-note">
+          {devotion.tier >= MAX_DEVOTION
+            ? "Every wearable is yours."
+            : progress.maxed
+              ? "The last two are earned by devotion — XP past level 12 still counts for something."
+              : "More arrive as you level. The last two only after level 12."}
         </p>
       </section>
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { adopt, award, care, rename, scaleXp, setCosmetic, switchTo, XP, keyFor } from "../lib/pet.js";
+import { adopt, award, care, levelProgress, rename, scaleXp, setCosmetic, switchTo, xpOf, MOMENT_MS, XP, keyFor } from "../lib/pet.js";
 import { loadPet, savePet, syncPetFromCloud } from "../lib/petStorage.js";
 
 /**
@@ -18,6 +18,15 @@ export function usePet(userId, { xpRate = 1 } = {}) {
   // Set by a mutation, cleared by the save effect below. A ref rather than
   // state so marking dirty never causes a render of its own.
   const dirty = useRef(false);
+  // A short-lived "something just happened" mood — a level-up, or a deadline
+  // cleared. Session-only on purpose: it is a reaction to an event you were
+  // present for, so it should not be waiting for you on another device an hour
+  // later. `moodFor` compares `momentUntil` against the app clock, so this
+  // needs no timer of its own to expire.
+  const [moment, setMoment] = useState(null);
+  // Last (level, deadlines-cleared) this hook observed. `null` means "re-seed
+  // without reacting" — see the cloud reconcile below.
+  const seen = useRef(null);
 
   // Reconcile with the cloud row once per user. `mergePets` unions the award
   // ledgers, so a phone that earned XP offline keeps it when the laptop syncs.
@@ -25,7 +34,12 @@ export function usePet(userId, { xpRate = 1 } = {}) {
     if (!userId) return undefined;
     let alive = true;
     syncPetFromCloud(userId).then(merged => {
-      if (alive) setPet(merged);
+      if (!alive) return;
+      // XP arriving from another device is history, not an event: re-seed the
+      // baseline so a merge that lifts the level does not fire a celebration
+      // for something that happened on a phone yesterday.
+      seen.current = null;
+      setPet(merged);
     });
     return () => { alive = false; };
   }, [userId]);
@@ -38,6 +52,21 @@ export function usePet(userId, { xpRate = 1 } = {}) {
     dirty.current = false;
     savePet(userId, pet);
   }, [pet, userId]);
+
+  // Moments, derived by watching the state rather than by threading a callback
+  // through every action: this catches a level-up however it was earned, and
+  // costs nothing when nothing changed (the ledger is only re-counted when the
+  // `pet` object identity actually moves).
+  useEffect(() => {
+    const level = levelProgress(xpOf(pet)).level;
+    let deadlines = 0;
+    for (const key in pet.awarded) if (key.startsWith("due:")) deadlines++;
+    const prev = seen.current;
+    seen.current = { level, deadlines };
+    if (!prev) return;                                  // first look, or a re-seed
+    if (level > prev.level) setMoment({ moment: "celebrating", momentUntil: Date.now() + MOMENT_MS });
+    else if (deadlines > prev.deadlines) setMoment({ moment: "proud", momentUntil: Date.now() + MOMENT_MS });
+  }, [pet]);
 
   /** Apply a pure transform from lib/pet.js. No-ops keep object identity. */
   const apply = useCallback(fn => {
@@ -66,5 +95,5 @@ export function usePet(userId, { xpRate = 1 } = {}) {
     awardXp: (key, amount, now) => apply(s => award(s, key, scaleXp(amount, xpRate), now)),
   }), [apply, xpRate]);
 
-  return { pet, actions, XP, keyFor };
+  return { pet, actions, moment, XP, keyFor };
 }

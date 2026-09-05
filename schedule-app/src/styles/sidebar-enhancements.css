@@ -1,0 +1,53 @@
+/* Sidebar usability additions. Keeps the existing colour system and active-row treatment intact. */
+@media (min-width: 768px) and (orientation: landscape) {
+  .sb-float-tip { animation-duration: 80ms; }
+  .sb-class-status {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: calc(100% - 28px);
+    margin: 0 14px 8px;
+    padding: 8px 10px;
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 10px;
+    background: rgba(255,255,255,.045);
+    color: rgba(255,255,255,.78);
+    text-align: left;
+    cursor: pointer;
+  }
+  .sb-class-status:hover, .sb-class-status:focus-visible { background: rgba(255,255,255,.085); outline: 2px solid rgba(196,181,253,.8); outline-offset: 2px; }
+  .sb-class-status.is-live { border-color: rgba(74,222,128,.42); background: rgba(74,222,128,.09); }
+  .sb-class-status > svg { color: #c4b5fd; flex: none; }
+  .sb-class-status.is-live > svg { color: #6ee7a4; }
+  .sb-class-copy { min-width: 0; display: grid; gap: 1px; }
+  .sb-class-eyebrow { color: rgba(255,255,255,.46); font: 700 9px/1.2 var(--body); letter-spacing: .08em; text-transform: uppercase; }
+  .sb-class-copy strong, .sb-class-detail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sb-class-copy strong { font: 600 11.5px/1.3 var(--body); }
+  .sb-class-detail { color: rgba(255,255,255,.52); font-size: 10px; }
+
+  .sb-link .nav-badge { min-width: 21px; height: 19px; display: inline-grid; place-items: center; color: #fff; font-variant-numeric: tabular-nums; }
+  .sb-unseen-dot { width: 7px; height: 7px; margin-left: auto; border-radius: 50%; background: #c4b5fd; box-shadow: 0 0 8px rgba(196,181,253,.85); }
+
+  .sb-customize { margin: 13px 5px 6px; color: rgba(255,255,255,.6); font-size: 11px; }
+  .sb-customize summary { display: flex; align-items: center; gap: 7px; padding: 8px 9px; border-radius: 8px; cursor: pointer; list-style: none; }
+  .sb-customize summary::-webkit-details-marker { display: none; }
+  .sb-customize summary:hover, .sb-customize summary:focus-visible { background: rgba(255,255,255,.07); color: #fff; outline: none; }
+  .sb-customize fieldset { display: grid; gap: 5px; margin: 5px 0 0; padding: 8px; border: 1px solid rgba(255,255,255,.1); border-radius: 9px; }
+  .sb-customize legend { padding: 0 3px; color: rgba(255,255,255,.48); font-size: 9px; }
+  .sb-customize legend svg { vertical-align: -2px; }
+  .sb-customize label { display: flex; align-items: center; gap: 7px; min-height: 20px; cursor: pointer; }
+  .sb-customize input { accent-color: #a78bfa; }
+  .sb-compact-option { margin: 7px 9px 4px; }
+
+  .sidebar.collapsed .sb-class-status, .sidebar.collapsed .sb-customize, .sidebar.collapsed .sb-unseen-dot { display: none; }
+
+  .sidebar.sb-compact .sb-brand { margin-bottom: 8px; }
+  .sidebar.sb-compact .sb-nav-label { padding-top: 10px; padding-bottom: 4px; }
+  .sidebar.sb-compact .sb-link { min-height: 38px; padding-top: 7px; padding-bottom: 7px; }
+  .sidebar.sb-compact .sb-search-btn { margin-bottom: 10px; padding-top: 8px; padding-bottom: 8px; }
+  .sidebar.sb-compact .sb-class-status { padding-top: 6px; padding-bottom: 6px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sb-class-status { transition: none; }
+}

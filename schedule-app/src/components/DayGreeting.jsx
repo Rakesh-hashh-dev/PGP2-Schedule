@@ -2,8 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getGreetingBucket, getTimeGreeting } from "../lib/datetime.js";
 import { dayKey, getPetByKey, getPetOfTheDay } from "./greetingPets.jsx";
 import {
-  CARE_ACTIONS, STARTER_KEYS, careLeft, careUsedToday, isAdopted, levelProgress, moodFor, xpOf,
+  CARE_ACTIONS, careLeft, careUsedToday, isAdopted, levelProgress, moodFor, xpOf,
 } from "../lib/pet.js";
+import PetSleepCue from "./PetSleepCue.jsx";
+import PetHat from "./PetHat.jsx";
+import { usePetBeat } from "../hooks/usePetBeat.js";
+import { usePetGaze } from "../hooks/usePetGaze.js";
+import { recordMood } from "../lib/petStats.js";
 
 // Flavour per action, per mood-neutral. The pet's *name* carries the warmth, so
 // these stay short — the tray is a 195px popover, not a chat window.
@@ -14,16 +19,23 @@ const CARE_LINES = {
 };
 
 const MOOD_LINE = {
+  celebrating: "levelled up!",
+  proud: "saw you clear that.",
   excited: "is bouncing off the walls.",
+  focused: "is in class with you.",
+  restless: "can tell class is close.",
   happy: "is having a good day.",
   content: "is hanging out.",
+  relaxed: "has the day off too.",
+  tired: "has had a long day.",
   sleepy: "is dozing off.",
   bored: "is looking for something to do.",
   missing: "missed you.",
 };
 
 export default function DayGreeting({
-  now, name, petSettings, userPetsEnabled = true, pet, petActions, companionEnabled = true,
+  now, name, petSettings, userPetsEnabled = true, pet, petActions, petContext,
+  companionEnabled = true, onOpenPet,
 }) {
   const [greeting, setGreeting] = useState(null);
   // Which (day, time-band) the current greeting line was picked for.
@@ -32,8 +44,6 @@ export default function DayGreeting({
   const [petReaction, setPetReaction] = useState("");
   // Tagged with the pet it was written about, so a message can't outlive its pet.
   const [petMessage, setPetMessage] = useState(null);
-  const [adoptChoice, setAdoptChoice] = useState(null);
-  const [adoptName, setAdoptName] = useState("");
   const reactionTimer = useRef(null);
   const shellRef = useRef(null);
 
@@ -68,7 +78,9 @@ export default function DayGreeting({
 
   // Derived here rather than in usePet: both depend on the live clock, and the
   // hook would have to re-render once a second to keep them fresh.
-  const mood = adopted ? moodFor(pet, now) : "content";
+  const mood = adopted ? moodFor(pet, now, petContext) : "content";
+  const beat = usePetBeat(mood, adopted && motionEnabled);
+  const gaze = usePetGaze(adopted && motionEnabled);
   const progress = adopted ? levelProgress(xpOf(pet)) : null;
   const left = adopted ? careLeft(pet, now) : 0;
 
@@ -85,9 +97,14 @@ export default function DayGreeting({
   const closeTray = useCallback(() => {
     setIsPetTrayOpen(false);
     setPetMessage(null);
-    setAdoptChoice(null);
-    setAdoptName("");
   }, []);
+
+  // Diagnostic only — see petStats.js. In an effect rather than in render so a
+  // StrictMode double-render cannot double-count, and so a tally write never
+  // sits between React and the paint it is measuring.
+  useEffect(() => {
+    if (adopted) recordMood(mood);
+  }, [adopted, mood]);
 
   // Dismiss on Escape or an outside click, like the app's other popovers.
   useEffect(() => {
@@ -126,14 +143,6 @@ export default function DayGreeting({
     reactionTimer.current = window.setTimeout(() => setPetReaction(""), 1150);
   };
 
-  const confirmAdopt = () => {
-    if (!adoptChoice || !petActions) return;
-    petActions.adopt(adoptChoice, adoptName.trim() || getPetByKey(adoptChoice).label, now);
-    setAdoptChoice(null);
-    setAdoptName("");
-    setPetMessage(null);
-  };
-
   if (!greeting) return null;
 
   return (
@@ -148,15 +157,19 @@ export default function DayGreeting({
             data-mood={adopted ? mood : undefined}
             data-accessory={adopted && pet.cosmetics?.accessory === false ? "off" : undefined}
             data-reaction={petReaction || undefined}
+            data-beat={petReaction ? undefined : beat || undefined}
+            {...gaze}
             onClick={() => (isPetTrayOpen ? closeTray() : setIsPetTrayOpen(true))}
             aria-expanded={isPetTrayOpen}
             aria-controls="daily-pet-actions"
             // Doubles as the hover tooltip and the accessible name — the SVG
             // itself is aria-hidden so the pet isn't announced twice.
-            aria-label={adopted ? `${petLabel}, level ${progress.level}` : `Meet ${displayPet.label}`}
+            aria-label={adopted ? `${petLabel}, level ${progress.level}, ${MOOD_LINE[mood]}` : `Meet ${displayPet.label}`}
             title={adopted ? `${petLabel} · Lv ${progress.level}` : `Meet ${displayPet.label}`}
           >
             {petEl}
+            <PetHat hat={adopted ? pet.cosmetics?.hat : null} />
+            <PetSleepCue />
           </button>
 
           {isPetTrayOpen && (
@@ -197,46 +210,21 @@ export default function DayGreeting({
                 <span className="dg-pet-tray-label">{displayPet.label} is hanging out.</span>
               ) : (
                 <>
+                  {/* Adoption used to happen here, in a 236px popover: a three-
+                      thumbnail picker and a name field, for the one moment in
+                      this feature anybody remembers. It has a whole page — send
+                      them there and let it be an occasion. The tray keeps only
+                      the invitation. */}
                   <span className="dg-pet-tray-label">Adopt a companion?</span>
                   <span className="dg-pet-hint">
-                    It levels up as you mark classes and clear deadlines.
+                    They level up as you mark classes and clear deadlines — not by
+                    being tapped.
                   </span>
-                  <span className="dg-pet-pick">
-                    {STARTER_KEYS.map(key => {
-                      const option = getPetByKey(key);
-                      return (
-                        <button
-                          key={key}
-                          type="button"
-                          className={`dg-pet-pick-btn${adoptChoice === key ? " on" : ""}`}
-                          aria-pressed={adoptChoice === key}
-                          onClick={() => setAdoptChoice(key)}
-                          title={option.label}
-                        >
-                          <span className="dg-pet" data-pet={key} data-motion="off" aria-hidden="true">
-                            <option.Svg />
-                          </span>
-                          <span className="dg-pet-pick-label">{option.label}</span>
-                        </button>
-                      );
-                    })}
+                  <span className="dg-pet-actions">
+                    <button type="button" onClick={() => { closeTray(); onOpenPet?.(); }}>
+                      Meet them
+                    </button>
                   </span>
-                  {adoptChoice && (
-                    <>
-                      <input
-                        className="dg-pet-name"
-                        value={adoptName}
-                        maxLength={24}
-                        placeholder={`Name your ${getPetByKey(adoptChoice).label.toLowerCase()}`}
-                        aria-label="Companion name"
-                        onChange={e => setAdoptName(e.target.value)}
-                        onKeyDown={e => { if (e.key === "Enter") confirmAdopt(); }}
-                      />
-                      <span className="dg-pet-actions">
-                        <button type="button" onClick={confirmAdopt}>Adopt</button>
-                      </span>
-                    </>
-                  )}
                 </>
               )}
             </span>

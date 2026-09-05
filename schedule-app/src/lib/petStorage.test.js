@@ -94,7 +94,7 @@ describe("row ⇄ state mapping", () => {
     expect(s.petKey).toBe("cat");
     expect(s.name).toBe("");
     expect(xpOf(s)).toBe(0);
-    expect(s.cosmetics).toEqual({ accessory: true });
+    expect(s.cosmetics).toEqual({ accessory: true, hat: null });
   });
 
   it("coerces a bigint last_seen arriving as a string", () => {

@@ -1,3 +1,4 @@
+import { MORE_VIEWS } from "./lib/navItems.js";
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Suspense, lazy } from "react";
 import { createPortal } from "react-dom";
 import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, ChevronsLeft, ChevronsRight, Megaphone, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Sparkles, Wand2, BellRing, CalendarDays, ExternalLink, Download, Share, WifiOff, Zap, PanelBottom, PanelTop, PanelsTopLeft, Check, ChevronDown, Sun, Moon, Monitor, CalendarOff, CalendarRange, UtensilsCrossed, Package, Camera, Loader2, Wallet, Radio, History, PawPrint } from "lucide-react";
@@ -60,6 +61,7 @@ import ProvisionalSectionNotice from "./components/ProvisionalSectionNotice.jsx"
 import { loadMyAway, isAwayNow, fmtAwayEnd } from "./lib/status.js";
 import { loadAttendance, saveAttendance, sessionKey, syncAttendanceFromCloud, pushMark, courseSkipStats } from "./lib/attendance.js";
 import { usePet } from "./hooks/usePet.js";
+import { EXAM_HORIZON_DAYS } from "./lib/pet.js";
 import { syncProfileFromCloud, pushProfile, stampProfileEmail } from "./lib/profile.js";
 import { syncMigrationMap } from "./lib/migrationMap.js";
 import { useMigration } from "./lib/useMigration.js";
@@ -80,6 +82,10 @@ const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(na
 
 // Views that live behind the sidebar's collapsed Tools accordion / the
 // mobile overflow menu's Tools section — candidates for the "Recent" row.
+// Mobile overflow-sheet Tools section (and its "Recent" shortcut). The desktop
+// sidebar moved to lib/navItems.js and regrouped — Full timetable is a Schedule
+// view there — so these two deliberately keep the older mobile grouping until
+// the sheet is migrated onto the same config.
 const TOOLS_VIEWS = ["fullSchedule", "split", "leave", "wrapped", "pet"];
 const TOOLS_VIEW_META = {
   fullSchedule: { icon: CalendarRange, label: "Full timetable" },
@@ -134,8 +140,15 @@ const ADMIN_EMAILS = [
 function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const userEmail = user?.primaryEmailAddress?.emailAddress?.toLowerCase();
   const isAdmin = userEmail && ADMIN_EMAILS.includes(userEmail);
-  const [adminMode, setAdminMode] = useState(false);
+  // Defaults on: it is never persisted, so a false start only creates a window
+  // where an admin looks like a normal user and gets bounced out of the admin
+  // view before Clerk has resolved who they are.
+  const [adminMode, setAdminMode] = useState(true);
   useEffect(() => { if (isAdmin) setAdminMode(true); }, [isAdmin]);
+  // `user` is undefined until Clerk loads and null when there is definitively
+  // no user, so `isAdmin` reads false for the first few renders of every
+  // refresh. Anything that revokes admin access has to wait for this.
+  const identityResolved = isLoaded && (!isSignedIn || user !== undefined);
 
   // ── User-switch guard ──────────────────────────────────────────
   // When a different account logs in on the same browser, wipe stale
@@ -327,11 +340,15 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     } catch { }
   }, [selectedTerm]);
   useEffect(() => {
+    // Without the guard this fires on first paint of a refresh, sending the
+    // admin back to Today and overwriting the stored view before Clerk has
+    // even reported who is signed in.
+    if (!identityResolved) return;
     if (!showAdminUI) {
       if (view === "admin") setView("today");
       setTimeOverride(null);
     }
-  }, [view, showAdminUI]);
+  }, [view, showAdminUI, identityResolved]);
   // Recently visited Tools-group views — the sidebar's Tools accordion is
   // collapsed by default (see sbToolsOpen below), so a "Full timetable" or
   // "Split" visit is otherwise a click-to-expand away every single time.
@@ -402,7 +419,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [attendance, setAttendance] = useState(() => loadAttendance());
   // Pet companion. Local copy paints immediately; the hook reconciles with the
   // `pet_state` row and merges anything earned offline. See lib/pet.js.
-  const { pet: myPet, actions: petActions, XP: petXP, keyFor: petKeyFor } = usePet(userId, { xpRate: sysConfig?.flags?.greetingPets?.xpRate });
+  const { pet: myPet, actions: petActions, moment: petMoment, XP: petXP, keyFor: petKeyFor } = usePet(userId, { xpRate: sysConfig?.flags?.greetingPets?.xpRate });
   const [syncing, setSyncing] = useState(false);
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -502,9 +519,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     });
   }, []);
   const showBadge = (key) => !seenBadges.has(key);
-  // Sidebar Tools group stays open when the active page lives inside it, so the
+  // Sidebar "More" group stays open when the active page lives inside it, so the
   // user never loses their place; collapsed sidebar always shows the icons.
-  const viewIsTool = TOOLS_VIEWS.includes(view);
+  const viewIsTool = MORE_VIEWS.includes(view);
   const showSbTools = sbCollapsed || sbToolsOpen || viewIsTool;
   const [messMenuOpen, setMessMenuOpen] = useState(false);
   // Split deep-link: a group id from a notification URL (?view=split&g=…)
@@ -1542,16 +1559,13 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   }, [userId, todayISO, petActions, petKeyFor, petXP]);
   const tomorrowISO = ymd(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
 
-  // The "Term N Wrapped is ready" nudge runs only for the first 3 days of the
-  // new term (term start .. +2, e.g. Sep 5–7), then drops on its own. After
-  // that the recap stays reachable via the term switcher + the live-term
-  // Wrapped empty-state shortcut, so the banner doesn't linger all term.
-  const wrappedNudgeUntil = useMemo(() => {
-    if (!TERM?.start) return null;
-    const d = new Date(`${TERM.start}T00:00:00`);
-    d.setDate(d.getDate() + 2);
-    return ymd(d);
-  }, []);
+  // The "Term N Wrapped is ready" nudge runs on the term's first day only and
+  // drops at that midnight — the comparison below is `todayISO <= this`, and
+  // todayISO rolls over at local midnight, so returning TERM.start keeps the
+  // nudge up for all of day one and gone on day two. After that the recap
+  // stays reachable via the term switcher + the live-term Wrapped empty-state
+  // shortcut, so the banner doesn't linger all term.
+  const wrappedNudgeUntil = useMemo(() => (TERM?.start ? ymd(new Date(`${TERM.start}T00:00:00`)) : null), []);
 
   // TermFlow Wrapped release gate: hidden from EVERYONE — admins included —
   // until the admin explicitly pushes it (Admin Tools → Feature Flags →
@@ -1593,6 +1607,27 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       next: teach.find((c) => c.s > now) || null,
     };
   }, [visible, now]);
+
+  // What the timetable is doing, reduced to the handful of facts the pet's mood
+  // cares about (see `moodFor`). Rebuilt on every clock tick, which is what
+  // makes "restless" arrive on time — it is three property reads, not a scan.
+  // Whether an exam falls inside the pet's horizon. Split out from petContext
+  // so it only rescans the term when the schedule changes, not on every tick.
+  const examSoon = useMemo(() => {
+    const horizon = new Date(now);
+    horizon.setDate(horizon.getDate() + EXAM_HORIZON_DAYS);
+    const until = ymd(horizon);
+    return visible.some(c => c.type === "exam" && c.date >= todayISO && c.date <= until);
+  }, [visible, todayISO, now]);
+
+  const petContext = useMemo(() => ({
+    inClass: Boolean(current),
+    minsToClass: next?.s ? (next.s - now) / 60000 : null,
+    classesToday: todayList.filter(c => c.type === "class" || c.type === "exam").length,
+    examSoon,
+    moment: petMoment?.moment,
+    momentUntil: petMoment?.momentUntil,
+  }), [current, next, now, todayList, examSoon, petMoment]);
 
   const syncedAgo = Math.max(0, Math.round((now - syncedAt) / 60000));
 
@@ -2326,6 +2361,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       )}
 
       {/* ── Desktop Sidebar ── */}
+      {/* Current-class sidebar card is parked with SidebarClassStatus for now. */}
       <DesktopSidebar
         sbCollapsed={sbCollapsed} sbStyle={sbStyle} specialDay={specialDay} termLabel={termLabel}
         termProgressPct={termProgressPct} termWeekInfo={termWeekInfo} termSwitcherEl={termSwitcherEl}
@@ -2334,9 +2370,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         enableAttendance={enableAttendance} enableExams={enableExams} unreadChangeCount={unreadChangeCount}
         enableFriends={enableFriends} markGroupsSeen={markGroupsSeen} markBadgeSeen={markBadgeSeen}
         showBadge={showBadge} unreadFriendCount={unreadFriendCount} showSbTools={showSbTools}
-        recentToolViews={recentToolViews} TOOLS_VIEWS={TOOLS_VIEWS} wrappedActive={wrappedActive}
-        companionEnabled={enableCompanion}
-        TOOLS_VIEW_META={TOOLS_VIEW_META} setSbToolsOpen={setSbToolsOpen} openCalendarExport={openCalendarExport}
+        wrappedActive={wrappedActive} companionEnabled={enableCompanion}
+        setSbToolsOpen={setSbToolsOpen}
         setMessMenuOpen={setMessMenuOpen} activeQuickLinks={activeQuickLinks} showAdminUI={showAdminUI}
         renderSbUtilStrip={renderSbUtilStrip} renderSbAvatarWrap={renderSbAvatarWrap} syncing={syncing}
         syncedAgo={syncedAgo} isTablet={isTablet} sidebarCollapsed={sidebarCollapsed} toggleSidebar={toggleSidebar}
@@ -2761,7 +2796,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                     ))}
                   </div>
                 )}
-                {view === "today" && <DayGreeting now={now} name={user?.firstName || user?.username} petSettings={sysConfig?.flags?.greetingPets} userPetsEnabled={greetingPetsEnabled} pet={myPet} petActions={petActions} companionEnabled={enableCompanion} />}
+                {view === "today" && <DayGreeting now={now} name={user?.firstName || user?.username} petSettings={sysConfig?.flags?.greetingPets} userPetsEnabled={greetingPetsEnabled} pet={myPet} petActions={petActions} petContext={petContext} companionEnabled={enableCompanion} onOpenPet={() => setView("pet")} />}
                 <div className="view-date-header">
                   <span className="vdh-label">
                     {view === "notifications" ? `${filteredChanges.length} update${filteredChanges.length !== 1 ? "s" : ""}`
@@ -3042,6 +3077,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                 ? <PetPage
                                     pet={myPet}
                                     petActions={petActions}
+                                    petContext={petContext}
                                     now={now}
                                     onBack={() => { setView("today"); setCompareTarget(null); }}
                                   />
@@ -3417,5 +3453,7 @@ export default function App() {
 }
 
 export function DevApp() {
-  return <AppCore isSignedIn={true} isLoaded={true} signOut={() => { }} userId={null} />;
+  // user={null}, not undefined: the dev harness has no user and never will,
+  // which is what tells AppCore identity is already resolved.
+  return <AppCore isSignedIn={true} isLoaded={true} signOut={() => { }} userId={null} user={null} />;
 }
