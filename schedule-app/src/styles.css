@@ -1692,10 +1692,20 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
    Heads are not interchangeable: the cat crowns at y=8, the robot's flat top
    at y=10, the leafy's low ellipse at y=13. The art below is drawn against a
    canonical head topping out at y=8 and every pet declares its own offset. */
-.dg-pet-hat {
+/* Descendant selector, not a bare class: `.dg-pet svg` above is (0,1,1) and
+   sets `position: relative`, so a lone `.dg-pet-hat` at (0,1,0) lost — the hat
+   laid out as a second block UNDER the pet instead of over its head. */
+.dg-pet .dg-pet-hat {
   position: absolute;
   z-index: 2;
+  /* Inset alone defines the box, and `auto` is essential: `.dg-pet svg` above
+     sets `width/height: 100%`, and a percentage on an <svg> element does NOT
+     resolve against the containing block the way it does on a div — it came
+     out at 31px inside a 40px pet, so the hat rendered half-width and shoved
+     to the right. Four zero offsets and no percentage anywhere is exact. */
   inset: 0;
+  width: auto;
+  height: auto;
   translate: var(--pet-hat-x, 0) var(--pet-hat-y, 0);
   scale: var(--pet-hat-scale, 1);
   transform-origin: 50% 30%;
@@ -1703,7 +1713,7 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 }
 /* Specs sit on the face, not on top of it, so they only take a fraction of
    the head offset - eyes vary far less across the roster than crowns do. */
-.dg-pet-hat[data-hat="specs"] { translate: 0 calc(var(--pet-hat-y, 0px) * .35); }
+.dg-pet .dg-pet-hat[data-hat="specs"] { translate: 0 calc(var(--pet-hat-y, 0px) * .35); }
 
 .dg-pet-zzz {
   position: absolute;

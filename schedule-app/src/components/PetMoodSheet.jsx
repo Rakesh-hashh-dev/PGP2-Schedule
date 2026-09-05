@@ -19,12 +19,14 @@ import PetHat from "./PetHat.jsx";
 const BEATS = ["", "bounce", "shake", "perk", "tilt", "stretch", "yawn"];
 
 export default function PetMoodSheet() {
-  const [size, setSize] = useState(40);
+  const [size, setSize] = useState(() => Number(new URLSearchParams(location.search).get("size")) || 40);
   const [beat, setBeat] = useState("");
   const [motion, setMotion] = useState(true);
   const [accessory, setAccessory] = useState(true);
   const [only, setOnly] = useState("");
-  const [hat, setHat] = useState("");
+  // Seeded from the query string (`?moodsheet&hat=crown&size=116`) so a run can
+  // be reproduced, linked, or screenshotted without clicking anything.
+  const [hat, setHat] = useState(() => new URLSearchParams(location.search).get("hat") || "");
   const [stats, setStats] = useState(() => readMoodStats());
 
   const pets = only ? PETS.filter(p => p.key === only) : PETS;
@@ -101,7 +103,10 @@ export default function PetMoodSheet() {
                   <td key={mood} style={S.td}>
                     <span
                       className="dg-pet"
-                      style={{ width: size, height: size, "--pet-z": `${size * 0.22}px` }}
+                      // `.dg-pet` sets no `display`, so a bare span stays inline
+                      // and drops width/height entirely — in the app it is a
+                      // <button> or a grid item, which blockifies it for free.
+                      style={{ display: "inline-grid", width: size, height: size, "--pet-z": `${size * 0.22}px` }}
                       data-pet={pet.key}
                       data-mood={mood}
                       data-motion={motion ? "on" : "off"}
