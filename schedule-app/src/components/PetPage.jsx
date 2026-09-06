@@ -5,6 +5,7 @@ import {
   CARE_ACTIONS, HATS, MAX_DEVOTION, MAX_LEVEL, STARTER_KEYS, UNLOCKS,
   careLeft, devotionFor, hatRequirement, hatsFor, hoursSince, isAdopted,
   levelProgress, moodFor, unlockedFor, visibleHat, xpBySource, xpOf,
+  growthStageFor, nextGrowthStage,
 } from "../lib/pet.js";
 import PetSleepCue from "./PetSleepCue.jsx";
 import PetHat from "./PetHat.jsx";
@@ -59,6 +60,8 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
   const unlocked = useMemo(() => new Set(unlockedFor(pet)), [pet]);
   const sources = useMemo(() => xpBySource(pet), [pet]);
   const current = adopted ? getPetByKey(pet.petKey) : null;
+  const stage = growthStageFor(progress.level);
+  const nextStage = nextGrowthStage(progress.level);
   const accessoryOn = pet?.cosmetics?.accessory !== false;
   // Cohort policy, defaulting ON: a config written before the wardrobe shipped
   // must not read as "everything withdrawn".
@@ -164,6 +167,7 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
           className="dg-pet pet-hero"
           data-pet={current.key}
           data-motion="on"
+          data-stage={stage.key}
           data-mood={mood}
           data-beat={beat || undefined}
           data-sig={signaturesOn ? undefined : "off"}
@@ -176,6 +180,12 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
           <PetSleepCue />
         </span>
         <p className="pet-mood">{MOOD_COPY[mood]}</p>
+        <p className="pet-stage">
+          <span className="pet-stage-now">{stage.label}</span>
+          {nextStage
+            ? <span className="pet-stage-next">{nextStage.label} at Lv {nextStage.from}</span>
+            : <span className="pet-stage-next">Fully grown</span>}
+        </p>
         {seen && <p className="pet-seen">Last together {seen}</p>}
 
         <div className="pet-xp">

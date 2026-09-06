@@ -86,6 +86,45 @@ export const HATS = [
 /** Fast membership test for `normalize`, which runs on every storage read. */
 const HAT_KEYS = new Set(HATS.map(h => h.key));
 
+/**
+ * Growth stages — the pet you already have visibly maturing, rather than a
+ * number next to art that never changes.
+ *
+ * DERIVED from level, like XP and mood, and for the same reason (see the file
+ * header): a stored stage could disagree with the ledger after an offline
+ * stretch and there'd be no way to tell which was right. Feeding and the other
+ * care taps feed this the way they always have — through XP — so no new
+ * counter, no new merge rule, and no way to be "behind" on growth while being
+ * ahead on level.
+ *
+ * Four stages over twelve levels, so a stage change is a real event (~3 levels
+ * apart) rather than something that happens quietly every week.
+ */
+export const GROWTH_STAGES = [
+  { key: "hatchling", label: "Hatchling", from: 1 },
+  { key: "young", label: "Young", from: 4 },
+  { key: "grown", label: "Grown", from: 8 },
+  { key: "elder", label: "Elder", from: MAX_LEVEL },
+];
+
+/** The stage a level sits in. Clamps, so an out-of-range level is never null. */
+export function growthStageFor(level) {
+  const lvl = Number.isFinite(level) ? Math.max(1, Math.floor(level)) : 1;
+  let stage = GROWTH_STAGES[0];
+  for (const s of GROWTH_STAGES) if (lvl >= s.from) stage = s;
+  return stage;
+}
+
+/**
+ * The stage after this one, with the level that reaches it — the pet page uses
+ * it to say what the next milestone actually is. `null` once fully grown.
+ */
+export function nextGrowthStage(level) {
+  const current = growthStageFor(level);
+  const i = GROWTH_STAGES.indexOf(current);
+  return i >= 0 && i < GROWTH_STAGES.length - 1 ? GROWTH_STAGES[i + 1] : null;
+}
+
 /** level → pet key unlocked on reaching it. All 12 are earned by level 10. */
 export const UNLOCKS = {
   2: "fox", 3: "penguin", 4: "panda", 5: "chick", 6: "koala",

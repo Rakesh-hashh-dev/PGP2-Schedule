@@ -10,6 +10,7 @@ import {
   hoursSince, moodFor, MOODS,
   devotionFor, hatsFor, hatRequirement, setCosmetic, visibleHat, normalize as normalizePet,
   DEVOTION_STEP, MAX_DEVOTION, MAX_LEVEL as MAXLVL, xpToReach,
+  GROWTH_STAGES, growthStageFor, nextGrowthStage,
   unlockedAtLevel, unlockedFor, newlyUnlocked,
   prune, mergePets, publicSummary, xpBySource,
 } from "./pet.js";
@@ -723,5 +724,56 @@ describe("hats", () => {
   it("drops a hat key this build no longer ships", () => {
     expect(normalizePet({ cosmetics: { accessory: true, hat: "sombrero" } }).cosmetics.hat).toBe(null);
     expect(normalizePet({ cosmetics: { accessory: true, hat: "cap" } }).cosmetics.hat).toBe("cap");
+  });
+});
+
+
+describe("growth stages", () => {
+  it("walks all four stages across the level range", () => {
+    expect(growthStageFor(1).key).toBe("hatchling");
+    expect(growthStageFor(3).key).toBe("hatchling");
+    expect(growthStageFor(4).key).toBe("young");
+    expect(growthStageFor(7).key).toBe("young");
+    expect(growthStageFor(8).key).toBe("grown");
+    expect(growthStageFor(MAX_LEVEL - 1).key).toBe("grown");
+    expect(growthStageFor(MAX_LEVEL).key).toBe("elder");
+  });
+
+  // Nothing stores a stage, so a level from a stale row must still resolve.
+  it("clamps junk and out-of-range levels instead of returning nothing", () => {
+    expect(growthStageFor(0).key).toBe("hatchling");
+    expect(growthStageFor(-5).key).toBe("hatchling");
+    expect(growthStageFor(undefined).key).toBe("hatchling");
+    expect(growthStageFor(NaN).key).toBe("hatchling");
+    expect(growthStageFor(999).key).toBe("elder");
+  });
+
+  it("derives the stage from XP the same way the UI does", () => {
+    expect(growthStageFor(levelFor(0)).key).toBe("hatchling");
+    expect(growthStageFor(levelFor(xpToReach(4))).key).toBe("young");
+    expect(growthStageFor(levelFor(xpToReach(8))).key).toBe("grown");
+    expect(growthStageFor(levelFor(xpToReach(MAX_LEVEL))).key).toBe("elder");
+  });
+
+  it("points at the next stage until fully grown", () => {
+    expect(nextGrowthStage(1).key).toBe("young");
+    expect(nextGrowthStage(4).key).toBe("grown");
+    expect(nextGrowthStage(8).key).toBe("elder");
+    expect(nextGrowthStage(MAX_LEVEL)).toBe(null);
+  });
+
+  it("keeps the stage boundaries inside the level range, in order", () => {
+    const froms = GROWTH_STAGES.map(s => s.from);
+    expect(froms[0]).toBe(1);
+    expect(froms[froms.length - 1]).toBe(MAX_LEVEL);
+    expect([...froms].sort((a, b) => a - b)).toEqual(froms);
+  });
+
+  // Every stage needs a matching CSS block or the pet renders at scale 1.
+  it("has a style rule for every stage", () => {
+    const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+    for (const stage of GROWTH_STAGES) {
+      expect(css).toContain(`.dg-pet[data-stage="${stage.key}"]`);
+    }
   });
 });

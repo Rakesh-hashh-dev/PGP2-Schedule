@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getGreetingBucket, getTimeGreeting } from "../lib/datetime.js";
 import { dayKey, getPetByKey, getPetOfTheDay } from "./greetingPets.jsx";
 import {
-  CARE_ACTIONS, careLeft, careUsedToday, isAdopted, levelProgress, moodFor, visibleHat, xpOf,
+  CARE_ACTIONS, careLeft, careUsedToday, growthStageFor, isAdopted, levelProgress, moodFor,
+  visibleHat, xpOf,
 } from "../lib/pet.js";
 import PetSleepCue from "./PetSleepCue.jsx";
 import PetHat from "./PetHat.jsx";
@@ -154,6 +155,7 @@ export default function DayGreeting({
             className="dg-pet"
             data-pet={displayPet.key}
             data-motion={motionEnabled ? "on" : "off"}
+            data-stage={adopted ? growthStageFor(progress.level).key : undefined}
             data-mood={adopted ? mood : undefined}
             data-accessory={adopted && pet.cosmetics?.accessory === false ? "off" : undefined}
             data-reaction={petReaction || undefined}
