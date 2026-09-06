@@ -8,6 +8,7 @@ import DayGreeting from "./components/DayGreeting.jsx";
 import SemSummary from "./components/SemSummary.jsx";
 import Timeline from "./components/Timeline.jsx";
 import WeekAgenda from "./components/WeekAgenda.jsx";
+import ScheduleModal from "./components/ScheduleModal.jsx";
 import WeekGlance from "./components/WeekGlance.jsx";
 import SubjectFilter from "./components/SubjectFilter.jsx";
 import Login from "./components/Login.jsx";
@@ -3200,19 +3201,15 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 <Calendar size={22} />
               </button>
               {showFriendsAgenda && (
-                <div className="fs-modal-overlay hide-mobile" onClick={() => setShowFriendsAgenda(false)}>
-                  <div className="fs-modal-content" style={{ width: 'min(760px, 92vw)', maxWidth: '92vw', padding: 0 }} onClick={e => e.stopPropagation()}>
-                    <div className="fs-modal-header" style={{ padding: "16px 20px" }}>
-                      <h3 style={{ display: 'flex', alignItems: 'center', gap: 8, margin: 0, fontSize: 16 }}>
-                        <Calendar size={18} color="var(--violet)" /> Schedule
-                      </h3>
-                      <button className="fs-modal-close" onClick={() => setShowFriendsAgenda(false)}><X size={18}/></button>
-                    </div>
-                    <div className="fs-modal-body" style={{ padding: "16px 20px", maxHeight: '82vh', overflowY: 'auto' }}>
-                      <WeekAgenda visible={visible} now={now} offset={weekOffset} setOffset={setWeekOffset} todayISO={todayISO} onViewFullSchedule={(iso) => { setShowFriendsAgenda(false); setJumpToDate(iso); setView("fullSchedule"); }} />
-                    </div>
-                  </div>
-                </div>
+                <ScheduleModal
+                  visible={visible}
+                  now={now}
+                  offset={weekOffset}
+                  setOffset={setWeekOffset}
+                  todayISO={todayISO}
+                  onClose={() => setShowFriendsAgenda(false)}
+                  onViewFullSchedule={(iso) => { setShowFriendsAgenda(false); setJumpToDate(iso); setView("fullSchedule"); }}
+                />
               )}
             </>
           )}

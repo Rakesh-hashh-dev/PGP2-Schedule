@@ -18049,3 +18049,726 @@ html[data-theme="dark"] .lp-glance-bad {
     opacity: 1;
   }
 }
+
+/* ── Schedule peek modal (ScheduleModal.jsx) ──────────────────────────────
+   Its own shell rather than .fs-modal-content: the week nav lives in the
+   header, day rows run edge to edge, and the footer stays pinned. */
+.sm-card {
+  width: min(640px, 94vw);
+  max-height: min(86vh, 780px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  background: color-mix(in srgb, var(--card) 88%, transparent);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 22px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, .22), inset 0 1px 0 rgba(255, 255, 255, .1);
+  animation: modal-pop .3s cubic-bezier(.16, 1, .3, 1);
+}
+
+.sm-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 16px 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+}
+
+.sm-head-nav { display: flex; gap: 4px; flex: none; }
+
+.sm-nav {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 9px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color .15s ease, background .15s ease, border-color .15s ease, transform .1s ease;
+}
+
+.sm-nav:hover { color: var(--text); background: var(--card-hi); border-color: var(--border-hi); }
+.sm-nav:active { transform: scale(.9); }
+
+.sm-head-t {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.sm-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--violet);
+}
+
+.sm-range {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -.01em;
+  color: var(--text);
+}
+
+.sm-head-r { display: flex; align-items: center; gap: 8px; flex: none; }
+
+.sm-today-btn {
+  border: none;
+  background: var(--live-dim);
+  color: var(--live);
+  font-family: var(--body);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  border-radius: 20px;
+  padding: 5px 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s ease;
+}
+
+.sm-today-btn:hover { background: rgba(31, 169, 113, .18); }
+
+.sm-close {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  background: color-mix(in srgb, var(--bg) 60%, transparent);
+  border-radius: 9px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color .15s ease, background .15s ease;
+}
+
+.sm-close:hover { color: var(--text); background: color-mix(in srgb, var(--border) 80%, transparent); }
+
+.sm-stats {
+  flex: none;
+  border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  background: color-mix(in srgb, var(--surface) 45%, transparent);
+  transition: background .2s ease;
+}
+
+.sm-stats.is-open { background: color-mix(in srgb, var(--surface) 68%, transparent); }
+
+.sm-stats-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 16px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sm-stats-toggle:hover { background: color-mix(in srgb, var(--card-hi) 45%, transparent); }
+.sm-stats-toggle:focus-visible { outline: 2px solid var(--violet); outline-offset: -3px; }
+
+.sm-stats-title {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.sm-stats-icon {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--violet);
+  background: color-mix(in srgb, var(--violet) 13%, transparent);
+  border: 1px solid color-mix(in srgb, var(--violet) 24%, transparent);
+  border-radius: 9px;
+}
+
+.sm-stats-title strong,
+.sm-stats-title small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sm-stats-title strong { font-size: 12.5px; font-weight: 750; letter-spacing: -.01em; }
+.sm-stats-title small { margin-top: 1px; font-size: 10.5px; font-weight: 550; color: var(--muted); }
+
+.sm-stats-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  padding-right: 1px;
+  color: var(--muted);
+  font-size: 10.5px;
+}
+
+.sm-stats-summary b { color: var(--text); font-family: var(--mono); font-size: 14px; }
+
+.sm-stats-chev {
+  flex: none;
+  color: var(--muted);
+  transition: transform .2s cubic-bezier(.2, .8, .2, 1);
+}
+
+.sm-stats.is-open .sm-stats-chev { transform: rotate(180deg); }
+
+.sm-stats-body {
+  max-height: 42vh;
+  overflow-y: auto;
+  padding: 0 16px 14px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.sm-stats-body::-webkit-scrollbar { width: 5px; }
+.sm-stats-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; }
+
+.sm-pulse-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 2px 9px;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.sm-pulse-meta span:last-child { color: var(--violet); }
+
+.sm-glance-frame {
+  padding: 13px 14px 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: 14px;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--card) 84%, transparent), color-mix(in srgb, var(--surface) 58%, transparent));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05);
+}
+
+.sm-glance-frame .wglance { margin: 0; }
+
+.sm-days {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.sm-days::-webkit-scrollbar { width: 6px; }
+.sm-days::-webkit-scrollbar-track { background: transparent; }
+.sm-days::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; }
+.sm-days::-webkit-scrollbar-thumb:hover { background: var(--border-hi); }
+
+.sm-day {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 10px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: none;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: background .13s ease, border-color .13s ease;
+}
+
+.sm-day + .sm-day { margin-top: 2px; }
+.sm-day:hover { background: var(--surface); border-color: var(--border); }
+.sm-day:focus-visible { outline: 2px solid var(--violet); outline-offset: -2px; }
+
+.sm-day.is-empty { padding-top: 6px; padding-bottom: 6px; }
+
+.sm-day.is-today {
+  background: var(--live-dim);
+  border-color: color-mix(in srgb, var(--live) 28%, transparent);
+}
+
+.sm-day.is-today:hover { background: rgba(31, 169, 113, .13); }
+
+.sm-date {
+  flex: none;
+  width: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.15;
+}
+
+.sm-dow {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.sm-num {
+  font-family: var(--mono);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.sm-day.is-today .sm-num,
+.sm-day.is-today .sm-dow { color: var(--live); }
+
+.sm-items {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.sm-free {
+  font-size: 12.5px;
+  color: var(--muted);
+  opacity: .55;
+}
+
+.sm-item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13.5px;
+  min-width: 0;
+}
+
+.sm-item.soft { opacity: .5; }
+
+.sm-time {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+  min-width: 42px;
+}
+
+.sm-name {
+  flex: 1;
+  min-width: 0;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sm-room {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.sm-today-tag {
+  flex: none;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--live);
+  background: rgba(31, 169, 113, .12);
+  border-radius: 20px;
+  padding: 3px 8px;
+}
+
+.sm-go {
+  flex: none;
+  color: var(--muted);
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: opacity .15s ease, transform .15s ease;
+}
+
+.sm-day:hover .sm-go { opacity: .7; transform: none; }
+
+.sm-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  background: color-mix(in srgb, var(--surface) 45%, transparent);
+}
+
+.sm-foot-hint { font-size: 11.5px; color: var(--muted); }
+
+.sm-foot-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  font-family: var(--body);
+  font-size: 12.5px;
+  font-weight: 600;
+  border-radius: 10px;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, transform .1s ease;
+}
+
+.sm-foot-btn:hover { background: var(--card-hi); border-color: var(--border-hi); }
+.sm-foot-btn:active { transform: scale(.97); }
+
+@media (prefers-reduced-motion: reduce) {
+  .sm-card { animation: none; }
+  .sm-go { transition: none; }
+}
+
+/* ── Pet growth stages ──────────────────────────────────────────────────
+   The same art at four sizes: a hatchling is small with slightly oversized
+   eyes, an elder fills its slot. Driven by the independent `scale`/`translate`
+   properties, never `transform` — `.dg-pet` and `.dg-pet-eyes` already own
+   transform for the beat animations, the mood lean and the blink, and the
+   independent properties compose with those instead of overwriting them.
+
+   `translate` cancels the drift a centred scale introduces, so the pet stays
+   planted on the floor of its box rather than floating up as it shrinks.
+   Absent [data-stage] (the daily rotation, friends, admin previews) nothing
+   below applies and those pets render exactly as before. */
+.dg-pet[data-stage] {
+  scale: var(--pet-grow, 1);
+  translate: 0 var(--pet-grow-drop, 0);
+  transition: scale 420ms var(--ease-out-strong), translate 420ms var(--ease-out-strong);
+}
+
+.dg-pet[data-stage] .dg-pet-eyes { scale: var(--pet-eye-grow, 1); }
+
+.dg-pet[data-stage="hatchling"] { --pet-grow: .8; --pet-grow-drop: 10%; --pet-eye-grow: 1.14; }
+.dg-pet[data-stage="young"]     { --pet-grow: .89; --pet-grow-drop: 5.5%; --pet-eye-grow: 1.07; }
+.dg-pet[data-stage="grown"]     { --pet-grow: 1; --pet-grow-drop: 0; --pet-eye-grow: 1; }
+.dg-pet[data-stage="elder"]     { --pet-grow: 1.07; --pet-grow-drop: -3.5%; --pet-eye-grow: .97; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dg-pet[data-stage] { transition: none; }
+}
+
+/* Stage line under the mood copy on the pet page */
+.pet-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 4px 0 0;
+}
+
+.pet-stage-now {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--violet);
+  background: var(--violet-dim);
+  border: 1px solid color-mix(in srgb, var(--violet) 28%, transparent);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+.pet-stage-next {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+/* ── WeekGlance "pulse" variant — ScheduleModal only ────────────────────
+   Everything here is scoped under .is-pulse so the sidebar, mobile Week view
+   and Leave Planner keep the original card untouched. The change: counts move
+   out of the bars onto their own line, and the bars get a shared, visible
+   baseline — with equal days (four 1-class days in a row) the old chart read
+   as scattered chips because each bar was only as tall as its own label. */
+.wglance.is-pulse .wglance-head-row {
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.wglance.is-pulse .wglance-facts {
+  flex-direction: row;
+  align-items: center;
+  gap: 7px;
+  padding-bottom: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.wglance.is-pulse .wglance-fact {
+  background: rgba(255, 255, 255, .06);
+  border: 1px solid rgba(255, 255, 255, .09);
+  border-radius: 999px;
+  padding: 5px 11px;
+  color: rgba(255, 255, 255, .82);
+  white-space: nowrap;
+}
+
+.wglance.is-pulse .wglance-bars {
+  height: auto;
+  gap: 5px;
+  align-items: stretch;
+  position: relative;
+  padding-bottom: 1px;
+}
+
+/* the line every bar stands on */
+.wglance.is-pulse .wglance-bars::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 19px;
+  height: 1px;
+  background: rgba(255, 255, 255, .12);
+  pointer-events: none;
+}
+
+.wglance.is-pulse .wglance-col {
+  display: grid;
+  grid-template-rows: 15px 84px 19px;
+  align-items: end;
+  justify-items: center;
+  gap: 0;
+  height: auto;
+  border-radius: 10px;
+}
+
+.wglance.is-pulse .wglance-bar-n {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, .92);
+  line-height: 1;
+  margin-top: 0;
+  padding-bottom: 5px;
+  text-shadow: none;
+}
+
+.wglance.is-pulse .wglance-col.is-off .wglance-bar-n { color: transparent; }
+
+/* faint slot showing the range each bar is measured against */
+.wglance.is-pulse .wglance-bar-track {
+  height: 100%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .01), rgba(255, 255, 255, .05));
+  border-radius: 8px 8px 3px 3px;
+}
+
+.wglance.is-pulse .wglance-bar {
+  border-radius: 7px 7px 3px 3px;
+  align-items: flex-end;
+  min-height: 4px;
+}
+
+.wglance.is-pulse .wglance-bar.is-empty { border-radius: 3px; }
+
+.wglance.is-pulse .wglance-col.is-busiest-col .wglance-bar-n { color: rgb(var(--wg-accent-2)); }
+
+.wglance.is-pulse .wglance-dow { padding-top: 6px; }
+.wglance.is-pulse .wglance-col.is-off .wglance-dow { color: rgba(255, 255, 255, .28); }
+
+/* today lights the whole column instead of a 4px dot underneath it */
+.wglance.is-pulse .wglance-col.is-today {
+  background: rgba(var(--wg-accent-2), .07);
+  box-shadow: inset 0 0 0 1px rgba(var(--wg-accent-2), .28);
+}
+
+.wglance.is-pulse .wglance-col.is-today::after { display: none; }
+
+.wglance.is-pulse .wglance-col.is-today .wglance-dow {
+  color: rgb(var(--wg-accent-2));
+  font-weight: 800;
+}
+
+.wglance.is-pulse .wglance-col.is-today .wglance-bar-n { color: #fff; }
+
+/* ── Week pulse collapsed row ── */
+.sm-pulse-strip {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 22px;
+  padding-right: 2px;
+}
+
+.sm-pulse-bar {
+  width: 5px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--violet) 72%, transparent);
+  transition: height .25s var(--ease-out-strong), opacity .2s ease;
+}
+
+.sm-pulse-bar.is-off { background: var(--border-hi); opacity: .7; }
+
+.sm-pulse-bar.is-today {
+  background: var(--live);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--live) 30%, transparent);
+}
+
+/* open, the full chart below says all of this better */
+.sm-stats.is-open .sm-pulse-strip { opacity: .35; }
+
+.sm-stats-title small b {
+  font-family: var(--mono);
+  font-weight: 700;
+  color: var(--text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sm-pulse-bar { transition: none; }
+}
+
+/* ── WeekAgenda sidebar refresh ─────────────────────────────────────────
+   Chrome only — the WeekGlance card inside it is deliberately untouched. */
+
+/* The week nav was three elements fighting for one line: two 36px squares and
+   a range that had to give way to the "This week" pill whenever it appeared.
+   Smaller arrows, a range that owns the middle, and a pill that can't push it. */
+.weeknav {
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.weeknav button {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  flex: none;
+}
+
+.weeknav-mid {
+  flex: 1;
+  min-width: 0;
+  justify-content: center;
+  gap: 7px;
+}
+
+.wk-range {
+  font-size: 14.5px;
+  letter-spacing: -.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wk-today {
+  flex: none;
+  padding: 3px 8px !important;
+  font-size: 9.5px;
+}
+
+/* Rows: the session chip is `white-space: nowrap`, and nothing above it
+   clipped — so "DSC 1 (Prof. Harshad Sonar)" ran straight off the panel edge.
+   It now drops to its own line under the class name and truncates there. */
+.ag {
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.ag-c {
+  display: block;
+  line-height: 1.32;
+}
+
+.ag-c .ses {
+  display: inline-block;
+  max-width: 100%;
+  margin-left: 0;
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+}
+
+.ag-t { padding-top: 1px; }
+
+.ag-r {
+  align-self: flex-start;
+  padding-top: 1px;
+  opacity: .85;
+}
+
+.agday { padding: 10px 4px; }
+
+.agday-h { min-width: 34px; }
+
+/* A row cut in half at the scroll edge read as broken rather than scrollable,
+   so the fade below only appears while there is actually more to scroll to —
+   a plain mask would dim the last row once you reached the end. */
+.wa-days-scroll { padding-right: 4px; }
+
+@supports (animation-timeline: scroll()) {
+  .wa-days-scroll {
+    animation: waScrollFade linear both;
+    animation-timeline: scroll(self);
+    animation-range: contain 0% contain 100%;
+  }
+}
+
+@keyframes waScrollFade {
+  from, 90% {
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 24px), transparent);
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 24px), transparent);
+  }
+  to {
+    mask-image: linear-gradient(to bottom, #000 100%, #000);
+    -webkit-mask-image: linear-gradient(to bottom, #000 100%, #000);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wa-days-scroll { animation: none; mask-image: none; -webkit-mask-image: none; }
+}
+
+/* Two identical white boxes stacked read as one repeated control. The primary
+   action keeps the accent; the stats toggle steps back to plain. */
+.wa-footer {
+  margin-top: 12px;
+  padding-top: 12px;
+}
+
+.wa-footer .fr-btn-secondary {
+  font-weight: 650;
+  color: var(--violet);
+  border-color: color-mix(in srgb, var(--violet) 30%, var(--border));
+  background: var(--violet-dim);
+}
+
+.wa-footer .fr-btn-secondary:hover {
+  background: color-mix(in srgb, var(--violet) 14%, transparent);
+  border-color: color-mix(in srgb, var(--violet) 45%, transparent);
+}
+
+.wa-stats-toggle {
+  font-size: 13px;
+  font-weight: 650;
+  padding: 9px 13px;
+  box-shadow: none;
+  background: transparent;
+}
+
+.wa-stats-toggle:hover {
+  background: var(--surface);
+  border-color: var(--border-hi);
+}

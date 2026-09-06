@@ -15,7 +15,12 @@ const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 // Compact "Week at a glance" card — shown on mobile Week view in place of the
 // today-focused Hero, where a week-level overview is more relevant.
 // `collapsible`: tapping the card toggles a slim one-row version (persisted).
-export default function WeekGlance({ visible, now, offset = 0, todayISO, collapsible = false }) {
+export default function WeekGlance({ visible, now, offset = 0, todayISO, collapsible = false, variant = "card" }) {
+  // "pulse" is the ScheduleModal's chart: counts sit above the bars on a shared
+  // baseline instead of inside them. Scoped to a variant on purpose — the
+  // sidebar, the mobile Week view and the Leave Planner summary all keep the
+  // original card, which is the look those places were designed around.
+  const pulse = variant === "pulse";
   const [collapsed, setCollapsed] = useState(
     () => collapsible && localStorage.getItem("wglance-collapsed") === "1"
   );
@@ -129,7 +134,7 @@ export default function WeekGlance({ visible, now, offset = 0, todayISO, collaps
   }
 
   return (
-    <section className={`wglance${collapsible ? " is-collapsible" : ""}`} {...interactive}>
+    <section className={`wglance${collapsible ? " is-collapsible" : ""}${pulse ? " is-pulse" : ""}`} {...interactive}>
       <div className="wglance-top">
         <div className="wglance-tag"><CalendarRange size={13} /> {relLabel}</div>
         <span className="wglance-range">
@@ -153,14 +158,23 @@ export default function WeekGlance({ visible, now, offset = 0, todayISO, collaps
           const h = stats.maxCount > 0 ? Math.round((n / stats.maxCount) * 100) : 0;
           const isToday = i === stats.todayIdx;
           const isBusiest = i === stats.busiestIdx && n > 0;
+          // The pulse floor keeps a one-class day a readable column rather than
+          // a chip hovering over an invisible baseline.
+          const height = n === 0 ? (pulse ? "4px" : "3px")
+            : pulse ? `${20 + Math.round((n / stats.maxCount) * 80)}%`
+            : `${Math.max(14, h)}%`;
           return (
-            <div key={i} className={`wglance-col${isToday ? " is-today" : ""}`}>
+            <div
+              key={i}
+              className={`wglance-col${isToday ? " is-today" : ""}${pulse && n === 0 ? " is-off" : ""}${pulse && isBusiest ? " is-busiest-col" : ""}`}
+            >
+              {pulse && <span className="wglance-bar-n">{n > 0 ? n : ""}</span>}
               <div className="wglance-bar-track">
                 <div
                   className={`wglance-bar${isBusiest ? " is-busiest" : ""}${n === 0 ? " is-empty" : ""}`}
-                  style={{ height: n === 0 ? "3px" : `${Math.max(14, h)}%` }}
+                  style={{ height }}
                 >
-                  {n > 0 && <span className="wglance-bar-n">{n}</span>}
+                  {!pulse && n > 0 && <span className="wglance-bar-n">{n}</span>}
                 </div>
               </div>
               <span className="wglance-dow">{DOW[i]}</span>
