@@ -5,6 +5,7 @@ import "../styles/cmdk.css";
 import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil, BarChart2, GraduationCap, PartyPopper, MessageSquare, CloudOff, Shield, Smartphone, Copy, Activity, ChevronRight, Clock3, Download, Filter, Eye, ListFilter, PawPrint, Shirt } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { logAdminAction } from "../lib/adminAudit.js";
+import { listAdminRoles, setAdminRole, removeAdminRole, myAdminRole, READ_ONLY_MESSAGE } from "../lib/adminRoles.js";
 import { safeUrl } from "../lib/safeUrl.js";
 import { LEGEND } from "../data/schedule.js";
 import snapshotMeta from "../data/snapshot-meta.json";
@@ -149,9 +150,14 @@ function AdminModal({ title, onClose, width = 640, subtitle, children }) {
 // until an UPDATE exceeds the 8s statement_timeout ("canceling statement due to
 // statement timeout"). Used both when snapshotting for history and when loading a
 // past version back into the editor.
+// `adminRoles` is stripped too, for a different reason: it moved out of this
+// blob to public.admins because it was world-readable there. Old snapshots
+// still carry a copy, and restoring one would republish the roster publicly and
+// resurrect roles the database no longer honours. Any future key added to
+// `flags` that is bookkeeping rather than config belongs in this list.
 function stripHistoryKeys(flags) {
   if (!flags) return flags;
-  const { configHistory: _h, scheduledConfigDeploys: _q, ...rest } = flags;
+  const { configHistory: _h, scheduledConfigDeploys: _q, adminRoles: _r, ...rest } = flags;
   return rest;
 }
 
@@ -606,6 +612,37 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
   const admin_id = user?.id || user?.user_id || "unknown";
 
+  // ── Admin roles ──
+  // Roles moved off flags.adminRoles (world-readable, client-enforced) onto
+  // public.admins, which students cannot read and Postgres actually enforces.
+  // These two pieces of state are UX only: they decide what to disable, never
+  // what is allowed. can_write_config() is the real gate, so a stale value here
+  // costs an admin a confusing error, not unauthorised access.
+  const [adminRoster, setAdminRoster] = useState([]);
+  const [myRole, setMyRole] = useState(null);
+  const isReadOnlyAdmin = myRole === "monitor";
+
+  async function fetchAdminRoles() {
+    const [roster, mine] = await Promise.all([listAdminRoles(), myAdminRole()]);
+    return { roster, mine };
+  }
+  async function refreshAdminRoles() {
+    try {
+      const { roster, mine } = await fetchAdminRoles();
+      setAdminRoster(roster);
+      setMyRole(mine);
+    } catch (e) {
+      console.warn("Could not load admin roles:", e.message);
+    }
+  }
+  useEffect(() => {
+    let alive = true;
+    fetchAdminRoles()
+      .then(({ roster, mine }) => { if (!alive) return; setAdminRoster(roster); setMyRole(mine); })
+      .catch((e) => console.warn("Could not load admin roles:", e.message));
+    return () => { alive = false; };
+  }, []);
+
   // Realtime presence — who else is in the admin panel right now
   useEffect(() => {
     const ch = supabase.channel("admin-presence", { config: { presence: { key: admin_id } } });
@@ -902,9 +939,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   }, [changesCount]);
 
   async function saveConfig({ force = false } = {}) {
-    if (flags.adminRoles && flags.adminRoles[admin_id] === "monitor") {
-       return alert("You only have 'Monitor' access. Configuration changes are disabled for your role.");
-    }
+    // Courtesy check only — RLS refuses a monitor's UPDATE regardless, which
+    // surfaces below as a 0-row write rather than an error.
+    if (isReadOnlyAdmin) return alert(READ_ONLY_MESSAGE);
     setSaving(true);
     setSaveMsg("");
     try {
@@ -979,13 +1016,24 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       }
 
       if (conflicted) {
-        // Fetch the current updated_at so the admin can force-overwrite in one click
+        // A zero-row UPDATE has two very different causes now that RLS gates
+        // writes by role: someone else deployed (the row moved on), or the
+        // policy refused us (the row did not move at all). Telling them apart
+        // matters — offering Force Deploy to a monitor sends them round a loop
+        // that can never succeed.
         const { data: cur } = await supabase
           .from("system_config").select("updated_at").eq("id", "global").single();
-        const when = cur?.updated_at ? new Date(cur.updated_at).toLocaleTimeString() : "just now";
-        if (cur?.updated_at) setLoadedUpdatedAt(cur.updated_at); // sync so force-deploy works
-        setSaveMsg(`⚠ Another deploy happened at ${when}. Force deploy to overwrite.`);
-        setForceDeployReady(true);
+        const rowUnchanged = cur?.updated_at && cur.updated_at === loadedUpdatedAt;
+        if (rowUnchanged) {
+          setSaveMsg(`⚠ ${READ_ONLY_MESSAGE}`);
+          setForceDeployReady(false);
+          refreshAdminRoles(); // our cached role was evidently wrong
+        } else {
+          const when = cur?.updated_at ? new Date(cur.updated_at).toLocaleTimeString() : "just now";
+          if (cur?.updated_at) setLoadedUpdatedAt(cur.updated_at); // sync so force-deploy works
+          setSaveMsg(`⚠ Another deploy happened at ${when}. Force deploy to overwrite.`);
+          setForceDeployReady(true);
+        }
       } else if (error) {
         setSaveMsg("Failed: " + error.message);
       } else {
@@ -1484,17 +1532,30 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   }
 
   // ── Admin roles editor ──
-  function saveAdminRole() {
+  // Roles write straight through to public.admins now, so they take effect
+  // immediately instead of being staged until the next config Deploy. That is
+  // the point: a role that only applies after a deploy is a role that does not
+  // apply during the window you most need it to.
+  async function saveAdminRole() {
     const id = roleUserId.trim();
     if (!id) return alert("Enter a user ID.");
-    setFlags({ ...flags, adminRoles: { ...(flags.adminRoles || {}), [id]: roleValue } });
-    setRoleUserId("");
+    try {
+      await setAdminRole(id, roleValue);
+      setRoleUserId("");
+      await refreshAdminRoles();
+    } catch (e) {
+      alert(`Could not set role: ${e.message}`);
+    }
   }
-  function removeAdminRole(id) {
+  async function revokeAdminRole(id) {
     if (!confirm(`Remove admin access for ${id}?`)) return;
-    const next = { ...(flags.adminRoles || {}) };
-    delete next[id];
-    setFlags({ ...flags, adminRoles: next });
+    try {
+      await removeAdminRole(id);
+      await refreshAdminRoles();
+    } catch (e) {
+      // The last-superadmin guard lands here, and its message is the useful one.
+      alert(`Could not remove role: ${e.message}`);
+    }
   }
 
   // ── Push to an explicit set of user IDs (bulk "Push Selected" + re-engagement) ──
@@ -5065,9 +5126,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               <button className="admin-btn primary" style={{ flex: "0 0 auto", marginBottom: 10 }} onClick={saveAdminRole}>Grant</button>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
-              {Object.keys(flags.adminRoles || {}).length === 0 ? (
+              {adminRoster.length === 0 ? (
                 <div className="admin-empty">No admin roles assigned.</div>
-              ) : Object.entries(flags.adminRoles).map(([id, role]) => {
+              ) : adminRoster.map(({ user_id: id, role }) => {
                 const u = allUsers.find(x => x.user_id === id);
                 return (
                   <div key={id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)" }}>
@@ -5077,7 +5138,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10, background: "rgba(109,91,208,0.12)", color: "var(--violet)" }}>{role}</span>
-                      <button onClick={() => removeAdminRole(id)} className="admin-btn danger" style={{ padding: "4px 8px" }}><Trash2 size={14} /></button>
+                      <button onClick={() => revokeAdminRole(id)} className="admin-btn danger" style={{ padding: "4px 8px" }}><Trash2 size={14} /></button>
                     </div>
                   </div>
                 );
@@ -6172,13 +6233,16 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             <div className="admin-user-xray-grid">
               <section className="admin-user-xray-section">
                 <h3>Access role</h3>
-                <p>Changes are staged until the admin configuration is deployed.</p>
-                <select className="admin-input" value={flags.adminRoles?.[selectedUser.user_id] || "user"} onChange={e => {
+                <p>Applies immediately — role changes no longer wait for a config deploy.</p>
+                <select className="admin-input" value={adminRoster.find(r => r.user_id === selectedUser.user_id)?.role || "user"} onChange={async e => {
                     const role = e.target.value;
-                    const nextRoles = { ...(flags.adminRoles || {}) };
-                    if (role === "user") delete nextRoles[selectedUser.user_id];
-                    else nextRoles[selectedUser.user_id] = role;
-                    setFlags({...flags, adminRoles: nextRoles});
+                    try {
+                      if (role === "user") await removeAdminRole(selectedUser.user_id);
+                      else await setAdminRole(selectedUser.user_id, role);
+                      await refreshAdminRoles();
+                    } catch (err) {
+                      alert(`Could not change role: ${err.message}`);
+                    }
                  }}>
                     <option value="user">Standard User</option>
                     <option value="monitor">Monitor (Read-only Admin)</option>
@@ -6538,7 +6602,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             <section className="admin-user-xray-danger">
               <div><h3>Reset onboarding</h3><p>Clears the saved course setup. The user must configure TermFlow again.</p></div>
                 <button onClick={async () => {
-                  if (flags.adminRoles && flags.adminRoles[admin_id] === "monitor") return alert("You don't have permission to reset user setups.");
+                  if (isReadOnlyAdmin) return alert(READ_ONLY_MESSAGE);
                   if (typedConfirm("RESET", `Reset ${selectedUser.name || "this user"}'s setup? They will have to onboard again.`)) {
                     await supabase.from("profiles").update({ courses: null }).eq("user_id", selectedUser.user_id);
                     await logAdminAction(admin_id, "reset_user_setup", { target_user: selectedUser.user_id });
@@ -7227,7 +7291,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     return null;
                   })();
                   const isPush = (pushSubscribersList || []).includes(u.user_id);
-                  const role = flags.adminRoles?.[u.user_id];
+                  const role = adminRoster.find(r => r.user_id === u.user_id)?.role;
                   const courseCount = Object.keys(u.courses || {}).length;
                   const initials = (u.name || "?").split(" ").map(w => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "U";
                   
