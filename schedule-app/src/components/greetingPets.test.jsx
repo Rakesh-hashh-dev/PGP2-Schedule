@@ -1,7 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
-import { PETS, dayKey, getPetByKey, getPetOfTheDay } from "./greetingPets.jsx";
+import { PETS, ROTATION, ROTATION_EXCLUDED, dayKey, getPetByKey, getPetOfTheDay } from "./greetingPets.jsx";
+import PetHat from "./PetHat.jsx";
+import PetNeckwear from "./PetNeckwear.jsx";
+import { HATS, NECKWEAR, MOODS } from "../lib/pet.js";
 
 describe("PETS registry", () => {
   it("has unique keys", () => {
@@ -66,9 +69,23 @@ describe("getPetOfTheDay", () => {
     }
   });
 
-  it("rotates — a year of days covers every pet and does not stick", () => {
+  // The rotation is what someone sees BEFORE they adopt, so it must not hand
+  // over the pets that are the reason to keep levelling.
+  it("never offers a premium companion as the pet of the day", () => {
+    for (let i = 0; i < 400; i++) {
+      const key = getPetOfTheDay(new Date(2026, 0, 1 + i)).key;
+      expect(ROTATION_EXCLUDED, `${key} was offered for free`).not.toContain(key);
+    }
+  });
+
+  it("keeps the rotation in roster order, so one list adds a companion", () => {
+    expect(ROTATION.map(p => p.key))
+      .toEqual(PETS.map(p => p.key).filter(k => !ROTATION_EXCLUDED.includes(k)));
+  });
+
+  it("rotates — a year of days covers every rotating pet and does not stick", () => {
     const year = Array.from({ length: 365 }, (_, i) => getPetOfTheDay(new Date(2026, 0, 1 + i)).key);
-    expect(new Set(year).size).toBe(PETS.length);
+    expect(new Set(year).size).toBe(ROTATION.length);
     const longestRun = year.reduce((acc, key) => {
       const run = key === acc.prev ? acc.run + 1 : 1;
       return { prev: key, run, max: Math.max(acc.max, run) };
@@ -92,10 +109,10 @@ describe("dayKey", () => {
 // exists to prevent, and it is invisible from the roster.
 describe("signature micro-motion", () => {
   const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
-  // Spark and Leafy are excluded on purpose: their staged sequences are what
-  // reaching level 11 and 12 buys, and a signature on everything would flatten
-  // that back out.
-  const PREMIUM = ["spark", "leafy"];
+  // The four premium companions are excluded on purpose: their staged
+  // sequences are what reaching level 11-12, or devotion 4 and 8, buys, and a
+  // signature on everything would flatten that back out.
+  const PREMIUM = ["spark", "leafy", "nova", "cinder"];
 
   it("gives every non-premium pet one", () => {
     for (const pet of PETS) {
@@ -135,5 +152,109 @@ describe("signature micro-motion", () => {
     expect(first).toBeGreaterThan(-1);
     expect(first).toBeLessThan(css.indexOf("@media (prefers-reduced-motion: reduce)"));
     expect(first).toBeLessThan(css.indexOf('.dg-pet[data-motion="off"],'));
+  });
+});
+
+// A mood is carried almost entirely by posture: the ears (or the wings, which
+// rotate to the same droop) plus eye openness and the body drop. A pet with
+// neither ears nor wings therefore has sixteen moods that look like one — which
+// is exactly what shipped for the penguin, the chick and Rover. Eyes and drop
+// alone are not enough; this asserts the rotating part exists.
+describe("mood posture", () => {
+  it("gives every pet a part that carries the droop", () => {
+    for (const pet of PETS) {
+      const html = renderToStaticMarkup(<pet.Svg />);
+      const hasEars = html.includes("dg-pet-ear-left") && html.includes("dg-pet-ear-right");
+      const hasWings = html.includes("dg-pet-wing-left") && html.includes("dg-pet-wing-right");
+      expect(hasEars || hasWings, `${pet.key} has no ears or wings to droop`).toBe(true);
+    }
+  });
+
+  it("backs the wing droop with the shared variable", () => {
+    const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+    expect(css, "wings no longer read --pet-wing-droop").toMatch(/--pet-wing-droop:/);
+    expect(css.match(/@keyframes dgPetWing(Left|Right) \{[^}]*\}/g)?.join(""))
+      .toContain("--pet-wing-droop");
+  });
+});
+
+// A wearable in the registry with no art renders an empty swatch and an empty
+// pet — no error, nothing in the console, just a hat that does nothing. Eight
+// hats and five collars were added at once; this is the check that they all
+// actually exist.
+describe("wardrobe art", () => {
+  it("draws every hat in the registry", () => {
+    for (const hat of HATS) {
+      const html = renderToStaticMarkup(<PetHat hat={hat.key} />);
+      expect(html, `no art for the ${hat.key} hat`).toContain("<svg");
+    }
+  });
+
+  it("draws every collar in the registry", () => {
+    for (const neck of NECKWEAR) {
+      const html = renderToStaticMarkup(<PetNeckwear neck={neck.key} />);
+      expect(html, `no art for the ${neck.key} collar`).toContain("<svg");
+    }
+  });
+
+  it("renders nothing for a key it does not know", () => {
+    expect(renderToStaticMarkup(<PetHat hat="not-a-hat" />)).toBe("");
+    expect(renderToStaticMarkup(<PetNeckwear neck="not-a-collar" />)).toBe("");
+  });
+});
+
+// The premium companions have a staged flourish instead of a signature, and it
+// used to be retimed by three moods out of seventeen through six long selector
+// lists. Nova and Cinder shipped with classes nobody had added to those lists,
+// so their orbits and flames ran at one speed no matter what mood the pet was
+// in. Both are now scaled by `--pet-tempo`; these are the checks that keep it
+// that way when the next companion is drawn.
+describe("premium flourish timing", () => {
+  const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+  // The two premium sections only — the sleep cue and the signatures that
+  // follow them are shared with the whole roster and retimed their own way.
+  const premiumBlock = css.slice(
+    css.indexOf("Spark & Leafy: the premium companions"),
+    css.indexOf("/* Neckwear overlay."),
+  );
+
+  it("scales every flourish animation by the tempo", () => {
+    // Reaction beats and the care taps are one-shots, not loops: they fire once
+    // and are deliberately the same speed whatever the mood.
+    const loops = [...premiumBlock.matchAll(/^\.dg-pet-[a-z-]+ \{[^}]*animation[^}]*infinite[^}]*\}/gm)];
+    expect(loops.length).toBeGreaterThan(10);
+    for (const [rule] of loops) {
+      expect(rule, `flourish rule not scaled by --pet-tempo: ${rule.slice(0, 60)}`)
+        .toContain("var(--pet-tempo)");
+    }
+  });
+
+  it("gives every mood a tempo", () => {
+    for (const mood of MOODS) {
+      if (mood === "content") continue;  // the baseline, deliberately no rules
+      const at = css.indexOf(`.dg-pet[data-mood="${mood}"] {`);
+      const block = css.slice(at, css.indexOf("}", at));
+      expect(block, `[data-mood="${mood}"] sets no --pet-tempo`).toContain("--pet-tempo");
+    }
+  });
+
+  it("keeps the tempo pointing the same way as the pet's own idle", () => {
+    // A mood that bobs slower must not run the flourish faster.
+    const rows = MOODS.filter(m => m !== "content").map(mood => {
+      const at = css.indexOf(`.dg-pet[data-mood="${mood}"] {`);
+      const block = css.slice(at, css.indexOf("}", at));
+      return {
+        mood,
+        bob: Number(/animation-duration:\s*([\d.]+)s/.exec(block)?.[1]),
+        tempo: Number(/--pet-tempo:\s*([\d.]+)/.exec(block)?.[1]),
+      };
+    });
+    for (const { mood, bob, tempo } of rows) {
+      expect(Number.isFinite(bob) && Number.isFinite(tempo), `${mood} is missing a number`).toBe(true);
+      // Within a factor of two of the bob's own ratio against the 2.9s base.
+      const ratio = bob / 2.9;
+      expect(tempo, `${mood}: tempo ${tempo} fights its ${bob}s idle`).toBeGreaterThan(ratio / 2);
+      expect(tempo, `${mood}: tempo ${tempo} fights its ${bob}s idle`).toBeLessThan(ratio * 2);
+    }
   });
 });

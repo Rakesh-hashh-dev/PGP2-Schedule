@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-// One-off idle "beats" — a stretch, a yawn, a head tilt.
+// One-off idle "beats" — a stretch, yawn, sniff, wiggle, or curious peek.
 //
 // Every other pet animation is an infinite loop, which is what makes a pet on
 // screen for ten minutes start to read as a GIF. A beat is the opposite: rare,
@@ -9,25 +9,28 @@ import { useEffect, useState } from "react";
 // yawns, an excited one bounces — and "content" gets the widest range because
 // it is the mood you spend the most time looking at.
 const BEATS = {
-  celebrating: ["bounce", "shake"],
-  proud: ["perk", "bounce"],
-  excited: ["bounce", "shake", "perk"],
-  focused: ["perk", "tilt"],
-  restless: ["shake", "perk", "tilt"],
-  happy: ["bounce", "tilt", "stretch"],
-  content: ["stretch", "tilt", "shake", "perk"],
-  relaxed: ["stretch", "tilt", "yawn"],
+  celebrating: ["bounce", "shake", "wiggle"],
+  proud: ["perk", "bounce", "peek"],
+  excited: ["bounce", "shake", "perk", "wiggle"],
+  focused: ["perk", "peek"],
+  restless: ["shake", "perk", "tilt", "sniff"],
+  playful: ["bounce", "shake", "stretch", "wiggle"],
+  happy: ["bounce", "tilt", "stretch", "sniff"],
+  curious: ["perk", "tilt", "peek", "sniff"],
+  content: ["stretch", "tilt", "shake", "perk", "sniff"],
+  relaxed: ["stretch", "tilt", "yawn", "peek"],
+  cozy: ["stretch", "yawn", "peek"],
   tired: ["yawn", "stretch"],
   sleepy: ["yawn"],
-  bored: ["tilt", "stretch", "yawn"],
-  missing: ["tilt", "perk"],
+  bored: ["tilt", "stretch", "yawn", "sniff"],
+  missing: ["tilt", "perk", "peek"],
 };
 
 /** Bounds on the gap between beats. Long enough that two never feel paired. */
 const GAP_MIN_MS = 24_000;
 const GAP_MAX_MS = 62_000;
 /** Must outlast the longest beat keyframe in styles.css. */
-const BEAT_MS = 1_400;
+const BEAT_MS = 1_600;
 
 /**
  * The beat the pet should be playing right now, or `""`.

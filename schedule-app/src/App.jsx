@@ -16,6 +16,7 @@ import Onboarding from "./components/Onboarding.jsx";
 import WeatherWidget from "./components/WeatherWidget.jsx";
 import TomorrowSummary from "./components/TomorrowSummary.jsx";
 import MessCard from "./components/MessCard.jsx";
+import PetCameo from "./components/PetCameo.jsx";
 import GlanceView from "./components/GlanceView.jsx";
 import "./styles/wrapped.css"; // Wrapped entry-banner styles must exist on Today before the lazy view loads
 import { MessMenuStandalone } from "./components/MessMenuModal.jsx";
@@ -3168,6 +3169,18 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                         <div className="tmrw-free-title">No classes today!</div>
                                         <div className="tmrw-free-sub">Enjoy your free time.</div>
                                       </div>
+                                      {/* The companion has a mood for exactly this day — "relaxed"
+                                          before three, "cozy" after — and nowhere to show it until now. */}
+                                      {enableCompanion && (
+                                        <PetCameo
+                                          pet={myPet}
+                                          now={now}
+                                          petContext={petContext}
+                                          petSettings={sysConfig?.flags?.greetingPets}
+                                          size={52}
+                                          className="tmrw-free-pet"
+                                        />
+                                      )}
                                     </div>
                                 : <>
                                       <MarkPrompt list={todayList} now={now} attendance={attendance} markAttendance={markAttendance} />
@@ -3195,9 +3208,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           {/* Floating Schedule button & Modal for wide-content views —
               the docked agenda is hidden there so the wide content gets the full
               row; desktop only (.fr-agenda-fab is display:none below 900px) */}
-          {(view === "friends" || view === "admin" || view === "week" || view === "wrapped") && (
+          {(view === "friends" || view === "admin" || view === "wrapped") && (
             <>
-              <button className={`fr-agenda-fab${view === "week" ? " week-fab" : ""}`} onClick={() => setShowFriendsAgenda(true)} title="View Schedule">
+              <button className="fr-agenda-fab" onClick={() => setShowFriendsAgenda(true)} title="View Schedule">
                 <Calendar size={22} />
               </button>
               {showFriendsAgenda && (

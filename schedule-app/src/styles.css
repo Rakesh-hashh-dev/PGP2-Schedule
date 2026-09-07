@@ -1300,13 +1300,48 @@ html[data-theme="dark"] .tabs-wrapper {
   z-index: 20;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   margin: 4px 0 0;
   padding-left: 2px;
   font-family: var(--display);
-  font-size: 22px;
+  font-size: 19px;
+  line-height: 1.25;
   font-weight: 600;
   color: var(--text);
+  letter-spacing: -0.012em;
+}
+
+.day-greeting-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.day-greeting .dg-pet {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  --pet-overlay-k: 1.3;
+  --pet-z: 11px;
+}
+
+.day-greeting .dg-pet-tray::before {
+  left: 27px;
+}
+
+@media (max-width: 480px) {
+  .day-greeting {
+    font-size: 17.5px;
+    gap: 10px;
+  }
+  .day-greeting .dg-pet {
+    width: 48px;
+    height: 48px;
+    --pet-overlay-k: 1.2;
+    --pet-z: 10px;
+  }
+  .day-greeting .dg-pet-tray::before {
+    left: 25px;
+  }
 }
 
 .day-greeting-ico {
@@ -1325,6 +1360,7 @@ html[data-theme="dark"] .tabs-wrapper {
 @property --pet-ear-droop { syntax: "<angle>"; inherits: true; initial-value: 0deg; }
 @property --pet-eye-open { syntax: "<number>"; inherits: true; initial-value: 1; }
 @property --pet-lean { syntax: "<angle>"; inherits: true; initial-value: 0deg; }
+@property --pet-drop { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --pet-aura { syntax: "<number>"; inherits: true; initial-value: 1; }
 @property --pet-sat { syntax: "<number>"; inherits: true; initial-value: 1; }
 @property --pet-dot { syntax: "<color>"; inherits: true; initial-value: #78c99d; }
@@ -1340,12 +1376,27 @@ html[data-theme="dark"] .tabs-wrapper {
   --pet-ear-droop: 0deg;
   --pet-eye-open: 1;
   --pet-lean: 0deg;
+  /* How far the whole animal settles on its feet. The lean was doing this job
+     alone at 2-3deg, which reads as nothing at 40px: a pet that visibly sags is
+     tired before you have read a single word of copy. One transform, no per-pet
+     art, so all fourteen get it. */
+  --pet-drop: 0px;
   --pet-aura: 1;
   --pet-sat: 1;
   --pet-dot: #78c99d;
   --pet-z: 9px;
   --pet-mood-gain: 1;
-  --pet-mood-tween: --pet-ear-droop 900ms ease, --pet-eye-open 900ms ease, --pet-lean 900ms ease, --pet-aura 900ms ease, --pet-sat 900ms ease, --pet-dot 900ms ease;
+  --pet-wing-droop: calc(var(--pet-ear-droop) * var(--pet-mood-gain) * .6);
+  /* How fast the premium companions' flourishes run — the sparks, vines, orbits
+     and flames that Spark, Leafy, Nova and Cinder have instead of a signature.
+     Each part keeps its OWN base duration and is multiplied by this, so a mood
+     slows the whole performance down without flattening it: Spark's static
+     still ticks faster than its bolts at every speed. Moods set it once; before
+     this, three moods out of seventeen retimed those parts with six long
+     selector lists, and Nova and Cinder — whose classes nobody had added to
+     those lists — never changed speed at all. */
+  --pet-tempo: 1;
+  --pet-mood-tween: --pet-ear-droop 900ms ease, --pet-eye-open 900ms ease, --pet-lean 900ms ease, --pet-drop 900ms ease, --pet-aura 900ms ease, --pet-sat 900ms ease, --pet-dot 900ms ease;
   position: relative;
   isolation: isolate;
   flex: none;
@@ -1385,8 +1436,8 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
   height: 100%;
   display: block;
   overflow: visible;
-  filter: saturate(calc(1.1 * var(--pet-sat))) contrast(1.045) drop-shadow(0 1px 0 color-mix(in srgb, #fff 20%, transparent));
-  transform: translateY(-.4px) rotate(calc(var(--pet-lean) * var(--pet-mood-gain)));
+  filter: var(--pet-coat, none) saturate(calc(1.1 * var(--pet-sat))) contrast(1.045) drop-shadow(0 1px 0 color-mix(in srgb, #fff 20%, transparent));
+  transform: translateY(calc(-.4px + calc(var(--pet-drop) * var(--pet-mood-gain)))) rotate(calc(var(--pet-lean) * var(--pet-mood-gain)));
 }
 .dg-pet-eyes {
   transform-box: fill-box;
@@ -1422,8 +1473,12 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 @keyframes dgPetEarLeft { 0%, 62%, 100% { transform: rotate(calc(var(--pet-ear-droop) * var(--pet-mood-gain))); } 68% { transform: rotate(calc(calc(var(--pet-ear-droop) * var(--pet-mood-gain)) - 11deg)); } 74% { transform: rotate(calc(calc(var(--pet-ear-droop) * var(--pet-mood-gain)) + 3deg)); } }
 @keyframes dgPetEarRight { 0%, 62%, 100% { transform: rotate(calc(calc(var(--pet-ear-droop) * var(--pet-mood-gain)) * -1)); } 68% { transform: rotate(calc(calc(var(--pet-ear-droop) * var(--pet-mood-gain)) * -1 + 11deg)); } 74% { transform: rotate(calc(calc(var(--pet-ear-droop) * var(--pet-mood-gain)) * -1 - 3deg)); } }
 @keyframes dgPetTail { 0%, 100% { transform: rotate(-5deg); } 32% { transform: rotate(9deg); } 66% { transform: rotate(-2deg); } }
-@keyframes dgPetWingLeft { 0%, 68%, 100% { transform: rotate(0); } 76% { transform: rotate(-17deg); } 84% { transform: rotate(5deg); } 91% { transform: rotate(-8deg); } }
-@keyframes dgPetWingRight { 0%, 68%, 100% { transform: rotate(0); } 76% { transform: rotate(17deg); } 84% { transform: rotate(-5deg); } 91% { transform: rotate(8deg); } }
+/* Wings flap around the same droop the ears rotate to. The penguin and the
+   chick have no ears, so before this their moods came down to timing and a
+   status dot - sixteen moods that looked like one. Scaled to .6 because a wing
+   is shorter than an ear and the full 27deg of "sleepy" would fold it flat. */
+@keyframes dgPetWingLeft { 0%, 68%, 100% { transform: rotate(var(--pet-wing-droop)); } 76% { transform: rotate(calc(var(--pet-wing-droop) - 17deg)); } 84% { transform: rotate(calc(var(--pet-wing-droop) + 5deg)); } 91% { transform: rotate(calc(var(--pet-wing-droop) - 8deg)); } }
+@keyframes dgPetWingRight { 0%, 68%, 100% { transform: rotate(calc(var(--pet-wing-droop) * -1)); } 76% { transform: rotate(calc(calc(var(--pet-wing-droop) * -1) + 17deg)); } 84% { transform: rotate(calc(calc(var(--pet-wing-droop) * -1) - 5deg)); } 91% { transform: rotate(calc(calc(var(--pet-wing-droop) * -1) + 8deg)); } }
 @keyframes dgPetTuft { 0%, 100% { transform: rotate(-3deg); } 44% { transform: rotate(4deg); } 70% { transform: rotate(-1deg); } }
 @keyframes dgPetAccessory { 0%, 100% { transform: translateY(0) rotate(0); } 52% { transform: translateY(.5px) rotate(3deg); } }
 /* ── Spark & Leafy: the premium companions ──────────────────────
@@ -1446,7 +1501,7 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
      56%     ZAP — ring bursts, bolts snap, ears flare, head jolts, glow peaks
      60–82%  the bolt tail flicks and settles; everything else eases back
    Bolts use steps(): no tweening — electricity, not a twinkle. */
-.dg-pet-charge { transform-box: fill-box; transform-origin: center; animation: dgPetCharge 2.4s ease-in-out infinite; }
+.dg-pet-charge { transform-box: fill-box; transform-origin: center; animation: dgPetCharge calc(2.4s * var(--pet-tempo)) ease-in-out infinite; }
 .dg-pet-charge-b { animation-delay: .08s; }
 @keyframes dgPetCharge {
   0%, 100% { opacity: .35; transform: scale(.8); }
@@ -1460,7 +1515,7 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 .dg-pet-spark {
   transform-box: fill-box;
   transform-origin: 50% 50%;
-  animation: dgPetBolt 2.4s steps(1, end) infinite;
+  animation: dgPetBolt calc(2.4s * var(--pet-tempo)) steps(1, end) infinite;
 }
 .dg-pet-spark-b { animation-delay: .05s; }
 .dg-pet-spark-c { animation-delay: .11s; }
@@ -1475,7 +1530,7 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 }
 /* Ear-tip static: short, irregular ticks on a clock that doesn't divide the
    beat, so the pattern drifts against it instead of repeating. */
-.dg-pet-static { transform-box: fill-box; transform-origin: 50% 50%; animation: dgPetStatic 1.3s steps(1, end) infinite; }
+.dg-pet-static { transform-box: fill-box; transform-origin: 50% 50%; animation: dgPetStatic calc(1.3s * var(--pet-tempo)) steps(1, end) infinite; }
 .dg-pet-static-b { animation-delay: .5s; }
 @keyframes dgPetStatic {
   0%, 70% { opacity: 0; transform: scale(.8); }
@@ -1485,7 +1540,7 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
   91%, 100% { opacity: 0; transform: scale(.8); }
 }
 /* The ring bursts from the head's centre in view-box units. */
-.dg-pet-zap { transform-box: view-box; transform-origin: 16px 17.5px; animation: dgPetZap 2.4s ease-out infinite; }
+.dg-pet-zap { transform-box: view-box; transform-origin: 16px 17.5px; animation: dgPetZap calc(2.4s * var(--pet-tempo)) ease-out infinite; }
 @keyframes dgPetZap {
   0%, 54% { opacity: 0; transform: scale(.78); }
   56% { opacity: .95; transform: scale(.84); }
@@ -1494,7 +1549,7 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 /* Head: the shared breathe, plus a crouch into a squash-and-stretch jolt on
    the beat. Sits beside .dg-pet-face so the face's mood and reaction
    retimes still reach it. */
-.dg-pet-zap-head { animation: dgPetZapHead 2.4s ease-in-out infinite; }
+.dg-pet-zap-head { animation: dgPetZapHead calc(2.4s * var(--pet-tempo)) ease-in-out infinite; }
 @keyframes dgPetZapHead {
   0%, 100% { transform: scale(1); }
   30% { transform: scale(1.02, .99); }
@@ -1506,8 +1561,8 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 }
 /* Ears pin back before the beat and flare out on it. Built on the same
    droop variable as the shared twitch so every mood still lands. */
-.dg-pet-zap-ear-l { animation: dgPetZapEarL 2.4s ease-in-out infinite; }
-.dg-pet-zap-ear-r { animation: dgPetZapEarR 2.4s ease-in-out infinite; }
+.dg-pet-zap-ear-l { animation: dgPetZapEarL calc(2.4s * var(--pet-tempo)) ease-in-out infinite; }
+.dg-pet-zap-ear-r { animation: dgPetZapEarR calc(2.4s * var(--pet-tempo)) ease-in-out infinite; }
 @keyframes dgPetZapEarL {
   0%, 44%, 76%, 100% { transform: rotate(calc(var(--pet-ear-droop) * var(--pet-mood-gain))); }
   52% { transform: rotate(calc(calc(var(--pet-ear-droop) * var(--pet-mood-gain)) + 7deg)); }
@@ -1522,7 +1577,7 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 }
 /* Tail: a lazy wag until the beat, then the flick. Replaces the shared wag
    for Spark only; the shared class stays on the element for the retimes. */
-.dg-pet-bolt-tail { animation: dgPetBoltTail 2.4s cubic-bezier(.2, .9, .3, 1) infinite; }
+.dg-pet-bolt-tail { animation: dgPetBoltTail calc(2.4s * var(--pet-tempo)) cubic-bezier(.2, .9, .3, 1) infinite; }
 @keyframes dgPetBoltTail {
   0%, 100% { transform: rotate(-3deg); }
   28% { transform: rotate(3deg); }
@@ -1537,27 +1592,86 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 /* Leafy — a 4.4s cycle. The bulb breathes light the whole time, a sheen
    sweeps across it, spores lift off and fade, and once per cycle each vine
    extends, cracks and retracts. The lash is an event, not a wiggle. */
-.dg-pet-glow { transform-box: fill-box; transform-origin: center; animation: dgPetGlow 4.4s ease-in-out infinite; }
+.dg-pet-glow { transform-box: fill-box; transform-origin: center; animation: dgPetGlow calc(4.4s * var(--pet-tempo)) ease-in-out infinite; }
 @keyframes dgPetGlow { 0%, 100% { opacity: .4; transform: scale(.9); } 50% { opacity: .9; transform: scale(1.1); } }
-.dg-pet-sheen { animation: dgPetSheen 4.4s ease-in-out infinite; }
+.dg-pet-sheen { animation: dgPetSheen calc(4.4s * var(--pet-tempo)) ease-in-out infinite; }
 @keyframes dgPetSheen {
   0%, 100% { opacity: 0; transform: translateX(-7px); }
   30% { opacity: .38; }
   60% { opacity: 0; transform: translateX(9px); }
 }
-.dg-pet-spore { transform-box: fill-box; transform-origin: center; animation: dgPetSpore 3.6s ease-out infinite; }
+.dg-pet-spore { transform-box: fill-box; transform-origin: center; animation: dgPetSpore calc(3.6s * var(--pet-tempo)) ease-out infinite; }
 .dg-pet-spore-b { animation-delay: 1.2s; }
-.dg-pet-spore-c { animation-delay: 2.3s; animation-duration: 3s; }
+.dg-pet-spore-c { animation-delay: 2.3s; animation-duration: calc(3s * var(--pet-tempo)); }
 @keyframes dgPetSpore {
   0%, 12% { opacity: 0; transform: translate(0, 1.5px) rotate(0) scale(.7); }
   35% { opacity: .95; }
   100% { opacity: 0; transform: translate(1.6px, -6px) rotate(40deg) scale(1.05); }
 }
+/* ── Nova & Cinder: the devotion companions ─────────────────────
+   Earned past the level cap, so they answer to the same brief as Spark and
+   Leafy: a staged sequence rather than the roster's one quiet loop, authored in
+   its finished visible state so the reduced-motion guard leaves a complete pet.
+
+   Same selector discipline as that block — every animating rule here is a
+   single class at (0,1,0), sitting BEFORE both motion guards, so
+   `animation: none` still wins for anyone who asked for stillness. Moods retime
+   them through their own `[data-mood] .part` rules. */
+
+/* Nova. Three stars on separate orbits, a coat that twinkles out of phase with
+   itself, and a comet tail that drifts rather than wags. */
+.dg-pet-orbit { transform-box: view-box; transform-origin: 16px 17.4px; animation: dgPetOrbit calc(14s * var(--pet-tempo)) linear infinite; }
+.dg-pet-orbit-b { animation-duration: calc(19s * var(--pet-tempo)); animation-direction: reverse; }
+.dg-pet-orbit-c { animation-duration: calc(11s * var(--pet-tempo)); animation-delay: -4s; }
+@keyframes dgPetOrbit { to { transform: rotate(360deg); } }
+
+.dg-pet-twinkle { transform-box: fill-box; transform-origin: center; animation: dgPetTwinkle calc(3.1s * var(--pet-tempo)) ease-in-out infinite; }
+.dg-pet-twinkle-b { animation-duration: calc(4.3s * var(--pet-tempo)); animation-delay: -1.4s; }
+.dg-pet-twinkle-c { animation-duration: calc(2.6s * var(--pet-tempo)); animation-delay: -.7s; }
+@keyframes dgPetTwinkle {
+  0%, 100% { opacity: .35; transform: scale(.8); }
+  45% { opacity: 1; transform: scale(1.25); }
+}
+
+.dg-pet-comet { transform-box: fill-box; transform-origin: 0 50%; animation: dgPetComet calc(5.4s * var(--pet-tempo)) ease-in-out infinite; }
+@keyframes dgPetComet {
+  0%, 100% { transform: rotate(-3deg) translateX(0); }
+  50% { transform: rotate(4deg) translateX(.5px); }
+}
+
+/* Cinder. The flame never repeats: the tongues run on three coprime clocks, so
+   the shape they add up to takes most of a minute to come round again. */
+.dg-pet-flame { transform-box: fill-box; transform-origin: 10% 90%; animation: dgPetFlame calc(2.3s * var(--pet-tempo)) ease-in-out infinite; }
+@keyframes dgPetFlame {
+  0%, 100% { transform: rotate(-2deg) scaleY(1); }
+  38% { transform: rotate(3deg) scaleY(1.08); }
+  71% { transform: rotate(-1deg) scaleY(.96); }
+}
+.dg-pet-flicker { transform-box: fill-box; transform-origin: 50% 100%; animation: dgPetFlicker calc(1.1s * var(--pet-tempo)) ease-in-out infinite; }
+.dg-pet-flicker-b { animation-duration: calc(.7s * var(--pet-tempo)); animation-delay: -.3s; }
+@keyframes dgPetFlicker {
+  0%, 100% { transform: scaleY(1) translateY(0); opacity: .85; }
+  40% { transform: scaleY(1.22) translateY(-.4px); opacity: 1; }
+  70% { transform: scaleY(.92) translateY(.2px); opacity: .7; }
+}
+.dg-pet-ember { transform-box: fill-box; transform-origin: center; animation: dgPetEmber calc(3.4s * var(--pet-tempo)) ease-out infinite; }
+.dg-pet-ember-b { animation-delay: 1.1s; animation-duration: calc(2.8s * var(--pet-tempo)); }
+.dg-pet-ember-c { animation-delay: 2.2s; animation-duration: calc(3.9s * var(--pet-tempo)); }
+@keyframes dgPetEmber {
+  0%, 10% { opacity: 0; transform: translateY(1.5px) scale(.6); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-7px) translateX(1.2px) scale(1.1); }
+}
+.dg-pet-heat { transform-box: fill-box; transform-origin: center; animation: dgPetHeat calc(3.8s * var(--pet-tempo)) ease-in-out infinite; }
+@keyframes dgPetHeat {
+  0%, 100% { transform: scale(.95); opacity: .55; }
+  50% { transform: scale(1.05); opacity: .85; }
+}
 /* The group swings from its root with a wind-up, a fast crack and a settling
    overshoot; the stroke inside draws out along its normalised length
    (pathLength="1", so the dash needs no measuring) and pulls back in at the
    end of the cycle; the leaf at the tip fades with it. */
-.dg-pet-whip { transform-box: fill-box; animation: dgPetWhip 4.4s cubic-bezier(.2, .9, .25, 1) infinite; }
+.dg-pet-whip { transform-box: fill-box; animation: dgPetWhip calc(4.4s * var(--pet-tempo)) cubic-bezier(.2, .9, .25, 1) infinite; }
 .dg-pet-whip-left { transform-origin: 100% 0; }
 .dg-pet-whip-right { transform-origin: 0 0; animation-delay: 2.2s; }
 @keyframes dgPetWhip {
@@ -1569,8 +1683,8 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
   29% { transform: rotate(-2deg); }
   36% { transform: rotate(0deg); }
 }
-.dg-pet-vine { stroke-dashoffset: 0; animation: dgPetVine 4.4s ease-out infinite; }
-.dg-pet-vine-leaf { animation: dgPetVineLeaf 4.4s ease-out infinite; }
+.dg-pet-vine { stroke-dashoffset: 0; animation: dgPetVine calc(4.4s * var(--pet-tempo)) ease-out infinite; }
+.dg-pet-vine-leaf { animation: dgPetVineLeaf calc(4.4s * var(--pet-tempo)) ease-out infinite; }
 .dg-pet-vine-b { animation-delay: 2.2s; }
 @keyframes dgPetVine { 0%, 100% { stroke-dashoffset: 1; } 9%, 86% { stroke-dashoffset: 0; } }
 @keyframes dgPetVineLeaf { 0%, 100% { opacity: 0; } 9%, 86% { opacity: 1; } }
@@ -1629,6 +1743,9 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 .dg-pet:where([data-beat="tilt"]) { animation: dgPetBeatTilt 1200ms ease-in-out both; }
 .dg-pet:where([data-beat="stretch"]) { animation: dgPetBeatStretch 1200ms ease-in-out both; }
 .dg-pet:where([data-beat="yawn"]) { animation: dgPetBeatYawn 1300ms ease-in-out both; }
+.dg-pet:where([data-beat="sniff"]) { animation: dgPetBeatSniff 1100ms cubic-bezier(.28,.82,.32,1) both; }
+.dg-pet:where([data-beat="wiggle"]) { animation: dgPetBeatWiggle 1250ms cubic-bezier(.22,.88,.3,1) both; }
+.dg-pet:where([data-beat="peek"]) { animation: dgPetBeatPeek 1400ms cubic-bezier(.25,.82,.32,1) both; }
 @keyframes dgPetBeatBounce {
   0%, 100% { transform: translateY(0) scale(1); }
   18% { transform: translateY(1px) scale(1.06, .94); }
@@ -1657,6 +1774,27 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
   26% { transform: translateY(1.5px) scale(1.07, .9); }
   56% { transform: translateY(-2px) scale(.93, 1.09); }
   78% { transform: translateY(0) scale(1.02, .98); }
+}
+/* Brief, irregular personality beats. These act on the outer button only, so
+   they work for every species without hiding its tail, ears, gills, or hat. */
+@keyframes dgPetBeatSniff {
+  0%, 100% { transform: translate(0) rotate(0) scale(1); }
+  20% { transform: translateX(.8px) translateY(-1px) rotate(2deg) scale(1.015); }
+  42% { transform: translateX(-.7px) translateY(-1.8px) rotate(-2deg) scale(1.025); }
+  66% { transform: translateX(.35px) translateY(-.5px) rotate(1deg) scale(1.01); }
+}
+@keyframes dgPetBeatWiggle {
+  0%, 100% { transform: translateY(0) rotate(0) scale(1); }
+  18% { transform: translateY(1px) rotate(-5deg) scale(1.035,.96); }
+  38% { transform: translateY(-3px) rotate(6deg) scale(.98,1.05); }
+  58% { transform: translateY(-1px) rotate(-4deg) scale(1.02,.98); }
+  78% { transform: translateY(-2px) rotate(2deg) scale(1.005); }
+}
+@keyframes dgPetBeatPeek {
+  0%, 100% { transform: translateX(0) translateY(0) rotate(0); }
+  26% { transform: translateX(2.5px) translateY(-1px) rotate(7deg); }
+  52% { transform: translateX(2px) translateY(-1.5px) rotate(8deg); }
+  74% { transform: translateX(.5px) translateY(-.2px) rotate(2deg); }
 }
 /* A yawn at 40px is a shape, not a mouth: the whole animal swells, rocks back,
    and the eyes squeeze shut on the same beat. */
@@ -1692,6 +1830,65 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
    Heads are not interchangeable: the cat crowns at y=8, the robot's flat top
    at y=10, the leafy's low ellipse at y=13. The art below is drawn against a
    canonical head topping out at y=8 and every pet declares its own offset. */
+/* Neckwear overlay. Same layering rules as the hat above, and the same reason
+   for the descendant selector: `.dg-pet svg` is (0,1,1) and would otherwise lay
+   this out as a second block under the pet. */
+.dg-pet .dg-pet-neck {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  width: auto;
+  height: auto;
+  translate: calc(var(--pet-neck-x, 0px) * var(--pet-overlay-k, 1)) calc(var(--pet-neck-y, 0px) * var(--pet-overlay-k, 1));
+  scale: var(--pet-neck-scale, 1);
+  transform-origin: 50% 78%;
+  pointer-events: none;
+}
+
+/* A worn collar replaces the one the pet is drawn with, rather than stacking on
+   top of it. */
+.dg-pet[data-neck] .dg-pet-accessory { display: none; }
+
+/* Where each pet's neck actually is, against the canonical y=23.2 the neckwear
+   is drawn for. Measured from each pet's own collar rather than eyeballed (the
+   bounding-box pass in scripts/pet-sheet.mjs). The three pets whose
+   `.dg-pet-accessory` is NOT a collar — the koala's sprig, Rover's antenna,
+   Leafy's bloom — are set from their body geometry instead. */
+.dg-pet[data-pet="cat"] { --pet-neck-y: .8px; }
+.dg-pet[data-pet="fox"] { --pet-neck-y: 2.2px; }
+.dg-pet[data-pet="dog"] { --pet-neck-y: 1.2px; }
+.dg-pet[data-pet="bunny"] { --pet-neck-y: .4px; }
+.dg-pet[data-pet="penguin"] { --pet-neck-y: -1.6px; }
+.dg-pet[data-pet="panda"] { --pet-neck-y: -.8px; }
+.dg-pet[data-pet="chick"] { --pet-neck-y: -1.1px; }
+.dg-pet[data-pet="koala"] { --pet-neck-y: 2.2px; }
+.dg-pet[data-pet="otter"] { --pet-neck-y: 1.7px; }
+.dg-pet[data-pet="rover"] { --pet-neck-y: -3px; --pet-neck-scale: .92; }
+.dg-pet[data-pet="raccoon"] { --pet-neck-y: 1.8px; }
+.dg-pet[data-pet="axolotl"] { --pet-neck-y: .9px; }
+.dg-pet[data-pet="spark"] { --pet-neck-y: 1.4px; }
+.dg-pet[data-pet="leafy"] { --pet-neck-y: 2.4px; --pet-neck-scale: .94; }
+.dg-pet[data-pet="nova"] { --pet-neck-y: 1.3px; }
+.dg-pet[data-pet="cinder"] { --pet-neck-y: 1.8px; }
+
+/* ── Coats ──────────────────────────────────────────────────────
+   The same companion in a different palette, done as a filter over the whole
+   SVG rather than as a second copy of every drawing: sixteen pets x six coats
+   would be ninety-six SVGs to keep in step, and the first divergence would be a
+   bug nobody could see.
+
+   It composes with the saturation the mood already applies (`--pet-sat`) by
+   sitting in its own variable at the end of that filter chain, so a tired pet
+   in a gold coat is still a tired pet. Tuned as shifts rather than costumes —
+   a coat should read as this animal in a different light, not a different
+   animal. */
+.dg-pet[data-coat="dusk"] { --pet-coat: hue-rotate(-18deg) saturate(.86) brightness(.92); }
+.dg-pet[data-coat="sand"] { --pet-coat: hue-rotate(18deg) saturate(.82) brightness(1.08); }
+.dg-pet[data-coat="mint"] { --pet-coat: hue-rotate(62deg) saturate(.68) brightness(1.04); }
+.dg-pet[data-coat="berry"] { --pet-coat: hue-rotate(-34deg) saturate(.95); }
+.dg-pet[data-coat="ink"] { --pet-coat: saturate(.32) brightness(.86) contrast(1.1); }
+.dg-pet[data-coat="gold"] { --pet-coat: sepia(.55) saturate(1.5) hue-rotate(-12deg) brightness(1.06); }
+
 /* Descendant selector, not a bare class: `.dg-pet svg` above is (0,1,1) and
    sets `position: relative`, so a lone `.dg-pet-hat` at (0,1,0) lost — the hat
    laid out as a second block UNDER the pet instead of over its head. */
@@ -1706,7 +1903,11 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
   inset: 0;
   width: auto;
   height: auto;
-  translate: var(--pet-hat-x, 0) var(--pet-hat-y, 0);
+  /* The per-pet offsets below are absolute px, tuned against the 40px greeting
+     chip, so they do not scale with the box. `--pet-overlay-k` lets a smaller
+     or larger mount scale them without every pet's value being restated —
+     defaulting to 1, so nothing that does not set it moves at all. */
+  translate: calc(var(--pet-hat-x, 0px) * var(--pet-overlay-k, 1)) calc(var(--pet-hat-y, 0px) * var(--pet-overlay-k, 1));
   scale: var(--pet-hat-scale, 1);
   transform-origin: 50% 30%;
   pointer-events: none;
@@ -1908,13 +2109,16 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 .dg-pet-eyes { transform: scaleY(var(--pet-eye-open)); }
 .dg-pet-ear-left { transform: rotate(calc(var(--pet-ear-droop) * var(--pet-mood-gain))); }
 .dg-pet-ear-right { transform: rotate(calc(calc(var(--pet-ear-droop) * var(--pet-mood-gain)) * -1)); }
+.dg-pet-wing-left { transform: rotate(var(--pet-wing-droop)); }
+.dg-pet-wing-right { transform: rotate(calc(var(--pet-wing-droop) * -1)); }
 
 /* -- Moments --
    Both are 30-second latches fired by something that just happened, so they
    are allowed to be louder than any mood you sit in for hours. */
 .dg-pet[data-mood="celebrating"] {
-  --pet-ear-droop: -12deg; --pet-eye-open: 1.1; --pet-lean: -2deg;
+  --pet-ear-droop: -12deg; --pet-drop: -1.3px; --pet-eye-open: 1.1; --pet-lean: -3deg;
   --pet-aura: 1.35; --pet-sat: 1.12; --pet-dot: #f5c542;
+  --pet-tempo: .36;
   animation-duration: 1.05s;
 }
 .dg-pet[data-mood="celebrating"] .dg-pet-tail { animation-duration: .34s; }
@@ -1924,10 +2128,41 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 .dg-pet[data-mood="celebrating"] .dg-pet-sig { animation-duration: .7s; }
 .dg-pet[data-mood="celebrating"] .dg-pet-tuft, .dg-pet[data-mood="celebrating"] .dg-pet-accessory { animation-duration: .7s; }
 
+/* -- Seasonal --
+   A handful of days a year each (see `seasonFor`). Loud enough to be noticed
+   the once, quiet enough that nobody who opens the app on the 31st twice
+   thinks something has broken. */
+.dg-pet[data-mood="birthday"] {
+  --pet-ear-droop: -11deg; --pet-drop: -1.2px; --pet-eye-open: 1.14; --pet-lean: -2.6deg;
+  --pet-aura: 1.3; --pet-sat: 1.1; --pet-dot: #f18fb4;
+  --pet-tempo: .41;
+  animation-duration: 1.2s;
+}
+.dg-pet[data-mood="birthday"] .dg-pet-tail { animation-duration: .4s; }
+.dg-pet[data-mood="birthday"] .dg-pet-wing { animation-duration: .7s; }
+.dg-pet[data-mood="birthday"] .dg-pet-ear { animation-duration: .9s; }
+.dg-pet[data-mood="birthday"] .dg-pet-face { animation-duration: 1.2s; }
+.dg-pet[data-mood="birthday"] .dg-pet-sig { animation-duration: .8s; }
+.dg-pet[data-mood="birthday"] .dg-pet-tuft, .dg-pet[data-mood="birthday"] .dg-pet-accessory { animation-duration: .75s; }
+
+.dg-pet[data-mood="festive"] {
+  --pet-ear-droop: -5deg; --pet-drop: -.4px; --pet-eye-open: 1.06; --pet-lean: -1.4deg;
+  --pet-aura: 1.16; --pet-sat: 1.08; --pet-dot: #e0705f;
+  --pet-tempo: .76;
+  animation-duration: 2.2s;
+}
+.dg-pet[data-mood="festive"] .dg-pet-tail { animation-duration: .95s; }
+.dg-pet[data-mood="festive"] .dg-pet-wing { animation-duration: 1.7s; }
+.dg-pet[data-mood="festive"] .dg-pet-ear { animation-duration: 1.7s; }
+.dg-pet[data-mood="festive"] .dg-pet-face { animation-duration: 2.3s; }
+.dg-pet[data-mood="festive"] .dg-pet-sig { animation-duration: 1.8s; }
+.dg-pet[data-mood="festive"] .dg-pet-tuft, .dg-pet[data-mood="festive"] .dg-pet-accessory { animation-duration: 1.6s; }
+
 /* Chest out, ears up, but composed - this is pride, not a party. */
 .dg-pet[data-mood="proud"] {
-  --pet-ear-droop: -8deg; --pet-eye-open: 1.02; --pet-lean: -1deg;
+  --pet-ear-droop: -8deg; --pet-drop: -1px; --pet-eye-open: 1.02; --pet-lean: -1.8deg;
   --pet-aura: 1.2; --pet-sat: 1.06; --pet-dot: #7fd0a0;
+  --pet-tempo: .66;
   animation-duration: 1.9s;
 }
 .dg-pet[data-mood="proud"] .dg-pet-tail { animation-duration: .7s; }
@@ -1941,7 +2176,8 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
    part slowed almost to a stop, so a pet sitting in class reads as attentive
    next to the same pet twenty minutes earlier. */
 .dg-pet[data-mood="focused"] {
-  --pet-ear-droop: -5deg; --pet-aura: .95; --pet-dot: #7aa8e8;
+  --pet-ear-droop: -5deg; --pet-drop: -.2px; --pet-aura: .95; --pet-dot: #7aa8e8;
+  --pet-tempo: 1.66;
   animation-duration: 4.8s;
 }
 .dg-pet[data-mood="focused"] .dg-pet-tail { animation-duration: 4.4s; }
@@ -1954,8 +2190,9 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 /* Ten minutes to go. Fast and fidgety, but the aura stays warm - this is an
    animal noticing something is about to happen, never a reproach. */
 .dg-pet[data-mood="restless"] {
-  --pet-ear-droop: -6deg; --pet-eye-open: 1.05; --pet-lean: -2deg;
+  --pet-ear-droop: -6deg; --pet-drop: -.4px; --pet-eye-open: 1.05; --pet-lean: -3deg;
   --pet-aura: 1.08; --pet-sat: 1.03; --pet-dot: #e8a33d;
+  --pet-tempo: .4;
   animation-duration: 1.15s;
 }
 .dg-pet[data-mood="restless"] .dg-pet-tail { animation-duration: .4s; }
@@ -1967,29 +2204,47 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 .dg-pet[data-mood="restless"] .dg-pet-tuft, .dg-pet[data-mood="restless"] .dg-pet-accessory { animation-duration: .85s; }
 
 /* Ears up, everything quick, aura bright. */
-.dg-pet[data-mood="excited"] { --pet-ear-droop: -7deg; --pet-aura: 1.15; animation-duration: 1.35s; }
+.dg-pet[data-mood="excited"] { --pet-ear-droop: -7deg; --pet-drop: -.9px; --pet-lean: -2deg; --pet-aura: 1.15; --pet-tempo: .47;
+  animation-duration: 1.35s; }
 .dg-pet[data-mood="excited"] .dg-pet-tail { animation-duration: .48s; }
 .dg-pet[data-mood="excited"] .dg-pet-wing { animation-duration: .8s; }
 .dg-pet[data-mood="excited"] .dg-pet-ear { animation-duration: 1.1s; }
 .dg-pet[data-mood="excited"] .dg-pet-face { animation-duration: 1.5s; }
 .dg-pet[data-mood="excited"] .dg-pet-sig { animation-duration: .85s; }
 .dg-pet[data-mood="excited"] .dg-pet-tuft { animation-duration: .9s; }
-.dg-pet[data-mood="excited"] .dg-pet-spark, .dg-pet[data-mood="excited"] .dg-pet-charge, .dg-pet[data-mood="excited"] .dg-pet-zap, .dg-pet[data-mood="excited"] .dg-pet-zap-head, .dg-pet[data-mood="excited"] .dg-pet-zap-ear-l, .dg-pet[data-mood="excited"] .dg-pet-zap-ear-r { animation-duration: .9s; }
-.dg-pet[data-mood="excited"] .dg-pet-static { animation-duration: .6s; }
-.dg-pet[data-mood="excited"] .dg-pet-vine, .dg-pet[data-mood="excited"] .dg-pet-vine-leaf, .dg-pet[data-mood="excited"] .dg-pet-whip, .dg-pet[data-mood="excited"] .dg-pet-glow, .dg-pet[data-mood="excited"] .dg-pet-spore { animation-duration: 1.8s; }
 
-.dg-pet[data-mood="happy"] { --pet-ear-droop: -3deg; --pet-aura: 1.06; animation-duration: 2.1s; }
+.dg-pet[data-mood="playful"] { --pet-ear-droop: -9deg; --pet-drop: -.8px; --pet-eye-open: 1.12; --pet-lean: -4.5deg; --pet-aura: 1.18; --pet-sat: 1.1; --pet-dot: #ef8f61; --pet-tempo: .41;
+  animation-duration: 1.18s; }
+.dg-pet[data-mood="playful"] .dg-pet-tail { animation-duration: .3s; }
+.dg-pet[data-mood="playful"] .dg-pet-wing { animation-duration: .58s; }
+.dg-pet[data-mood="playful"] .dg-pet-ear { animation-duration: .72s; }
+.dg-pet[data-mood="playful"] .dg-pet-face { animation-duration: 1.05s; }
+.dg-pet[data-mood="playful"] .dg-pet-sig, .dg-pet[data-mood="playful"] .dg-pet-tuft, .dg-pet[data-mood="playful"] .dg-pet-accessory { animation-duration: .64s; }
+
+.dg-pet[data-mood="happy"] { --pet-ear-droop: -3deg; --pet-drop: -.5px; --pet-lean: -1.5deg; --pet-aura: 1.06; --pet-tempo: .72;
+  animation-duration: 2.1s; }
 .dg-pet[data-mood="happy"] .dg-pet-tail { animation-duration: .85s; }
 .dg-pet[data-mood="happy"] .dg-pet-wing { animation-duration: 1.6s; }
 .dg-pet[data-mood="happy"] .dg-pet-face { animation-duration: 2.4s; }
 .dg-pet[data-mood="happy"] .dg-pet-sig { animation-duration: 1.9s; }
 
+/* Morning curiosity is alert but not frantic: a small head-lean and eye-open
+   pose makes it visibly different from ordinary content before the day starts. */
+.dg-pet[data-mood="curious"] { --pet-ear-droop: -6deg; --pet-drop: -.5px; --pet-eye-open: 1.13; --pet-lean: -5deg; --pet-aura: 1.04; --pet-sat: 1.05; --pet-dot: #73afd0; --pet-tempo: .81;
+  animation-duration: 2.35s; }
+.dg-pet[data-mood="curious"] .dg-pet-tail { animation-duration: 1.35s; }
+.dg-pet[data-mood="curious"] .dg-pet-wing { animation-duration: 2.05s; }
+.dg-pet[data-mood="curious"] .dg-pet-ear { animation-duration: 1.5s; }
+.dg-pet[data-mood="curious"] .dg-pet-face { animation-duration: 2.1s; }
+.dg-pet[data-mood="curious"] .dg-pet-sig { animation-duration: 1.45s; }
+
 /* Exam week: upright, close and steady. Reads as company rather than concern -
    the ears come up, nothing droops, and the timing settles rather than races,
    because an anxious pet during exams would be exactly the wrong idea. */
 .dg-pet[data-mood="rooting"] {
-  --pet-ear-droop: -4deg; --pet-eye-open: .96; --pet-lean: -1deg;
+  --pet-ear-droop: -4deg; --pet-drop: -.35px; --pet-eye-open: .96; --pet-lean: -1.6deg;
   --pet-aura: 1.02; --pet-sat: .98; --pet-dot: #b79ae8;
+  --pet-tempo: .93;
   animation-duration: 2.7s;
 }
 .dg-pet[data-mood="rooting"] .dg-pet-tail { animation-duration: 1.9s; }
@@ -2013,8 +2268,9 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
    little, but the eyes stay well open - a day off is not a bad mood, and it
    must not be mistaken for "bored", which sags in the same direction. */
 .dg-pet[data-mood="relaxed"] {
-  --pet-ear-droop: 8deg; --pet-eye-open: .78; --pet-lean: 2deg;
+  --pet-ear-droop: 8deg; --pet-drop: .4px; --pet-eye-open: .78; --pet-lean: 3deg;
   --pet-aura: .95; --pet-sat: 1.02; --pet-dot: #9ad3b8;
+  --pet-tempo: 1.24;
   animation-duration: 3.6s;
 }
 .dg-pet[data-mood="relaxed"] .dg-pet-tail { animation-duration: 2.2s; }
@@ -2024,12 +2280,23 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 .dg-pet[data-mood="relaxed"] .dg-pet-sig { animation-duration: 3.4s; }
 .dg-pet[data-mood="relaxed"] .dg-pet-tuft, .dg-pet[data-mood="relaxed"] .dg-pet-accessory { animation-duration: 3s; }
 
+/* A free afternoon is warmer than a generic quiet day. It is intentionally
+   still awake and more saturated than tired/sleepy, so it never reads sad. */
+.dg-pet[data-mood="cozy"] { --pet-ear-droop: 11deg; --pet-drop: .8px; --pet-eye-open: .7; --pet-lean: 4.5deg; --pet-aura: .9; --pet-sat: .98; --pet-dot: #d7a86f; --pet-tempo: 1.43;
+  animation-duration: 4.15s; }
+.dg-pet[data-mood="cozy"] .dg-pet-tail { animation-duration: 2.7s; }
+.dg-pet[data-mood="cozy"] .dg-pet-wing { animation-duration: 3.75s; }
+.dg-pet[data-mood="cozy"] .dg-pet-ear { animation-duration: 3.9s; }
+.dg-pet[data-mood="cozy"] .dg-pet-face { animation-duration: 4.1s; }
+.dg-pet[data-mood="cozy"] .dg-pet-sig, .dg-pet[data-mood="cozy"] .dg-pet-tuft, .dg-pet[data-mood="cozy"] .dg-pet-accessory { animation-duration: 3.6s; }
+
 /* End of a long day: droopier and slower than "content", still clearly awake.
    The lone slow z overhead is the tell that separates it from "bored", which
    sags in much the same direction for a completely different reason. */
 .dg-pet[data-mood="tired"] {
-  --pet-ear-droop: 18deg; --pet-eye-open: .5; --pet-lean: 3deg;
+  --pet-ear-droop: 18deg; --pet-drop: 1.2px; --pet-eye-open: .5; --pet-lean: 4.5deg;
   --pet-aura: .74; --pet-sat: .9; --pet-dot: #e0b877;
+  --pet-tempo: 1.59;
   animation-duration: 4.6s;
 }
 .dg-pet[data-mood="tired"] .dg-pet-tail { animation-duration: 3s; }
@@ -2039,9 +2306,6 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 .dg-pet[data-mood="tired"] .dg-pet-sig { animation-duration: 4.6s; }
 .dg-pet[data-mood="tired"] .dg-pet-eyes { animation-duration: 5.6s; }
 .dg-pet[data-mood="tired"] .dg-pet-tuft, .dg-pet[data-mood="tired"] .dg-pet-accessory { animation-duration: 3.8s; }
-.dg-pet[data-mood="tired"] .dg-pet-spark, .dg-pet[data-mood="tired"] .dg-pet-charge, .dg-pet[data-mood="tired"] .dg-pet-zap, .dg-pet[data-mood="tired"] .dg-pet-zap-head, .dg-pet[data-mood="tired"] .dg-pet-zap-ear-l, .dg-pet[data-mood="tired"] .dg-pet-zap-ear-r { animation-duration: 4s; }
-.dg-pet[data-mood="tired"] .dg-pet-static { animation-duration: 2.4s; }
-.dg-pet[data-mood="tired"] .dg-pet-vine, .dg-pet[data-mood="tired"] .dg-pet-vine-leaf, .dg-pet[data-mood="tired"] .dg-pet-whip, .dg-pet[data-mood="tired"] .dg-pet-glow, .dg-pet[data-mood="tired"] .dg-pet-spore { animation-duration: 5.4s; }
 /* One z, drifting up half as often as a sleeping pet's — a yawn, not a nap. */
 .dg-pet[data-mood="tired"] .dg-pet-zzz { display: block; }
 .dg-pet[data-mood="tired"] .dg-pet-z { animation-duration: 6.4s; }
@@ -2049,8 +2313,9 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 
 /* Eyes almost shut, ears folded, everything slowed right down. */
 .dg-pet[data-mood="sleepy"] {
-  --pet-ear-droop: 27deg; --pet-eye-open: .16; --pet-lean: 4deg;
+  --pet-ear-droop: 27deg; --pet-drop: 1.6px; --pet-eye-open: .16; --pet-lean: 6deg;
   --pet-aura: .5; --pet-sat: .82; --pet-dot: #d9b45e;
+  --pet-tempo: 2;
   animation-duration: 5.8s;
 }
 .dg-pet[data-mood="sleepy"] .dg-pet-tail { animation-duration: 3.6s; }
@@ -2060,14 +2325,12 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 .dg-pet[data-mood="sleepy"] .dg-pet-sig { animation-duration: 6.4s; }
 .dg-pet[data-mood="sleepy"] .dg-pet-eyes { animation-duration: 7s; }
 .dg-pet[data-mood="sleepy"] .dg-pet-tuft, .dg-pet[data-mood="sleepy"] .dg-pet-accessory { animation-duration: 4.6s; }
-.dg-pet[data-mood="sleepy"] .dg-pet-spark, .dg-pet[data-mood="sleepy"] .dg-pet-charge, .dg-pet[data-mood="sleepy"] .dg-pet-zap, .dg-pet[data-mood="sleepy"] .dg-pet-zap-head, .dg-pet[data-mood="sleepy"] .dg-pet-zap-ear-l, .dg-pet[data-mood="sleepy"] .dg-pet-zap-ear-r { animation-duration: 5.2s; }
-.dg-pet[data-mood="sleepy"] .dg-pet-static { animation-duration: 3s; }
-.dg-pet[data-mood="sleepy"] .dg-pet-vine, .dg-pet[data-mood="sleepy"] .dg-pet-vine-leaf, .dg-pet[data-mood="sleepy"] .dg-pet-whip, .dg-pet[data-mood="sleepy"] .dg-pet-glow, .dg-pet[data-mood="sleepy"] .dg-pet-spore { animation-duration: 7s; }
 .dg-pet[data-mood="sleepy"] .dg-pet-zzz { display: block; }
 
 .dg-pet[data-mood="bored"] {
-  --pet-ear-droop: 15deg; --pet-eye-open: .84; --pet-lean: 2deg;
+  --pet-ear-droop: 15deg; --pet-drop: 1.3px; --pet-eye-open: .84; --pet-lean: 3.2deg;
   --pet-aura: .8; --pet-sat: .93; --pet-dot: #c7b6a4;
+  --pet-tempo: 1.48;
   animation-duration: 4.3s;
 }
 .dg-pet[data-mood="bored"] .dg-pet-tail { animation-duration: 2.8s; }
@@ -2078,8 +2341,9 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 /* The lowest mood there is: wistful, never distressed. Nothing here reads as
    sick or dying — see docs/pet-companion-plan.md §2. */
 .dg-pet[data-mood="missing"] {
-  --pet-ear-droop: 21deg; --pet-eye-open: .74; --pet-lean: 3deg;
+  --pet-ear-droop: 21deg; --pet-drop: 1.5px; --pet-eye-open: .74; --pet-lean: 4.4deg;
   --pet-aura: .66; --pet-sat: .86; --pet-dot: #b3a79c;
+  --pet-tempo: 1.76;
   animation-duration: 5.1s;
 }
 .dg-pet[data-mood="missing"] .dg-pet-tail { animation-duration: 3.3s; }
@@ -2094,12 +2358,14 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 .dg-pet[data-reaction] .dg-pet-zzz { display: none; }
 .dg-pet[data-pet="cat"], .dg-pet[data-pet="bunny"], .dg-pet[data-pet="koala"] { --pet-turn: -2deg; --pet-accent: #d88bac; }
 .dg-pet[data-pet="fox"], .dg-pet[data-pet="chick"], .dg-pet[data-pet="otter"] { --pet-turn: 2.5deg; --pet-accent: #e98a50; }
-.dg-pet[data-pet="dog"] { --pet-turn: -1.2deg; --pet-accent: #c99659; }
+.dg-pet[data-pet="dog"] { --pet-turn: -1.2deg; --pet-accent: #e5a769; }
 .dg-pet[data-pet="axolotl"] { --pet-turn: 1.8deg; --pet-accent: #e76ea8; }
 .dg-pet[data-pet="penguin"], .dg-pet[data-pet="rover"] { --pet-turn: 1.4deg; --pet-accent: #79a9c8; }
 .dg-pet[data-pet="panda"], .dg-pet[data-pet="raccoon"] { --pet-turn: -1.7deg; --pet-accent: #8993a7; }
 .dg-pet[data-pet="spark"] { --pet-turn: 2.4deg; --pet-accent: #f7c631; }
 .dg-pet[data-pet="leafy"] { --pet-turn: -1.6deg; --pet-accent: #5ec46c; }
+.dg-pet[data-pet="nova"] { --pet-turn: -2deg; --pet-accent: #7c6cf0; }
+.dg-pet[data-pet="cinder"] { --pet-turn: 2.2deg; --pet-accent: #f0592a; }
 /* Temperament. `--pet-mood-gain` scales how far a mood is allowed to move the
    ears and the body lean, so the same twelve mood rules land differently on
    twelve animals: the penguin barely registers an emotion, the chick has no
@@ -2107,10 +2373,11 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 /* Where each head tops out, against the canonical y=8 the hat art is drawn
    for. Measured from the `.dg-pet-face` in greetingPets.jsx - if you change a
    pet's head geometry, this is the number that has to move with it. */
-.dg-pet[data-pet="panda"] { --pet-hat-y: -2px; }
-.dg-pet[data-pet="dog"], .dg-pet[data-pet="chick"] { --pet-hat-y: -1px; }
-.dg-pet[data-pet="fox"] { --pet-hat-y: -.7px; }
+.dg-pet[data-pet="panda"], .dg-pet[data-pet="fox"], .dg-pet[data-pet="dog"] { --pet-hat-y: -1.8px; }
+.dg-pet[data-pet="chick"] { --pet-hat-y: -1px; }
+
 .dg-pet[data-pet="spark"] { --pet-hat-y: -.6px; }
+.dg-pet[data-pet="nova"], .dg-pet[data-pet="cinder"] { --pet-hat-y: -.5px; }
 .dg-pet[data-pet="koala"], .dg-pet[data-pet="otter"] { --pet-hat-y: -.2px; }
 .dg-pet[data-pet="axolotl"] { --pet-hat-y: .4px; }
 .dg-pet[data-pet="penguin"] { --pet-hat-y: 1.5px; }
@@ -2121,6 +2388,8 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 .dg-pet[data-pet="spark"] { --pet-mood-gain: 1.25; }
 .dg-pet[data-pet="otter"] { --pet-mood-gain: 1.2; }
 .dg-pet[data-pet="fox"] { --pet-mood-gain: 1.15; }
+.dg-pet[data-pet="cinder"] { --pet-mood-gain: 1.1; }
+.dg-pet[data-pet="nova"] { --pet-mood-gain: .95; }
 .dg-pet[data-pet="dog"] { --pet-mood-gain: 1.1; }
 .dg-pet[data-pet="bunny"] { --pet-mood-gain: 1.05; }
 .dg-pet[data-pet="axolotl"] { --pet-mood-gain: .9; }
@@ -2132,6 +2401,13 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 .dg-pet[data-pet="penguin"] .dg-pet-wing { animation-duration: 2s; }
 .dg-pet[data-pet="chick"] .dg-pet-wing { animation-duration: 1.8s; }
 .dg-pet[data-pet="bunny"] .dg-pet-ear, .dg-pet[data-pet="koala"] .dg-pet-ear { animation-duration: 2.35s; }
+/* Long floppy hound/spaniel ears pivot at the crown so they swing and droop naturally */
+.dg-pet[data-pet="dog"] .dg-pet-ear-left { transform-origin: 100% 0; }
+.dg-pet[data-pet="dog"] .dg-pet-ear-right { transform-origin: 0 0; }
+/* The fox's brush sweeps left, so it roots at the RIGHT of its own box - the
+   roster's shared bottom-left pivot would swing the hip instead of the tip.
+   Measured off the path, not eyeballed (scripts/pet-sheet.mjs). */
+.dg-pet[data-pet="fox"] .dg-pet-tail { transform-origin: 78% 82%; }
 /* Admin switch for signature micro-motion alone — the shared idle, the moods
    and the beats all keep running. `animation-name` rather than the shorthand,
    so the two motion guards around it still say the final word. */
@@ -2662,6 +2938,7 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 
 /* ── Free-day empty state: sunny animated scene ── */
 .tmrw-free-card {
+  position: relative;  /* the companion cameo anchors to this corner */
   text-align: center;
   overflow: hidden;
 }
@@ -16315,19 +16592,27 @@ a.sb-quicklink {
   vertical-align: -2px;
 }
 
-/* Floating Schedule FAB for Friends view — desktop only; the modal it opens
-   is desktop-only too, so it must never render on mobile. Also used in Week view on tablets (#4). */
+/* Floating Schedule FAB for wide-content views (Friends, Admin, Wrapped) — desktop only;
+   the modal it opens is desktop-only too, so it must never render on mobile. */
 .fr-agenda-fab {
   display: none;
 }
 
-/* Week view tablet breakpoint: 768px - 900px */
-@media (min-width: 768px) and (max-width: 900px) {
+/* Week view on mobile and tablet (portrait): display the agenda cleanly in the main vertical flow */
+@media (max-width: 767px),
+(min-width: 768px) and (max-width: 1024px) and (orientation: portrait) {
   .side-col-week {
-    display: none !important;
+    display: block;
+    width: 100%;
   }
-  .fr-agenda-fab.week-fab {
-    display: flex;
+
+  .side-col-week .wa-panel {
+    overflow: visible;
+  }
+
+  .side-col-week .wa-days-scroll {
+    overflow: visible;
+    max-height: none;
   }
 }
 

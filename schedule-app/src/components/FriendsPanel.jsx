@@ -330,6 +330,9 @@ function GroupChat({ group, userId, userName }) {
 function toMinFP(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function ymdFP(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
 import { getPetByKey } from "./greetingPets.jsx";
+import PetHat from "./PetHat.jsx";
+import PetNeckwear from "./PetNeckwear.jsx";
+import { titleLabel } from "../lib/pet.js";
 import { fetchFriendPets } from "../lib/petStorage.js";
 
 export default function FriendsPanel({
@@ -466,7 +469,8 @@ export default function FriendsPanel({
 
   // Friends' companions. Same batched-by-cloudId shape as presence above, but
   // through the definer-side RPC — pet_state itself is self-only, and the RPC
-  // returns key/name/level and nothing else (no XP, no ledger, no timestamps).
+  // returns the pet, its level and what it is wearing, and nothing else (no XP,
+  // no ledger, no timestamps).
   const [friendPets, setFriendPets] = useState({});
   useEffect(() => {
     if (!petsEnabled || !friendCloudKey) return undefined;
@@ -943,11 +947,20 @@ export default function FriendsPanel({
           <div className="fr-friend-meta-row">
             <span className="fr-friend-meta">{fCourseCount} course{fCourseCount !== 1 ? "s" : ""}</span>
             {theirPet && (
-              <span className="fr-friend-pet" title={`${theirPet.name || getPetByKey(theirPet.key).label} · Level ${theirPet.level}`}>
+              <span className="fr-friend-pet" title={`${theirPet.name || getPetByKey(theirPet.key).label} · Level ${theirPet.level}${theirPet.title ? ` · ${titleLabel(theirPet.title) || ""}` : ""}`}>
                 {/* data-motion="off": a friends list can hold dozens of these,
                     and idle-animating every one is a real cost for decoration. */}
-                <span className="dg-pet fr-friend-pet-art" data-pet={theirPet.key} data-motion="off" aria-hidden="true">
+                <span
+                  className="dg-pet fr-friend-pet-art"
+                  data-pet={theirPet.key}
+                  data-motion="off"
+                  data-coat={theirPet.coat || undefined}
+                  data-neck={theirPet.neck || undefined}
+                  aria-hidden="true"
+                >
                   {(() => { const P = getPetByKey(theirPet.key).Svg; return <P />; })()}
+                  <PetHat hat={theirPet.hat || null} />
+                  <PetNeckwear neck={theirPet.neck || null} />
                 </span>
                 {theirPet.name || getPetByKey(theirPet.key).label} · Lv {theirPet.level}
               </span>

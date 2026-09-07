@@ -2,11 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getGreetingBucket, getTimeGreeting } from "../lib/datetime.js";
 import { dayKey, getPetByKey, getPetOfTheDay } from "./greetingPets.jsx";
 import {
-  CARE_ACTIONS, careLeft, careUsedToday, growthStageFor, isAdopted, levelProgress, moodFor,
+  CARE_ACTIONS, careLeft, careUsedToday, growthStageFor, isAdopted, levelProgress, moodExplainFor,
+  visibleCoat, visibleNeckwear,
   visibleHat, xpOf,
 } from "../lib/pet.js";
 import PetSleepCue from "./PetSleepCue.jsx";
 import PetHat from "./PetHat.jsx";
+import PetNeckwear from "./PetNeckwear.jsx";
 import { usePetBeat } from "../hooks/usePetBeat.js";
 import { usePetGaze } from "../hooks/usePetGaze.js";
 import { recordMood } from "../lib/petStats.js";
@@ -22,12 +24,18 @@ const CARE_LINES = {
 const MOOD_LINE = {
   celebrating: "levelled up!",
   proud: "saw you clear that.",
+  birthday: "has been with you a whole year!",
+  festive: "is feeling the end of the year.",
   excited: "is bouncing off the walls.",
   focused: "is in class with you.",
   restless: "can tell class is close.",
+  playful: "wants one more round of play.",
   happy: "is having a good day.",
+  curious: "is watching the day wake up.",
+  rooting: "is rooting for you this week.",
   content: "is hanging out.",
   relaxed: "has the day off too.",
+  cozy: "has found a very comfortable spot.",
   tired: "has had a long day.",
   sleepy: "is dozing off.",
   bored: "is looking for something to do.",
@@ -79,7 +87,9 @@ export default function DayGreeting({
 
   // Derived here rather than in usePet: both depend on the live clock, and the
   // hook would have to re-render once a second to keep them fresh.
-  const mood = adopted ? moodFor(pet, now, petContext) : "content";
+  const mood = adopted ? moodExplainFor(pet, now, petContext).mood : "content";
+  // Cohort policy, defaulting ON — same rule as the pet page.
+  const wardrobeOn = petSettings?.wardrobe !== false;
   const beat = usePetBeat(mood, adopted && motionEnabled);
   const gaze = usePetGaze(adopted && motionEnabled);
   const progress = adopted ? levelProgress(xpOf(pet)) : null;
@@ -158,6 +168,8 @@ export default function DayGreeting({
             data-stage={adopted ? growthStageFor(progress.level).key : undefined}
             data-mood={adopted ? mood : undefined}
             data-accessory={adopted && pet.cosmetics?.accessory === false ? "off" : undefined}
+            data-coat={(adopted && visibleCoat(pet, { wardrobe: wardrobeOn })) || undefined}
+            data-neck={(adopted && visibleNeckwear(pet, { wardrobe: wardrobeOn })) || undefined}
             data-reaction={petReaction || undefined}
             data-beat={petReaction ? undefined : beat || undefined}
             data-sig={petSettings?.signatures === false ? "off" : undefined}
@@ -171,7 +183,8 @@ export default function DayGreeting({
             title={adopted ? `${petLabel} · Lv ${progress.level}` : `Meet ${displayPet.label}`}
           >
             {petEl}
-            <PetHat hat={adopted ? visibleHat(pet, { wardrobe: petSettings?.wardrobe !== false, hatsOff: petSettings?.hatsOff || [] }) : null} />
+            <PetHat hat={adopted ? visibleHat(pet, { wardrobe: wardrobeOn, hatsOff: petSettings?.hatsOff || [] }) : null} />
+            <PetNeckwear neck={adopted ? visibleNeckwear(pet, { wardrobe: wardrobeOn }) : null} />
             <PetSleepCue />
           </button>
 
@@ -234,7 +247,7 @@ export default function DayGreeting({
           )}
         </span>
       )}
-      <span>{greeting}</span>
+      <span className="day-greeting-text">{greeting}</span>
     </div>
   );
 }

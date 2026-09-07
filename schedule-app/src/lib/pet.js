@@ -22,11 +22,41 @@ import { ymd } from "./datetime.js";
 // One block, on purpose: balancing this feature means editing numbers here and
 // nothing else. Rates assume ~3-4 classes on a teaching day, so a normal
 // student earns roughly 40-50 XP/day and reaches MAX_LEVEL near the end of term.
+/**
+ * Earn rates, tuned against the actual term rather than picked by feel.
+ *
+ * The original numbers were set before the roster ran to level 12, and they
+ * were badly short: modelled over this term's real schedule (107 days, 90
+ * teaching days, ~115 classes for the median student), a student who marked
+ * EVERY class, opened the app every day and cleared fourteen deadlines finished
+ * the term on 2607 XP — level 9. Spark, Leafy, Nova and Cinder sat behind
+ * levels 11 and 12 and devotion tiers nobody could reach. Four companions and
+ * the whole devotion wardrobe were unreachable content.
+ *
+ * Re-tuned so an ENGAGED student — marks ~85% of classes, opens the app daily,
+ * two or three care taps, eight deadlines over the term — earns the last
+ * companion at about 80% of the way through:
+ *
+ *   Spark  (Lv 11)  ~48%      Nova   (Dv 2)  ~68%
+ *   Leafy  (Lv 12)  ~58%      Cinder (Dv 4)  ~80%
+ *
+ * A student who marks everything gets there around 64% and can finish the whole
+ * devotion wardrobe by ~94%; a casual one (marks half, opens most days) ends the
+ * term around level 10 with twelve of the sixteen — the premium four stay worth
+ * something. Attendance is deliberately 56% of a typical total: the pet levels
+ * because you showed up, not because you tapped it (docs §2).
+ *
+ * The LEVEL CURVE is deliberately untouched. Rates only affect XP awarded from
+ * here on — the ledger stores what each event actually paid — whereas moving
+ * the curve would re-map every existing pet's level overnight.
+ *
+ * Re-run the model with scripts/xp-model.mjs if the term shape changes.
+ */
 export const XP = {
-  attendance: 10,   // per class marked (any status — honesty is the point, not presence)
-  deadline: 20,     // per assignment cleared
-  streak: 5,        // per day of an unbroken open-the-app streak
-  care: 2,          // per care tap, hard-capped below
+  attendance: 32,   // per class marked (any status — honesty is the point, not presence)
+  deadline: 60,     // per assignment cleared
+  streak: 10,       // per day of an unbroken open-the-app streak
+  care: 3,          // per care tap, hard-capped below
 };
 
 /** Care taps per local day, across ALL actions combined. */
@@ -55,7 +85,9 @@ export const STARTER_KEYS = ["cat", "dog", "bunny"];
  * the rest of term. Devotion is the sink — it never gates anything you need,
  * only cosmetics and a quiet glow, so falling behind still costs nothing.
  */
-export const DEVOTION_STEP = 400;
+// Sized so the two devotion companions land inside the term (see XP above);
+// the ten tiers together are still a stretch only a completionist finishes.
+export const DEVOTION_STEP = 270;
 export const MAX_DEVOTION = 10;
 
 /**
@@ -79,12 +111,136 @@ export const HATS = [
   { key: "grad", label: "Grad cap", level: 10 },
   { key: "party", label: "Party hat", level: 11 },
   { key: "crown", label: "Crown", level: MAX_LEVEL },
+  // Devotion wearables. Ten tiers shipped and only two of them unlocked
+  // anything, so eight of the ten level-ups past MAX_LEVEL were silent — the
+  // exact stretch that needed a reason to keep going. One per tier now.
+  { key: "sprig", label: "Sprig", devotion: 1 },
+  { key: "star", label: "Star pin", devotion: 2 },
   { key: "halo", label: "Halo", devotion: 3 },
+  { key: "laurel", label: "Laurel", devotion: 4 },
+  { key: "muffs", label: "Earmuffs", devotion: 5 },
   { key: "ember", label: "Ember", devotion: 6 },
+  { key: "comet", label: "Comet", devotion: 7 },
+  { key: "moon", label: "Crescent", devotion: 8 },
+  { key: "aurora", label: "Aurora", devotion: 9 },
+  { key: "stars", label: "Constellation", devotion: MAX_DEVOTION },
 ];
 
 /** Fast membership test for `normalize`, which runs on every storage read. */
 const HAT_KEYS = new Set(HATS.map(h => h.key));
+
+/**
+ * Coats — the same companion in a different palette.
+ *
+ * Recoloured in CSS (a filter on `.dg-pet svg`, see styles.css) rather than by
+ * shipping a second copy of every SVG: fourteen pets x six coats would be
+ * eighty-four drawings to keep in sync, and the first divergence would be a bug
+ * nobody could see. The cost of the filter approach is that a coat shifts the
+ * whole animal, accessories included — which is why they are tuned as gentle
+ * shifts and not costume changes.
+ */
+export const COATS = [
+  { key: "dusk", label: "Dusk", devotion: 1 },
+  { key: "sand", label: "Sand", devotion: 2 },
+  { key: "mint", label: "Mint", devotion: 4 },
+  { key: "berry", label: "Berry", devotion: 6 },
+  { key: "ink", label: "Ink", devotion: 8 },
+  { key: "gold", label: "Gold", devotion: MAX_DEVOTION },
+];
+const COAT_KEYS = new Set(COATS.map(c => c.key));
+
+/**
+ * Neckwear — a second wearable slot, independent of the hat.
+ *
+ * Two slots multiply rather than add: eleven level hats against five collars is
+ * fifty-five looks out of sixteen drawings. Worn neckwear replaces the collar
+ * the pet is drawn with (styles.css hides `.dg-pet-accessory`), so nobody ends
+ * up wearing a scarf over a bow.
+ */
+export const NECKWEAR = [
+  { key: "scarf", label: "Scarf", level: 3 },
+  { key: "bandana", label: "Bandana", level: 5 },
+  { key: "bowtie", label: "Bow tie", level: 7 },
+  { key: "bell", label: "Bell collar", level: 9 },
+  { key: "chain", label: "Charm chain", devotion: 5 },
+];
+const NECK_KEYS = new Set(NECKWEAR.map(n => n.key));
+
+/**
+ * Companions earned past the level cap.
+ *
+ * Levels 1-12 hand out all fourteen pets, so devotion — the only progression
+ * left after that — had nothing but hats. These two are the carrot at the top
+ * of the curve, and they are gated on tier rather than level so they can never
+ * arrive before the roster is complete.
+ *
+ * Tiers 2 and 4 rather than 4 and 8: the pets have to be reachable inside a
+ * term (the last one lands at ~80% of it — see XP), while the tiers above them
+ * carry cosmetics, which are allowed to outlast the term.
+ */
+export const DEVOTION_UNLOCKS = { 2: "nova", 4: "cinder" };
+
+/**
+ * Titles. Cosmetic, never a rank against anybody else (docs §2), and every one
+ * is derived from state the ledger already holds — nothing new to store, and
+ * nothing that can disagree with the pet's actual history.
+ */
+export const TITLES = [
+  { key: "friend", label: "New friend", test: () => true },
+  { key: "partner", label: "Study partner", test: ({ level }) => level >= 4 },
+  { key: "collector", label: "Collector", test: ({ unlocked }) => unlocked >= 8 },
+  { key: "constant", label: "Constant companion", test: ({ level }) => level >= 8 },
+  { key: "grown", label: "Fully grown", test: ({ level }) => level >= MAX_LEVEL },
+  { key: "devoted", label: "Devoted", test: ({ tier }) => tier >= 3 },
+  { key: "veteran", label: "Term veteran", test: ({ days }) => days >= 60 },
+  { key: "inseparable", label: "Inseparable", test: ({ tier }) => tier >= 6 },
+];
+const TITLE_KEYS = new Set(TITLES.map(t => t.key));
+
+/**
+ * The next thing this pet has not earned yet, as `{ kind, key, label, at }`.
+ *
+ * The pet page could say what you have and never what is coming, which is the
+ * one thing that makes a curve worth climbing. Everything here is derived from
+ * the same registries the wardrobe reads, so a new hat or coat shows up in this
+ * line without anyone remembering to update it.
+ *
+ * Levels are compared before devotion tiers because that is the order they
+ * arrive in, and `null` means there is genuinely nothing left.
+ */
+export function nextUnlockFor(state) {
+  const s = normalize(state);
+  const xp = xpOf(s);
+  const level = levelFor(xp);
+  const { tier } = devotionFor(xp);
+
+  const byLevel = [];
+  const byDevotion = [];
+  for (const [lvl, key] of Object.entries(UNLOCKS)) {
+    byLevel.push({ kind: "companion", key, label: key, at: Number(lvl) });
+  }
+  for (const [t, key] of Object.entries(DEVOTION_UNLOCKS)) {
+    byDevotion.push({ kind: "companion", key, label: key, at: Number(t) });
+  }
+  for (const [list, kind] of [[HATS, "hat"], [COATS, "coat"], [NECKWEAR, "collar"]]) {
+    for (const item of list) {
+      const row = { kind, key: item.key, label: item.label };
+      if (item.devotion) byDevotion.push({ ...row, at: item.devotion });
+      else byLevel.push({ ...row, at: item.level });
+    }
+  }
+  if (tier < BUDDY_DEVOTION) {
+    byDevotion.push({ kind: "slot", key: "buddy", label: "A second companion", at: BUDDY_DEVOTION });
+  }
+
+  const nextLevel = byLevel.filter(r => r.at > level).sort((a, b) => a.at - b.at)[0];
+  if (nextLevel) return { ...nextLevel, by: "level" };
+  const nextTier = byDevotion.filter(r => r.at > tier).sort((a, b) => a.at - b.at)[0];
+  return nextTier ? { ...nextTier, by: "devotion" } : null;
+}
+
+/** Devotion tier that opens the second (display-only) companion slot. */
+export const BUDDY_DEVOTION = 5;
 
 /**
  * Growth stages — the pet you already have visibly maturing, rather than a
@@ -156,7 +312,7 @@ export function emptyPet() {
     care: { day: null, used: 0 },
     lastSeen: 0,
     unlocked: [],
-    cosmetics: { accessory: true, hat: null },
+    cosmetics: { accessory: true, hat: null, coat: null, neck: null, title: null, buddy: null },
   };
 }
 
@@ -190,6 +346,10 @@ function isNormalized(raw) {
   if (!Array.isArray(raw.unlocked) || raw.unlocked.some(k => typeof k !== "string")) return false;
   if (!raw.cosmetics || typeof raw.cosmetics.accessory !== "boolean") return false;
   if (raw.cosmetics.hat !== null && !HAT_KEYS.has(raw.cosmetics.hat)) return false;
+  if (raw.cosmetics.coat !== null && !COAT_KEYS.has(raw.cosmetics.coat)) return false;
+  if (raw.cosmetics.neck !== null && !NECK_KEYS.has(raw.cosmetics.neck)) return false;
+  if (raw.cosmetics.title !== null && !TITLE_KEYS.has(raw.cosmetics.title)) return false;
+  if (raw.cosmetics.buddy !== null && typeof raw.cosmetics.buddy !== "string") return false;
   return true;
 }
 
@@ -235,6 +395,13 @@ export function normalize(raw) {
       // An unknown key means a hat this build no longer ships (or a hand-edited
       // row). Bare-headed is always a valid pet, so degrade rather than reject.
       hat: HAT_KEYS.has(raw.cosmetics?.hat) ? raw.cosmetics.hat : null,
+      // Same rule as the hat for every slot added since: an unknown key is a
+      // cosmetic this build no longer ships, and the pet without it is always
+      // valid, so degrade rather than reject the whole record.
+      coat: COAT_KEYS.has(raw.cosmetics?.coat) ? raw.cosmetics.coat : null,
+      neck: NECK_KEYS.has(raw.cosmetics?.neck) ? raw.cosmetics.neck : null,
+      title: TITLE_KEYS.has(raw.cosmetics?.title) ? raw.cosmetics.title : null,
+      buddy: typeof raw.cosmetics?.buddy === "string" ? raw.cosmetics.buddy : null,
     },
   };
 }
@@ -289,6 +456,17 @@ export function switchTo(state, petKey) {
  */
 export function setCosmetic(state, key, value) {
   const s = normalize(state);
+  // Each wearable validates against what was EARNED (never against cohort
+  // policy) for the reason spelled out under the hat below.
+  if (key === "coat" || key === "neck" || key === "title" || key === "buddy") {
+    const earned = key === "coat" ? coatsFor(s)
+      : key === "neck" ? neckwearFor(s)
+      : key === "title" ? titlesFor(s)
+      : devotionFor(xpOf(s)).tier >= BUDDY_DEVOTION ? unlockedFor(s).filter(k => k !== s.petKey) : [];
+    const next = value && earned.includes(value) ? value : null;
+    if (s.cosmetics[key] === next) return s;
+    return { ...s, cosmetics: { ...s.cosmetics, [key]: next } };
+  }
   if (key === "hat") {
     // Validated against what was EARNED, not against cohort policy: this
     // function is what storage round-trips through, and a hat withdrawn while
@@ -403,6 +581,109 @@ export function hatRequirement(key) {
 }
 
 /**
+ * Every wearable gate is the same shape — a `level` or a `devotion` on the
+ * registry row — so one helper serves the hats, the coats and the neckwear
+ * instead of three near-identical filters that drift apart.
+ */
+function earnedFrom(list, state, { wardrobe = true, off = [] } = {}) {
+  if (wardrobe === false) return [];
+  const xp = xpOf(state);
+  const level = levelFor(xp);
+  const { tier } = devotionFor(xp);
+  return list
+    .filter(item => !off.includes(item.key))
+    .filter(item => (item.devotion ? tier >= item.devotion : level >= item.level))
+    .map(item => item.key);
+}
+
+/** Coat keys this pet has earned. `null` (the pet's own colours) is always on. */
+export function coatsFor(state, opts = {}) {
+  return earnedFrom(COATS, state, opts);
+}
+
+/** Neckwear keys this pet has earned. */
+export function neckwearFor(state, opts = {}) {
+  return earnedFrom(NECKWEAR, state, opts);
+}
+
+export function coatRequirement(key) {
+  const coat = COATS.find(c => c.key === key);
+  if (!coat) return null;
+  return coat.devotion ? `Devotion ${coat.devotion}` : `Level ${coat.level}`;
+}
+
+export function neckwearRequirement(key) {
+  const neck = NECKWEAR.find(n => n.key === key);
+  if (!neck) return null;
+  return neck.devotion ? `Devotion ${neck.devotion}` : `Level ${neck.level}`;
+}
+
+/** The coat actually worn right now, after policy — `null` for the pet's own. */
+export function visibleCoat(state, opts = {}) {
+  const coat = normalize(state).cosmetics.coat;
+  if (!coat) return null;
+  return coatsFor(state, opts).includes(coat) ? coat : null;
+}
+
+/** The neckwear actually worn right now, after policy. */
+export function visibleNeckwear(state, opts = {}) {
+  const neck = normalize(state).cosmetics.neck;
+  if (!neck) return null;
+  return neckwearFor(state, opts).includes(neck) ? neck : null;
+}
+
+/** Days since adoption, floored. 0 when never adopted. */
+export function daysAdopted(state, now = new Date()) {
+  const s = normalize(state);
+  if (!s.adoptedAt) return 0;
+  return Math.max(0, Math.floor((now.getTime() - new Date(s.adoptedAt).getTime()) / 86_400_000));
+}
+
+/**
+ * Titles earned, in registry order. Everything a title tests is derived — level,
+ * devotion tier, how many companions are unlocked, how long the pet has been
+ * around — so a title can never be out of step with the pet it describes.
+ */
+export function titlesFor(state, now = new Date()) {
+  const s = normalize(state);
+  if (!isAdopted(s)) return [];
+  const xp = xpOf(s);
+  const facts = {
+    level: levelFor(xp),
+    tier: devotionFor(xp).tier,
+    unlocked: unlockedFor(s).length,
+    days: daysAdopted(s, now),
+  };
+  return TITLES.filter(t => t.test(facts)).map(t => t.key);
+}
+
+/** The title on display, after checking it is still earned. */
+export function visibleTitle(state, now = new Date()) {
+  const title = normalize(state).cosmetics.title;
+  if (!title) return null;
+  return titlesFor(state, now).includes(title) ? title : null;
+}
+
+export function titleLabel(key) {
+  return TITLES.find(t => t.key === key)?.label || null;
+}
+
+/**
+ * The second companion shown beside the main one, once devotion opens the slot.
+ *
+ * Display only, and deliberately so: a second pet with its own XP would fork
+ * the ledger, the merge rules and every "your pet" line in the app. This is the
+ * stable — the companions you already earned get to stand next to you.
+ */
+export function buddyFor(state) {
+  const s = normalize(state);
+  const key = s.cosmetics.buddy;
+  if (!key || key === s.petKey) return null;
+  if (devotionFor(xpOf(s)).tier < BUDDY_DEVOTION) return null;
+  return unlockedFor(s).includes(key) ? key : null;
+}
+
+/**
  * Award XP against a stable event key. Idempotent: a key that has already paid
  * out is ignored, so callers can fire on every render or every re-sync without
  * guarding. Returns the same object identity when nothing changed, which lets
@@ -473,8 +754,61 @@ export function care(state, action, now = new Date(), rate = 1) {
   const used = careUsedToday(s, now);
   const touched = { ...s, lastSeen: now.getTime() };
   if (used >= CARE_DAILY_CAP) return touched;
-  const next = award(touched, keyFor.care(day, used + 1), scaleXp(XP.care, rate), now);
+  const xp = Math.round(scaleXp(XP.care, rate) * devotionMultiplier(s, now));
+  const next = award(touched, keyFor.care(day, used + 1), xp, now);
   return { ...next, care: { day, used: used + 1 } };
+}
+
+/**
+ * Consecutive days, ending today or yesterday, on which the pet was looked
+ * after. Read back out of the ledger rather than stored as a counter — a
+ * counter would have to survive the same offline merge every other field does,
+ * and the ledger already knows.
+ *
+ * Bounded by `LEDGER_DAYS`, because entries older than that are pruned; a
+ * hundred-day streak reads as thirty, which is well past where the multiplier
+ * caps out anyway.
+ */
+export function careStreak(state, now = new Date()) {
+  const s = normalize(state);
+  const days = new Set();
+  for (const key of Object.keys(s.awarded)) {
+    if (key.startsWith("care:")) days.add(key.split(":")[1]);
+  }
+  if (days.size === 0) return 0;
+  const cursor = new Date(now);
+  // A streak is not broken until the day it is missed is over, so a student
+  // who has not opened the app yet today still holds yesterday's streak.
+  if (!days.has(ymd(cursor))) cursor.setDate(cursor.getDate() - 1);
+  let streak = 0;
+  while (days.has(ymd(cursor)) && streak <= LEDGER_DAYS) {
+    streak++;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
+}
+
+/** Streak days at which the care multiplier stops growing. */
+export const STREAK_CAP = 10;
+
+/**
+ * How much a care tap is worth once the pet is maxed out.
+ *
+ * At MAX_LEVEL the only progression left is devotion, and it is a flat 400 XP a
+ * tier off care taps worth 2 — so the last stretch of the curve was also the
+ * slowest, which is exactly backwards. A streak scales that up to 1.5x.
+ *
+ * Below the cap this returns 1: the level curve is already paced, and speeding
+ * it up would just bring people to the same dead end sooner. The multiplier is
+ * applied when the XP is *awarded* and then written to the ledger, so replaying
+ * an event key still pays out what it originally paid — `award` stays
+ * idempotent, which is the one property this whole model rests on.
+ */
+export function devotionMultiplier(state, now = new Date()) {
+  const s = normalize(state);
+  if (levelFor(xpOf(s)) < MAX_LEVEL) return 1;
+  const streak = Math.min(STREAK_CAP, careStreak(s, now));
+  return 1 + (streak / STREAK_CAP) * 0.5;
 }
 
 // ── Mood ────────────────────────────────────────────────────────
@@ -491,9 +825,36 @@ export function care(state, action, now = new Date(), rate = 1) {
  *   baseline  the original clock-and-attention ladder.
  */
 export const MOODS = [
-  "celebrating", "proud", "excited", "focused", "restless",
-  "happy", "rooting", "content", "relaxed", "tired", "sleepy", "bored", "missing",
+  "celebrating", "proud", "birthday", "festive", "excited", "focused", "restless",
+  "playful", "happy", "curious", "rooting", "content", "relaxed", "cozy",
+  "tired", "sleepy", "bored", "missing",
 ];
+
+/**
+ * Moods that only exist on a handful of days a year.
+ *
+ * Derived from the calendar and the pet's own adoption date, so they need no
+ * context from the app and no admin switch to turn on - the same reason the
+ * mood ladder reads the clock itself. A companion that quietly remembers the
+ * day you adopted it is the cheapest warmth in the whole feature.
+ *
+ * The anniversary needs the pet to have actually been around for close to a
+ * year: a pet adopted on the 3rd must not have a birthday on the 3rd of the
+ * following month.
+ */
+export function seasonFor(state, now = new Date()) {
+  const s = normalize(state);
+  const month = now.getMonth() + 1;
+  const day = now.getDate();
+  if (s.adoptedAt) {
+    const [, m, d] = String(s.adoptedAt).split("-").map(Number);
+    if (m === month && d === day && daysAdopted(s, now) >= 360) return "birthday";
+  }
+  // Year's end. Deliberately a secular window - the app's cohort is not one
+  // faith and a companion should not assume.
+  if ((month === 12 && day >= 24) || (month === 1 && day <= 1)) return "festive";
+  return null;
+}
 
 /** How long a one-off "moment" mood holds the pet before it drops back. */
 export const MOMENT_MS = 30_000;
@@ -531,38 +892,86 @@ export const EXAM_HORIZON_DAYS = 5;
  */
 
 export function moodFor(state, now = new Date(), ctx = {}) {
+  return moodExplainFor(state, now, ctx).mood;
+}
+
+/**
+ * The same ladder as `moodFor`, plus the reason it stopped where it did.
+ *
+ * The pet reads the timetable — that is the whole point of it living in this
+ * app rather than being a widget — but until now it had no way to say so, and
+ * a companion whose mood looks arbitrary is a companion nobody trusts. One
+ * short clause, phrased the way the mood copy is: never reproachful, never a
+ * nag about attendance (see docs/pet-companion-plan.md §2).
+ *
+ * `moodFor` delegates here so the ladder exists exactly once — two copies would
+ * be one refactor away from telling the student a reason for a mood the pet is
+ * not actually in.
+ *
+ * @returns {{ mood: string, because: string }}
+ */
+export function moodExplainFor(state, now = new Date(), ctx = {}) {
   const s = normalize(state);
-  if (!isAdopted(s)) return "content";
+  const of = (mood, because) => ({ mood, because });
+  if (!isAdopted(s)) return of("content", "No companion adopted yet.");
   const hrs = hoursSince(s, now);
   const hour = now.getHours();
   // A moment outranks everything, the clock included: levelling up at 2am is
   // still worth celebrating, and a pet that slept through it would be a bug.
-  if (ctx.moment && ctx.momentUntil > now.getTime()) return ctx.moment;
+  if (ctx.moment && ctx.momentUntil > now.getTime()) {
+    return of(ctx.moment, ctx.moment === "celebrating"
+      ? "They just levelled up."
+      : "You just cleared something off the list.");
+  }
   // In class beats bedtime too — a 20:00 exam should read alert, not dozing.
-  if (ctx.inClass) return "focused";
+  if (ctx.inClass) return of("focused", "You are in class right now.");
   // Night reads as sleepy regardless of attention — a pet that's wide awake at
   // 3am is uncanny, and it gives the late-night crowd something to notice.
-  if ((hour >= 22 || hour < 6) && hrs >= 0.25) return "sleepy";
+  if ((hour >= 22 || hour < 6) && hrs >= 0.25) return of("sleepy", "It is the middle of the night.");
   // About to start. Positive, never reproachful: this is an animal noticing
   // something is about to happen, not a nag about being late. See §2.
-  if (ctx.minsToClass != null && ctx.minsToClass >= 0 && ctx.minsToClass <= RESTLESS_MINS) return "restless";
+  if (ctx.minsToClass != null && ctx.minsToClass >= 0 && ctx.minsToClass <= RESTLESS_MINS) {
+    const mins = Math.max(0, Math.round(ctx.minsToClass));
+    return of("restless", mins <= 1 ? "Class is about to start." : `Class starts in ${mins} minutes.`);
+  }
   // The evening winds down before bedtime does. Same rule as night — the clock
   // outranks attention — so the pet flags the end of a long day back at you
   // instead of staying breezy until it abruptly falls asleep at 22:00.
-  if (hour >= EVENING_HOUR && hrs >= 0.25) return "tired";
+  if (hour >= EVENING_HOUR && hrs >= 0.25) return of("tired", "It is getting late in the evening.");
+  // Once a year each, and both sit here on purpose: under everything that tells
+  // the student something useful (a class, a bedtime, an exam is not moved by a
+  // birthday), over the ordinary baselines they would otherwise never beat.
+  const season = seasonFor(s, now);
+  if (season === "birthday") return of("birthday", "It is a year today since you adopted them.");
   const cared = careUsedToday(s, now);
-  if (cared >= 2 && hrs < 2) return "excited";
-  if (cared >= 1 && hrs < 6) return "happy";
+  if (cared >= 3 && hrs < 2) return of("excited", "You have looked after them three times today.");
+  // A second bit of care is a distinct, lively state rather than just a
+  // faster version of "happy". The third tap remains the bigger excited
+  // payoff, while the hard cap keeps this expressive rather than grindy.
+  if (cared >= 2 && hrs < 2) return of("playful", "You have looked after them twice today.");
+  if (cared >= 1 && hrs < 6) return of("happy", "You looked after them today.");
   // Exam week. The app already knows the calendar, so the pet may as well: it
   // sits up and stays close. Pointedly NOT anxious or nagging — the one thing
   // this feature must never do is add pressure to the week that has the most
   // of it already (§2). It simply outranks the quieter baselines.
-  if (hrs < 24 && ctx.examSoon) return "rooting";
+  if (hrs < 24 && ctx.examSoon) return of("rooting", "There is an exam inside the week.");
+  if (season === "festive" && hrs < 24) return of("festive", "It is the end of the year.");
+  // A new day with classes ahead gives the companion a small anticipatory
+  // personality beat. It is deliberately after the imminent-class check so
+  // "restless" still communicates that a class is about to begin.
+  if (hrs < 24 && hour >= 6 && hour < 10 && (ctx.classesToday || 0) > 0) {
+    return of("curious", "A new morning, with classes ahead.");
+  }
   // "relaxed" is just "content" on a day with nothing scheduled — a Sunday
   // should not look identical to a five-class Wednesday.
-  if (hrs < 24) return ctx.classesToday === 0 ? "relaxed" : "content";
-  if (hrs < 72) return "bored";
-  return "missing";
+  if (hrs < 24 && ctx.classesToday === 0) {
+    return hour >= 15
+      ? of("cozy", "Nothing on the timetable today.")
+      : of("relaxed", "Nothing on the timetable today.");
+  }
+  if (hrs < 24) return of("content", "An ordinary day.");
+  if (hrs < 72) return of("bored", "No visit for over a day.");
+  return of("missing", "No visit for a few days.");
 }
 
 // ── Where the XP came from ──────────────────────────────────────
@@ -619,7 +1028,17 @@ export function unlockedAtLevel(level) {
  *  record already carries (so a manual grant or a future gift can't be lost). */
 export function unlockedFor(state) {
   const s = normalize(state);
-  return Array.from(new Set([...unlockedAtLevel(levelFor(xpOf(s))), ...s.unlocked]));
+  const xp = xpOf(s);
+  const { tier } = devotionFor(xp);
+  const devoted = Object.entries(DEVOTION_UNLOCKS)
+    .filter(([t]) => Number(t) <= tier)
+    .map(([, key]) => key);
+  return Array.from(new Set([...unlockedAtLevel(levelFor(xp)), ...devoted, ...s.unlocked]));
+}
+
+/** Companion key earned at a devotion tier, or null. */
+export function unlockedAtDevotion(tier) {
+  return DEVOTION_UNLOCKS[tier] || null;
 }
 
 /** Pets gained crossing from `prevLevel` to `level` — drives the unlock toast. */
@@ -695,8 +1114,22 @@ export function mergePets(a, b) {
 export function publicSummary(state) {
   const s = normalize(state);
   if (!isAdopted(s)) return null;
-  // Deliberately no hat: `get_friend_pets` projects key/name/level only, and
-  // widening it needs a migration. Adding the field here first would ship a
-  // frontend that reads a column prod does not have yet.
-  return { key: s.petKey, name: s.name, level: levelFor(xpOf(s)) };
+  // Cosmetics ride along now that `get_friend_pets` projects them (migration
+  // 20260906120000_pet_public_cosmetics.sql). They are validated the same way
+  // the wearer's own view validates them — `visibleHat` and friends refuse a
+  // cosmetic that is no longer earned — so a hand-edited row cannot show a
+  // friend a crown the owner never reached.
+  //
+  // Titles are deliberately included and the buddy is deliberately not: a
+  // title is a fact about the pet, the buddy is a second animal to draw, and
+  // the friends list already renders dozens of these.
+  return {
+    key: s.petKey,
+    name: s.name,
+    level: levelFor(xpOf(s)),
+    hat: visibleHat(s),
+    neck: visibleNeckwear(s),
+    coat: visibleCoat(s),
+    title: visibleTitle(s),
+  };
 }

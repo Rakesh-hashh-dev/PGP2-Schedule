@@ -7,12 +7,17 @@ import {
   emptyPet, normalize, isAdopted, adopt, rename, switchTo,
   xpOf, xpToReach, levelFor, levelProgress, award, keyFor,
   careUsedToday, careLeft, canCare, care,
-  hoursSince, moodFor, MOODS,
+  hoursSince, moodFor, moodExplainFor, MOODS,
   devotionFor, hatsFor, hatRequirement, setCosmetic, visibleHat, normalize as normalizePet,
-  DEVOTION_STEP, MAX_DEVOTION, MAX_LEVEL as MAXLVL, xpToReach,
+  DEVOTION_STEP, MAX_DEVOTION, MAX_LEVEL as MAXLVL,
   GROWTH_STAGES, growthStageFor, nextGrowthStage,
   unlockedAtLevel, unlockedFor, newlyUnlocked,
   prune, mergePets, publicSummary, xpBySource,
+  HATS, COATS, NECKWEAR, TITLES, DEVOTION_UNLOCKS, BUDDY_DEVOTION, STREAK_CAP,
+  coatsFor, neckwearFor, coatRequirement, neckwearRequirement,
+  visibleCoat, visibleNeckwear, titlesFor, visibleTitle, titleLabel,
+  buddyFor, daysAdopted, seasonFor, careStreak, devotionMultiplier, unlockedAtDevotion,
+  nextUnlockFor,
 } from "./pet.js";
 
 const at = (iso) => new Date(iso);
@@ -81,10 +86,10 @@ describe("award — idempotency", () => {
   it("pays out once per event key", () => {
     let s = adopted();
     s = award(s, keyFor.attendance("2026-09-04_10:00_SCM_A"), XP.attendance);
-    expect(xpOf(s)).toBe(10);
+    expect(xpOf(s)).toBe(XP.attendance);
     s = award(s, keyFor.attendance("2026-09-04_10:00_SCM_A"), XP.attendance);
     s = award(s, keyFor.attendance("2026-09-04_10:00_SCM_A"), XP.attendance);
-    expect(xpOf(s)).toBe(10);
+    expect(xpOf(s)).toBe(XP.attendance);
   });
   it("returns the same object when a key is already paid (lets React bail out)", () => {
     const first = award(adopted(), "due:asg_18", XP.deadline);
@@ -96,7 +101,7 @@ describe("award — idempotency", () => {
     s = award(s, keyFor.attendance("b"), XP.attendance);
     s = award(s, keyFor.deadline("asg_1"), XP.deadline);
     s = award(s, keyFor.streak("2026-09-04"), XP.streak);
-    expect(xpOf(s)).toBe(45);
+    expect(xpOf(s)).toBe(XP.attendance * 2 + XP.deadline + XP.streak);
   });
   it("rejects a blank key or a non-positive amount", () => {
     const s = adopted();
@@ -190,16 +195,24 @@ describe("XP rate multiplier", () => {
 
 describe("mood", () => {
   const noon = at("2026-09-04T12:00:00");
-  it("is excited after two taps, then settles", () => {
+  it("is playful after two taps, then settles", () => {
     let s = adopted(noon);
     s = care(s, "pet", noon);
     s = care(s, "play", noon);
-    expect(moodFor(s, noon)).toBe("excited");
+    expect(moodFor(s, noon)).toBe("playful");
     expect(moodFor(s, at("2026-09-04T18:30:00"))).toBe("content");
   });
   it("is happy after a single tap", () => {
     const s = care(adopted(noon), "treat", noon);
     expect(moodFor(s, noon)).toBe("happy");
+  });
+  it("uses curious mornings and cozy free afternoons", () => {
+    const s = adopted(noon);
+    expect(moodFor(s, at("2026-09-04T08:00:00"), { classesToday: 3 })).toBe("curious");
+    expect(moodFor(s, at("2026-09-04T16:00:00"), { classesToday: 0 })).toBe("cozy");
+    // The more urgent and more caring states must still take precedence.
+    expect(moodFor(s, at("2026-09-04T08:00:00"), { classesToday: 3, minsToClass: 5 })).toBe("restless");
+    expect(moodFor(care(s, "pet", noon), at("2026-09-04T08:00:00"), { classesToday: 3 })).toBe("happy");
   });
   it("drifts to bored then missing, and stops there", () => {
     const s = adopted(noon);
@@ -219,7 +232,7 @@ describe("mood", () => {
     let s = care(adopted(noon), "pet", evening);
     s = care(s, "play", evening);
     // Just tapped, so it perks up — then winds back down.
-    expect(moodFor(s, evening)).toBe("excited");
+    expect(moodFor(s, evening)).toBe("playful");
     expect(moodFor(s, at("2026-09-04T20:30:00"))).toBe("tired");
   });
   it("sleeps at night regardless of attention", () => {
@@ -312,9 +325,9 @@ describe("xpBySource", () => {
 
   it("groups the ledger by source in display order", () => {
     expect(xpBySource(built())).toEqual([
-      { prefix: "att", label: "Classes marked", xp: 20 },
-      { prefix: "due", label: "Deadlines cleared", xp: 20 },
-      { prefix: "stk", label: "Daily streak", xp: 5 },
+      { prefix: "att", label: "Classes marked", xp: XP.attendance * 2 },
+      { prefix: "due", label: "Deadlines cleared", xp: XP.deadline },
+      { prefix: "stk", label: "Daily streak", xp: XP.streak },
       { prefix: "care", label: "Looking after them", xp: XP.care },
     ]);
   });
@@ -335,7 +348,8 @@ describe("xpBySource", () => {
 
   it("can be limited to a date window", () => {
     const rows = xpBySource(built(), "2026-09-04");
-    expect(rows.find(r => r.prefix === "att").xp).toBe(10);
+    // only the second class falls inside the window
+    expect(rows.find(r => r.prefix === "att").xp).toBe(XP.attendance);
   });
 
   it("omits sources that earned nothing", () => {
@@ -347,12 +361,16 @@ describe("xpBySource", () => {
 describe("unlocks", () => {
   it("every unlock key is a real pet", () => {
     const real = new Set(PETS.map(p => p.key));
-    for (const k of [...STARTER_KEYS, ...Object.values(UNLOCKS)]) expect(real.has(k)).toBe(true);
+    for (const k of [...STARTER_KEYS, ...Object.values(UNLOCKS), ...Object.values(DEVOTION_UNLOCKS)]) {
+      expect(real.has(k)).toBe(true);
+    }
   });
   it("covers the whole roster with no duplicates", () => {
     const all = [...STARTER_KEYS, ...Object.values(UNLOCKS)];
     expect(new Set(all).size).toBe(all.length);
-    expect(new Set(all).size).toBe(PETS.length);
+    // The level curve hands out every pet EXCEPT the devotion companions, which
+    // are the point of the tiers past the cap and must not arrive before them.
+    expect(new Set(all).size).toBe(PETS.length - Object.keys(DEVOTION_UNLOCKS).length);
   });
   it("grows with level and is complete at MAX_LEVEL", () => {
     expect(unlockedAtLevel(1)).toEqual(STARTER_KEYS);
@@ -360,8 +378,9 @@ describe("unlocks", () => {
     expect(unlockedAtLevel(1)).not.toContain("fox");
     // The curve runs to 12, so the roster should too: 11 and 12 used to unlock
     // nothing, which made the last two level-ups feel empty.
-    expect(unlockedAtLevel(10)).not.toHaveLength(PETS.length);
-    expect(unlockedAtLevel(MAX_LEVEL)).toHaveLength(PETS.length);
+    const byLevel = PETS.length - Object.keys(DEVOTION_UNLOCKS).length;
+    expect(unlockedAtLevel(10)).not.toHaveLength(byLevel);
+    expect(unlockedAtLevel(MAX_LEVEL)).toHaveLength(byLevel);
     expect(unlockedAtLevel(MAX_LEVEL)).toContain("spark");
     expect(unlockedAtLevel(MAX_LEVEL)).toContain("leafy");
   });
@@ -536,7 +555,7 @@ describe("mood ↔ CSS coverage", () => {
       const block = css.match(new RegExp(`\\.dg-pet\\[data-mood="${mood}"\\] \\{([^}]*)\\}`));
       expect(block, `no knob block for [data-mood="${mood}"]`).toBeTruthy();
       const pose = KNOBS
-        .map(k => (block[1].match(new RegExp(`${k}:\\s*([^;]+)`)) || [, "default"])[1].trim())
+        .map(k => (block[1].match(new RegExp(`${k}:\\s*([^;]+)`)) || [null, "default"])[1].trim())
         .join("|");
       expect(poses.has(pose), `[data-mood="${mood}"] poses identically to "${poses.get(pose)}"`).toBe(false);
       poses.set(pose, mood);
@@ -555,12 +574,33 @@ describe("mood ↔ CSS coverage", () => {
 });
 
 describe("publicSummary", () => {
-  it("exposes only key, name and level", () => {
+  it("exposes the pet, its level and what it is wearing — and nothing else", () => {
     let s = adopted();
     s = award(s, "att:1", 200);
     const pub = publicSummary(s);
-    expect(Object.keys(pub).sort()).toEqual(["key", "level", "name"]);
-    expect(pub).toEqual({ key: "cat", name: "Mochi", level: 2 });
+    expect(Object.keys(pub).sort()).toEqual(["coat", "hat", "key", "level", "name", "neck", "title"]);
+    expect(pub).toEqual({ key: "cat", name: "Mochi", level: 2, hat: null, neck: null, coat: null, title: null });
+  });
+
+  // A friend must never be shown a cosmetic the owner has not earned — the
+  // summary validates through the same `visible*` helpers the owner's own view
+  // uses, so a hand-edited row cannot smuggle a crown onto a level-2 pet.
+  it("refuses to publish a cosmetic that is not earned", () => {
+    const faked = { ...adopted(), cosmetics: { accessory: true, hat: "crown", coat: "gold", neck: "bell", title: "inseparable", buddy: null } };
+    const pub = publicSummary(faked);
+    expect(pub.hat).toBe(null);
+    expect(pub.coat).toBe(null);
+    expect(pub.neck).toBe(null);
+    expect(pub.title).toBe(null);
+  });
+
+  it("publishes what a maxed pet is actually wearing", () => {
+    let s = atDevotion(MAX_DEVOTION);
+    s = setCosmetic(s, "hat", "crown");
+    s = setCosmetic(s, "coat", "gold");
+    s = setCosmetic(s, "neck", "bell");
+    const pub = publicSummary(s);
+    expect(pub).toMatchObject({ hat: "crown", coat: "gold", neck: "bell" });
   });
   it("leaks no XP, ledger, streak or timestamps", () => {
     const json = JSON.stringify(publicSummary(award(adopted(), "att:1", 50)));
@@ -774,6 +814,303 @@ describe("growth stages", () => {
     const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
     for (const stage of GROWTH_STAGES) {
       expect(css).toContain(`.dg-pet[data-stage="${stage.key}"]`);
+    }
+  });
+});
+
+describe("moodExplainFor", () => {
+  const ctx = { classesToday: 2 };
+
+  it("agrees with moodFor on every input the ladder branches on", () => {
+    const cases = [
+      [emptyPet(), at("2026-09-04T10:00:00"), ctx],
+      [adopted(), at("2026-09-04T10:00:00"), { ...ctx, inClass: true }],
+      [adopted(), at("2026-09-04T23:30:00"), ctx],
+      [adopted(), at("2026-09-04T10:00:00"), { ...ctx, minsToClass: 4 }],
+      [adopted(), at("2026-09-04T20:00:00"), ctx],
+      [adopted(), at("2026-09-04T10:00:00"), { ...ctx, examSoon: true }],
+      [adopted(), at("2026-09-04T08:00:00"), ctx],
+      [adopted(), at("2026-09-04T11:00:00"), { classesToday: 0 }],
+      [adopted(), at("2026-09-04T16:00:00"), { classesToday: 0 }],
+      [adopted(), at("2026-09-04T11:00:00"), ctx],
+      [adopted(), at("2026-09-06T11:00:00"), ctx],
+      [adopted(), at("2026-09-09T11:00:00"), ctx],
+      [adopted(), at("2026-09-04T10:00:00"), { ...ctx, moment: "celebrating", momentUntil: at("2026-09-04T10:00:20").getTime() }],
+    ];
+    for (const [state, now, c] of cases) {
+      expect(moodExplainFor(state, now, c).mood).toBe(moodFor(state, now, c));
+    }
+  });
+
+  it("always gives a reason", () => {
+    for (const [state, now, c] of [
+      [emptyPet(), at("2026-09-04T10:00:00"), {}],
+      [adopted(), at("2026-09-04T23:30:00"), {}],
+      [adopted(), at("2026-09-04T10:00:00"), { minsToClass: 0 }],
+    ]) {
+      expect(moodExplainFor(state, now, c).because.length).toBeGreaterThan(4);
+    }
+  });
+
+  it("counts down to the class it is restless about", () => {
+    const out = moodExplainFor(adopted(), at("2026-09-04T10:00:00"), { minsToClass: 6, classesToday: 1 });
+    expect(out.mood).toBe("restless");
+    expect(out.because).toContain("6");
+  });
+});
+
+// "rooting" shipped with no line in either copy map, so an exam inside the
+// horizon rendered "<pet> undefined" in the greeting and a blank mood on the
+// pet page. Both maps are read by key with no fallback, so this has to be a
+// test rather than a convention.
+describe("mood copy", () => {
+  const maps = [
+    ["DayGreeting MOOD_LINE", readFileSync(new URL("../components/DayGreeting.jsx", import.meta.url), "utf8"), "MOOD_LINE"],
+    ["PetPage MOOD_COPY", readFileSync(new URL("../components/PetPage.jsx", import.meta.url), "utf8"), "MOOD_COPY"],
+  ];
+
+  for (const [label, src, name] of maps) {
+    it(`${label} covers every mood`, () => {
+      const body = src.slice(src.indexOf(`const ${name} = {`));
+      const keys = new Set([...body.slice(0, body.indexOf("};")).matchAll(/^\s*([a-z]+):/gm)].map(m => m[1]));
+      for (const mood of MOODS) expect(keys.has(mood), `${name} has no line for "${mood}"`).toBe(true);
+    });
+  }
+});
+
+// ── Progression past the level cap ───────────────────────────────
+// Ten devotion tiers shipped with two unlocks between them, so eight of the ten
+// steps past MAX_LEVEL rewarded nothing at all.
+const atDevotion = (tier) => award(
+  adopt(emptyPet(), "cat", "Mochi", at("2026-09-04T10:00:00")),
+  "admin:top-up", xpToReach(MAX_LEVEL) + tier * DEVOTION_STEP, at("2026-09-04T10:00:00"),
+);
+
+describe("devotion wardrobe", () => {
+  it("gives every tier something to unlock", () => {
+    for (let tier = 1; tier <= MAX_DEVOTION; tier++) {
+      const earned = [
+        ...hatsFor(atDevotion(tier)),
+        ...coatsFor(atDevotion(tier)),
+        ...neckwearFor(atDevotion(tier)),
+      ];
+      const before = [
+        ...hatsFor(atDevotion(tier - 1)),
+        ...coatsFor(atDevotion(tier - 1)),
+        ...neckwearFor(atDevotion(tier - 1)),
+      ];
+      expect(earned.length, `devotion ${tier} unlocks nothing new`).toBeGreaterThan(before.length);
+    }
+  });
+
+  it("keeps every wearable gated on exactly one of level or devotion", () => {
+    for (const item of [...HATS, ...COATS, ...NECKWEAR]) {
+      const gates = [item.level, item.devotion].filter(v => v != null);
+      expect(gates.length, `${item.key} is gated on ${gates.length} things`).toBe(1);
+    }
+  });
+
+  it("labels what a coat or collar costs", () => {
+    expect(coatRequirement("gold")).toBe(`Devotion ${MAX_DEVOTION}`);
+    expect(neckwearRequirement("scarf")).toBe("Level 3");
+    expect(coatRequirement("nope")).toBe(null);
+  });
+
+  it("refuses a coat or collar that has not been earned", () => {
+    const fresh = adopted();
+    expect(setCosmetic(fresh, "coat", "gold").cosmetics.coat).toBe(null);
+    expect(setCosmetic(fresh, "neck", "scarf").cosmetics.neck).toBe(null);
+    const rich = atDevotion(MAX_DEVOTION);
+    expect(setCosmetic(rich, "coat", "gold").cosmetics.coat).toBe("gold");
+    expect(setCosmetic(rich, "neck", "scarf").cosmetics.neck).toBe("scarf");
+  });
+
+  it("hides a cosmetic the admin has withdrawn without wiping the choice", () => {
+    const worn = setCosmetic(atDevotion(MAX_DEVOTION), "coat", "gold");
+    expect(worn.cosmetics.coat).toBe("gold");
+    expect(visibleCoat(worn, { wardrobe: false })).toBe(null);
+    expect(visibleCoat(worn)).toBe("gold");
+  });
+
+  it("stops showing neckwear if the level that earned it is taken away", () => {
+    const worn = setCosmetic(atDevotion(1), "neck", "scarf");
+    expect(visibleNeckwear(worn)).toBe("scarf");
+    expect(visibleNeckwear({ ...worn, awarded: {}, baseXp: 0, grantedXp: 0 })).toBe(null);
+  });
+});
+
+describe("devotion companions", () => {
+  it("arrives only at its tier", () => {
+    for (const [tier, key] of Object.entries(DEVOTION_UNLOCKS)) {
+      expect(unlockedFor(atDevotion(Number(tier) - 1))).not.toContain(key);
+      expect(unlockedFor(atDevotion(Number(tier)))).toContain(key);
+      expect(unlockedAtDevotion(Number(tier))).toBe(key);
+    }
+  });
+
+  it("is a real pet in the registry", () => {
+    for (const key of Object.values(DEVOTION_UNLOCKS)) {
+      expect(PETS.map(p => p.key), `${key} is unlockable but not drawn`).toContain(key);
+    }
+  });
+
+  it("cannot arrive before the roster is complete", () => {
+    const maxed = atDevotion(0);
+    for (const key of Object.values(UNLOCKS)) expect(unlockedFor(maxed)).toContain(key);
+  });
+});
+
+describe("titles", () => {
+  it("earns them from state the ledger already holds", () => {
+    expect(titlesFor(emptyPet())).toEqual([]);
+    expect(titlesFor(adopted())).toContain("friend");
+    expect(titlesFor(atDevotion(6))).toContain("inseparable");
+    expect(titlesFor(adopted())).not.toContain("inseparable");
+  });
+
+  it("counts days from the adoption date", () => {
+    const pet = adopted(at("2026-01-01T10:00:00"));
+    expect(daysAdopted(pet, at("2026-01-01T10:00:00"))).toBe(0);
+    expect(daysAdopted(pet, at("2026-03-02T10:00:00"))).toBe(60);
+    expect(titlesFor(pet, at("2026-03-02T10:00:00"))).toContain("veteran");
+  });
+
+  it("drops a title that is no longer true", () => {
+    const worn = setCosmetic(atDevotion(6), "title", "inseparable");
+    expect(visibleTitle(worn)).toBe("inseparable");
+    expect(visibleTitle({ ...worn, awarded: {}, baseXp: 0, grantedXp: 0 })).toBe(null);
+    expect(titleLabel("inseparable")).toBe("Inseparable");
+  });
+
+  it("has a label for every title", () => {
+    for (const t of TITLES) expect(titleLabel(t.key)).toBeTruthy();
+  });
+});
+
+describe("buddy slot", () => {
+  it("stays shut until the tier that opens it", () => {
+    const below = setCosmetic(atDevotion(BUDDY_DEVOTION - 1), "buddy", "fox");
+    expect(below.cosmetics.buddy).toBe(null);
+    const open = setCosmetic(atDevotion(BUDDY_DEVOTION), "buddy", "fox");
+    expect(buddyFor(open)).toBe("fox");
+  });
+
+  it("refuses a companion that is not unlocked, and refuses itself", () => {
+    const open = atDevotion(BUDDY_DEVOTION);
+    expect(setCosmetic(open, "buddy", "not-a-pet").cosmetics.buddy).toBe(null);
+    expect(buddyFor({ ...open, cosmetics: { ...open.cosmetics, buddy: open.petKey } })).toBe(null);
+  });
+});
+
+describe("seasonal moods", () => {
+  it("remembers the adoption anniversary, but only after a year", () => {
+    const pet = adopted(at("2025-03-14T10:00:00"));
+    expect(seasonFor(pet, at("2026-03-14T10:00:00"))).toBe("birthday");
+    expect(moodFor(pet, at("2026-03-14T10:00:00"), { classesToday: 1 })).toBe("birthday");
+    expect(seasonFor(pet, at("2025-04-14T10:00:00"))).toBe(null);
+    expect(seasonFor(pet, at("2026-03-15T10:00:00"))).toBe(null);
+  });
+
+  it("keeps the informative moods above the flavour ones", () => {
+    const pet = adopted(at("2025-03-14T10:00:00"));
+    const birthday = at("2026-03-14T10:00:00");
+    expect(moodFor(pet, birthday, { inClass: true })).toBe("focused");
+    expect(moodFor(pet, birthday, { minsToClass: 3 })).toBe("restless");
+  });
+
+  it("closes out the year", () => {
+    expect(seasonFor(adopted(), at("2026-12-27T12:00:00"))).toBe("festive");
+    expect(seasonFor(adopted(), at("2026-12-23T12:00:00"))).toBe(null);
+    expect(seasonFor(adopted(), at("2026-01-01T12:00:00"))).toBe("festive");
+  });
+});
+
+describe("care streak", () => {
+  const build = (offsets, from = at("2026-09-10T10:00:00")) => {
+    let pet = adopt(emptyPet(), "cat", "Mochi", at("2026-01-01T10:00:00"));
+    for (const offset of offsets) {
+      const day = new Date(from);
+      day.setDate(day.getDate() - offset);
+      pet = care(pet, "pet", day);
+    }
+    return pet;
+  };
+
+  it("counts consecutive days back from today", () => {
+    expect(careStreak(build([0, 1, 2]), at("2026-09-10T10:00:00"))).toBe(3);
+    expect(careStreak(build([0, 1, 3]), at("2026-09-10T10:00:00"))).toBe(2);
+    expect(careStreak(emptyPet(), at("2026-09-10T10:00:00"))).toBe(0);
+  });
+
+  it("does not break the streak until the missed day is over", () => {
+    expect(careStreak(build([1, 2, 3]), at("2026-09-10T10:00:00"))).toBe(3);
+  });
+
+  it("only pays the multiplier once the level curve is finished", () => {
+    expect(devotionMultiplier(build([0, 1, 2]), at("2026-09-10T10:00:00"))).toBe(1);
+    const maxed = award(build([0, 1, 2]), "admin:top-up", xpToReach(MAX_LEVEL), at("2026-09-10T10:00:00"));
+    expect(devotionMultiplier(maxed, at("2026-09-10T10:00:00"))).toBeGreaterThan(1);
+    expect(devotionMultiplier(maxed, at("2026-09-10T10:00:00"))).toBeLessThanOrEqual(1.5);
+  });
+
+  it("caps the multiplier", () => {
+    const long = award(build([...Array(STREAK_CAP + 6).keys()]), "admin:top-up", xpToReach(MAX_LEVEL), at("2026-09-10T10:00:00"));
+    expect(devotionMultiplier(long, at("2026-09-10T10:00:00"))).toBe(1.5);
+  });
+
+  it("keeps award idempotent — a replayed key pays what it first paid", () => {
+    const maxed = award(adopted(), "admin:top-up", xpToReach(MAX_LEVEL), at("2026-09-10T09:00:00"));
+    const once = care(maxed, "pet", at("2026-09-10T10:00:00"));
+    const twice = care(once, "pet", at("2026-09-10T10:00:00"));
+    const key = keyFor.care("2026-09-10", 1);
+    expect(twice.awarded[key]).toEqual(once.awarded[key]);
+  });
+});
+
+// The pet page could say what you have and never what was coming next.
+describe("nextUnlockFor", () => {
+  it("names the next thing, by level, before anything devotion-gated", () => {
+    const next = nextUnlockFor(adopted());
+    expect(next.by).toBe("level");
+    expect(next.at).toBe(2);
+  });
+
+  it("moves on as each gate is passed", () => {
+    let seen = null;
+    for (const xp of [0, 150, 400, 900, 2000]) {
+      const pet = award(adopted(), `admin:${xp}`, xp);
+      const next = nextUnlockFor(pet);
+      if (seen) expect(next.at >= seen.at || next.by !== seen.by).toBe(true);
+      seen = next;
+    }
+  });
+
+  it("switches to devotion once the level curve is done", () => {
+    const next = nextUnlockFor(atDevotion(0));
+    expect(next.by).toBe("devotion");
+    expect(next.at).toBe(1);
+  });
+
+  it("offers the second companion slot before it is open", () => {
+    const rows = [];
+    for (let tier = 0; tier < MAX_DEVOTION; tier++) rows.push(nextUnlockFor(atDevotion(tier)));
+    expect(rows.every(r => r && r.by === "devotion")).toBe(true);
+    expect(rows.map(r => r.at).every((at, i) => at > i)).toBe(true);
+  });
+
+  it("runs out honestly", () => {
+    expect(nextUnlockFor(atDevotion(MAX_DEVOTION))).toBe(null);
+  });
+
+  it("only ever names something not yet earned", () => {
+    for (const tier of [0, 2, 5, 9]) {
+      const pet = atDevotion(tier);
+      const next = nextUnlockFor(pet);
+      if (!next) continue;
+      if (next.kind === "companion") expect(unlockedFor(pet)).not.toContain(next.key);
+      if (next.kind === "hat") expect(hatsFor(pet)).not.toContain(next.key);
+      if (next.kind === "coat") expect(coatsFor(pet)).not.toContain(next.key);
+      if (next.kind === "collar") expect(neckwearFor(pet)).not.toContain(next.key);
     }
   });
 });

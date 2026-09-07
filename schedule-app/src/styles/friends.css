@@ -2670,5 +2670,8 @@ html[data-theme="dark"] .fr-friend-card.favourite-glow:hover {
    only ever key/name/level (see get_friend_pets). Sits inline in the meta row
    so it costs no extra vertical space on a long friends list. */
 .fr-friend-pet { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; overflow: hidden; color: var(--muted); font-size: 10.5px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
-.fr-friend-pet-art { width: 17px; height: 17px; flex: none; }
+/* 17px against the 40px the hat and collar offsets were tuned for, so the
+   overlays scale down with the pet instead of sliding off it. */
+.fr-friend-pet-art { width: 17px; height: 17px; flex: none; --pet-overlay-k: .425; }
+.fr-friend-pet-art .dg-pet-hat, .fr-friend-pet-art .dg-pet-neck { position: absolute; inset: 0; width: 100%; height: 100%; }
 .fr-friend-pet-art::after, .fr-friend-pet-art::before { display: none; }

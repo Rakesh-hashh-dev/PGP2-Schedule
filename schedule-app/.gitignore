@@ -40,3 +40,4 @@ backup_*.sql
 *.sw?
 
 .vercel
+.local/

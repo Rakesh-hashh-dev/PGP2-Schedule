@@ -1,6 +1,9 @@
 import { useMemo, useState } from "react";
 import { ArrowLeft, History, Image, Share2, Sparkles } from "lucide-react";
 import { buildWrapped, buildWrappedComparison } from "../lib/wrapped.js";
+import PetCameo from "./PetCameo.jsx";
+import { getPetByKey } from "./greetingPets.jsx";
+import { isAdopted, levelFor, xpOf, visibleTitle, titleLabel, daysAdopted } from "../lib/pet.js";
 import {
   AttendanceDonut,
   BeyondClassroom,
@@ -14,7 +17,7 @@ import WrappedDetailModal from "./wrapped/WrappedDetailModal.jsx";
 import { WrappedComparison, WrappedIdentity } from "./wrapped/WrappedInsights.jsx";
 import "../styles/wrapped.css";
 
-export default function WrappedView({ visible, legend, attendance, now, termLabel, userName, isArchived = false, previousTerm, previousTermNumber, onViewPrevious, onBack }) {
+export default function WrappedView({ visible, legend, attendance, now, termLabel, userName, isArchived = false, previousTerm, previousTermNumber, onViewPrevious, onBack, pet = null, petSettings, petContext }) {
   const stats = useMemo(
     () => buildWrapped(visible, legend, attendance, now, { includeLocalExtras: !isArchived }),
     [visible, legend, attendance, now, isArchived],
@@ -73,6 +76,21 @@ export default function WrappedView({ visible, legend, attendance, now, termLabe
           <div><strong>{attendanceValue}</strong><span>{stats.marked ? "attendance" : "not marked"}</span></div>
           <div><strong>{stats.courseCount}</strong><span>courses</span></div>
         </div>
+        {/* Whoever sat through the term with you. A recap of the term that
+            leaves out the companion you fed all of it is missing a character. */}
+        {isAdopted(pet) && (
+          <div className="wrapped-hero-pet">
+            <PetCameo pet={pet} now={now} petContext={petContext} petSettings={petSettings} size={56} />
+            <div className="wrapped-hero-pet-text">
+              <strong>{pet.name || getPetByKey(pet.petKey)?.label}</strong>
+              <span>
+                Level {levelFor(xpOf(pet))}
+                {visibleTitle(pet, now) ? ` · ${titleLabel(visibleTitle(pet, now))}` : ""}
+                {daysAdopted(pet, now) > 0 ? ` · ${daysAdopted(pet, now)} days together` : ""}
+              </span>
+            </div>
+          </div>
+        )}
         {onViewPrevious && previousTermNumber && previousTerm && (
           <button type="button" className="wrapped-prev-cta wrapped-prev-cta--hero" onClick={onViewPrevious}>
             <History size={15} aria-hidden="true" /> See your Term {previousTermNumber} Wrapped

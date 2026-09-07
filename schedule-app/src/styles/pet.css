@@ -19,6 +19,9 @@
 .pet-hero { width: 116px; height: 116px; --pet-z: 24px; }
 .pet-hero::after { display: none; }  /* the little "online" dot is greeting-only */
 .pet-mood { margin: 6px 0 0; font-size: 14px; font-weight: 700; }
+/* Why the pet is in that mood — quieter than the mood itself, because it is
+   the footnote, not the headline. */
+.pet-because { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
 .pet-seen { margin: 0; color: var(--muted); font-size: 11.5px; }
 
 .pet-xp { width: 100%; max-width: 340px; margin-top: 12px; }
@@ -108,3 +111,84 @@
    field — the picker underneath is a choice, this is the introduction. */
 .pet-adopt-hero { display: grid; justify-items: center; gap: 4px; margin: 4px 0 14px; }
 .pet-adopt-hero .pet-hero { cursor: default; }
+
+/* ── Second wearable slot, coats, titles and the buddy ───────────── */
+
+/* Sub-heading inside a card that now holds more than one grid. */
+.pet-h4 { margin: 16px 0 8px; font-size: 12px; font-weight: 800; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+
+/* The neckwear preview reuses the hat swatch box, just anchored lower — the
+   collar is drawn against y=23.2 rather than the hat's y=8. */
+.pet-hat-art .dg-pet-neck { position: absolute; inset: 0; width: 100%; height: 100%; translate: 0 -18px; scale: 1.5; }
+
+/* A coat swatch is the pet itself wearing it — the only honest preview of a
+   filter, and it costs nothing but a second render of an SVG already loaded. */
+.pet-coat-slot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 4px 7px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  color: inherit;
+  cursor: pointer;
+  transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
+}
+.pet-coat-slot:hover:not(:disabled), .pet-coat-slot:focus-visible { transform: translateY(-1px); border-color: color-mix(in srgb, var(--violet) 42%, var(--border)); background: color-mix(in srgb, var(--violet) 12%, var(--bg)); outline: none; }
+.pet-coat-slot.on { border-color: var(--violet); background: color-mix(in srgb, var(--violet) 18%, var(--bg)); }
+.pet-coat-slot.locked { cursor: not-allowed; opacity: .5; }
+.pet-coat-art { width: 38px; height: 38px; --pet-z: 8px; }
+.pet-coat-art::after, .pet-coat-art::before { display: none; }
+
+/* Hero row: the companion, and beside it whoever is keeping it company. */
+.pet-hero-row { display: flex; align-items: flex-end; justify-content: center; gap: 10px; }
+.pet-buddy { width: 62px; height: 62px; --pet-z: 13px; align-self: flex-end; }
+.pet-buddy::after { display: none; }
+
+.pet-title-line { margin: 6px 0 0; font-size: 11px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: var(--violet); }
+
+.pet-titles { display: flex; flex-wrap: wrap; gap: 7px; }
+.pet-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 11px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  color: inherit;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+.pet-title:hover:not(:disabled), .pet-title:focus-visible { border-color: color-mix(in srgb, var(--violet) 42%, var(--border)); outline: none; }
+.pet-title.on { border-color: var(--violet); background: color-mix(in srgb, var(--violet) 18%, var(--bg)); color: var(--violet); }
+.pet-title.locked { cursor: not-allowed; opacity: .5; }
+
+/* The next rung, under the XP numbers. Quiet — it is a signpost, not a nag. */
+.pet-next { display: flex; align-items: center; justify-content: center; gap: 7px; margin: 9px 0 0; color: var(--muted); font-size: 11.5px; font-weight: 600; }
+.pet-next-at { padding: 2px 8px; border-radius: 999px; background: var(--violet-dim); border: 1px solid color-mix(in srgb, var(--violet) 26%, transparent); color: var(--violet); font-size: 10.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+
+/* ── Cameos ─────────────────────────────────────────────────────
+   The companion appearing outside the greeting and the pet page. Decorative,
+   so it never takes the status dot or the pointer with it. */
+.pet-cameo { flex: none; cursor: default; }
+.pet-cameo::after { display: none; }
+
+/* Free day. The pet sits beside the sun scene rather than in the copy, so the
+   card still reads the same with the companion switched off. */
+.tmrw-free-pet { position: absolute; right: 14px; bottom: 12px; }
+@media (max-width: 520px) {
+  .tmrw-free-pet { right: 8px; bottom: 8px; }
+}
+
+/* Term Wrapped. */
+.wrapped-hero-pet { display: inline-flex; align-items: center; gap: 11px; margin-top: 16px; padding: 8px 14px 8px 10px; border: 1px solid color-mix(in srgb, var(--violet) 26%, transparent); border-radius: 999px; background: color-mix(in srgb, var(--violet) 10%, transparent); }
+.wrapped-hero-pet-text { display: flex; flex-direction: column; text-align: left; line-height: 1.25; }
+.wrapped-hero-pet-text strong { font-size: 13.5px; font-weight: 800; }
+.wrapped-hero-pet-text span { color: var(--muted); font-size: 11.5px; font-weight: 600; }

@@ -94,7 +94,9 @@ describe("row ⇄ state mapping", () => {
     expect(s.petKey).toBe("cat");
     expect(s.name).toBe("");
     expect(xpOf(s)).toBe(0);
-    expect(s.cosmetics).toEqual({ accessory: true, hat: null });
+    // Every cosmetic slot defaults to "not wearing one", so a row written
+    // before a slot existed reads as bare rather than as invalid.
+    expect(s.cosmetics).toEqual({ accessory: true, hat: null, coat: null, neck: null, title: null, buddy: null });
   });
 
   it("coerces a bigint last_seen arriving as a string", () => {

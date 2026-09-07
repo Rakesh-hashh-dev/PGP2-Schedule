@@ -14,7 +14,9 @@
     "preview": "vite preview",
     "sentry:login": "sentry-cli login",
     "sentry:test": "sentry-cli send-event -m \"Test event from sentry-cli\"",
-    "sentry:releases": "sentry-cli releases list"
+    "sentry:releases": "sentry-cli releases list",
+    "pet-sheet": "node scripts/pet-sheet.mjs",
+    "xp-model": "node scripts/xp-model.mjs"
   },
   "dependencies": {
     "@clerk/clerk-react": "^5.61.8",

@@ -283,7 +283,19 @@ export async function fetchFriendPets(cloudIds) {
     const map = {};
     for (const row of data) {
       if (row?.user_id && row.pet_key) {
-        map[row.user_id] = { key: row.pet_key, name: row.name || "", level: row.level || 1 };
+        // The cosmetic columns arrived in a later migration
+        // (20260906120000_pet_public_cosmetics). Reading them with `?? null`
+        // means a client that ships ahead of the migration simply sees bare
+        // pets instead of failing — the RPC just returns fewer columns.
+        map[row.user_id] = {
+          key: row.pet_key,
+          name: row.name || "",
+          level: row.level || 1,
+          hat: row.hat ?? null,
+          neck: row.neck ?? null,
+          coat: row.coat ?? null,
+          title: row.title ?? null,
+        };
       }
     }
     return map;

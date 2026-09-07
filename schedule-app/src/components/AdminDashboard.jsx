@@ -18,7 +18,7 @@ import FeedbackFlashToast from "./FeedbackFlashToast.jsx";
 import { WhatsNewPill, WhatsNewModal } from "./WhatsNew.jsx";
 import { PETS, getPetByKey } from "./greetingPets.jsx";
 import PetHat from "./PetHat.jsx";
-import { HATS, hatRequirement } from "../lib/pet.js";
+import { HATS, COATS, NECKWEAR, hatRequirement } from "../lib/pet.js";
 
 // Render-stable "now" captured at module load — used for relative-time math in
 // render (inactivity windows, cron staleness) without an impure Date.now() call.
@@ -555,10 +555,13 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [dbRefreshKey, setDbRefreshKey] = useState(0);
   const [dbLoadedAt, setDbLoadedAt] = useState(null);
   const [dbSelectedRow, setDbSelectedRow] = useState(null);
+  const [dbCopyStatus, setDbCopyStatus] = useState("");
   const [moderationSearch, setModerationSearch] = useState("");
   const [moderationSort, setModerationSort] = useState("expiry");
+  const [moderationScope, setModerationScope] = useState("all");
   const [moderationBusyId, setModerationBusyId] = useState(null);
   const [moderationMessage, setModerationMessage] = useState("");
+  const [auditExpandedId, setAuditExpandedId] = useState(null);
 
   // Keep original fetched config for diffing
   const [originalFlags, setOriginalFlags] = useState(null);
@@ -1365,16 +1368,6 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     return days;
   })();
 
-  // ── Streak users: seen on every one of the last 7 days ──────────────────────
-  const streakUserIds = new Set(
-    allUsers
-      .filter(u => {
-        if (!u.last_seen_at) return false;
-        return weeklyPresence.every(day => day.users.some(wu => wu.userId === u.user_id));
-      })
-      .map(u => u.user_id)
-  );
-
   // ── Ghost users: not seen in 7+ days (only if they ever logged in) ──────────
   const ghostUsers = allUsers.filter(u =>
     u.last_seen_at && (LOAD_NOW - new Date(u.last_seen_at).getTime()) > 7 * 86400000
@@ -1604,6 +1597,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const activeStatusUsers = allUsers.filter(u => u.courses?._status?.until && new Date(u.courses._status.until).getTime() > LOAD_NOW);
   const normalizedModerationSearch = moderationSearch.trim().toLowerCase();
   const filteredStatusUsers = activeStatusUsers.filter(u => {
+    const until = new Date(u.courses?._status?.until).getTime();
+    const expiresSoon = Number.isFinite(until) && until - LOAD_NOW <= 60 * 60000;
+    if (moderationScope === "soon" && !expiresSoon) return false;
+    if (moderationScope === "later" && expiresSoon) return false;
     if (!normalizedModerationSearch) return true;
     const status = u.courses?._status || {};
     return `${u.name || ""} ${u.email || ""} ${status.text || ""} ${status.emoji || ""}`.toLowerCase().includes(normalizedModerationSearch);
@@ -1622,7 +1619,14 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     ...(ghostUsers.length ? [{ id: "inactive", tone: "watch", title: `${ghostUsers.length} students have been inactive for 7+ days`, detail: "Use the engagement controls to decide whether outreach is warranted.", action: "Review users", tab: "users" }] : []),
     ...(cronHealth?.filter(job => !job.last_run || (job.status || "").toLowerCase() !== "succeeded" || LOAD_NOW - new Date(job.last_run).getTime() > 20 * 60000).length ? [{ id: "cron", tone: "risk", title: "A scheduled service needs attention", detail: "A cron job is stale, paused, or last reported an error.", action: "Open health", tab: "insights" }] : []),
   ].slice(0, 3);
-  const dbColumns = dbRows.length ? Object.keys(dbRows[0]) : [];
+  const insightsSessions = activityChartData.reduce((sum, value) => sum + value, 0);
+  const insightsWeeklyReach = typeof totalUsers === "number" && totalUsers ? Math.round((activeTiers.wau / totalUsers) * 100) : 0;
+  const insightsPushReadiness = typeof totalUsers === "number" && totalUsers ? Math.round((Number(pushSubCount) / totalUsers) * 100) : 0;
+  const insightsAbsences = skipStats.reduce((sum, [, count]) => sum + Number(count || 0), 0);
+  const insightsEnabledFeatures = FEATURE_FLAGS.filter(feature => flags[feature.key] !== false).length;
+  const presenceSeenThisWeek = weeklyPresence.reduce((sum, day) => sum + day.users.length, 0);
+  const presencePeakDay = weeklyPresence.reduce((peak, day) => day.users.length > peak.users.length ? day : peak, weeklyPresence[0]);
+  const dbColumns = [...new Set(dbRows.flatMap(row => Object.keys(row)))];
   const filteredDbRows = dbRows.filter(row => {
     const term = dbSearch.trim().toLowerCase();
     if (!term) return true;
@@ -1630,6 +1634,16 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     return values.some(value => (typeof value === "object" ? JSON.stringify(value) : String(value ?? "")).toLowerCase().includes(term));
   });
   const selectedDbTable = DATABASE_TABLES.find(table => table.id === dbTable) || DATABASE_TABLES[0];
+  async function copyDatabaseRow() {
+    if (!dbSelectedRow) return;
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(dbSelectedRow, null, 2));
+      setDbCopyStatus("Copied");
+      setTimeout(() => setDbCopyStatus(""), 1600);
+    } catch {
+      setDbCopyStatus("Copy failed");
+    }
+  }
   const scheduleToday = ymd(new Date(LOAD_NOW));
   const scheduleOverrideCount = Object.values(flags.classOverrides || {}).reduce((sum, day) => sum + Object.keys(day || {}).length, 0);
   const upcomingOverrideCount = Object.entries(flags.classOverrides || {}).reduce((sum, [date, day]) => sum + (date >= scheduleToday ? Object.keys(day || {}).length : 0), 0);
@@ -4579,84 +4593,52 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
              
           
           {/* ── Weekly Presence Heatmap ── */}
-          <section className="admin-card admin-span-all admin-g-insights" style={{ gridColumn: "1 / -1" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8, marginBottom: 4 }}>
-              <div>
-                <h2 style={{ marginBottom: 4 }}><Users size={20} color="var(--violet)" /> Weekly Presence</h2>
-                <p className="admin-subtext" style={{ margin: 0 }}>Who used the app and when — based on last-seen heartbeats. Click a day for a full breakdown.</p>
-              </div>
-              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                {weeklyPresenceDay !== null && (
-                  <button className="admin-btn outline" style={{ fontSize: 12, padding: "5px 12px" }} onClick={() => { setWeeklyPresenceDay(null); setWeeklyPresenceHourFilter(null); }}>
-                    <X size={13} /> Back to week
-                  </button>
-                )}
-                <button className="admin-btn outline" style={{ fontSize: 12, padding: "5px 12px" }} onClick={() => {
-                  const rows = [["Day", "Date", "Name", "Time", "Hour", "Section", "Streak"]];
-                  weeklyPresence.forEach(day => {
-                    day.users.forEach(u => {
-                      rows.push([day.label, day.date, u.name, new Date(u.seenTs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }), u.hour, u.section, streakUserIds.has(u.userId) ? "Yes" : "No"]);
-                    });
-                  });
-                  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, "'")}"` ).join(",")).join("\n");
+          <section className="admin-card admin-span-all admin-g-insights weekly-presence-workspace" style={{ gridColumn: "1 / -1" }}>
+            <div className="presence-head">
+              <div><span className="insights-eyebrow"><Users size={13} /> Cohort heartbeat</span><h2>Weekly Presence</h2><p>Latest student activity from last-seen heartbeats. Select a day to inspect its hourly distribution.</p></div>
+              <div className="presence-head-actions">
+                {weeklyPresenceDay !== null && <button className="admin-btn outline" onClick={() => { setWeeklyPresenceDay(null); setWeeklyPresenceHourFilter(null); }}><X size={13} /> Back to week</button>}
+                <button className="admin-btn outline" onClick={() => {
+                  const rows = [["Day", "Date", "Name", "Last seen", "Hour", "Section"]];
+                  weeklyPresence.forEach(day => day.users.forEach(u => rows.push([day.label, day.date, u.name, new Date(u.seenTs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }), u.hour, u.section])));
+                  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, "'")}"`).join(",")).join("\n");
                   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
                   a.download = `weekly-presence-${new Date().toISOString().split("T")[0]}.csv`; a.click();
-                }}>
-                  <FileText size={13} /> Export CSV
-                </button>
+                }}><Download size={13} /> Export CSV</button>
               </div>
             </div>
 
-            {ghostUsers.length > 0 && (
-              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, background: "rgba(231,76,60,0.07)", border: "1px solid rgba(231,76,60,0.25)", marginBottom: 16, marginTop: 8 }}>
-                <AlertTriangle size={15} color="var(--danger)" style={{ flexShrink: 0 }} />
-                <span style={{ fontSize: 12, color: "var(--danger)" }}>
-                  <b>{ghostUsers.length}</b> user{ghostUsers.length > 1 ? "s" : ""} haven&apos;t been seen in 7+ days — retention risk.{" "}
-                  <span style={{ color: "var(--muted)" }}>Last: {ghostUsers.slice(0, 3).map(u => u.name).join(", ")}{ghostUsers.length > 3 ? ` +${ghostUsers.length - 3} more` : ""}.</span>
-                </span>
-              </div>
-            )}
+            <div className="presence-kpis">
+              <div><span>Seen in 7 days</span><strong>{presenceSeenThisWeek}</strong><small>{typeof totalUsers === "number" && totalUsers ? `${Math.round((presenceSeenThisWeek / totalUsers) * 100)}% of profiles` : "latest heartbeat coverage"}</small></div>
+              <div><span>Seen today</span><strong>{weeklyPresence[6]?.users.length || 0}</strong><small>latest activity today</small></div>
+              <div><span>Busiest day</span><strong>{presencePeakDay?.users.length ? presencePeakDay.label : "—"}</strong><small>{presencePeakDay?.users.length || 0} student{presencePeakDay?.users.length === 1 ? "" : "s"} seen</small></div>
+              <div className={ghostUsers.length ? "is-risk" : ""}><span>Inactive 7d+</span><strong>{ghostUsers.length}</strong><small>{ghostUsers.length ? "retention follow-up" : "no known risk"}</small></div>
+            </div>
 
-            {statsLoading ? (
-              <div style={{ textAlign: "center", padding: "32px 0", color: "var(--muted)", fontSize: 13 }}>Loading presence data…</div>
-            ) : weeklyPresenceDay === null ? (
-              <>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 8, marginTop: 16 }}>
+            {ghostUsers.length > 0 && <div className="presence-risk"><span><AlertTriangle size={16} /></span><div><strong>{ghostUsers.length} user{ghostUsers.length === 1 ? "" : "s"} haven&apos;t been seen in over seven days</strong><small>{ghostUsers.slice(0, 3).map(u => u.name).join(", ")}{ghostUsers.length > 3 ? ` and ${ghostUsers.length - 3} more` : ""}</small></div><button type="button" className="admin-btn outline" onClick={() => { setActiveTab("users"); window.scrollTo({ top: 0, behavior: "smooth" }); }}>Review users <ChevronRight size={14} /></button></div>}
+
+            {statsLoading ? <div className="presence-loading"><RefreshCw size={20} className="spin-icon" /><strong>Loading presence data</strong><span>Reading the latest available heartbeats…</span></div> : weeklyPresenceDay === null ? (
+              <div className="presence-week-view">
+                <div className="presence-week-head"><div><span>Seven-day distribution</span><strong>Select a day for details</strong></div><span className="presence-legend"><i /> Schedule override</span></div>
+                <div className="presence-day-grid">
                   {weeklyPresence.map((day, i) => {
-                    const maxDay = Math.max(...weeklyPresence.map(d => d.users.length), 1);
+                    const maxDay = Math.max(...weeklyPresence.map(item => item.users.length), 1);
                     const isToday = i === 6;
                     const hasOverride = Object.keys(flags.classOverrides || {}).includes(day.isoDate);
                     const secCounts = {};
                     day.users.forEach(u => { secCounts[u.section] = (secCounts[u.section] || 0) + 1; });
-                    const topSec = Object.entries(secCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
-                    return (
-                      <button key={i}
-                        onClick={() => { setWeeklyPresenceDay(i); setWeeklyPresenceHourFilter(null); }}
-                        style={{ background: isToday ? "rgba(109,91,208,0.10)" : "var(--bg)", border: isToday ? "1.5px solid var(--violet)" : "1px solid var(--border)", borderRadius: 12, padding: "12px 8px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, transition: "box-shadow 0.2s", position: "relative" }}
-                        onMouseEnter={e => e.currentTarget.style.boxShadow = "0 0 0 2px var(--violet)"}
-                        onMouseLeave={e => e.currentTarget.style.boxShadow = "none"}
-                      >
-                        {hasOverride && <span title="Has class overrides" style={{ position: "absolute", top: 7, right: 9, width: 7, height: 7, borderRadius: "50%", background: "var(--amber)" }} />}
-                        <span style={{ fontSize: 11, fontWeight: isToday ? 800 : 600, color: isToday ? "var(--violet)" : "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>{day.label}</span>
-                        <span style={{ fontSize: 10, color: "var(--muted)" }}>{day.date}</span>
-                        <div style={{ width: "100%", height: 80, display: "flex", alignItems: "flex-end" }}>
-                          <div style={{ width: "100%", height: day.users.length === 0 ? 4 : `${Math.max(8, Math.round((day.users.length / maxDay) * 80))}px`, background: isToday ? "linear-gradient(180deg, var(--violet) 0%, rgba(109,91,208,0.45) 100%)" : "rgba(109,91,208,0.35)", borderRadius: "4px 4px 0 0", transition: "height 0.4s" }} />
-                        </div>
-                        <span style={{ fontSize: 15, fontWeight: 800, color: day.users.length === 0 ? "var(--muted)" : "var(--text)", fontFamily: "var(--display)" }}>{day.users.length}</span>
-                        {topSec && topSec !== "—" && <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 20, background: "rgba(109,91,208,0.15)", color: "var(--violet)" }}>Sec {topSec}</span>}
-                      </button>
-                    );
+                    const topSec = Object.entries(secCounts).filter(([section]) => section !== "—").sort((a, b) => b[1] - a[1])[0]?.[0];
+                    return <button type="button" key={day.isoDate} className={`presence-day ${isToday ? "is-today" : ""}`} onClick={() => { setWeeklyPresenceDay(i); setWeeklyPresenceHourFilter(null); }} aria-label={`${day.label} ${day.date}, ${day.users.length} students seen`}>
+                      <div className="presence-day-title"><span>{day.label}</span>{hasOverride && <i title="Has class overrides" />}</div>
+                      <small>{day.date}</small>
+                      <div className="presence-day-chart"><i style={{ height: day.users.length === 0 ? 4 : `${Math.max(8, Math.round((day.users.length / maxDay) * 88))}px` }} /></div>
+                      <strong>{day.users.length}</strong>
+                      <span className="presence-day-foot">{topSec ? `Section ${topSec} leads` : day.users.length ? "No section signal" : "No activity"}</span>
+                    </button>;
                   })}
                 </div>
-                <div style={{ display: "flex", gap: 20, marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--border)", flexWrap: "wrap", alignItems: "center" }}>
-                  <div style={{ fontSize: 12, color: "var(--muted)" }}>Sessions this week: <b style={{ color: "var(--text)" }}>{weeklyPresence.reduce((a, d) => a + d.users.length, 0)}</b></div>
-                  <div style={{ fontSize: 12, color: "var(--muted)" }}>🔥 7-day streak: <b style={{ color: "var(--violet)" }}>{streakUserIds.size}</b></div>
-                  <div style={{ fontSize: 12, color: "var(--muted)" }}>👻 Inactive 7d+: <b style={{ color: ghostUsers.length > 0 ? "var(--danger)" : "var(--muted)" }}>{ghostUsers.length}</b></div>
-                  <div style={{ fontSize: 11, color: "var(--muted)", marginLeft: "auto", display: "flex", alignItems: "center", gap: 5 }}>
-                    <span style={{ display: "inline-block", width: 7, height: 7, borderRadius: "50%", background: "var(--amber)" }} /> override on day
-                  </div>
-                </div>
-              </>
+                <p className="presence-method-note"><Activity size={13} /> Each profile appears on the day of its latest recorded heartbeat; this is a recency snapshot, not a session history.</p>
+              </div>
             ) : (() => {
               const day = weeklyPresence[weeklyPresenceDay];
               const maxHour = Math.max(...day.hourBuckets, 1);
@@ -4664,94 +4646,39 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               const sorted = [...filtered].sort((a, b) => weeklyPresenceSort === "name" ? a.name.localeCompare(b.name) : b.seenTs - a.seenTs);
               const secCounts = {};
               day.users.forEach(u => { secCounts[u.section] = (secCounts[u.section] || 0) + 1; });
-              return (
-                <>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 16, marginBottom: 16, flexWrap: "wrap" }}>
-                    <div style={{ fontSize: 18, fontWeight: 800, fontFamily: "var(--display)" }}>{day.label} · {day.date}</div>
-                    <div style={{ fontSize: 13, color: "var(--muted)" }}>{day.users.length} session{day.users.length !== 1 ? "s" : ""}</div>
-                    {Object.entries(secCounts).filter(([s]) => s !== "—").sort((a, b) => b[1] - a[1]).map(([sec, cnt]) => (
-                      <span key={sec} style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: "rgba(109,91,208,0.12)", color: "var(--violet)" }}>Sec {sec}: {cnt}</span>
-                    ))}
-                    <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
-                      <button onClick={() => setWeeklyPresenceSort("time")} className={`admin-btn ${weeklyPresenceSort === "time" ? "" : "outline"}`} style={{ padding: "4px 10px", fontSize: 11 }}>By time</button>
-                      <button onClick={() => setWeeklyPresenceSort("name")} className={`admin-btn ${weeklyPresenceSort === "name" ? "" : "outline"}`} style={{ padding: "4px 10px", fontSize: 11 }}>By name</button>
-                    </div>
-                  </div>
-
-                  <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 6, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>Hourly activity — click to filter</div>
-                    <div style={{ display: "flex", gap: 2, height: 36, alignItems: "flex-end" }}>
-                      {day.hourBuckets.map((count, h) => {
-                        const isSelected = weeklyPresenceHourFilter === h;
-                        const intensity = count === 0 ? 0 : Math.max(0.12, count / maxHour);
-                        return (
-                          <button key={h} title={`${h}:00 — ${count} user${count !== 1 ? "s" : ""}`}
-                            onClick={() => setWeeklyPresenceHourFilter(isSelected ? null : h)}
-                            style={{ flex: 1, height: count === 0 ? 8 : `${Math.max(12, Math.round(intensity * 36))}px`, borderRadius: 3, border: isSelected ? "1.5px solid var(--violet)" : "none", background: count === 0 ? "var(--bg)" : `rgba(109,91,208,${intensity})`, cursor: count > 0 ? "pointer" : "default", transition: "all 0.2s", minWidth: 0 }}
-                          />
-                        );
-                      })}
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
-                      {["12am", "3am", "6am", "9am", "12pm", "3pm", "6pm", "9pm", "11pm"].map((l, i) => (
-                        <span key={i} style={{ fontSize: 9, color: "var(--muted)" }}>{l}</span>
-                      ))}
-                    </div>
-                    {weeklyPresenceHourFilter !== null && (
-                      <div style={{ fontSize: 11, color: "var(--violet)", marginTop: 6 }}>
-                        Filtered to {weeklyPresenceHourFilter}:00–{weeklyPresenceHourFilter}:59 ·{" "}
-                        <button onClick={() => setWeeklyPresenceHourFilter(null)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 11, padding: 0, textDecoration: "underline" }}>clear</button>
-                      </div>
-                    )}
-                  </div>
-
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 340, overflowY: "auto" }} className="admin-scroll-hide">
-                    {sorted.length === 0 ? (
-                      <div className="admin-empty">No users active{weeklyPresenceHourFilter !== null ? ` at ${weeklyPresenceHourFilter}:00` : " this day"}.</div>
-                    ) : sorted.map((u, idx) => {
-                      const isStreak = streakUserIds.has(u.userId);
-                      const initials = u.name.split(" ").filter(Boolean).map(w => w[0]).join("").slice(0, 2).toUpperCase();
-                      return (
-                        <div key={u.userId + idx}
-                          style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 10, background: "var(--bg)", border: "1px solid var(--border)", cursor: "pointer", transition: "border-color 0.15s" }}
-                          onClick={() => setSelectedUser(allUsers.find(au => au.user_id === u.userId) || null)}
-                          onMouseEnter={e => e.currentTarget.style.borderColor = "var(--violet)"}
-                          onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}
-                        >
-                          <div style={{ width: 34, height: 34, borderRadius: "50%", flexShrink: 0, background: isStreak ? "rgba(109,91,208,0.20)" : "var(--card)", border: isStreak ? "2px solid var(--violet)" : "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color: isStreak ? "var(--violet)" : "var(--muted)" }}>
-                            {initials}
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                              {u.name}
-                              {isStreak && <span title="Active all 7 days" style={{ fontSize: 10, background: "rgba(109,91,208,0.15)", color: "var(--violet)", padding: "1px 7px", borderRadius: 20, fontWeight: 700 }}>🔥 Streak</span>}
-                              {u.isNew && <span style={{ fontSize: 10, background: "rgba(31,169,113,0.15)", color: "var(--live)", padding: "1px 7px", borderRadius: 20, fontWeight: 700 }}>New</span>}
-                              {u.section !== "—" && <span style={{ fontSize: 10, color: "var(--muted)", padding: "1px 6px", borderRadius: 20, border: "1px solid var(--border)" }}>Sec {u.section}</span>}
-                            </div>
-                            <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>Click to view profile</div>
-                          </div>
-                          <div style={{ textAlign: "right", flexShrink: 0 }}>
-                            <div style={{ fontSize: 13, fontWeight: 700, fontFamily: "var(--display)" }}>
-                              {new Date(u.seenTs).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
-                            </div>
-                            <div style={{ fontSize: 10, color: "var(--muted)" }}>{u.hour}:00 slot</div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </>
-              );
+              return <div className="presence-day-view">
+                <div className="presence-detail-head"><div><span>Selected day</span><h3>{day.label} · {day.date}</h3><small>{day.users.length} student{day.users.length === 1 ? "" : "s"} seen</small></div><div className="presence-section-chips">{Object.entries(secCounts).filter(([section]) => section !== "—").sort((a, b) => b[1] - a[1]).map(([section, count]) => <span key={section}>Sec {section} <strong>{count}</strong></span>)}</div><div className="presence-sort" role="group" aria-label="Sort presence list"><button type="button" className={weeklyPresenceSort === "time" ? "active" : ""} onClick={() => setWeeklyPresenceSort("time")}>Recent first</button><button type="button" className={weeklyPresenceSort === "name" ? "active" : ""} onClick={() => setWeeklyPresenceSort("name")}>Name</button></div></div>
+                <div className="presence-hour-panel">
+                  <div className="presence-hour-head"><div><span>Hourly activity</span><strong>{weeklyPresenceHourFilter !== null ? `${weeklyPresenceHourFilter}:00–${weeklyPresenceHourFilter}:59` : "All hours"}</strong></div>{weeklyPresenceHourFilter !== null && <button type="button" onClick={() => setWeeklyPresenceHourFilter(null)}>Clear hour</button>}</div>
+                  <div className="presence-hour-chart">{day.hourBuckets.map((count, hour) => { const isSelected = weeklyPresenceHourFilter === hour; const intensity = count === 0 ? 0 : Math.max(.14, count / maxHour); return <button type="button" key={hour} className={isSelected ? "active" : ""} disabled={count === 0} title={`${hour}:00 — ${count} student${count === 1 ? "" : "s"}`} onClick={() => setWeeklyPresenceHourFilter(isSelected ? null : hour)} aria-label={`Filter to ${hour}:00, ${count} students`}><i style={{ height: count === 0 ? 5 : `${Math.max(10, Math.round(intensity * 44))}px`, opacity: count === 0 ? .25 : Math.max(.35, intensity) }} /></button>; })}</div>
+                  <div className="presence-hour-axis">{["12am", "3am", "6am", "9am", "12pm", "3pm", "6pm", "9pm", "11pm"].map(label => <span key={label}>{label}</span>)}</div>
+                </div>
+                <div className="presence-user-list admin-scroll-hide">
+                  {sorted.length === 0 ? <div className="presence-list-empty"><Search size={18} /><strong>No activity in this hour</strong><button type="button" onClick={() => setWeeklyPresenceHourFilter(null)}>Show the full day</button></div> : sorted.map((u, index) => {
+                    const initials = u.name.split(" ").filter(Boolean).map(word => word[0]).join("").slice(0, 2).toUpperCase();
+                    const targetUser = allUsers.find(profile => profile.user_id === u.userId) || null;
+                    return <article key={u.userId + index} className="presence-user-row" role="button" tabIndex={0} onClick={() => setSelectedUser(targetUser)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedUser(targetUser); } }}>
+                      <span className="presence-avatar">{initials}</span>
+                      <div className="presence-user-copy"><strong>{u.name}</strong><span>{u.isNew && <i className="is-new">New</i>}{u.section !== "—" && <i>Section {u.section}</i>}</span></div>
+                      <div className="presence-user-time"><strong>{new Date(u.seenTs).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</strong><span>{u.hour}:00 slot</span></div>
+                      <button type="button" className="admin-btn outline" onClick={event => { event.stopPropagation(); setSelectedUser(targetUser); }}><Eye size={14} /> Inspect</button>
+                    </article>;
+                  })}
+                </div>
+              </div>;
             })()}
           </section>
-{/* Analytics Dashboard — real data from Supabase */}
+          {/* Analytics Dashboard — real data from Supabase */}
           <section className="admin-card admin-span-all admin-g-insights insights-overview" style={{ gridColumn: "1 / -1" }}>
-             <div className="insights-section-head"><div><span className="insights-eyebrow">Behaviour signal</span><h2><BarChart2 size={20} color="var(--violet)" /> Usage overview</h2><p className="admin-subtext">A quick read on engagement, attendance friction, and when students rely on TermFlow.</p></div><div className="insights-summary-chip"><Activity size={15} /> {activityChartData.reduce((a, b) => a + b, 0)} sessions / 7d</div></div>
+             <div className="insights-hero">
+               <div><span className="insights-eyebrow"><BarChart2 size={13} /> Behaviour signal</span><h2>Usage overview</h2><p>A quick read on engagement, attendance friction, and when students rely on TermFlow.</p></div>
+               <div className="insights-hero-total"><span>Seven-day activity</span><strong>{insightsSessions}</strong><small>recorded user sessions</small></div>
+             </div>
              <div className="insights-overview-grid">
 
                 {/* 7-Day Active Users — real last_seen_at buckets */}
                 <div className="insight-panel insight-panel--activity">
-                   <div className="insight-panel-label">7-day active users</div>
+                   <div className="insight-panel-head"><div><span className="insight-panel-label">Daily activity</span><strong>Last seven days</strong></div><Activity size={16} /></div>
                    {(() => {
                       const maxVal = Math.max(...activityChartData, 1);
                       const dayLabels = Array.from({ length: 7 }, (_, i) => {
@@ -4760,15 +4687,13 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                       });
                       return (
                         <>
-                          <div style={{ height: 100, display: "flex", alignItems: "flex-end", gap: 6 }}>
+                          <div className="insights-bar-chart" aria-label="Active users for the last seven days">
                             {activityChartData.map((v, i) => (
-                              <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", height: "100%", justifyContent: "flex-end", gap: 4 }}>
-                                <div title={`${v} users`} style={{ width: "100%", background: i === 6 ? "var(--violet)" : "rgba(109,91,208,0.45)", borderRadius: "4px 4px 0 0", height: `${Math.max(4, (v / maxVal) * 100)}%`, transition: "height 0.4s" }}></div>
-                              </div>
+                              <div key={i} className="insights-bar-slot"><span>{v}</span><i className={i === 6 ? "is-today" : ""} title={`${v} users`} style={{ height: `${Math.max(4, (v / maxVal) * 100)}%` }} /></div>
                             ))}
                           </div>
-                          <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-                            {dayLabels.map((l, i) => <div key={i} style={{ flex: 1, fontSize: 9, color: "var(--muted)", textAlign: "center", fontWeight: i === 6 ? 800 : 400 }}>{l}</div>)}
+                          <div className="insights-bar-labels">
+                            {dayLabels.map((label, i) => <span key={i} className={i === 6 ? "is-today" : ""}>{label}</span>)}
                           </div>
                           <div className="insight-panel-foot">
                             <span>Today <strong>{activityChartData[6] || 0}</strong></span><span>7-day total <strong>{activityChartData.reduce((a, b) => a + b, 0)}</strong></span>
@@ -4779,21 +4704,17 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 </div>
 
                 {/* Most-Skipped Classes — from attendance table */}
-                <div className="insight-panel">
-                   <div className="insight-panel-label">Attendance watchlist</div>
-                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div className="insight-panel insight-panel--attendance">
+                   <div className="insight-panel-head"><div><span className="insight-panel-label">Attendance watchlist</span><strong>Most recorded absences</strong></div><AlertTriangle size={16} /></div>
+                   <div className="insights-watchlist">
                       {skipStats.length === 0 ? (
-                         <div className="admin-empty" style={{ fontSize: 12 }}>No absence data yet.</div>
+                         <div className="insights-mini-empty">No absence data yet.</div>
                       ) : skipStats.map(([code, count]) => {
                          const maxSkip = skipStats[0][1];
                          return (
-                           <div key={code}>
-                             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}>
-                               <span style={{ fontWeight: 600 }}>{code}</span><span style={{ color: "var(--muted)" }}>{count} absences</span>
-                             </div>
-                             <div style={{ height: 6, background: "var(--card)", borderRadius: 3, overflow: "hidden" }}>
-                               <div style={{ width: `${Math.round((count / maxSkip) * 100)}%`, height: "100%", background: "var(--danger)" }}></div>
-                             </div>
+                           <div className="insights-watch-row" key={code}>
+                             <div><strong>{code}</strong><span>{count} absence{Number(count) === 1 ? "" : "s"}</span></div>
+                             <div className="insights-watch-track"><i style={{ width: `${Math.round((count / maxSkip) * 100)}%` }} /></div>
                            </div>
                          );
                       })}
@@ -4802,13 +4723,12 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
                 {/* Peak Hour — computed from last_seen_at timestamps */}
                 <div className="insight-panel insight-panel--peak">
-                   <Clock size={32} color="var(--blue)" style={{ marginBottom: 12 }} />
-                   <div style={{ fontSize: 28, fontWeight: 800 }}>
+                   <span className="insights-peak-icon"><Clock size={20} /></span>
+                   <span className="insight-panel-label">Peak usage · IST</span>
+                   <strong>
                      {peakHour !== null ? `${peakHour % 12 || 12}:00 ${peakHour < 12 ? "AM" : "PM"}` : "—"}
-                   </div>
-                   <div className="insight-panel-label" style={{ marginTop: 4 }}>Peak usage hour · IST</div>
-                   <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>Based on recent heartbeats</div>
-                   {statsLoading && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>Loading...</div>}
+                   </strong>
+                   <small>{statsLoading ? "Refreshing signal…" : "Based on recent heartbeats"}</small>
                 </div>
              </div>
           </section>
@@ -4816,8 +4736,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           <section className="admin-card admin-span-all admin-g-insights insights-brief" style={{ gridColumn: "1 / -1" }}>
             <div className="insights-section-head">
               <div>
-                <span className="insights-eyebrow">Start here</span>
-                <h2><Activity size={20} color="var(--violet)" /> Operations brief</h2>
+                <span className="insights-eyebrow"><Activity size={13} /> Start here</span>
+                <h2>Operations brief</h2>
                 <p className="admin-subtext">The few signals worth acting on now, separated from the full reporting detail below.</p>
               </div>
               <button type="button" className="admin-btn outline insights-refresh" onClick={fetchDashboardData} disabled={statsLoading}>
@@ -4826,20 +4746,20 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             </div>
             <div className="insights-brief-grid">
               <div className="insights-scorecard">
-                <span>Weekly reach</span>
-                <strong>{typeof totalUsers === "number" && totalUsers ? Math.round((activeTiers.wau / totalUsers) * 100) : 0}%</strong>
+                <div className="insights-scorecard-head"><span>Weekly reach</span><Activity size={15} /></div>
+                <strong>{insightsWeeklyReach}%</strong>
                 <small>{activeTiers.wau} of {typeof totalUsers === "number" ? totalUsers : "—"} students seen in the last 7 days</small>
-                <div className="insights-progress"><i style={{ width: `${typeof totalUsers === "number" && totalUsers ? Math.min(100, Math.round((activeTiers.wau / totalUsers) * 100)) : 0}%` }} /></div>
+                <div className="insights-progress"><i style={{ width: `${Math.min(100, insightsWeeklyReach)}%` }} /></div>
               </div>
               <div className="insights-scorecard">
-                <span>Push readiness</span>
-                <strong>{typeof totalUsers === "number" && totalUsers ? Math.round((Number(pushSubCount) / totalUsers) * 100) : 0}%</strong>
+                <div className="insights-scorecard-head"><span>Push readiness</span><BellRing size={15} /></div>
+                <strong>{insightsPushReadiness}%</strong>
                 <small>{pushSubCount} subscribed device{Number(pushSubCount) === 1 ? "" : "s"} available for urgent updates</small>
-                <div className="insights-progress is-blue"><i style={{ width: `${typeof totalUsers === "number" && totalUsers ? Math.min(100, Math.round((Number(pushSubCount) / totalUsers) * 100)) : 0}%` }} /></div>
+                <div className="insights-progress is-blue"><i style={{ width: `${Math.min(100, insightsPushReadiness)}%` }} /></div>
               </div>
               <div className="insights-scorecard">
-                <span>Attendance watch</span>
-                <strong>{skipStats.reduce((sum, [, count]) => sum + Number(count || 0), 0)}</strong>
+                <div className="insights-scorecard-head"><span>Attendance watch</span><AlertTriangle size={15} /></div>
+                <strong>{insightsAbsences}</strong>
                 <small>recorded absences across the top {skipStats.length || 0} course{skipStats.length === 1 ? "" : "s"}</small>
                 <div className="insights-scorecard-foot">{skipStats[0]?.[0] ? `${skipStats[0][0]} currently leads the watchlist` : "No absence signal yet"}</div>
               </div>
@@ -4855,80 +4775,48 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
           {/* Active-user tiers (DAU/WAU/MAU) */}
-          <section className="admin-card admin-g-insights insights-metric-card">
-            <h2><BarChart2 size={20} color="var(--live)" /> Active Users</h2>
-            <p className="admin-subtext">Unique students seen within each rolling window (from last_seen_at).</p>
-            <div className="admin-stats-grid">
+          <section className="admin-card admin-g-insights insights-metric-card insights-engagement-card">
+            <div className="insights-card-head"><span><BarChart2 size={17} /></span><div><h2>Active users</h2><p>Unique students by rolling window</p></div></div>
+            <div className="insights-tier-grid">
               {[["DAU", activeTiers.dau, "last 24h"], ["WAU", activeTiers.wau, "last 7 days"], ["MAU", activeTiers.mau, "last 30 days"]].map(([label, val, sub]) => (
-                <div className="admin-stat-box" key={label}>
-                  <div style={{ fontSize: 30, fontWeight: 800, fontFamily: "var(--display)", color: "var(--text)" }}>{statsLoading ? "…" : val}</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--muted)", marginTop: 4 }}>{label}</div>
-                  <div style={{ fontSize: 11, color: "var(--muted)" }}>{sub}</div>
+                <div key={label}>
+                  <span>{label}</span><strong>{statsLoading ? "…" : val}</strong><small>{sub}</small>
                 </div>
               ))}
             </div>
             {typeof totalUsers === "number" && totalUsers > 0 && (
-              <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 12 }}>
-                Stickiness (DAU/MAU): <b style={{ color: "var(--text)" }}>{activeTiers.mau ? Math.round((activeTiers.dau / activeTiers.mau) * 100) : 0}%</b>
-                {" · "}MAU reach: <b style={{ color: "var(--text)" }}>{Math.round((activeTiers.mau / totalUsers) * 100)}%</b> of {totalUsers}
-              </div>
+              <div className="insights-ratio-row"><div><span>Stickiness</span><strong>{activeTiers.mau ? Math.round((activeTiers.dau / activeTiers.mau) * 100) : 0}%</strong><small>DAU / MAU</small></div><div><span>Monthly reach</span><strong>{Math.round((activeTiers.mau / totalUsers) * 100)}%</strong><small>of {totalUsers} profiles</small></div></div>
             )}
           </section>
 
           {/* Feature adoption */}
-          <section className="admin-card admin-g-insights insights-metric-card">
-            <h2><Flag size={20} color="var(--violet)" /> Feature Adoption</h2>
-            <p className="admin-subtext">Signals from live data + which major features are currently enabled.</p>
-            <div className="admin-stats-grid">
-              <div className="admin-stat-box">
-                <div style={{ fontSize: 26, fontWeight: 800, fontFamily: "var(--display)" }}>{typeof totalUsers === "number" && totalUsers ? Math.round((Number(pushSubCount) || 0) / totalUsers * 100) : 0}%</div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", marginTop: 4 }}>Push enabled</div>
-                <div style={{ fontSize: 11, color: "var(--muted)" }}>{pushSubCount} devices</div>
-              </div>
-              <div className="admin-stat-box">
-                <div style={{ fontSize: 26, fontWeight: 800, fontFamily: "var(--display)" }}>{shareCodes.length}</div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", marginTop: 4 }}>Active share codes</div>
-                <div style={{ fontSize: 11, color: "var(--muted)" }}>social sharing</div>
-              </div>
-              <div className="admin-stat-box">
-                <div style={{ fontSize: 26, fontWeight: 800, fontFamily: "var(--display)" }}>{friendPingsCount}</div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", marginTop: 4 }}>Friend pings</div>
-                <div style={{ fontSize: 11, color: "var(--muted)" }}>pending</div>
-              </div>
+          <section className="admin-card admin-g-insights insights-metric-card insights-adoption-card">
+            <div className="insights-card-head"><span><Flag size={17} /></span><div><h2>Feature adoption</h2><p>Live usage and availability signals</p></div><strong className="insights-enabled-count">{insightsEnabledFeatures}/{FEATURE_FLAGS.length} on</strong></div>
+            <div className="insights-adoption-grid">
+              <div><span>Push enabled</span><strong>{insightsPushReadiness}%</strong><small>{pushSubCount} devices</small></div>
+              <div><span>Share codes</span><strong>{shareCodes.length}</strong><small>active links</small></div>
+              <div><span>Friend pings</span><strong>{friendPingsCount}</strong><small>pending</small></div>
             </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 12 }}>
-              {["enableFriends", "enableExams", "enableAttendance", "enableStatus", "enableMeetups", "enableFreeNudge", "enableAwayShare"].filter(k => k in flags).map(k => (
-                <span key={k} style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 20, border: "1px solid var(--border)", background: flags[k] !== false ? "rgba(31,169,113,0.12)" : "var(--bg)", color: flags[k] !== false ? "var(--live)" : "var(--muted)" }}>
-                  {k.replace("enable", "")} {flags[k] !== false ? "on" : "off"}
-                </span>
-              ))}
+            <div className="insights-feature-list">
+              {FEATURE_FLAGS.map(feature => <span key={feature.key} className={flags[feature.key] !== false ? "is-on" : "is-off"}><i />{feature.label}<small>{flags[feature.key] !== false ? "On" : "Off"}</small></span>)}
             </div>
           </section>
 
           {/* Edge-function / cron health */}
           <section className="admin-card admin-span-all admin-g-insights insights-service-health" style={{ gridColumn: "1 / -1" }}>
-            <h2><Terminal size={20} color="var(--live)" /> Edge Function / Cron Health</h2>
-            <p className="admin-subtext">Last run of each scheduled job (dispatch, class-reminders, scheduled pushes). Watch for stalled or failing notifiers.</p>
+            <div className="insights-section-head"><div><span className="insights-eyebrow"><Terminal size={13} /> Scheduled infrastructure</span><h2>Edge function and cron health</h2><p className="admin-subtext">Last reported run for dispatch, class reminders, and scheduled pushes.</p></div><span className={`insights-health-summary ${cronHealth?.some(job => !job.last_run || (job.status || "").toLowerCase() !== "succeeded" || LOAD_NOW - new Date(job.last_run).getTime() > 20 * 60000) ? "has-issues" : ""}`}><i />{cronHealth === null ? "Unavailable" : cronHealth.length ? `${cronHealth.length} jobs monitored` : "No jobs"}</span></div>
             {cronHealth === null ? (
-              <div className="admin-empty">Needs the <code>get_cron_health</code> RPC (migration 20260731120000) deployed.</div>
+              <div className="insights-service-empty"><AlertTriangle size={19} /><div><strong>Health RPC unavailable</strong><span>Deploy migration <code>20260731120000</code> to enable cron monitoring.</span></div></div>
             ) : cronHealth.length === 0 ? (
-              <div className="admin-empty">No cron jobs reported.</div>
+              <div className="insights-service-empty"><Terminal size={19} /><div><strong>No cron jobs reported</strong><span>The health endpoint returned an empty result.</span></div></div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div className="insights-service-list">
                 {cronHealth.map((j, i) => {
                   const ok = (j.status || "").toLowerCase() === "succeeded";
                   const stale = j.last_run && (LOAD_NOW - new Date(j.last_run).getTime()) > 20 * 60000;
-                  const color = !j.last_run ? "var(--muted)" : ok && !stale ? "var(--live)" : "var(--danger)";
                   return (
-                    <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "8px 12px", background: "var(--bg)", borderRadius: 8, border: `1px solid ${color}` }}>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700 }}>{j.jobname} {!j.active && <span style={{ color: "var(--muted)", fontWeight: 500 }}>(paused)</span>}</div>
-                        <div style={{ fontSize: 11, color: "var(--muted)", fontFamily: "var(--mono)" }}>{j.schedule}{j.message ? ` — ${String(j.message).slice(0, 80)}` : ""}</div>
-                      </div>
-                      <div style={{ textAlign: "right", flexShrink: 0 }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color }}>{j.status || "never run"}</div>
-                        <div style={{ fontSize: 11, color: "var(--muted)" }}>{j.last_run ? new Date(j.last_run).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}</div>
-                      </div>
+                    <div key={i} className={`insights-service-row ${!j.last_run ? "is-unknown" : ok && !stale ? "is-healthy" : "is-unhealthy"}`}>
+                      <span className="insights-service-dot" /><div><strong>{j.jobname}</strong><span><code>{j.schedule}</code>{j.message ? ` · ${String(j.message).slice(0, 80)}` : ""}</span></div>{!j.active && <span className="insights-paused">Paused</span>}<div className="insights-service-time"><strong>{stale ? "Stale" : j.status || "Never run"}</strong><span>{j.last_run ? new Date(j.last_run).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "No run recorded"}</span></div>
                     </div>
                   );
                 })}
@@ -4937,49 +4825,35 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
           {/* Self-test: ping every service in one click */}
-          <section className="admin-card admin-g-insights insights-diagnostic-card" style={{ display: "flex", flexDirection: "column" }}>
-            <h2><Check size={20} color="var(--live)" /> System Self-Test</h2>
-            <p className="admin-subtext">One click pings the DB, insights RPCs, cron jobs, the push function and the Sheets feed — a single green/red readout instead of checking each card.</p>
-            <button className="admin-btn primary" onClick={runSelfTest} disabled={selfTesting} style={{ alignSelf: "flex-start" }}>
+          <section className="admin-card admin-g-insights insights-diagnostic-card insights-self-test">
+            <div className="insights-card-head"><span><Check size={17} /></span><div><h2>System self-test</h2><p>Five critical service checks</p></div>{selfTest && <span className={`insights-test-result ${selfTest.checks.some(check => !check.ok) ? "has-issues" : ""}`}>{selfTest.checks.filter(check => check.ok).length}/{selfTest.checks.length} passed</span>}</div>
+            <p className="admin-subtext">Probe the database, Insights RPCs, cron jobs, push gateway, and schedule feed in one run.</p>
+            <button className="admin-btn primary insights-run-test" onClick={runSelfTest} disabled={selfTesting}>
               {selfTesting ? <><RefreshCw size={14} className="spin-icon" /> Running…</> : <><Check size={14} /> Run self-test</>}
             </button>
             {selfTest && (
-              <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+              <div className="insights-test-list">
                 {selfTest.checks.map((c, i) => (
-                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "8px 12px", background: "var(--bg)", borderRadius: 8, border: `1px solid ${c.ok ? "var(--live)" : "var(--danger)"}` }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}><span style={{ width: 9, height: 9, borderRadius: "50%", background: c.ok ? "var(--live)" : "var(--danger)" }} />{c.name}</span>
-                    <span style={{ fontSize: 12, color: "var(--muted)", textAlign: "right" }}>{c.detail}</span>
-                  </div>
+                  <div key={i} className={c.ok ? "is-ok" : "is-error"}><span><i />{c.name}</span><small>{c.detail}</small></div>
                 ))}
-                <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>
-                  {selfTest.checks.filter(c => !c.ok).length === 0 ? "All systems healthy." : `${selfTest.checks.filter(c => !c.ok).length} issue(s) found.`} · {new Date(selfTest.at).toLocaleTimeString()}
-                </div>
+                <small className="insights-test-time">Completed {new Date(selfTest.at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</small>
               </div>
             )}
           </section>
 
           {/* Admin action leaderboard */}
-          <section className="admin-card admin-g-insights insights-diagnostic-card" style={{ display: "flex", flexDirection: "column" }}>
-            <h2><ShieldAlert size={20} color="var(--violet)" /> Admin Activity (7 days)</h2>
-            <p className="admin-subtext">Who's been operating the panel this week — accountability across the admin roles.</p>
+          <section className="admin-card admin-g-insights insights-diagnostic-card insights-admin-activity">
+            <div className="insights-card-head"><span><ShieldAlert size={17} /></span><div><h2>Admin activity</h2><p>Last seven days</p></div><strong className="insights-enabled-count">{adminLeaderboard.reduce((sum, admin) => sum + admin.count, 0)} actions</strong></div>
+            <p className="admin-subtext">Accountability across the admin team, ranked by recorded operations.</p>
             {adminLeaderboard.length === 0 ? (
-              <div className="admin-empty">No admin actions logged in the last 7 days.</div>
+              <div className="insights-mini-empty">No admin actions logged in the last seven days.</div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div className="insights-leaderboard">
                 {adminLeaderboard.map((a, i) => {
                   const name = allUsers.find(u => u.user_id === a.id)?.name || (a.id === admin_id ? "You" : a.id.slice(0, 10));
                   const top = Object.entries(a.actions).sort((x, y) => y[1] - x[1]).slice(0, 3).map(([k, v]) => `${k.replace(/_/g, " ")} ×${v}`).join(", ");
                   return (
-                    <div key={a.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "8px 12px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)" }}>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700 }}>{i + 1}. {name}</div>
-                        <div style={{ fontSize: 11, color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{top}</div>
-                      </div>
-                      <div style={{ textAlign: "right", flexShrink: 0 }}>
-                        <div style={{ fontSize: 16, fontWeight: 800, fontFamily: "var(--display)" }}>{a.count}</div>
-                        <div style={{ fontSize: 10, color: "var(--muted)" }}>{new Date(a.last).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</div>
-                      </div>
-                    </div>
+                    <div key={a.id}><span className="insights-rank">{i + 1}</span><div><strong>{name}</strong><small>{top}</small></div><div><strong>{a.count}</strong><small>{new Date(a.last).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</small></div></div>
                   );
                 })}
               </div>
@@ -4987,24 +4861,21 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
           {/* Sentry deep link */}
-          <section className="admin-card admin-g-insights insights-diagnostic-card">
-            <h2><AlertTriangle size={20} color="var(--amber)" /> Error Monitoring</h2>
-            <p className="admin-subtext">Client + edge errors are captured in Sentry. Open the dashboard for the live issue feed.</p>
-            <a className="admin-btn outline" href="https://sentry.io/organizations/flames-corp/issues/?project=termflow" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
-              <Terminal size={14} /> Open Sentry Issues
-            </a>
+          <section className="admin-card admin-g-insights insights-diagnostic-card insights-sentry-card">
+            <div className="insights-card-head"><span><AlertTriangle size={17} /></span><div><h2>Error monitoring</h2><p>Sentry issue feed</p></div></div>
+            <div className="insights-monitor-visual"><span><Activity size={18} /></span><div><strong>Client and edge errors</strong><small>Open the external dashboard for live traces, frequency, and affected releases.</small></div></div>
+            <a className="admin-btn outline" href="https://sentry.io/organizations/flames-corp/issues/?project=termflow" target="_blank" rel="noopener noreferrer"><Terminal size={14} /> Open Sentry issues <ChevronRight size={14} /></a>
           </section>
 
              {/* API Health Check — live pings */}
-             <section className="admin-card admin-g-insights insights-diagnostic-card">
-               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                 <h2><Terminal size={20} color="var(--live)" /> API Health Check</h2>
-                 <button onClick={checkApiHealth} disabled={healthChecking} className="admin-btn outline" style={{ padding: "4px 10px", fontSize: 12 }}>
+             <section className="admin-card admin-g-insights insights-diagnostic-card insights-api-card">
+               <div className="insights-card-head">
+                 <span><Terminal size={17} /></span><div><h2>API health</h2><p>Live endpoint probes</p></div>
+                 <button onClick={checkApiHealth} disabled={healthChecking} className="admin-btn outline insights-api-run">
                    <RefreshCw size={13} className={healthChecking ? "spin-icon" : ""} /> {healthChecking ? "Checking…" : "Run Check"}
                  </button>
                </div>
-               <p className="admin-subtext">Click "Run Check" to probe all services live.</p>
-               <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
+               <div className="insights-api-list">
                   {[
                     { key: "supabase", label: "Supabase Database", icon: <Database size={14} /> },
                     { key: "push",     label: "Push Notification Gateway", icon: <BellRing size={14} /> },
@@ -5012,18 +4883,12 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     { key: "mess",     label: "Mess Menu Google Apps Script", icon: <CalendarDays size={14} /> },
                   ].map(({ key, label, icon }) => {
                     const s = healthStatus[key];
-                    const _isOk  = s && s !== "error" && s !== "timeout";
                     const isErr = s === "error" || s === "timeout";
-                    const bg  = !s ? "var(--bg)" : isErr ? "rgba(231,76,60,0.08)" : "rgba(46,204,113,0.08)";
                     const tag = !s ? (healthChecking ? "Checking…" : "Not checked") :
                                 isErr ? (s === "timeout" ? "Timeout" : "Error") :
                                 key === "supabase" ? s : "Operational";
-                    const tagColor = !s ? "var(--muted)" : isErr ? "var(--danger)" : "var(--green)";
                     return (
-                      <div key={key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: bg, borderRadius: 8, border: `1px solid ${!s ? "var(--border)" : isErr ? "var(--danger)" : "var(--green)"}`, transition: "all 0.3s" }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>{icon} {label}</span>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: tagColor, padding: "2px 8px", borderRadius: 10, background: `${tagColor}22` }}>{tag}</span>
-                      </div>
+                      <div key={key} className={!s ? "" : isErr ? "is-error" : "is-ok"}><span>{icon}<strong>{label}</strong></span><small>{tag}</small></div>
                     );
                   })}
                </div>
@@ -5340,7 +5205,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                       <Shirt size={15} color="var(--violet)" /> Wardrobe
                     </label>
                     <p className="admin-subtext" style={{ margin: "6px 0 10px" }}>
-                      {HATS.length} wearables, earned by level — the last two only past level 12, by devotion. Off hides the whole section and every hat on every pet.
+                      {HATS.length} hats, {COATS.length} coats and {NECKWEAR.length} collars. Hats and collars are mostly earned by level; the coats and the last of the hats come from devotion, past level 12. Off hides the whole section — every hat, collar and coat on every pet.
                     </p>
 
                     {greetingPets.wardrobe !== false && (() => {
@@ -5726,26 +5591,25 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
           {/* Live Sync Logs */}
           <section className="admin-card admin-span-all admin-g-insights insights-sync-log" style={{ gridColumn: "1 / -1" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                <h2 style={{ margin: 0, padding: 0 }}><Terminal size={20} color="var(--violet)" /> Live Sync Logs</h2>
-                <p className="admin-subtext" style={{ margin: 0 }}>Real-time status of the connection to the Google Apps Script live feed.</p>
-              </div>
+            <div className="insights-sync-head">
+              <div><span className="insights-eyebrow"><Terminal size={13} /> Live stream</span><h2>Schedule sync logs</h2><p>Real-time connection events from the Google Apps Script schedule feed.</p></div>
+              <div className="insights-sync-meta"><span><i className={syncLogs[0]?.status === "error" ? "is-error" : ""} />{syncLogs.length ? `${syncLogs.length} events captured` : "Awaiting first event"}</span>
               {syncLogs.length > 5 && (
-                <button className="admin-btn outline" onClick={() => setShowAllLogs(!showAllLogs)} style={{ padding: "6px 12px", fontSize: 12, flex: "none" }}>
-                  {showAllLogs ? "Show Less" : "View All Logs"}
+                <button className="admin-btn outline" onClick={() => setShowAllLogs(!showAllLogs)}>
+                  {showAllLogs ? "Show less" : "View all logs"}
                 </button>
               )}
+              </div>
             </div>
-            <div style={{ background: "rgba(0,0,0,0.8)", color: "#e2e8f0", borderRadius: 8, padding: 16, marginTop: 16, maxHeight: showAllLogs ? 500 : 200, overflowY: "auto", fontFamily: "monospace", fontSize: 13, border: "1px solid var(--border)", boxShadow: "inset 0 2px 10px rgba(0,0,0,0.2)" }}>
+            <div className={`insights-sync-console ${showAllLogs ? "is-expanded" : ""}`}>
               {displayedLogs.length === 0 ? (
-                <div style={{ color: "var(--muted)", fontStyle: "italic" }}>No sync logs yet. Press "Force Sync" above to test connection.</div>
+                <div className="insights-sync-empty"><Activity size={18} /><span>No sync logs yet. Use Force Sync above to test the connection.</span></div>
               ) : (
                 displayedLogs.map((log, i) => (
-                  <div key={i} style={{ display: "flex", gap: 12, marginBottom: 8, paddingBottom: 8, borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                    <span style={{ color: "var(--muted)", whiteSpace: "nowrap" }}>{new Date(log.ts).toLocaleTimeString()}</span>
-                    <span style={{ color: log.status === "error" ? "var(--danger)" : "var(--green)", fontWeight: 700, width: 60 }}>[{log.status.toUpperCase()}]</span>
-                    <span style={{ wordBreak: "break-word", color: log.status === "error" ? "var(--danger)" : "#e2e8f0" }}>{log.message}</span>
+                  <div key={i} className={log.status === "error" ? "is-error" : ""}>
+                    <time>{new Date(log.ts).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</time>
+                    <strong><i />{log.status.toUpperCase()}</strong>
+                    <span>{log.message}</span>
                   </div>
                 ))
               )}
@@ -5754,54 +5618,42 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
           {/* Audit Logs */}
           <section className="admin-card admin-span-all admin-g-moderation admin-audit-trail" style={{ gridColumn: "1 / -1" }}>
-            <h2><Terminal size={20} color="var(--violet)" /> Admin Audit Logs</h2>
-            <p className="admin-subtext">Administrative actions performed by all admins (last 200).</p>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 4 }}>
-              <select className="admin-input" value={auditActionFilter} onChange={e => setAuditActionFilter(e.target.value)} style={{ flex: "0 0 auto" }}>
-                <option value="all">All actions</option>
-                {[...new Set(auditLogs.map(l => l.action))].sort().map(a => <option key={a} value={a}>{a.replace(/_/g, " ")}</option>)}
-              </select>
-              <input className="admin-input" value={auditSearch} onChange={e => setAuditSearch(e.target.value)} placeholder="Search action / admin / details" style={{ flex: "1 1 200px" }} />
-              <button className="admin-btn outline" onClick={() => {
+            <div className="audit-head">
+              <div><span className="moderation-eyebrow"><Terminal size={13} /> Accountability</span><h2>Admin audit trail</h2><p className="admin-subtext">A searchable record of the last 200 administrative actions.</p></div>
+              <button className="admin-btn outline audit-export" onClick={() => {
                 const rows = filteredAuditLogs.map(l => [l.created_at, l.action, l.admin_id, JSON.stringify(l.details || {})]);
                 exportCsv("admin_audit_logs.csv", ["created_at", "action", "admin_id", "details"], rows);
-              }} style={{ flex: "0 0 auto" }}><FileText size={14} /> Export CSV</button>
+              }}><Download size={14} /> Export CSV</button>
             </div>
-            <div style={{ padding: 16, marginTop: 12 }}>
-              {filteredAuditLogs.length === 0 ? (
-                <div className="admin-empty">No matching audit logs.</div>
-              ) : (
-                <div style={{ position: "relative", borderLeft: "2px solid var(--border)", paddingLeft: 24, marginLeft: 12, display: "flex", flexDirection: "column", gap: 24 }}>
-                  {filteredAuditLogs.slice(0, 60).map((log) => {
-                     let Icon = FileText;
-                     let color = "var(--text)";
-                     if (log.action.includes("save") || log.action.includes("refresh")) { Icon = Save; color = "var(--blue)"; }
-                     else if (log.action.includes("cancel") || log.action.includes("override") || log.action.includes("edit")) { Icon = AlertTriangle; color = "var(--amber)"; }
-                     else if (log.action.includes("ban") || log.action.includes("delete")) { Icon = Trash2; color = "var(--danger)"; }
-                     
-                     return (
-                        <div key={log.id} style={{ position: "relative" }}>
-                           <div style={{ position: "absolute", left: -41, top: 0, width: 32, height: 32, borderRadius: 16, background: "var(--bg)", border: `2px solid ${color}`, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>
-                              <Icon size={16} color={color} />
-                           </div>
-                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
-                              <div style={{ flex: 1, minWidth: 200 }}>
-                                 <div style={{ fontWeight: 800, color, fontSize: 14, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 4 }}>{log.action.replace(/_/g, ' ')}</div>
-                                 <div style={{ fontSize: 13, color: "var(--muted)" }}>Admin ID: {log.admin_id}</div>
-                                 {Object.keys(log.details || {}).length > 0 && (
-                                   <pre style={{ margin: "8px 0 0 0", background: "rgba(0,0,0,0.02)", padding: "8px 12px", borderRadius: 8, fontSize: 12, border: "1px solid var(--border)", overflowX: "auto", maxWidth: "100%", color: "var(--text)" }}>
-                                      {JSON.stringify(log.details, null, 2)}
-                                   </pre>
-                                 )}
-                              </div>
-                              <span style={{ fontSize: 12, color: "var(--muted)", whiteSpace: "nowrap", fontWeight: 600 }}>{new Date(log.created_at).toLocaleString()}</span>
-                           </div>
-                        </div>
-                     );
-                  })}
-                </div>
-              )}
+            <div className="audit-metrics">
+              <div><span>Recorded</span><strong>{auditLogs.length}</strong><small>recent actions</small></div>
+              <div><span>Action types</span><strong>{new Set(auditLogs.map(log => log.action)).size}</strong><small>distinct operations</small></div>
+              <div><span>Administrators</span><strong>{new Set(auditLogs.map(log => log.admin_id)).size}</strong><small>active identities</small></div>
             </div>
+            <div className="audit-toolbar">
+              <label className="admin-search-control"><Search size={15} /><input value={auditSearch} onChange={e => setAuditSearch(e.target.value)} placeholder="Search action, admin or details" aria-label="Search audit logs" />{auditSearch && <button type="button" onClick={() => setAuditSearch("")} aria-label="Clear audit search"><X size={14} /></button>}</label>
+              <label className="admin-select-control"><Filter size={15} /><select value={auditActionFilter} onChange={e => setAuditActionFilter(e.target.value)} aria-label="Filter audit action"><option value="all">All actions</option>{[...new Set(auditLogs.map(l => l.action))].sort().map(a => <option key={a} value={a}>{a.replace(/_/g, " ")}</option>)}</select></label>
+              <span className="audit-result-count"><strong>{filteredAuditLogs.length}</strong> matched</span>
+            </div>
+            <div className="audit-list">
+              {filteredAuditLogs.length === 0 ? <div className="moderation-empty"><span><Search size={20} /></span><strong>No matching activity</strong><p>Try a broader search or reset the action filter.</p><button type="button" className="admin-btn outline" onClick={() => { setAuditSearch(""); setAuditActionFilter("all"); }}>Clear filters</button></div> : filteredAuditLogs.slice(0, 60).map((log) => {
+                let Icon = FileText;
+                let tone = "neutral";
+                if (log.action.includes("save") || log.action.includes("refresh")) { Icon = Save; tone = "info"; }
+                else if (log.action.includes("cancel") || log.action.includes("override") || log.action.includes("edit")) { Icon = AlertTriangle; tone = "watch"; }
+                else if (log.action.includes("ban") || log.action.includes("delete") || log.action.includes("clear")) { Icon = Trash2; tone = "risk"; }
+                const hasDetails = Object.keys(log.details || {}).length > 0;
+                const isExpanded = auditExpandedId === log.id;
+                return <article key={log.id} className={`audit-row is-${tone} ${isExpanded ? "is-expanded" : ""}`}>
+                  <span className="audit-icon"><Icon size={15} /></span>
+                  <div className="audit-row-main"><strong>{log.action.replace(/_/g, " ")}</strong><span>Admin · {log.admin_id}</span></div>
+                  <time dateTime={log.created_at}>{new Date(log.created_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</time>
+                  {hasDetails ? <button type="button" className="audit-detail-toggle" onClick={() => setAuditExpandedId(isExpanded ? null : log.id)} aria-expanded={isExpanded}><span>{isExpanded ? "Hide" : "Details"}</span><ChevronRight size={15} /></button> : <span className="audit-no-details">No details</span>}
+                  {isExpanded && <pre>{JSON.stringify(log.details, null, 2)}</pre>}
+                </article>;
+              })}
+            </div>
+            {filteredAuditLogs.length > 60 && <p className="audit-limit-note">Showing the first 60 matching records. Export CSV for the complete filtered result.</p>}
           </section>
 
           {/* Config drift — what live config layers on top of the bundled snapshot */}
@@ -6008,51 +5860,124 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </div>
 
           <section className="admin-card admin-span-all admin-g-moderation moderation-workspace" style={{ gridColumn: "1 / -1" }}>
-            <div className="admin-workspace-head">
-              <div><span className="moderation-eyebrow">Student-facing content</span><h2><Shield size={20} color="var(--violet)" /> Live status moderation</h2><p className="admin-subtext">Review what is visible on student cards. Inspect a student before acting; clearing is immediate and recorded in the audit trail.</p></div>
-              <div className="admin-count-chip"><Activity size={14} /> {activeStatusUsers.length} active</div>
+            <div className="moderation-hero">
+              <div><span className="moderation-eyebrow"><Shield size={13} /> Student-facing content</span><h2>Live status moderation</h2><p>Review what is visible across student cards and remove inappropriate or outdated statuses.</p></div>
+              <div className="moderation-live-pill"><i /> {activeStatusUsers.length} visible now</div>
             </div>
-            <div className="moderation-summary-grid">
-              <div><span>Active now</span><strong>{activeStatusUsers.length}</strong><small>visible student statuses</small></div>
-              <div className={moderationExpiringSoon.length ? "is-watch" : ""}><span>Ending within 1h</span><strong>{moderationExpiringSoon.length}</strong><small>will disappear soon</small></div>
-              <div><span>Latest expiry</span><strong>{activeStatusUsers.length ? new Date(Math.max(...activeStatusUsers.map(u => new Date(u.courses?._status?.until || 0).getTime()))).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—"}</strong><small>furthest scheduled expiry</small></div>
+            <div className="moderation-summary-grid" role="group" aria-label="Filter statuses by urgency">
+              <button type="button" className={moderationScope === "all" ? "active" : ""} onClick={() => setModerationScope("all")}><span>Active now</span><strong>{activeStatusUsers.length}</strong><small>all visible statuses</small><ChevronRight size={16} /></button>
+              <button type="button" className={`${moderationExpiringSoon.length ? "is-watch" : ""} ${moderationScope === "soon" ? "active" : ""}`} onClick={() => setModerationScope("soon")}><span>Ending within 1h</span><strong>{moderationExpiringSoon.length}</strong><small>prioritise review</small><ChevronRight size={16} /></button>
+              <button type="button" className={moderationScope === "later" ? "active" : ""} onClick={() => setModerationScope("later")}><span>Ending later</span><strong>{activeStatusUsers.length - moderationExpiringSoon.length}</strong><small>more than 1h left</small><ChevronRight size={16} /></button>
+              <div><span>Latest expiry</span><strong>{activeStatusUsers.length ? new Date(Math.max(...activeStatusUsers.map(u => new Date(u.courses?._status?.until || 0).getTime()))).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—"}</strong><small>furthest scheduled</small></div>
             </div>
-            <div className="admin-workspace-toolbar">
-              <label className="admin-search-control"><Search size={15} /><input value={moderationSearch} onChange={e => setModerationSearch(e.target.value)} placeholder="Search a student or status" aria-label="Search active statuses" /></label>
+            <div className="moderation-queue-head"><div><span>Review queue</span><strong>{visibleStatusUsers.length} status{visibleStatusUsers.length === 1 ? "" : "es"}</strong></div><small>Clearing is immediate and recorded in the audit trail.</small></div>
+            <div className="admin-workspace-toolbar moderation-toolbar">
+              <label className="admin-search-control"><Search size={15} /><input value={moderationSearch} onChange={e => setModerationSearch(e.target.value)} placeholder="Search student or status…" aria-label="Search active statuses" />{moderationSearch && <button type="button" onClick={() => setModerationSearch("")} aria-label="Clear moderation search"><X size={14} /></button>}</label>
               <label className="admin-select-control"><ListFilter size={15} /><select value={moderationSort} onChange={e => setModerationSort(e.target.value)} aria-label="Sort active statuses"><option value="expiry">Expires soonest</option><option value="recent">Expires latest</option><option value="name">Student name</option></select></label>
-              <span className="admin-toolbar-note">{visibleStatusUsers.length} shown</span>
             </div>
-            {moderationMessage && <div className={`admin-inline-notice ${moderationMessage.startsWith("Could not") ? "is-error" : ""}`}>{moderationMessage}</div>}
+            {moderationMessage && <div className={`admin-inline-notice moderation-notice ${moderationMessage.startsWith("Could not") ? "is-error" : ""}`}>{moderationMessage.startsWith("Could not") ? <AlertTriangle size={15} /> : <Check size={15} />}{moderationMessage}</div>}
             <div className="moderation-list">
-              {visibleStatusUsers.length === 0 ? <div className="admin-empty">{activeStatusUsers.length ? "No active statuses match this search." : "No active user statuses right now."}</div> : visibleStatusUsers.map(u => {
+              {visibleStatusUsers.length === 0 ? <div className="moderation-empty"><span>{activeStatusUsers.length ? <Search size={20} /> : <Shield size={20} />}</span><strong>{activeStatusUsers.length ? "No statuses match" : "Everything is clear"}</strong><p>{activeStatusUsers.length ? "Try another search or urgency filter." : "There are no student statuses requiring moderation right now."}</p>{activeStatusUsers.length && <button type="button" className="admin-btn outline" onClick={() => { setModerationSearch(""); setModerationScope("all"); }}>Clear filters</button>}</div> : visibleStatusUsers.map(u => {
                 const status = u.courses._status;
                 const expiresAt = new Date(status.until);
                 const minutesLeft = Math.max(0, Math.ceil((expiresAt.getTime() - LOAD_NOW) / 60000));
                 const expiresSoon = minutesLeft <= 60;
                 return <article key={u.user_id} className={`moderation-row ${expiresSoon ? "is-expiring" : ""}`} role="button" tabIndex={0} onClick={() => setSelectedUser(u)} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedUser(u); } }}>
-                  <Avatar name={u.name} email={u.email || u.user_id} />
-                  <div className="moderation-status"><strong>{u.name || "Unnamed student"}</strong><span>{status.emoji || "💬"} {status.text || "No status message"}</span><small className={expiresSoon ? "is-expiring" : ""}>{expiresSoon ? `${minutesLeft} min remaining` : `Expires ${expiresAt.toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`}</small></div>
-                  <div className="moderation-actions"><button type="button" onClick={e => { e.stopPropagation(); setSelectedUser(u); }} className="admin-btn outline moderation-inspect"><Eye size={14} /> Inspect</button><button type="button" onClick={e => { e.stopPropagation(); clearUserStatus(u); }} disabled={moderationBusyId === u.user_id} className="admin-btn outline moderation-clear"><Trash2 size={14} /> {moderationBusyId === u.user_id ? "Clearing…" : "Clear"}</button></div>
+                  <div className="moderation-person"><Avatar name={u.name} email={u.email || u.user_id} /><span className={`moderation-urgency-dot ${expiresSoon ? "is-expiring" : ""}`} title={expiresSoon ? "Expires within one hour" : "Active"} /></div>
+                  <div className="moderation-status"><div className="moderation-identity"><strong>{u.name || "Unnamed student"}</strong><small>{u.email || u.user_id}</small></div><blockquote><span>{status.emoji || "💬"}</span>{status.text || "No status message"}</blockquote></div>
+                  <div className={`moderation-expiry ${expiresSoon ? "is-expiring" : ""}`}><Clock3 size={14} /><div><span>{expiresSoon ? `${minutesLeft} min left` : "Scheduled expiry"}</span><strong>{expiresAt.toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</strong></div></div>
+                  <div className="moderation-actions"><button type="button" onClick={e => { e.stopPropagation(); setSelectedUser(u); }} className="admin-btn outline moderation-inspect"><Eye size={14} /> Inspect</button><button type="button" onClick={e => { e.stopPropagation(); clearUserStatus(u); }} disabled={moderationBusyId === u.user_id} className="admin-btn outline moderation-clear"><Trash2 size={14} /> {moderationBusyId === u.user_id ? "Clearing…" : "Remove status"}</button></div>
                 </article>;
               })}
             </div>
           </section>
 
           <section className="admin-card admin-span-all admin-g-database database-workspace" style={{ gridColumn: "1 / -1" }}>
-            <div className="admin-workspace-head">
-              <div><h2><Database size={20} color="var(--blue)" /> Database explorer</h2><p className="admin-subtext">Read-only operational view. Results are limited to 50 rows and never write to your database.</p></div>
-              <button type="button" className="admin-btn outline" onClick={() => setDbRefreshKey(key => key + 1)} disabled={dbLoading}><RefreshCw size={14} className={dbLoading ? "spin-icon" : ""} /> Refresh</button>
-            </div>
-            <div className="database-table-picker" role="list" aria-label="Database tables">
-              {DATABASE_TABLES.map(table => <button type="button" role="listitem" key={table.id} className={dbTable === table.id ? "active" : ""} onClick={() => { setDbTable(table.id); setDbSearch(""); setDbColumn("all"); }}><span>{table.label}</span><small>{table.description}</small></button>)}
-            </div>
-            <div className="database-context"><div><strong>{selectedDbTable.label}</strong><span>{selectedDbTable.description}</span></div><small>{dbLoadedAt ? `Loaded ${dbLoadedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Waiting for data"}</small></div>
-            {!dbLoading && !dbError && dbRows.length > 0 && <div className="admin-workspace-toolbar database-filters"><label className="admin-search-control"><Search size={15} /><input value={dbSearch} onChange={e => setDbSearch(e.target.value)} placeholder="Search loaded rows" aria-label="Search loaded database rows" /></label><label className="admin-select-control"><ListFilter size={15} /><select value={dbColumn} onChange={e => setDbColumn(e.target.value)}><option value="all">All columns</option>{dbColumns.map(column => <option key={column} value={column}>{column}</option>)}</select></label><span className="admin-toolbar-note">{filteredDbRows.length} / {dbRows.length} rows</span></div>}
-            <div className="database-grid">
-              <div className="admin-table-wrapper database-table-shell">
-                {dbLoading ? <div className="admin-empty">Loading {selectedDbTable.label.toLowerCase()}…</div> : dbError ? <div className="admin-empty database-error"><AlertTriangle size={18} /> {dbError}</div> : dbRows.length === 0 ? <div className="admin-empty">No rows found in {selectedDbTable.label.toLowerCase()}.</div> : filteredDbRows.length === 0 ? <div className="admin-empty">No loaded rows match this search.</div> : <table className="database-table"><thead><tr><th className="database-inspect-col">Inspect</th>{dbColumns.map(column => <th key={column}>{column}</th>)}</tr></thead><tbody>{filteredDbRows.map((row, i) => <tr key={i} className={dbSelectedRow === row ? "is-selected" : ""} onClick={() => setDbSelectedRow(row)}><td><button type="button" className="database-inspect" onClick={() => setDbSelectedRow(row)}><Eye size={15} /> Inspect</button></td>{dbColumns.map(column => { const value = row[column]; const text = typeof value === "object" ? JSON.stringify(value) : String(value ?? "—"); return <td key={column} title={text}>{text}</td>; })}</tr>)}</tbody></table>}
+            <div className="database-hero">
+              <div className="database-hero-copy">
+                <span className="database-eyebrow"><Activity size={13} /> Data operations</span>
+                <h2><Database size={22} /> Database explorer</h2>
+                <p>Inspect the latest records across TermFlow's operational datasets.</p>
+                <span className="database-readonly"><Shield size={13} /> Read-only · capped at 50 rows</span>
               </div>
-              <aside className="database-inspector"><div className="database-inspector-head"><span>Row inspector</span>{dbSelectedRow && <button type="button" onClick={() => setDbSelectedRow(null)} aria-label="Close row inspector"><X size={15} /></button>}</div>{dbSelectedRow ? <pre>{JSON.stringify(dbSelectedRow, null, 2)}</pre> : <div className="database-inspector-empty"><Eye size={18} /> Select a row to inspect its complete value.</div>}</aside>
+              <button type="button" className="admin-btn database-refresh" onClick={() => setDbRefreshKey(key => key + 1)} disabled={dbLoading}>
+                <RefreshCw size={15} className={dbLoading ? "spin-icon" : ""} /> {dbLoading ? "Refreshing…" : "Refresh data"}
+              </button>
+            </div>
+
+            <div className="database-metrics" aria-label="Current dataset summary">
+              <div><span>Dataset</span><strong>{selectedDbTable.label}</strong></div>
+              <div><span>Loaded rows</span><strong>{dbLoading ? "—" : dbRows.length}</strong></div>
+              <div><span>Columns</span><strong>{dbLoading ? "—" : dbColumns.length}</strong></div>
+              <div><span>Last synced</span><strong>{dbLoadedAt ? dbLoadedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Waiting"}</strong></div>
+            </div>
+
+            <div className="database-layout">
+              <nav className="database-datasets" aria-label="Database tables">
+                <div className="database-section-label"><Database size={13} /> Datasets <span>{DATABASE_TABLES.length}</span></div>
+                <div className="database-table-picker">
+                  {DATABASE_TABLES.map(table => (
+                    <button
+                      type="button"
+                      key={table.id}
+                      className={dbTable === table.id ? "active" : ""}
+                      aria-current={dbTable === table.id ? "page" : undefined}
+                      onClick={() => { setDbTable(table.id); setDbSearch(""); setDbColumn("all"); setDbCopyStatus(""); }}
+                    >
+                      <span className="database-picker-icon"><FileText size={15} /></span>
+                      <span className="database-picker-copy"><strong>{table.label}</strong><small>{table.description}</small></span>
+                      <ChevronRight size={15} className="database-picker-arrow" />
+                    </button>
+                  ))}
+                </div>
+              </nav>
+
+              <div className="database-main">
+                <div className="database-context">
+                  <div><span className="database-context-label">Active dataset</span><strong>{selectedDbTable.label}</strong><small>{selectedDbTable.description}</small></div>
+                  <span className={`database-live-state ${dbError ? "is-error" : dbLoading ? "is-loading" : ""}`}><i />{dbError ? "Unavailable" : dbLoading ? "Loading" : "Live snapshot"}</span>
+                </div>
+
+                {!dbLoading && !dbError && dbRows.length > 0 && (
+                  <div className="admin-workspace-toolbar database-filters">
+                    <label className="admin-search-control"><Search size={16} /><input value={dbSearch} onChange={e => setDbSearch(e.target.value)} placeholder={`Search ${selectedDbTable.label.toLowerCase()}…`} aria-label="Search loaded database rows" />{dbSearch && <button type="button" onClick={() => setDbSearch("")} aria-label="Clear database search"><X size={14} /></button>}</label>
+                    <label className="admin-select-control"><ListFilter size={15} /><select value={dbColumn} onChange={e => setDbColumn(e.target.value)} aria-label="Choose database column"><option value="all">All columns</option>{dbColumns.map(column => <option key={column} value={column}>{column}</option>)}</select></label>
+                    <span className="database-result-count"><strong>{filteredDbRows.length}</strong> of {dbRows.length} rows</span>
+                  </div>
+                )}
+
+                <div className="database-grid">
+                  <div className="admin-table-wrapper database-table-shell">
+                    {dbLoading ? <div className="database-state"><RefreshCw size={22} className="spin-icon" /><strong>Loading {selectedDbTable.label.toLowerCase()}</strong><span>Fetching the latest available records…</span></div> : dbError ? <div className="database-state database-error"><AlertTriangle size={22} /><strong>Could not load this dataset</strong><span>{dbError}</span><button type="button" className="admin-btn outline" onClick={() => setDbRefreshKey(key => key + 1)}>Try again</button></div> : dbRows.length === 0 ? <div className="database-state"><Database size={22} /><strong>No records found</strong><span>{selectedDbTable.label} is currently empty.</span></div> : filteredDbRows.length === 0 ? <div className="database-state"><Search size={22} /><strong>No matching rows</strong><span>Try another search term or switch the selected column.</span><button type="button" className="admin-btn outline" onClick={() => { setDbSearch(""); setDbColumn("all"); }}>Clear filters</button></div> : (
+                      <table className="database-table">
+                        <thead><tr><th className="database-row-number">#</th>{dbColumns.map(column => <th key={column}>{column}</th>)}<th className="database-inspect-col">Action</th></tr></thead>
+                        <tbody>{filteredDbRows.map((row, i) => (
+                          <tr
+                            key={row.id || row.user_id || row.group_id || i}
+                            className={dbSelectedRow === row ? "is-selected" : ""}
+                            onClick={() => { setDbSelectedRow(row); setDbCopyStatus(""); }}
+                            onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDbSelectedRow(row); setDbCopyStatus(""); } }}
+                            tabIndex={0}
+                            aria-label={`Inspect row ${i + 1}`}
+                          >
+                            <td className="database-row-number">{i + 1}</td>
+                            {dbColumns.map(column => { const value = row[column]; const text = typeof value === "object" && value !== null ? JSON.stringify(value) : String(value ?? "—"); return <td key={column} title={text}><span className={`database-cell ${value === null || value === undefined ? "is-null" : typeof value === "boolean" ? `is-boolean is-${value}` : typeof value === "object" ? "is-object" : ""}`}>{typeof value === "boolean" ? (value ? "True" : "False") : text}</span></td>; })}
+                            <td><button type="button" className="database-inspect" onClick={e => { e.stopPropagation(); setDbSelectedRow(row); setDbCopyStatus(""); }}><Eye size={14} /> Inspect</button></td>
+                          </tr>
+                        ))}</tbody>
+                      </table>
+                    )}
+                  </div>
+
+                  <aside className={`database-inspector ${dbSelectedRow ? "has-selection" : ""}`} aria-live="polite">
+                    <div className="database-inspector-head">
+                      <div><span>Row inspector</span>{dbSelectedRow && <small>{Object.keys(dbSelectedRow).length} fields</small>}</div>
+                      {dbSelectedRow && <div className="database-inspector-actions"><button type="button" onClick={copyDatabaseRow} aria-label="Copy row JSON">{dbCopyStatus === "Copied" ? <Check size={15} /> : <Copy size={15} />}<span>{dbCopyStatus || "Copy JSON"}</span></button><button type="button" onClick={() => { setDbSelectedRow(null); setDbCopyStatus(""); }} aria-label="Close row inspector"><X size={15} /></button></div>}
+                    </div>
+                    {dbSelectedRow ? <div className="database-field-list">{Object.entries(dbSelectedRow).map(([key, value]) => { const text = typeof value === "object" && value !== null ? JSON.stringify(value, null, 2) : String(value ?? "null"); return <div className="database-field" key={key}><span>{key}</span><code className={value === null || value === undefined ? "is-null" : ""}>{text}</code></div>; })}</div> : <div className="database-inspector-empty"><span><Eye size={20} /></span><strong>Select a row</strong><p>Click anywhere on a row or use its Inspect action to see every field here.</p></div>}
+                  </aside>
+                </div>
+              </div>
             </div>
           </section>
 

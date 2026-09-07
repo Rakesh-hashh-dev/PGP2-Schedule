@@ -451,3 +451,179 @@ already present at `AdminDashboard.jsx:4973-5013`. The per-user opt-out
   one-line edit rather than a hunt.
 - **Prod deployment** — nothing goes to prod piecemeal. The migration is verified against a local
   Docker stack; the whole feature ships together once tested.
+
+## 10. Refit — 2026-09-06
+
+Phases 0-5 shipped the companion; this pass fixed what a browser showed and the
+tests could not, and gave the curve somewhere to go past the cap.
+
+**Mood legibility.** The penguin, the chick and Rover had no ears, and ear droop
+is most of what a mood looks like — sixteen moods that rendered as one animal.
+The wings now rotate to the same `--pet-ear-droop` (scaled .6 through
+`--pet-wing-droop`), Rover was redrawn with servo housings on the same classes,
+and a new `--pet-drop` sags the whole body per mood, which reads at 40px where a
+3deg lean never did. `greetingPets.test.jsx` now fails if a pet ships with
+neither ears nor wings.
+
+**A raster harness.** `npm run pet-sheet` renders the roster against every mood
+to one PNG, reading the knobs, per-pet gains and transform-origins out of
+styles.css so it cannot drift from what ships. Part pivots come from real
+bounding boxes (each moving part is rasterized alone and measured from its alpha
+channel), which is also how the neckwear anchors were measured. It is a still,
+so it shows posture and not timing — which is the half that has to carry a mood
+anyway. Two of the three defects found this pass were invisible to the suite and
+obvious in the sheet.
+
+**Why this mood.** `moodExplainFor` returns the mood *and* the rung it stopped
+on; `moodFor` delegates to it so the ladder exists once. The pet page prints the
+reason under the mood copy. Found in passing: `rooting` had no line in either
+copy map, so exam week rendered "<pet> undefined" in the greeting and a blank
+mood on the pet page. Both maps are now covered by a test.
+
+**Art.** The dog and the cat — the two most-seen companions, both starters —
+were redrawn as outlined stickers. Koala, otter, raccoon and Rover got a craft
+pass in the existing flat style. The roster is deliberately mid-migration: see
+the open question below.
+
+**Progression past level 12.** Ten devotion tiers shipped with two hats between
+them, so eight of the ten steps past the cap unlocked nothing. Now:
+
+* eight more devotion hats, one per empty tier;
+* **coats** (`COATS`) — the same pet recoloured by a CSS filter, six of them,
+  devotion-gated. A filter rather than 96 more SVGs;
+* **neckwear** (`NECKWEAR`) — a second wearable slot, independent of the hat, so
+  the wardrobe multiplies instead of adding. A worn collar replaces the one the
+  pet is drawn with;
+* **Nova** (devotion 4) and **Cinder** (devotion 8) — the first companions not
+  earned by levelling, drawn to the premium brief;
+* **titles**, all derived from state the ledger already holds;
+* a **second companion slot** at devotion 5 — display only, so the ledger is
+  never forked;
+* **birthday** and **festive** moods, from the adoption date and the calendar;
+* a **care streak** multiplier (up to 1.5x) that only applies at MAX_LEVEL,
+  applied at award time so `award` stays idempotent.
+
+### Follow-up — same day
+
+Four more, picked off the enhancement list:
+
+**Friends see the wardrobe.** `get_friend_pets` projected key/name/level, which
+was right when the wardrobe was eleven hats and wrong once it was thirty pieces
+across three slots — a cosmetic nobody else sees may as well not exist. The
+migration `20260906120000_pet_public_cosmetics.sql` widens the projection with
+hat/neck/coat/title and nothing else: no XP, no ledger, no timestamps, no buddy
+(the friends list draws dozens of these at once). The client re-validates every
+cosmetic through the same `visible*` helpers the owner's own view uses, so a
+hand-edited row cannot show a friend a crown its owner never earned, and
+`fetchFriendPets` reads the new columns with `?? null` so a client that ships
+ahead of the migration just sees bare pets. **The migration is written but NOT
+applied — prod is a deliberate step.**
+
+**The daily rotation stops spoiling the roster.** `getPetOfTheDay` picked from
+all sixteen, so someone who had not adopted yet could be greeted by Nova. It now
+draws from `ROTATION` (everything except the four premium companions), which
+filters `PETS` rather than restating it, so the rotation stays in roster order
+and a new companion is still a one-line change. Note this moved which pet every
+past and future date resolves to — unavoidable, and the rotation is decorative.
+
+**What's next.** `nextUnlockFor` returns the nearest unearned thing across every
+registry — companion, hat, coat, collar, the buddy slot — as
+`{ kind, key, label, at, by }`, levels before devotion tiers. The pet page shows
+it under the XP numbers. Derived from the registries, so a new wearable appears
+there without anyone remembering to add it.
+
+**The companion leaves its two screens.** `PetCameo` renders the pet with its
+current mood and full wardrobe anywhere, and returns null unless there is a pet
+and both the student and the cohort still want one — so callers drop it in
+unconditionally. Placed on the free-day card (the pet has a mood for exactly
+that day, and had nowhere to show it) and in the Term Wrapped hero. Adding a
+third place is now one line.
+
+Also fixed in passing: the hat and collar offsets are absolute px tuned against
+the 40px greeting chip, so they did not scale with the mount. `--pet-overlay-k`
+scales them per mount (default 1, so nothing that does not set it moves), which
+is what lets the 17px friends badge and the cameos wear the wardrobe straight.
+
+### XP rebalance — 2026-09-07
+
+The earn rates were set by feel before the roster ran past level 9, and modelling
+them against the term that actually ships showed how far off they were. This
+term is 107 days, 90 teaching days, ~115 classes for the median student. Under
+the original rates (10 / 20 / 5 / 2) a student who marked EVERY class, opened the
+app daily and cleared fourteen deadlines finished on **2607 XP — level 9**.
+Spark, Leafy, Nova and Cinder were unreachable, and so was every devotion tier.
+Four companions and the whole devotion wardrobe were content nobody could see.
+
+New rates, tuned so an engaged student (marks ~85%, opens daily, two or three
+cares, eight deadlines) earns the last companion at about 80% of the term:
+
+| | was | now |
+|---|---|---|
+| class marked | 10 | **32** |
+| deadline cleared | 20 | **60** |
+| daily streak | 5 | **10** |
+| care tap (max 3/day) | 2 | **3** |
+| devotion tier | 400 | **270** |
+| Nova / Cinder gates | Dv 4 / Dv 8 | **Dv 2 / Dv 4** |
+
+Where that lands:
+
+| | perfect | engaged | casual |
+|---|---|---|---|
+| Spark (Lv 11) | 40% | 48% | never |
+| Leafy (Lv 12) | 48% | 58% | never |
+| Nova (Dv 2) | 54% | 68% | never |
+| **Cinder (Dv 4)** | 64% | **80%** | never |
+| whole wardrobe (Dv 10) | 94% | never | never |
+
+A casual student (marks half, opens most days) ends around level 10 with twelve
+of the sixteen — the premium four stay worth something, and nobody is scolded.
+Attendance is ~56% of a typical total, so the pet still levels because you showed
+up rather than because you tapped it (§2).
+
+**The level curve is deliberately unchanged.** Rates only affect XP awarded from
+here on — the ledger records what each event actually paid — whereas moving
+`LEVEL_BASE`/`LEVEL_STEP` would re-map every existing pet's level overnight. The
+smaller devotion step can only raise a tier, and tiers hold nothing but
+cosmetics.
+
+`npm run xp-model` runs the model (and takes rate overrides as JSON, so a change
+can be tried without editing `pet.js`). `src/lib/petEconomy.test.js` runs the
+same model in CI and fails if a companion goes out of reach — which it does if
+you put the old rates back. That matters most at term rollover: a shorter term
+with fewer classes silently makes the tail unreachable, and nothing else in the
+suite would notice.
+
+### Mood-timing fix — 2026-09-07
+
+An audit of which parts each mood actually retimes (one selector-coverage pass
+over styles.css) turned up two real defects:
+
+* **Nova and Cinder never changed speed.** The premium flourishes were retimed
+  by six long selector lists naming Spark's and Leafy's classes; the two
+  companions added later have their own class names, which nobody added to those
+  lists. A sleepy Cinder flickered exactly as fast as a celebrating one.
+* **Even for Spark and Leafy it was three moods out of seventeen** — excited,
+  tired and sleepy. The other fourteen retimed the ears, tail, face and
+  signature and left the sparks and vines at idle speed. And because each list
+  set one flat duration for every part in it, a retimed Spark lost its internal
+  rhythm: the static, which is meant to tick faster than the bolts, ran at
+  exactly the bolts' speed.
+
+Both are fixed by `--pet-tempo`. Every flourish keeps its OWN base duration
+written as `calc(<base> * var(--pet-tempo))`, and each mood sets the tempo once,
+derived from that mood's own idle bob against the 2.9s base — so the flourish
+slows down with the animal and keeps its internal rhythm at every speed. Six
+selector lists became seventeen single declarations, and a new companion is
+covered the moment its parts are drawn.
+
+`greetingPets.test.jsx` now fails if a looping flourish rule is written without
+the tempo, if a mood forgets to set one, or if a tempo points the opposite way
+to its own idle (a mood that bobs slower must not flicker faster).
+
+### Open question
+
+The outline style now covers two of sixteen pets. Either it becomes the roster
+style (fourteen redraws, and the premium pair lose some of their separation) or
+the two starters stay deliberately the most finished pets in the set. Not
+decided — do not "fix" the inconsistency without settling it.
