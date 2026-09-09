@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
-import { PETS, ROTATION, ROTATION_EXCLUDED, dayKey, getPetByKey, getPetOfTheDay } from "./greetingPets.jsx";
+import { PETS, dayKey, getPetByKey } from "./greetingPets.jsx";
 import PetHat from "./PetHat.jsx";
 import PetNeckwear from "./PetNeckwear.jsx";
 import { HATS, NECKWEAR, MOODS } from "../lib/pet.js";
@@ -46,51 +46,6 @@ describe("getPetByKey", () => {
   it("falls back to the first pet for unknown or missing keys", () => {
     expect(getPetByKey("griffin")).toBe(PETS[0]);
     expect(getPetByKey(undefined)).toBe(PETS[0]);
-  });
-});
-
-describe("getPetOfTheDay", () => {
-  it("is stable across calls within the same local day", () => {
-    const morning = new Date(2026, 8, 4, 7, 30);
-    const night = new Date(2026, 8, 4, 23, 59);
-    expect(getPetOfTheDay(morning)).toBe(getPetOfTheDay(night));
-  });
-
-  it("is deterministic — no storage, no randomness", () => {
-    const d = new Date(2026, 0, 15);
-    const runs = new Set(Array.from({ length: 50 }, () => getPetOfTheDay(d).key));
-    expect(runs.size).toBe(1);
-  });
-
-  it("always returns a pet from the registry", () => {
-    for (let i = 0; i < 400; i++) {
-      const d = new Date(2026, 0, 1 + i);
-      expect(PETS).toContain(getPetOfTheDay(d));
-    }
-  });
-
-  // The rotation is what someone sees BEFORE they adopt, so it must not hand
-  // over the pets that are the reason to keep levelling.
-  it("never offers a premium companion as the pet of the day", () => {
-    for (let i = 0; i < 400; i++) {
-      const key = getPetOfTheDay(new Date(2026, 0, 1 + i)).key;
-      expect(ROTATION_EXCLUDED, `${key} was offered for free`).not.toContain(key);
-    }
-  });
-
-  it("keeps the rotation in roster order, so one list adds a companion", () => {
-    expect(ROTATION.map(p => p.key))
-      .toEqual(PETS.map(p => p.key).filter(k => !ROTATION_EXCLUDED.includes(k)));
-  });
-
-  it("rotates — a year of days covers every rotating pet and does not stick", () => {
-    const year = Array.from({ length: 365 }, (_, i) => getPetOfTheDay(new Date(2026, 0, 1 + i)).key);
-    expect(new Set(year).size).toBe(ROTATION.length);
-    const longestRun = year.reduce((acc, key) => {
-      const run = key === acc.prev ? acc.run + 1 : 1;
-      return { prev: key, run, max: Math.max(acc.max, run) };
-    }, { prev: null, run: 0, max: 0 }).max;
-    expect(longestRun).toBeLessThanOrEqual(2);
   });
 });
 

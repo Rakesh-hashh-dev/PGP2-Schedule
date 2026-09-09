@@ -295,7 +295,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     classOverrides: {},
     abTests: {},
     dispatchEnabled: true,
-    greetingPets: { enabled: true, mode: "daily", petKey: "cat", motion: true, companion: true, xpRate: 1, signatures: true, wardrobe: true, hatsOff: [] }
+    greetingPets: { enabled: true, petKey: "cat", motion: true, companion: true, xpRate: 1, signatures: true, wardrobe: true, hatsOff: [] }
   });
   
   const [popularCourses, setPopularCourses] = useState([]);
@@ -5056,7 +5056,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             </div>
           </section>
 
-<section className="admin-card admin-g-system">
+          <section className="admin-card admin-g-system system-control-card system-flags-card">
             <h2><Flag size={20} color="var(--violet)" /> Feature Flags</h2>
             <div className="admin-flag-list">
               {/* Curated toggles (default ON when unset) + any other real boolean
@@ -5081,11 +5081,21 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                   </label>
                 ))}
             </div>
+          </section>
+
+          <section className="admin-card admin-span-all admin-g-system system-control-card system-companion-card" style={{ gridColumn: "1 / -1" }}>
+            <div className="system-companion-head">
+              <div>
+                <span className="system-companion-eyebrow">Student experience</span>
+                <h2><PawPrint size={20} color="var(--violet)" /> Companion Settings</h2>
+                <p className="admin-subtext">Manage greeting pets, adoption, progression, motion, wardrobe availability, and cohort-wide companion XP from one place.</p>
+              </div>
+              <span className="system-companion-badge"><Sparkles size={14} /> Pet controls</span>
+            </div>
 
             {(() => {
               const greetingPets = {
                 enabled: true,
-                mode: "daily",
                 petKey: "cat",
                 motion: true,
                 // Both absent in any config saved before the companion shipped,
@@ -5100,89 +5110,89 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 hatsOff: [],
                 ...(flags.greetingPets || {}),
               };
-              const updateGreetingPets = patch => setFlags({ ...flags, greetingPets: { ...greetingPets, ...patch } });
+              const updateGreetingPets = patch => {
+                const next = { ...greetingPets, ...patch };
+                delete next.mode; // Drop the retired daily/featured rotation setting on the next save.
+                setFlags({ ...flags, greetingPets: next });
+              };
               // getPetByKey (not a raw find) so a config still carrying the
               // legacy "turtle" key previews the rover the admin actually picked.
-              const previewPet = greetingPets.mode === "featured"
-                ? getPetByKey(greetingPets.petKey)
-                : PETS[0];
+              const previewPet = getPetByKey(greetingPets.petKey);
               const PreviewPet = previewPet.Svg;
               return (
-                <div className="admin-field" style={{ marginTop: 18, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 13, fontWeight: 750, cursor: "pointer" }}>
-                    <input type="checkbox" checked={greetingPets.enabled} onChange={e => updateGreetingPets({ enabled: e.target.checked })} />
-                    <Sparkles size={15} color="var(--violet)" /> Daily greeting companions
-                  </label>
-                  <p className="admin-subtext" style={{ margin: "6px 0 12px" }}>Control the animated mascot beside every student&apos;s Today greeting. Deploy Config to publish this cohort-wide.</p>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 12px", marginBottom: 12, border: "1px solid var(--border)", borderRadius: 12, background: "color-mix(in srgb, var(--violet) 4%, var(--bg))", opacity: greetingPets.enabled ? 1 : 0.52 }}>
-                    <span className="dg-pet" data-pet={previewPet.key} data-motion={greetingPets.motion ? "on" : "off"} aria-hidden="true" style={{ width: 38, height: 38 }}>
-                      <PreviewPet />
-                    </span>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 12, fontWeight: 750, color: "var(--text)" }}>{greetingPets.enabled ? "Student greeting preview" : "Companions are hidden"}</div>
-                      <div style={{ marginTop: 2, fontSize: 11, color: "var(--muted)" }}>
-                        {greetingPets.mode === "featured" ? `${previewPet.label} is featured for everyone.` : `Daily surprise — ${previewPet.label} shown as an example.`} {greetingPets.motion ? "Motion on." : "Motion off."}
+                <div className="admin-field system-companion-config">
+                  <div className="system-companion-layout">
+                    <div className="system-companion-panel system-companion-greeting">
+                      <span className="system-companion-panel-kicker">Greeting</span>
+                      <label className="system-companion-toggle">
+                        <input type="checkbox" checked={greetingPets.enabled} onChange={e => updateGreetingPets({ enabled: e.target.checked })} />
+                        <Sparkles size={15} color="var(--violet)" /> Greeting companion
+                      </label>
+                      <p className="admin-subtext">Choose the companion shown beside the Today greeting until a student adopts their own. Deploy Config to publish this cohort-wide.</p>
+                      <div className="system-companion-preview" data-disabled={!greetingPets.enabled}>
+                        <span className="dg-pet" data-pet={previewPet.key} data-motion={greetingPets.motion ? "on" : "off"} aria-hidden="true" style={{ width: 44, height: 44 }}>
+                          <PreviewPet />
+                        </span>
+                        <div style={{ minWidth: 0 }}>
+                          <strong>{greetingPets.enabled ? "Student greeting preview" : "Companions are hidden"}</strong>
+                          <small>
+                            {previewPet.label} is the cohort greeting pet. {greetingPets.motion ? "Motion on." : "Motion off."}
+                          </small>
+                        </div>
+                      </div>
+                      <div className="system-companion-fields" data-disabled={!greetingPets.enabled}>
+                        <label className="admin-field">
+                          <span>Greeting pet</span>
+                          <select className="admin-input" disabled={!greetingPets.enabled} value={previewPet.key} onChange={e => updateGreetingPets({ petKey: e.target.value })}>
+                            {PETS.map(pet => <option key={pet.key} value={pet.key}>{pet.label}</option>)}
+                          </select>
+                        </label>
+                        <label className="system-companion-check">
+                          <input type="checkbox" disabled={!greetingPets.enabled} checked={greetingPets.motion} onChange={e => updateGreetingPets({ motion: e.target.checked })} /> Motion
+                        </label>
                       </div>
                     </div>
-                  </div>
-                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end", opacity: greetingPets.enabled ? 1 : 0.55 }}>
-                    <label className="admin-field" style={{ flex: "1 1 150px", margin: 0 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", display: "block", marginBottom: 5 }}>COMPANION MODE</span>
-                      <select className="admin-input" disabled={!greetingPets.enabled} value={greetingPets.mode} onChange={e => updateGreetingPets({ mode: e.target.value })}>
-                        <option value="daily">Daily surprise</option>
-                        <option value="featured">Featured companion</option>
-                      </select>
-                    </label>
-                    {greetingPets.mode === "featured" && (
-                      <label className="admin-field" style={{ flex: "1 1 130px", margin: 0 }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", display: "block", marginBottom: 5 }}>FEATURED PET</span>
-                        <select className="admin-input" disabled={!greetingPets.enabled} value={previewPet.key} onChange={e => updateGreetingPets({ petKey: e.target.value })}>
-                          {PETS.map(pet => <option key={pet.key} value={pet.key}>{pet.label}</option>)}
+
+                    {/* Companion layer — adoption, the pet page, XP and friends'
+                        pets. Separate from the switch above so the decorative
+                        greeting pet can stay while the game is turned off. */}
+                    <div className="system-companion-panel system-companion-progression" data-disabled={!greetingPets.enabled}>
+                      <span className="system-companion-panel-kicker">Progression</span>
+                      <label className="system-companion-toggle" style={{ cursor: greetingPets.enabled ? "pointer" : "not-allowed" }}>
+                        <input type="checkbox" disabled={!greetingPets.enabled} checked={greetingPets.companion !== false} onChange={e => updateGreetingPets({ companion: e.target.checked })} />
+                        <PawPrint size={15} color="var(--violet)" /> Adoptable companion
+                      </label>
+                      <p className="admin-subtext">
+                        Lets students adopt and name a pet that levels up from marked classes and cleared deadlines, unlocks the Companion page, and shows friends&apos; pets on their cards. Turn off to leave only the decorative greeting pet.
+                      </p>
+                      <label className="admin-field system-companion-rate">
+                        <span>XP rate</span>
+                        <select
+                          className="admin-input"
+                          disabled={!greetingPets.enabled || greetingPets.companion === false}
+                          value={String(greetingPets.xpRate ?? 1)}
+                          onChange={e => updateGreetingPets({ xpRate: Number(e.target.value) })}
+                        >
+                          <option value="0.5">0.5× — slower</option>
+                          <option value="1">1× — normal</option>
+                          <option value="1.5">1.5×</option>
+                          <option value="2">2× — double</option>
+                          <option value="3">3× — max</option>
                         </select>
                       </label>
-                    )}
-                    <label style={{ display: "flex", alignItems: "center", gap: 7, paddingBottom: 9, fontSize: 12, fontWeight: 650, cursor: greetingPets.enabled ? "pointer" : "not-allowed" }}>
-                      <input type="checkbox" disabled={!greetingPets.enabled} checked={greetingPets.motion} onChange={e => updateGreetingPets({ motion: e.target.checked })} /> Motion
-                    </label>
-                  </div>
-
-                  {/* Companion layer — adoption, the pet page, XP and friends'
-                      pets. Separate from the switch above so the decorative
-                      greeting pet can stay while the game is turned off. */}
-                  <div style={{ marginTop: 14, paddingTop: 13, borderTop: "1px dashed var(--border)", opacity: greetingPets.enabled ? 1 : 0.55 }}>
-                    <label style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 13, fontWeight: 750, cursor: greetingPets.enabled ? "pointer" : "not-allowed" }}>
-                      <input type="checkbox" disabled={!greetingPets.enabled} checked={greetingPets.companion !== false} onChange={e => updateGreetingPets({ companion: e.target.checked })} />
-                      <PawPrint size={15} color="var(--violet)" /> Adoptable companion
-                    </label>
-                    <p className="admin-subtext" style={{ margin: "6px 0 10px" }}>
-                      Lets students adopt and name a pet that levels up from marked classes and cleared deadlines, unlocks the Companion page, and shows friends&apos; pets on their cards. Turn off to leave only the decorative greeting pet.
-                    </p>
-                    <label className="admin-field" style={{ maxWidth: 220, margin: 0 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", display: "block", marginBottom: 5 }}>XP RATE</span>
-                      <select
-                        className="admin-input"
-                        disabled={!greetingPets.enabled || greetingPets.companion === false}
-                        value={String(greetingPets.xpRate ?? 1)}
-                        onChange={e => updateGreetingPets({ xpRate: Number(e.target.value) })}
-                      >
-                        <option value="0.5">0.5× — slower</option>
-                        <option value="1">1× — normal</option>
-                        <option value="1.5">1.5×</option>
-                        <option value="2">2× — double</option>
-                        <option value="3">3× — max</option>
-                      </select>
-                    </label>
-                    <p className="admin-subtext" style={{ margin: "7px 0 0" }}>
-                      Applies to XP earned from now on. Already-banked XP keeps what it was worth, and the rate is clamped to 0.25&times;&ndash;3&times; client-side, so a bad config can neither freeze progress nor max the cohort.
-                    </p>
+                      <p className="admin-subtext system-companion-note">
+                        Applies to new XP only. Banked XP keeps its value; the rate is safely clamped to 0.25&times;&ndash;3&times;.
+                      </p>
+                    </div>
                   </div>
 
                   {/* Presentation controls. Nothing here touches progression:
                       withdrawing a wearable hides it, it does not un-earn it,
                       and turning it back on returns every student to the hat
                       they had chosen. */}
-                  <div style={{ marginTop: 14, paddingTop: 13, borderTop: "1px dashed var(--border)", opacity: greetingPets.enabled && greetingPets.companion !== false ? 1 : 0.55 }}>
-                    <label style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 13, fontWeight: 750, cursor: "pointer" }}>
+                  <div className="system-companion-panel system-companion-appearance" data-disabled={!greetingPets.enabled || greetingPets.companion === false}>
+                    <span className="system-companion-panel-kicker">Appearance &amp; motion</span>
+                    <label className="system-companion-toggle">
                       <input
                         type="checkbox"
                         disabled={!greetingPets.enabled}
@@ -5195,7 +5205,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                       The one small loop each companion has of its own — the dog pants, the panda chews, the robot&apos;s status light blinks. Off leaves the shared idle, the moods and the reactions running. Readers who have asked their device for reduced motion never see any of it either way.
                     </p>
 
-                    <label style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 13, fontWeight: 750, cursor: "pointer" }}>
+                    <label className="system-companion-toggle">
                       <input
                         type="checkbox"
                         disabled={!greetingPets.enabled || greetingPets.companion === false}
@@ -5265,8 +5275,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 adopted pet — they are RPC calls, not flags, so there is no
                 Deploy step to undo them. Hence the explicit counts and the
                 typed confirmation on the destructive one. */}
-            <div className="admin-field" style={{ marginTop: 16 }}>
-              <label style={{ display: "block", marginBottom: 8, fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "1px" }}>Companion XP — all students</label>
+            <div className="admin-field system-companion-bulk">
+              <span className="system-companion-panel-kicker">Immediate cohort action</span>
+              <h3><Activity size={17} /> Companion XP — all students</h3>
               <p className="admin-subtext" style={{ margin: "0 0 10px" }}>
                 Applies to every student who has adopted a companion. Adjustments sit
                 beside earned XP rather than replacing it, so classes, deadlines and
@@ -5360,7 +5371,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               </div>
               {petBulkMessage && <p className="admin-subtext" style={{ margin: "9px 0 0", color: petBulkMessage.startsWith("Could not") ? "var(--danger)" : "var(--live)" }}>{petBulkMessage}</p>}
             </div>
+          </section>
 
+          <section className="admin-card admin-g-system system-control-card system-experience-card">
+            <h2><Sparkles size={20} color="var(--blue)" /> Release &amp; Presentation</h2>
             <div className="admin-field" style={{ marginTop: 16 }}>
               <label style={{ display: "block", marginBottom: 8, fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "1px" }}>TermFlow Wrapped Release</label>
               {(() => {

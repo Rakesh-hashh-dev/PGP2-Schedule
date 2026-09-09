@@ -1,17 +1,16 @@
 /* eslint-disable react-refresh/only-export-components */
-// This module deliberately exports the pet registry (PETS) and a helper
-// (getPetOfTheDay) alongside the presentational SVG components, so Fast Refresh's
-// "components only" rule doesn't apply — the pets are static and rarely edited.
+// This module deliberately exports the pet registry and lookup helpers alongside
+// the presentational SVG components, so Fast Refresh's "components only" rule
+// doesn't apply — the pets are static and rarely edited.
 
-// "Pet of the day" companions for the daily greeting.
+// Companion artwork shared by the greeting, adoption flow, and pet page.
 //
 // Each pet is a small inline SVG (no external assets → CSP-safe) drawn with
 // flat, mid-tone illustrative colors that read on both light and dark grounds.
 // White-bodied pets carry a faint outline so they don't vanish on the light
 // theme. The eyes live in a `.dg-pet-eyes` group so CSS can blink them, and the
 // whole figure gets a gentle idle bob — both disabled under reduced-motion
-// (see styles.css). One pet is chosen per local day, derived from the date so
-// it is identical on every device (see getPetOfTheDay).
+// (see styles.css).
 //
 // The SVGs are `aria-hidden` on purpose: they only ever render inside a labelled
 // control (the greeting button) or a decorative preview (the admin panel), so a
@@ -1575,48 +1574,7 @@ export function getPetByKey(key) {
   return PETS.find(pet => pet.key === resolved) || PETS[0];
 }
 
-/** Local calendar day as `YYYY-M-D` — the unit the pet rotates on. */
+/** Local calendar day as `YYYY-M-D`, used to refresh greeting copy at midnight. */
 export function dayKey(d) {
   return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
-}
-
-// FNV-1a over the day key. Any stable string hash would do; this one is short,
-// dependency-free and spreads consecutive days across the list instead of
-// walking it in order.
-function hashDay(key) {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < key.length; i++) {
-    h ^= key.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
-  }
-  return h >>> 0;
-}
-
-/**
- * The companion for `now`'s local day.
- *
- * Derived purely from the date, so it needs no storage and every device — and
- * every student — sees the same pet on the same day. (It used to be a random
- * pick cached in localStorage, which made "pet of the day" per-device and
- * re-rollable by clearing site data.)
- */
-/**
- * The pets the daily rotation is allowed to pick from.
- *
- * Everything except the four premium companions. The rotation runs for people
- * who have NOT adopted yet — it is the shop window — and putting the level-11,
- * level-12 and devotion-4/8 unlocks in it handed the whole ladder over on day
- * one, before anyone had a reason to climb it.
- *
- * Order matters twice over: the day's hash indexes into this list, so adding,
- * removing or reordering an entry changes which pet every past and future date
- * resolves to. That is why this filters `PETS` rather than being its own
- * list — the rotation stays in the roster's order, and there is one place to
- * add a companion.
- */
-export const ROTATION_EXCLUDED = ["spark", "leafy", "nova", "cinder"];
-export const ROTATION = PETS.filter(p => !ROTATION_EXCLUDED.includes(p.key));
-
-export function getPetOfTheDay(now = new Date()) {
-  return ROTATION[hashDay(dayKey(now)) % ROTATION.length];
 }

@@ -8,6 +8,7 @@
 import { Fragment, useState } from "react";
 import {
   Search, ChevronDown, ExternalLink, Shield, ChevronsRight, ChevronsLeft, CloudOff, Pin, SlidersHorizontal,
+  Check, X, ArrowUp, ArrowDown,
 } from "lucide-react";
 import IndiaFlagIcon from "./IndiaFlagIcon.jsx";
 import SbLink from "./SbLink.jsx";
@@ -36,6 +37,19 @@ export default function DesktopSidebar({
     const updated = toggleSidebarPin(pins, id);
     setPins(updated);
     try { localStorage.setItem(SIDEBAR_PINS_KEY, JSON.stringify(updated)); } catch { /* storage unavailable */ }
+  };
+  const clearPins = () => {
+    setPins([]);
+    try { localStorage.setItem(SIDEBAR_PINS_KEY, JSON.stringify([])); } catch { /* storage unavailable */ }
+  };
+  const movePin = (idx, direction) => {
+    const newIdx = idx + direction;
+    if (newIdx < 0 || newIdx >= pins.length) return;
+    const copy = [...pins];
+    const [moved] = copy.splice(idx, 1);
+    copy.splice(newIdx, 0, moved);
+    setPins(copy);
+    try { localStorage.setItem(SIDEBAR_PINS_KEY, JSON.stringify(copy)); } catch { /* storage unavailable */ }
   };
   const changeCompact = checked => {
     setCompact(checked);
@@ -120,6 +134,13 @@ export default function DesktopSidebar({
             <span className="sb-search-shortcut">{isMac ? "⌘K" : "Ctrl K"}</span>
           </button>
 
+          {pinnedItems.length > 0 && (
+            <Fragment key="pinned">
+              <div className="sb-nav-label">Pinned</div>
+              {pinnedItems.map(renderItem)}
+            </Fragment>
+          )}
+
           {NAV_GROUPS.map(group => {
             const items = itemsForGroup(group.id, flags).filter(item => !pinnedItems.some(pin => pin.id === item.id));
             if (items.length === 0 && !group.collapsible) return null;
@@ -136,10 +157,6 @@ export default function DesktopSidebar({
             // disclosure affordance at 68px wide.
             return (
               <Fragment key={group.id}>
-                {pinnedItems.length > 0 && <>
-                  <div className="sb-nav-label">Pinned</div>
-                  {pinnedItems.map(renderItem)}
-                </>}
                 {items.length > 0 && <button
                   type="button"
                   className="sb-tools-head"
@@ -157,17 +174,140 @@ export default function DesktopSidebar({
         </nav>
 
         <details className="sb-customize">
-          <summary><SlidersHorizontal size={13} /> Customize sidebar</summary>
-          <label className="sb-compact-option"><input type="checkbox" checked={compact} onChange={e => changeCompact(e.target.checked)} /> Compact mode</label>
-          <fieldset>
-            <legend><Pin size={12} /> Pin up to {MAX_SIDEBAR_PINS} pages ({pins.length}/{MAX_SIDEBAR_PINS})</legend>
-            {available.filter(item => item.view).map(item => <label key={item.id}>
-              <input type="checkbox" checked={pins.includes(item.id)} disabled={!pins.includes(item.id) && pins.length >= MAX_SIDEBAR_PINS} onChange={() => changePin(item.id)} /> {item.label}
-            </label>)}
-            {pins.filter(id => !available.some(item => item.id === id)).map(id => <label key={id}>
-              <input type="checkbox" checked onChange={() => changePin(id)} /> {id} (unavailable)
-            </label>)}
-          </fieldset>
+          <summary className="sb-cust-summary-trigger">
+            <div className="sb-cust-summary-inner">
+              <div className="sb-cust-summary-left">
+                <SlidersHorizontal size={13} className="sb-cust-summary-icon" />
+                <span className="sb-cust-summary-title">Customize sidebar</span>
+              </div>
+              <div className="sb-cust-summary-right">
+                {pins.length > 0 && (
+                  <span className="sb-cust-pin-badge">{pins.length} pinned</span>
+                )}
+                <ChevronDown size={12} className="sb-cust-chevron" />
+              </div>
+            </div>
+          </summary>
+
+          <div className="sb-cust-dropdown">
+            <div className="sb-cust-section">
+              <div className="sb-cust-row">
+                <div className="sb-cust-label-wrap">
+                  <span className="sb-cust-label">Compact view</span>
+                  <span className="sb-cust-sub">Reduce sidebar spacing</span>
+                </div>
+                <label className="sb-switch" aria-label="Toggle compact view">
+                  <input
+                    type="checkbox"
+                    checked={compact}
+                    onChange={e => changeCompact(e.target.checked)}
+                  />
+                  <span className="sb-switch-slider" />
+                </label>
+              </div>
+            </div>
+
+            <div className="sb-cust-section">
+              <div className="sb-cust-header-row">
+                <span className="sb-cust-header-title">
+                  <Pin size={11} className="sb-cust-sec-icon" />
+                  <span>Pin shortcuts</span>
+                </span>
+                <div className="sb-cust-header-actions">
+                  {pins.length > 0 && (
+                    <button
+                      type="button"
+                      className="sb-cust-clear-btn"
+                      onClick={clearPins}
+                      title="Clear all pinned shortcuts"
+                    >
+                      Clear all
+                    </button>
+                  )}
+                  <span className="sb-cust-count">
+                    {pins.length}/{MAX_SIDEBAR_PINS}
+                  </span>
+                </div>
+              </div>
+              <p className="sb-cust-hint">
+                Pinned pages appear right at the top of your sidebar for 1-click access.
+              </p>
+
+              {pins.length > 1 && (
+                <div className="sb-cust-reorder-wrap">
+                  <span className="sb-cust-reorder-heading">Priority order (top to bottom):</span>
+                  <div className="sb-cust-reorder-list">
+                    {pinnedItems.map((item, idx) => {
+                      const Icon = item.icon;
+                      return (
+                        <div key={item.id} className="sb-cust-reorder-item">
+                          <span className="sb-cust-reorder-num">{idx + 1}</span>
+                          {Icon && <Icon size={12} className="sb-cust-reorder-icon" />}
+                          <span className="sb-cust-reorder-name">{item.label}</span>
+                          <div className="sb-cust-reorder-btns">
+                            <button
+                              type="button"
+                              className="sb-cust-order-btn"
+                              disabled={idx === 0}
+                              onClick={() => movePin(idx, -1)}
+                              title="Move up"
+                              aria-label={`Move ${item.label} up`}
+                            >
+                              <ArrowUp size={10} />
+                            </button>
+                            <button
+                              type="button"
+                              className="sb-cust-order-btn"
+                              disabled={idx === pins.length - 1}
+                              onClick={() => movePin(idx, 1)}
+                              title="Move down"
+                              aria-label={`Move ${item.label} down`}
+                            >
+                              <ArrowDown size={10} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div className="sb-cust-chips">
+                {available.filter(item => item.view).map(item => {
+                  const isPinned = pins.includes(item.id);
+                  const isMax = !isPinned && pins.length >= MAX_SIDEBAR_PINS;
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={`sb-cust-chip${isPinned ? " is-pinned" : ""}${isMax ? " is-disabled" : ""}`}
+                      disabled={isMax}
+                      onClick={() => changePin(item.id)}
+                      title={isMax ? `Max ${MAX_SIDEBAR_PINS} pinned pages` : (isPinned ? `Unpin ${item.label}` : `Pin ${item.label}`)}
+                    >
+                      {Icon && <Icon size={12} className="sb-cust-chip-icon" />}
+                      <span className="sb-cust-chip-label">{item.label}</span>
+                      {isPinned && <Check size={10} className="sb-cust-chip-check" />}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {pins.filter(id => !available.some(item => item.id === id)).map(id => (
+                <button
+                  key={id}
+                  type="button"
+                  className="sb-cust-stale-btn"
+                  onClick={() => changePin(id)}
+                >
+                  <span>Remove stale: {id}</span>
+                  <X size={11} />
+                </button>
+              ))}
+            </div>
+          </div>
         </details>
 
         {activeQuickLinks.length > 0 && (

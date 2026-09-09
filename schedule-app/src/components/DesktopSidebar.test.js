@@ -41,6 +41,23 @@ describe("DesktopSidebar nav", () => {
     expect(groups(render())).toEqual(["Schedule", "Track", "Campus", "More"]);
   });
 
+  it("renders pinned items at the top ahead of standard groups", () => {
+    const originalLocalStorage = globalThis.localStorage;
+    const store = { "pgp2.sidebar-pins": JSON.stringify(["split", "attendance"]) };
+    globalThis.localStorage = {
+      getItem: key => store[key] ?? null,
+      setItem: (key, val) => { store[key] = String(val); },
+      removeItem: key => { delete store[key]; },
+    };
+    try {
+      const html = render();
+      expect(groups(html)).toEqual(["Pinned", "Schedule", "Track", "Campus", "More"]);
+      expect(labels(html).slice(0, 2)).toEqual(["Split", "Attendance"]);
+    } finally {
+      globalThis.localStorage = originalLocalStorage;
+    }
+  });
+
   it("renders every row in order", () => {
     expect(labels(render())).toEqual([
       "Today", "Tomorrow", "Full timetable",

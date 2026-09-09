@@ -17,6 +17,7 @@ import WeatherWidget from "./components/WeatherWidget.jsx";
 import TomorrowSummary from "./components/TomorrowSummary.jsx";
 import MessCard from "./components/MessCard.jsx";
 import PetCameo from "./components/PetCameo.jsx";
+import XpToast from "./components/XpToast.jsx";
 import GlanceView from "./components/GlanceView.jsx";
 import "./styles/wrapped.css"; // Wrapped entry-banner styles must exist on Today before the lazy view loads
 import { MessMenuStandalone } from "./components/MessMenuModal.jsx";
@@ -64,7 +65,7 @@ import ProvisionalSectionNotice from "./components/ProvisionalSectionNotice.jsx"
 import { loadMyAway, isAwayNow, fmtAwayEnd } from "./lib/status.js";
 import { loadAttendance, saveAttendance, sessionKey, syncAttendanceFromCloud, pushMark, courseSkipStats } from "./lib/attendance.js";
 import { usePet } from "./hooks/usePet.js";
-import { EXAM_HORIZON_DAYS } from "./lib/pet.js";
+import { EXAM_HORIZON_DAYS, isAdopted } from "./lib/pet.js";
 import { syncProfileFromCloud, pushProfile, stampProfileEmail } from "./lib/profile.js";
 import { syncMigrationMap } from "./lib/migrationMap.js";
 import { useMigration } from "./lib/useMigration.js";
@@ -459,6 +460,11 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // too so the user sees their own on-leave state, not just friends.
   const [myAway, setMyAway] = useState(() => loadMyAway());
   const [friendToast, setFriendToast] = useState(null);
+  // XP toast queue: each item is { id, xp, label, firstOfDay }. The head of the
+  // queue is shown; when it calls onDone the head is shifted off and the next
+  // item (if any) mounts. This keeps toasts sequential even when several
+  // attendance rows are marked quickly.
+  const [xpToastQueue, setXpToastQueue] = useState([]);
   const [pendingInvite, setPendingInvite] = useState(null);
   const [jumpToDate, setJumpToDate] = useState(null);
   const [jumpToSession, setJumpToSession] = useState(null); // { date, code, start } — highlights the specific class row
@@ -1844,7 +1850,21 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     // tracks something the student was going to do anyway rather than tapping.
     // Keyed by session, so un-marking and re-marking (or a cloud re-sync
     // replaying the same rows) can never pay out twice.
-    if (status !== null) petActions.awardXp(petKeyFor.attendance(key), petXP.attendance, now);
+    if (status !== null) {
+      const attKey = petKeyFor.attendance(key);
+      const isNew = !(attKey in (myPet?.awarded ?? {}));
+      petActions.awardXp(attKey, petXP.attendance, now);
+      if (isNew && enableCompanion && isAdopted(myPet)) {
+        // Detect first earn of the day by checking if there are any attendance
+        // entries for today already in the ledger (excluding the one we just added).
+        const todayPfx = `att:`;
+        const todayStr = ymd(now);
+        const todayCount = Object.entries(myPet?.awarded ?? {}).filter(
+          ([k, v]) => k.startsWith(todayPfx) && v[0] === todayStr
+        ).length;
+        setXpToastQueue(q => [...q, { id: attKey, xp: petXP.attendance, label: "attendance", firstOfDay: todayCount === 0 }]);
+      }
+    }
   }
 
   const handleSync = async () => {
@@ -2313,6 +2333,20 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         <div className="app-toast" role="status">
           <Users size={15} /> {friendToast}
         </div>
+      )}
+
+      {/* ── XP gain toast (pet earns XP from attendance / assignments) ── */}
+      {xpToastQueue.length > 0 && (
+        <XpToast
+          key={xpToastQueue[0].id}
+          pet={myPet}
+          petContext={petContext}
+          petSettings={sysConfig?.flags?.greetingPets}
+          xp={xpToastQueue[0].xp}
+          label={xpToastQueue[0].label}
+          firstOfDay={xpToastQueue[0].firstOfDay}
+          onDone={() => setXpToastQueue(q => q.slice(1))}
+        />
       )}
 
       {/* ── Install App banner ── */}
@@ -3084,7 +3118,14 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                     enrolled={enrolled}
                                     legend={enrolledLegend}
                                     userId={userId}
-                                    onTaskCompleted={taskId => petActions.awardXp(petKeyFor.deadline(taskId), petXP.deadline)}
+                                    onTaskCompleted={taskId => {
+                                      const dueKey = petKeyFor.deadline(taskId);
+                                      const isNew = !(dueKey in (myPet?.awarded ?? {}));
+                                      petActions.awardXp(dueKey, petXP.deadline);
+                                      if (isNew && enableCompanion && isAdopted(myPet)) {
+                                        setXpToastQueue(q => [...q, { id: dueKey, xp: petXP.deadline, label: "assignment", firstOfDay: false }]);
+                                      }
+                                    }}
                                   />
                               : view === "pet" && enableCompanion
                                 ? <PetPage

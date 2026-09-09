@@ -192,3 +192,164 @@
 .wrapped-hero-pet-text { display: flex; flex-direction: column; text-align: left; line-height: 1.25; }
 .wrapped-hero-pet-text strong { font-size: 13.5px; font-weight: 800; }
 .wrapped-hero-pet-text span { color: var(--muted); font-size: 11.5px; font-weight: 600; }
+
+/* ── XP gain toast ──────────────────────────────────────────────
+   A small pill that slides up from the bottom-nav area when the pet earns XP
+   from an attendance mark or a completed assignment. Non-blocking, auto-
+   dismisses. Three phases: "enter" (offscreen), "visible" (shown), "exit"
+   (slides back down). */
+
+.xp-toast {
+  position: fixed;
+  /* Sits just above the bottom nav on mobile; on desktop it floats near the bottom-left */
+  bottom: 88px;
+  left: 50%;
+  transform: translateX(-50%) translateY(24px);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px 8px 10px;
+  border-radius: 999px;
+  background: var(--card);
+  border: 1px solid color-mix(in srgb, var(--violet) 36%, var(--border));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--violet) 18%, transparent),
+    0 8px 32px -6px color-mix(in srgb, var(--violet) 28%, rgba(0,0,0,.22)),
+    0 2px 8px -2px rgba(0,0,0,.14);
+  z-index: 10003;
+  pointer-events: none;
+  white-space: nowrap;
+  opacity: 0;
+  transition:
+    opacity 300ms cubic-bezier(.2,.9,.3,1),
+    transform 340ms cubic-bezier(.2,.9,.3,1);
+}
+
+.xp-toast--visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.xp-toast--exit {
+  opacity: 0;
+  transform: translateX(-50%) translateY(20px);
+  transition:
+    opacity 420ms ease,
+    transform 420ms ease;
+}
+
+/* Desktop: anchor to bottom-left instead of centered */
+@media (min-width: 1025px),
+(min-width: 768px) and (orientation: landscape) {
+  .xp-toast {
+    left: auto;
+    right: 28px;
+    bottom: 28px;
+    transform: translateY(24px);
+  }
+  .xp-toast--visible {
+    transform: translateY(0);
+  }
+  .xp-toast--exit {
+    transform: translateY(20px);
+  }
+}
+
+/* Pet avatar inside the toast */
+.xp-toast-pet {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+
+/* XP number pill */
+.xp-toast-pill {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--violet) 18%, var(--bg));
+  border: 1px solid color-mix(in srgb, var(--violet) 30%, transparent);
+  color: var(--violet);
+  font-size: 12px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.01em;
+}
+
+.xp-toast-plus {
+  font-size: 10px;
+  font-weight: 700;
+  opacity: .8;
+}
+
+.xp-toast-amount {
+  font-size: 13.5px;
+}
+
+.xp-toast-unit {
+  font-size: 10px;
+  font-weight: 700;
+  opacity: .75;
+  letter-spacing: .03em;
+}
+
+/* Label beside the pill */
+.xp-toast-label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ── Sparkle burst ──────────────────────────────────────────────
+   Six dots that scatter outward from the pill on mount. Pure CSS,
+   reduced-motion guards included. */
+.xp-toast-sparks {
+  position: absolute;
+  /* Centred over the XP pill area */
+  left: 50%;
+  top: 50%;
+  pointer-events: none;
+}
+
+.xp-toast-spark {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--violet);
+  opacity: 0;
+}
+
+/* Each spark is fired on .xp-toast--visible */
+.xp-toast--visible .xp-toast-spark {
+  animation: xp-spark 600ms cubic-bezier(.2, .9, .3, 1) forwards;
+}
+
+.xp-toast-spark--0 { --sx: -18px; --sy: -16px; animation-delay:  20ms; background: var(--violet); }
+.xp-toast-spark--1 { --sx:  18px; --sy: -16px; animation-delay:  50ms; background: color-mix(in srgb, var(--violet) 70%, var(--amber)); }
+.xp-toast-spark--2 { --sx: -22px; --sy:   0px; animation-delay:  35ms; background: var(--amber); }
+.xp-toast-spark--3 { --sx:  22px; --sy:   0px; animation-delay:  65ms; background: color-mix(in srgb, var(--live) 70%, var(--violet)); }
+.xp-toast-spark--4 { --sx:  -9px; --sy:  18px; animation-delay:  15ms; background: var(--live); }
+.xp-toast-spark--5 { --sx:   9px; --sy:  18px; animation-delay:  80ms; background: var(--violet); }
+
+@keyframes xp-spark {
+  0%   { opacity: 1; transform: translate(0, 0) scale(1); }
+  60%  { opacity: .8; }
+  100% { opacity: 0; transform: translate(var(--sx), var(--sy)) scale(.3); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xp-toast, .xp-toast--visible, .xp-toast--exit {
+    transition: opacity 150ms ease;
+    transform: translateX(-50%) translateY(0);
+  }
+  @media (min-width: 1025px), (min-width: 768px) and (orientation: landscape) {
+    .xp-toast, .xp-toast--visible, .xp-toast--exit {
+      transform: translateY(0);
+    }
+  }
+  .xp-toast-spark { display: none; }
+}
+

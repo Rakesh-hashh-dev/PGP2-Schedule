@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getGreetingBucket, getTimeGreeting } from "../lib/datetime.js";
-import { dayKey, getPetByKey, getPetOfTheDay } from "./greetingPets.jsx";
+import { dayKey, getPetByKey } from "./greetingPets.jsx";
 import {
   CARE_ACTIONS, careLeft, careUsedToday, growthStageFor, isAdopted, levelProgress, moodExplainFor,
   visibleCoat, visibleNeckwear,
@@ -64,22 +64,17 @@ export default function DayGreeting({
     setGreeting(getTimeGreeting(now, name));
   }
 
-  // Pure function of the date, so it needs no state — but memoise on the key so
-  // the object identity (and the SVG below) survives the live clock's renders.
-  const petKeyOfDay = getPetOfTheDay(now).key;
-  const dailyPet = useMemo(() => getPetByKey(petKeyOfDay), [petKeyOfDay]);
-
-  // With the companion layer off (admin kill switch), the greeting keeps its
-  // decorative daily pet but offers nothing persistent — no adoption, no care.
+  // With the companion layer off (admin kill switch), the greeting keeps the
+  // configured decorative pet but offers nothing persistent — no adoption or care.
   const adopted = companionEnabled && isAdopted(pet);
   const petsEnabled = petSettings?.enabled !== false && userPetsEnabled;
   const motionEnabled = petSettings?.motion !== false;
 
-  // An adopted companion outranks the daily rotation and the admin's featured
-  // pick — those exist to give un-adopted students something to meet.
+  // An adopted companion outranks the configured greeting pet, which gives
+  // un-adopted students something consistent to meet.
   const displayPet = adopted
     ? getPetByKey(pet.petKey)
-    : (petSettings?.mode === "featured" ? getPetByKey(petSettings.petKey) : dailyPet);
+    : getPetByKey(petSettings?.petKey || "cat");
 
   // Memoise the SVG element so the live clock's re-renders don't rebuild it.
   const petEl = useMemo(() => (displayPet ? <displayPet.Svg /> : null), [displayPet]);
