@@ -355,18 +355,16 @@ export default function DesktopSidebar({
         </div>
       </div>
 
-      {!isTablet && (
-        <button
-          className="sb-edge-handle sb-edge-tab"
-          onMouseEnter={e => showSbTip(e, sidebarCollapsed ? "Expand" : "Collapse")}
-          onMouseLeave={hideSbTip}
-          onClick={() => { toggleSidebar(); hideSbTip(); }}
-          aria-label="Toggle sidebar"
-          aria-expanded={!sidebarCollapsed}
-        >
-          {sidebarCollapsed ? <ChevronsRight size={12} /> : <ChevronsLeft size={12} />}
-        </button>
-      )}
+      <button
+        className="sb-edge-handle sb-edge-tab"
+        onMouseEnter={e => showSbTip(e, sbCollapsed ? "Expand" : "Collapse")}
+        onMouseLeave={hideSbTip}
+        onClick={() => { toggleSidebar(); hideSbTip(); }}
+        aria-label="Toggle sidebar"
+        aria-expanded={!sbCollapsed}
+      >
+        {sbCollapsed ? <ChevronsRight size={12} /> : <ChevronsLeft size={12} />}
+      </button>
     </aside>
   );
 }

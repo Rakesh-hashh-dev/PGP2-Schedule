@@ -311,8 +311,6 @@
 }
 .eh-ill-fallback { position: relative; z-index: 1; }
 
-/* inline day-count in the meta — mobile uses the badge instead */
-.eh-ne-days-m { display: none; }
 
 /* ── Mobile: compact premium layout (fits the tight card) ── */
 @media (max-width: 899px) {
@@ -870,6 +868,364 @@ html[data-theme="dark"] .exam-card-countdown {
   font-weight: 600;
   color: var(--live, #22c55e);
   font-style: italic;
+}
+
+/* ── Tablet Tier Typography & Layout Refinements (768px–1200px) ── */
+@media (min-width: 768px) and (max-width: 1200px) {
+  .exam-head h1 {
+    font-size: 20px;
+  }
+
+  .exam-card-h h2 {
+    font-size: 15px;
+  }
+
+  .exam-fp-btn {
+    font-size: 12px;
+    padding: 6px 0;
+    font-weight: 600;
+  }
+
+  .exam-cd {
+    border-radius: 12px;
+  }
+
+  .exam-cd-info {
+    padding: 9px 10px;
+    gap: 5px;
+  }
+
+  .exam-cd-name {
+    font-size: 13.5px;
+    font-weight: 650;
+    line-height: 1.25;
+  }
+
+  .exam-cd-cat {
+    font-size: 9px;
+    padding: 2px 5px;
+    letter-spacing: .04em;
+  }
+
+  .exam-cd-code {
+    font-size: 9px !important;
+    padding: 2px 6px !important;
+    right: 64px;
+    top: 9px;
+  }
+
+  .exam-cd-date,
+  .exam-cd-time {
+    font-size: 10px;
+    padding: 2px 5px;
+    gap: 3px;
+  }
+
+  .exam-cd-date svg,
+  .exam-cd-time svg {
+    width: 10px;
+    height: 10px;
+  }
+
+  .exam-cd-days {
+    width: 54px;
+  }
+
+  .exam-cd-days-num {
+    font-size: 21px;
+    letter-spacing: -0.5px;
+  }
+
+  .exam-cd-days-unit {
+    font-size: 8px;
+    letter-spacing: .08em;
+  }
+
+  .exam-cd-sep {
+    font-size: 10.5px;
+    letter-spacing: .06em;
+    padding: 8px 0 3px;
+  }
+
+  .exam-cd-footer {
+    padding: 9px 12px;
+    margin-top: 10px;
+  }
+
+  .exam-cd-footer-ico {
+    width: 26px;
+    height: 26px;
+  }
+
+  .exam-cd-footer-count {
+    font-size: 13px;
+  }
+
+  .exam-cd-footer-sub {
+    font-size: 11px;
+  }
+
+  .exam-cd-footer-tag {
+    font-size: 10.5px;
+  }
+
+  /* Hero semester progress ring & stats on tablet */
+  .exam-hero-new {
+    padding: 16px 18px;
+    border-radius: 18px;
+    margin-bottom: 16px;
+  }
+
+  .eh-tag {
+    font-size: 10px;
+    padding: 4px 9px;
+    margin-bottom: 12px;
+  }
+
+  .eh-content {
+    gap: 18px;
+  }
+
+  .eh-progress-ring {
+    width: 96px;
+    height: 96px;
+  }
+
+  .eh-ring-svg {
+    width: 96px;
+    height: 96px;
+  }
+
+  .eh-ring-val {
+    font-size: 22px;
+  }
+
+  .eh-ring-pct {
+    font-size: 13px;
+  }
+
+  .eh-ring-sub {
+    font-size: 8px;
+    letter-spacing: .08em;
+    margin-top: 4px;
+  }
+
+  .eh-stats-block {
+    min-width: 0;
+    gap: 10px;
+  }
+
+  .eh-stats-row {
+    gap: 8px;
+  }
+
+  .eh-tile {
+    padding: 10px 8px 9px;
+    border-radius: 12px;
+    gap: 2px;
+  }
+
+  .eh-tile-ico {
+    width: 24px;
+    height: 24px;
+    margin-bottom: 4px;
+  }
+
+  .eh-tile-ico svg {
+    width: 13px;
+    height: 13px;
+  }
+
+  .eh-tile-val {
+    font-size: 18px;
+  }
+
+  .eh-tile-label {
+    font-size: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .eh-next-exam {
+    padding: 10px 12px;
+    border-radius: 12px;
+    gap: 10px;
+  }
+
+  .eh-ne-label {
+    font-size: 10px;
+    gap: 4px;
+  }
+
+  .eh-ne-title {
+    font-size: 15px;
+    letter-spacing: -0.1px;
+  }
+
+  .eh-ne-meta {
+    font-size: 11px;
+  }
+
+  .eh-ne-badge {
+    min-width: 56px;
+    padding: 6px 8px;
+    border-radius: 10px;
+  }
+
+  .eh-ne-badge-n {
+    font-size: 20px;
+  }
+
+  .eh-ne-badge-u {
+    font-size: 8.5px;
+  }
+
+  /* Course Progress on tablet */
+  .exam-cc-grid {
+    gap: 8px;
+  }
+
+  .exam-cc-card {
+    padding: 10px 11px;
+    gap: 8px;
+    border-radius: 12px;
+  }
+
+  .ecc-top {
+    gap: 10px;
+  }
+
+  .ecc-ring-wrap,
+  .ecc-ring-svg {
+    width: 48px;
+    height: 48px;
+  }
+
+  .ecc-ring-pct {
+    font-size: 11.5px;
+  }
+
+  .ecc-head {
+    gap: 6px;
+  }
+
+  .ecc-head .ses {
+    font-size: 9.5px !important;
+    padding: 2px 6px !important;
+    flex-shrink: 0;
+  }
+
+  .ecc-cr {
+    font-size: 9.5px;
+    padding: 2px 5px;
+    flex-shrink: 0;
+  }
+
+  .ecc-name {
+    font-size: 12.5px;
+    font-weight: 600;
+    line-height: 1.25;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .ecc-bot {
+    gap: 4px;
+    padding-top: 8px;
+  }
+
+  .ecc-pill {
+    font-size: 10px;
+    padding: 2.5px 6px;
+    border-radius: 5px;
+  }
+
+  .ecc-pill-next {
+    max-width: 125px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ecc-caret {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+  }
+
+  /* Credits by Course on tablet */
+  .exam-cr-grid-new {
+    gap: 6px;
+  }
+
+  .exam-cr-badge {
+    padding: 10px;
+    min-height: 85px;
+  }
+
+  .ecr-name {
+    font-size: 12px;
+    line-height: 1.25;
+  }
+
+  .ecr-area {
+    font-size: 9.5px;
+  }
+
+  .ecr-code {
+    font-size: 9.5px;
+  }
+
+  .ecr-val {
+    font-size: 12px;
+  }
+}
+
+/* Narrower tablet view (768px–960px): tighten subject name slightly more */
+@media (min-width: 768px) and (max-width: 960px) {
+  .exam-cd-name {
+    font-size: 12.5px;
+    line-height: 1.22;
+  }
+
+  .exam-cd-days {
+    width: 50px;
+  }
+
+  .exam-cd-days-num {
+    font-size: 19px;
+  }
+
+  .exam-cd-code {
+    right: 58px;
+  }
+
+  .ecc-ring-wrap,
+  .ecc-ring-svg {
+    width: 44px;
+    height: 44px;
+  }
+
+  .ecc-ring-pct {
+    font-size: 11px;
+  }
+
+  .ecc-name {
+    font-size: 11.5px;
+  }
+
+  .ecc-pill {
+    font-size: 9.5px;
+    padding: 2px 5px;
+  }
+
+  .ecc-pill-next {
+    max-width: 105px;
+  }
 }
 
 /* ── Mobile: phones (all brands, 360–699px) ── */

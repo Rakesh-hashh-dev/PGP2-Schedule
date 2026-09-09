@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import "../styles/admin.css";
 import "../styles/assignments.css";
 import "../styles/cmdk.css";
-import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil, BarChart2, GraduationCap, PartyPopper, MessageSquare, CloudOff, Shield, Smartphone, Copy, Activity, ChevronRight, Clock3, Download, Filter, Eye, ListFilter, PawPrint, Shirt } from "lucide-react";
+import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil, BarChart2, GraduationCap, PartyPopper, Briefcase, MessageSquare, CloudOff, Shield, Smartphone, Copy, Activity, ChevronRight, Clock3, Download, Filter, Eye, ListFilter, PawPrint, Shirt } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { logAdminAction } from "../lib/adminAudit.js";
 import { listAdminRoles, setAdminRole, removeAdminRole, myAdminRole, READ_ONLY_MESSAGE } from "../lib/adminRoles.js";
@@ -1999,7 +1999,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     setModalRoom(c.room || "");
     setModalStart(c.start || "");
     setModalEnd(c.end || "");
-    setModalNewType(c.type === "exam" ? "exam" : c.type === "event" ? "event" : "class");
+    setModalNewType(c.type === "exam" ? "exam" : c.type === "event" ? "event" : c.type === "placement" ? "placement" : "class");
   };
 
   return (
@@ -2347,9 +2347,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     const isCancelled = override?.type === "cancelled";
                     const isExam = override?.type === "exam";
                     const isEvent = override?.type === "event" || (!override?.type && c.type === "event");
+                    const isPlacement = override?.type === "placement" || (!override?.type && c.type === "placement");
                     const hasRoomChange = !!override?.room;
                     const hasTimeChange = !!override?.start || !!override?.end;
-                    const isModified = hasRoomChange || hasTimeChange || isExam || isEvent;
+                    const isModified = hasRoomChange || hasTimeChange || isExam || isEvent || isPlacement;
                     const isGuest = (c.session || "").toLowerCase().includes("guest");
                     const displayRoom = override?.room || c.room;
                     const displayStart = override?.start || c.start;
@@ -2417,8 +2418,24 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                                   <PartyPopper size={11} /> CELEBRATION
                                 </span>
                               )}
-                              {isExam && !isCancelled && !isEvent && <span style={{ fontSize: 10, fontWeight: 800, background: "var(--violet)", color: "#fff", padding: "1px 7px", borderRadius: 4 }}>EXAM</span>}
-                              {isModified && !isCancelled && !isExam && !isEvent && <span style={{ fontSize: 10, fontWeight: 800, background: "var(--amber)", color: "#000", padding: "1px 7px", borderRadius: 4 }}>OVERRIDDEN</span>}
+                              {isPlacement && !isCancelled && (
+                                <span style={{
+                                  fontSize: 10,
+                                  fontWeight: 800,
+                                  background: "linear-gradient(135deg, #2563EB, #1D4ED8)",
+                                  color: "#fff",
+                                  padding: "1px 8px",
+                                  borderRadius: 4,
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: 3,
+                                  boxShadow: "0 1px 4px rgba(37,99,235,0.3)"
+                                }}>
+                                  <Briefcase size={11} /> PLACEMENT
+                                </span>
+                              )}
+                              {isExam && !isCancelled && !isEvent && !isPlacement && <span style={{ fontSize: 10, fontWeight: 800, background: "var(--violet)", color: "#fff", padding: "1px 7px", borderRadius: 4 }}>EXAM</span>}
+                              {isModified && !isCancelled && !isExam && !isEvent && !isPlacement && <span style={{ fontSize: 10, fontWeight: 800, background: "var(--amber)", color: "#000", padding: "1px 7px", borderRadius: 4 }}>OVERRIDDEN</span>}
                               {isGuest && <span style={{ fontSize: 10, fontWeight: 800, background: "var(--violet)", color: "#fff", padding: "1px 7px", borderRadius: 4 }}>GUEST</span>}
                             </div>
                             <div className="sched-class-meta" style={{ textDecoration: isCancelled ? "line-through" : "none" }}>
@@ -2723,15 +2740,16 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
               {/* Summary metrics */}
               {(() => {
-                let nCancelled = 0, nRoom = 0, nTime = 0, nExam = 0, nEvent = 0, nCustom = 0;
+                let nCancelled = 0, nRoom = 0, nTime = 0, nExam = 0, nEvent = 0, nPlacement = 0, nCustom = 0;
                 Object.values(flags.classOverrides).forEach(day => Object.values(day).forEach(ovr => {
                   if (ovr.type === "cancelled") nCancelled++;
                   else if (ovr.type === "exam") nExam++;
                   else if (ovr.type === "event") nEvent++;
+                  else if (ovr.type === "placement") nPlacement++;
                   else if (ovr.type === "class") nCustom++;
                   else { if (ovr.room) nRoom++; if (ovr.start || ovr.end) nTime++; }
                 }));
-                const total = nCancelled + nRoom + nTime + nExam + nEvent + nCustom;
+                const total = nCancelled + nRoom + nTime + nExam + nEvent + nPlacement + nCustom;
                 return (
                   <div className="aco-filters">
                     {[
@@ -2741,6 +2759,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                       { label: `${nTime} Time`, color: "var(--amber)", bg: "rgba(245,158,11,0.06)", filter: "time" },
                       { label: `${nExam} Exam`, color: "var(--violet)", bg: "rgba(109,91,208,0.08)", filter: "exam" },
                       { label: `${nEvent} Event`, color: "var(--live, #10B981)", bg: "rgba(16,185,129,0.08)", filter: "event" },
+                      { label: `${nPlacement} Placement`, color: "#2563EB", bg: "rgba(37,99,235,0.08)", filter: "placement" },
                       { label: `${nCustom} Custom`, color: "var(--live)", bg: "rgba(31,169,113,0.06)", filter: "custom" },
                     ].map(chip => (
                       <button key={chip.filter} onClick={() => setOvrFilterType(chip.filter)} className="aco-chip" aria-pressed={ovrFilterType === chip.filter}
@@ -2769,6 +2788,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     const isCancelled = override.type === "cancelled";
                     const isExam = override.type === "exam";
                     const isEvent = override.type === "event";
+                    const isPlacement = override.type === "placement";
                     const isCustom = override.type === "class";
                     const hasRoom = !!override.room;
                     const hasTime = !!override.start || !!override.end;
@@ -2783,6 +2803,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                       || (ovrFilterType === "cancelled" && isCancelled)
                       || (ovrFilterType === "exam" && isExam)
                       || (ovrFilterType === "event" && isEvent)
+                      || (ovrFilterType === "placement" && isPlacement)
                       || (ovrFilterType === "custom" && isCustom)
                       || (ovrFilterType === "room" && hasRoom && !isCancelled && !isExam && !isEvent)
                       || (ovrFilterType === "time" && hasTime && !isCancelled && !isExam && !isEvent);
@@ -2792,6 +2813,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     // Type badge
                     const typeBadge = isCancelled ? { label: "CANCELLED", color: "var(--danger)", bg: "rgba(231,76,60,0.10)" }
                       : isEvent ? { label: "🎉 EVENT", color: "var(--live, #10B981)", bg: "rgba(16,185,129,0.14)" }
+                      : isPlacement ? { label: "💼 PLACEMENT", color: "#2563EB", bg: "rgba(37,99,235,0.14)" }
                       : isExam ? { label: "EXAM", color: "var(--violet)", bg: "rgba(109,91,208,0.10)" }
                       : isCustom ? { label: "CUSTOM CLASS", color: "var(--live)", bg: "rgba(31,169,113,0.10)" }
                       : hasRoom && hasTime ? { label: `ROOM+TIME`, color: "var(--amber)", bg: "rgba(245,158,11,0.10)" }
@@ -6780,7 +6802,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                   <div className="admin-field">
                     <label>Type</label>
                     <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                      {[["class", "Class"], ["exam", "Exam"], ["event", "🎉 Celebration Event"]].map(([val, label]) => (
+                      {[["class", "Class"], ["exam", "Exam"], ["event", "🎉 Celebration Event"], ["placement", "💼 Placement"]].map(([val, label]) => (
                         <button
                           key={val}
                           type="button"
@@ -6814,6 +6836,25 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                       const overrideKey = makeOverrideKey(ident, modalSection);
                       const existing = flags.classOverrides?.[liveEditorModal.date]?.[overrideKey];
                       const isEv = existing?.type === "event" || (!existing?.type && liveEditorModal.type === "event");
+                      const isPl = existing?.type === "placement" || (!existing?.type && liveEditorModal.type === "placement");
+                      if (isPl) {
+                        return (
+                          <span style={{
+                            fontSize: 11,
+                            fontWeight: 800,
+                            background: "linear-gradient(135deg, #2563EB, #1D4ED8)",
+                            color: "#fff",
+                            padding: "2px 8px",
+                            borderRadius: 6,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                            boxShadow: "0 1px 6px rgba(37, 99, 235, 0.3)"
+                          }}>
+                            <Briefcase size={12} /> Placement
+                          </span>
+                        );
+                      }
                       if (!isEv) return null;
                       return (
                         <span style={{
@@ -6969,6 +7010,50 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     fontWeight: isEventOverride ? 700 : 600,
                   }}>
                     <PartyPopper size={16} /> {isEventOverride ? "Remove Celebration Flag" : "Mark as Event (Celebration)"}
+                  </button>
+                );
+              })()}
+
+              {/* Mark as Placement toggle */}
+              {(() => {
+                const ident = classIdent(liveEditorModal);
+                const overrideKey = makeOverrideKey(ident, modalSection);
+                const existing = flags.classOverrides?.[liveEditorModal.date]?.[overrideKey];
+                const isPlacementOverride = existing?.type === "placement" || (!existing?.type && liveEditorModal.type === "placement");
+                return (
+                  <button type="button" onClick={() => {
+                    const nextOverrides = { ...(flags.classOverrides || {}) };
+                    nextOverrides[liveEditorModal.date] = { ...(nextOverrides[liveEditorModal.date] || {}) };
+                    if (isPlacementOverride) {
+                      // Remove only the placement type flag, keep other overrides intact
+                      const rest = { ...existing };
+                      delete rest.type;
+                      if (Object.keys(rest).length === 0) {
+                        delete nextOverrides[liveEditorModal.date][overrideKey];
+                        if (Object.keys(nextOverrides[liveEditorModal.date]).length === 0) delete nextOverrides[liveEditorModal.date];
+                      } else {
+                        nextOverrides[liveEditorModal.date][overrideKey] = rest;
+                      }
+                      logAdminAction(admin_id, "clear_placement_flag", { date: liveEditorModal.date, class: overrideKey });
+                    } else {
+                      // "All Sections" must supersede any per-section override.
+                      if (modalSection === "All") {
+                        delete nextOverrides[liveEditorModal.date][`${ident}_A`];
+                        delete nextOverrides[liveEditorModal.date][`${ident}_B`];
+                      }
+                      nextOverrides[liveEditorModal.date][overrideKey] = { ...existing, type: "placement" };
+                      logAdminAction(admin_id, "mark_as_placement", { date: liveEditorModal.date, class: overrideKey });
+                    }
+                    setFlags({ ...flags, classOverrides: nextOverrides });
+                    setLiveEditorModal(null);
+                  }} className={`admin-btn ${isPlacementOverride ? "" : "outline"}`} style={{
+                    color: isPlacementOverride ? "#fff" : "#2563EB",
+                    borderColor: "#2563EB",
+                    background: isPlacementOverride ? "linear-gradient(135deg, #2563EB, #1D4ED8)" : "rgba(37, 99, 235, 0.07)",
+                    boxShadow: isPlacementOverride ? "0 2px 10px rgba(37, 99, 235, 0.35)" : "none",
+                    fontWeight: isPlacementOverride ? 700 : 600,
+                  }}>
+                    <Briefcase size={16} /> {isPlacementOverride ? "Remove Placement Flag" : "Mark as Placement"}
                   </button>
                 );
               })()}

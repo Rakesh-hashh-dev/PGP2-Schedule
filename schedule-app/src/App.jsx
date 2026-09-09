@@ -475,19 +475,30 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [, setSeenRecvCount] = useState(() => {
     try { return parseInt(localStorage.getItem("pgp2.recv-groups-count") || "0", 10); } catch { return 0; }
   });
-  // Tablet tier (768–1023px landscape): sidebar is forced to the collapsed icon
-  // rail — there isn't room for the expanded panel next to content, so the
-  // user's stored expand/collapse preference only applies from 1024px up.
-  // Portrait tablets (e.g. iPad portrait) get the mobile view instead, matching
-  // the orientation-aware breakpoints in styles.css.
-  const [isTablet, setIsTablet] = useState(() =>
-    typeof window !== "undefined" && window.matchMedia("(min-width: 768px) and (max-width: 1023px) and (orientation: landscape)").matches
-  );
+  // Tablet landscape tier (768–1200px landscape): sidebar is forced to the collapsed icon
+  // rail — there isn't room for the expanded 256px panel next to content and the week rail,
+  // so the user's stored expand/collapse preference only applies on desktop displays (above 1200px).
+  // Portrait tablets (e.g. iPad portrait 768–1024px) get the single-column mobile view with header/tabs,
+  // matching the orientation-aware breakpoints in styles.css.
+  const checkIsTabletLandscape = () => {
+    if (typeof window === "undefined") return false;
+    const isLandscape = window.matchMedia("(orientation: landscape)").matches || window.innerWidth > window.innerHeight;
+    const w = window.innerWidth;
+    return isLandscape && w >= 768 && w <= 1200;
+  };
+  const [isTablet, setIsTablet] = useState(checkIsTabletLandscape);
   useEffect(() => {
-    const mq = window.matchMedia("(min-width: 768px) and (max-width: 1023px) and (orientation: landscape)");
-    const onChange = (e) => setIsTablet(e.matches);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
+    const update = () => setIsTablet(checkIsTabletLandscape());
+    update();
+    const mq = window.matchMedia("(min-width: 768px) and (max-width: 1200px) and (orientation: landscape)");
+    try { mq.addEventListener("change", update); } catch { mq.addListener?.(update); }
+    window.addEventListener("resize", update, { passive: true });
+    window.addEventListener("orientationchange", update, { passive: true });
+    return () => {
+      try { mq.removeEventListener("change", update); } catch { mq.removeListener?.(update); }
+      window.removeEventListener("resize", update);
+      window.removeEventListener("orientationchange", update);
+    };
   }, []);
   const {
     sidebarCollapsed, sbCollapsed, toggleSidebar,

@@ -5193,6 +5193,32 @@ html[data-theme="dark"] .tb.holiday.tb-tricolor {
   border-left: 3px solid #10B981 !important;
 }
 
+.tb.placement {
+  color: #2563EB;
+  background: rgba(37, 99, 235, 0.12);
+  border: 1px solid rgba(37, 99, 235, 0.3);
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+html[data-theme="dark"] .tb.placement {
+  color: #60A5FA;
+  background: rgba(96, 165, 250, 0.14);
+  border-color: rgba(96, 165, 250, 0.35);
+}
+
+.row-placement {
+  background: linear-gradient(90deg, rgba(37, 99, 235, 0.08) 0%, transparent 60%);
+  border-left: 3px solid #2563EB !important;
+}
+
+html[data-theme="dark"] .row-placement {
+  background: linear-gradient(90deg, rgba(96, 165, 250, 0.09) 0%, transparent 60%);
+  border-left: 3px solid #60A5FA !important;
+}
+
 .tb.break {
   color: var(--muted);
   background: var(--surface);
@@ -9952,6 +9978,30 @@ html[data-theme="dark"] .bnav {
   }
 }
 
+/* Tablet portrait: provide generous container width and edge-to-edge sticky bars */
+@media (min-width: 768px) and (max-width: 1024px) and (orientation: portrait) {
+  .app {
+    max-width: 920px;
+    padding: 24px 28px calc(88px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .bar {
+    margin: -24px -28px 24px;
+    padding: 14px 28px;
+  }
+
+  .tabs-wrapper {
+    margin: 0 -28px 20px;
+    padding: 14px 0;
+  }
+
+  .tabs {
+    padding-left: 28px;
+    padding-right: 28px;
+    scroll-padding-left: 28px;
+  }
+}
+
 /* ── App Shell (sidebar + content) ── */
 .app-shell {
   min-height: 100vh;
@@ -10384,17 +10434,11 @@ html[data-theme="dark"] .bnav {
 }
 
 .sidebar.collapsed .sb-nav-label {
-  height: 1px;
-  width: 26px;
-  padding: 0;
-  margin: 10px auto;
-  background: rgba(255, 255, 255, .14);
-  overflow: hidden;
-  text-indent: -9999px;
+  display: none;
 }
 
 .sidebar.collapsed .sb-nav-label-admin {
-  background: rgba(31, 169, 113, .35);
+  display: none;
 }
 
 .sb-link {
@@ -10722,6 +10766,13 @@ html[data-theme="dark"] .bnav {
   color: rgba(255, 255, 255, .55);
   box-shadow: 2px 0 10px rgba(10, 5, 25, .35), inset 0 1px 0 rgba(255, 255, 255, .08);
   transition: color .18s, border-color .18s, box-shadow .18s;
+}
+
+/* Generous touch target for tablets and mobile pointers */
+.sb-edge-tab::before {
+  content: "";
+  position: absolute;
+  inset: -12px -16px;
 }
 
 .sb-edge-tab svg {
@@ -11237,18 +11288,138 @@ html[data-theme="dark"] .bnav {
   }
 }
 
-/* Tablet tier (768–1023): the sidebar is a 68px icon rail (forced collapsed
+/* Tablet tier (768–1200px landscape): the sidebar is a 68px icon rail (forced collapsed
    in App.jsx), so tighten page padding and slim the week rail to keep the
-   main column usable at narrow-landscape widths (iPad portrait now gets the
-   mobile view via the orientation-aware breakpoints) */
-@media (min-width: 768px) and (max-width: 1023px) and (orientation: landscape) {
+   main column usable at landscape widths across iPad, iPad Air, and Android tablets */
+@media (min-width: 768px) and (max-width: 1200px) and (orientation: landscape) {
   .app {
-    padding: 24px 24px 64px;
+    padding: 20px 24px 64px;
   }
 
   .desk-layout {
-    grid-template-columns: 1fr 292px;
-    gap: 20px;
+    grid-template-columns: 1fr 280px;
+    gap: 18px;
+  }
+
+  /* WeekAgenda sidebar typography & spacing on tablet */
+  .wa-panel {
+    padding: 12px 10px;
+    border-radius: 16px;
+  }
+
+  .weeknav {
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+  }
+
+  .wk-range {
+    font-size: 12.5px;
+    font-weight: 700;
+  }
+
+  .wk-today {
+    font-size: 10.5px;
+    padding: 2px 7px;
+  }
+
+  .agday {
+    padding: 8px 2px;
+    gap: 7px;
+  }
+
+  .agtoday {
+    padding: 8px 6px;
+    margin: 0 -3px;
+  }
+
+  .agday-h {
+    min-width: 28px;
+  }
+
+  .agday-dow {
+    font-size: 9.5px;
+  }
+
+  .agday-num {
+    font-size: 15px;
+  }
+
+  .agday-today {
+    font-size: 8px;
+  }
+
+  .agday-body {
+    gap: 4px;
+  }
+
+  .ag {
+    gap: 6px;
+    font-size: 12px;
+  }
+
+  .ag.soft {
+    font-size: 11px;
+  }
+
+  .ag-t {
+    font-size: 11px;
+    min-width: 35px;
+  }
+
+  .ag-c {
+    font-size: 12px;
+    line-height: 1.25;
+  }
+
+  .ag-c .ses {
+    font-size: 9px !important;
+    padding: 1.5px 5px !important;
+    border-radius: 4px;
+    margin-top: 2px;
+  }
+
+  .ag-r {
+    font-size: 10px;
+  }
+
+  .wa-footer {
+    margin-top: 8px;
+    padding-top: 8px;
+  }
+
+  .wa-footer .fr-btn-secondary {
+    font-size: 12px;
+    padding: 7px 10px;
+  }
+
+  .wa-stats-toggle {
+    font-size: 12px;
+    padding: 7px 10px;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 960px) and (orientation: landscape) {
+  .app {
+    padding: 16px 16px 64px;
+  }
+
+  .desk-layout {
+    grid-template-columns: 1fr 240px;
+    gap: 14px;
+  }
+
+  .ag-c {
+    font-size: 11.5px;
+  }
+
+  .ag-t {
+    font-size: 10.5px;
+    min-width: 32px;
+  }
+
+  .ag-c .ses {
+    font-size: 8.5px !important;
+    padding: 1px 4px !important;
   }
 }
 

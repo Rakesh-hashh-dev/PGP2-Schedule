@@ -336,7 +336,7 @@ function CourseCountdown({ courses, allClasses, enrolled, attendance, now }) {
             >
               <div className="ecc-top">
                 <div className="ecc-ring-wrap">
-                  <svg className="ecc-ring-svg" width="56" height="56">
+                  <svg className="ecc-ring-svg" width="56" height="56" viewBox="0 0 56 56">
                     <circle className="ecc-ring-bg" cx="28" cy="28" r={radius} />
                     <circle
                       className="ecc-ring-fg"
@@ -600,7 +600,7 @@ export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, al
                 {nextExam ? (
                   <>
                     <div className="eh-ne-title">{nextExam.name || nextExam.code || "Upcoming Exam"}</div>
-                    <div className="eh-ne-meta"><span className="eh-ne-days-m">{nextExam.days} {nextExam.days === 1 ? "Day" : "Days"}</span> Remaining &bull; {fmtDate(nextExam.date)}</div>
+                    <div className="eh-ne-meta">{nextExam.days === 0 ? "Today" : `${nextExam.days} ${nextExam.days === 1 ? "day" : "days"} remaining`} &bull; {fmtDate(nextExam.date)}</div>
                   </>
                 ) : (
                   <div className="eh-ne-title" style={{ opacity: 0.5 }}>No upcoming exams</div>

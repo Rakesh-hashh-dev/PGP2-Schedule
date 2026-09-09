@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from "react";
 import "../styles/fullschedule.css";
-import { ArrowLeft, Clock, MapPin, User, SlidersHorizontal, X, ArrowUp, Calendar, ChevronLeft, ChevronRight, List, CalendarDays, GraduationCap, CalendarClock, PartyPopper } from "lucide-react";
+import { ArrowLeft, Clock, MapPin, User, SlidersHorizontal, X, ArrowUp, Calendar, ChevronLeft, ChevronRight, List, CalendarDays, GraduationCap, CalendarClock, PartyPopper, Briefcase } from "lucide-react";
 import { subjectClass } from "../lib/subjectColors.js";
 import { isExamSession } from "../lib/attendance.js";
 import { CalendarEventBadgeSVG } from "./CalendarSVGs.jsx";
@@ -655,6 +655,44 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                                   </span>
                                 )}
                                 {c.faculty && <span className="fs-meta-item"><User size={13} /> {c.faculty}</span>}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (c.isPlacement) {
+                        return (
+                          <div
+                            key={i}
+                            data-class-key={`${c.date}-${c.code || c.name}-${c.start}`}
+                            className="fs-card fs-card-placement"
+                            style={{ animationDelay: `${i * 0.055}s`, borderLeft: "3px solid #2563EB" }}
+                          >
+                            <div className="fs-card-accent" style={{ background: "linear-gradient(135deg, #2563EB, #1D4ED8)" }} />
+                            <div className="fs-card-body">
+                              <div className="fs-card-top">
+                                <span className="fs-card-name" style={{ color: "#2563EB", display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700 }}>
+                                  <Briefcase size={14} />
+                                  {c.name || (c.code ? `${c.code} Placement` : "Placement Activity")}
+                                </span>
+                                <div style={{ display: "flex", alignItems: "center", gap: "6px", marginLeft: "auto" }}>
+                                  <span style={{ fontSize: 10, fontWeight: 800, background: "linear-gradient(135deg, #2563EB, #1D4ED8)", color: "#fff", padding: "1px 7px", borderRadius: 4 }}>💼 PLACEMENT</span>
+                                  {c.code && <span className={`ses ${subjectClass(c.code)} fs-exam-code`}>{c.code}</span>}
+                                </div>
+                              </div>
+                              <div className="fs-card-meta">
+                                <span className="fs-meta-item fs-meta-time"><Clock size={12} /> {c.start} – {c.end}</span>
+                                {c.room && <span className="fs-meta-item"><MapPin size={12} /> {c.room}</span>}
+                                {showSection && (
+                                  <span style={{
+                                    fontSize: "10px", fontWeight: "700", padding: "2px 6px",
+                                    background: "var(--surface)", borderRadius: "6px",
+                                    color: "var(--muted)", letterSpacing: "0.5px", textTransform: "uppercase"
+                                  }}>
+                                    Sec {c.section}
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </div>

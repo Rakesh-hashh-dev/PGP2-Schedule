@@ -60,7 +60,7 @@ export default function WeekAgenda({ visible, now, offset, setOffset, todayISO, 
                             </span>
                           )}
                         </span>
-                        {c.type === "class" && c.room && <span className="ag-r">{c.room}</span>}
+                        {(c.type === "class" || c.type === "placement") && c.room && <span className="ag-r">{c.room}</span>}
                       </div>
                     ))}
               </div>

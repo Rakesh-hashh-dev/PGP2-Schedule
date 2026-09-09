@@ -476,7 +476,7 @@
     background: rgba(239, 68, 68, 0.18);
   }
 
-  .sidebar.collapsed .sb-class-status, .sidebar.collapsed .sb-customize, .sidebar.collapsed .sb-unseen-dot { display: none; }
+  .sidebar.collapsed .sb-class-status, .sidebar.collapsed .sb-customize, .sidebar.collapsed .sb-unseen-dot, .sidebar.collapsed .sb-nav-label { display: none; }
 
   .sidebar.sb-compact .sb-brand { margin-bottom: 8px; }
   .sidebar.sb-compact .sb-nav-label { padding-top: 10px; padding-bottom: 4px; }

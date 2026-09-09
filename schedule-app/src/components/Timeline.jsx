@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { MapPin, CheckCircle2, XCircle, AlertTriangle, TrendingDown } from "lucide-react";
+import { MapPin, CheckCircle2, XCircle, AlertTriangle, TrendingDown, Briefcase } from "lucide-react";
 import { sessionKey, isExamSession } from "../lib/attendance.js";
 import { subjectClass } from "../lib/subjectColors.js";
 import { haptic } from "../lib/haptics.js";
@@ -18,6 +18,7 @@ function TypeBadge({ type, name }) {
   }
   if (type === "exam") return <span className="tb exam">Exam / Admin</span>;
   if (type === "event") return <span className="tb event celebration">🎉 Event</span>;
+  if (type === "placement") return <span className="tb placement">💼 Placement</span>;
   if (type === "break") return <span className="tb break">Break</span>;
   return null;
 }
@@ -282,7 +283,7 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
                   <span className="nowrule" />
                 </li>
               )}
-              <li className={`row${isCur ? " cur" : ""}${c.type !== "class" ? " soft" : ""}${c.type === "event" ? " row-event-celebration" : ""}${isPast ? " past" : ""}${isNext ? " next-up" : ""}${isFirst ? " first-up" : ""}`}>
+              <li className={`row${isCur ? " cur" : ""}${c.type !== "class" ? " soft" : ""}${c.type === "event" ? " row-event-celebration" : ""}${c.type === "placement" ? " row-placement" : ""}${isPast ? " past" : ""}${isNext ? " next-up" : ""}${isFirst ? " first-up" : ""}`}>
                 <div className="row-time">
                   <span className="rt-start">{c.start}</span>
                   <span className="rt-end">{c.end}</span>
@@ -316,8 +317,8 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
                         </>
                       : <>
                           <TypeBadge type={c.type} name={c.name} />
-                          {c.type === "event" && c.room && <span className="row-loc" style={{ marginLeft: 8 }}><MapPin size={13} /> {c.room}</span>}
-                          {c.type === "event" && c.section && c.section !== "Single" && c.section !== "All" && <span className="single-tag">Sec {c.section}</span>}
+                          {(c.type === "event" || c.type === "placement") && c.room && <span className="row-loc" style={{ marginLeft: 8 }}><MapPin size={13} /> {c.room}</span>}
+                          {(c.type === "event" || c.type === "placement") && c.section && c.section !== "Single" && c.section !== "All" && <span className="single-tag">Sec {c.section}</span>}
                         </>}
                   </div>
                 </div>

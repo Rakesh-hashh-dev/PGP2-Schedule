@@ -8,9 +8,16 @@ import { haptic } from "../lib/haptics.js";
 
 export function useSidebar({ isTablet, view, sysConfig }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    try { return localStorage.getItem("pgp2.sidebar") === "collapsed"; } catch { return false; }
+    try {
+      const stored = localStorage.getItem("pgp2.sidebar");
+      if (stored === "collapsed") return true;
+      if (stored === "expanded") return false;
+      return Boolean(isTablet);
+    } catch {
+      return Boolean(isTablet);
+    }
   });
-  const sbCollapsed = sidebarCollapsed || isTablet;
+  const sbCollapsed = sidebarCollapsed;
   function toggleSidebar() {
     setSidebarCollapsed(prev => {
       const next = !prev;
@@ -19,6 +26,14 @@ export function useSidebar({ isTablet, view, sysConfig }) {
     });
     setSbTip(null);
   }
+
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem("pgp2.sidebar") && isTablet) {
+        setSidebarCollapsed(true);
+      }
+    } catch { }
+  }, [isTablet]);
 
   // Sidebar visual style — "classic" (attached dark) or "aurora" (floating glass, animated)
   const [sbStyle, setSbStyle] = useState(() => {
@@ -129,8 +144,18 @@ export function useSidebar({ isTablet, view, sysConfig }) {
   useLayoutEffect(() => {
     if (!showBottomNav) return;
     bnavMeasure();
-    window.addEventListener("resize", bnavMeasure);
-    return () => window.removeEventListener("resize", bnavMeasure);
+    const handleRealign = () => {
+      bnavMeasure();
+      // On orientation change, viewport dimensions settle a few frames later
+      setTimeout(bnavMeasure, 60);
+      setTimeout(bnavMeasure, 240);
+    };
+    window.addEventListener("resize", handleRealign, { passive: true });
+    window.addEventListener("orientationchange", handleRealign, { passive: true });
+    return () => {
+      window.removeEventListener("resize", handleRealign);
+      window.removeEventListener("orientationchange", handleRealign);
+    };
   }, [showBottomNav, view, sysConfig, bnavMeasure]);
   // Instagram-dock feel: start the lens glide on touch-down, before the tap's
   // click renders the (possibly heavy) new view — the transform transition

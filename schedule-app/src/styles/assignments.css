@@ -1181,3 +1181,109 @@ body:has(.bnav) .assign-fab {
 .assign-btn-save:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(124,58,237,0.45); }
 .assign-btn-save:hover::after { transform: translateX(100%); }
 .assign-btn-save:active { transform: scale(0.97); }
+
+/* ── Tablet Tier Refinements (768px–1200px) ── */
+@media (min-width: 768px) and (max-width: 1200px) {
+  .assign-head h1 {
+    font-size: 22px;
+  }
+
+  .assign-sub {
+    font-size: 13px;
+  }
+
+  .assign-stats-grid {
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+
+  .stat-tile {
+    padding: 10px 10px;
+    gap: 6px;
+    border-radius: 12px;
+  }
+
+  .stat-tile-icon {
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+  }
+
+  .stat-tile-icon svg {
+    width: 13px;
+    height: 13px;
+  }
+
+  .stat-tile-val {
+    font-size: 17px;
+  }
+
+  .stat-tile-label {
+    font-size: 9.5px;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+  }
+
+  .assign-stats-hint {
+    font-size: 10.5px;
+    margin: -14px 0 18px;
+  }
+
+  .assign-controls {
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .assign-group-toggle button {
+    padding: 5px 10px;
+    font-size: 12px;
+  }
+
+  .assign-sort {
+    height: 32px;
+    padding: 0 8px 0 10px;
+  }
+
+  .assign-sort select {
+    font-size: 12px;
+  }
+
+  .assign-card-header {
+    padding: 11px 13px;
+    gap: 10px;
+  }
+
+  .assign-course-chip {
+    font-size: 10px;
+    padding: 2px 7px;
+  }
+
+  .assign-course-name {
+    font-size: 13px;
+  }
+
+  .assign-task-title {
+    font-size: 13px;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 960px) {
+  .stat-tile {
+    padding: 8px 7px;
+    gap: 5px;
+  }
+
+  .stat-tile-icon {
+    width: 24px;
+    height: 24px;
+  }
+
+  .stat-tile-val {
+    font-size: 15px;
+  }
+
+  .stat-tile-label {
+    font-size: 9px;
+    letter-spacing: 0;
+  }
+}
