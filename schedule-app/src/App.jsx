@@ -20,6 +20,7 @@ import PetCameo from "./components/PetCameo.jsx";
 import XpToast from "./components/XpToast.jsx";
 import GlanceView from "./components/GlanceView.jsx";
 import "./styles/wrapped.css"; // Wrapped entry-banner styles must exist on Today before the lazy view loads
+import "./styles/pet.css"; // Pet toast & cameo styles must exist before the lazy view loads
 import { MessMenuStandalone } from "./components/MessMenuModal.jsx";
 import { setMessMenuOverrides } from "./data/messMenu.js";
 import { fetchMessMenu } from "./lib/messFeed.js";
@@ -77,10 +78,16 @@ import { fetchNotifications, subscribeToNotifications, markNotificationRead } fr
 import { assignSubjectColors, subjectClass } from "./lib/subjectColors.js";
 import { haptic } from "./lib/haptics.js";
 import { useSidebar } from "./hooks/useSidebar.js";
+import { useMobileUiVersion } from "./hooks/useMobileUiVersion.js";
 import { useNotifications, buildNotificationHandlers } from "./hooks/useNotifications.js";
 import MarkPrompt from "./components/MarkPrompt.jsx";
 import { WhatsNewPill, WhatsNewModal } from "./components/WhatsNew.jsx";
 import { resizeImage } from "./lib/board.js";
+import MobileUiVersionMenu from "./components/mobile/MobileUiVersionMenu.jsx";
+import MobileV2TabBar from "./components/mobile/MobileV2TabBar.jsx";
+import MobileV2Switcher from "./components/mobile/MobileV2Switcher.jsx";
+import MobileV2MorePage from "./components/mobile/MobileV2MorePage.jsx";
+import "./styles/mobile-v2.css";
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent || "");
 
@@ -426,6 +433,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const { pet: myPet, actions: petActions, moment: petMoment, XP: petXP, keyFor: petKeyFor } = usePet(userId, { xpRate: sysConfig?.flags?.greetingPets?.xpRate });
   const [syncing, setSyncing] = useState(false);
   const [overflowOpen, setOverflowOpen] = useState(false);
+  const { mobileUiVersion, setMobileUiVersion } = useMobileUiVersion();
+  const [mobileV2MoreOpen, setMobileV2MoreOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [greetingPetsEnabled, setGreetingPetsEnabled] = useState(() => {
     try { return localStorage.getItem("pgp2.greeting-pets-enabled") !== "false"; } catch { return true; }
@@ -465,6 +474,11 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // item (if any) mounts. This keeps toasts sequential even when several
   // attendance rows are marked quickly.
   const [xpToastQueue, setXpToastQueue] = useState([]);
+  if (import.meta.env.DEV && typeof window !== "undefined") {
+    window.__triggerXpToast = (xp = 32, label = "attendance", firstOfDay = true) => {
+      setXpToastQueue(q => [...q, { id: Date.now(), xp, label, firstOfDay }]);
+    };
+  }
   const [pendingInvite, setPendingInvite] = useState(null);
   const [jumpToDate, setJumpToDate] = useState(null);
   const [jumpToSession, setJumpToSession] = useState(null); // { date, code, start } — highlights the specific class row
@@ -2092,6 +2106,34 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     .map(q => ({ ...q, url: safeUrl(q.url) }))
     .filter(q => q.url);
 
+  const mobileV2Title = mobileV2MoreOpen ? "More"
+    : view === "today" || view === "tomorrow" ? "TermFlow"
+      : view === "week" || view === "fullSchedule" ? "Schedule"
+        : view === "assignments" || view === "exams" ? "Tasks"
+          : view === "attendance" ? "Attendance"
+            : view === "notifications" ? "Announcements"
+              : view === "friends" ? "Social"
+                : view === "board" ? "Campus Board"
+                  : view === "split" ? "Split expenses"
+                    : view === "leave" ? "Leave planner"
+                      : view === "pet" ? "Companion"
+                        : view === "wrapped" ? "Term Wrapped"
+                          : view === "admin" ? "Admin tools"
+                            : "TermFlow";
+
+  const navigateMobileV2 = (nextView) => {
+    setMobileV2MoreOpen(false);
+    setOverflowOpen(false);
+    setNotifOpen(false);
+    setCompareTarget(null);
+    setView(nextView);
+    if (nextView === "friends") {
+      markGroupsSeen();
+      markBadgeSeen("social");
+    }
+    if (nextView === "board" || nextView === "split" || nextView === "pet") markBadgeSeen(nextView);
+  };
+
   // What's New feature announcements (admin flags.whatsNew, newest first)
   const whatsNewItems = (sysConfig?.flags?.whatsNew || []).filter(w => w?.id && w.title);
   const unseenWhatsNew = whatsNewItems.filter(w => !seenWhatsNewIds.has(w.id));
@@ -2296,7 +2338,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   );
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${mobileUiVersion === "v2" ? " mobile-ui-v2" : " mobile-ui-v1"}`}>
       {/* ── Dev→Prod Migration Banner (one-time, self-removing) ── */}
       {migrationState && <MigrationBanner state={migrationState} />}
 
@@ -2447,8 +2489,14 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           <div className="brand">
             <div className="logo"><img src="/termflow-icon.svg" alt="TermFlow" width={22} height={22} /></div>
             <div>
-              <div className="brand-name">TermFlow</div>
-              <div className="brand-sub">IIM Sambalpur · {termLabel}</div>
+              <div className="brand-name">
+                <span className="mobile-v1-only">TermFlow</span>
+                <span className="mobile-v2-only">{mobileV2Title}</span>
+              </div>
+              <div className="brand-sub">
+                <span className="mobile-v1-only">IIM Sambalpur · {termLabel}</span>
+                <span className="mobile-v2-only">{mobileV2MoreOpen ? "Your campus, tools and settings" : termLabel}</span>
+              </div>
             </div>
           </div>
           <div className="bar-right" role="toolbar" aria-label="App actions">
@@ -2546,7 +2594,18 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               {overflowOpen && (
                 <>
                   <div className="notif-backdrop" onClick={() => setOverflowOpen(false)} />
-                  <div className="over-menu">
+                  <div className={`over-menu${mobileUiVersion === "v2" ? " mobile-v2-quick-menu" : ""}`}>
+                    <MobileUiVersionMenu
+                      version={mobileUiVersion}
+                      onVersionChange={(next) => {
+                        setMobileUiVersion(next);
+                        setMobileV2MoreOpen(false);
+                        setOverflowOpen(false);
+                      }}
+                      theme={theme}
+                      onThemeChange={pickTheme}
+                      showAppearance={mobileUiVersion === "v2"}
+                    />
                     <div className="over-profile">
                       <UserAvatar user={user} size={36} />
                       <div className="over-profile-info">
@@ -2770,6 +2829,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
         <div className="desk-layout" style={view === "friends" || view === "admin" || view === "wrapped" ? { gridTemplateColumns: "minmax(0, 1fr)" } : {}}>
           <main className="main-col">
+            {mobileUiVersion === "v2" && !mobileV2MoreOpen && (
+              <MobileV2Switcher view={view} examsEnabled={enableExams} onNavigate={navigateMobileV2} />
+            )}
             {showTopTabs && (
             <div className="tabs-wrapper">
               <nav className={`tabs${showLeftScroll ? " tabs-scrolled" : ""}${showRightScroll ? " tabs-overflow-right" : ""}`} ref={tabsRef} onScroll={handleTabsScroll}>
@@ -3280,6 +3342,26 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           )}
         </div>
 
+        {mobileUiVersion === "v2" && mobileV2MoreOpen && (
+          <MobileV2MorePage
+            user={user}
+            unreadCount={unreadTotal}
+            enableFriends={enableFriends}
+            enableCompanion={enableCompanion}
+            wrappedActive={wrappedActive}
+            showAdmin={showAdminUI}
+            onNavigate={navigateMobileV2}
+            onOpenMess={() => { setMobileV2MoreOpen(false); setMessMenuOpen(true); }}
+            onOpenCalendar={() => { setMobileV2MoreOpen(false); openCalendarExport(); }}
+            onFilter={() => { setMobileV2MoreOpen(false); setFilterModalOpen(true); }}
+            onEditSetup={() => { setMobileV2MoreOpen(false); openEditSetup(); }}
+            onWhatsNew={() => { setMobileV2MoreOpen(false); setWhatsNewOpen(true); }}
+            onFeedback={() => { setMobileV2MoreOpen(false); setFeedbackOpen(true); }}
+            onOpenGuide={() => { setMobileV2MoreOpen(false); setHelpModalOpen(true); }}
+            onSignOut={signOut}
+          />
+        )}
+
         <footer className="foot">
           <span className="foot-credit">Auto-syncs from the live timetable sheet every few minutes</span>
           <span className="foot-credit">Built with <span className="foot-heart">♥</span> by <a href="https://www.linkedin.com/in/rakesh-kumar-behera-rk821604/" target="_blank" rel="noopener noreferrer" className="foot-credit-name">Rakesh</a></span>
@@ -3471,6 +3553,20 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               </button>
             )}
           </nav>
+        )}
+        {mobileUiVersion === "v2" && (
+          <MobileV2TabBar
+            view={view}
+            moreOpen={mobileV2MoreOpen}
+            attendanceEnabled={enableAttendance}
+            unreadCount={unreadTotal}
+            onNavigate={navigateMobileV2}
+            onOpenMore={() => {
+              setMobileV2MoreOpen(true);
+              setOverflowOpen(false);
+              setNotifOpen(false);
+            }}
+          />
         )}
       </div>
     </div>

@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { UtensilsCrossed, X, Star, ThumbsUp, ThumbsDown } from "lucide-react";
 import { getMenuForDay, MEAL_TIMES } from "../data/messMenu.js";
 import { MEAL_ICONS, WEEK_LABELS, mondayOf, toMin, fmt12, fmtIn, mealStatus, useMessData } from "../lib/messView.js";
+import { readMobileUiVersion } from "../hooks/useMobileUiVersion.js";
 import "../styles/mess.css";
 
 export function ItemChips({ items, small, favourites, onToggleFav }) {
@@ -78,6 +79,7 @@ export default function MessMenuModal({ now, onClose, favourites, onToggleFav, r
   const todayIdx = (now.getDay() + 6) % 7; // Mon=0 ... Sun=6
   const [dayIdx, setDayIdx] = useState(todayIdx);
   const nowMin = now.getHours() * 60 + now.getMinutes();
+  const isV2 = readMobileUiVersion() === "v2";
 
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
@@ -112,8 +114,9 @@ export default function MessMenuModal({ now, onClose, favourites, onToggleFav, r
     : selected.date.toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" });
 
   return createPortal(
-    <div className="fs-modal-overlay" onClick={onClose}>
-      <div className="fs-modal-content mess-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Full mess menu">
+    <div className={`fs-modal-overlay${isV2 ? " is-v2 mobile-ui-v2" : ""}`} onClick={onClose}>
+      <div className={`fs-modal-content mess-modal${isV2 ? " is-v2" : ""}`} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Full mess menu">
+        {isV2 && <span className="mess-modal-drag-handle" aria-hidden="true" />}
         <div className="fs-modal-header mess-modal-header">
           <div className="mess-modal-title">
             <span className="mess-modal-title-ico"><UtensilsCrossed size={17} /></span>
@@ -157,7 +160,10 @@ export default function MessMenuModal({ now, onClose, favourites, onToggleFav, r
                   <span className="mess-meal-icon"><Icon size={16} /></span>
                   <span className="mess-meal-heading">
                     <span className="mess-meal-name">{m.label}</span>
-                    <span className="mess-meal-time">{fmt12(m.start)} – {fmt12(m.end)} · {items.length} item{items.length === 1 ? "" : "s"}</span>
+                    <span className="mess-meal-time">
+                      <span className="mess-meal-hours">{fmt12(m.start)} – {fmt12(m.end)}</span>
+                      <span className="mess-meal-count"> · {items.length} item{items.length === 1 ? "" : "s"}</span>
+                    </span>
                   </span>
                   <span className="mess-meal-status">
                     {isToday && st === "now"

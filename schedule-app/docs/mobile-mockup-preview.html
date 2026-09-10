@@ -1,0 +1,1315 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>TermFlow Mobile Revamp Interactive Mockup</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #F3F1EA;
+      --surface: #ECEAE2;
+      --card: #FFFFFF;
+      --card-hi: #F7F5EF;
+      --border: #E4E0D5;
+      --border-hi: #CCC8BC;
+      --text: #1A1C2A;
+      --muted: #6A6E7E;
+      --live: #1FA971;
+      --live-dim: rgba(31, 169, 113, .08);
+      --amber: #C9882B;
+      --amber-dim: rgba(201, 136, 43, .13);
+      --violet: #6D5BD0;
+      --violet-dim: rgba(109, 91, 208, .09);
+      --blue: #3B82F6;
+      --blue-dim: rgba(59, 130, 246, .09);
+      --danger: #C0392B;
+      --ink: #15182B;
+      --bone: #F3F1EA;
+      --line: #E4E0D5;
+
+      /* Revamp tokens */
+      --mobile-gutter: 16px;
+      --mobile-appbar-height: 56px;
+      --mobile-tabbar-height: 64px;
+      --mobile-touch-min: 44px;
+      --mobile-card-radius: 16px;
+      --mobile-sheet-radius: 24px;
+      --mobile-bottom-clearance: calc(var(--mobile-tabbar-height) + env(safe-area-inset-bottom, 16px));
+      --display: 'Bricolage Grotesque', system-ui, sans-serif;
+      --body: 'Inter', system-ui, sans-serif;
+      --mono: 'JetBrains Mono', monospace;
+    }
+
+    [data-theme="dark"] {
+      --bg: #101216;
+      --surface: #16181E;
+      --card: #1C1F26;
+      --card-hi: #22252E;
+      --border: #2A2D36;
+      --border-hi: #3A3E4A;
+      --text: #E8E6DF;
+      --muted: #9BA0AE;
+      --live: #2FC68A;
+      --live-dim: rgba(47, 198, 138, .14);
+      --amber: #E0A044;
+      --amber-dim: rgba(224, 160, 68, .16);
+      --violet: #8B7AE8;
+      --violet-dim: rgba(139, 122, 232, .14);
+      --blue: #60A5FA;
+      --blue-dim: rgba(96, 165, 250, .14);
+      --danger: #F87171;
+      --ink: #E8E6DF;
+      --bone: #101216;
+      --line: #2A2D36;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: var(--body);
+      background-color: #1e1e24;
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 24px 16px;
+    }
+
+    /* Top presentation control bar */
+    .mockup-controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      max-width: 420px;
+      margin-bottom: 16px;
+      color: #e2e8f0;
+      font-size: 13px;
+    }
+
+    .badge-plan {
+      background: rgba(109, 91, 208, 0.25);
+      border: 1px solid var(--violet);
+      color: #c7bfff;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-weight: 600;
+      font-size: 11px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .theme-toggle-btn {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #fff;
+      padding: 6px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+
+    .theme-toggle-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    /* Phone Simulator Shell */
+    .phone-frame {
+      width: 100%;
+      max-width: 412px;
+      height: 860px;
+      background: var(--bg);
+      border-radius: 44px;
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.6), 0 0 0 10px #2a2c38, 0 0 0 12px #181920;
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    /* Dynamic Island / Notch */
+    .phone-notch {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 116px;
+      height: 28px;
+      background: #000;
+      border-radius: 20px;
+      z-index: 999;
+      pointer-events: none;
+    }
+
+    /* Status Bar */
+    .phone-status-bar {
+      height: 44px;
+      padding: 12px 24px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      z-index: 100;
+      background: transparent;
+    }
+
+    /* Mobile App Bar */
+    .mobile-app-bar {
+      height: var(--mobile-appbar-height);
+      padding: 0 var(--mobile-gutter);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 80;
+    }
+
+    .app-brand {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .app-title {
+      font-family: var(--display);
+      font-size: 19px;
+      font-weight: 800;
+      letter-spacing: -0.4px;
+      color: var(--ink);
+      line-height: 1.1;
+    }
+
+    .app-subtitle {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .app-bar-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .icon-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--text);
+      position: relative;
+    }
+
+    .icon-btn:active {
+      transform: scale(0.94);
+      background: var(--surface);
+    }
+
+    .badge-dot {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 8px;
+      height: 8px;
+      background: var(--amber);
+      border-radius: 50%;
+      border: 2px solid var(--card);
+    }
+
+    /* Screen Scroll View */
+    .mobile-viewport {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: var(--mobile-gutter);
+      padding-bottom: calc(var(--mobile-bottom-clearance) + 24px);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* Segmented Controls */
+    .segmented-control {
+      display: flex;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 4px;
+      border-radius: 12px;
+      gap: 4px;
+    }
+
+    .segment-btn {
+      flex: 1;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 8px;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .segment-btn.active {
+      background: var(--card);
+      color: var(--text);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    }
+
+    /* Cards */
+    .mobile-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--mobile-card-radius);
+      padding: 16px;
+      box-shadow: 0 2px 8px -2px rgba(0,0,0,0.03);
+    }
+
+    /* Now / Next Hero Card */
+    .hero-card {
+      border-left: 4px solid var(--live);
+      position: relative;
+      background: var(--card);
+    }
+
+    .hero-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .hero-tag {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--live);
+      background: var(--live-dim);
+      padding: 3px 8px;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .hero-tag::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      background: var(--live);
+      border-radius: 50%;
+      animation: pulse 1.8s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.3); }
+    }
+
+    .time-remaining {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+    }
+
+    .hero-title {
+      font-family: var(--display);
+      font-size: 19px;
+      font-weight: 700;
+      color: var(--ink);
+      line-height: 1.25;
+      margin-bottom: 4px;
+    }
+
+    .hero-meta {
+      font-size: 13px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .room-pill {
+      background: var(--surface);
+      color: var(--text);
+      font-weight: 600;
+      font-size: 12px;
+      padding: 2px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+
+    .hero-action-row {
+      display: flex;
+      gap: 10px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+    }
+
+    .btn-attendance {
+      flex: 1;
+      height: 46px; /* >44px touch min */
+      background: var(--live);
+      color: #ffffff;
+      border: none;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      box-shadow: 0 3px 10px rgba(31, 169, 113, 0.25);
+    }
+
+    .btn-attendance:active {
+      transform: scale(0.97);
+    }
+
+    .btn-attendance.marked {
+      background: var(--surface);
+      color: var(--live);
+      border: 1px solid var(--live);
+      box-shadow: none;
+    }
+
+    /* Section Headers */
+    .section-label {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--muted);
+      letter-spacing: 0.2px;
+      text-transform: uppercase;
+      margin-top: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Timeline Items */
+    .timeline-item {
+      display: flex;
+      gap: 12px;
+      position: relative;
+    }
+
+    .timeline-time-col {
+      width: 58px;
+      text-align: right;
+      padding-top: 2px;
+    }
+
+    .time-start {
+      font-family: var(--mono);
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--ink);
+    }
+
+    .time-duration {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .timeline-line-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+    }
+
+    .timeline-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 2px solid var(--violet);
+      background: var(--card);
+      z-index: 2;
+    }
+
+    .timeline-bar {
+      flex: 1;
+      width: 2px;
+      background: var(--border);
+      margin: 4px 0;
+    }
+
+    .timeline-card {
+      flex: 1;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-bottom: 12px;
+      position: relative;
+    }
+
+    .course-code {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--violet);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .course-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      margin: 2px 0 6px;
+    }
+
+    .course-sub {
+      font-size: 12px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Day Strip */
+    .day-strip {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      scrollbar-width: none;
+    }
+
+    .day-strip::-webkit-scrollbar {
+      display: none;
+    }
+
+    .day-chip {
+      flex: 0 0 60px;
+      height: 72px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      cursor: pointer;
+    }
+
+    .day-chip.active {
+      background: var(--ink);
+      color: var(--bone);
+      border-color: var(--ink);
+    }
+
+    .day-name {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--muted);
+    }
+
+    .day-chip.active .day-name {
+      color: #9BA0AE;
+    }
+
+    .day-num {
+      font-family: var(--display);
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    /* Profile Card in More */
+    .profile-card {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--mobile-card-radius);
+      padding: 14px;
+    }
+
+    .avatar-box {
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, var(--violet), var(--blue));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      color: #fff;
+    }
+
+    .profile-info h3 {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--ink);
+    }
+
+    .profile-info p {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    /* Grouped List Rows in More */
+    .hub-group {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--mobile-card-radius);
+      overflow: hidden;
+    }
+
+    .hub-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      min-height: 52px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .hub-row:last-child {
+      border-bottom: none;
+    }
+
+    .hub-row:active {
+      background: var(--surface);
+    }
+
+    .hub-row-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .hub-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+    }
+
+    .hub-text {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .hub-row-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .badge-count {
+      background: var(--amber);
+      color: #fff;
+      font-weight: 700;
+      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 12px;
+    }
+
+    /* Fixed Bottom Tab Bar */
+    .mobile-tab-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: var(--mobile-bottom-clearance);
+      background: var(--card);
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-around;
+      align-items: flex-start;
+      padding-top: 8px;
+      z-index: 100;
+    }
+
+    .tab-item {
+      flex: 1;
+      min-height: 48px; /* Touch target min */
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.18s ease;
+    }
+
+    .tab-item svg {
+      width: 22px;
+      height: 22px;
+      stroke: currentColor;
+      stroke-width: 2;
+      fill: none;
+      transition: transform 0.15s ease;
+    }
+
+    .tab-label {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: -0.1px;
+    }
+
+    .tab-item.active {
+      color: var(--violet);
+    }
+
+    .tab-item.active .tab-label {
+      font-weight: 700;
+      color: var(--ink);
+    }
+
+    .tab-item.active svg {
+      transform: translateY(-2px);
+      stroke: var(--violet);
+    }
+
+    /* Bottom Sheet Preview Modal */
+    .sheet-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(2px);
+      z-index: 200;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+
+    .sheet-backdrop.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .bottom-sheet {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: var(--card);
+      border-radius: var(--mobile-sheet-radius) var(--mobile-sheet-radius) 0 0;
+      border-top: 1px solid var(--border);
+      padding: 12px 18px 32px;
+      z-index: 210;
+      transform: translateY(100%);
+      transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.3, 1);
+      box-shadow: 0 -10px 30px rgba(0,0,0,0.15);
+    }
+
+    .sheet-backdrop.open .bottom-sheet {
+      transform: translateY(0);
+    }
+
+    .sheet-handle {
+      width: 36px;
+      height: 5px;
+      background: var(--border-hi);
+      border-radius: 999px;
+      margin: 0 auto 16px;
+    }
+
+    .sheet-title {
+      font-family: var(--display);
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .filter-options {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .filter-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      cursor: pointer;
+    }
+
+    /* Snackbar host */
+    .snackbar {
+      position: absolute;
+      bottom: calc(var(--mobile-bottom-clearance) + 12px);
+      left: 16px;
+      right: 16px;
+      background: var(--ink);
+      color: var(--bone);
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 90;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+      transform: translateY(150%);
+      opacity: 0;
+      transition: all 0.25s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+    }
+
+    .snackbar.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    .snackbar button {
+      background: none;
+      border: none;
+      color: var(--live);
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    /* Tab views switcher */
+    .view-panel {
+      display: none;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .view-panel.active {
+      display: flex;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Mockup Bar Controls -->
+  <div class="mockup-controls">
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span class="badge-plan">Revamp Preview</span>
+      <span style="font-weight: 600;">TermFlow Mobile</span>
+    </div>
+    <button class="theme-toggle-btn" id="themeToggle">🌓 Toggle Dark Mode</button>
+  </div>
+
+  <!-- Mobile Phone Simulator -->
+  <div class="phone-frame">
+    <div class="phone-notch"></div>
+
+    <!-- Status bar -->
+    <div class="phone-status-bar">
+      <span>9:41</span>
+      <span>5G 􀛨 100%</span>
+    </div>
+
+    <!-- Mobile Contextual App Bar (56px) -->
+    <header class="mobile-app-bar" id="appBar">
+      <div class="app-brand">
+        <h1 class="app-title" id="appBarTitle">TermFlow</h1>
+        <p class="app-subtitle" id="appBarSubtitle">Wed, 10 Sep · Term 5</p>
+      </div>
+      <div class="app-bar-actions">
+        <button class="icon-btn" id="btnFilter" title="Search / Filter" onclick="openSheet()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
+        </button>
+        <button class="icon-btn" title="Announcements" onclick="switchTab('more')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+          <div class="badge-dot"></div>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Mobile Viewport -->
+    <main class="mobile-viewport" id="viewport">
+
+      <!-- VIEW 1: TODAY (Core Daily Journey) -->
+      <section class="view-panel active" id="view-today">
+        <!-- Day segment toggle (Today / Tomorrow) -->
+        <div class="segmented-control">
+          <button class="segment-btn active" onclick="selectDaySegment(this, 'today')">Today (Wed)</button>
+          <button class="segment-btn" onclick="selectDaySegment(this, 'tomorrow')">Tomorrow (Thu)</button>
+        </div>
+
+        <!-- Now / Next Class Hero Card -->
+        <div class="mobile-card hero-card" id="heroCard">
+          <div class="hero-header">
+            <span class="hero-tag">Happening Now</span>
+            <span class="time-remaining">42m remaining</span>
+          </div>
+          <h2 class="hero-title">Corporate Finance & Valuation</h2>
+          <div class="hero-meta">
+            <span>Prof. K. Sharma</span>
+            <span>•</span>
+            <span class="room-pill">Auditorium 2</span>
+          </div>
+          <div class="hero-action-row">
+            <button class="btn-attendance" id="markBtn" onclick="toggleAttendance()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              <span id="markText">Mark Present</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Timeline Section -->
+        <div class="section-label">
+          <span>Remaining Schedule</span>
+          <span style="font-size: 12px; color: var(--violet); font-weight: 600;">2 Classes</span>
+        </div>
+
+        <!-- Timeline items -->
+        <div class="timeline-item">
+          <div class="timeline-time-col">
+            <div class="time-start">11:30</div>
+            <div class="time-duration">90 min</div>
+          </div>
+          <div class="timeline-line-col">
+            <div class="timeline-dot" style="border-color: var(--blue);"></div>
+            <div class="timeline-bar"></div>
+          </div>
+          <div class="timeline-card">
+            <div class="course-code" style="color: var(--blue);">MKT602</div>
+            <div class="course-title">Marketing Strategy & Consumer Insights</div>
+            <div class="course-sub">
+              <span>Prof. Ananya Sen</span>
+              <span>•</span>
+              <span class="room-pill">CR-104</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-time-col">
+            <div class="time-start">14:15</div>
+            <div class="time-duration">90 min</div>
+          </div>
+          <div class="timeline-line-col">
+            <div class="timeline-dot" style="border-color: var(--amber);"></div>
+          </div>
+          <div class="timeline-card">
+            <div class="course-code" style="color: var(--amber);">OPS610</div>
+            <div class="course-title">Supply Chain Logistics & Operations</div>
+            <div class="course-sub">
+              <span>Prof. V. Raman</span>
+              <span>•</span>
+              <span class="room-pill">Audi 1</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 2: SCHEDULE (Agenda & Day Strip) -->
+      <section class="view-panel" id="view-schedule">
+        <!-- Segment: Week Agenda vs Full Timetable -->
+        <div class="segmented-control">
+          <button class="segment-btn active">Week Agenda</button>
+          <button class="segment-btn">Full Timetable</button>
+        </div>
+
+        <!-- Horizontal thumb-friendly Day Strip -->
+        <div class="day-strip">
+          <div class="day-chip">
+            <span class="day-name">Mon</span>
+            <span class="day-num">8</span>
+          </div>
+          <div class="day-chip">
+            <span class="day-name">Tue</span>
+            <span class="day-num">9</span>
+          </div>
+          <div class="day-chip active">
+            <span class="day-name">Wed</span>
+            <span class="day-num">10</span>
+          </div>
+          <div class="day-chip">
+            <span class="day-name">Thu</span>
+            <span class="day-num">11</span>
+          </div>
+          <div class="day-chip">
+            <span class="day-name">Fri</span>
+            <span class="day-num">12</span>
+          </div>
+          <div class="day-chip">
+            <span class="day-name">Sat</span>
+            <span class="day-num">13</span>
+          </div>
+        </div>
+
+        <!-- Filter banner trigger -->
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 4px;">
+          <span style="font-size: 13px; font-weight: 600; color: var(--muted);">Showing 4 Core Subjects</span>
+          <button onclick="openSheet()" style="background: none; border: none; color: var(--violet); font-size: 13px; font-weight: 600; cursor: pointer;">Filters (1 active) ▾</button>
+        </div>
+
+        <!-- Agenda Schedule list -->
+        <div class="mobile-card" style="border-left: 4px solid var(--blue);">
+          <div style="font-size: 11px; font-weight: 700; color: var(--blue);">09:00 - 10:30 • CR-201</div>
+          <div style="font-size: 16px; font-weight: 700; color: var(--ink); margin: 4px 0;">Advanced Business Analytics</div>
+          <div style="font-size: 13px; color: var(--muted);">Prof. Debashish Roy</div>
+        </div>
+
+        <div class="mobile-card" style="border-left: 4px solid var(--violet);">
+          <div style="font-size: 11px; font-weight: 700; color: var(--violet);">11:00 - 12:30 • Audi 2</div>
+          <div style="font-size: 16px; font-weight: 700; color: var(--ink); margin: 4px 0;">Corporate Governance & Ethics</div>
+          <div style="font-size: 13px; color: var(--muted);">Prof. Radhika Nair</div>
+        </div>
+      </section>
+
+      <!-- VIEW 3: ATTENDANCE -->
+      <section class="view-panel" id="view-attendance">
+        <div class="mobile-card" style="text-align: center; padding: 22px 16px;">
+          <div style="font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase;">Overall Attendance</div>
+          <div style="font-family: var(--display); font-size: 42px; font-weight: 800; color: var(--live); margin: 6px 0;">87.4%</div>
+          <div style="font-size: 13px; color: var(--muted);">Safe buffer: Can skip <strong>4 more sessions</strong></div>
+        </div>
+
+        <div class="section-label">Course Breakdown</div>
+
+        <div class="mobile-card">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+            <div>
+              <div style="font-weight: 700; font-size: 15px; color: var(--text);">Corporate Finance</div>
+              <div style="font-size: 12px; color: var(--muted);">18 of 20 attended</div>
+            </div>
+            <div style="font-weight: 800; color: var(--live); font-size: 16px;">90%</div>
+          </div>
+          <div style="height: 6px; background: var(--surface); border-radius: 99px; overflow: hidden;">
+            <div style="width: 90%; height: 100%; background: var(--live);"></div>
+          </div>
+        </div>
+
+        <div class="mobile-card">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+            <div>
+              <div style="font-weight: 700; font-size: 15px; color: var(--text);">Operations Strategy</div>
+              <div style="font-size: 12px; color: var(--amber);">15 of 20 attended • Low buffer</div>
+            </div>
+            <div style="font-weight: 800; color: var(--amber); font-size: 16px;">75%</div>
+          </div>
+          <div style="height: 6px; background: var(--surface); border-radius: 99px; overflow: hidden;">
+            <div style="width: 75%; height: 100%; background: var(--amber);"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 4: TASKS (Assignments & Exams) -->
+      <section class="view-panel" id="view-tasks">
+        <!-- Segment: Assignments vs Exams -->
+        <div class="segmented-control">
+          <button class="segment-btn active" onclick="selectTasksSegment(this, 'assignments')">Assignments (3)</button>
+          <button class="segment-btn" onclick="selectTasksSegment(this, 'exams')">Exams (2)</button>
+        </div>
+
+        <div class="section-label">Due This Week</div>
+
+        <div class="mobile-card" style="display: flex; gap: 12px; align-items: center;">
+          <input type="checkbox" style="width: 20px; height: 20px; accent-color: var(--violet);" />
+          <div style="flex: 1;">
+            <div style="font-weight: 700; font-size: 15px;">Valuation Model Submission</div>
+            <div style="font-size: 12px; color: var(--danger); font-weight: 600; margin-top: 2px;">Tomorrow, 11:59 PM • Corp Fin</div>
+          </div>
+        </div>
+
+        <div class="mobile-card" style="display: flex; gap: 12px; align-items: center;">
+          <input type="checkbox" style="width: 20px; height: 20px; accent-color: var(--violet);" />
+          <div style="flex: 1;">
+            <div style="font-weight: 700; font-size: 15px;">Omnichannel Case Study</div>
+            <div style="font-size: 12px; color: var(--muted); font-weight: 500; margin-top: 2px;">Friday, 5:00 PM • Marketing</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 5: MORE HUB -->
+      <section class="view-panel" id="view-more">
+        <!-- Profile Banner -->
+        <div class="profile-card">
+          <div class="avatar-box">AV</div>
+          <div class="profile-info">
+            <h3>Alex Verma</h3>
+            <p>PGP2 Section B • <span style="color: var(--violet); font-weight: 600;">Term 5</span></p>
+          </div>
+        </div>
+
+        <!-- Group: Campus -->
+        <div class="section-label">Campus</div>
+        <div class="hub-group">
+          <div class="hub-row">
+            <div class="hub-row-left">
+              <div class="hub-icon" style="background: var(--amber-dim); color: var(--amber);">📢</div>
+              <span class="hub-text">Announcements</span>
+            </div>
+            <div class="hub-row-right">
+              <span class="badge-count">3</span>
+              <span>›</span>
+            </div>
+          </div>
+          <div class="hub-row">
+            <div class="hub-row-left">
+              <div class="hub-icon" style="background: var(--violet-dim); color: var(--violet);">📌</div>
+              <span class="hub-text">Campus Board</span>
+            </div>
+            <div class="hub-row-right">›</div>
+          </div>
+          <div class="hub-row">
+            <div class="hub-row-left">
+              <div class="hub-icon" style="background: var(--blue-dim); color: var(--blue);">🍽️</div>
+              <span class="hub-text">Mess Menu</span>
+            </div>
+            <div class="hub-row-right">
+              <span style="font-size: 12px; color: var(--muted);">Dinner 8 PM</span>
+              <span>›</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Group: Tools -->
+        <div class="section-label">Tools</div>
+        <div class="hub-group">
+          <div class="hub-row">
+            <div class="hub-row-left">
+              <div class="hub-icon" style="background: rgba(31, 169, 113, 0.1); color: var(--live);">💳</div>
+              <span class="hub-text">Split Expenses</span>
+            </div>
+            <div class="hub-row-right">›</div>
+          </div>
+          <div class="hub-row">
+            <div class="hub-row-left">
+              <div class="hub-icon" style="background: var(--surface); color: var(--text);">🏖️</div>
+              <span class="hub-text">Leave Planner</span>
+            </div>
+            <div class="hub-row-right">›</div>
+          </div>
+        </div>
+
+        <!-- Group: Personal -->
+        <div class="section-label">Personal & App</div>
+        <div class="hub-group">
+          <div class="hub-row">
+            <div class="hub-row-left">
+              <div class="hub-icon" style="background: #ffe8d6; color: #b05700;">🐾</div>
+              <span class="hub-text">Pet Companion</span>
+            </div>
+            <div class="hub-row-right">
+              <span style="font-size: 12px; color: var(--live); font-weight: 600;">Happy • Lvl 14</span>
+              <span>›</span>
+            </div>
+          </div>
+          <div class="hub-row">
+            <div class="hub-row-left">
+              <div class="hub-icon" style="background: var(--surface); color: var(--muted);">⚙️</div>
+              <span class="hub-text">Preferences & Settings</span>
+            </div>
+            <div class="hub-row-right">›</div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Feedback Snackbar (Undo / Confirm) -->
+    <div class="snackbar" id="snackbar">
+      <span id="snackbarMsg">✓ Attendance marked for Corp Fin</span>
+      <button onclick="undoAttendance()">UNDO</button>
+    </div>
+
+    <!-- 5 Fixed Bottom Tabs (Stable 48px touch targets, labeled) -->
+    <nav class="mobile-tab-bar" id="bottomTabs">
+      <button class="tab-item active" id="tab-today" onclick="switchTab('today')">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+        <span class="tab-label">Today</span>
+      </button>
+
+      <button class="tab-item" id="tab-schedule" onclick="switchTab('schedule')">
+        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+        <span class="tab-label">Schedule</span>
+      </button>
+
+      <button class="tab-item" id="tab-attendance" onclick="switchTab('attendance')">
+        <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+        <span class="tab-label">Attend</span>
+      </button>
+
+      <button class="tab-item" id="tab-tasks" onclick="switchTab('tasks')">
+        <svg viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
+        <span class="tab-label">Tasks</span>
+      </button>
+
+      <button class="tab-item" id="tab-more" onclick="switchTab('more')">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg>
+        <span class="tab-label">More</span>
+      </button>
+    </nav>
+
+    <!-- Bottom Sheet Backdrop & Sheet -->
+    <div class="sheet-backdrop" id="sheetBackdrop" onclick="closeSheet(event)">
+      <div class="bottom-sheet" onclick="event.stopPropagation()">
+        <div class="sheet-handle"></div>
+        <div class="sheet-title">
+          <span>Filter Timetable</span>
+          <button onclick="closeSheetDirect()" style="background: none; border: none; font-size: 13px; font-weight: 700; color: var(--violet); cursor: pointer;">Done</button>
+        </div>
+        <div class="filter-options">
+          <label class="filter-item">
+            <input type="checkbox" checked style="accent-color: var(--violet);">
+            <span style="font-weight: 600; font-size: 14px;">Show Section B Electives</span>
+          </label>
+          <label class="filter-item">
+            <input type="checkbox" checked style="accent-color: var(--violet);">
+            <span style="font-weight: 600; font-size: 14px;">Highlight Corporate Finance</span>
+          </label>
+          <label class="filter-item">
+            <input type="checkbox" style="accent-color: var(--violet);">
+            <span style="font-weight: 600; font-size: 14px;">Hide Completed Sessions</span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // Theme toggle
+    const themeBtn = document.getElementById('themeToggle');
+    themeBtn.addEventListener('click', () => {
+      const html = document.documentElement;
+      const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      html.setAttribute('data-theme', next);
+    });
+
+    // Tab switching
+    const tabs = ['today', 'schedule', 'attendance', 'tasks', 'more'];
+    const tabHeaders = {
+      today: { title: 'TermFlow', sub: 'Wed, 10 Sep · Term 5' },
+      schedule: { title: 'Schedule', sub: 'Term 5 · Week 4' },
+      attendance: { title: 'Attendance', sub: 'Term 5 Overview' },
+      tasks: { title: 'Tasks & Deadlines', sub: '3 Pending Assignments' },
+      more: { title: 'Hub', sub: 'Alex Verma · PGP2 Sec B' },
+    };
+
+    function switchTab(targetTab) {
+      tabs.forEach(t => {
+        document.getElementById(`tab-${t}`).classList.toggle('active', t === targetTab);
+        const panel = document.getElementById(`view-${t}`);
+        if (panel) panel.classList.toggle('active', t === targetTab);
+      });
+
+      // Update contextual App Bar
+      const info = tabHeaders[targetTab];
+      document.getElementById('appBarTitle').textContent = info.title;
+      document.getElementById('appBarSubtitle').textContent = info.sub;
+
+      // Scroll to top
+      document.getElementById('viewport').scrollTop = 0;
+    }
+
+    // Segment controls
+    function selectDaySegment(btn, day) {
+      btn.parentElement.querySelectorAll('.segment-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const hero = document.getElementById('heroCard');
+      if (day === 'tomorrow') {
+        hero.querySelector('.hero-tag').textContent = 'First Class Tomorrow';
+        hero.querySelector('.hero-title').textContent = 'Supply Chain Analytics';
+        hero.querySelector('.room-pill').textContent = 'Audi 1';
+        hero.querySelector('.time-remaining').textContent = '09:00 AM';
+      } else {
+        hero.querySelector('.hero-tag').textContent = 'Happening Now';
+        hero.querySelector('.hero-title').textContent = 'Corporate Finance & Valuation';
+        hero.querySelector('.room-pill').textContent = 'Auditorium 2';
+        hero.querySelector('.time-remaining').textContent = '42m remaining';
+      }
+    }
+
+    function selectTasksSegment(btn, type) {
+      btn.parentElement.querySelectorAll('.segment-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    }
+
+    // Attendance toggle & snackbar feedback
+    let isMarked = false;
+    let snackTimeout;
+    function toggleAttendance() {
+      isMarked = !isMarked;
+      const btn = document.getElementById('markBtn');
+      const text = document.getElementById('markText');
+      const snack = document.getElementById('snackbar');
+
+      if (isMarked) {
+        btn.classList.add('marked');
+        text.textContent = 'Marked Present ✓';
+        document.getElementById('snackbarMsg').textContent = '✓ Attendance recorded for Corp Fin';
+        snack.classList.add('show');
+        clearTimeout(snackTimeout);
+        snackTimeout = setTimeout(() => snack.classList.remove('show'), 4000);
+      } else {
+        btn.classList.remove('marked');
+        text.textContent = 'Mark Present';
+        snack.classList.remove('show');
+      }
+    }
+
+    function undoAttendance() {
+      isMarked = true;
+      toggleAttendance();
+    }
+
+    // Sheet toggle
+    function openSheet() {
+      document.getElementById('sheetBackdrop').classList.add('open');
+    }
+
+    function closeSheet(e) {
+      document.getElementById('sheetBackdrop').classList.remove('open');
+    }
+
+    function closeSheetDirect() {
+      document.getElementById('sheetBackdrop').classList.remove('open');
+    }
+  </script>
+</body>
+</html>

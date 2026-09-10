@@ -155,13 +155,26 @@ export default function TomorrowSummary({ list, weather, changeCount, onViewChan
     );
   }
 
-  const breaks = list.filter((c) => c.type === "break").length;
   const first = classes[0];
-  const lastEnd = list.reduce((max, c) => (toMin(c.end) > toMin(max) ? c.end : max), list[0].end);
+  const lastEnd = classes.reduce((max, c) => (toMin(c.end) > toMin(max) ? c.end : max), first.end);
 
   const dayStart = toMin(first.start);
-  const daySpan = toMin(lastEnd) - dayStart;
-  const railItems = daySpan > 0 ? list.filter((c) => c.type === "class" || c.type === "break") : [];
+  const dayEnd = toMin(lastEnd);
+  const daySpan = dayEnd - dayStart;
+
+  // Only count breaks that happen during class hours
+  const breaks = list.filter(
+    (c) => c.type === "break" && toMin(c.start) >= dayStart && toMin(c.end) <= dayEnd
+  ).length;
+
+  const railItems = daySpan > 0
+    ? list.filter((c) => {
+        if (c.type !== "class" && c.type !== "break") return false;
+        const s = toMin(c.start);
+        const e = toMin(c.end);
+        return e > dayStart && s < dayEnd;
+      })
+    : [];
 
   return (
     <div className="tmrw-summary">
@@ -185,8 +198,10 @@ export default function TomorrowSummary({ list, weather, changeCount, onViewChan
           <>
             <div className="tmrw-rail" ref={railRef}>
               {railItems.map((c, i) => {
-                const left = ((toMin(c.start) - dayStart) / daySpan) * 100;
-                const width = ((toMin(c.end) - toMin(c.start)) / daySpan) * 100;
+                const s = Math.max(dayStart, toMin(c.start));
+                const e = Math.min(dayEnd, toMin(c.end));
+                const left = Math.max(0, Math.min(100, ((s - dayStart) / daySpan) * 100));
+                const width = Math.max(0, Math.min(100 - left, ((e - s) / daySpan) * 100));
                 return (
                   <RailSeg
                     key={i}

@@ -1452,91 +1452,201 @@ function Nova() {
   );
 }
 
-function Cinder() {
-  const id = "cd" + useId().replace(/\W/g, "");
-  const ink = "#140c14";
+function Lion() {
+  const id = "ln" + useId().replace(/\W/g, "");
+  const ink = "#1c1917";
   const coat = `url(#${id}-coat)`;
-  const flame = `url(#${id}-flame)`;
+  const maneDark = `url(#${id}-mane-dark)`;
+  const maneLight = `url(#${id}-mane-light)`;
+  const innerEar = `url(#${id}-ear)`;
+  const iris = `url(#${id}-iris)`;
   return (
     <svg viewBox="0 0 32 32" aria-hidden="true">
       <defs>
-        <radialGradient id={`${id}-coat`} cx="40%" cy="28%" r="80%">
-          <stop offset="0" stopColor="#5d4a52" />
-          <stop offset=".5" stopColor="#40323c" />
-          <stop offset="1" stopColor="#241c25" />
+        <radialGradient id={`${id}-coat`} cx="42%" cy="30%" r="75%">
+          <stop offset="0%" stopColor="#fde047" />
+          <stop offset="40%" stopColor="#f59e0b" />
+          <stop offset="100%" stopColor="#d97706" />
         </radialGradient>
-        <linearGradient id={`${id}-flame`} x1="0" y1="1" x2="0" y2="0">
-          <stop offset="0" stopColor="#f04d2a" />
-          <stop offset=".5" stopColor="#ff8a2b" />
-          <stop offset="1" stopColor="#ffd166" />
+        <linearGradient id={`${id}-mane-dark`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#78350f" />
+          <stop offset="60%" stopColor="#551a05" />
+          <stop offset="100%" stopColor="#300d02" />
         </linearGradient>
-        <radialGradient id={`${id}-heat`}>
-          <stop offset="0" stopColor="#ff9b3d" stopOpacity=".8" />
-          <stop offset=".6" stopColor="#f0592a" stopOpacity=".28" />
-          <stop offset="1" stopColor="#f0592a" stopOpacity="0" />
+        <linearGradient id={`${id}-mane-light`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#fbbf24" />
+          <stop offset="45%" stopColor="#d97706" />
+          <stop offset="100%" stopColor="#92400e" />
+        </linearGradient>
+        <linearGradient id={`${id}-ear`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#fed7aa" />
+          <stop offset="100%" stopColor="#c2410c" />
+        </linearGradient>
+        <linearGradient id={`${id}-iris`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#fef08a" />
+          <stop offset="50%" stopColor="#f59e0b" />
+          <stop offset="100%" stopColor="#b45309" />
+        </linearGradient>
+        <radialGradient id={`${id}-sun`}>
+          <stop offset="0%" stopColor="#fbbf24" stopOpacity=".7" />
+          <stop offset="60%" stopColor="#f59e0b" stopOpacity=".2" />
+          <stop offset="100%" stopColor="#f59e0b" stopOpacity="0" />
         </radialGradient>
       </defs>
 
-      {/* Embers drifting up off the coat */}
-      <g fill="#ffb257">
-        <circle className="dg-pet-ember" cx="7.4" cy="12" r=".5" />
-        <circle className="dg-pet-ember dg-pet-ember-b" cx="25.2" cy="10.4" r=".42" />
-        <circle className="dg-pet-ember dg-pet-ember-c" cx="27" cy="16.6" r=".38" />
+      {/* Solar aura of the king of beasts */}
+      <circle className="dg-pet-heat" cx="16" cy="16.5" r="13" fill={`url(#${id}-sun)`} />
+
+      {/* Fiery embers rising from the lion's mane */}
+      <g fill="#fbbf24">
+        <circle className="dg-pet-ember" cx="6.5" cy="10.8" r=".5" />
+        <circle className="dg-pet-ember dg-pet-ember-b" cx="25.5" cy="9.2" r=".45" />
+        <circle className="dg-pet-ember dg-pet-ember-c" cx="27.2" cy="15.2" r=".38" />
       </g>
 
-      {/* Flame tail — three tongues that flicker independently */}
+      {/* Muscular Lion Tail with fiery tuft */}
       <g className="dg-pet-tail dg-pet-flame">
-        <path d="M22.6 24.4c3.4-.6 5.2-3 5.4-6.4 1.9 2.4 2.4 5.4 1 7.6-1.4 2.2-4.2 2.8-6.4 1.4z" fill={flame} stroke="#241c25" strokeWidth=".6" />
-        <path className="dg-pet-flicker" d="M24.4 23.8c1.8-.8 2.6-2.4 2.5-4.6 1.1 1.6 1.3 3.5.5 4.9-.8 1.4-2.2 1.7-3 .8z" fill="#ffd166" opacity=".9" />
-        <path className="dg-pet-flicker dg-pet-flicker-b" d="M22.9 25.6c1.2-.2 2-.9 2.4-2 .3 1.3 0 2.4-.8 3-.9.6-1.8.3-1.6-1z" fill="#fff0c2" opacity=".75" />
+        <path d="M19 25.5c4 .5 7-1.5 7.8-5.5.5-2.6-.2-4.5-1.5-5.2-.6-.3-1.3 0-1.5.6-.2.6 0 1.3.6 1.6.8.4 1.1 1.5.7 3-.5 2.2-2.3 3.1-5.6 2.5" fill="none" stroke={ink} strokeWidth="2.8" strokeLinecap="round" />
+        <path d="M19 25.5c4 .5 7-1.5 7.8-5.5.5-2.6-.2-4.5-1.5-5.2-.6-.3-1.3 0-1.5.6-.2.6 0 1.3.6 1.6.8.4 1.1 1.5.7 3-.5 2.2-2.3 3.1-5.6 2.5" fill="none" stroke="#d97706" strokeWidth="1.6" strokeLinecap="round" />
+        {/* Bushy spiked tail tuft */}
+        <path d="M26 14.5c-.8-2 1-4 3-4.2 1.6-.2 2.8 1 2.9 2.6.2 2.2-1.5 4.2-3.6 4.3-.9 0-1.8-.8-2.3-2.7z" fill={maneLight} stroke={ink} strokeWidth=".7" />
+        <path className="dg-pet-flicker" d="M27 13.5c-.3-1.2.6-2.4 1.8-2.6 1.1-.1 2 .6 2.1 1.7.2 1.4-1 2.6-2.3 2.7-.6.1-1.3-.4-1.6-1.8z" fill="#fef08a" opacity=".85" />
       </g>
 
-      {/* Body with glowing molten magma crack veins */}
-      <ellipse cx="16" cy="26.4" rx="6.9" ry="4.1" fill={coat} stroke="#ea580c" strokeWidth=".85" />
-      <path d="M14.2 24.6l.8 1.2-.6 1.4M17.8 24.8l-.6 1.3.8 1.2" fill="none" stroke="#f97316" strokeWidth=".6" strokeLinecap="round" />
-      <ellipse cx="12.3" cy="29.3" rx="2.4" ry="1.2" fill="#191319" stroke="#ea580c" strokeWidth=".6" />
-      <path d="M11.6 29.3l.6.4M12.8 29.3l.5.4" stroke="#fbbf24" strokeWidth=".45" strokeLinecap="round" />
-      <ellipse cx="19.7" cy="29.3" rx="2.4" ry="1.2" fill="#191319" stroke="#ea580c" strokeWidth=".6" />
-      <path d="M19.1 29.3l.6.4M20.3 29.3l.5.4" stroke="#fbbf24" strokeWidth=".45" strokeLinecap="round" />
+      {/* Massive Wild Outer Mane (deep mahogany/sienna spiked crown) */}
+      <path
+        d="M16 2.4 L18.8 5.2 L22.4 3.8 L23.5 7.2 L27.2 6.8 L26.4 10.8 L29.6 12.2 L28 15.8 L30.5 18.8 L27.5 21 L28.5 23.8 L25 24.6 L23.6 27.6 L20 26.6 L17.5 29 L14.5 29 L12 26.6 L8.4 27.6 L7 24.6 L3.5 23.8 L4.5 21 L1.5 18.8 L4 15.8 L2.4 12.2 L5.6 10.8 L4.8 6.8 L8.5 7.2 L9.6 3.8 L13.2 5.2 Z"
+        fill={maneDark}
+        stroke={ink}
+        strokeWidth="1.1"
+        strokeLinejoin="round"
+      />
 
-      {/* Pointed obsidian ears with crystal facet highlights and burning inner fire */}
+      {/* Mid-layer Golden/Amber Mane Tufts */}
+      <path
+        d="M16 4.2 L18.6 6.8 L21.6 5.8 L22.4 8.8 L25.4 9.2 L24.5 12.6 L27.4 14.6 L25 17.6 L26.8 20.4 L23.5 22 L22 25 L18.8 24.2 L16 26.8 L13.2 24.2 L10 25 L8.5 22 L5.2 20.4 L7 17.6 L4.6 14.6 L7.5 12.6 L6.6 9.2 L9.6 8.8 L10.4 5.8 L13.4 6.8 Z"
+        fill={maneLight}
+        stroke={ink}
+        strokeWidth=".8"
+        strokeLinejoin="round"
+      />
+
+      {/* Muscular Ears nestled in the mane */}
       <g className="dg-pet-ear dg-pet-ear-left">
-        <path d="M12.2 9.6 6.4 2.2 6.9 11.6z" fill={coat} stroke="#ea580c" strokeWidth=".85" strokeLinejoin="round" />
-        <path d="M10.9 9.4 8 5.6 8.3 10.6z" fill={flame} opacity=".9" />
-        <path d="M6.4 2.2l1.6 4.8-1.1 4.6" fill="none" stroke="#a78bfa" strokeWidth=".4" opacity=".5" />
+        <path d="M7.8 7.5 C6.2 9 6.8 12.2 9.5 12.5 C10.8 12.6 11.8 11.4 11.2 9.2 C10.6 7 9.2 6.2 7.8 7.5 Z" fill={coat} stroke={ink} strokeWidth="1" strokeLinejoin="round" />
+        <path d="M8.2 8.4 C7.2 9.4 7.6 11.4 9.4 11.6 C10.2 11.7 10.8 11 10.4 9.6 C10 8.2 9 7.6 8.2 8.4 Z" fill={innerEar} />
+        <path d="M7.5 8 C7.2 9.2 7.5 10.8 8.8 11.5" stroke="#1c1917" strokeWidth=".5" fill="none" strokeLinecap="round" />
       </g>
       <g className="dg-pet-ear dg-pet-ear-right">
-        <path d="M19.8 9.6 25.6 2.2 25.1 11.6z" fill={coat} stroke="#ea580c" strokeWidth=".85" strokeLinejoin="round" />
-        <path d="M21.1 9.4 24 5.6 23.7 10.6z" fill={flame} opacity=".9" />
-        <path d="M25.6 2.2l-1.6 4.8 1.1 4.6" fill="none" stroke="#a78bfa" strokeWidth=".4" opacity=".5" />
+        <path d="M24.2 7.5 C25.8 9 25.2 12.2 22.5 12.5 C21.2 12.6 20.2 11.4 20.8 9.2 C21.4 7 22.8 6.2 24.2 7.5 Z" fill={coat} stroke={ink} strokeWidth="1" strokeLinejoin="round" />
+        <path d="M23.8 8.4 C24.8 9.4 24.4 11.4 22.6 11.6 C21.8 11.7 21.2 11 21.6 9.6 C22 8.2 23 7.6 23.8 8.4 Z" fill={innerEar} />
+        <path d="M24.5 8 C24.8 9.2 24.5 10.8 23.2 11.5" stroke="#1c1917" strokeWidth=".5" fill="none" strokeLinecap="round" />
       </g>
 
-      <circle className="dg-pet-heat" cx="16" cy="18.6" r="11.8" fill={`url(#${id}-heat)`} />
-      {/* Head with amber heat-rim outline */}
-      <circle className="dg-pet-face" cx="16" cy="17.4" r="9.7" fill={coat} stroke="#ea580c" strokeWidth=".95" />
-      <ellipse cx="12.2" cy="11.9" rx="3.3" ry="1.9" fill="#fff" opacity=".12" transform="rotate(-20 12.2 11.9)" />
+      {/* Muscular Chest & Body */}
+      <path d="M11 22.6 C11 21 12.5 20 16 20 C19.5 20 21 21 21 22.6 L21.5 28 C21.5 29.5 19.5 30.5 16 30.5 C12.5 30.5 10.5 29.5 10.5 28 Z" fill={coat} stroke={ink} strokeWidth="1" strokeLinejoin="round" />
+      {/* Chest mane drapery */}
+      <path d="M13.6 21 L16 24.8 L18.4 21 L17 23.8 L16 26.2 L15 23.8 Z" fill={maneDark} stroke={ink} strokeWidth=".45" />
 
-      {/* Brow flame and throat glow */}
-      <path className="dg-pet-glow" d="M16 9.6c1.4 1.6 2 3.2 1.8 4.8-.2 1.5-1 2.6-2.4 3.2.6-1.4.7-2.6.3-3.6-.4-1-1-2.4.3-4.4z" fill={flame} opacity=".9" />
-      <ellipse className="dg-pet-glow dg-pet-glow-b" cx="16" cy="25.6" rx="3.4" ry="1.4" fill="#ff9b3d" opacity=".38" />
+      {/* Lion Paws with Fierce Unsheathed Claws */}
+      <g stroke={ink} strokeLinecap="round">
+        {/* Left Paw */}
+        <path d="M10.2 27.2 C10.2 26 12 25.5 13.6 26.2 C14.4 26.6 14.6 28 14.2 29.2 C13.8 30.2 11.8 30.5 10.8 29.8 C10.3 29.2 10.2 28.2 10.2 27.2 Z" fill="#fef3c7" strokeWidth=".85" />
+        <path d="M11 29.8 L11 30.8 M12.4 30.1 L12.6 31.2 M13.8 29.6 L14.2 30.5" stroke="#1c1917" strokeWidth=".65" />
+        {/* Right Paw */}
+        <path d="M21.8 27.2 C21.8 26 20 25.5 18.4 26.2 C17.6 26.6 17.4 28 17.8 29.2 C18.2 30.2 20.2 30.5 21.2 29.8 C21.7 29.2 21.8 28.2 21.8 27.2 Z" fill="#fef3c7" strokeWidth=".85" />
+        <path d="M21 29.8 L21 30.8 M19.6 30.1 L19.4 31.2 M18.2 29.6 L17.8 30.5" stroke="#1c1917" strokeWidth=".65" />
+      </g>
 
+      {/* Fierce Lion Head Shape */}
+      <path
+        className="dg-pet-face"
+        d="M11.2 11.4 C12.6 9.4 19.4 9.4 20.8 11.4 C22.4 13.6 22.8 16.8 22 19.4 C21.2 22 18.6 23.8 16 23.8 C13.4 23.8 10.8 22 10 19.4 C9.2 16.8 9.6 13.6 11.2 11.4 Z"
+        fill={coat}
+        stroke={ink}
+        strokeWidth="1.15"
+        strokeLinejoin="round"
+      />
+
+      {/* Cheek Mane Ruffs framing the fierce jaw */}
+      <path d="M9.8 16 L8.2 18 L10.4 18.6 L9 20.8 L11.8 20.2" fill={maneLight} stroke={ink} strokeWidth=".6" />
+      <path d="M22.2 16 L23.8 18 L21.6 18.6 L23 20.8 L20.2 20.2" fill={maneLight} stroke={ink} strokeWidth=".6" />
+
+      {/* Formidable Lion Brow Furrow & Forehead Wrinkles */}
+      <g stroke="#78350f" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14.5 10.8 L16 12.2 L17.5 10.8" fill="none" strokeWidth=".8" />
+        <path d="M15.2 9.6 L16 10.6 L16.8 9.6" fill="none" strokeWidth=".6" opacity=".8" />
+        <path d="M16 12.2 L16 14" strokeWidth=".7" />
+      </g>
+
+      {/* Fierce Predator Feline Almond Eyes */}
       <g className="dg-pet-eyes">
-        <ellipse cx="12.4" cy="17.4" rx="2" ry="2.2" fill="#1a1218" />
-        <ellipse cx="19.6" cy="17.4" rx="2" ry="2.2" fill="#1a1218" />
-        <circle cx="12.4" cy="17.4" r=".95" fill="#ffb257" />
-        <circle cx="19.6" cy="17.4" r=".95" fill="#ffb257" />
-        <circle cx="13" cy="16.7" r=".38" fill="#fff5e0" />
-        <circle cx="20.2" cy="16.7" r=".38" fill="#fff5e0" />
+        {/* Left Eye: Fierce Slanted Contour & Heavy Brow */}
+        <path d="M10.2 14.6 C10.8 13.2 13.4 13.5 14.6 15 C13.8 16.1 11.4 16.2 10.2 14.6 Z" fill={ink} />
+        {/* Amber predatory iris */}
+        <path d="M10.8 14.7 C11.2 13.8 13.2 14 14.1 15 C13.5 15.8 11.6 15.8 10.8 14.7 Z" fill={iris} />
+        {/* Vertical slit pupil */}
+        <ellipse cx="12.4" cy="14.8" rx=".55" ry="1.2" fill={ink} />
+        {/* Cold predatory glint */}
+        <circle cx="12.1" cy="14.2" r=".32" fill="#ffffff" />
+        {/* Classic lion white under-eye facial fur marking */}
+        <path d="M10.4 15.8 C11.6 16.5 13.4 16.3 14.4 15.5" stroke="#fef3c7" strokeWidth=".6" fill="none" strokeLinecap="round" />
+        {/* Fierce brow ridge shadow */}
+        <path d="M9.6 13.6 L14.6 14.7" stroke={ink} strokeWidth=".95" strokeLinecap="round" />
+
+        {/* Right Eye: Fierce Slanted Contour & Heavy Brow */}
+        <path d="M21.8 14.6 C21.2 13.2 18.6 13.5 17.4 15 C18.2 16.1 20.6 16.2 21.8 14.6 Z" fill={ink} />
+        {/* Amber predatory iris */}
+        <path d="M21.2 14.7 C20.8 13.8 18.8 14 17.9 15 C18.5 15.8 20.4 15.8 21.2 14.7 Z" fill={iris} />
+        {/* Vertical slit pupil */}
+        <ellipse cx="19.6" cy="14.8" rx=".55" ry="1.2" fill={ink} />
+        {/* Cold predatory glint */}
+        <circle cx="19.3" cy="14.2" r=".32" fill="#ffffff" />
+        {/* Classic lion white under-eye facial fur marking */}
+        <path d="M21.6 15.8 C20.4 16.5 18.6 16.3 17.6 15.5" stroke="#fef3c7" strokeWidth=".6" fill="none" strokeLinecap="round" />
+        {/* Fierce brow ridge shadow */}
+        <path d="M22.4 13.6 L17.4 14.7" stroke={ink} strokeWidth=".95" strokeLinecap="round" />
       </g>
 
-      <path d="M16 20.1l-1 1.1h2z" fill="#1a1218" />
-      <path d="M13.8 22q2.2 2.2 4.4 0" fill="none" stroke="#1a1218" strokeWidth=".9" strokeLinecap="round" />
+      {/* Lion Muzzle Bridge */}
+      <path d="M14.6 14.8 L14.2 18 L17.8 18 L17.4 14.8" fill={coat} opacity=".5" />
 
-      {/* Volcanic choker collar with glowing fire-drop jewel */}
-      <path className="dg-pet-accessory" d="M10.3 25c3.6 1.5 8 1.5 11.6 0l.35 1.55c-3.9 1.7-8.4 1.7-12.3 0z" fill="#24151a" stroke="#ea580c" strokeWidth=".5" strokeLinejoin="round" />
+      {/* Broad Lion Muzzle Pads */}
+      <path
+        d="M12.2 18.5 C11.5 19.8 12.2 21.6 14.5 21.6 C15.6 21.6 16 20.8 16 20.2 C16 20.8 16.4 21.6 17.5 21.6 C19.8 21.6 20.5 19.8 19.8 18.5 C19 17.8 17.2 18 16 18.2 C14.8 18 13 17.8 12.2 18.5 Z"
+        fill="#fef3c7"
+        stroke={ink}
+        strokeWidth=".65"
+      />
+
+      {/* Bold Dark Leather Lion Nose */}
+      <path d="M14.4 17.6 L17.6 17.6 C17.9 17.6 18.1 18 17.9 18.3 L16.4 20 C16.2 20.2 15.8 20.2 15.6 20 L14.1 18.3 C13.9 18 14.1 17.6 14.4 17.6 Z" fill="#1c1917" stroke={ink} strokeWidth=".35" />
+      <ellipse cx="15.2" cy="18.5" rx=".3" ry=".4" fill="#3f3f46" />
+      <ellipse cx="16.8" cy="18.5" rx=".3" ry=".4" fill="#3f3f46" />
+
+      {/* Whisker Prickle Dots */}
+      <circle cx="13.6" cy="19.4" r=".32" fill={ink} opacity=".7" />
+      <circle cx="14.4" cy="20.3" r=".32" fill={ink} opacity=".7" />
+      <circle cx="13.2" cy="20.2" r=".28" fill={ink} opacity=".5" />
+      <circle cx="18.4" cy="19.4" r=".32" fill={ink} opacity=".7" />
+      <circle cx="17.6" cy="20.3" r=".32" fill={ink} opacity=".7" />
+      <circle cx="18.8" cy="20.2" r=".28" fill={ink} opacity=".5" />
+
+      {/* Snarl Mouth & Sharp Canine Fangs */}
+      <path d="M14.2 21 C14.8 22.4 17.2 22.4 17.8 21" fill="#450a0a" stroke={ink} strokeWidth=".7" strokeLinecap="round" />
+      {/* Left Sharp Fang */}
+      <polygon points="14.3,21 15.1,21 14.7,22.7" fill="#ffffff" stroke={ink} strokeWidth=".35" />
+      {/* Right Sharp Fang */}
+      <polygon points="17.7,21 16.9,21 17.3,22.7" fill="#ffffff" stroke={ink} strokeWidth=".35" />
+
+      {/* Lion Chin / Regal Goatee Tuft */}
+      <path d="M15 22.4 L16 24.2 L17 22.4 Z" fill="#fef3c7" stroke={ink} strokeWidth=".5" strokeLinejoin="round" />
+
+      {/* Regal Collar & Spiked Crest */}
+      <path className="dg-pet-accessory" d="M11 23.4 C14 24.4 18 24.4 21 23.4 L21.4 24.8 C18 26 14 26 10.6 24.8 Z" fill="#78350f" stroke={ink} strokeWidth=".5" />
       <g className="dg-pet-accessory">
-        <path d="M16 26.2c.8 0 1.4.6 1.4 1.4 0 1.2-1.4 2.4-1.4 2.4s-1.4-1.2-1.4-2.4c0-.8.6-1.4 1.4-1.4z" fill={flame} stroke="#24151a" strokeWidth=".4" />
-        <circle cx="15.7" cy="27.2" r=".3" fill="#ffffff" />
+        <polygon points="16,24.6 17.4,26.2 16,28 14.6,26.2" fill="#f59e0b" stroke={ink} strokeWidth=".4" />
+        <circle cx="16" cy="26.2" r=".7" fill="#dc2626" />
       </g>
     </svg>
   );
@@ -1560,14 +1670,14 @@ export const PETS = [
   { key: "spark", label: "Spark", Svg: Spark },
   { key: "leafy", label: "Leafy", Svg: Leafy },
   { key: "nova", label: "Nova", Svg: Nova },
-  { key: "cinder", label: "Cinder", Svg: Cinder },
+  { key: "cinder", label: "Lion", Svg: Lion },
 ];
 
 // The rover shipped as a turtle originally and admin configs saved in prod may
 // still carry the old key. Map it forward so a saved "featured pet" keeps
 // pointing at the pet the admin actually chose instead of silently falling
 // back to the first entry.
-const LEGACY_KEYS = { turtle: "rover", capybara: "axolotl" };
+const LEGACY_KEYS = { turtle: "rover", capybara: "axolotl", lion: "cinder" };
 
 export function getPetByKey(key) {
   const resolved = LEGACY_KEYS[key] || key;

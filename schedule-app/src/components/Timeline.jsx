@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { MapPin, CheckCircle2, XCircle, AlertTriangle, TrendingDown, Briefcase } from "lucide-react";
 import { sessionKey, isExamSession } from "../lib/attendance.js";
-import { subjectClass } from "../lib/subjectColors.js";
+import { subjectClass, cleanSessionLabel } from "../lib/subjectColors.js";
 import { haptic } from "../lib/haptics.js";
 import IndiaFlagIcon from "./IndiaFlagIcon.jsx";
 import { isNationalHoliday } from "../lib/nationalHolidays.js";
@@ -299,7 +299,7 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
                       {isNationalHoliday(c) && <IndiaFlagIcon size={19} className="row-flag-icon" />}
                       {c.name} {c.session && (
                         <span className={`ses ${subjectClass(c.code)}`}>
-                          {c.code} {c.session}
+                          {c.code} {cleanSessionLabel(c.session)}
                         </span>
                       )}
                     </div>

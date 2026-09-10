@@ -1882,6 +1882,9 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
    in a gold coat is still a tired pet. Tuned as shifts rather than costumes —
    a coat should read as this animal in a different light, not a different
    animal. */
+.dg-pet[data-coat="frost"] { --pet-coat: hue-rotate(175deg) saturate(.92) brightness(1.08); }
+.dg-pet[data-coat="caramel"] { --pet-coat: hue-rotate(30deg) saturate(1.22) brightness(1.04); }
+.dg-pet[data-coat="lavender"] { --pet-coat: hue-rotate(245deg) saturate(.88) brightness(1.05); }
 .dg-pet[data-coat="dusk"] { --pet-coat: hue-rotate(-18deg) saturate(.86) brightness(.92); }
 .dg-pet[data-coat="sand"] { --pet-coat: hue-rotate(18deg) saturate(.82) brightness(1.08); }
 .dg-pet[data-coat="mint"] { --pet-coat: hue-rotate(62deg) saturate(.68) brightness(1.04); }
@@ -2365,7 +2368,7 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 .dg-pet[data-pet="spark"] { --pet-turn: 2.4deg; --pet-accent: #f7c631; }
 .dg-pet[data-pet="leafy"] { --pet-turn: -1.6deg; --pet-accent: #5ec46c; }
 .dg-pet[data-pet="nova"] { --pet-turn: -2deg; --pet-accent: #7c6cf0; }
-.dg-pet[data-pet="cinder"] { --pet-turn: 2.2deg; --pet-accent: #f0592a; }
+.dg-pet[data-pet="cinder"] { --pet-turn: 2.2deg; --pet-accent: #f59e0b; }
 /* Temperament. `--pet-mood-gain` scales how far a mood is allowed to move the
    ears and the body lean, so the same twelve mood rules land differently on
    twelve animals: the penguin barely registers an emotion, the chick has no
@@ -2565,23 +2568,21 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 
 .tmrw-summary-card {
   position: relative;
+  overflow: hidden;
   background: linear-gradient(180deg, var(--card-hi), var(--card));
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 14px 16px 16px;
   box-shadow: 0 1px 2px rgba(20, 20, 30, .03), 0 8px 20px -12px rgba(20, 20, 30, .12);
-  /* was overflow:hidden (to clip ::before's square corners to the card's
-     rounded ones) — that also clipped the rail's tap-to-reveal popover near
-     the card edges. The top bar now carries its own matching radius instead,
-     so the card can stay overflow:visible. */
 }
 
 .tmrw-summary-card::before {
   content: "";
   position: absolute;
-  inset: 0 0 auto 0;
+  top: 0;
+  left: 0;
+  right: 0;
   height: 2px;
-  border-radius: 16px 16px 0 0;
   background: linear-gradient(90deg, var(--violet), var(--blue), var(--live));
   opacity: .6;
 }
@@ -2646,6 +2647,7 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
   border-radius: 99px;
   background: var(--surface);
   border: 1px solid var(--border);
+  overflow: hidden;
 }
 
 .tmrw-rail-seg {
@@ -4764,6 +4766,12 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 }
 
 .ses {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  box-sizing: border-box;
   font-family: var(--mono);
   font-size: 10px;
   font-weight: 800;

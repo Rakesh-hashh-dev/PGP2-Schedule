@@ -193,124 +193,255 @@
 .wrapped-hero-pet-text strong { font-size: 13.5px; font-weight: 800; }
 .wrapped-hero-pet-text span { color: var(--muted); font-size: 11.5px; font-weight: 600; }
 
-/* ── XP gain toast ──────────────────────────────────────────────
-   A small pill that slides up from the bottom-nav area when the pet earns XP
-   from an attendance mark or a completed assignment. Non-blocking, auto-
-   dismisses. Three phases: "enter" (offscreen), "visible" (shown), "exit"
-   (slides back down). */
+/* ── XP gain toast (Revamped Premium Floating Pill) ──────────────
+   A sleek glassmorphic capsule that springs up from the bottom-nav area
+   when the pet earns XP from attendance or assignments. Features a light
+   sheen sweep, glowing XP pill, circular avatar halo, and first-today badge. */
 
 .xp-toast {
   position: fixed;
-  /* Sits just above the bottom nav on mobile; on desktop it floats near the bottom-left */
-  bottom: 88px;
+  font-family: var(--body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.2;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   left: 50%;
-  transform: translateX(-50%) translateY(24px);
+  transform: translateX(-50%) translateY(28px) scale(0.93);
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 14px 8px 10px;
+  gap: 10px;
+  padding: 6px 16px 6px 8px;
+  max-width: min(440px, calc(100vw - 24px));
+  box-sizing: border-box;
   border-radius: 999px;
-  background: var(--card);
-  border: 1px solid color-mix(in srgb, var(--violet) 36%, var(--border));
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(109, 91, 208, 0.22);
   box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--violet) 18%, transparent),
-    0 8px 32px -6px color-mix(in srgb, var(--violet) 28%, rgba(0,0,0,.22)),
-    0 2px 8px -2px rgba(0,0,0,.14);
+    0 20px 48px -12px rgba(109, 91, 208, 0.32),
+    0 4px 16px -2px rgba(21, 24, 43, 0.1),
+    inset 0 1px 1px rgba(255, 255, 255, 0.95);
   z-index: 10003;
   pointer-events: none;
-  white-space: nowrap;
   opacity: 0;
+  overflow: hidden;
   transition:
-    opacity 300ms cubic-bezier(.2,.9,.3,1),
-    transform 340ms cubic-bezier(.2,.9,.3,1);
+    opacity 350ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 450ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    bottom 300ms ease;
+}
+
+html[data-theme="dark"] .xp-toast {
+  background: rgba(26, 29, 39, 0.92);
+  border: 1px solid rgba(139, 122, 232, 0.32);
+  box-shadow:
+    0 20px 48px -10px rgba(0, 0, 0, 0.65),
+    0 0 0 1px rgba(139, 122, 232, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+/* On mobile with the liquid-glass dock (.bnav), clear the dock + safe area */
+body:has(.bnav) .xp-toast {
+  bottom: calc(90px + env(safe-area-inset-bottom, 0px));
+}
+
+@media (max-width: 1024px) {
+  .xp-toast {
+    bottom: calc(90px + env(safe-area-inset-bottom, 0px));
+  }
+  body:not(:has(.bnav)) .xp-toast {
+    bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 .xp-toast--visible {
   opacity: 1;
-  transform: translateX(-50%) translateY(0);
+  transform: translateX(-50%) translateY(0) scale(1);
 }
 
 .xp-toast--exit {
   opacity: 0;
-  transform: translateX(-50%) translateY(20px);
+  transform: translateX(-50%) translateY(18px) scale(0.95);
   transition:
-    opacity 420ms ease,
-    transform 420ms ease;
+    opacity 380ms ease,
+    transform 380ms ease;
 }
 
-/* Desktop: anchor to bottom-left instead of centered */
+/* Desktop & tablet landscape */
 @media (min-width: 1025px),
 (min-width: 768px) and (orientation: landscape) {
   .xp-toast {
-    left: auto;
-    right: 28px;
-    bottom: 28px;
-    transform: translateY(24px);
-  }
-  .xp-toast--visible {
-    transform: translateY(0);
-  }
-  .xp-toast--exit {
-    transform: translateY(20px);
+    bottom: calc(34px + env(safe-area-inset-bottom, 0px));
   }
 }
 
-/* Pet avatar inside the toast */
-.xp-toast-pet {
+/* Subtle light sheen ray sweeping across the capsule on mount */
+.xp-toast-sheen {
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 70%;
+  height: 100%;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.45) 50%,
+    transparent 100%
+  );
+  pointer-events: none;
+  transform: skewX(-20deg);
+}
+
+html[data-theme="dark"] .xp-toast-sheen {
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.14) 50%,
+    transparent 100%
+  );
+}
+
+.xp-toast--visible .xp-toast-sheen {
+  animation: xp-toast-sweep 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
+}
+
+@keyframes xp-toast-sweep {
+  0% { left: -100%; }
+  100% { left: 200%; }
+}
+
+/* Pet avatar cradle disc */
+.xp-toast-pet-disc {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
+  justify-content: center;
   flex: none;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--violet) 10%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--violet) 26%, transparent);
+  box-shadow: 0 2px 8px -1px color-mix(in srgb, var(--violet) 28%, transparent);
 }
 
-/* XP number pill */
+.xp-toast--visible .xp-toast-pet-disc {
+  animation: xp-pet-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) 0.08s both;
+}
+
+@keyframes xp-pet-pop {
+  0% { transform: scale(0.6) rotate(-8deg); opacity: 0; }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+
+/* Radiant XP Pill */
 .xp-toast-pill {
   display: inline-flex;
-  align-items: baseline;
-  gap: 1px;
-  padding: 2px 9px;
+  align-items: center;
+  gap: 3.5px;
+  padding: 3.5px 10px 3.5px 8px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--violet) 18%, var(--bg));
-  border: 1px solid color-mix(in srgb, var(--violet) 30%, transparent);
-  color: var(--violet);
-  font-size: 12px;
-  font-weight: 900;
+  background: linear-gradient(135deg, #7C3AED 0%, #6366F1 100%);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow: 0 2px 10px rgba(124, 58, 237, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  color: #FFFFFF;
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -.01em;
+  letter-spacing: -0.01em;
+  flex-shrink: 0;
 }
 
-.xp-toast-plus {
-  font-size: 10px;
-  font-weight: 700;
-  opacity: .8;
+.xp-toast-pill-icon {
+  color: #FDE047;
+  filter: drop-shadow(0 0 4px rgba(253, 224, 71, 0.6));
+  flex-shrink: 0;
 }
 
 .xp-toast-amount {
-  font-size: 13.5px;
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
 }
 
 .xp-toast-unit {
-  font-size: 10px;
-  font-weight: 700;
-  opacity: .75;
-  letter-spacing: .03em;
+  font-family: var(--display);
+  font-size: 9.5px;
+  font-weight: 800;
+  opacity: 0.9;
+  letter-spacing: 0.04em;
+  line-height: 1;
 }
 
-/* Label beside the pill */
-.xp-toast-label {
-  color: var(--muted);
-  font-size: 12px;
+/* Info container: label & streak badge */
+.xp-toast-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.xp-toast-source {
+  font-family: var(--body);
+  font-size: 13px;
   font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* ── Sparkle burst ──────────────────────────────────────────────
-   Six dots that scatter outward from the pill on mount. Pure CSS,
-   reduced-motion guards included. */
+/* First of the day radiant gold badge */
+.xp-toast-streak-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4.5px;
+  padding: 3px 9px 3px 7px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(254, 243, 199, 0.95) 0%, rgba(254, 215, 170, 0.88) 100%);
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  box-shadow:
+    0 1px 4px rgba(245, 158, 11, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  color: #92400e;
+  font-family: var(--body);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  flex-shrink: 0;
+}
+
+html[data-theme="dark"] .xp-toast-streak-badge {
+  background: linear-gradient(135deg, rgba(217, 119, 6, 0.28) 0%, rgba(180, 83, 9, 0.2) 100%);
+  border-color: rgba(245, 158, 11, 0.45);
+  box-shadow:
+    0 1px 6px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  color: #FDE047;
+}
+
+.xp-toast-streak-svg {
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 2px rgba(245, 158, 11, 0.5));
+  animation: xp-streak-twinkle 2.4s ease-in-out infinite;
+}
+
+@keyframes xp-streak-twinkle {
+  0%, 100% { transform: scale(1) rotate(0deg); opacity: 1; }
+  50% { transform: scale(1.12) rotate(12deg); opacity: 0.9; }
+}
+
+/* ── Sparkle burst ────────────────────────────────────────────── */
 .xp-toast-sparks {
   position: absolute;
-  /* Centred over the XP pill area */
-  left: 50%;
+  left: 48px;
   top: 50%;
   pointer-events: none;
+  z-index: 10;
 }
 
 .xp-toast-spark {
@@ -318,38 +449,62 @@
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: var(--violet);
   opacity: 0;
 }
 
-/* Each spark is fired on .xp-toast--visible */
 .xp-toast--visible .xp-toast-spark {
-  animation: xp-spark 600ms cubic-bezier(.2, .9, .3, 1) forwards;
+  animation: xp-spark 650ms cubic-bezier(.2, .9, .3, 1) forwards;
 }
 
-.xp-toast-spark--0 { --sx: -18px; --sy: -16px; animation-delay:  20ms; background: var(--violet); }
-.xp-toast-spark--1 { --sx:  18px; --sy: -16px; animation-delay:  50ms; background: color-mix(in srgb, var(--violet) 70%, var(--amber)); }
-.xp-toast-spark--2 { --sx: -22px; --sy:   0px; animation-delay:  35ms; background: var(--amber); }
-.xp-toast-spark--3 { --sx:  22px; --sy:   0px; animation-delay:  65ms; background: color-mix(in srgb, var(--live) 70%, var(--violet)); }
-.xp-toast-spark--4 { --sx:  -9px; --sy:  18px; animation-delay:  15ms; background: var(--live); }
-.xp-toast-spark--5 { --sx:   9px; --sy:  18px; animation-delay:  80ms; background: var(--violet); }
+.xp-toast-spark--0 { --sx: -18px; --sy: -18px; animation-delay:  10ms; background: #8B5CF6; }
+.xp-toast-spark--1 { --sx:  16px; --sy: -18px; animation-delay:  40ms; background: #F59E0B; }
+.xp-toast-spark--2 { --sx: -24px; --sy:  -2px; animation-delay:  25ms; background: #EC4899; }
+.xp-toast-spark--3 { --sx:  24px; --sy:  -2px; animation-delay:  55ms; background: #10B981; }
+.xp-toast-spark--4 { --sx: -12px; --sy:  16px; animation-delay:  35ms; background: #3B82F6; }
+.xp-toast-spark--5 { --sx:  12px; --sy:  16px; animation-delay:  70ms; background: #8B5CF6; }
+.xp-toast-spark--6 { --sx:   0px; --sy: -22px; animation-delay:  15ms; background: #FDE047; }
+.xp-toast-spark--7 { --sx:   0px; --sy:  20px; animation-delay:  60ms; background: #A855F7; }
 
 @keyframes xp-spark {
   0%   { opacity: 1; transform: translate(0, 0) scale(1); }
-  60%  { opacity: .8; }
-  100% { opacity: 0; transform: translate(var(--sx), var(--sy)) scale(.3); }
+  60%  { opacity: 0.9; }
+  100% { opacity: 0; transform: translate(var(--sx), var(--sy)) scale(0.25); }
+}
+
+/* Compact mobile screens (iPhone SE, small Androids, narrow viewports) */
+@media (max-width: 380px) {
+  .xp-toast {
+    gap: 6px;
+    padding: 5px 12px 5px 6px;
+    max-width: calc(100vw - 16px);
+  }
+  .xp-toast-pet-disc {
+    width: 32px;
+    height: 32px;
+  }
+  .xp-toast-pill {
+    padding: 2.5px 8px;
+    font-size: 12px;
+  }
+  .xp-toast-source {
+    font-size: 12px;
+    max-width: 100px;
+  }
+  .xp-toast-streak-badge {
+    padding: 2px 6px;
+    font-size: 10px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .xp-toast, .xp-toast--visible, .xp-toast--exit {
     transition: opacity 150ms ease;
-    transform: translateX(-50%) translateY(0);
+    transform: translateX(-50%) translateY(0) scale(1);
   }
-  @media (min-width: 1025px), (min-width: 768px) and (orientation: landscape) {
-    .xp-toast, .xp-toast--visible, .xp-toast--exit {
-      transform: translateY(0);
-    }
+  .xp-toast-sheen,
+  .xp-toast-spark,
+  .xp-toast-pet-disc {
+    animation: none !important;
   }
-  .xp-toast-spark { display: none; }
 }
 

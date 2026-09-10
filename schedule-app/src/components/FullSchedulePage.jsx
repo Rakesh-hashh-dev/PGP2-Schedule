@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from "react";
 import "../styles/fullschedule.css";
 import { ArrowLeft, Clock, MapPin, User, SlidersHorizontal, X, ArrowUp, Calendar, ChevronLeft, ChevronRight, List, CalendarDays, GraduationCap, CalendarClock, PartyPopper, Briefcase } from "lucide-react";
-import { subjectClass } from "../lib/subjectColors.js";
+import { subjectClass, cleanSessionLabel } from "../lib/subjectColors.js";
 import { isExamSession } from "../lib/attendance.js";
 import { CalendarEventBadgeSVG } from "./CalendarSVGs.jsx";
 
@@ -761,7 +761,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                                     Sec {c.section}
                                   </span>
                                 )}
-                                <span className={`ses ${subjCls}`}>{c.code} {c.session}</span>
+                                <span className={`ses ${subjCls}`}>{c.code} {cleanSessionLabel(c.session)}</span>
                               </div>
                               {countdownStr && <span className="fs-upcoming-badge">{countdownStr}</span>}
                             </div>
@@ -1047,7 +1047,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                                 Sec {c.section}
                               </span>
                             )}
-                            <span className={`ses ${subjCls}`}>{c.code} {c.session}</span>
+                            <span className={`ses ${subjCls}`}>{c.code} {cleanSessionLabel(c.session)}</span>
                           </div>
                         </div>
                         <div className="fs-card-meta">

@@ -140,6 +140,9 @@ const HAT_KEYS = new Set(HATS.map(h => h.key));
  * shifts and not costume changes.
  */
 export const COATS = [
+  { key: "frost", label: "Frost", level: 1 },
+  { key: "caramel", label: "Caramel", level: 1 },
+  { key: "lavender", label: "Lavender", level: 1 },
   { key: "dusk", label: "Dusk", devotion: 1 },
   { key: "sand", label: "Sand", devotion: 2 },
   { key: "mint", label: "Mint", devotion: 4 },
@@ -609,6 +612,7 @@ export function neckwearFor(state, opts = {}) {
 export function coatRequirement(key) {
   const coat = COATS.find(c => c.key === key);
   if (!coat) return null;
+  if (coat.level === 1) return "Free";
   return coat.devotion ? `Devotion ${coat.devotion}` : `Level ${coat.level}`;
 }
 

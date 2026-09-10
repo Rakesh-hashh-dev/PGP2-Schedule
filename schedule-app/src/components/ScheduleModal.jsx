@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, X, CalendarDays, ArrowRight, BarChart3, ChevronDown } from "lucide-react";
 import WeekGlance from "./WeekGlance.jsx";
-import { subjectClass } from "../lib/subjectColors.js";
+import { subjectClass, cleanSessionLabel } from "../lib/subjectColors.js";
 import { isNationalHoliday } from "../lib/nationalHolidays.js";
 import IndiaFlagIcon from "./IndiaFlagIcon.jsx";
 
@@ -133,7 +133,7 @@ export default function ScheduleModal({ visible, now, offset, setOffset, todayIS
                         <span className="sm-name">
                           {isNationalHoliday(c) && <IndiaFlagIcon size={13} className="row-flag-icon" />}
                           {c.name}
-                          {c.session && <span className={`ses ${subjectClass(c.code)}`}>{c.code} {c.session}</span>}
+                          {c.session && <span className={`ses ${subjectClass(c.code)}`}>{c.code} {cleanSessionLabel(c.session)}</span>}
                         </span>
                         {c.type === "class" && c.room && <span className="sm-room">{c.room}</span>}
                       </span>

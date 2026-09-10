@@ -35,3 +35,14 @@ export function subjectHue(code) {
 export function subjectClass(code) {
   return `subj-${subjectHue(code)}`;
 }
+
+/**
+ * Strips redundant professor/faculty names from sheet session strings
+ * (e.g. "1 (Prof. Pritee Kumari)" -> "1") so session chips remain compact and readable.
+ */
+export function cleanSessionLabel(session) {
+  if (!session) return "";
+  const cleaned = String(session).replace(/\s*\([^)]*(?:Prof|Faculty|Dr)[^)]*\)/gi, "").trim();
+  return cleaned || String(session);
+}
+
