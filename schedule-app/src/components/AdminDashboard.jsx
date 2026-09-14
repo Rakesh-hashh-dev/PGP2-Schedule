@@ -120,6 +120,19 @@ function relativeUserActivity(value) {
   return new Date(value).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
 
+const IST_DATE_FORMATTER = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Kolkata",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+function istDateKey(value) {
+  const parts = IST_DATE_FORMATTER.formatToParts(new Date(value));
+  const part = type => parts.find(item => item.type === type)?.value;
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
 // Shared centered-overlay modal shell — backdrop click / X both close, body
 // scrolls with a hidden scrollbar track. Width is per-modal (list modals want
 // more room than a short confirm), everything else (positioning, max-height,
@@ -326,6 +339,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [reviewDrift, setReviewDrift] = useState(null); // null | { when }
 
   const [allUsers, setAllUsers] = useState([]);
+  const [presenceHistory, setPresenceHistory] = useState([]);
+  const [presenceHistoryAvailable, setPresenceHistoryAvailable] = useState(false);
+  const [presenceAsOf, setPresenceAsOf] = useState(LOAD_NOW);
   const [searchQuery, setSearchQuery] = useState("");
   const [loadingUsers, setLoadingUsers] = useState(true);
 
@@ -731,6 +747,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           console.error("Supabase Error:", error);
           setTotalUsers("Error: " + error.message);
         } else if (data) {
+          const historyNow = Date.now();
+          setPresenceAsOf(historyNow);
           const prodRows = data.filter(d => !devIds.has(d.user_id));
           setTotalUsers(prodRows.length);
           let allEnrolled = [];
@@ -750,12 +768,11 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           });
           setAllUsers(usersWithNames);
 
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          const todayTs = today.getTime();
+          const todayKey = istDateKey(historyNow);
 
-          // True DAU (active since midnight local time)
-          const dau = prodRows.filter(d => d.last_seen_at && new Date(d.last_seen_at).getTime() >= todayTs).length;
+          // Snapshot fallback for deployments where the durable-history RPC
+          // has not landed yet. A successful RPC below replaces these values.
+          const dau = prodRows.filter(d => d.last_seen_at && istDateKey(d.last_seen_at) === todayKey).length;
           setActiveUsers(dau);
 
           // Rolling active-user tiers (last 1 / 7 / 30 days) for retention at a glance
@@ -764,18 +781,49 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           setActiveTiers({ dau, wau: within(7), mau: within(30) });
 
           // Build 7-day calendar bar chart and peak hour using prod users only
+          const fallbackDayKeys = Array.from({ length: 7 }, (_, i) => istDateKey(historyNow - (6 - i) * 86400000));
           const counts = Array(7).fill(0);
           const hourCounts = Array(24).fill(0);
           prodRows.forEach(row => {
              if (!row.last_seen_at) return;
              const rowDate = new Date(row.last_seen_at);
-             hourCounts[rowDate.getHours()]++;
-             rowDate.setHours(0, 0, 0, 0);
-             const daysAgo = Math.round((todayTs - rowDate.getTime()) / 86400000);
-             if (daysAgo >= 0 && daysAgo < 7) counts[6 - daysAgo]++;
+             const hour = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", hour: "2-digit", hour12: false }).format(rowDate)) % 24;
+             hourCounts[hour]++;
+             const dayIndex = fallbackDayKeys.indexOf(istDateKey(rowDate));
+             if (dayIndex >= 0) counts[dayIndex]++;
           });
           setActivityChartData(counts);
           setPeakHour(hourCounts.indexOf(Math.max(...hourCounts, 0)));
+
+          const { data: history, error: historyError } = await supabase
+            .rpc("admin_get_presence_history", { p_days: 30 });
+          if (!historyError && Array.isArray(history)) {
+            const prodIds = new Set(prodRows.map(row => row.user_id));
+            const cleanHistory = history.filter(row => prodIds.has(row.user_id));
+            setPresenceHistory(cleanHistory);
+            setPresenceHistoryAvailable(true);
+
+            const dayKeys = Array.from({ length: 7 }, (_, i) => istDateKey(historyNow - (6 - i) * 86400000));
+            const durableCounts = dayKeys.map(key => cleanHistory.filter(row => row.activity_date === key).length);
+            const durableHours = Array(24).fill(0);
+            cleanHistory.forEach(row => {
+              Object.entries(row.hourly_heartbeats || {}).forEach(([hour, count]) => {
+                const hourNumber = Number(hour);
+                if (count > 0 && hourNumber >= 0 && hourNumber < 24) durableHours[hourNumber]++;
+              });
+            });
+            const durableToday = new Set(cleanHistory.filter(row => row.activity_date === todayKey).map(row => row.user_id)).size;
+            const lastSevenKeys = new Set(dayKeys);
+            const durableWeek = new Set(cleanHistory.filter(row => lastSevenKeys.has(row.activity_date)).map(row => row.user_id)).size;
+            const durableMonth = new Set(cleanHistory.map(row => row.user_id)).size;
+            setActiveUsers(durableToday);
+            setActiveTiers({ dau: durableToday, wau: durableWeek, mau: durableMonth });
+            setActivityChartData(durableCounts);
+            setPeakHour(durableHours.some(Boolean) ? durableHours.indexOf(Math.max(...durableHours)) : null);
+          } else {
+            setPresenceHistory([]);
+            setPresenceHistoryAvailable(false);
+          }
 
           // Tally popular courses
           const courseCounts = {};
@@ -1321,30 +1369,61 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     return { signedUp, pickedSection, pushDevices, activeWeek };
   })();
 
-  // ── Weekly Presence: per-day, per-hour buckets from last_seen_at ────────────
-  // One entry per user per day (last_seen_at is a single heartbeat per user,
-  // stamped at most once/hour). Index 0 = 6 days ago, index 6 = today.
+  // ── Weekly Presence: durable per-user, per-day IST activity ────────────────
+  // Index 0 = 6 days ago, index 6 = today. Before the migration is deployed,
+  // this falls back to the old single-last-seen snapshot without pretending it
+  // is historical data.
   const weeklyPresence = (() => {
     const days = Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(LOAD_NOW - (6 - i) * 86400000);
-      d.setHours(0, 0, 0, 0);
+      const d = new Date(presenceAsOf - (6 - i) * 86400000);
       return {
-        ts: d.getTime(),
-        label: d.toLocaleDateString("en-IN", { weekday: "short" }),
-        date: d.toLocaleDateString("en-IN", { day: "numeric", month: "short" }),
-        isoDate: d.toISOString().split("T")[0],
-        users: [],           // { name, hour, userId, section, isNew, seenTs }
+        label: d.toLocaleDateString("en-IN", { weekday: "short", timeZone: "Asia/Kolkata" }),
+        date: d.toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" }),
+        isoDate: istDateKey(d),
+        users: [],
         hourBuckets: Array(24).fill(0),
       };
     });
 
+    const usersById = new Map(allUsers.map(user => [user.user_id, user]));
+    if (presenceHistoryAvailable) {
+      presenceHistory.forEach(record => {
+        const day = days.find(item => item.isoDate === record.activity_date);
+        const u = usersById.get(record.user_id);
+        if (!day || !u) return;
+        const seenDate = new Date(record.last_seen_at);
+        const firstSeenDate = new Date(record.first_seen_at);
+        const recordedHours = Object.entries(record.hourly_heartbeats || {})
+          .filter(([, count]) => Number(count) > 0)
+          .map(([hour]) => Number(hour))
+          .filter(hour => hour >= 0 && hour < 24);
+        const hours = recordedHours.length ? recordedHours : [Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", hour: "2-digit", hour12: false }).format(seenDate)) % 24];
+        const section = userSection(u);
+        const isNew = u.updated_at
+          ? Math.abs(new Date(u.updated_at).getTime() - firstSeenDate.getTime()) <= 86400000
+          : false;
+        day.users.push({
+          name: u.name || "Student",
+          hour: hours[hours.length - 1],
+          hours,
+          userId: u.user_id,
+          section,
+          isNew,
+          firstSeenTs: firstSeenDate.getTime(),
+          seenTs: seenDate.getTime(),
+          heartbeatCount: Number(record.heartbeat_count) || 1,
+        });
+        hours.forEach(hour => { day.hourBuckets[hour]++; });
+      });
+      return days;
+    }
+
     allUsers.forEach(u => {
       if (!u.last_seen_at) return;
       const seenDate = new Date(u.last_seen_at);
-      const dayStart = new Date(seenDate); dayStart.setHours(0, 0, 0, 0);
-      const dayIdx = days.findIndex(d => d.ts === dayStart.getTime());
+      const dayIdx = days.findIndex(d => d.isoDate === istDateKey(seenDate));
       if (dayIdx === -1) return;
-      const hour = seenDate.getHours();
+      const hour = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", hour: "2-digit", hour12: false }).format(seenDate)) % 24;
       // Derive section from the first non-underscore course key
       const courseKeys = Object.keys(u.courses || {}).filter(c => !c.startsWith("_"));
       const section = courseKeys.length > 0
@@ -1352,15 +1431,18 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
         : "—";
       // Mark as "new" if they signed up (updated_at) within 24h of the day
       const isNew = u.updated_at
-        ? Math.abs(new Date(u.updated_at).getTime() - dayStart.getTime()) <= 86400000
+        ? Math.abs(new Date(u.updated_at).getTime() - seenDate.getTime()) <= 86400000
         : false;
       days[dayIdx].users.push({
         name: u.name || "Student",
         hour,
+        hours: [hour],
         userId: u.user_id,
         section,
         isNew,
         seenTs: seenDate.getTime(),
+        firstSeenTs: seenDate.getTime(),
+        heartbeatCount: 1,
       });
       days[dayIdx].hourBuckets[hour]++;
     });
@@ -1624,7 +1706,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const insightsPushReadiness = typeof totalUsers === "number" && totalUsers ? Math.round((Number(pushSubCount) / totalUsers) * 100) : 0;
   const insightsAbsences = skipStats.reduce((sum, [, count]) => sum + Number(count || 0), 0);
   const insightsEnabledFeatures = FEATURE_FLAGS.filter(feature => flags[feature.key] !== false).length;
-  const presenceSeenThisWeek = weeklyPresence.reduce((sum, day) => sum + day.users.length, 0);
+  const presenceSeenThisWeek = new Set(weeklyPresence.flatMap(day => day.users.map(user => user.userId))).size;
+  const presenceActivityDays = weeklyPresence.reduce((sum, day) => sum + day.users.length, 0);
   const presencePeakDay = weeklyPresence.reduce((peak, day) => day.users.length > peak.users.length ? day : peak, weeklyPresence[0]);
   const dbColumns = [...new Set(dbRows.flatMap(row => Object.keys(row)))];
   const filteredDbRows = dbRows.filter(row => {
@@ -2103,7 +2186,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           {/* Active Today */}
           <div
             className="admin-kpi-card accent-violet clickable"
-            title="Unique students active since midnight (click to inspect)"
+            title="Unique students who opened TermFlow since 12:00 AM IST (click to inspect)"
             onClick={() => setActiveUsersListModalOpen(true)}
           >
             <div className="admin-kpi-header">
@@ -2112,7 +2195,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             </div>
             <div className="admin-kpi-value interactive">{statsLoading ? "..." : activeUsers}</div>
             <div className="admin-kpi-sub">
-              <span>Since midnight</span>
+              <span>12:00 AM–11:59 PM IST</span>
               <span className="admin-kpi-action-hint">↗ View</span>
             </div>
           </div>
@@ -4533,7 +4616,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                       <span>{u.email || u.user_id}</span>
                     </button>
                   </div>
-                  <div className="admin-users-activity" role="cell"><span className={`is-${activityTone}`} /> <div><strong>{relativeUserActivity(u.last_seen_at)}</strong><small>{u.last_seen_at ? new Date(u.last_seen_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "No heartbeat recorded"}</small></div></div>
+                  <div className="admin-users-activity" role="cell"><span className={`is-${activityTone}`} /> <div><strong>{relativeUserActivity(u.last_seen_at)}</strong><small>{u.last_seen_at ? `${new Date(u.last_seen_at).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })} IST` : "No heartbeat recorded"}</small></div></div>
                   <div className="admin-users-enrollment-cell" role="cell"><strong>{userSection(u) === "—" ? "No section" : `Section ${userSection(u)}`}</strong><span>{courseCount} course{courseCount === 1 ? "" : "s"}</span></div>
                   <div className="admin-users-push-cell" role="cell"><span className={pushEnabled ? "is-on" : ""}><BellRing size={12} /> {pushEnabled ? "Enabled" : "Off"}</span></div>
                   <div className="admin-users-row-actions" role="cell">
@@ -4617,12 +4700,21 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           {/* ── Weekly Presence Heatmap ── */}
           <section className="admin-card admin-span-all admin-g-insights weekly-presence-workspace" style={{ gridColumn: "1 / -1" }}>
             <div className="presence-head">
-              <div><span className="insights-eyebrow"><Users size={13} /> Cohort heartbeat</span><h2>Weekly Presence</h2><p>Latest student activity from last-seen heartbeats. Select a day to inspect its hourly distribution.</p></div>
+              <div><span className="insights-eyebrow"><Users size={13} /> Cohort heartbeat</span><h2>Weekly Presence</h2><p>Durable daily activity in IST. A student stays counted on every day they opened TermFlow.</p></div>
               <div className="presence-head-actions">
                 {weeklyPresenceDay !== null && <button className="admin-btn outline" onClick={() => { setWeeklyPresenceDay(null); setWeeklyPresenceHourFilter(null); }}><X size={13} /> Back to week</button>}
                 <button className="admin-btn outline" onClick={() => {
-                  const rows = [["Day", "Date", "Name", "Last seen", "Hour", "Section"]];
-                  weeklyPresence.forEach(day => day.users.forEach(u => rows.push([day.label, day.date, u.name, new Date(u.seenTs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }), u.hour, u.section])));
+                  const rows = [["Day", "Date", "Name", "First seen (IST)", "Last seen (IST)", "Heartbeat check-ins", "Active hours", "Section"]];
+                  weeklyPresence.forEach(day => day.users.forEach(u => rows.push([
+                    day.label,
+                    day.isoDate,
+                    u.name,
+                    new Date(u.firstSeenTs).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }),
+                    new Date(u.seenTs).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }),
+                    u.heartbeatCount,
+                    u.hours.map(hour => `${String(hour).padStart(2, "0")}:00`).join(";"),
+                    u.section,
+                  ])));
                   const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, "'")}"`).join(",")).join("\n");
                   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
                   a.download = `weekly-presence-${new Date().toISOString().split("T")[0]}.csv`; a.click();
@@ -4631,8 +4723,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             </div>
 
             <div className="presence-kpis">
-              <div><span>Seen in 7 days</span><strong>{presenceSeenThisWeek}</strong><small>{typeof totalUsers === "number" && totalUsers ? `${Math.round((presenceSeenThisWeek / totalUsers) * 100)}% of profiles` : "latest heartbeat coverage"}</small></div>
-              <div><span>Seen today</span><strong>{weeklyPresence[6]?.users.length || 0}</strong><small>latest activity today</small></div>
+              <div><span>Unique users · 7d</span><strong>{presenceSeenThisWeek}</strong><small>{typeof totalUsers === "number" && totalUsers ? `${Math.round((presenceSeenThisWeek / totalUsers) * 100)}% reach · ${presenceActivityDays} user-days` : `${presenceActivityDays} user-days`}</small></div>
+              <div><span>Active today</span><strong>{weeklyPresence[6]?.users.length || 0}</strong><small>12:00 AM–11:59 PM IST</small></div>
               <div><span>Busiest day</span><strong>{presencePeakDay?.users.length ? presencePeakDay.label : "—"}</strong><small>{presencePeakDay?.users.length || 0} student{presencePeakDay?.users.length === 1 ? "" : "s"} seen</small></div>
               <div className={ghostUsers.length ? "is-risk" : ""}><span>Inactive 7d+</span><strong>{ghostUsers.length}</strong><small>{ghostUsers.length ? "retention follow-up" : "no known risk"}</small></div>
             </div>
@@ -4659,19 +4751,19 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     </button>;
                   })}
                 </div>
-                <p className="presence-method-note"><Activity size={13} /> Each profile appears on the day of its latest recorded heartbeat; this is a recency snapshot, not a session history.</p>
+                <p className="presence-method-note"><Activity size={13} /> {presenceHistoryAvailable ? "Daily counts are stored permanently and no longer shrink when a student returns on a later day. History before this rollout is limited to each profile’s last available heartbeat." : "Durable history is not deployed yet, so this is the legacy latest-heartbeat snapshot and older bars can still shrink."}</p>
               </div>
             ) : (() => {
               const day = weeklyPresence[weeklyPresenceDay];
               const maxHour = Math.max(...day.hourBuckets, 1);
-              const filtered = weeklyPresenceHourFilter !== null ? day.users.filter(u => u.hour === weeklyPresenceHourFilter) : day.users;
+              const filtered = weeklyPresenceHourFilter !== null ? day.users.filter(u => u.hours.includes(weeklyPresenceHourFilter)) : day.users;
               const sorted = [...filtered].sort((a, b) => weeklyPresenceSort === "name" ? a.name.localeCompare(b.name) : b.seenTs - a.seenTs);
               const secCounts = {};
               day.users.forEach(u => { secCounts[u.section] = (secCounts[u.section] || 0) + 1; });
               return <div className="presence-day-view">
-                <div className="presence-detail-head"><div><span>Selected day</span><h3>{day.label} · {day.date}</h3><small>{day.users.length} student{day.users.length === 1 ? "" : "s"} seen</small></div><div className="presence-section-chips">{Object.entries(secCounts).filter(([section]) => section !== "—").sort((a, b) => b[1] - a[1]).map(([section, count]) => <span key={section}>Sec {section} <strong>{count}</strong></span>)}</div><div className="presence-sort" role="group" aria-label="Sort presence list"><button type="button" className={weeklyPresenceSort === "time" ? "active" : ""} onClick={() => setWeeklyPresenceSort("time")}>Recent first</button><button type="button" className={weeklyPresenceSort === "name" ? "active" : ""} onClick={() => setWeeklyPresenceSort("name")}>Name</button></div></div>
+                <div className="presence-detail-head"><div><span>Selected day · IST</span><h3>{day.label} · {day.date}</h3><small>{day.users.length} unique student{day.users.length === 1 ? "" : "s"} active from 12:00 AM to 11:59 PM</small></div><div className="presence-section-chips">{Object.entries(secCounts).filter(([section]) => section !== "—").sort((a, b) => b[1] - a[1]).map(([section, count]) => <span key={section}>Sec {section} <strong>{count}</strong></span>)}</div><div className="presence-sort" role="group" aria-label="Sort presence list"><button type="button" className={weeklyPresenceSort === "time" ? "active" : ""} onClick={() => setWeeklyPresenceSort("time")}>Recent first</button><button type="button" className={weeklyPresenceSort === "name" ? "active" : ""} onClick={() => setWeeklyPresenceSort("name")}>Name</button></div></div>
                 <div className="presence-hour-panel">
-                  <div className="presence-hour-head"><div><span>Hourly activity</span><strong>{weeklyPresenceHourFilter !== null ? `${weeklyPresenceHourFilter}:00–${weeklyPresenceHourFilter}:59` : "All hours"}</strong></div>{weeklyPresenceHourFilter !== null && <button type="button" onClick={() => setWeeklyPresenceHourFilter(null)}>Clear hour</button>}</div>
+                  <div className="presence-hour-head"><div><span>Unique users by hour · IST</span><strong>{weeklyPresenceHourFilter !== null ? `${weeklyPresenceHourFilter}:00–${weeklyPresenceHourFilter}:59` : "All hours"}</strong></div>{weeklyPresenceHourFilter !== null && <button type="button" onClick={() => setWeeklyPresenceHourFilter(null)}>Clear hour</button>}</div>
                   <div className="presence-hour-chart">{day.hourBuckets.map((count, hour) => { const isSelected = weeklyPresenceHourFilter === hour; const intensity = count === 0 ? 0 : Math.max(.14, count / maxHour); return <button type="button" key={hour} className={isSelected ? "active" : ""} disabled={count === 0} title={`${hour}:00 — ${count} student${count === 1 ? "" : "s"}`} onClick={() => setWeeklyPresenceHourFilter(isSelected ? null : hour)} aria-label={`Filter to ${hour}:00, ${count} students`}><i style={{ height: count === 0 ? 5 : `${Math.max(10, Math.round(intensity * 44))}px`, opacity: count === 0 ? .25 : Math.max(.35, intensity) }} /></button>; })}</div>
                   <div className="presence-hour-axis">{["12am", "3am", "6am", "9am", "12pm", "3pm", "6pm", "9pm", "11pm"].map(label => <span key={label}>{label}</span>)}</div>
                 </div>
@@ -4682,7 +4774,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     return <article key={u.userId + index} className="presence-user-row" role="button" tabIndex={0} onClick={() => setSelectedUser(targetUser)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedUser(targetUser); } }}>
                       <span className="presence-avatar">{initials}</span>
                       <div className="presence-user-copy"><strong>{u.name}</strong><span>{u.isNew && <i className="is-new">New</i>}{u.section !== "—" && <i>Section {u.section}</i>}</span></div>
-                      <div className="presence-user-time"><strong>{new Date(u.seenTs).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</strong><span>{u.hour}:00 slot</span></div>
+                      <div className="presence-user-time"><strong>Last {new Date(u.seenTs).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })}</strong><span>First {new Date(u.firstSeenTs).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })} · {u.heartbeatCount} check-in{u.heartbeatCount === 1 ? "" : "s"}</span></div>
                       <button type="button" className="admin-btn outline" onClick={event => { event.stopPropagation(); setSelectedUser(targetUser); }}><Eye size={14} /> Inspect</button>
                     </article>;
                   })}
@@ -6185,7 +6277,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             </section>
 
             <section className="admin-user-xray-metrics">
-              <div><span>Last active</span><strong>{relativeUserActivity(selectedUser.last_seen_at)}</strong><small>{selectedUser.last_seen_at ? new Date(selectedUser.last_seen_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "No heartbeat"}</small></div>
+              <div><span>Last seen</span><strong>{relativeUserActivity(selectedUser.last_seen_at)}</strong><small>{selectedUser.last_seen_at ? `${new Date(selectedUser.last_seen_at).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Asia/Kolkata" })} IST` : "No heartbeat"}</small></div>
               <div><span>Enrollment</span><strong>{userSection(selectedUser) === "—" ? "No section" : `Section ${userSection(selectedUser)}`}</strong><small>{userCourseCount(selectedUser)} courses selected</small></div>
               <div><span>Push</span><strong className={pushSubscriberIds.has(selectedUser.user_id) ? "is-live" : ""}>{pushSubscriberIds.has(selectedUser.user_id) ? "Enabled" : "Off"}</strong><small>Notification access</small></div>
               <div><span>Profile updated</span><strong>{selectedUser.updated_at ? new Date(selectedUser.updated_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "Unknown"}</strong><small>Latest profile save</small></div>
@@ -7140,8 +7232,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       )}
 
       {activeUsersListModalOpen && (() => {
-        const todayStart = new Date().setHours(0, 0, 0, 0);
-        const activeUsersToday = allUsers.filter(u => u.last_seen_at && new Date(u.last_seen_at).getTime() >= todayStart);
+        const todayPresenceIds = new Set((weeklyPresence[6]?.users || []).map(item => item.userId));
+        const activeUsersToday = allUsers.filter(u => todayPresenceIds.has(u.user_id));
         const secACount = activeUsersToday.filter(u => Object.keys(u.courses || {}).some(k => k.endsWith("_A"))).length;
         const secBCount = activeUsersToday.filter(u => Object.keys(u.courses || {}).some(k => k.endsWith("_B"))).length;
         const pushActiveCount = activeUsersToday.filter(u => (pushSubscribersList || []).includes(u.user_id)).length;
@@ -7173,7 +7265,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           });
 
         function copyActiveUsersRoster() {
-          const text = filteredList.map((u, i) => `${i + 1}. ${u.name || "Unknown"} (${u.email || "No email"}) - Last active: ${new Date(u.last_seen_at).toLocaleTimeString()}`).join("\n");
+          const text = filteredList.map((u, i) => `${i + 1}. ${u.name || "Unknown"} (${u.email || "No email"}) - Last seen: ${new Date(u.last_seen_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST`).join("\n");
           navigator.clipboard?.writeText(text);
           setActiveCopiedToast(`Copied ${filteredList.length} active students to clipboard!`);
           setTimeout(() => setActiveCopiedToast(""), 3000);
@@ -7191,7 +7283,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 </span>
               </span>
             }
-            subtitle="Students with recorded session activity since midnight local time. Click any student row to view their complete profile, attendance, and course load."
+            subtitle="Unique students who opened TermFlow from 12:00 AM to 11:59 PM IST. Last-seen values refresh about every five minutes while the app is visible."
             onClose={() => { setActiveUsersListModalOpen(false); setActiveUsersSearch(""); }}
             width={700}
           >
@@ -7351,9 +7443,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                       </div>
 
                       <div className="admin-active-user-right">
-                        <div className="admin-active-user-time-pill" title={`Last active at ${new Date(u.last_seen_at).toLocaleString()}`}>
+                        <div className="admin-active-user-time-pill" title={`Last seen at ${new Date(u.last_seen_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST`}>
                           <Clock3 size={12} color="var(--muted)" />
-                          <span>{new Date(u.last_seen_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          <span>{new Date(u.last_seen_at).toLocaleTimeString("en-IN", { hour: '2-digit', minute: '2-digit', timeZone: "Asia/Kolkata" })}</span>
                           <span style={{ opacity: 0.6, fontSize: 10.5 }}>({relTime})</span>
                         </div>
                         <ChevronRight size={15} className="admin-active-user-chevron" />

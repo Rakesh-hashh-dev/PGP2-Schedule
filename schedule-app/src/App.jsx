@@ -1842,23 +1842,45 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     removePingEverywhere(item.pingId);
   }
 
-  // Presence heartbeat — stamps profiles.last_seen_at (at most once/hour) so
-  // the admin "Active Today" stat reflects real usage. No-ops silently if the
-  // column doesn't exist yet or the profile row hasn't been created.
+  // Presence heartbeat — records durable per-day activity and keeps
+  // profiles.last_seen_at current. The five-minute cadence makes "last seen"
+  // useful without writing on every render; a visible tab also crosses
+  // midnight correctly. The direct profile update is a rollout fallback until
+  // record_presence_heartbeat() has been deployed.
   useEffect(() => {
     if (!userId) return;
+    const storageKey = `pgp2.last-heartbeat.${userId}`;
+    let beatInFlight = false;
     const beat = async () => {
+      if (beatInFlight || document.visibilityState === "hidden") return;
       try {
-        const last = Number(localStorage.getItem("pgp2.last-heartbeat") || 0);
-        if (Date.now() - last < 60 * 60 * 1000) return;
-        localStorage.setItem("pgp2.last-heartbeat", String(Date.now()));
-        await supabase.from("profiles").update({ last_seen_at: new Date().toISOString() }).eq("user_id", userId);
+        const now = Date.now();
+        const last = Number(localStorage.getItem(storageKey) || 0);
+        const lastDay = last ? new Date(last).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }) : "";
+        const today = new Date(now).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+        if (now - last < 5 * 60 * 1000 && lastDay === today) return;
+
+        beatInFlight = true;
+        const { error: historyError } = await supabase.rpc("record_presence_heartbeat");
+        if (historyError) {
+          const { error: fallbackError } = await supabase
+            .from("profiles")
+            .update({ last_seen_at: new Date(now).toISOString() })
+            .eq("user_id", userId);
+          if (fallbackError) return;
+        }
+        localStorage.setItem(storageKey, String(now));
       } catch { /* best effort */ }
+      finally { beatInFlight = false; }
     };
     beat();
     const onVisible = () => { if (document.visibilityState === "visible") beat(); };
+    const timer = setInterval(beat, 5 * 60 * 1000);
     document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [userId]);
 
   const markAttendance = async (c, status) => {
