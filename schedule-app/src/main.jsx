@@ -1,8 +1,9 @@
 import React, { Suspense, lazy } from "react";
 import ReactDOM from "react-dom/client";
 import "./styles.css";
+import "./styles/freeday.css";
 import { registerSW } from "virtual:pwa-register";
-import TermFlowLoader from "./components/TermFlowLoader.jsx";
+import StartupGreeting from "./components/StartupGreeting.jsx";
 import { initSentry } from "./lib/sentry.js";
 
 initSentry();
@@ -61,12 +62,7 @@ root.render(
     ? <Suspense fallback={null}><PetMoodSheet /></Suspense>
     : (
       <React.StrictMode>
-        <Suspense fallback={
-          <main className="loading-screen">
-            <TermFlowLoader variant="splash" size={96} />
-            <p className="loading-label">Starting up…</p>
-          </main>
-        }>
+        <Suspense fallback={<StartupGreeting />}>
           <ClerkApp />
         </Suspense>
       </React.StrictMode>

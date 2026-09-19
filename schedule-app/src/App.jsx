@@ -15,6 +15,7 @@ import Login from "./components/Login.jsx";
 import Onboarding from "./components/Onboarding.jsx";
 import WeatherWidget from "./components/WeatherWidget.jsx";
 import TomorrowSummary from "./components/TomorrowSummary.jsx";
+import FreeDayIllustration from "./components/FreeDayIllustration.jsx";
 import MessCard from "./components/MessCard.jsx";
 import PetCameo from "./components/PetCameo.jsx";
 import XpToast from "./components/XpToast.jsx";
@@ -1649,6 +1650,12 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     };
   }, [visible, now]);
 
+  const nextClassAfterTomorrow = useMemo(() => {
+    return visible
+      .filter((c) => (c.type === "class" || c.type === "exam") && c.date > tomorrowISO)
+      .sort((a, b) => (a.date === b.date ? toMin(a.start) - toMin(b.start) : a.date.localeCompare(b.date)))[0] || null;
+  }, [visible, tomorrowISO]);
+
   // What the timetable is doing, reduced to the handful of facts the pet's mood
   // cares about (see `moodFor`). Rebuilt on every clock tick, which is what
   // makes "restless" arrive on time — it is three property reads, not a scan.
@@ -3045,6 +3052,15 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 weather={weather}
                 changeCount={tomorrowChangeCount}
                 onViewChanges={() => { setView("notifications"); setCompareTarget(null); }}
+                tomorrowISO={tomorrowISO}
+                nextClass={nextClassAfterTomorrow}
+                onOpenMess={() => setMessMenuOpen(true)}
+                onOpenAssignments={() => { setView("assignments"); setCompareTarget(null); }}
+                onViewFullSchedule={(targetDate) => {
+                  if (targetDate) setJumpToDate(targetDate);
+                  setView("fullSchedule");
+                  setCompareTarget(null);
+                }}
               />
             )}
             {/* Compact "now" banner on Tomorrow tab so user knows what's happening today.
@@ -3280,7 +3296,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                       <li className="row premium-skeleton" style={{ height: "80px", marginBottom: "12px", border: "none", opacity: 0.7 }} />
                                     </ul>
                                   )
-                                  : <Timeline list={tomorrowList} current={null} now={now} showNowLine={false} label="Tomorrow" dateLabel={prettyDate(tomorrowISO)} attendance={attendance} markAttendance={markAttendance} skipInfo={skipInfo} syncStatus={<span className="live"><span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} />
+                                  : tomorrowList.length === 0
+                                    ? null
+                                    : <Timeline list={tomorrowList} current={null} now={now} showNowLine={false} label="Tomorrow" dateLabel={prettyDate(tomorrowISO)} attendance={attendance} markAttendance={markAttendance} skipInfo={skipInfo} syncStatus={<span className="live"><span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} />
                               : todayList.length === 0 && tomorrowList.length === 0
                                 ? premiumMode && syncing
                                   ? (
@@ -3290,16 +3308,20 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                       <li className="row premium-skeleton" style={{ height: "80px", marginBottom: "12px", border: "none", opacity: 0.4 }} />
                                     </ul>
                                   )
-                                  : <div className="tmrw-summary-card tmrw-free-card" style={{ margin: "0 12px 20px" }}>
+                                  : <div className="tmrw-summary-card tmrw-free-card theme-clear" style={{ margin: "0 12px 20px" }}>
+                                      <div className="tmrw-free-head">
+                                        <span className="tmrw-free-kicker-pill">
+                                          <span className="tmrw-free-kicker-dot" />
+                                          Today · Free Day
+                                        </span>
+                                        {weather?.today && (
+                                          <span className="tmrw-free-wx-pill">
+                                            <span>{weather.today.min}°–{weather.today.max}°C</span>
+                                          </span>
+                                        )}
+                                      </div>
                                       <div className="tmrw-free-scene" aria-hidden="true">
-                                        <div className="tmrw-free-sky sky-day sky-clear">
-                                          <span className="tmrw-free-sun" />
-                                          <span className="tmrw-free-cloud c1" />
-                                          <span className="tmrw-free-cloud c2" />
-                                          <span className="tmrw-free-spark s1" />
-                                          <span className="tmrw-free-spark s2" />
-                                          <span className="tmrw-free-spark s3" />
-                                        </div>
+                                        <FreeDayIllustration kind="clear" isNight={now.getHours() >= 19 || now.getHours() < 6} />
                                       </div>
                                       <div className="tmrw-free-text">
                                         <div className="tmrw-free-title">No classes today!</div>

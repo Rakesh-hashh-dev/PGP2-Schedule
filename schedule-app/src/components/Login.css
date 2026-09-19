@@ -1,0 +1,221 @@
+.tf-login {
+  --login-bg: #f3f1ea;
+  --login-surface: rgba(255, 255, 255, .72);
+  --login-surface-strong: rgba(255, 255, 255, .92);
+  --login-ink: #191b29;
+  --login-muted: #656979;
+  --login-line: rgba(55, 50, 88, .12);
+  --login-accent: #6654c7;
+  --login-accent-strong: #4936ae;
+  --login-soft: rgba(102, 84, 199, .09);
+  --login-button: #191b29;
+  --login-button-text: #fff;
+  --login-glow-one: #ffd1e3;
+  --login-glow-two: #d1e8ff;
+  --login-glow-three: #e1ffd1;
+  --login-dialog: #f8f7f2;
+  min-height: 100svh;
+  padding: 28px clamp(22px, 5vw, 80px) 22px;
+  background:
+    radial-gradient(ellipse at 8% 18%, color-mix(in srgb, var(--login-glow-one) 40%, transparent), transparent 42%),
+    radial-gradient(ellipse at 88% 32%, color-mix(in srgb, var(--login-glow-two) 38%, transparent), transparent 43%),
+    radial-gradient(ellipse at 48% 98%, color-mix(in srgb, var(--login-glow-three) 26%, transparent), transparent 42%),
+    var(--login-bg);
+  color: var(--login-ink);
+  font-family: var(--body);
+  display: flex;
+  flex-direction: column;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+/* The three original login themes remain intact; the new layout inherits them. */
+.tf-login--dark {
+  --login-bg: #090a0f;
+  --login-surface: rgba(25, 27, 38, .7);
+  --login-surface-strong: rgba(30, 32, 45, .94);
+  --login-ink: #fff;
+  --login-muted: #a2a6b5;
+  --login-line: rgba(255, 255, 255, .1);
+  --login-accent: #bdb3dc;
+  --login-accent-strong: #d8d0ef;
+  --login-soft: rgba(178, 168, 209, .1);
+  --login-button: #f3f1ff;
+  --login-button-text: #171521;
+  --login-glow-one: #38155a;
+  --login-glow-two: #15225a;
+  --login-glow-three: #1a4a38;
+  --login-dialog: #191b26;
+  color-scheme: dark;
+}
+
+.tf-login--premium {
+  --login-bg: #0a0514;
+  --login-surface: rgba(255, 255, 255, .045);
+  --login-surface-strong: rgba(30, 15, 58, .92);
+  --login-ink: #fff;
+  --login-muted: #b9add4;
+  --login-line: rgba(160, 130, 238, .24);
+  --login-accent: #d1b8ff;
+  --login-accent-strong: #eadfff;
+  --login-soft: rgba(109, 91, 208, .14);
+  --login-button: rgba(109, 91, 208, .18);
+  --login-button-text: #fff;
+  --login-glow-one: #4a2b82;
+  --login-glow-two: #1d0f3a;
+  --login-glow-three: #6d5bd0;
+  --login-dialog: #1d0f3a;
+  color-scheme: dark;
+}
+
+.tf-login *, .tf-login *::before, .tf-login *::after { box-sizing: border-box; }
+.tf-login button, .tf-login a { -webkit-tap-highlight-color: transparent; }
+.tf-login button { font: inherit; cursor: pointer; }
+.tf-login button:focus-visible, .tf-login a:focus-visible { outline: 3px solid var(--login-accent); outline-offset: 4px; }
+
+.tf-login-header, .tf-login-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+}
+
+.tf-login-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--login-ink);
+  font-family: var(--display);
+  font-size: 1.4rem;
+  font-weight: 750;
+  line-height: 1.1;
+  text-decoration: none;
+}
+.tf-login-brand img { border-radius: 11px; box-shadow: 0 8px 20px rgba(20, 15, 50, .12); }
+.tf-login-brand-sub { display: block; margin-top: 5px; color: var(--login-muted); font: 700 .72rem/1 var(--body); letter-spacing: .13em; }
+
+.tf-login-themes { display: flex; gap: 4px; padding: 4px; border: 1px solid var(--login-line); border-radius: 999px; background: color-mix(in srgb, var(--login-surface) 72%, transparent); backdrop-filter: blur(16px); }
+.tf-login-themes button { display: flex; align-items: center; gap: 7px; min-height: 38px; padding: 8px 13px; border: 0; border-radius: 999px; background: transparent; color: var(--login-muted); font-size: .875rem; font-weight: 650; transition: color .18s ease, background .18s ease, transform .18s ease; }
+.tf-login-themes button:hover { color: var(--login-ink); }
+.tf-login-themes button[aria-pressed="true"] { background: var(--login-surface-strong); color: var(--login-ink); box-shadow: 0 4px 14px rgba(12, 10, 30, .08); }
+
+.tf-login-layout { width: 100%; max-width: 1120px; margin: auto; padding: clamp(42px, 7vh, 76px) 0; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(360px, .85fr); gap: clamp(54px, 8vw, 112px); align-items: center; }
+.tf-login-intro { min-width: 0; }
+.tf-login-eyebrow { display: flex; align-items: center; gap: 10px; color: var(--login-accent-strong); font-size: .78rem; font-weight: 750; letter-spacing: .14em; }
+.tf-login-eyebrow > span { width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; background: var(--login-accent); box-shadow: 0 0 0 5px var(--login-soft); }
+.tf-login-intro h1 { margin: 24px 0 20px; font-family: var(--display); font-size: clamp(3.5rem, 5.35vw, 4.9rem); font-weight: 650; letter-spacing: -.058em; line-height: .98; text-wrap: balance; }
+.tf-login-intro h1 em { color: var(--login-accent); font-style: normal; }
+.tf-login-description { max-width: 34rem; margin: 0; color: var(--login-muted); font-size: 1rem; line-height: 1.75; }
+.tf-login-features { display: flex; flex-wrap: wrap; gap: 10px; margin: 26px 0 32px; }
+.tf-login-features > span { display: flex; align-items: center; gap: 7px; min-height: 36px; padding: 8px 11px; border: 1px solid var(--login-line); border-radius: 999px; background: color-mix(in srgb, var(--login-surface) 68%, transparent); color: var(--login-ink); font-size: .875rem; font-weight: 600; }
+.tf-login-features svg { color: var(--login-accent); }
+
+.tf-login-preview { position: relative; max-width: 500px; padding: 22px; border: 1px solid var(--login-line); border-radius: 22px; background: var(--login-surface); box-shadow: 0 24px 60px rgba(25, 20, 60, .1); backdrop-filter: blur(24px); transform: rotate(-1deg); }
+.tf-login-preview::after { content: ""; position: absolute; right: -18px; bottom: -18px; z-index: -1; width: 100px; height: 100px; border: 1px solid var(--login-line); border-radius: 25px; transform: rotate(8deg); }
+.tf-login-preview-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.tf-login-preview-top > span { display: flex; align-items: center; gap: 9px; font-size: .9rem; font-weight: 700; }
+.tf-login-preview-top small { padding: 5px 8px; border: 1px solid var(--login-line); border-radius: 999px; color: var(--login-muted); font-size: .68rem; font-weight: 750; letter-spacing: .08em; }
+.tf-login-preview-heading { margin: 22px 0 16px; }
+.tf-login-preview-heading strong { display: block; font-family: var(--display); font-size: 1.35rem; letter-spacing: -.025em; }
+.tf-login-preview-heading > span { display: block; margin-top: 5px; color: var(--login-muted); font-size: .84rem; }
+.tf-login-class { display: flex; align-items: center; gap: 16px; margin-top: 9px; padding: 14px; border-left: 3px solid var(--login-accent); border-radius: 11px; background: var(--login-soft); }
+.tf-login-class time { flex: 0 0 auto; font-size: .9rem; font-weight: 750; line-height: 1.45; }
+.tf-login-class time span { display: block; color: var(--login-muted); font-size: .75rem; font-weight: 500; }
+.tf-login-class > div { min-width: 0; flex: 1; }
+.tf-login-class strong { display: block; overflow: hidden; font-size: .92rem; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.tf-login-class div > span { display: block; overflow: hidden; margin-top: 4px; color: var(--login-muted); font-size: .78rem; text-overflow: ellipsis; white-space: nowrap; }
+.tf-login-class-tag { color: var(--login-accent-strong); font-size: .68rem; font-weight: 800; letter-spacing: .09em; }
+.tf-login-class--second { border: 1px solid var(--login-line); border-left: 3px solid var(--login-line); background: transparent; }
+.tf-login-class--second > svg { color: var(--login-muted); }
+.tf-login-preview-footer { display: flex; align-items: center; gap: 8px; margin-top: 17px; color: var(--login-muted); font-size: .78rem; }
+.tf-login-check { display: inline-flex; color: var(--login-accent); }
+
+.tf-login-card { position: relative; overflow: hidden; padding: 42px 38px 0; border: 1px solid var(--login-line); border-radius: 28px; background: var(--login-surface); box-shadow: 0 32px 80px rgba(24, 18, 54, .14); text-align: center; backdrop-filter: blur(28px); }
+.tf-login-card::before { content: ""; position: absolute; inset: 0 16% auto; height: 1px; background: linear-gradient(90deg, transparent, var(--login-accent), transparent); opacity: .7; }
+.tf-login-card-icon { display: inline-flex; margin-bottom: 22px; padding: 13px; border: 1px solid var(--login-line); border-radius: 20px; background: var(--login-soft); box-shadow: 0 10px 30px rgba(24, 18, 54, .09); }
+.tf-login-card-eyebrow { display: block; color: var(--login-accent-strong); font-size: .72rem; font-weight: 800; letter-spacing: .15em; }
+.tf-login-card h2, .tf-login-dialog h2 { margin: 13px 0; color: var(--login-ink); font-family: var(--display); font-size: 2rem; letter-spacing: -.04em; line-height: 1.15; }
+.tf-login-card > p { margin-inline: auto; color: var(--login-muted); font-size: .94rem; line-height: 1.65; }
+.tf-login-google, .tf-login-done { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; min-height: 56px; margin-top: 28px; padding: 12px 17px; border: 1px solid var(--login-line); border-radius: 13px; background: var(--login-button); color: var(--login-button-text); font-size: .95rem; font-weight: 700; box-shadow: 0 12px 24px rgba(20, 17, 45, .12); transition: transform .18s ease, box-shadow .18s ease, opacity .18s ease; }
+.tf-login-google > span:not(.tf-login-spinner) { flex: 1; }
+.tf-login-google > svg:first-child { width: 23px; height: 23px; padding: 2px; border-radius: 50%; background: #fff; }
+.tf-login-google:hover:not(:disabled), .tf-login-done:hover { transform: translateY(-2px); box-shadow: 0 16px 28px rgba(20, 17, 45, .18); }
+.tf-login-google:active:not(:disabled), .tf-login-done:active { transform: translateY(0); }
+.tf-login-google:disabled { cursor: wait; opacity: .65; }
+.tf-login-card .tf-login-account { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 14px 0 0; font-size: .78rem; }
+.tf-login-account strong { color: var(--login-ink); font-weight: 650; overflow-wrap: anywhere; }
+.tf-login-card .tf-login-error { margin-top: 14px; padding: 11px; border: 1px solid color-mix(in srgb, #d34848 30%, var(--login-line)); border-radius: 10px; background: color-mix(in srgb, #d34848 9%, transparent); color: var(--login-ink); font-size: .84rem; }
+.tf-login-card-divider { height: 1px; margin: 28px 0 20px; background: var(--login-line); }
+.tf-login-help { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--login-muted); font-size: .86rem; }
+.tf-login-help button { display: inline-flex; align-items: center; gap: 5px; padding: 8px 0; border: 0; background: transparent; color: var(--login-accent-strong); font-size: .86rem; font-weight: 700; }
+.tf-login-card-bottom { display: flex; align-items: center; justify-content: center; gap: 7px; margin: 24px -38px 0; padding: 16px; background: var(--login-soft); color: var(--login-muted); font-size: .78rem; font-weight: 600; }
+.tf-login-card-bottom svg { color: var(--login-accent); }
+
+.tf-login-footer { padding-top: 18px; border-top: 1px solid var(--login-line); color: var(--login-muted); font-size: .78rem; }
+.tf-login-footer a { color: inherit; text-underline-offset: 3px; }
+.tf-login-footer a:hover { color: var(--login-ink); }
+.tf-login-spinner { width: 19px; height: 19px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: tf-login-spin .8s linear infinite; }
+@keyframes tf-login-spin { to { transform: rotate(360deg); } }
+
+.tf-login-dialog { position: relative; width: min(460px, calc(100% - 32px)); max-height: calc(100svh - 32px); padding: 40px 32px 32px; overflow: auto; border: 1px solid var(--login-line); border-radius: 26px; background: var(--login-dialog); color: var(--login-ink); box-shadow: 0 32px 100px rgba(5, 3, 15, .35); }
+.tf-login-dialog::backdrop { background: rgba(10, 10, 18, .64); backdrop-filter: blur(7px); }
+.tf-login-close { position: absolute; top: 14px; right: 14px; display: grid; width: 38px; height: 38px; place-items: center; border: 1px solid var(--login-line); border-radius: 50%; background: var(--login-soft); color: var(--login-ink); }
+.tf-login-steps { display: grid; gap: 22px; margin: 28px 0; padding: 0; list-style: none; }
+.tf-login-steps li { display: flex; gap: 16px; }
+.tf-login-steps li > span { display: grid; width: 40px; height: 40px; flex: 0 0 auto; place-items: center; border: 1px solid var(--login-line); border-radius: 12px; color: var(--login-accent-strong); font-size: .75rem; font-weight: 800; }
+.tf-login-steps h3 { margin: 0 0 5px; font-size: .95rem; }
+.tf-login-steps p { margin: 0; color: var(--login-muted); font-size: .875rem; line-height: 1.6; overflow-wrap: anywhere; }
+.tf-login-done { margin-top: 8px; }
+
+/* Premium keeps the older glass, pearlescent type, and violet button treatment. */
+.tf-login--premium .tf-login-card { box-shadow: 0 40px 90px -20px rgba(5, 2, 10, .9), inset 1px 1px 3px rgba(180, 150, 255, .3), inset -1px -1px 4px rgba(0, 0, 0, .6); }
+.tf-login--premium .tf-login-intro h1 em { background: linear-gradient(135deg, #fff, #e6d8ff, #ffc2f5, #8bc5ff, #d1b8ff); background-clip: text; -webkit-background-clip: text; color: transparent; }
+.tf-login--premium .tf-login-google, .tf-login--premium .tf-login-done { border-color: rgba(109, 91, 208, .45); background: linear-gradient(180deg, rgba(109, 91, 208, .34), rgba(109, 91, 208, .12)); box-shadow: 0 12px 30px rgba(0, 0, 0, .38), inset 0 1px 0 rgba(170, 145, 255, .32); }
+.tf-login--premium .tf-login-google:hover:not(:disabled), .tf-login--premium .tf-login-done:hover { border-color: rgba(170, 145, 255, .65); background: linear-gradient(180deg, rgba(109, 91, 208, .46), rgba(109, 91, 208, .2)); }
+
+@media (max-width: 880px) {
+  .tf-login { overflow: auto; padding: 22px 24px; }
+  .tf-login-layout { grid-template-columns: 1fr; max-width: 560px; gap: 30px; padding: 48px 0; }
+  .tf-login-intro { display: contents; }
+  .tf-login-eyebrow { grid-row: 1; justify-content: center; }
+  .tf-login-intro h1 { grid-row: 2; margin: -6px 0 0; font-size: clamp(3rem, 12vw, 4.2rem); text-align: center; }
+  .tf-login-description { grid-row: 3; margin: -10px auto 0; text-align: center; }
+  .tf-login-card { grid-row: 4; }
+  .tf-login-features { grid-row: 5; justify-content: center; margin: 0; }
+  .tf-login-preview { grid-row: 6; width: 100%; max-width: none; transform: none; }
+  .tf-login-preview::after { display: none; }
+}
+
+@media (max-width: 560px) {
+  .tf-login { padding: 18px 16px; }
+  .tf-login-brand { font-size: 1.18rem; }
+  .tf-login-brand img { width: 32px; height: 32px; }
+  .tf-login-themes button { width: 38px; padding: 8px; justify-content: center; }
+  .tf-login-themes button span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .tf-login-layout { gap: 26px; padding: 42px 0; }
+  .tf-login-intro h1 { font-size: clamp(2.85rem, 14vw, 3.6rem); }
+  .tf-login-description { font-size: .95rem; }
+  .tf-login-card { padding: 34px 22px 0; border-radius: 24px; }
+  .tf-login-card-bottom { margin-right: -22px; margin-left: -22px; }
+  .tf-login-features { gap: 7px; }
+  .tf-login-features > span { font-size: .8rem; }
+  .tf-login-preview { padding: 17px; }
+  .tf-login-class { gap: 12px; padding: 12px 10px; }
+  .tf-login-class-tag, .tf-login-class--second > svg { display: none; }
+  .tf-login-help { align-items: flex-start; flex-direction: column; gap: 0; text-align: left; }
+  .tf-login-footer { align-items: flex-start; flex-direction: column; gap: 7px; }
+}
+
+@media (max-width: 370px) {
+  .tf-login-brand-sub { display: none; }
+  .tf-login-intro h1 { font-size: 2.65rem; }
+  .tf-login-card h2 { font-size: 1.75rem; }
+  .tf-login-preview-heading strong { font-size: 1.15rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tf-login *, .tf-login *::before, .tf-login *::after { animation: none !important; scroll-behavior: auto !important; transition: none !important; }
+}

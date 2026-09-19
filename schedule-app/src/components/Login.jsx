@@ -1,127 +1,133 @@
-import { useState, useEffect } from "react";
-import { Sun, Moon, Sparkles, Shield, Settings2, RefreshCw, X } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Sun, Moon, Sparkles, ArrowUpRight, CalendarDays, Check, SlidersHorizontal, X, ArrowRight, ShieldCheck } from "lucide-react";
 import { useSignIn } from "@clerk/clerk-react";
+import "./Login.css";
+
+const themes = [{ id: "light", label: "Light", Icon: Sun }, { id: "dark", label: "Dark", Icon: Moon }, { id: "premium", label: "Premium", Icon: Sparkles }];
 
 export default function Login() {
   const { signIn, isLoaded } = useSignIn();
   const [loading, setLoading] = useState(false);
-  const [theme, setTheme] = useState("light"); // 'light', 'dark', 'premium'
+  const [error, setError] = useState("");
+  const [theme, setTheme] = useState(() => {
+    try {
+      const savedTheme = localStorage.getItem("termflow-login-theme");
+      return themes.some(({ id }) => id === savedTheme) ? savedTheme : "light";
+    } catch {
+      return "light";
+    }
+  });
   const [showHowItWorks, setShowHowItWorks] = useState(false);
+  const dialogRef = useRef(null);
+  const helpRef = useRef(null);
 
-  const themes = ["light", "dark", "premium"];
-  const handleThemeToggle = () => {
-    setTheme(t => themes[(themes.indexOf(t) + 1) % themes.length]);
-  };
+  useEffect(() => {
+    try {
+      localStorage.setItem("termflow-login-theme", theme);
+    } catch { /* Theme persistence is optional. */ }
+  }, [theme]);
+
+  useEffect(() => {
+    if (!showHowItWorks) return;
+    const dialog = dialogRef.current;
+    const helpButton = helpRef.current;
+    const previousOverflow = document.body.style.overflow;
+    dialog.showModal();
+    document.body.style.overflow = "hidden";
+    return () => {
+      dialog.close();
+      document.body.style.overflow = previousOverflow;
+      helpButton?.focus();
+    };
+  }, [showHowItWorks]);
 
   async function handleSignIn() {
-    if (!isLoaded) return;
+    if (!isLoaded || loading) return;
+    setError("");
     setLoading(true);
-    // If the user arrived via an invite link (?f=CODE), the App stashed the code
-    // in localStorage and cleaned the URL before this screen rendered. Carry it
-    // through the OAuth round-trip so the invite still resolves even when the
-    // sign-in happens in a storage context that doesn't share our localStorage
-    // (e.g. an in-app browser, or a handoff to the system browser) — we land back
-    // on /?f=CODE and the App re-captures it.
     let complete = window.location.origin;
     try {
       const pending = localStorage.getItem("pgp2.pending-invite");
       if (pending) complete = `${window.location.origin}/?f=${encodeURIComponent(pending)}`;
-    } catch { }
-    await signIn.authenticateWithRedirect({
-      strategy: "oauth_google",
-      redirectUrl: `${window.location.origin}/sso-callback`,
-      redirectUrlComplete: complete,
-    });
+    } catch { /* Storage may be unavailable in embedded browsers. */ }
+    try {
+      await signIn.authenticateWithRedirect({
+        strategy: "oauth_google",
+        redirectUrl: `${window.location.origin}/sso-callback`,
+        redirectUrlComplete: complete,
+      });
+    } catch {
+      setError("We couldn’t open Google sign-in. Please try again.");
+      setLoading(false);
+    }
   }
 
-  // Prevent scrolling on body when bottom sheet is open
-  useEffect(() => {
-    if (showHowItWorks) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "auto";
-    }
-    return () => { document.body.style.overflow = "auto"; };
-  }, [showHowItWorks]);
-
   return (
-    <main className={`login-screen theme-${theme}`}>
-      <div className="login-bg-mesh">
-        <div className="login-blob blob-1"></div>
-        <div className="login-blob blob-2"></div>
-        <div className="login-blob blob-3"></div>
-      </div>
-
-      <button
-        className="login-theme-toggle"
-        onClick={handleThemeToggle}
-        aria-label="Toggle Theme"
-      >
-        {theme === "light" && <Moon size={20} />}
-        {theme === "dark" && <Sparkles size={20} />}
-        {theme === "premium" && <Sun size={20} />}
-      </button>
-
-      <div className="login-card">
-        <div className="login-logo"><img src="/termflow-icon.svg" alt="TermFlow Logo" /></div>
-        <h1 className="login-title">TermFlow</h1>
-        <p className="login-sub">IIM Sambalpur · Sign in with your institute account</p>
-
-        <button className="login-btn" onClick={handleSignIn} disabled={!isLoaded || loading}>
-          {loading ? <span className="login-spinner" /> : <GoogleIcon />}
-          {loading ? "Redirecting…" : "Continue with Google"}
-        </button>
-
-        <button className="login-how-btn" onClick={() => setShowHowItWorks(true)}>
-          How does this work?
-        </button>
-
-        <p className="login-note">Only @iimsambalpur.ac.in accounts are allowed.</p>
-      </div>
-
-      {showHowItWorks && (
-        <>
-          <div className="hiw-backdrop" onClick={() => setShowHowItWorks(false)}></div>
-          <div className="hiw-bottom-sheet">
-            <button className="hiw-close" onClick={() => setShowHowItWorks(false)}>
-              <X size={20} />
+    <main className={`tf-login tf-login--${theme}`}>
+      <header className="tf-login-header">
+        <a className="tf-login-brand" href="/" aria-label="TermFlow home">
+          <img src="/termflow-icon.svg" alt="" width="36" height="36" />
+          <span>TermFlow<span className="tf-login-brand-sub">IIM SAMBALPUR</span></span>
+        </a>
+        <div className="tf-login-themes" role="group" aria-label="Page theme">
+          {themes.map(({ id, label, Icon }) => (
+            <button key={id} type="button" aria-label={`${label} theme`} aria-pressed={theme === id} title={`${label} theme`} onClick={() => setTheme(id)}>
+              <Icon size={16} /><span>{label}</span>
             </button>
-            <h2 className="hiw-title">How TermFlow Works</h2>
-            <div className="hiw-steps">
-              <div className="hiw-step">
-                <div className="hiw-icon-wrap" style={{ background: "rgba(39, 174, 96, 0.15)", color: "#27ae60" }}>
-                  <Shield size={22} />
-                </div>
-                <div className="hiw-text">
-                  <h3>Secure Login</h3>
-                  <p>Sign in exclusively using your verified <code>@iimsambalpur.ac.in</code> institute account.</p>
-                </div>
-              </div>
-              <div className="hiw-step">
-                <div className="hiw-icon-wrap" style={{ background: "rgba(52, 152, 219, 0.15)", color: "#3498db" }}>
-                  <Settings2 size={22} />
-                </div>
-                <div className="hiw-text">
-                  <h3>Personalize</h3>
-                  <p>Select your exact electives and sections to build a schedule tailored just for you.</p>
-                </div>
-              </div>
-              <div className="hiw-step">
-                <div className="hiw-icon-wrap" style={{ background: "rgba(155, 89, 182, 0.15)", color: "#9b59b6" }}>
-                  <RefreshCw size={22} />
-                </div>
-                <div className="hiw-text">
-                  <h3>Stay Synced</h3>
-                  <p>Get a live, personalized daily timetable, track your attendance, and see live changes instantly.</p>
-                </div>
-              </div>
-            </div>
-            <button className="hiw-got-it" onClick={() => setShowHowItWorks(false)}>
-              Got it, let's go!
-            </button>
+          ))}
+        </div>
+      </header>
+
+      <div className="tf-login-layout">
+        <section className="tf-login-intro" aria-labelledby="tf-login-heading">
+          <div className="tf-login-eyebrow"><span /> BUILT FOR IIM SAMBALPUR</div>
+          <h1 id="tf-login-heading">Your campus day,<br /><em>finally in flow.</em></h1>
+          <p className="tf-login-description">One calm place for your timetable, attendance, electives, and deadlines—made around the way your term actually works.</p>
+          <div className="tf-login-features">
+            <span><CalendarDays size={16} /> Your timetable</span>
+            <span><Check size={16} /> Attendance</span>
+            <span><SlidersHorizontal size={16} /> Your electives</span>
           </div>
-        </>
-      )}
+          <section className="tf-login-preview" aria-label="Illustrative timetable preview">
+            <div className="tf-login-preview-top"><span><CalendarDays size={18} /> Your day at a glance</span><small>SAMPLE</small></div>
+            <div className="tf-login-preview-heading"><strong>A clear view of what’s next</strong><span>Classes arranged around your selections</span></div>
+            <div className="tf-login-class"><time>09:00<span>10:30</span></time><div><strong>Morning elective</strong><span>Academic Block · Your section</span></div><span className="tf-login-class-tag">NEXT</span></div>
+            <div className="tf-login-class tf-login-class--second"><time>11:00<span>12:30</span></time><div><strong>Core course</strong><span>Academic Block · Your section</span></div><ArrowUpRight size={18} aria-hidden="true" /></div>
+            <div className="tf-login-preview-footer"><span className="tf-login-check"><Check size={14} /></span> Your electives shape your personal timetable.</div>
+          </section>
+        </section>
+
+        <section className="tf-login-card" aria-labelledby="tf-signin-heading">
+          <div className="tf-login-card-icon"><img src="/termflow-icon.svg" alt="" width="44" height="44" /></div>
+          <span className="tf-login-card-eyebrow">STUDENT PORTAL</span>
+          <h2 id="tf-signin-heading">Welcome back</h2>
+          <p id="tf-signin-description">Use your institute Google account to open your personal TermFlow.</p>
+          <button className="tf-login-google" onClick={handleSignIn} disabled={!isLoaded || loading} aria-busy={loading} aria-describedby="tf-account-note tf-signin-description">
+            {loading ? <span className="tf-login-spinner" /> : <GoogleIcon />}
+            <span>{loading ? "Opening Google…" : !isLoaded ? "Preparing sign-in…" : error ? "Try Google again" : "Continue with Google"}</span>
+            {!loading && isLoaded && <ArrowRight size={17} />}
+          </button>
+          <p className="tf-login-account" id="tf-account-note"><ShieldCheck size={15} aria-hidden="true" /> Only <strong>@iimsambalpur.ac.in</strong> accounts can sign in.</p>
+          {error && <p className="tf-login-error" role="alert">{error}</p>}
+          <div className="tf-login-card-divider" />
+          <div className="tf-login-help"><span>New here? It’s simple.</span><button ref={helpRef} onClick={() => setShowHowItWorks(true)}>How it works <ArrowUpRight size={15} /></button></div>
+          <div className="tf-login-card-bottom"><ShieldCheck size={16} aria-hidden="true" /> Institute-only access</div>
+        </section>
+      </div>
+
+      <footer className="tf-login-footer"><span>Made for the rhythm of campus life.</span><span><a href="/about.html">About &amp; FAQ</a> · TermFlow · IIM Sambalpur</span></footer>
+
+      <dialog ref={dialogRef} className="tf-login-dialog" aria-labelledby="tf-how-title" onCancel={() => setShowHowItWorks(false)} onClose={() => setShowHowItWorks(false)} onClick={event => { if (event.target === event.currentTarget) { const r = event.currentTarget.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) setShowHowItWorks(false); } }}>
+        <button className="tf-login-close" aria-label="Close how it works" onClick={() => setShowHowItWorks(false)} autoFocus><X size={20} /></button>
+        <span className="tf-login-card-eyebrow">THREE SIMPLE STEPS</span>
+        <h2 id="tf-how-title">Make it your term.</h2>
+        <ol className="tf-login-steps">
+          <li><span>01</span><div><h3>Sign in</h3><p>Use your @iimsambalpur.ac.in Google account.</p></div></li>
+          <li><span>02</span><div><h3>Choose your electives</h3><p>Select your courses and sections to build your personal timetable.</p></div></li>
+          <li><span>03</span><div><h3>Follow your schedule</h3><p>See your classes, track attendance, and keep up with schedule changes.</p></div></li>
+        </ol>
+        <button className="tf-login-done" onClick={() => setShowHowItWorks(false)}>Got it, let’s go <ArrowRight size={17} /></button>
+      </dialog>
     </main>
   );
 }

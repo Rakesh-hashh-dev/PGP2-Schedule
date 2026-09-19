@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en-IN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -86,10 +86,12 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
     <!-- Primary meta -->
-    <title>TermFlow | IIM Sambalpur PGP2 Schedule & Attendance</title>
-    <meta name="description" content="TermFlow is the official timetable, attendance tracker and class schedule app for IIM Sambalpur PGP2 (2025–27) students. View today's classes, track attendance, browse exams, assignments and announcements — all in one place." />
+    <title>TermFlow | IIM Sambalpur PGP2 Timetable &amp; Attendance</title>
+    <meta name="description" content="TermFlow is a private timetable, attendance tracker and academic planning app for IIM Sambalpur PGP2 students, with classes, exams, assignments and announcements in one place." />
     <meta name="keywords" content="IIM Sambalpur, PGP2, timetable, class schedule, attendance tracker, TermFlow, IIM schedule, MBA schedule, PGP2 2025-27, IIM Sambalpur schedule" />
     <meta name="author" content="TermFlow" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <meta name="googlebot" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
     <meta name="application-name" content="TermFlow" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -97,6 +99,8 @@
     <meta name="apple-mobile-web-app-title" content="TermFlow" />
     <meta name="theme-color" content="#15182B" />
     <link rel="canonical" href="https://pgp2.termflow.tech/" />
+    <link rel="help" href="https://pgp2.termflow.tech/about.html" />
+    <link rel="alternate" type="text/plain" href="https://pgp2.termflow.tech/llms.txt" title="TermFlow information for AI assistants" />
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
@@ -104,7 +108,7 @@
     <meta property="og:site_name" content="TermFlow" />
     <meta property="og:locale" content="en_IN" />
     <meta property="og:title" content="TermFlow — IIM Sambalpur PGP2 Schedule & Attendance" />
-    <meta property="og:description" content="Official timetable, attendance tracker and class schedule app for IIM Sambalpur PGP2 (2025–27) students. Today's classes, exams, assignments and announcements — all in one place." />
+    <meta property="og:description" content="Private timetable, attendance tracker and academic planning app for IIM Sambalpur PGP2 students. Classes, exams, assignments and announcements — all in one place." />
     <meta property="og:image" content="https://pgp2.termflow.tech/TermFlow-og.jpg?v=3" />
     <meta property="og:image:secure_url" content="https://pgp2.termflow.tech/TermFlow-og.jpg?v=3" />
     <meta property="og:image:width" content="1200" />
@@ -115,7 +119,7 @@
     <!-- Twitter / X Card -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="TermFlow — IIM Sambalpur PGP2 Schedule & Attendance" />
-    <meta name="twitter:description" content="Official timetable, attendance tracker and class schedule app for IIM Sambalpur PGP2 (2025–27) students." />
+    <meta name="twitter:description" content="Private timetable, attendance tracker and academic planning app for IIM Sambalpur PGP2 students." />
     <meta name="twitter:image" content="https://pgp2.termflow.tech/TermFlow-og.jpg?v=3" />
     <meta name="twitter:image:alt" content="TermFlow — PGP2 timetable and attendance tracker for IIM Sambalpur." />
 
@@ -123,40 +127,52 @@
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@type": "WebApplication",
-      "name": "TermFlow",
-      "alternateName": "PGP2 TermFlow",
-      "url": "https://pgp2.termflow.tech/",
-      "description": "Official timetable, attendance tracker and class schedule app for IIM Sambalpur PGP2 (2025–27) students. View today's classes, track attendance, browse exams, assignments and campus announcements.",
-      "applicationCategory": "EducationApplication",
-      "operatingSystem": "Any",
-      "inLanguage": "en-IN",
-      "isAccessibleForFree": true,
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "INR"
-      },
-      "featureList": [
-        "Daily class timetable",
-        "Attendance tracking",
-        "Exam schedule",
-        "Assignment deadlines",
-        "Campus announcements",
-        "Leave planner",
-        "Full semester schedule",
-        "Offline support via PWA"
-      ],
-      "audience": {
-        "@type": "EducationalAudience",
-        "educationalRole": "student"
-      },
-      "publisher": {
-        "@type": "EducationalOrganization",
-        "name": "IIM Sambalpur",
-        "url": "https://www.iimsambalpur.ac.in/"
-      },
-      "screenshot": "https://pgp2.termflow.tech/TermFlow-og.jpg?v=3"
+      "@graph": [
+        {
+          "@type": "WebSite",
+          "@id": "https://pgp2.termflow.tech/#website",
+          "url": "https://pgp2.termflow.tech/",
+          "name": "TermFlow",
+          "alternateName": ["PGP2 TermFlow", "IIM Sambalpur PGP2 Schedule"],
+          "description": "A private timetable, attendance and academic planning portal for IIM Sambalpur PGP2 students.",
+          "inLanguage": "en-IN"
+        },
+        {
+          "@type": "WebApplication",
+          "@id": "https://pgp2.termflow.tech/#app",
+          "name": "TermFlow",
+          "alternateName": "PGP2 TermFlow",
+          "url": "https://pgp2.termflow.tech/",
+          "mainEntityOfPage": { "@id": "https://pgp2.termflow.tech/#website" },
+          "description": "A private timetable, attendance tracker and class schedule app for IIM Sambalpur PGP2 students. Students can view classes, track attendance, and browse exams, assignments and campus announcements.",
+          "applicationCategory": "EducationalApplication",
+          "applicationSubCategory": "Student timetable and attendance tracker",
+          "operatingSystem": "Any operating system with a modern web browser",
+          "browserRequirements": "Requires JavaScript and a modern web browser",
+          "inLanguage": "en-IN",
+          "isAccessibleForFree": true,
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "INR"
+          },
+          "featureList": [
+            "Personalized daily class timetable",
+            "Attendance tracking and leave planning",
+            "Exam schedule and assignment deadlines",
+            "Schedule-change and campus announcements",
+            "Elective and section-based schedule filtering",
+            "Calendar export and offline PWA support"
+          ],
+          "audience": {
+            "@type": "EducationalAudience",
+            "educationalRole": "student",
+            "audienceType": "IIM Sambalpur PGP2 students"
+          },
+          "image": "https://pgp2.termflow.tech/TermFlow-og.jpg?v=3",
+          "screenshot": "https://pgp2.termflow.tech/TermFlow-og.jpg?v=3"
+        }
+      ]
     }
     </script>
   </head>
@@ -207,7 +223,18 @@
             <text x="120" y="39" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#F5EEFF" text-anchor="middle">N</text>
           </g>
         </svg>
-        <p class="loading-label">Starting up…</p>
+        <p class="loading-label" id="boot-greeting">Welcome to TermFlow</p>
+        <p class="loading-sub">Getting your day ready…</p>
+        <script>
+          try {
+            const cachedName = (localStorage.getItem("pgp2.startup-name") || "").trim().split(/\s+/)[0].slice(0, 40);
+            if (cachedName) {
+              const hour = new Date().getHours();
+              const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+              document.getElementById("boot-greeting").textContent = greeting + ", " + cachedName;
+            }
+          } catch { /* Keep the generic welcome when storage is unavailable. */ }
+        </script>
       </main>
     </div>
     <script type="module" src="/src/main.jsx"></script>

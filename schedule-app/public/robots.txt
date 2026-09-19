@@ -1,7 +1,14 @@
 User-agent: *
-Disallow:
+Allow: /
 
-# Block AI training crawlers from indexing private student data
+# Allow OpenAI search discovery without opting into model-training crawls.
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+# Private student data remains behind authentication. Keep training crawlers out.
 User-agent: GPTBot
 Disallow: /
 

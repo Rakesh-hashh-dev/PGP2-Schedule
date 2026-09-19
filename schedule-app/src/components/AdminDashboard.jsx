@@ -120,6 +120,17 @@ function relativeUserActivity(value) {
   return new Date(value).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
 
+function AdminActionBadge({ mode }) {
+  const labels = {
+    staged: "Staged",
+    live: "Live now",
+    scheduled: "Scheduled",
+    readonly: "Read only",
+    mixed: "Mixed",
+  };
+  return <span className={`admin-action-badge is-${mode}`}>{labels[mode] || mode}</span>;
+}
+
 const IST_DATE_FORMATTER = new Intl.DateTimeFormat("en-CA", {
   timeZone: "Asia/Kolkata",
   year: "numeric",
@@ -288,13 +299,13 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   // Top-level tab for the admin dashboard. Sections are grouped via `admin-g-*`
   // classes and shown/hidden with CSS keyed off [data-active-tab] on the masonry.
   // Which tab was open last, so a refresh lands where the admin left off.
-  const ADMIN_TAB_KEY = "pgp2.admin-tab";
-  const ADMIN_TABS = ["broadcast", "schedule", "users", "insights", "moderation", "database", "system"];
+  const ADMIN_TAB_KEY = "pgp2.admin-tab-v2";
+  const ADMIN_TABS = ["overview", "broadcast", "schedule", "users", "insights", "moderation", "database", "system"];
   const [activeTab, setActiveTab] = useState(() => {
     try {
       const stored = localStorage.getItem(ADMIN_TAB_KEY);
-      return ADMIN_TABS.includes(stored) ? stored : "broadcast";
-    } catch { return "broadcast"; }
+      return ADMIN_TABS.includes(stored) ? stored : "overview";
+    } catch { return "overview"; }
   });
   useEffect(() => { try { localStorage.setItem(ADMIN_TAB_KEY, activeTab); } catch { } }, [activeTab]);
   const [previewTheme, setPreviewTheme] = useState("dark"); // announcement banner preview
@@ -333,6 +344,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [saveMsg, setSaveMsg] = useState("");
   const [forceDeployReady, setForceDeployReady] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [adminConfirm, setAdminConfirm] = useState(null);
+  const [adminConfirmValue, setAdminConfirmValue] = useState("");
+  const [adminConfirmBusy, setAdminConfirmBusy] = useState(false);
   // Set when the live config's updated_at no longer matches what we loaded —
   // i.e. another admin deployed since. Surfaces the concurrency guard (P2)
   // proactively in the review modal instead of only at deploy time.
@@ -989,6 +1003,43 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
    
   }, [changesCount]);
 
+  async function openReviewChanges() {
+    setReviewDrift(null);
+    setReviewOpen(true);
+    if (!loadedUpdatedAt) return;
+    const { data: cur } = await supabase.from("system_config").select("updated_at").eq("id", "global").single();
+    if (cur?.updated_at && cur.updated_at !== loadedUpdatedAt) setReviewDrift({ when: cur.updated_at });
+  }
+
+  function requestAdminConfirmation(config) {
+    setAdminConfirmValue("");
+    setAdminConfirm(config);
+  }
+
+  async function runAdminConfirmation() {
+    if (!adminConfirm?.onConfirm) return;
+    if (adminConfirm.requireText && adminConfirmValue.trim().toUpperCase() !== adminConfirm.requireText.toUpperCase()) return;
+    setAdminConfirmBusy(true);
+    try {
+      await adminConfirm.onConfirm();
+      setAdminConfirm(null);
+      setAdminConfirmValue("");
+    } finally {
+      setAdminConfirmBusy(false);
+    }
+  }
+
+  function requestDiscardChanges() {
+    requestAdminConfirmation({
+      title: "Discard staged changes?",
+      description: `${changesCount} staged change${changesCount === 1 ? "" : "s"} will be reset to the currently deployed configuration.`,
+      impact: "Students are not affected because these edits are not live yet.",
+      confirmLabel: "Discard changes",
+      tone: "danger",
+      onConfirm: () => setFlags(originalFlags),
+    });
+  }
+
   async function saveConfig({ force = false } = {}) {
     // Courtesy check only — RLS refuses a monitor's UPDATE regardless, which
     // surfaces below as a 0-row write rather than an error.
@@ -1623,7 +1674,6 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     }
   }
   async function revokeAdminRole(id) {
-    if (!confirm(`Remove admin access for ${id}?`)) return;
     try {
       await removeAdminRole(id);
       await refreshAdminRoles();
@@ -1632,20 +1682,40 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       alert(`Could not remove role: ${e.message}`);
     }
   }
+  function requestRevokeAdminRole(id) {
+    requestAdminConfirmation({
+      title: "Remove admin access?",
+      description: `${id} will lose access to protected admin operations.`,
+      impact: "This applies immediately and is recorded in the admin audit trail.",
+      confirmLabel: "Remove access",
+      requireText: "REMOVE",
+      tone: "danger",
+      onConfirm: () => revokeAdminRole(id),
+    });
+  }
 
   // ── Push to an explicit set of user IDs (bulk "Push Selected" + re-engagement) ──
-  async function pushToUserIds(ids, { title, body, url = "/?view=today", confirmMsg } = {}) {
+  async function pushToUserIds(ids, { title, body, url = "/?view=today", confirmMsg, authMode = "secret" } = {}) {
     if (!ids || ids.length === 0) return alert("No users to push to.");
-    const pushKey = getPushKey();
-    if (!pushKey) return;
+    let authorization = `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`;
+    const headers = { "Content-Type": "application/json" };
+    if (authMode === "admin-session") {
+      const sessionToken = await window.Clerk?.session?.getToken();
+      if (!sessionToken) return { ok: false, data: { error: "Your admin session is unavailable. Refresh and sign in again." } };
+      authorization = `Bearer ${sessionToken}`;
+    } else {
+      const pushKey = getPushKey();
+      if (!pushKey) return;
+      headers["x-push-key"] = pushKey;
+    }
     if (confirmMsg && !confirm(confirmMsg)) return;
     const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-push-key": pushKey, "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
+      headers: { ...headers, "Authorization": authorization },
       body: JSON.stringify({ title, body, url, target_user_ids: ids }),
     });
     const data = await resp.json().catch(() => ({}));
-    if (!resp.ok && resp.status === 401) localStorage.removeItem("pgp2.push-admin-key");
+    if (authMode === "secret" && !resp.ok && resp.status === 401) localStorage.removeItem("pgp2.push-admin-key");
     return { ok: resp.ok, data };
   }
 
@@ -1696,6 +1766,20 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     if (moderationSort === "recent") return new Date(b.courses?._status?.until || 0) - new Date(a.courses?._status?.until || 0);
     return new Date(a.courses?._status?.until || 0) - new Date(b.courses?._status?.until || 0);
   });
+  const pendingFeedbackCount = feedbackList.filter(item => item.status === "pending").length;
+  function goToAdminTab(tab) {
+    setActiveTab(tab);
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+  }
+  const adminOverviewTasks = [
+    ...(changesCount ? [{ id: "staged", tone: "watch", title: `${changesCount} staged change${changesCount === 1 ? "" : "s"} need review`, detail: "Nothing is live until the configuration is deployed.", action: "Review", mode: "staged", onClick: openReviewChanges }] : []),
+    ...(scheduleConflicts.length ? [{ id: "conflicts", tone: "risk", title: `${scheduleConflicts.length} schedule conflict${scheduleConflicts.length === 1 ? "" : "s"} detected`, detail: "Check room and time collisions before publishing schedule changes.", action: "Open schedule", mode: "readonly", onClick: () => goToAdminTab("schedule") }] : []),
+    ...(systemOverview.staleJobs ? [{ id: "jobs", tone: "risk", title: `${systemOverview.staleJobs} automation job${systemOverview.staleJobs === 1 ? " needs" : "s need"} attention`, detail: "Review the latest cron and edge-function health report.", action: "Open health", mode: "live", onClick: () => goToAdminTab("insights") }] : []),
+    ...(moderationExpiringSoon.length ? [{ id: "moderation", tone: "watch", title: `${moderationExpiringSoon.length} visible status${moderationExpiringSoon.length === 1 ? "" : "es"} expire within an hour`, detail: "Review student-facing statuses while they are still active.", action: "Moderate", mode: "live", onClick: () => goToAdminTab("moderation") }] : []),
+    ...(pendingFeedbackCount ? [{ id: "feedback", tone: "info", title: `${pendingFeedbackCount} feedback item${pendingFeedbackCount === 1 ? "" : "s"} awaiting review`, detail: "Triage student feedback and route useful ideas into announcements.", action: "Review feedback", mode: "live", onClick: () => goToAdminTab("users") }] : []),
+    ...(ghostUsers.length ? [{ id: "inactive", tone: "info", title: `${ghostUsers.length} student${ghostUsers.length === 1 ? " has" : "s have"} been inactive for 7+ days`, detail: "Review engagement before deciding whether outreach is needed.", action: "Review users", mode: "readonly", onClick: () => goToAdminTab("users") }] : []),
+  ];
   const insightIssues = [
     ...(moderationExpiringSoon.length ? [{ id: "statuses", tone: "watch", title: `${moderationExpiringSoon.length} status${moderationExpiringSoon.length === 1 ? "" : "es"} expire within an hour`, detail: "Review the live-status queue before they disappear.", action: "Review statuses", tab: "moderation" }] : []),
     ...(ghostUsers.length ? [{ id: "inactive", tone: "watch", title: `${ghostUsers.length} students have been inactive for 7+ days`, detail: "Use the engagement controls to decide whether outreach is warranted.", action: "Review users", tab: "users" }] : []),
@@ -1754,6 +1838,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
         title: "We miss you at TermFlow 👋",
         body: "Your schedule, mess menu and friends are waiting — jump back in.",
         confirmMsg: `Send a re-engagement push to ${ids.length} user(s) inactive for ${inactiveDays}+ days?`,
+        authMode: "admin-session",
       });
       if (!res) { setReEngaging(false); return; }
       if (!res.ok) setReEngageMsg(`Failed: ${res.data.error || "error"}`);
@@ -1849,11 +1934,21 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   }
 
   async function forceRefresh() {
-    if (typedConfirm("REFRESH", "Force ALL active users to reload the app now?")) {
-      await saveConfig();
-      await logAdminAction(admin_id, "force_refresh", {});
-      alert("Broadcast sent! Users will refresh on their next navigation.");
-    }
+    await saveConfig();
+    await logAdminAction(admin_id, "force_refresh", {});
+    setSaveMsg("Refresh signal sent. Users will sync on their next navigation.");
+  }
+
+  function requestForceRefresh() {
+    requestAdminConfirmation({
+      title: "Force every active client to sync?",
+      description: "This publishes the current configuration and asks all active TermFlow clients to refresh on their next navigation.",
+      impact: "This action is live and affects the whole cohort.",
+      confirmLabel: "Force global sync",
+      requireText: "REFRESH",
+      tone: "danger",
+      onConfirm: forceRefresh,
+    });
   }
 
   const [rebuilding, setRebuilding] = useState(false);
@@ -2086,7 +2181,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   };
 
   return (
-    <div className={`admin-page ${isModernUi ? "modern-ui" : ""}`}>
+    <div className={`admin-page ${isModernUi ? "modern-ui" : ""} ${changesCount > 0 ? "has-pending-changes" : ""}`}>
 
       {/* ── Undo toast for destructive one-click actions ── */}
       {undoToast && (
@@ -2244,9 +2339,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
         </div>
       </section>
 
-      {/* ── Tab nav: groups the ~24 sections into 5 categories ── */}
+      {/* ── Tab nav: task-oriented admin workspaces ── */}
       <nav className="admin-tabs" role="tablist" aria-label="Admin sections">
         {[
+          { id: "overview", label: "Overview", Icon: Activity },
           { id: "broadcast", label: "Broadcast", Icon: Megaphone, isNew: true },
           { id: "schedule", label: "Schedule", Icon: CalendarDays },
           { id: "users", label: "Users", Icon: Users },
@@ -2261,11 +2357,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             role="tab"
             aria-selected={activeTab === id}
             className={`admin-tab ${activeTab === id ? "active" : ""}`}
-            onClick={() => {
-              setActiveTab(id);
-              const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-              window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
-            }}
+            onClick={() => goToAdminTab(id)}
           >
             <Icon size={16} />
             <span className="admin-tab-label">{label}</span>
@@ -2286,6 +2378,77 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
       {/* ── Card flow: 2-col masonry ≥1200px, single column below ── */}
       <div className="admin-masonry" data-active-tab={activeTab}>
+
+        <section className="admin-overview-command admin-span-all admin-g-overview">
+          <div className="admin-overview-head">
+            <div>
+              <span className="admin-overview-eyebrow">Today&apos;s operations</span>
+              <h2>What needs your attention</h2>
+              <p>Live health, staged work, and student-impacting tasks in one place.</p>
+            </div>
+            <span className={`admin-overview-health ${adminOverviewTasks.some(task => task.tone === "risk") ? "is-watch" : ""}`}>
+              <i aria-hidden="true" />
+              {adminOverviewTasks.length ? `${adminOverviewTasks.length} item${adminOverviewTasks.length === 1 ? "" : "s"} to review` : "All clear"}
+            </span>
+          </div>
+          <div className="admin-overview-metrics">
+            <button type="button" onClick={changesCount ? openReviewChanges : undefined} disabled={!changesCount}>
+              <span>Staged changes</span><strong>{changesCount}</strong><small>{changesCount ? "Review before deployment" : "Cloud config is current"}</small>
+            </button>
+            <button type="button" onClick={() => goToAdminTab("schedule")}>
+              <span>Schedule conflicts</span><strong>{scheduleConflicts.length}</strong><small>{scheduleConflicts.length ? "Room or time collisions" : "No collisions detected"}</small>
+            </button>
+            <button type="button" onClick={() => goToAdminTab("users")}>
+              <span>Pending feedback</span><strong>{pendingFeedbackCount}</strong><small>{pendingFeedbackCount ? "Waiting for triage" : "Feedback queue is clear"}</small>
+            </button>
+            <button type="button" onClick={() => goToAdminTab("insights")}>
+              <span>Active today</span><strong>{statsLoading ? "…" : activeUsers}</strong><small>Unique students since midnight IST</small>
+            </button>
+          </div>
+        </section>
+
+        <section className="admin-card admin-span-all admin-g-overview admin-overview-queue">
+          <div className="admin-overview-section-head"><div><span>Priority queue</span><h2>Next best actions</h2></div><small>Ordered by potential student impact</small></div>
+          {adminOverviewTasks.length ? (
+            <div className="admin-overview-task-list">
+              {adminOverviewTasks.map(task => (
+                <article className={`admin-overview-task is-${task.tone}`} key={task.id}>
+                  <i aria-hidden="true" />
+                  <div><div className="admin-overview-task-title"><strong>{task.title}</strong><AdminActionBadge mode={task.mode} /></div><p>{task.detail}</p></div>
+                  <button type="button" className="admin-btn outline" onClick={task.onClick}>{task.action}<ChevronRight size={14} /></button>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="admin-overview-empty"><Check size={20} /><div><strong>Nothing urgent right now</strong><p>There are no staged changes, conflicts, failing jobs, or pending review items.</p></div></div>
+          )}
+        </section>
+
+        <section className="admin-card admin-g-overview admin-overview-launches">
+          <div className="admin-overview-section-head"><div><span>Workspaces</span><h2>Quick operations</h2></div></div>
+          <div className="admin-overview-launch-grid">
+            <button type="button" onClick={() => goToAdminTab("broadcast")}><Megaphone size={18} /><span><strong>Broadcast</strong><small>Messages and push</small></span><AdminActionBadge mode="mixed" /></button>
+            <button type="button" onClick={() => goToAdminTab("schedule")}><CalendarDays size={18} /><span><strong>Schedule</strong><small>Overrides and conflicts</small></span><AdminActionBadge mode="staged" /></button>
+            <button type="button" onClick={() => goToAdminTab("users")}><Users size={18} /><span><strong>People</strong><small>Students and feedback</small></span><AdminActionBadge mode="mixed" /></button>
+            <button type="button" onClick={() => goToAdminTab("system")}><ShieldAlert size={18} /><span><strong>Platform</strong><small>Config and safeguards</small></span><AdminActionBadge mode="staged" /></button>
+          </div>
+        </section>
+
+        <section className="admin-card admin-g-overview admin-overview-agenda">
+          <div className="admin-overview-section-head"><div><span>Coming up</span><h2>Scheduled activity</h2></div><button type="button" onClick={() => goToAdminTab("broadcast")}>Open planner</button></div>
+          <div className="admin-overview-compact-list">
+            {broadcastAgenda.slice(0, 5).map((item, index) => <div key={`${item.kind}-${item.sort}-${index}`}><i style={{ background: item.color }} /><span><strong>{item.label}</strong><small>{item.kind} · {item.when}</small></span></div>)}
+            {broadcastAgenda.length === 0 && <p className="admin-overview-list-empty">No broadcasts, links, or deployments are scheduled.</p>}
+          </div>
+        </section>
+
+        <section className="admin-card admin-span-all admin-g-overview admin-overview-activity">
+          <div className="admin-overview-section-head"><div><span>Accountability</span><h2>Recent admin activity</h2></div><button type="button" onClick={() => goToAdminTab("insights")}>Full audit trail</button></div>
+          <div className="admin-overview-activity-grid">
+            {auditLogs.slice(0, 5).map(log => <div key={log.id || `${log.created_at}-${log.action}`}><span className="admin-overview-activity-icon"><Shield size={14} /></span><span><strong>{String(log.action || "Admin action").replaceAll("_", " ")}</strong><small>{log.admin_id || "Admin"} · {log.created_at ? new Date(log.created_at).toLocaleString("en-IN") : "Time unavailable"}</small></span></div>)}
+            {auditLogs.length === 0 && <p className="admin-overview-list-empty">No recent admin actions are available.</p>}
+          </div>
+        </section>
 
 
 
@@ -3006,6 +3169,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 <section className="admin-card admin-span-all admin-g-broadcast broadcast-command-deck" style={{ gridColumn: "1 / -1" }}>
           <div className="broadcast-command-head"><div><span className="broadcast-eyebrow">Audience communications</span><h2><Megaphone size={20} color="var(--amber)" /> Broadcast command deck</h2><p className="admin-subtext">Plan the message, confirm the audience, then choose the channel that fits the urgency.</p></div><button type="button" className="admin-btn outline" onClick={fetchDashboardData} disabled={statsLoading}><RefreshCw size={14} className={statsLoading ? "spin-icon" : ""} /> Refresh data</button></div>
           <div className="broadcast-command-metrics"><div><span>Live banners</span><strong>{broadcastOverview.activeBanners}</strong><small>currently visible in-app</small></div><div><span>Queued content</span><strong>{broadcastOverview.scheduledItems}</strong><small>future pushes, banners and links</small></div><div><span>Push-ready devices</span><strong>{broadcastOverview.subscribers}</strong><small>subscribed devices, not students</small></div></div>
+          <div className="admin-action-legend"><span><AdminActionBadge mode="staged" /> Banners and saved content require deployment</span><span><AdminActionBadge mode="live" /> Push and social flash send immediately</span></div>
           <div className="broadcast-channel-guide"><button type="button" onClick={() => setOpenBcast(current => ({ ...current, announcements: true }))}><Megaphone size={16} /><span><strong>Banner</strong><small>Persistent, date-bound information</small></span><ChevronRight size={15} /></button><button type="button" onClick={() => setOpenBcast(current => ({ ...current, push: true }))}><BellRing size={16} /><span><strong>Push</strong><small>Time-sensitive reach to subscribed devices</small></span><ChevronRight size={15} /></button><button type="button" onClick={() => setOpenBcast(current => ({ ...current, social: true }))}><Sparkles size={16} /><span><strong>Social flash</strong><small>Immediate message to active users</small></span><ChevronRight size={15} /></button></div>
         </section>
 
@@ -5065,7 +5229,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             <div className="system-ops-metrics"><div><strong>{changesCount}</strong><span>staged changes</span></div><div><strong>{configDrift.total}</strong><span>config drift items</span></div><div><strong>{(flags.scheduledConfigDeploys || []).length}</strong><span>scheduled deploys</span></div><div className={snapshotMeta.status === "success" ? "is-healthy" : "is-risk"}><strong>{snapshotMeta.status === "success" ? "OK" : "!"}</strong><span>snapshot automation</span></div></div>
             <div className="system-state-strip"><span><Shield size={15} /> Access <strong>{systemOverview.maintenance}</strong></span><span><Activity size={15} /> Automation <strong>{systemOverview.staleJobs ? `${systemOverview.staleJobs} issue${systemOverview.staleJobs === 1 ? "" : "s"}` : "healthy from last check"}</strong></span><span><Users size={15} /> Presence <strong>{presentAdmins.length || 1} admin{presentAdmins.length === 1 ? "" : "s"} online</strong></span></div>
             {systemOverview.items.length > 0 && <div className="system-attention-queue">{systemOverview.items.map(item => <div className={`system-attention-row is-${item.tone}`} key={item.id}><span aria-hidden="true" /><div><strong>{item.title}</strong><small>{item.detail}</small></div><button type="button" className="admin-btn outline" onClick={item.onClick}>{item.action}<ChevronRight size={14} /></button></div>)}</div>}
-            <div className="system-ops-actions"><button type="button" className="admin-btn outline" onClick={checkApiHealth} disabled={healthChecking}><Activity size={14} /> {healthChecking ? "Checking…" : "Check services"}</button><button type="button" className="admin-btn outline" onClick={forceRefresh}><RefreshCw size={14} /> Force client sync</button><button type="button" className="admin-btn outline" onClick={_exportConfigJSON}><Download size={14} /> Export config</button><button type="button" className="admin-btn outline" onClick={() => setReviewOpen(true)}><FileText size={14} /> Review staged changes</button></div>
+            <div className="system-ops-actions"><button type="button" className="admin-btn outline" onClick={checkApiHealth} disabled={healthChecking}><Activity size={14} /> {healthChecking ? "Checking…" : "Check services"}</button><button type="button" className="admin-btn outline" onClick={requestForceRefresh}><RefreshCw size={14} /> Force client sync</button><button type="button" className="admin-btn outline" onClick={_exportConfigJSON}><Download size={14} /> Export config</button><button type="button" className="admin-btn outline" onClick={openReviewChanges}><FileText size={14} /> Review staged changes</button></div>
           </section>
           {/* Maintenance scheduler */}
           <section className="admin-card admin-g-system system-control-card system-maintenance-card">
@@ -5088,7 +5252,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
           {/* Admin roles */}
           <section className="admin-card admin-g-system system-control-card system-roles-card">
-            <h2><ShieldAlert size={20} color="var(--violet)" /> Admin Roles</h2>
+            <h2><ShieldAlert size={20} color="var(--violet)" /> Admin Roles <AdminActionBadge mode="live" /></h2>
             <p className="admin-subtext">Grant Monitor (read-only) or Superadmin access by user ID. You can also set a role from any user's detail panel.</p>
             <div className="admin-field-row" style={{ alignItems: "flex-end" }}>
               <div className="admin-field" style={{ flex: 2 }}>
@@ -5117,7 +5281,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10, background: "rgba(109,91,208,0.12)", color: "var(--violet)" }}>{role}</span>
-                      <button onClick={() => revokeAdminRole(id)} className="admin-btn danger" style={{ padding: "4px 8px" }}><Trash2 size={14} /></button>
+                      <button onClick={() => requestRevokeAdminRole(id)} className="admin-btn danger" style={{ padding: "4px 8px" }} aria-label={`Remove admin access for ${u?.name || id}`}><Trash2 size={14} /></button>
                     </div>
                   </div>
                 );
@@ -5149,7 +5313,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
           {/* Scheduled config deploys */}
           <section className="admin-card admin-g-system system-control-card system-deploy-card">
-            <h2><Clock size={20} color="var(--amber)" /> Scheduled Deploys</h2>
+            <h2><Clock size={20} color="var(--amber)" /> Scheduled Deploys <AdminActionBadge mode="scheduled" /></h2>
             <p className="admin-subtext">Queue the current pending config to auto-publish at a future time (requires the apply-scheduled-config cron). For an immediate change, use Deploy Config in the save bar instead.</p>
             <div className="admin-field-row" style={{ alignItems: "flex-end", maxWidth: 480 }}>
               <div className="admin-field"><label>Deploy at</label><input type="datetime-local" className="admin-input" value={scheduleDeployAt} onChange={e => setScheduleDeployAt(e.target.value)} /></div>
@@ -5952,8 +6116,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
               <div className="admin-danger-row">
                 <div>
-                  <strong style={{ display: "block", marginBottom: 4 }}>Maintenance Mode</strong>
-                  <span className="admin-subtext" style={{ margin: 0 }}>Locks out all non-admin users immediately.</span>
+                  <strong style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 4 }}>Maintenance Mode <AdminActionBadge mode="staged" /></strong>
+                  <span className="admin-subtext" style={{ margin: 0 }}>Once deployed, locks out all non-admin users immediately.</span>
                 </div>
                 <label className="admin-toggle">
                   <input type="checkbox" checked={!!flags.maintenanceMode} onChange={e => setFlags({ ...flags, maintenanceMode: e.target.checked })} />
@@ -5963,9 +6127,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
               <div className="admin-danger-row">
                 <div>
-                  <strong style={{ display: "block", marginBottom: 4 }}>Push Dispatcher</strong>
+                  <strong style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 4 }}>Push Dispatcher <AdminActionBadge mode="staged" /></strong>
                   <span className="admin-subtext" style={{ margin: 0 }}>
-                    ON: the notifications system delivers push. OFF: pauses all outgoing push within a minute (the in-app inbox still updates; queued events resume when re-enabled). Kill-switch if the new push system misbehaves — flip OFF, then redeploy the legacy functions to fully fall back.
+                    After deployment, ON delivers push and OFF pauses outgoing push within a minute (the in-app inbox still updates; queued events resume when re-enabled). Kill-switch if the new push system misbehaves — flip OFF, deploy, then redeploy the legacy functions to fully fall back.
                   </span>
                 </div>
                 <label className="admin-toggle">
@@ -5976,10 +6140,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
               <div className="admin-danger-row">
                 <div>
-                  <strong style={{ display: "block", marginBottom: 4 }}>Force Global Refresh</strong>
+                  <strong style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 4 }}>Force Global Refresh <AdminActionBadge mode="live" /></strong>
                   <span className="admin-subtext" style={{ margin: 0 }}>Force all clients to re-sync from cloud.</span>
                 </div>
-                <button className="admin-btn outline" onClick={forceRefresh}>
+                <button className="admin-btn outline" onClick={requestForceRefresh}>
                   <RefreshCw size={14} /> Force Sync
                 </button>
               </div>
@@ -6111,22 +6275,28 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
       </div>
 
+      {changesCount > 0 && (
+        <aside className="admin-change-dock" aria-label="Staged configuration changes">
+          <div className="admin-change-dock-copy">
+            <AdminActionBadge mode="staged" />
+            <span><strong>{changesCount} pending change{changesCount === 1 ? "" : "s"}</strong><small>Not visible to students until deployed</small></span>
+          </div>
+          <div className="admin-change-dock-actions">
+            <button type="button" className="admin-btn" onClick={requestDiscardChanges}>Discard</button>
+            <button type="button" className="admin-btn outline" onClick={openReviewChanges}><FileText size={15} /> Review</button>
+            <button type="button" className="admin-btn primary" onClick={openReviewChanges} disabled={saving || isReadOnlyAdmin}><Save size={15} /> Deploy safely</button>
+          </div>
+        </aside>
+      )}
+
       <div className="admin-save-footer" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         {changesCount > 0 && (
-          <button className="admin-btn" onClick={async () => {
-            setReviewDrift(null);
-            setReviewOpen(true);
-            // Passive drift check: did someone deploy since we loaded?
-            if (loadedUpdatedAt) {
-              const { data: cur } = await supabase.from("system_config").select("updated_at").eq("id", "global").single();
-              if (cur?.updated_at && cur.updated_at !== loadedUpdatedAt) setReviewDrift({ when: cur.updated_at });
-            }
-          }} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <button className="admin-btn" onClick={openReviewChanges} style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <FileText size={16} /> Review {changesCount} change{changesCount > 1 ? "s" : ""}
           </button>
         )}
-        <button className="admin-save-btn" onClick={saveConfig} disabled={saving} style={{ position: "relative" }}>
-          <Save size={18} /> {saving ? "Saving..." : "Deploy Config to Cloud"}
+        <button className="admin-save-btn" onClick={openReviewChanges} disabled={saving || changesCount === 0 || isReadOnlyAdmin} style={{ position: "relative" }}>
+          <Save size={18} /> {saving ? "Saving..." : changesCount ? "Review and Deploy" : "Config is up to date"}
           {changesCount > 0 && (
              <div style={{ position: "absolute", top: -8, right: -8, background: "var(--danger)", color: "#fff", fontSize: 10, fontWeight: "bold", padding: "2px 6px", borderRadius: 10 }}>
                {changesCount} changed
@@ -6162,20 +6332,21 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </button>
         )}
         {originalFlags && (
-          <button className="admin-btn outline" onClick={() => {
-             if (confirm("Revert all unsaved changes back to the currently deployed config?")) {
-                setFlags(originalFlags);
-             }
-          }} style={{ padding: "9px 16px" }}>
+          <button className="admin-btn outline" onClick={requestDiscardChanges} disabled={changesCount === 0} style={{ padding: "9px 16px" }}>
             <RefreshCw size={15} /> Revert Changes
           </button>
         )}
         {flags.configHistory && flags.configHistory.length > 0 && (
            <button className="admin-btn outline" onClick={() => {
               const last = flags.configHistory[0];
-              if (confirm(`Undo the last deploy and restore the config from ${new Date(last.timestamp).toLocaleString()}? Review & Deploy to apply.`)) {
-                 setFlags({ ...stripHistoryKeys(last.flags), configHistory: flags.configHistory });
-              }
+              requestAdminConfirmation({
+                title: "Restore the previous deployment?",
+                description: `Load the configuration saved on ${new Date(last.timestamp).toLocaleString()} into the editor.`,
+                impact: "This is staged first. Review and deploy to make the restored configuration live.",
+                confirmLabel: "Stage previous version",
+                tone: "warning",
+                onConfirm: () => setFlags({ ...stripHistoryKeys(last.flags), configHistory: flags.configHistory }),
+              });
            }} style={{ padding: "9px 16px" }} title={`Restore the config from ${new Date(flags.configHistory[0].timestamp).toLocaleString()}`}>
               <RefreshCw size={15} /> Undo last deploy
            </button>
@@ -6185,10 +6356,15 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               <select className="admin-input" onChange={e => {
                  if(!e.target.value) return;
                  const selectedHistory = flags.configHistory[parseInt(e.target.value)];
-                 if(confirm(`Restore configuration saved on ${new Date(selectedHistory.timestamp).toLocaleString()}?`)) {
-                    setFlags({ ...stripHistoryKeys(selectedHistory.flags), configHistory: flags.configHistory });
-                 }
                  e.target.value = ""; // reset
+                 requestAdminConfirmation({
+                   title: "Restore this configuration version?",
+                   description: `Load the version saved on ${new Date(selectedHistory.timestamp).toLocaleString()} by ${selectedHistory.author || "Admin"}.`,
+                   impact: "This is staged first and will not affect students until you review and deploy it.",
+                   confirmLabel: "Stage selected version",
+                   tone: "warning",
+                   onConfirm: () => setFlags({ ...stripHistoryKeys(selectedHistory.flags), configHistory: flags.configHistory }),
+                 });
               }} style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", width: 220 }}>
                  <option value="">Restore Past Version...</option>
                  {flags.configHistory.map((h, i) => (
@@ -6198,6 +6374,37 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
            </div>
         )}
       </div>
+
+      {adminConfirm && (
+        <AdminModal
+          title={adminConfirm.title}
+          subtitle={adminConfirm.description}
+          onClose={() => { if (!adminConfirmBusy) { setAdminConfirm(null); setAdminConfirmValue(""); } }}
+          width={500}
+        >
+          <div className={`admin-confirm-impact is-${adminConfirm.tone || "warning"}`}>
+            <AlertTriangle size={18} />
+            <span>{adminConfirm.impact}</span>
+          </div>
+          {adminConfirm.requireText && (
+            <label className="admin-confirm-field">
+              <span>Type <strong>{adminConfirm.requireText}</strong> to confirm</span>
+              <input autoFocus className="admin-input" value={adminConfirmValue} onChange={event => setAdminConfirmValue(event.target.value)} onKeyDown={event => { if (event.key === "Enter") runAdminConfirmation(); }} />
+            </label>
+          )}
+          <div className="admin-confirm-actions">
+            <button type="button" className="admin-btn" disabled={adminConfirmBusy} onClick={() => { setAdminConfirm(null); setAdminConfirmValue(""); }}>Cancel</button>
+            <button
+              type="button"
+              className={`admin-btn ${adminConfirm.tone === "danger" ? "danger" : "primary"}`}
+              disabled={adminConfirmBusy || (adminConfirm.requireText && adminConfirmValue.trim().toUpperCase() !== adminConfirm.requireText.toUpperCase())}
+              onClick={runAdminConfirmation}
+            >
+              {adminConfirmBusy ? "Working…" : adminConfirm.confirmLabel || "Continue"}
+            </button>
+          </div>
+        </AdminModal>
+      )}
 
       {/* Pre-deploy review modal */}
       {reviewOpen && (() => {

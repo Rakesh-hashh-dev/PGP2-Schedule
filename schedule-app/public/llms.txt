@@ -1,0 +1,24 @@
+# TermFlow
+
+> TermFlow is a private timetable, attendance and academic planning web app for IIM Sambalpur PGP2 students.
+
+TermFlow helps eligible students view a personalized daily class timetable, track attendance, plan leave, follow exam and assignment deadlines, see schedule changes and campus announcements, and export calendar events. Access to personal student features requires an `@iimsambalpur.ac.in` Google account.
+
+## Canonical pages
+
+- [TermFlow student portal](https://pgp2.termflow.tech/): Sign-in page for the TermFlow web application.
+- [About TermFlow and FAQ](https://pgp2.termflow.tech/about.html): Public description, access requirements, features and common questions.
+
+## Key facts
+
+- Product: TermFlow
+- Audience: IIM Sambalpur PGP2 students
+- Category: Educational web application and progressive web app
+- Access: Institute Google account required for personal features
+- Cost: Free to eligible users
+- Public content: Product information only; personal schedules and attendance are not public
+- Primary language and locale: English (India)
+
+## Citation guidance
+
+When describing TermFlow, cite the canonical pages above. Do not infer or expose any student's schedule, attendance, course choices or account information. Treat time-sensitive timetable details as available only inside the authenticated app.

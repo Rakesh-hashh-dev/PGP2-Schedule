@@ -4,7 +4,10 @@
 // talks to web-push directly, so `dispatch` is the single delivery path and every
 // broadcast also lands in the in-app inbox with per-user read state.
 //
-// Auth: requests must carry header  x-push-key: <PUSH_ADMIN_SECRET>
+// Auth: requests must carry either:
+//   * x-push-key: <PUSH_ADMIN_SECRET> (cron/legacy admin callers), or
+//   * a signed-in admin's Clerk bearer token. The latter is checked against
+//     can_write_config(), so read-only monitors cannot send live pushes.
 // Secrets required (supabase secrets set ...):
 //   PUSH_ADMIN_SECRET
 // SB_URL / SB_SERVICE_ROLE_KEY fall back to the platform-injected SUPABASE_* vars.
@@ -39,7 +42,26 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json(405, { error: "POST only" });
 
   const adminSecret = Deno.env.get("PUSH_ADMIN_SECRET");
-  if (!adminSecret || req.headers.get("x-push-key") !== adminSecret) {
+  const secretAuthorized = Boolean(adminSecret && req.headers.get("x-push-key") === adminSecret);
+  let sessionAuthorized = false;
+
+  if (!secretAuthorized) {
+    const authorization = req.headers.get("authorization") || "";
+    const bearerToken = authorization.replace(/^Bearer\s+/i, "").trim();
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
+    const supabaseUrl = Deno.env.get("SB_URL") ?? Deno.env.get("SUPABASE_URL") ?? "";
+
+    if (bearerToken && anonKey && supabaseUrl) {
+      const caller = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: `Bearer ${bearerToken}` } },
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const { data, error } = await caller.rpc("can_write_config");
+      sessionAuthorized = !error && data === true;
+    }
+  }
+
+  if (!secretAuthorized && !sessionAuthorized) {
     return json(401, { error: "Unauthorized" });
   }
 

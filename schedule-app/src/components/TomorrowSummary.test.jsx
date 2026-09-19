@@ -35,4 +35,40 @@ describe("TomorrowSummary", () => {
       expect(left + width).toBeLessThanOrEqual(100.01);
     });
   });
+
+  it("renders the revamped Free Day card with storm weather art and context when no classes are scheduled", () => {
+    const html = renderToStaticMarkup(
+      <TomorrowSummary
+        list={[]}
+        weather={{ tomorrow: { code: 95, min: 24, max: 32 } }}
+        changeCount={0}
+        onViewChanges={() => {}}
+        tomorrowISO="2026-09-20"
+        nextClass={{
+          date: "2026-09-22",
+          start: "09:00",
+          end: "10:30",
+          name: "Strategic Management",
+          code: "SM601",
+          room: "CR-1",
+          type: "class"
+        }}
+        onOpenMess={() => {}}
+        onOpenAssignments={() => {}}
+        onViewFullSchedule={() => {}}
+      />
+    );
+
+    expect(html).toContain("No classes tomorrow");
+    expect(html).toContain("Storms outside — perfect excuse to stay in");
+    expect(html).toContain("theme-storm");
+    expect(html).toContain("fdi-storm");
+    expect(html).toContain("24°–32°C");
+    expect(html).toContain("Thunderstorms");
+    expect(html).toContain("Classes resume");
+    expect(html).toContain("Strategic Management");
+    expect(html).toContain("Mess Menu");
+    expect(html).toContain("Tasks &amp; Deadlines");
+    expect(html).toContain("Full Timetable");
+  });
 });
