@@ -1,9 +1,37 @@
-import { describe, it, expect } from "vitest";
-import { getSnapshot, cleanRoom } from "./sheet.js";
+import { afterEach, describe, it, expect, vi } from "vitest";
+import { getSnapshot, cleanRoom, fetchSchedule } from "./sheet.js";
 
 // No localStorage in the node env, so getSnapshot() falls through to the
 // bundled snapshot — which is exactly the payload these tests are about.
 const snap = getSnapshot();
+
+afterEach(() => vi.unstubAllGlobals());
+
+describe("schedule sync error details", () => {
+  it("identifies a failed request to the schedule feed", async () => {
+    vi.stubGlobal("localStorage", { getItem: () => null });
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+    const data = await fetchSchedule(true);
+    expect(data._meta).toMatchObject({
+      status: "error",
+      source: "Google Apps Script schedule feed",
+      step: "Request schedule feed",
+      message: "Failed to fetch",
+    });
+  });
+
+  it("identifies an error returned by the feed", async () => {
+    vi.stubGlobal("localStorage", { getItem: () => null });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ error: "Sheet unavailable" }) }));
+    const data = await fetchSchedule(true);
+    expect(data._meta).toMatchObject({
+      status: "error",
+      source: "Google Apps Script schedule feed",
+      step: "Check feed response",
+      message: "Sheet unavailable",
+    });
+  });
+});
 
 describe("bundled snapshot", () => {
   it("is the static snapshot, not a cached live payload", () => {

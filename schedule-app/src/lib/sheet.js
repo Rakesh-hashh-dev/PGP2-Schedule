@@ -123,6 +123,7 @@ export function getSnapshot() {
 export async function fetchSchedule(force = false) {
   if (!FEED_URL || FEED_URL.startsWith("PASTE_")) return STATIC_SNAPSHOT;
 
+  let step = "Read browser cache";
   try {
     const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
     let url = FEED_URL;
@@ -133,25 +134,31 @@ export async function fetchSchedule(force = false) {
     }
 
     let data;
+    step = "Request schedule feed";
     // Consume the eager fetch promise from index.html if it exists and matches this request
     if (!force && window.__schedulePromise) {
       data = await window.__schedulePromise;
       window.__schedulePromise = null; // Clear it so subsequent fetches hit the network
+      if (data == null) throw new Error("Preloaded feed request failed");
     } else {
       const res = await fetch(url, { redirect: "follow" });
       if (!res.ok) throw new Error("HTTP " + res.status);
+      step = "Read feed JSON";
       data = await res.json();
     }
     
+    step = "Check feed response";
     if (data?.error) throw new Error(data.error);
     if (data?.unchanged && cached?.data) {
       // The server just confirmed the cache is current, so this counts as live
       // even if the cached payload predates _source being written.
-      return { ...withAreas(cached.data), _source: "live", _meta: { status: "success", message: "No changes from live sheet (using cache)", ts: new Date().toISOString() } };
+      step = "Process cached schedule";
+      return { ...withAreas(cached.data), _source: "live", _meta: { status: "success", source: "Google Apps Script schedule feed", step: "Feed unchanged", message: "No changes from live sheet (using cache)", ts: new Date().toISOString() } };
     }
 
     if (!data?.CLASSES?.length) throw new Error("empty feed");
 
+    step = "Process schedule in app";
     // Backfill room from snapshot when the live feed omits it
     let classes = data.CLASSES;
     if (classes.some((c) => !c.room)) {
@@ -170,10 +177,11 @@ export async function fetchSchedule(force = false) {
     // bundled one only fills a gap; _source after it so the feed can't spoof it.
     const result = withAreas({ CHANGES: [], STUDENTS, ...data, CLASSES: classes, _source: "live" });
     try { localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data: result })); } catch {}
-    result._meta = { status: "success", message: `Successfully fetched ${classes.length} classes from live sheet.`, ts: new Date().toISOString() };
+    result._meta = { status: "success", source: "Google Apps Script schedule feed", step: "Feed updated", message: `Successfully fetched ${classes.length} classes from live sheet.`, ts: new Date().toISOString() };
     return result;
   } catch (err) {
     console.warn("[sheet] live feed failed, using snapshot:", err.message);
-    return { ...STATIC_SNAPSHOT, _meta: { status: "error", message: err.message, ts: new Date().toISOString() } };
+    const source = step === "Read browser cache" ? "Browser cache" : step === "Process schedule in app" || step === "Process cached schedule" ? "App schedule processing" : "Google Apps Script schedule feed";
+    return { ...STATIC_SNAPSHOT, _meta: { status: "error", source, step, message: err.message, ts: new Date().toISOString() } };
   }
 }

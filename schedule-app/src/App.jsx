@@ -517,6 +517,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     };
   }
   const [pendingInvite, setPendingInvite] = useState(null);
+  const [pendingGroupInvite, setPendingGroupInvite] = useState(null);
   const [jumpToDate, setJumpToDate] = useState(null);
   const [jumpToSession, setJumpToSession] = useState(null); // { date, code, start } — highlights the specific class row
 
@@ -668,12 +669,18 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     const captureFromUrl = () => {
       const params = new URLSearchParams(window.location.search);
       const code = params.get("f");
+      const groupToken = params.get("group_invite");
       const wanted = params.get("view");
-      if (!code && !(wanted && DEEP_LINK_VIEWS.has(wanted))) return;
+      if (!code && !groupToken && !(wanted && DEEP_LINK_VIEWS.has(wanted))) return;
 
       if (code) {
         try { localStorage.setItem(PENDING_INVITE_KEY, code); } catch { }
         setPendingInvite(code);
+      }
+      if (groupToken) {
+        try { localStorage.setItem("pgp2.pending-group-invite", groupToken); } catch { }
+        setPendingGroupInvite(groupToken);
+        setView("friends");
       }
       if (wanted && DEEP_LINK_VIEWS.has(wanted)) setView(wanted);
       if (wanted === "split") {
@@ -686,6 +693,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       // Strip the consumed params, preserving anything else on the URL.
       const rest = new URLSearchParams(window.location.search);
       rest.delete("f");
+      rest.delete("group_invite");
       rest.delete("view");
       rest.delete("g");
       rest.delete("join");
@@ -697,6 +705,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     try {
       const stashed = localStorage.getItem(PENDING_INVITE_KEY);
       if (stashed) setPendingInvite(stashed);
+      const groupStashed = localStorage.getItem("pgp2.pending-group-invite");
+      if (groupStashed) { setPendingGroupInvite(groupStashed); setView("friends"); }
     } catch { }
 
     captureFromUrl();
@@ -944,10 +954,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         const failed = data._meta?.status === "error";
         setScheduleData(prev => (failed && prev ? prev : data));
         if (!failed) setSyncedAt(new Date());
-        if (data._meta) setSyncLogs(prev => [data._meta, ...prev].slice(0, 1000));
+        if (data._meta) setSyncLogs(prev => [{ ...data._meta, trigger: "Automatic refresh" }, ...prev].slice(0, 1000));
       }).catch(e => {
         if (!alive) return;
-        setSyncLogs(prev => [{ ts: Date.now(), status: "error", message: `Background sync failed: ${e.message || "Network Error"}` }, ...prev].slice(0, 1000));
+        setSyncLogs(prev => [{ ts: Date.now(), status: "error", source: "App refresh", step: "Automatic refresh", trigger: "Automatic refresh", message: e.message || "Unexpected error" }, ...prev].slice(0, 1000));
       });
     };
     load();
@@ -1268,7 +1278,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         if (userId) loadNotifications(userId);
         checkAppVersion(triggerHardRefresh);
         const elapsed = Date.now() - syncedAtRef.current.getTime();
-        if (elapsed > 5 * 60 * 1000) handleSync();
+        if (elapsed > 5 * 60 * 1000) handleSync("Tab return");
       }
     };
     document.addEventListener("visibilitychange", handleVisibility);
@@ -1960,19 +1970,23 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     }
   }
 
-  const handleSync = async () => {
+  const handleSync = async (eventOrTrigger) => {
+    const trigger = typeof eventOrTrigger === "string" ? eventOrTrigger : "Manual refresh";
     haptic([10]);
     setSyncing(true);
     try {
       const data = await fetchSchedule(true);
-      setScheduleData(data);
-      setSyncedAt(new Date());
+      const failed = data._meta?.status === "error";
+      if (!failed) {
+        setScheduleData(data);
+        setSyncedAt(new Date());
+      }
       setRealNow(new Date());
-      if (data._meta) setSyncLogs(prev => [data._meta, ...prev].slice(0, 1000));
-      haptic([10, 40, 10]);
+      if (data._meta) setSyncLogs(prev => [{ ...data._meta, trigger }, ...prev].slice(0, 1000));
+      haptic(failed ? [50, 100, 50] : [10, 40, 10]);
     } catch (e) {
       haptic([50, 100, 50]);
-      setSyncLogs(prev => [{ ts: Date.now(), status: "error", message: `Manual sync failed: ${e.message || "Network Error"}` }, ...prev].slice(0, 1000));
+      setSyncLogs(prev => [{ ts: Date.now(), status: "error", source: "App refresh", step: trigger, trigger, message: e.message || "Unexpected error" }, ...prev].slice(0, 1000));
     } finally {
       setSyncing(false);
     }
@@ -3173,7 +3187,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                         groupId = g.id; groupName = g.name;
                         memberCloudIds = g.isReceived
                           ? (g.cloudMemberIds || []).filter(cid => cid !== userId)
-                          : (g.memberIds || []).map(id => friends.find(f => f.id === id)?.cloudId).filter(Boolean);
+                          : [...(g.memberIds || []).map(id => friends.find(f => f.id === id)?.cloudId).filter(Boolean),
+                              ...(g.inviteMembers || []).map(m => m.userId)];
                       }
                       setPlanDraft({
                         date: slot.date || todayISO,
@@ -3187,6 +3202,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                   />
                   : view === "friends"
                     ? <FriendsPanel
+                      groupInviteToken={pendingGroupInvite}
+                      onGroupInviteConsumed={() => { setPendingGroupInvite(null); try { localStorage.removeItem("pgp2.pending-group-invite"); } catch { } }}
                                             userId={user?.id}
                       userName={user?.firstName || user?.username || "Student"}
                       enrolled={enrolled}
@@ -3205,16 +3222,19 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       petsEnabled={enableCompanion}
                       onOpenLeave={() => { setView("leave"); setCompareTarget(null); }}
                       onCompare={(f) => setCompareTarget({ mode: "friend", friendData: f })}
-                      onGroupCompare={(g) => {
+                      onGroupCompare={async (g) => {
                         let members;
                         if (g.isReceived && g.cloudMemberIds) {
-                          members = g.cloudMemberIds
-                            .filter(cid => cid !== userId)
-                            .map(cid => friends.find(f => f.cloudId === cid))
-                            .filter(Boolean)
-                            .map(f => ({ name: f.name, courses: f.courses }));
+                          const ids = g.cloudMemberIds.filter(cid => cid !== userId);
+                          const { data } = ids.length ? await supabase.from("profiles").select("user_id, courses").in("user_id", ids) : { data: [] };
+                          members = (data || []).map(p => ({ name: friends.find(f => f.cloudId === p.user_id)?.name || p.courses?._name || g.ownerName || "Member", courses: p.courses || {} }));
                         } else {
                           members = (g.memberIds || []).map(id => friends.find(f => f.id === id)).filter(Boolean).map(f => ({ name: f.name, courses: f.courses }));
+                          const inviteIds = (g.inviteMembers || []).map(m => m.userId);
+                          if (inviteIds.length) {
+                            const { data } = await supabase.from("profiles").select("user_id, courses").in("user_id", inviteIds);
+                            members.push(...(data || []).map(p => ({ name: g.inviteMembers.find(m => m.userId === p.user_id)?.name || "Member", courses: p.courses || {} })));
+                          }
                         }
                         setCompareTarget({ mode: "group", groupData: { name: g.name, members }, group: g });
                       }}

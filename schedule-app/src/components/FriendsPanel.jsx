@@ -20,6 +20,7 @@ import { createPoll, POLL_MARKER } from "../lib/polls.js";
 import { filterSocialFriends, SOCIAL_VIEW_ITEMS } from "../lib/socialWorkspace.js";
 import { fmtTime12 } from "../lib/datetime.js";
 import PollCard, { PollComposer } from "./PollCard.jsx";
+import { groupInvite, groupInviteUrl } from "../lib/groupInvites.js";
 
 // profiles still holds pre-cutover DEV ghost rows (the data source for
 // migrate-user's on-login restore) — exclude them wherever we list students,
@@ -281,7 +282,7 @@ function GroupChat({ group, userId, userName }) {
     if (!poll) return;
     setShowPollComposer(false);
     await sendGroupChatMessage(group.id, userId, userName, `${POLL_MARKER}${poll.id}`);
-    for (const memberId of group.cloudMemberIds || []) {
+    for (const memberId of new Set([...(group.cloudMemberIds || []), ...(group.inviteMembers || []).map(m => m.userId)])) {
       if (memberId === userId) continue;
       sendSocialNotification(memberId, "group_poll", { fromId: userId, fromName: userName, group: group.name, pollId: poll.id });
     }
@@ -371,6 +372,7 @@ export default function FriendsPanel({
   petsEnabled = true,
   planDraft = null, onPlanDraftConsumed,
   friendNotifItems = [], onAcceptFriend, onDeclineFriend,
+  groupInviteToken = null, onGroupInviteConsumed,
 }) {
   const [addCode, setAddCode] = useState("");
   const [addError, setAddError] = useState("");
@@ -390,6 +392,76 @@ export default function FriendsPanel({
   const [isAdding, setIsAdding] = useState(false);
   const [syncingFriendId, setSyncingFriendId] = useState(null);
   const [sharingGroupId, setSharingGroupId] = useState(null);
+  const [inviteLinks, setInviteLinks] = useState({});
+  const [groupRequests, setGroupRequests] = useState({});
+  const ownedGroupIds = groups.filter(group => !group.isReceived).map(group => group.id).join("|");
+  useEffect(() => {
+    if (!userId || !ownedGroupIds) return;
+    let live = true;
+    Promise.all(ownedGroupIds.split("|").map(async groupId => {
+      try { return [groupId, await groupInvite("list", { groupId })]; }
+      catch { return [groupId, []]; }
+    })).then(entries => { if (live) setGroupRequests(prev => ({ ...prev, ...Object.fromEntries(entries) })); });
+    return () => { live = false; };
+  }, [userId, ownedGroupIds]);
+  const [joinPreview, setJoinPreview] = useState(null);
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteError, setInviteError] = useState("");
+  useEffect(() => {
+    if (!userId || !groupInviteToken) return;
+    let live = true;
+    groupInvite("preview", { token: groupInviteToken })
+      .then(preview => { if (live) { setInviteError(""); setJoinPreview(preview); setSocialView("groups"); } })
+      .catch(error => { if (live) { setInviteError(error.message || "Could not open invite"); setJoinPreview({ invalid: true }); } });
+    return () => { live = false; };
+  }, [userId, groupInviteToken]);
+
+  async function openGroupMembers(group) {
+    setSocialView("groups");
+    setExpandedGroup(group.id);
+    if (group.isReceived) return;
+    try {
+      const requests = await groupInvite("list", { groupId: group.id });
+      setGroupRequests(prev => ({ ...prev, [group.id]: requests || [] }));
+    } catch { /* Invite database may not be installed yet. */ }
+  }
+
+  async function createGroupLink(group) {
+    setInviteBusy(true);
+    try {
+      const invite = await groupInvite("create", { groupId: group.id });
+      setInviteLinks(prev => ({ ...prev, [group.id]: invite.token }));
+      const copied = await copyText(groupInviteUrl(invite.token));
+      showToast(copied ? "Group invite link copied" : "Invite link ready; copy it below", copied ? "success" : "info");
+    } catch (error) {
+      showToast(error.code === "PGRST202" ? "Group invites need the database migration first" : (error.message || "Could not create invite link"), "error");
+    } finally { setInviteBusy(false); }
+  }
+
+  async function reviewGroupRequest(group, request, approve) {
+    setInviteBusy(true);
+    try {
+      const result = await groupInvite(approve ? "approve" : "decline", { groupId: group.id, requesterId: request.userId });
+      setGroupRequests(prev => ({ ...prev, [group.id]: (prev[group.id] || []).map(r => r.userId === request.userId ? { ...r, status: result.status } : r) }));
+      if (approve) {
+        const inviteMembers = [...(group.inviteMembers || []), { userId: result.userId, name: result.name }];
+        setGroups(updateGroup(group.id, { inviteMembers }));
+      }
+      showToast(approve ? `${request.name} joined the group` : "Request declined", "success");
+    } catch (error) { showToast(error.message || "Could not review request", "error"); }
+    finally { setInviteBusy(false); }
+  }
+
+  async function requestGroupJoin() {
+    if (!groupInviteToken) return;
+    setInviteBusy(true);
+    try {
+      const preview = await groupInvite("request", { token: groupInviteToken });
+      setJoinPreview(preview);
+      showToast(preview.status === "approved" ? "You're already a member" : "Request sent to the group owner", "success");
+    } catch (error) { setInviteError(error.message || "Could not request to join"); }
+    finally { setInviteBusy(false); }
+  }
   // Show skeleton only when no local friends and still might be syncing from cloud
   const [initialLoading, setInitialLoading] = useState(friends.length === 0);
   if (initialLoading && friends.length > 0) setInitialLoading(false);
@@ -545,9 +617,9 @@ export default function FriendsPanel({
   const openGroupPlan = (group) => {
     const memberCloudIds = group.isReceived
       ? (group.cloudMemberIds || []).filter(cid => cid !== userId)
-      : (group.memberIds || [])
+      : [...(group.memberIds || [])
           .map(id => friends.find(f => f.id === id)?.cloudId)
-          .filter(Boolean);
+          .filter(Boolean), ...(group.inviteMembers || []).map(m => m.userId)];
     setGroupPlanDraft({
       title: group.name,
       groupId: group.id,
@@ -720,6 +792,8 @@ export default function FriendsPanel({
     setExpandedGroup(prev => prev === id ? null : prev);
 
     const commitDelete = async () => {
+      try { await groupInvite(isReceived ? "leave" : "close", { groupId: id }); }
+      catch (error) { if (error.code !== "PGRST202") console.warn("[group] invite cleanup failed:", error.message); }
       const updated = removeGroupFromStore(id);
       pushGroupsToCloud(userId, updated);
       if (!isReceived && (group.visibility === "shared" || group.visibility === "global") && group.cloudMemberIds?.length) {
@@ -1088,63 +1162,66 @@ export default function FriendsPanel({
   };
 
   const renderGroupCard = (group, isCompact = false) => {
-    const memberCount = (group.memberIds || []).length;
+    const selectedFriends = friends.filter(f => (group.memberIds || []).includes(f.id));
+    const inviteOnlyMembers = (group.inviteMembers || []).filter(member => !selectedFriends.some(f => f.cloudId === member.userId));
+    const memberCount = selectedFriends.length + inviteOnlyMembers.length;
     const isExpanded = expandedGroup === group.id && !isCompact; // don't expand in compact mode
+    const pendingCount = (groupRequests[group.id] || []).filter(request => request.status === "pending").length;
 
     const displayMembers = group.isReceived
       ? (group.cloudMemberIds || [])
           .filter(cid => cid !== userId)
-          .map(cid => friends.find(f => f.cloudId === cid))
-          .filter(Boolean)
-      : friends.filter(f => (group.memberIds || []).includes(f.id));
+          .map(cid => friends.find(f => f.cloudId === cid) || { id: cid, name: cid === group.ownerId ? group.ownerName || "Owner" : "Member" })
+      : [...selectedFriends, ...inviteOnlyMembers.map(member => ({ id: member.userId, name: member.name || "Member" }))];
 
-    const displayCount = group.isReceived ? displayMembers.length : memberCount;
+    const displayCount = displayMembers.length;
 
     return (
       <div key={group.id} className={`fr-group-card ${group.isReceived ? "fr-group-received" : ""} ${isCompact ? "compact" : ""}`}>
-        <div className="fr-group-head" onClick={() => !isCompact && setExpandedGroup(isExpanded ? null : group.id)}>
-          <div className="fr-group-info">
-            <span className="fr-group-name">{group.name}</span>
-            <span className="fr-group-meta">
-              {group.isReceived
-                ? <span className="fr-group-shared-badge"><Globe size={11} /> Shared by {group.ownerName}</span>
-                : `${memberCount} member${memberCount !== 1 ? "s" : ""}`
-              }
+        <div className="fr-group-head">
+          <button type="button" className="fr-group-summary" aria-expanded={!isCompact ? isExpanded : undefined}
+            onClick={() => { if (isCompact) openGroupMembers(group); else if (isExpanded) setExpandedGroup(null); else openGroupMembers(group); }}>
+            <span className="fr-group-emblem"><Users size={19} strokeWidth={2} /></span>
+            <span className="fr-group-info">
+              <span className="fr-group-name">{group.name}</span>
+              <span className="fr-group-meta">
+                {group.isReceived ? `Shared by ${group.ownerName || "a classmate"}` : `${memberCount} member${memberCount !== 1 ? "s" : ""}`}
+              </span>
             </span>
-          </div>
-          {displayCount > 0 && (
-            <div className="fr-group-member-preview">
-              {displayMembers.slice(0, 4).map((f, fi) => {
-                const [c1] = avatarGradient(f.name);
-                return (
-                  <div key={f.id} className="fr-group-avatar-dot" style={{ background: c1, zIndex: 10 - fi }}>
-                    {f.imageUrl ? <img src={f.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : f.name[0]?.toUpperCase()}
-                  </div>
-                );
-              })}
-              {displayCount > 4 && (
-                <div className="fr-group-avatar-dot fr-group-avatar-more">+{displayCount - 4}</div>
-              )}
-            </div>
-          )}
-          <div className="fr-group-actions">
-            {(memberCount >= 1 || group.isReceived) && (
-              <button className="fr-btn fr-btn-compare" onClick={e => { e.stopPropagation(); onGroupCompare(group); }}>
-                Compare <ArrowRight size={13} />
-              </button>
-            )}
-            {meetupsEnabled && (memberCount >= 1 || group.isReceived) && !isCompact && (
-              <button className="fr-btn fr-btn-icon" title="Plan something with this group" onClick={e => { e.stopPropagation(); openGroupPlan(group); }}>
-                <CalendarPlus size={14} />
-              </button>
-            )}
-            {!group.isReceived && !isCompact && (
-              <span className={`fr-privacy-badge fr-privacy-badge-${group.visibility || "private"}`}>
+            <span className="fr-group-summary-end">
+              {displayCount > 0 && <span className="fr-group-member-preview" aria-label={`${displayCount} visible group members`}>
+                {displayMembers.slice(0, 3).map((f, fi) => {
+                  const [c1] = avatarGradient(f.name);
+                  return <span key={f.id} className="fr-group-avatar-dot" style={{ background: c1, zIndex: 10 - fi }} title={f.name}>
+                    {f.imageUrl ? <img src={f.imageUrl} alt="" /> : f.name[0]?.toUpperCase()}
+                  </span>;
+                })}
+                {displayCount > 3 && <span className="fr-group-avatar-dot fr-group-avatar-more">+{displayCount - 3}</span>}
+              </span>}
+              {!isCompact && (isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />)}
+              {isCompact && <ChevronRight size={16} />}
+            </span>
+          </button>
+          <div className="fr-group-card-footer">
+            <div className="fr-group-card-tags">
+              {!group.isReceived && <span className={`fr-privacy-badge fr-privacy-badge-${group.visibility || "private"}`}>
                 {group.visibility === "global" ? <Globe size={11} /> : group.visibility === "shared" ? <Users size={11} /> : <Lock size={11} />}
                 {group.visibility === "global" ? "Global" : group.visibility === "shared" ? "Members" : "Private"}
-              </span>
-            )}
-            {!isCompact && (isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />)}
+              </span>}
+              {group.isReceived && <span className="fr-group-shared-badge"><Globe size={11} /> Joined</span>}
+              {pendingCount > 0 && <span className="fr-group-pending-badge">{pendingCount} pending</span>}
+            </div>
+            <div className="fr-group-actions">
+              {!group.isReceived && <button type="button" className="fr-btn fr-btn-small fr-group-add-members" onClick={() => openGroupMembers(group)}>
+                <UserPlus size={13} /> Add members
+              </button>}
+              {!group.isReceived && <button type="button" className="fr-btn fr-btn-small fr-group-share-link" disabled={inviteBusy} onClick={() => createGroupLink(group)}>
+                <Link2 size={13} /> Invite link
+              </button>}
+              {(memberCount >= 1 || group.isReceived) && <button type="button" className="fr-btn fr-btn-compare" onClick={() => onGroupCompare(group)}>
+                Compare <ArrowRight size={13} />
+              </button>}
+            </div>
           </div>
         </div>
         {isExpanded && !isCompact && (
@@ -1164,7 +1241,8 @@ export default function FriendsPanel({
                     ))}
                   </div>
                 )}
-                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
+                <div className="fr-group-body-footer" style={{ justifyContent: "flex-end" }}>
+                  {meetupsEnabled && <button type="button" className="fr-btn fr-btn-small" onClick={() => openGroupPlan(group)}><CalendarPlus size={14} /> Plan together</button>}
                   {confirmDeleteId === group.id ? (
                     <div className="fr-confirm-row" onClick={e => e.stopPropagation()}>
                       <span className="fr-confirm-label">Leave group?</span>
@@ -1183,32 +1261,57 @@ export default function FriendsPanel({
             ) : (
               <>
                 <div className="fr-privacy-row">
-                  <span className="fr-privacy-label">Privacy</span>
-                  <div className="fr-privacy-picker">
-                    {[
-                      { key: "private", Icon: Lock,  label: "Private",  desc: "Only you" },
-                      { key: "shared",  Icon: Users, label: "Members",  desc: "Group members" },
-                      { key: "global",  Icon: Globe, label: "Global",   desc: "All friends" },
-                    ].map(({ key, Icon, label, desc }) => (
-                      <button
-                        key={key}
-                        className={`fr-privacy-opt fr-privacy-opt-${key} ${(group.visibility || "private") === key ? "on" : ""}`}
-                        onClick={() => handleSetGroupPrivacy(group, key)}
-                        disabled={sharingGroupId === group.id}
-                        title={desc}
-                      >
-                        {sharingGroupId === group.id && (group.visibility || "private") !== key
-                          ? <RefreshCw size={12} className="spin-icon" />
-                          : <Icon size={12} />
-                        }
-                        {label}
-                      </button>
-                    ))}
+                  <div className="fr-privacy-row-top">
+                    <span className="fr-privacy-label">Privacy</span>
+                    <div className="fr-privacy-picker" role="radiogroup" aria-label="Group privacy">
+                      {[
+                        { key: "private", Icon: Lock,  label: "Private",  desc: "Only you" },
+                        { key: "shared",  Icon: Users, label: "Members",  desc: "Group members" },
+                        { key: "global",  Icon: Globe, label: "Global",   desc: "All friends" },
+                      ].map(({ key, Icon, label, desc }) => (
+                        <button
+                          key={key}
+                          type="button"
+                          className={`fr-privacy-opt fr-privacy-opt-${key} ${(group.visibility || "private") === key ? "on" : ""}`}
+                          onClick={() => handleSetGroupPrivacy(group, key)}
+                          disabled={sharingGroupId === group.id}
+                          title={desc}
+                          role="radio"
+                          aria-checked={(group.visibility || "private") === key}
+                        >
+                          {sharingGroupId === group.id && (group.visibility || "private") !== key
+                            ? <RefreshCw size={12} className="spin-icon" />
+                            : <Icon size={12} />
+                          }
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="fr-privacy-hint">
+                    {(group.visibility || "private") === "private" && (
+                      <>
+                        <Lock size={12} style={{ flexShrink: 0, opacity: 0.8 }} />
+                        <span><strong>Private</strong> — only visible to you on your schedule.</span>
+                      </>
+                    )}
+                    {(group.visibility || "private") === "shared" && (
+                      <>
+                        <Users size={12} style={{ flexShrink: 0, opacity: 0.8 }} />
+                        <span><strong>Members</strong> — shared with group members. Enables live schedule compare & group chat.</span>
+                      </>
+                    )}
+                    {(group.visibility || "private") === "global" && (
+                      <>
+                        <Globe size={12} style={{ flexShrink: 0, opacity: 0.8 }} />
+                        <span><strong>Global</strong> — visible to all your friends on Campus.</span>
+                      </>
+                    )}
                   </div>
                 </div>
-                <p className="fr-group-body-label">Tap friends to add/remove from this group:</p>
+                <p className="fr-group-body-label">Tap friends to add or remove them. Choose Members above to share the group with selected friends:</p>
                 {friends.length === 0 ? (
-                  <EmptyState compact icon={UserPlus} sub="Add friends first, then build your group." />
+                  <EmptyState compact icon={UserPlus} sub="No friends yet. Share an invite link below to add classmates." />
                 ) : (
                   <div className="fr-group-members">
                     {friends.map(f => {
@@ -1216,18 +1319,45 @@ export default function FriendsPanel({
                       return (
                         <button
                           key={f.id}
+                          type="button"
                           className={`fr-member-chip ${inGroup ? "in" : ""}`}
                           onClick={() => handleToggleFriendInGroup(group.id, f.id)}
+                          title={inGroup ? `Remove ${f.name} from group` : `Add ${f.name} to group`}
                         >
-                          <span className="fr-member-initial">{f.name[0]}</span>
-                          {f.name}
+                          {f.imageUrl ? (
+                            <img src={f.imageUrl} alt="" className="fr-member-initial" style={{ width: 24, height: 24, padding: 0, objectFit: 'cover' }} />
+                          ) : (
+                            <span className="fr-member-initial">{f.name[0]?.toUpperCase()}</span>
+                          )}
+                          <span>{f.name}</span>
+                          {inGroup && <Check size={12} strokeWidth={2.8} className="fr-member-check" />}
                         </button>
                       );
                     })}
                   </div>
                 )}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "8px" }}>
-                  <button className="fr-btn fr-btn-primary" style={{ padding: "6px 12px", fontSize: 12 }} onClick={e => { e.stopPropagation(); setExpandedGroup(null); showToast("Changes saved", "success"); }}>
+                <div className="fr-group-invite-box">
+                  <strong>Invite classmates by link</strong>
+                  <p>Anyone with the link can request to join. You approve each request.</p>
+                  <div className="fr-group-invite-actions">
+                    <button className="fr-btn fr-btn-secondary fr-btn-small" disabled={inviteBusy} onClick={() => createGroupLink(group)}>
+                      <Link2 size={13} /> {inviteLinks[group.id] ? "Copy invite link" : "Create invite link"}
+                    </button>
+                    {inviteLinks[group.id] && <input className="fr-add-input" readOnly aria-label="Group invite link" value={groupInviteUrl(inviteLinks[group.id])} onFocus={e => e.target.select()} />}
+                    <button className="fr-btn fr-btn-small" onClick={() => openGroupMembers(group)}><RefreshCw size={13} /> Check requests</button>
+                  </div>
+                  {(group.inviteMembers || []).length > 0 && <p>Joined by link: {(group.inviteMembers || []).map(m => m.name).join(", ")}</p>}
+                  {(groupRequests[group.id] || []).filter(r => r.status === "pending").map(request => (
+                    <div className="fr-group-request" key={request.userId}>
+                      <span>{request.name} wants to join</span>
+                      <button className="fr-btn fr-btn-primary fr-btn-small" disabled={inviteBusy} onClick={() => reviewGroupRequest(group, request, true)}>Approve</button>
+                      <button className="fr-btn fr-btn-small" disabled={inviteBusy} onClick={() => reviewGroupRequest(group, request, false)}>Decline</button>
+                    </div>
+                  ))}
+                </div>
+                <div className="fr-group-body-footer">
+                  {meetupsEnabled && memberCount >= 1 && <button type="button" className="fr-btn fr-btn-small" onClick={() => openGroupPlan(group)}><CalendarPlus size={14} /> Plan together</button>}
+                  <button className="fr-btn fr-btn-primary" style={{ padding: "6px 14px", fontSize: 12.5 }} onClick={e => { e.stopPropagation(); setExpandedGroup(null); showToast("Changes saved", "success"); }}>
                     <Check size={13} strokeWidth={2.8} /> Done
                   </button>
                   {confirmDeleteId === group.id ? (
@@ -1238,12 +1368,12 @@ export default function FriendsPanel({
                     </div>
                   ) : (
                     <button className="fr-btn fr-btn-danger fr-btn-small" onClick={e => { e.stopPropagation(); setConfirmDeleteId(group.id); }}>
-                      <Trash2 size={14} /> Delete group
+                      <Trash2 size={13} /> Delete group
                     </button>
                   )}
                 </div>
                 
-                {(group.visibility === "shared" || group.visibility === "global") && (
+                {(group.visibility === "shared" || group.visibility === "global" || (group.inviteMembers || []).length > 0) && (
                   <GroupChat group={group} userId={userId} userName={userName} />
                 )}
               </>
@@ -1722,7 +1852,7 @@ export default function FriendsPanel({
           <section className="fr-overview-card fr-circle-card">
             <div className="fr-overview-card-head">
               <div><span className="fr-card-kicker">Study circles</span><h2>Your groups</h2></div>
-              <button className="fr-text-button" onClick={() => setSocialView("groups")}>Manage <ArrowRight size={13} /></button>
+              <button className="fr-text-button" onClick={() => setSocialView("groups")}>View all <ArrowRight size={13} /></button>
             </div>
             {groups.length > 0 ? (
               <div className="fr-overview-groups">
@@ -1749,6 +1879,19 @@ export default function FriendsPanel({
       {/* ── Groups ── */}
       {socialView === "groups" && (
       <section className="fr-groups-section fr-sec-groups">
+        {joinPreview && <div className="fr-group-invite-box fr-group-join-preview">
+          {joinPreview.invalid ? <p>{inviteError}</p> : <>
+            <strong>Join {joinPreview.groupName}</strong>
+            <p>Study circle by {joinPreview.ownerName}. The owner approves join requests.</p>
+            {joinPreview.status === "new" && <button className="fr-btn fr-btn-primary fr-btn-small" disabled={inviteBusy} onClick={requestGroupJoin}>Request to join</button>}
+            {joinPreview.status === "pending" && <p>Request pending approval</p>}
+            {joinPreview.status === "approved" && <p>You are a member. Refresh to see the group if it is not listed yet.</p>}
+            {joinPreview.status === "owner" && <p>This is your group.</p>}
+            {joinPreview.status === "declined" && <button className="fr-btn fr-btn-primary fr-btn-small" disabled={inviteBusy} onClick={requestGroupJoin}>Request again</button>}
+            {inviteError && <p role="alert">{inviteError}</p>}
+          </>}
+          <button className="fr-btn fr-btn-small" onClick={() => { setJoinPreview(null); onGroupInviteConsumed?.(); }}>Dismiss</button>
+        </div>}
         <div className="fr-section-header">
           <h3 className="fr-section-title"><Users size={15} /> Groups</h3>
           <button className="fr-btn fr-btn-secondary fr-btn-small" style={{ borderRadius: 20 }} onClick={() => setShowNewGroup(s => !s)}>
@@ -1787,19 +1930,10 @@ export default function FriendsPanel({
           />
         ) : (
           <div className="fr-group-list">
-            {groups.slice(0, 4).map(group => renderGroupCard(group, false))}
+            {groups.map(group => renderGroupCard(group, false))}
           </div>
         )}
 
-        {groups.length > 4 && (
-          <button 
-            className="fr-btn fr-btn-secondary" 
-            style={{ width: "100%", marginTop: 16, justifyContent: "center", padding: "12px", background: "transparent", border: "1px dashed rgba(0,0,0,0.15)" }} 
-            onClick={() => setShowAllGroupsModal(true)}
-          >
-            Show all {groups.length} groups
-          </button>
-        )}
       </section>
       )}
 

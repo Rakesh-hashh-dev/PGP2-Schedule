@@ -570,7 +570,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [ovrEditValues, setOvrEditValues] = useState({ room: "", start: "", end: "" });
 
   // Live Editor State
-  const [liveSchedule] = useState(() => getSnapshot().CLASSES || []);
+  const [scheduleView] = useState(getSnapshot);
+  const liveSchedule = scheduleView.CLASSES || [];
   const [liveEditorDate, setLiveEditorDate] = useState(ymd(new Date()));
   const [liveEditorModal, setLiveEditorModal] = useState(null);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
@@ -1814,6 +1815,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const scheduleToday = ymd(new Date(LOAD_NOW));
   const scheduleOverrideCount = Object.values(flags.classOverrides || {}).reduce((sum, day) => sum + Object.keys(day || {}).length, 0);
   const upcomingOverrideCount = Object.entries(flags.classOverrides || {}).reduce((sum, [date, day]) => sum + (date >= scheduleToday ? Object.keys(day || {}).length : 0), 0);
+  const selectedDayClasses = liveSchedule.filter(c => c.date === liveEditorDate && c.type !== "break").length;
+  const selectedDayOverrides = Object.keys(flags.classOverrides?.[liveEditorDate] || {}).length;
+  const selectedDayLabel = new Date(`${liveEditorDate}T12:00:00`).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   async function clearUserStatus(target) {
     if (!confirm(`Clear status for ${target.name || "this student"}?`)) return;
     setModerationBusyId(target.user_id);
@@ -2445,19 +2449,20 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
 
           {/* ── Live Schedule Command Centre ── */}
-          <section className="admin-card admin-span-all admin-g-schedule" style={{ gridColumn: "1 / -1" }}>
+          <section className="admin-card admin-span-all admin-g-schedule scc-shell" style={{ gridColumn: "1 / -1" }}>
             {/* Header */}
             <div className="scc-head">
-              <div>
-                <h2 style={{ marginBottom: 4 }}><CalendarDays size={20} color="var(--blue)" /> Schedule Command Centre</h2>
-                <p className="admin-subtext" style={{ margin: 0 }}>Click a class card for quick cancel, room move, or full edit. Drag two cards to swap their time slots.</p>
+              <div className="scc-head-copy">
+                <span className="scc-eyebrow"><CalendarDays size={14} /> Schedule workspace</span>
+                <h2>Schedule Command Centre</h2>
+                <p>Review a day, adjust individual classes, and prepare changes for deployment.</p>
               </div>
               <div className="scc-head-actions">
                 <button className="admin-btn primary scc-head-btn"
                   onClick={() => openLiveEditorModal({ date: liveEditorDate, code: "", name: "", type: "class", section: "All" }, true)}>
-                  + Add Class
+                  <CalendarDays size={15} /> Add class
                 </button>
-                <button className="admin-btn outline scc-head-btn" style={{ borderColor: "var(--danger)", color: "var(--danger)" }}
+                <button className="admin-btn outline scc-head-btn scc-head-btn--danger"
                   onClick={() => {
                     const dayClasses = liveSchedule.filter(c => c.date === liveEditorDate && c.type !== "break");
                     if (dayClasses.length === 0) return alert("No classes to cancel on this date.");
@@ -2469,34 +2474,45 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     setFlags({ ...flags, classOverrides: next });
                     setCmdUndoStack(s => [{ label: `Holiday: all classes on ${liveEditorDate} cancelled`, prevOverrides: prev }, ...s.slice(0, 9)]);
                   }}>
-                  <XCircle size={14} /> Holiday (Cancel All)
+                  <XCircle size={15} /> Cancel day
                 </button>
               </div>
+            </div>
+
+            <div className="scc-summary" aria-label="Selected schedule day summary">
+              <div className="scc-summary-date"><span>Selected day</span><strong>{selectedDayLabel}</strong><small>{scheduleView._source === "live" ? "Cached live feed" : "Bundled schedule snapshot"}</small></div>
+              <div><span>Classes</span><strong>{selectedDayClasses}</strong><small>listed for this date</small></div>
+              <div><span>Overrides</span><strong>{selectedDayOverrides}</strong><small>on this date</small></div>
             </div>
 
             {/* Week View Ribbon */}
             {(() => {
               const today = ymd(new Date());
+              const selectedDate = new Date(`${liveEditorDate}T12:00:00`);
+              const mondayOffset = (selectedDate.getDay() + 6) % 7;
               const weekDays = Array.from({ length: 7 }, (_, i) => {
-                const d = new Date(); d.setDate(d.getDate() - 3 + i);
+                const d = new Date(selectedDate); d.setDate(d.getDate() - mondayOffset + i);
                 const iso = ymd(d);
                 const count = liveSchedule.filter(c => c.date === iso && c.type !== "break").length;
                 const hasOverride = !!(flags.classOverrides?.[iso] && Object.keys(flags.classOverrides[iso]).length > 0);
                 return { iso, label: d.toLocaleDateString("en-IN", { weekday: "short" }), num: d.getDate(), count, hasOverride, isToday: iso === today };
               });
               return (
-                <div className="scc-week-ribbon">
+                <div className="scc-week-wrap">
+                  <div className="scc-week-heading"><span>Week of {weekDays[0].iso === today ? "today" : new Date(`${weekDays[0].iso}T12:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span><button type="button" onClick={() => setLiveEditorDate(today)}>Jump to today <ChevronRight size={13} /></button></div>
+                  <div className="scc-week-ribbon" role="group" aria-label="Choose schedule date">
                   {weekDays.map(d => (
-                    <button key={d.iso}
+                    <button key={d.iso} type="button" aria-pressed={liveEditorDate === d.iso} aria-label={`${d.label} ${d.iso}, ${d.count} classes${d.hasOverride ? ", overrides present" : ""}`}
                       onClick={() => setLiveEditorDate(d.iso)}
                       className={`scc-day${liveEditorDate === d.iso ? " is-active" : ""}${d.isToday ? " is-today" : ""}`}>
                       <div className="scc-day-label">{d.label}</div>
                       <div className="scc-day-num">{d.num}</div>
-                      <div className="scc-day-count">{d.count > 0 ? `${d.count} cls` : "—"}</div>
+                      <div className="scc-day-count">{d.count > 0 ? `${d.count} classes` : "No classes"}</div>
                       {d.hasOverride && <span className="scc-day-override" title="Has overrides" />}
                       {d.isToday && <div className="scc-day-today" />}
                     </button>
                   ))}
+                  </div>
                 </div>
               );
             })()}
@@ -2506,7 +2522,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               <div className="scc-datenav">
                 <button aria-label="Previous day" onClick={() => { const d = new Date(liveEditorDate); d.setDate(d.getDate() - 1); setLiveEditorDate(ymd(d)); }}
                   className="scc-datenav-step">‹</button>
-                <input type="date" className="admin-input scc-dateinput" aria-label="Editor date" value={liveEditorDate} onChange={e => setLiveEditorDate(e.target.value)} />
+                <input type="date" className="admin-input scc-dateinput" aria-label="Editor date" value={liveEditorDate} onChange={e => { if (e.target.value) setLiveEditorDate(e.target.value); }} />
                 <button aria-label="Next day" onClick={() => { const d = new Date(liveEditorDate); d.setDate(d.getDate() + 1); setLiveEditorDate(ymd(d)); }}
                   className="scc-datenav-step">›</button>
               </div>
@@ -2534,6 +2550,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 </div>
               </div>
             )}
+
+            <div className="scc-list-head"><div><span className="scc-eyebrow">Day plan</span><h3>Classes for {selectedDayLabel}</h3></div><p>Drag a card onto another to swap times, or use Edit to change a class.</p></div>
 
             {/* Class grid */}
             {(() => {
@@ -2570,7 +2588,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 }
               }
 
-              if (displayClasses.length === 0) return <div className="admin-empty" style={{ padding: "24px 0" }}>No classes on this date{cmdSection !== "All" ? ` for Section ${cmdSection}` : ""}.</div>;
+              if (displayClasses.length === 0) return <div className="scc-empty"><CalendarDays size={22} /><strong>No classes listed</strong><span>{cmdSection !== "All" ? `Nothing is listed for Section ${cmdSection} on this date.` : "Choose another day or add a class."}</span>{cmdSection !== "All" && <button type="button" className="admin-btn outline" onClick={() => setCmdSection("All")}>Show all sections</button>}</div>;
 
               return (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -2598,7 +2616,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     const isQuickRoomOpen = cmdQuickRoom?.date === liveEditorDate && cmdQuickRoom?.classKey === ident + "_" + c.section;
 
                     return (
-                      <div key={idx}
+                      <div key={idx} className={`scc-class-card${isCancelled ? " is-cancelled" : ""}${isEvent ? " is-event" : ""}${isExam ? " is-exam" : ""}${isModified ? " is-modified" : ""}${isGuest ? " is-guest" : ""}${isBeingDragged ? " is-dragging" : ""}`}
                         draggable
                         onDragStart={() => setDraggedIdx(idx)}
                         onDragEnd={() => setDraggedIdx(null)}
@@ -2609,7 +2627,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                           const dst = c;
                           if (!src || !dst) return;
                           // Swap the start/end times between the two classes
-                          const srcStart = override?.start || src.start; const srcEnd = override?.end || src.end;
+                          const srcOvr = lookupOverride(overridesForDate, src);
+                          const srcStart = srcOvr?.start || src.start; const srcEnd = srcOvr?.end || src.end;
                           const dstOvr = lookupOverride(overridesForDate, dst);
                           const dstStart = dstOvr?.start || dst.start; const dstEnd = dstOvr?.end || dst.end;
                           const prev = flags.classOverrides;
@@ -2624,13 +2643,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                           setDraggedIdx(null);
                           logAdminAction(admin_id, "swap_time_slots", { date: liveEditorDate, src: srcKey, dst: dstKey });
                         }}
-                        style={{
-                          border: `1px solid ${isCancelled ? "var(--danger)" : isEvent ? "var(--live, #10B981)" : isExam ? "var(--violet)" : isModified ? "var(--amber)" : isGuest ? "var(--violet)" : "var(--border)"}`,
-                          borderRadius: 12,
-                          background: isCancelled ? "rgba(231,76,60,0.04)" : isEvent ? "linear-gradient(135deg, rgba(16,185,129,0.08), rgba(245,158,11,0.05))" : isModified ? "rgba(245,158,11,0.04)" : "var(--bg)",
-                          opacity: isCancelled ? 0.75 : 1, transition: "border-color 0.15s, box-shadow 0.15s",
-                          boxShadow: isBeingDragged ? "0 4px 20px rgba(0,0,0,0.15)" : isEvent ? "0 0 12px rgba(16,185,129,0.18)" : "none",
-                        }}>
+                        >
                         {/* Card main row */}
                         <div className="sched-class-row">
                           {/* Drag handle */}
@@ -5876,7 +5889,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           {/* Live Sync Logs */}
           <section className="admin-card admin-span-all admin-g-insights insights-sync-log" style={{ gridColumn: "1 / -1" }}>
             <div className="insights-sync-head">
-              <div><span className="insights-eyebrow"><Terminal size={13} /> Live stream</span><h2>Schedule sync logs</h2><p>Real-time connection events from the Google Apps Script schedule feed.</p></div>
+              <div><span className="insights-eyebrow"><Terminal size={13} /> Session activity</span><h2>Schedule sync logs</h2><p>Refresh attempts in this browser session only. These are not logs from other users or the server.</p></div>
               <div className="insights-sync-meta"><span><i className={syncLogs[0]?.status === "error" ? "is-error" : ""} />{syncLogs.length ? `${syncLogs.length} events captured` : "Awaiting first event"}</span>
               {syncLogs.length > 5 && (
                 <button className="admin-btn outline" onClick={() => setShowAllLogs(!showAllLogs)}>
@@ -5887,13 +5900,16 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             </div>
             <div className={`insights-sync-console ${showAllLogs ? "is-expanded" : ""}`}>
               {displayedLogs.length === 0 ? (
-                <div className="insights-sync-empty"><Activity size={18} /><span>No sync logs yet. Use Force Sync above to test the connection.</span></div>
+                <div className="insights-sync-empty"><Activity size={18} /><span>No schedule refreshes recorded in this session yet. Use the app's Refresh button to test the feed.</span></div>
               ) : (
                 displayedLogs.map((log, i) => (
                   <div key={i} className={log.status === "error" ? "is-error" : ""}>
-                    <time>{new Date(log.ts).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</time>
+                    <time dateTime={new Date(log.ts).toISOString()} title={new Date(log.ts).toLocaleString("en-IN")}>{new Date(log.ts).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</time>
                     <strong><i />{log.status.toUpperCase()}</strong>
-                    <span>{log.message}</span>
+                    <div className="insights-sync-detail">
+                      <span className="insights-sync-context">{log.source || "Source unavailable (earlier event)"} · {log.trigger || "Refresh"}{log.step ? ` · ${log.step}` : ""}</span>
+                      <span className="insights-sync-message">{log.message}</span>
+                    </div>
                   </div>
                 ))
               )}
