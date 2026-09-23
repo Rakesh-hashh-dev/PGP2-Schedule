@@ -1,529 +1,332 @@
 import { useCallback, useMemo, useState } from "react";
-import { Check, X, Clock, AlertTriangle, ChevronDown, Flame, Activity } from "lucide-react";
+import { BarChart3, BookOpen, CalendarCheck2, Check, ChevronDown, CircleGauge, Clock, History, ListFilter, ShieldAlert, X } from "lucide-react";
 import { sessionKey, courseSkipStats, isExamSession } from "../lib/attendance.js";
-import { subjectClass } from "../lib/subjectColors.js";
+import { attendanceCourseState, attendanceCoverage, attendanceRequirement, groupPendingSessions, sortAttendanceCourses } from "../lib/attendanceWorkspace.js";
+import { subjectClass, cleanSessionLabel } from "../lib/subjectColors.js";
+import { fmtTime12 } from "../lib/datetime.js";
 import { EmptyState } from "./ui.jsx";
-import { BookOpen, CalendarCheck2, PartyPopper } from "lucide-react";
 import WeatherWidget from "./WeatherWidget.jsx";
+import "../styles/attendance.css";
 
-const THRESHOLD = 80;
+const PENDING_PREVIEW_SIZE = 4;
 
 function clsEnd(c) {
-  const [Y, Mo, D] = c.date.split("-").map(Number);
-  const [h, m] = c.end.split(":").map(Number);
-  return new Date(Y, Mo - 1, D, h, m);
+  const [year, month, day] = c.date.split("-").map(Number);
+  const [hour, minute] = c.end.split(":").map(Number);
+  return new Date(year, month - 1, day, hour, minute);
 }
 
-function fmtDate(iso) {
-  const [Y, M, D] = iso.split("-").map(Number);
-  return new Date(Y, M - 1, D).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
+function fmtDate(iso, long = false) {
+  const [year, month, day] = iso.split("-").map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString([], long
+    ? { weekday: "long", day: "numeric", month: "long" }
+    : { weekday: "short", day: "numeric", month: "short" });
 }
 
-function tone(p) {
-  if (p == null) return "none";
-  if (p >= THRESHOLD) return "good";
-  if (p >= 60) return "warn";
-  return "bad";
-}
+const percentageLabel = (value) => value == null ? "Not recorded" : `${value}%`;
 
-function Ring({ pct, t, noData, size = 92 }) {
-  const r = size * 0.38, C = 2 * Math.PI * r;
-  const off = C * (1 - Math.max(0, Math.min(100, pct)) / 100);
-  const col = t === "good" ? "var(--live)" : t === "warn" ? "var(--amber)" : t === "bad" ? "#C0392B" : "rgba(255,255,255,.25)";
-  const strokeW = size * 0.08;
+function Progress({ value, target, label }) {
+  const width = value == null ? 0 : Math.max(0, Math.min(100, value));
   return (
-    <svg className="att-ring" width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth={strokeW} />
-      {!noData && (
-        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={col} strokeWidth={strokeW} strokeLinecap="round"
-          strokeDasharray={C} strokeDashoffset={off} transform={`rotate(-90 ${size/2} ${size/2})`}
-          style={{ transition: "stroke-dashoffset 900ms cubic-bezier(0.23, 1, 0.32, 1)" }} />
-      )}
-      <text x={size/2} y={size/2} textAnchor="middle" dominantBaseline="central" style={{ fill: "#ffffff", fontSize: size * 0.22, fontWeight: 800, letterSpacing: "-0.5px", fontVariantNumeric: "tabular-nums" }}>
-        {noData ? "—" : `${pct}%`}
-      </text>
-    </svg>
+    <div className="atx-progress" role="progressbar" aria-label={label} aria-valuemin="0" aria-valuemax="100"
+      aria-valuenow={value ?? 0} aria-valuetext={value == null ? "No attendance recorded" : `${value}% attendance; target ${target}%`}>
+      <span className="atx-progress-fill" style={{ width: `${width}%` }} />
+      <span className="atx-progress-target" style={{ left: `${target}%` }} aria-hidden="true" />
+    </div>
   );
 }
 
-function StatusDot({ status }) {
-  return <span className={`att-sdot${status === "present" ? " att-sdot-p" : status === "absent" ? " att-sdot-a" : ""}`} />;
+function MarkButtons({ session, status, onMark, compact = false }) {
+  return (
+    <div className={`atx-mark-actions${compact ? " compact" : ""}`}>
+      <button
+        type="button"
+        className={`atx-mark-button present${status === "present" ? " active" : ""}`}
+        onClick={() => onMark(session, status === "present" ? null : "present")}
+        aria-pressed={status === "present"}
+        title={`Mark ${session.name || session.code} as present`}
+      >
+        <Check size={13} strokeWidth={2.5} />
+        <span>{compact ? "Present" : "Mark present"}</span>
+      </button>
+      <button
+        type="button"
+        className={`atx-mark-button absent${status === "absent" ? " active" : ""}`}
+        onClick={() => onMark(session, status === "absent" ? null : "absent")}
+        aria-pressed={status === "absent"}
+        title={`Mark ${session.name || session.code} as absent`}
+      >
+        <X size={13} strokeWidth={2.5} />
+        <span>{compact ? "Absent" : "Mark absent"}</span>
+      </button>
+    </div>
+  );
 }
 
-function SparkTrend({ sessions, attendance }) {
-  if (!sessions.length) return null;
+function PendingCard({ session, onMark }) {
+  const [exiting, setExiting] = useState(null);
+  const rawSession = cleanSessionLabel(session.session);
+  const sessionLabel = rawSession ? (/^s/i.test(rawSession) ? rawSession : `S${rawSession}`) : null;
 
-  // Build running cumulative % after each session
-  const points = [];
-  let present = 0, marked = 0;
-  sessions.forEach(s => {
-    const st = attendance[s.key];
-    if (st === "present") { present++; marked++; }
-    else if (st === "absent") { marked++; }
-    points.push(marked > 0 ? (present / marked) * 100 : null);
-  });
-
-  const W = 200, H = 30;
-  const n = points.length;
-  const validPts = points.map((p, i) => ({ p, i })).filter(v => v.p !== null);
-  const svgPoints = validPts.map(({ p, i }) => {
-    const x = n <= 1 ? W / 2 : (i / (n - 1)) * W;
-    const y = H - 3 - (p / 100) * (H - 10);
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(" ");
-
-  const last = validPts.length ? validPts[validPts.length - 1].p : null;
-  const lineColor = last == null ? "rgba(255,255,255,.2)" : last >= 80 ? "var(--live)" : last >= 75 ? "var(--amber)" : "#C0392B";
-  const t = last == null ? "none" : last >= 80 ? "good" : last >= 75 ? "warn" : "bad";
-  const threshold80Y = H - 3 - (80 / 100) * (H - 10);
+  const handleMark = useCallback((targetSession, status) => {
+    if (!status || exiting) {
+      onMark(targetSession, status);
+      return;
+    }
+    setExiting(status);
+    setTimeout(() => {
+      onMark(targetSession, status);
+    }, 220);
+  }, [exiting, onMark]);
 
   return (
-    <div className="att-spark-wrap">
-      <div className="att-spark">
-        {sessions.map((s, i) => {
-          const st = attendance[s.key] || null;
-          const label = st === "present" ? "Present" : st === "absent" ? "Absent" : "Unmarked";
-          return (
-            <span key={s.key} className="tb-wrap">
-              <span className={`att-sp${st === "present" ? " att-sp-p" : st === "absent" ? " att-sp-a" : ""}`} />
-              <span className="tooltip att-sp-tip" role="tooltip">{`Session ${s.session || i + 1} · ${label}\n${fmtDate(s.date)} · ${s.start}–${s.end}`}</span>
-            </span>
-          );
-        })}
-        <span className={`att-spark-pct att-pct tone-${t}`}>
-          {last != null ? `${Math.round(last)}%` : "—"}
-        </span>
+    <article className={`atx-pending-card ${subjectClass(session.code)}${exiting ? ` exiting-${exiting}` : ""}`}>
+      <div className="atx-pending-code">
+        <strong>{session.code}</strong>
+        {sessionLabel && <span>{sessionLabel}</span>}
       </div>
-      {n >= 3 && svgPoints && (
-        <svg className="att-trend-svg" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
-          <line x1="0" y1={threshold80Y.toFixed(1)} x2={W} y2={threshold80Y.toFixed(1)}
-            stroke="rgba(255,255,255,0.1)" strokeWidth="1" strokeDasharray="3,4" />
-          <polyline points={svgPoints} fill="none" stroke={lineColor}
-            strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.75" />
-        </svg>
-      )}
+      <div className="atx-pending-copy">
+        <strong>{session.name}</strong>
+        <span><Clock size={12} /> {fmtTime12(session.start)}–{fmtTime12(session.end)}</span>
+      </div>
+      <MarkButtons session={session} status={exiting} onMark={handleMark} compact />
+    </article>
+  );
+}
+
+function CourseHistory({ course, attendance, filter, setFilter, onMark }) {
+  const sessions = course.sessions.filter((session) => {
+    const status = attendance[session.key] || "unmarked";
+    return filter === "all" || status === filter;
+  });
+  return (
+    <div className="atx-history">
+      <div className="atx-history-head">
+        <div><History size={15} /><strong>Session history</strong></div>
+        <div className="atx-mini-filters" aria-label="Filter session history">
+          {["all", "present", "absent", "unmarked"].map((item) => (
+            <button key={item} className={filter === item ? "active" : ""} onClick={() => setFilter(item)}>{item[0].toUpperCase() + item.slice(1)}</button>
+          ))}
+        </div>
+      </div>
+      {sessions.length ? sessions.map((session, index) => {
+        const status = attendance[session.key] || null;
+        return (
+          <div className="atx-history-row" key={session.key}>
+            <span className={`atx-status-dot ${status || "unmarked"}`} aria-hidden="true" />
+            <div className="atx-history-copy"><strong>Session {session.session || index + 1}</strong><span>{fmtDate(session.date)} · {fmtTime12(session.start)}–{fmtTime12(session.end)}</span></div>
+            <span className={`atx-status-label ${status || "unmarked"}`}>{status || "Unmarked"}</span>
+            <MarkButtons session={session} status={status} onMark={onMark} compact />
+          </div>
+        );
+      }) : <p className="atx-filter-empty">No {filter} sessions in this course.</p>}
+    </div>
+  );
+}
+
+function SubjectChart({ courses, isVisible = true }) {
+  return (
+    <div className="atx-chart-scroll">
+      <div className="atx-chart" style={{ "--atx-columns": courses.length }} role="img" aria-label="Subject-wise attendance compared with the required percentage">
+        <div className="atx-chart-line" style={{ bottom: "80%" }}><span>80% baseline</span></div>
+        <div className="atx-chart-bars">
+          {courses.map((course, idx) => {
+            const height = course.pct == null ? 3 : Math.max(5, course.pct);
+            const tone = course.pct == null ? "empty" : course.pct >= course.requiredPct ? "good" : course.pct >= course.requiredPct - 10 ? "watch" : "bad";
+            return (
+              <div
+                className="atx-chart-column"
+                key={course.code}
+                style={{ "--bar-index": idx }}
+                aria-label={`${course.name}: ${percentageLabel(course.pct)}, ${course.state.coverage}% records complete`}
+              >
+                <span className={`atx-chart-value ${tone}`}>{course.pct == null ? "—" : `${course.pct}%`}</span>
+                <div className="atx-chart-track">
+                  <span
+                    className={`atx-chart-bar ${tone}`}
+                    style={{ height: isVisible ? `${height}%` : "0%" }}
+                  />
+                  <span className="atx-chart-course-target" style={{ bottom: `${course.requiredPct}%` }} aria-hidden="true" />
+                </div>
+                <strong>{course.code}</strong>
+                <small>{course.state.coverage}% recorded</small>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
 
 export default function AttendancePanel({ allClasses, now, attendance, enrolled, legend, markAttendance, weather, termNumber }) {
   const [expandedCode, setExpandedCode] = useState(null);
+  const [pendingFilter, setPendingFilter] = useState("all");
+  const [courseFilter, setCourseFilter] = useState("all");
+  const [historyFilter, setHistoryFilter] = useState("all");
   const [showChart, setShowChart] = useState(false);
+  const [showAllPending, setShowAllPending] = useState(false);
+  const [liveMessage, setLiveMessage] = useState("");
   const codes = Object.keys(enrolled || {});
+
   const allPast = useMemo(() => {
     if (!enrolled) return [];
     const out = [];
     for (const [code, section] of Object.entries(enrolled)) {
       const name = legend[code]?.name || code;
-      allClasses
-        .filter(c => c.type === "class" && !isExamSession(c) && c.code === code && (c.section === "Single" || c.section === section) && clsEnd(c) <= now)
+      allClasses.filter((c) => c.type === "class" && !isExamSession(c) && c.code === code
+        && (c.section === "Single" || c.section === section) && clsEnd(c) <= now)
         .sort((a, b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start))
-        .forEach(c => out.push({ ...c, name, key: sessionKey(c) }));
+        .forEach((c) => out.push({ ...c, name, key: sessionKey(c) }));
     }
     return out;
   }, [allClasses, enrolled, legend, now]);
 
   const stat = useCallback((list) => {
-    const present  = list.filter(s => attendance[s.key] === "present").length;
-    const absent   = list.filter(s => attendance[s.key] === "absent").length;
+    const present = list.filter((session) => attendance[session.key] === "present").length;
+    const absent = list.filter((session) => attendance[session.key] === "absent").length;
     const unmarked = list.length - present - absent;
-    const pct = (present + absent) > 0 ? Math.round((present / (present + absent)) * 100) : null;
-    return { present, absent, unmarked, pct, total: list.length };
+    const marked = present + absent;
+    return { present, absent, unmarked, marked, pct: marked > 0 ? Math.round((present / marked) * 100) : null, total: list.length };
   }, [attendance]);
 
   const overall = useMemo(() => stat(allPast), [allPast, stat]);
+  const overallCoverage = attendanceCoverage(overall);
+  const byCourse = useMemo(() => sortAttendanceCourses(codes.map((code) => {
+    const sessions = allPast.filter((session) => session.code === code);
+    const section = enrolled[code];
+    const credits = legend[code]?.credits;
+    const budget = courseSkipStats(allClasses, code, section, attendance, { zeroCredit: Number(credits) === 0, credits });
+    const base = { code, name: legend[code]?.name || code, credits, sessions, requiredPct: attendanceRequirement(credits), ...budget, ...stat(sessions) };
+    return { ...base, state: attendanceCourseState(base) };
+  })), [allPast, attendance, codes, allClasses, enrolled, legend, stat]);
 
-  const byCourse = useMemo(() => {
-    return codes.map(code => {
-      const list = allPast.filter(s => s.code === code);
-      const section = enrolled[code];
-      const rawCredit = legend[code]?.credits;
-      const zeroCredit = rawCredit === "0" || rawCredit === 0;
-      const budget = courseSkipStats(allClasses, code, section, attendance, { zeroCredit, credits: rawCredit });
 
-      const st = stat(list);
-      return {
-        code, name: legend[code]?.name || code, sessions: list,
-        totalScheduled: budget.totalScheduled,
-        totalAllowedSkips: budget.totalAllowedSkips,
-        skipsRemaining: budget.skipsRemaining,
-        penaltyHit: budget.penaltyHit,
-        ...st,
-      };
-    }).sort((a, b) => {
-      // Sort by penalty hit first, then skips remaining, then percentage
-      if (a.penaltyHit !== b.penaltyHit) return a.penaltyHit ? -1 : 1;
-      if (a.skipsRemaining !== b.skipsRemaining) return a.skipsRemaining - b.skipsRemaining;
-      return (a.pct ?? 101) - (b.pct ?? 101);
-    });
-  }, [allPast, attendance, codes, allClasses, enrolled, legend, stat]);
+  const pending = useMemo(() => allPast.filter((session) => !attendance[session.key]), [allPast, attendance]);
+  const pendingCodes = useMemo(() => [...new Set(pending.map((session) => session.code))], [pending]);
+  const filteredPending = pendingFilter === "all" ? pending : pending.filter((session) => session.code === pendingFilter);
+  const visiblePending = showAllPending ? filteredPending : filteredPending.slice().reverse().slice(0, PENDING_PREVIEW_SIZE);
+  const pendingGroups = useMemo(() => groupPendingSessions(visiblePending), [visiblePending]);
+  const attentionCourses = byCourse.filter((course) => ["critical", "below", "watch"].includes(course.state.id));
+  const filteredCourses = byCourse.filter((course) => {
+    if (courseFilter === "attention") return course.state.rank <= 2;
+    if (courseFilter === "on-track") return course.state.id === "on-track";
+    if (courseFilter === "unmarked") return course.unmarked > 0;
+    return true;
+  });
 
-  const overallSkipBudget = useMemo(() => {
-    let allowed = 0;
-    let absent = 0;
-    let hasPenalty = false;
-    byCourse.forEach(c => {
-      if (c.totalAllowedSkips > 0) {
-        allowed += c.totalAllowedSkips;
-        absent += c.absent;
-      }
-      if (c.penaltyHit) hasPenalty = true;
-    });
-    return { allowed, absent, remaining: Math.max(0, allowed - absent), hasPenalty };
-  }, [byCourse]);
+  const handleMark = useCallback((session, status) => {
+    markAttendance?.(session, status);
+    const action = status === "present" ? "marked present" : status === "absent" ? "marked absent" : "cleared";
+    setLiveMessage(`${session.name || session.code} ${action}.`);
+  }, [markAttendance]);
 
-  const toMark = allPast.filter(s => !attendance[s.key]);
-  const missed  = allPast.filter(s => attendance[s.key] === "absent");
-  const noData  = allPast.length === 0;
-  const overall_tone = tone(overall.pct);
-
-  if (!codes.length)
-    return (
-      <div className="att-page">
-        <div className="att-head"><h1>Attendance</h1></div>
-        <EmptyState icon={BookOpen} title="No courses enrolled" sub="Complete setup first — your attendance will show up here." />
-      </div>
-    );
-
-  function toggle(code) {
-    setExpandedCode(prev => prev === code ? null : code);
+  function toggleCourse(code) {
+    setExpandedCode((current) => current === code ? null : code);
+    setHistoryFilter("all");
   }
 
+  if (!codes.length) return <div className="atx-page"><div className="atx-heading"><h1>Attendance</h1></div><EmptyState icon={BookOpen} title="No courses enrolled" sub="Complete setup first — your attendance will show up here." /></div>;
+
   return (
-    <div className="att-page">
-      <div className="att-head">
-        <div className="att-head-left">
-          <h1>Attendance</h1>
-          <span className="att-sub">{termNumber ? `Term ${["", "I", "II", "III", "IV", "V", "VI"][termNumber] || termNumber}` : "Term so far"}</span>
-        </div>
+    <div className="atx-page">
+      <div className="atx-heading">
+        <div><span className="atx-eyebrow">Attendance centre</span><h1>Attendance</h1><p>{termNumber ? `Term ${["", "I", "II", "III", "IV", "V", "VI"][termNumber] || termNumber}` : "Term so far"} · Know what needs action</p></div>
         <WeatherWidget now={now} weather={weather} />
       </div>
+      <div className="sr-only" role="status" aria-live="polite">{liveMessage}</div>
 
-      {/* ── Compact bar (mobile only — replaces the full hero on small screens) ── */}
-      {!noData && (
-        <button
-          className={`att-hero-bar tone-${overall_tone}${showChart ? " att-hero-bar-open" : ""}`}
-          onClick={() => setShowChart(s => !s)}
-          aria-expanded={showChart}
-          aria-label={`Overall attendance ${overall.pct}%, tap to ${showChart ? "collapse" : "show subject breakdown"}`}
-        >
-          {/* % pill */}
-          <span className="att-bar-pct">{overall.pct ?? "—"}%</span>
-          {/* stats */}
-          <span className="att-bar-sum">
-            <b>{overall.present}</b> attended · <b>{overall.absent}</b> missed
-          </span>
-          {/* skip budget */}
-          {overallSkipBudget.hasPenalty ? (
-            <span className="att-bar-chip att-bar-chip-bad"><AlertTriangle size={10} /> Penalty</span>
-          ) : overallSkipBudget.allowed > 0 ? (
-            <span className="att-bar-chip att-bar-chip-hi"><Flame size={10} /> {overallSkipBudget.remaining}/{overallSkipBudget.allowed}</span>
-          ) : null}
-          {/* decorative icon */}
-          <span className="att-bar-spark" aria-hidden="true">
-            <Activity size={13} strokeWidth={1.5} />
-          </span>
-          <ChevronDown size={14} className={`att-bar-chev${showChart ? " open" : ""}`} />
-        </button>
+      <section className={`atx-summary${overallCoverage < 70 && overall.total ? " incomplete" : ""}`} aria-labelledby="attendance-summary-title">
+        <div className="atx-summary-main">
+          <div className="atx-summary-ring" style={{ "--atx-pct": `${overall.pct ?? 0}%` }}><strong>{overall.pct == null ? "—" : `${overall.pct}%`}</strong></div>
+          <div><span className="atx-summary-kicker" id="attendance-summary-title">Recorded attendance</span>
+            <h2>{overall.pct == null ? "Start recording past classes" : `${overall.present} attended · ${overall.absent} missed`}</h2>
+            <p>{overall.total ? `Based on ${overall.marked} of ${overall.total} past sessions.` : "No eligible classes have ended yet."}{overallCoverage < 70 && overall.total ? " Complete your records before relying on this percentage." : ""}</p>
+          </div>
+        </div>
+        <div className="atx-summary-grid">
+          <div className="atx-summary-stat"><span>Coverage</span><strong>{overallCoverage}%</strong><small>{overall.marked}/{overall.total} recorded</small></div>
+          <div className={`atx-summary-stat${pending.length ? " urgent" : ""}`}><span>To mark</span><strong>{pending.length}</strong><small>{pending.length ? "Newest first" : "All caught up"}</small></div>
+          <div className={`atx-summary-stat${attentionCourses.length ? " warn" : ""}`}><span>At risk</span><strong>{attentionCourses.length}</strong><small>{attentionCourses.length ? "Review below" : "No warnings"}</small></div>
+        </div>
+
+        {overall.total > 0 && (
+          <button
+            type="button"
+            className={`atx-chart-toggle${showChart ? " open" : ""}`}
+            onClick={() => setShowChart((value) => !value)}
+            aria-expanded={showChart}
+            aria-label={showChart ? "Hide subject graph" : "View subject graph"}
+            title={showChart ? "Hide subject graph" : "View subject graph"}
+          >
+            <ChevronDown size={16} strokeWidth={2.2} className={`atx-toggle-chevron${showChart ? " open" : ""}`} />
+          </button>
+        )}
+      </section>
+
+      {overall.total > 0 && (
+        <div className={`atx-chart-drawer${showChart ? " open" : ""}`} aria-hidden={!showChart}>
+          <div className="atx-chart-drawer-inner">
+            <section className="atx-section atx-chart-section" aria-labelledby="subject-chart-title">
+              <div className="atx-section-head">
+                <div>
+                  <span className="atx-section-icon"><BarChart3 size={17} /></span>
+                  <div>
+                    <h2 id="subject-chart-title">Subject-wise attendance</h2>
+                    <p>Attendance percentage and recording coverage by course.</p>
+                  </div>
+                </div>
+                <span className="atx-count">Target 80% · Zero-credit 90%</span>
+              </div>
+              <SubjectChart courses={byCourse} isVisible={showChart} />
+            </section>
+          </div>
+        </div>
       )}
 
-      {/* ── Full hero (desktop only — hidden on mobile via CSS) ── */}
-      <section
-        className={`att-hero tone-${overall_tone}${noData ? "" : " att-hero-clickable"}${showChart ? " att-hero-open" : ""}`}
-        onClick={noData ? undefined : () => setShowChart(s => !s)}
-        role={noData ? undefined : "button"}
-        tabIndex={noData ? undefined : 0}
-        onKeyDown={noData ? undefined : (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setShowChart(s => !s); } }}
-        aria-expanded={noData ? undefined : showChart}
-      >
-        {!noData && (
-          <span className="att-hero-hint" aria-hidden="true">
-            <ChevronDown size={18} className="att-hero-chev" />
-          </span>
-        )}
-        <div className="att-hero-bg-text">
-          {termNumber ? ["", "I", "II", "III", "IV", "V", "VI"][termNumber] || termNumber : ""}
+      {pending.length > 0 && <section className="atx-section atx-pending" id="attendance-pending" aria-labelledby="pending-title">
+        <div className="atx-section-head"><div><span className="atx-section-icon"><CalendarCheck2 size={17} /></span><div><h2 id="pending-title">Quick mark</h2><p>Complete recent sessions to make your insights reliable.</p></div></div><span className="atx-count">{filteredPending.length} pending</span></div>
+        <div className="atx-filter-scroll" aria-label="Filter pending attendance by course">
+          <button className={pendingFilter === "all" ? "active" : ""} onClick={() => { setPendingFilter("all"); setShowAllPending(false); }}>All</button>
+          {pendingCodes.map((code) => <button key={code} className={pendingFilter === code ? "active" : ""} onClick={() => { setPendingFilter(code); setShowAllPending(false); }}>{code}</button>)}
         </div>
-        <div className="att-hero-ring">
-          <Ring pct={overall.pct ?? 0} t={overall_tone} noData={noData} size={64} />
-        </div>
-        <div className="att-hero-r">
-          <div className="att-hero-label">Overall Attendance</div>
-          {noData ? (
-            <div className="att-hero-line" style={{ opacity: .6 }}>No sessions logged yet</div>
-          ) : (
-            <>
-              <div className="att-hero-big">
-                <b>{overall.present}</b> attended
-                <span className="att-d">·</span>
-                <b>{overall.absent}</b> missed
-              </div>
-              <div className="att-hero-areas">
-                {overall.unmarked > 0 && (
-                  <span className="att-area-chip">
-                    To mark: {overall.unmarked}
-                  </span>
+        <div className="atx-pending-groups">{pendingGroups.map((group) => <div className="atx-date-group" key={group.date}><h3>{fmtDate(group.date, true)}</h3><div className="atx-pending-list">{group.sessions.map((session) => <PendingCard key={session.key} session={session} onMark={handleMark} />)}</div></div>)}</div>
+        {filteredPending.length > PENDING_PREVIEW_SIZE && <button className="atx-show-more" onClick={() => setShowAllPending((value) => !value)}>{showAllPending ? "Show recent sessions only" : `Show ${filteredPending.length - PENDING_PREVIEW_SIZE} earlier sessions`}<ChevronDown size={15} className={showAllPending ? "open" : ""} /></button>}
+      </section>}
+
+      {attentionCourses.length > 0 && <section className="atx-section atx-risk" aria-labelledby="risk-title">
+        <div className="atx-section-head"><div><span className="atx-section-icon"><ShieldAlert size={17} /></span><div><h2 id="risk-title">Risk watch</h2><p>Courses where the next attendance decision matters most.</p></div></div><span className="atx-count">{attentionCourses.length} course{attentionCourses.length === 1 ? "" : "s"}</span></div>
+        <div className="atx-risk-grid">{attentionCourses.map((course) => <article className={`atx-risk-card state-${course.state.id} ${subjectClass(course.code)}`} key={course.code}><div className="atx-risk-top"><strong>{course.code}</strong><span>{percentageLabel(course.pct)}</span></div><h3>{course.name}</h3><p>{course.state.detail}</p><div className="atx-risk-foot"><span>{course.state.label}</span><span>{course.state.coverage}% recorded</span></div></article>)}</div>
+      </section>}
+
+      <section className="atx-section" aria-labelledby="courses-title">
+        <div className="atx-section-head atx-course-heading"><div><span className="atx-section-icon"><CircleGauge size={17} /></span><div><h2 id="courses-title">Course overview</h2><p>Attendance, coverage and remaining flexibility.</p></div></div><ListFilter size={17} aria-hidden="true" /></div>
+        <div className="atx-filter-scroll atx-course-filters" aria-label="Filter courses">{[["all", "All"], ["attention", "Needs attention"], ["on-track", "On track"], ["unmarked", "Unmarked"]].map(([id, label]) => <button key={id} className={courseFilter === id ? "active" : ""} onClick={() => setCourseFilter(id)}>{label}</button>)}</div>
+        {allPast.length === 0 ? <EmptyState compact icon={CalendarCheck2} title="No past classes yet" sub="Check back once sessions end." /> : filteredCourses.length ? <div className="atx-course-grid">{filteredCourses.map((course) => {
+          const open = expandedCode === course.code;
+          const canExpand = course.sessions.length > 0 && !!markAttendance;
+          return <article className={`atx-course-card ${subjectClass(course.code)} state-${course.state.id}${open ? " open" : ""}`} key={course.code}>
+            <button className="atx-course-toggle" onClick={() => canExpand && toggleCourse(course.code)} disabled={!canExpand} aria-expanded={open}>
+              <div className="atx-course-topline"><span className="atx-course-code">{course.code}</span><span className={`atx-state-pill state-${course.state.id}`}>{course.state.label}</span>{canExpand && <ChevronDown size={16} className="atx-course-chevron" />}</div>
+              <h3>{course.name}</h3><div className="atx-course-measure"><strong>{percentageLabel(course.pct)}</strong><span>{course.present}/{course.marked} attended</span><span>{course.requiredPct}% required</span></div>
+              <Progress value={course.pct} target={course.requiredPct} label={`${course.name} attendance`} />
+              <div className="atx-course-foot"><span>{course.state.coverage}% records complete</span><span className={`atx-skip-tracker${course.penaltyHit ? " penalty" : course.skipsRemaining <= 1 ? " low" : ""}`}>{course.penaltyHit ? "Penalty threshold crossed" : `Skips: ${course.skipsRemaining}/${course.totalAllowedSkips} left`}</span></div>
+            </button>
+            <div className={`atx-history-drawer${open ? " open" : ""}`} aria-hidden={!open} inert={!open ? "" : undefined}>
+              <div className="atx-history-drawer-inner">
+                {canExpand && (
+                  <CourseHistory
+                    course={course}
+                    attendance={attendance}
+                    filter={historyFilter}
+                    setFilter={setHistoryFilter}
+                    onMark={handleMark}
+                  />
                 )}
-                {overallSkipBudget.hasPenalty ? (
-                  <span className="att-area-chip att-area-chip-bad">
-                    <AlertTriangle size={11} />
-                    Grade Penalty Hit
-                  </span>
-                ) : overallSkipBudget.allowed > 0 ? (
-                  <span className="att-area-chip att-area-chip-hi">
-                    <Flame size={11} />
-                    {overallSkipBudget.remaining} / {overallSkipBudget.allowed} skips left
-                  </span>
-                ) : null}
-              </div>
-            </>
-          )}
-        </div>
-      </section>
-
-      {/* ── Subject-wise chart (toggled by tapping the hero) ── */}
-      {!noData && byCourse.length > 0 && showChart && (
-        <section className="att-card att-chart-card att-chart-reveal">
-          <div className="att-card-h">
-            <h2>Subject-wise attendance</h2>
-            <span className="att-count">{THRESHOLD}% required</span>
-          </div>
-          <div className="att-chart">
-            <div className="att-chart-plot" style={{ gridTemplateColumns: `repeat(${byCourse.length}, 1fr)` }}>
-              <div className="att-chart-threshold" style={{ bottom: `${THRESHOLD}%` }}>
-                <span className="att-chart-threshold-lbl">{THRESHOLD}%</span>
-              </div>
-              {byCourse.map((c, i) => {
-                const t = tone(c.pct);
-                const noBar = c.pct == null;
-                const targetH = noBar ? "3px" : `${Math.max(5, c.pct)}%`;
-                const delay = `${i * 65}ms`;
-                const marked = c.present + c.absent;
-                return (
-                  <div
-                    key={c.code}
-                    className={`att-chart-col${noBar ? " att-chart-col-empty" : ""}`}
-                    style={{ "--i": i }}
-                  >
-                    <div
-                      className={`att-chart-bar att-chart-${t}`}
-                      style={{ "--barh": targetH, animationDelay: delay }}
-                    >
-                      <span className="att-chart-val" style={{ animationDelay: `calc(${delay} + 260ms)` }}>
-                        {noBar ? "—" : `${c.pct}%`}
-                      </span>
-                    </div>
-                    <div className={`att-ctip att-ctip-${noBar ? "none" : t}`} role="tooltip">
-                      <div className="att-ctip-name">{c.name}</div>
-                      {noBar ? (
-                        <div className="att-ctip-empty">No sessions marked yet</div>
-                      ) : (
-                        <>
-                          <div className="att-ctip-head">
-                            <span className={`att-ctip-pct att-pct tone-${t}`}>{c.pct}%</span>
-                            <span className="att-ctip-ratio">{c.present}/{marked} attended</span>
-                          </div>
-                          <div className="att-ctip-bar">
-                            {c.present > 0 && <span className="att-ctip-bar-seg p" style={{ flexGrow: c.present }} />}
-                            {c.absent > 0 && <span className="att-ctip-bar-seg a" style={{ flexGrow: c.absent }} />}
-                            {c.unmarked > 0 && <span className="att-ctip-bar-seg u" style={{ flexGrow: c.unmarked }} />}
-                          </div>
-                          <div className="att-ctip-legend">
-                            <span className="att-ctip-seg"><i className="att-ctip-dot p" />{c.present} present</span>
-                            <span className="att-ctip-seg"><i className="att-ctip-dot a" />{c.absent} absent</span>
-                            {c.unmarked > 0 && <span className="att-ctip-seg"><i className="att-ctip-dot u" />{c.unmarked} to mark</span>}
-                          </div>
-                          {c.totalScheduled > 0 && (
-                            <div className="att-ctip-skips">
-                              {c.penaltyHit
-                                ? <><AlertTriangle size={11} /> Grade penalty hit</>
-                                : <><Flame size={11} /> {c.skipsRemaining} skip{c.skipsRemaining === 1 ? "" : "s"} left</>}
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="att-chart-xaxis" style={{ gridTemplateColumns: `repeat(${byCourse.length}, 1fr)` }}>
-              {byCourse.map((c, i) => (
-                <span key={c.code} className="att-chart-code" style={{ animationDelay: `calc(${i * 65}ms + 120ms)` }} title={c.name}>{c.code}</span>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* ── By course ── */}
-      <section className="att-card">
-        <div className="att-card-h">
-          <h2>By course</h2>
-          <span className="att-count att-expand-hint">tap row to edit</span>
-        </div>
-        {noData ? (
-          <EmptyState compact icon={CalendarCheck2} title="No past classes yet" sub="Check back once sessions end." />
-        ) : (
-          <div className="att-grid">
-            {byCourse.map(c => {
-              const t = tone(c.pct);
-              const open = expandedCode === c.code;
-              const canExpand = c.sessions.length > 0 && !!markAttendance;
-              return (
-            <div key={c.code} className={`att-row att-subj ${subjectClass(c.code)}${open ? " att-row-open" : ""}`}>
-              <button
-                className="att-row-hd"
-                onClick={() => canExpand && toggle(c.code)}
-                disabled={!canExpand}
-                aria-expanded={open}
-                style={{ display: "flex", width: "100%", alignItems: "stretch", textAlign: "left" }}
-              >
-                <div className="ar-left">
-                  <div className={`ar-pct tone-${t}`}>{c.pct == null ? "—" : c.pct + "%"}</div>
-                  <div className="ar-code">{c.code}</div>
-                </div>
-                <div className="ar-body">
-                  <div className="att-row-top">
-                    <span className="att-name" style={{ fontSize: 14.5 }}>{c.name}</span>
-                    {c.unmarked > 0 && (
-                      <span className="att-unmarked-badge">{c.unmarked}</span>
-                    )}
-                    {c.totalScheduled > 0 && (
-                      <span className={`att-skip-chip ${c.penaltyHit ? 'skip-critical' : c.skipsRemaining <= 1 ? 'skip-warn' : 'skip-safe'}`}>
-                        {c.penaltyHit ? (
-                          <><AlertTriangle size={10} /> Penalty Hit</>
-                        ) : c.skipsRemaining <= 1 ? (
-                          <><Flame size={10} /> {c.skipsRemaining} {c.skipsRemaining === 1 ? "skip" : "skips"} left</>
-                        ) : (
-                          <>{c.skipsRemaining} skips left</>
-                        )}
-                      </span>
-                    )}
-                    {canExpand && <ChevronDown size={14} className={`att-chev${open ? " open" : ""}`} />}
-                  </div>
-                  <div className="att-row-sub" style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', columnGap: 12, rowGap: 4 }}>
-                    <span style={{ whiteSpace: 'nowrap' }}>{c.present}/{c.present + c.absent} attended</span>
-                    <span style={{ opacity: 0.6, whiteSpace: 'nowrap' }}>{c.totalScheduled} total classes</span>
-                  </div>
-                  <div className="att-bar" style={{ marginTop: 8, marginBottom: 0 }}>
-                    {c.present > 0 && <div className="att-bar-p" style={{ width: `${(c.present / c.total * 100).toFixed(1)}%` }} />}
-                    {c.absent  > 0 && <div className="att-bar-a" style={{ width: `${(c.absent  / c.total * 100).toFixed(1)}%` }} />}
-                  </div>
-                </div>
-              </button>
-
-              <div className={`att-collapse${open ? " open" : ""}`} inert={open ? undefined : true} aria-hidden={!open}>
-                <div className="att-collapse-in">
-                <div className="att-edit-list">
-                  <SparkTrend sessions={c.sessions} attendance={attendance} />
-                  {c.sessions.map((s, i) => {
-                    const status = attendance[s.key] || null;
-                    return (
-                      <div key={s.key} className="att-edit-row">
-                        <StatusDot status={status} />
-                        <div className="att-edit-info">
-                          <span className="att-edit-no">Session {s.session || i + 1}</span>
-                          <span className="att-mark-meta">
-                            <Clock size={11} /> {fmtDate(s.date)} · {s.start}–{s.end}
-                          </span>
-                        </div>
-                        <div className="att-btns">
-                          <button
-                            className={`att-b present${status === "present" ? " active" : ""}`}
-                            onClick={() => markAttendance(s, status === "present" ? null : "present")}
-                            aria-label="Present"
-                            title={status === "present" ? "Unmark" : "Mark present"}
-                          >
-                            <Check size={15} />
-                          </button>
-                          <button
-                            className={`att-b absent${status === "absent" ? " active" : ""}`}
-                            onClick={() => markAttendance(s, status === "absent" ? null : "absent")}
-                            aria-label="Absent"
-                            title={status === "absent" ? "Unmark" : "Mark absent"}
-                          >
-                            <X size={15} />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                </div>
               </div>
             </div>
-          );
-            })}
-          </div>
-        )}
-      </section>
-
-      {/* ── To mark ── */}
-      {toMark.length > 0 && (
-        <section className="att-card">
-          <div className="att-card-h">
-            <h2>To mark</h2>
-            <span className="att-count att-count-urgent">{toMark.length} pending</span>
-          </div>
-          <div className="att-grid">
-            {toMark.map(s => (
-              <div key={s.key} className={`att-mark att-subj ${subjectClass(s.code)}`}>
-                <div className="ar-left">
-                  <div className="ar-pct" style={{ fontSize: 13, lineHeight: 1.2 }}>{s.code}</div>
-                  {s.session && <div className="ar-code" style={{ marginTop: 4 }}>S{s.session}</div>}
-                </div>
-                <div className="ar-body" style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                  <div className="att-mark-info" style={{ paddingRight: 8 }}>
-                    <span className="att-mark-name">{s.name}</span>
-                    <span className="att-mark-meta" style={{ marginTop: 2 }}>
-                      <Clock size={11} /> {fmtDate(s.date)} · {s.start}
-                    </span>
-                  </div>
-                  <div className="att-btns">
-                    <button className="att-b present" onClick={() => markAttendance(s, "present")} aria-label="Present">
-                      <Check size={16} />
-                    </button>
-                    <button className="att-b absent" onClick={() => markAttendance(s, "absent")} aria-label="Absent">
-                      <X size={16} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* ── Missed sessions ── */}
-      <section className="att-card">
-        <div className="att-card-h">
-          <h2>Missed sessions</h2>
-          <span className="att-count">{missed.length}</span>
-        </div>
-        {missed.length === 0 ? (
-          <EmptyState compact icon={PartyPopper} title="Nothing missed yet" sub="Keep it up." />
-        ) : missed.map(s => (
-          <div key={s.key} className="att-missed">
-            <span className="att-mdot" />
-            <span className="att-missed-label">MISSED</span>
-            <span className="att-missed-name">
-              <span className="att-missed-text">{s.name}</span>
-              {s.session && (
-                <span className={`ses ${subjectClass(s.code)}`}>
-                  {s.code} {s.session}
-                </span>
-              )}
-            </span>
-            <span className="att-missed-time">
-              <span>{s.start}</span>
-              <button className="att-b present att-b-sm" onClick={() => markAttendance(s, "present")} title="Mark as present" aria-label="Mark as present">
-                <Check size={13} />
-              </button>
-              <button className="att-undo" onClick={() => markAttendance(s, null)}>unmark</button>
-            </span>
-          </div>
-        ))}
+          </article>;
+        })}</div> : <p className="atx-filter-empty">No courses match this filter.</p>}
       </section>
     </div>
   );

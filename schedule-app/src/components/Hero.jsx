@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { MapPin, CheckCircle2, Timer, ThumbsUp, ThumbsDown, PartyPopper } from "lucide-react";
 import { sessionKey } from "../lib/attendance.js";
 import { subjectClass } from "../lib/subjectColors.js";
-import { getSpecialDay } from "../lib/datetime.js";
+import { fmtTime12, getSpecialDay } from "../lib/datetime.js";
 import IndiaFlagIcon from "./IndiaFlagIcon.jsx";
 
 function clsDate(c, which) {
@@ -150,7 +150,7 @@ function UpNext({ c, gapLabel }) {
   return (
     <div className="upnext">
       <span className="up-label">Then</span>
-      <span className="up-t">{c.start}</span>
+      <span className="up-t">{fmtTime12(c.start)}</span>
       <span className="up-c">{c.name}</span>
       {gapLabel && <span className="up-gap">{gapLabel}</span>}
       <span className="up-r">{c.room || "TBA"}</span>
@@ -268,7 +268,7 @@ export default function Hero({ current, next, now, todayISO, tomorrowISO, onMark
         </div>
         <h1 className="hero-course">{current.name}</h1>
         <div className="hero-meta">
-          <span className="t">{current.start}<span className="dash">–</span>{current.end}</span>
+          <span className="t">{fmtTime12(current.start)}<span className="dash">–</span>{fmtTime12(current.end)}</span>
           <span className="sep">·</span>
           <span className="r"><MapPin size={13} />{current.room || "TBA"}</span>
           {current.faculty && <><span className="sep">·</span><span className="f">{current.faculty}</span></>}
@@ -289,8 +289,8 @@ export default function Hero({ current, next, now, todayISO, tomorrowISO, onMark
             <span className="hero-lastclass-badge">Last class today</span>
             <span className="hero-lastclass-text">
               {next
-                ? <>Free after {current.end} · next is {next.date === tomorrowISO ? "tomorrow" : prettyDate(next.date)} at {next.start}</>
-                : <>Free after {current.end} <PartyPopper size={12} aria-hidden="true" /></>}
+                ? <>Free after {fmtTime12(current.end)} · next is {next.date === tomorrowISO ? "tomorrow" : prettyDate(next.date)} at {fmtTime12(next.start)}</>
+                : <>Free after {fmtTime12(current.end)} <PartyPopper size={12} aria-hidden="true" /></>}
             </span>
           </div>
         )}
@@ -359,7 +359,7 @@ export default function Hero({ current, next, now, todayISO, tomorrowISO, onMark
             <div className="hero-next-hint">
               <span className="hero-hint-label">Next up</span>
               <span className="hero-hint-name">{next.name}</span>
-              <span className="hero-hint-when">{nextLabel} · {next.start}</span>
+              <span className="hero-hint-when">{nextLabel} · {fmtTime12(next.start)}</span>
             </div>
           )}
         </section>
@@ -396,7 +396,7 @@ export default function Hero({ current, next, now, todayISO, tomorrowISO, onMark
         </div>
         <h1 className="hero-course">{next.name}</h1>
         <div className="hero-meta">
-          <span className="t">{next.start}</span>
+          <span className="t">{fmtTime12(next.start)}</span>
           <span className="sep">·</span>
           <span className="r"><MapPin size={13} />{next.room || "TBA"}</span>
           {next.faculty && <><span className="sep">·</span><span className="f">{next.faculty}</span></>}

@@ -3,6 +3,7 @@ import "../styles/fullschedule.css";
 import { ArrowLeft, Clock, MapPin, User, SlidersHorizontal, X, ArrowUp, Calendar, ChevronLeft, ChevronRight, List, CalendarDays, GraduationCap, CalendarClock, PartyPopper, Briefcase } from "lucide-react";
 import { subjectClass, cleanSessionLabel } from "../lib/subjectColors.js";
 import { isExamSession } from "../lib/attendance.js";
+import { fmtTime12 } from "../lib/datetime.js";
 import { CalendarEventBadgeSVG } from "./CalendarSVGs.jsx";
 
 function examCategory(name, session) {
@@ -646,7 +647,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                                 </div>
                               </div>
                               <div className="fs-card-meta">
-                                <span className="fs-meta-item fs-meta-time"><Clock size={12} /> {c.start} – {c.end}</span>
+                                <span className="fs-meta-item fs-meta-time"><Clock size={12} /> {fmtTime12(c.start)} – {fmtTime12(c.end)}</span>
                                 {c.room && (
                                   <span className="fs-meta-item"><MapPin size={13} />
                                     <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.room + " exam hall")}`} target="_blank" rel="noreferrer" className="fs-meta-link">
@@ -682,7 +683,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                                 </div>
                               </div>
                               <div className="fs-card-meta">
-                                <span className="fs-meta-item fs-meta-time"><Clock size={12} /> {c.start} – {c.end}</span>
+                                <span className="fs-meta-item fs-meta-time"><Clock size={12} /> {fmtTime12(c.start)} – {fmtTime12(c.end)}</span>
                                 {c.room && <span className="fs-meta-item"><MapPin size={12} /> {c.room}</span>}
                                 {showSection && (
                                   <span style={{
@@ -720,7 +721,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                                 </div>
                               </div>
                               <div className="fs-card-meta">
-                                <span className="fs-meta-item fs-meta-time"><Clock size={12} /> {c.start} – {c.end}</span>
+                                <span className="fs-meta-item fs-meta-time"><Clock size={12} /> {fmtTime12(c.start)} – {fmtTime12(c.end)}</span>
                                 {c.room && <span className="fs-meta-item"><MapPin size={12} /> {c.room}</span>}
                                 {showSection && (
                                   <span style={{
@@ -766,7 +767,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                               {countdownStr && <span className="fs-upcoming-badge">{countdownStr}</span>}
                             </div>
                             <div className="fs-card-meta">
-                              <span className="fs-meta-item fs-meta-time"><Clock size={12} /> {c.start} – {c.end}</span>
+                              <span className="fs-meta-item fs-meta-time"><Clock size={12} /> {fmtTime12(c.start)} – {fmtTime12(c.end)}</span>
                               <span className="fs-meta-item">
                                 <MapPin size={13} />
                                 {c.room ? (
@@ -894,10 +895,10 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                             <span className="cal-ev-top">
                               <GraduationCap size={10} style={{ flexShrink: 0 }} />
                               <span className="cal-ev-code">{cls.code || "EXAM"}</span>
-                              {width > 128 && <span className="cal-ev-time">{cls.start}–{cls.end}</span>}
+                              {width > 128 && <span className="cal-ev-time">{fmtTime12(cls.start)}–{fmtTime12(cls.end)}</span>}
                             </span>
                             {width > 88 && <span className="cal-ev-name">{examCategory(cls.name, cls.session)}</span>}
-                            {width <= 128 && width > 54 && <span className="cal-ev-time">{cls.start}–{cls.end}</span>}
+                            {width <= 128 && width > 54 && <span className="cal-ev-time">{fmtTime12(cls.start)}–{fmtTime12(cls.end)}</span>}
                           </div>
                         );
                       }
@@ -912,10 +913,10 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                           <span className="cal-ev-top">
                             <span className="cal-ev-dot" />
                             <span className="cal-ev-code">{cls.code}</span>
-                            {width > 128 && <span className="cal-ev-time">{cls.start}–{cls.end}</span>}
+                            {width > 128 && <span className="cal-ev-time">{fmtTime12(cls.start)}–{fmtTime12(cls.end)}</span>}
                           </span>
                           {width > 88 && <span className="cal-ev-name">{cls.name}</span>}
-                          {width <= 128 && width > 54 && <span className="cal-ev-time">{cls.start}–{cls.end}</span>}
+                          {width <= 128 && width > 54 && <span className="cal-ev-time">{fmtTime12(cls.start)}–{fmtTime12(cls.end)}</span>}
                         </div>
                       );
                     })}
@@ -1051,7 +1052,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                           </div>
                         </div>
                         <div className="fs-card-meta">
-                          <span className="fs-meta-item"><Clock size={13} /> {c.start} – {c.end}</span>
+                          <span className="fs-meta-item"><Clock size={13} /> {fmtTime12(c.start)} – {fmtTime12(c.end)}</span>
                           <span className="fs-meta-item"><MapPin size={13} /> {c.room || "TBA"}</span>
                           {c.faculty && <span className="fs-meta-item"><User size={13} /> {c.faculty}</span>}
                         </div>
@@ -1077,7 +1078,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
           <div className="ev-tip-code">{tooltip.cls.code} · Session {tooltip.cls.session}</div>
           <div className="ev-tip-name">{tooltip.cls.name}</div>
           <div className="ev-tip-divider" />
-          <div className="ev-tip-row"><Clock size={12} />{tooltip.cls.start} – {tooltip.cls.end}</div>
+          <div className="ev-tip-row"><Clock size={12} />{fmtTime12(tooltip.cls.start)} – {fmtTime12(tooltip.cls.end)}</div>
           {tooltip.cls.room && <div className="ev-tip-row"><MapPin size={12} />{tooltip.cls.room}</div>}
           {tooltip.cls.faculty && <div className="ev-tip-row"><User size={12} />{tooltip.cls.faculty}</div>}
         </div>

@@ -234,34 +234,8 @@ export default function AssignmentsPanel({ enrolled, legend, userId, onTaskCompl
   const [sortBy, setSortBy] = useState("due");       // "due" | "added" | "title"
   const [undoState, setUndoState] = useState(null);
   const undoTimer = useRef(null);
-  const auraRef = useRef(null);
-  const headRef = useRef(null);
 
   useEffect(() => () => clearTimeout(undoTimer.current), []);
-
-  // Scroll parallax: the ambient aura drifts slower than the page (depth) while
-  // the header gently lifts + fades as it scrolls away. Transform/opacity only,
-  // rAF-throttled, and disabled entirely under reduced-motion.
-  useEffect(() => {
-    if (prefersReducedMotion()) return;
-    let raf = 0;
-    const onScroll = () => {
-      if (raf) return;
-      raf = requestAnimationFrame(() => {
-        raf = 0;
-        const y = window.scrollY || window.pageYOffset || 0;
-        if (auraRef.current) auraRef.current.style.transform = `translate3d(0, ${(y * 0.35).toFixed(1)}px, 0)`;
-        if (headRef.current) {
-          const p = Math.min(1, y / 200);
-          headRef.current.style.transform = `translate3d(0, ${(y * -0.1).toFixed(1)}px, 0)`;
-          headRef.current.style.opacity = String(1 - p * 0.5);
-        }
-      });
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    onScroll();
-    return () => { window.removeEventListener("scroll", onScroll); cancelAnimationFrame(raf); };
-  }, []);
 
   const updateAssignments = (next) => { setAssignments(next); pushAssignments(userId, next); };
 
@@ -388,31 +362,46 @@ export default function AssignmentsPanel({ enrolled, legend, userId, onTaskCompl
   };
 
   const allClear = stats.pending === 0;
+  const totalTasks = stats.pending + stats.submitted;
+  const completionPct = totalTasks ? Math.round((stats.submitted / totalTasks) * 100) : 0;
   const showSpotlight = groupBy === "course" && tab === "open" && filter === "all" && upNext.length > 0;
   const [hero, ...rest] = upNext;
 
   return (
     <div className="assign-page">
-      <div className="assign-aura" ref={auraRef} aria-hidden="true"><i /><i /></div>
-
-      <div className="assign-head-wrapper" ref={headRef}>
-        <div className="assign-head">
+      <section className="assign-command">
+        <div className="assign-head-wrapper">
+          <div className="assign-head">
+            <span className="assign-kicker">Task workspace</span>
           <h1>Assignments</h1>
           <span className="assign-sub">
             {allClear
-              ? `${courses.length} subjects \u00b7 all clear`
+              ? `${courses.length} subjects · your queue is clear`
               : <><b style={{color:"var(--text)"}}>{stats.pending}</b> open across <b style={{color:"var(--text)"}}>{courses.length}</b> subjects</>}
           </span>
+          </div>
+          <button className="assign-new-btn" onClick={() => openModal()}>
+            <Plus size={17} strokeWidth={2.5} /> Add assignment
+          </button>
         </div>
-      </div>
 
-      <div className="assign-stats-grid">
+        <div className="assign-progress-summary">
+          <div className="assign-progress-copy">
+            <span>{totalTasks ? `${stats.submitted} of ${totalTasks} completed` : "No assignments added yet"}</span>
+            <strong>{totalTasks ? `${completionPct}%` : "Ready"}</strong>
+          </div>
+          <div className="assign-progress-track" role="progressbar" aria-label="Assignment completion" aria-valuemin="0" aria-valuemax="100" aria-valuenow={completionPct}>
+            <span style={{ width: `${completionPct}%` }} />
+          </div>
+        </div>
+      </section>
+
+      <section className="assign-stats-grid" aria-label="Assignment overview">
         <StatTile val={stats.pending}   label="Open"     icon={BookOpen}     cls="stat-open"    index={0} active={tab==="open" && filter==="all"}  hint="Show all open work"      onClick={() => { setTab("open"); setFilter("all"); }} />
         <StatTile val={stats.dueSoon}   label="Due soon"  icon={Clock}        cls="stat-soon"    index={1} active={filter==="soon"}    pulse hint="Filter: due within a week" onClick={() => { setTab("open"); setFilter(f => f==="soon" ? "all" : "soon"); }} />
         <StatTile val={stats.overdue}   label="Overdue"   icon={AlertCircle}  cls="stat-overdue" index={2} active={filter==="overdue"} pulse hint="Filter: past due"         onClick={() => { setTab("open"); setFilter(f => f==="overdue" ? "all" : "overdue"); }} />
         <StatTile val={stats.submitted} label="Done"      icon={CheckCircle2} cls="stat-done"    index={3} active={tab==="done"}             hint="Show completed work"      onClick={() => { setTab("done"); setFilter("all"); }} />
-      </div>
-      <div className="assign-stats-hint">Tap a stat to filter your list</div>
+      </section>
 
       <div className="assign-controls">
         <div className="assign-seg" role="tablist">
@@ -460,7 +449,10 @@ export default function AssignmentsPanel({ enrolled, legend, userId, onTaskCompl
 
       {showSpotlight && hero && (
         <section className="assign-spotlight">
-          <div className="spotlight-label">Up next</div>
+          <div className="spotlight-head">
+            <div><span className="assign-kicker">Focus queue</span><h2>Start here</h2></div>
+            <span>{upNext.length} prioritised</span>
+          </div>
           <div className="spotlight-hero">
             <div className="spotlight-bar" style={{ background: hero.course.color }} />
             <div className="spotlight-content">
@@ -471,6 +463,7 @@ export default function AssignmentsPanel({ enrolled, legend, userId, onTaskCompl
               {hero.task.dueDate && (
                 <div className={`assign-task-due due-${getUrgencyState(hero.task.dueDate)}`}>{formatDueLabel(hero.task.dueDate)}</div>
               )}
+              <button className="spotlight-open" onClick={() => openModal(hero.course.code, hero.task)}>Open</button>
               <button
                 className="assign-check"
                 aria-label="Mark as done"
@@ -484,13 +477,13 @@ export default function AssignmentsPanel({ enrolled, legend, userId, onTaskCompl
           {rest.length > 0 && (
             <div className="spotlight-list">
               {rest.map(({ task, course }) => (
-                <div key={task.id} className="spotlight-item" onClick={() => openModal(course.code, task)}>
+                <button key={task.id} className="spotlight-item" onClick={() => openModal(course.code, task)}>
                   <div className="spotlight-dot" style={{ background: course.color }} />
                   <span className="spotlight-item-title">{task.title || "Untitled Task"}</span>
                   {task.dueDate && (
                     <span className={`assign-task-due due-${getUrgencyState(task.dueDate)}`} style={{ fontSize:10 }}>{formatDueLabel(task.dueDate)}</span>
                   )}
-                </div>
+                </button>
               ))}
             </div>
           )}
@@ -499,9 +492,9 @@ export default function AssignmentsPanel({ enrolled, legend, userId, onTaskCompl
 
       {tab === "open" && allClear && (
         <div className="assign-empty">
-          <Sparkles size={48} className="assign-empty-svg" />
-          <h3>All clear!</h3>
-          <p>Nothing due across your {courses.length} subjects</p>
+          <div className="assign-empty-icon"><Sparkles size={28} /></div>
+          <div><h3>Your desk is clear</h3><p>Add a task when a new brief or submission lands.</p></div>
+          <button className="assign-empty-primary" onClick={() => openModal()}><Plus size={16} /> Add assignment</button>
           {stats.submitted > 0 && (
             <button className="assign-empty-action" onClick={() => setTab("done")}>View submitted work</button>
           )}

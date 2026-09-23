@@ -12,11 +12,11 @@ export default function MobileUiVersionMenu({ version, onVersionChange, theme, o
       <div className="mobile-ui-menu-heading">
         <span className="mobile-ui-menu-icon"><Smartphone size={15} /></span>
         <span>
-          <strong>Mobile interface</strong>
-          <small>Choose your phone layout</small>
+          <strong>Phone &amp; tablet interface</strong>
+          <small>Choose your compact-screen layout</small>
         </span>
       </div>
-      <div className="mobile-ui-version-options" role="radiogroup" aria-label="Mobile interface">
+      <div className="mobile-ui-version-options" role="radiogroup" aria-label="Phone and tablet interface">
         {[
           ["v1", "V1", "Classic"],
           ["v2", "V2", "Modern"],

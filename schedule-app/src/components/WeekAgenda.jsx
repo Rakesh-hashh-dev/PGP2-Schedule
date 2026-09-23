@@ -4,6 +4,7 @@ import WeekGlance from "./WeekGlance.jsx";
 import { subjectClass } from "../lib/subjectColors.js";
 import { isNationalHoliday } from "../lib/nationalHolidays.js";
 import IndiaFlagIcon from "./IndiaFlagIcon.jsx";
+import { fmtTime12 } from "../lib/datetime.js";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
@@ -50,7 +51,7 @@ export default function WeekAgenda({ visible, now, offset, setOffset, todayISO, 
                   ? <span className="agday-free">–</span>
                   : items.map((c, i) => (
                       <div key={i} className={`ag ${c.type !== "class" ? "soft" : ""}`}>
-                        <span className="ag-t">{c.start}</span>
+                        <span className="ag-t">{fmtTime12(c.start)}</span>
                         <span className="ag-c">
                           {isNationalHoliday(c) && <IndiaFlagIcon size={13} className="row-flag-icon" />}
                           {c.name}

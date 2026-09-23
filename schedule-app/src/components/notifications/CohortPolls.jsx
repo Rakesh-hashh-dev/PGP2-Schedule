@@ -6,7 +6,7 @@ import PollCard, { PollComposer } from "../PollCard.jsx";
 // Cohort-wide polls on the Announcements page. Open polls sit on top; recently
 // closed ones collapse behind a toggle. Creation is admin-only (client-gated,
 // same posture as the rest of the admin tooling).
-export default function CohortPolls({ userId, userName, isAdmin }) {
+export default function CohortPolls({ userId, userName, isAdmin, showEmpty = false }) {
   const [polls, setPolls] = useState([]);
   const [showComposer, setShowComposer] = useState(false);
   const [showClosed, setShowClosed] = useState(false);
@@ -30,7 +30,7 @@ export default function CohortPolls({ userId, userName, isAdmin }) {
     setPolls(prev => [poll, ...prev]);
   }
 
-  if (!isAdmin && open.length === 0 && closed.length === 0) return null;
+  if (!isAdmin && open.length === 0 && closed.length === 0 && !showEmpty) return null;
 
   return (
     <div className="poll-cohort-wrap">
@@ -45,6 +45,13 @@ export default function CohortPolls({ userId, userName, isAdmin }) {
         </div>
       )}
       {showComposer && <PollComposer onSubmit={handleCreate} onCancel={() => setShowComposer(false)} busy={busy} />}
+      {showEmpty && open.length === 0 && closed.length === 0 && (
+        <div className="poll-cohort-empty">
+          <BarChart3 size={24} />
+          <strong>No cohort polls right now</strong>
+          <span>New polls will appear here when your cohort has something to decide.</span>
+        </div>
+      )}
       {open.map(p => (
         <PollCard key={p.id} poll={p} userId={userId} userName={userName} onDeleted={(id) => setPolls(prev => prev.filter(x => x.id !== id))} />
       ))}

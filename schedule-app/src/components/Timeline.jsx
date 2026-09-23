@@ -1,13 +1,21 @@
 import React, { useState, useRef, useEffect } from "react";
-import { MapPin, CheckCircle2, XCircle, AlertTriangle, TrendingDown, Briefcase } from "lucide-react";
+import { MapPin, CheckCircle2, XCircle, AlertTriangle, TrendingDown } from "lucide-react";
 import { sessionKey, isExamSession } from "../lib/attendance.js";
 import { subjectClass, cleanSessionLabel } from "../lib/subjectColors.js";
 import { haptic } from "../lib/haptics.js";
 import IndiaFlagIcon from "./IndiaFlagIcon.jsx";
 import { isNationalHoliday } from "../lib/nationalHolidays.js";
+import { fmtTime12 } from "../lib/datetime.js";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function fmtClock(d) { return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }); }
+function fmtDuration(start, end) {
+  const minutes = Math.max(0, toMin(end) - toMin(start));
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  if (!hours) return `${mins}m`;
+  return mins ? `${hours}h ${mins}m` : `${hours}h`;
+}
 
 function TypeBadge({ type, name }) {
   if (type === "holiday") {
@@ -201,7 +209,7 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
   const ptr = usePullToRefresh(onRefresh, isSyncing);
   if (!list.length)
     return (
-      <section className="panel">
+      <section className={`panel timeline-panel${showNowLine ? " timeline-today" : ""}`}>
         <PullIndicator ptr={ptr} isSyncing={isSyncing} />
         <div className="panel-head">
           <div className="panel-head-left">
@@ -228,13 +236,25 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
   const nextUpIdx = showNowLine 
     ? list.findIndex(c => c.type === "class" && toMin(c.start) > nowMin) 
     : list.findIndex(c => c.type === "class");
+  const nextVisibleIdx = showNowLine ? list.findIndex(c => toMin(c.start) > nowMin) : -1;
+  const classCount = list.filter((c) => c.type === "class").length;
+  const completedClasses = showNowLine
+    ? list.filter((c) => c.type === "class" && nowMin >= toMin(c.end)).length
+    : 0;
+  const nextVisible = nextVisibleIdx >= 0 ? list[nextVisibleIdx] : null;
+  const dayStatus = current
+    ? { tone: "live", label: "Happening now", detail: current.name }
+    : nextVisible
+      ? { tone: "next", label: "Up next", detail: `${nextVisible.name} · ${fmtTime12(nextVisible.start)}` }
+      : { tone: "done", label: "Day complete", detail: "Nothing else scheduled" };
 
   return (
-    <section className="panel">
+    <section className={`panel timeline-panel${showNowLine ? " timeline-today" : ""}`}>
       <PullIndicator ptr={ptr} isSyncing={isSyncing} />
-      <div className="panel-head">
+      <div className="panel-head timeline-panel-head">
         <div className="panel-head-left">
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          {showNowLine && <span className="timeline-eyebrow">Your day at a glance</span>}
+          <div className="timeline-title-row">
             <h2>{label}</h2>
             {syncStatus && <div className="desk-only desk-live-pill">{syncStatus}</div>}
             {onRefresh && (
@@ -245,10 +265,23 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
           </div>
           {dateLabel && <span className="panel-date">{dateLabel}</span>}
         </div>
-        <span className="count">{(() => {
-          const n = list.filter((c) => c.type === "class").length;
-          return `${n} ${n === 1 ? "class" : "classes"}`;
-        })()}</span>
+        {showNowLine ? (
+          <div className="timeline-overview" aria-label={classCount ? `${classCount} classes, ${completedClasses} completed` : `${list.length} schedule items`}>
+            <div className={`timeline-status timeline-status-${dayStatus.tone}`}>
+              <span className="timeline-status-dot" aria-hidden="true" />
+              <span className="timeline-status-copy">
+                <strong>{dayStatus.label}</strong>
+                <span>{dayStatus.detail}</span>
+              </span>
+            </div>
+            <div className="timeline-progress-copy">
+              <strong>{classCount ? `${completedClasses}/${classCount}` : list.length}</strong>
+              <span>{classCount ? "classes complete" : "schedule items"}</span>
+            </div>
+          </div>
+        ) : (
+          <span className="count">{`${classCount} ${classCount === 1 ? "class" : "classes"}`}</span>
+        )}
       </div>
       <ol className="rail">
         {list.map((c, i) => {
@@ -283,11 +316,17 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
                   <span className="nowrule" />
                 </li>
               )}
-              <li className={`row${isCur ? " cur" : ""}${c.type !== "class" ? " soft" : ""}${c.type === "event" ? " row-event-celebration" : ""}${c.type === "placement" ? " row-placement" : ""}${isPast ? " past" : ""}${isNext ? " next-up" : ""}${isFirst ? " first-up" : ""}`}>
+              <li
+                className={`row${isCur ? " cur" : ""}${c.type !== "class" ? " soft" : ""}${c.type === "event" ? " row-event-celebration" : ""}${c.type === "placement" ? " row-placement" : ""}${isPast ? " past" : ""}${isNext ? " next-up" : ""}${isFirst ? " first-up" : ""}${showNowLine && i === nextVisibleIdx ? " timeline-up-next" : ""}`}
+                aria-current={isCur ? "true" : undefined}
+              >
                 <div className="row-time">
-                  <span className="rt-start">{c.start}</span>
-                  <span className="rt-end">{c.end}</span>
+                  <time className="rt-start" dateTime={`${c.date}T${c.start}`}>{fmtTime12(c.start)}</time>
+                  <span className="rt-separator" aria-hidden="true" />
+                  <time className="rt-end" dateTime={`${c.date}T${c.end}`}>{fmtTime12(c.end)}</time>
+                  {showNowLine && <span className="rt-duration">{fmtDuration(c.start, c.end)}</span>}
                 </div>
+                {showNowLine && <span className="timeline-marker" aria-hidden="true"><span /></span>}
                 <div className={`row-body${c.type === "class" && c.code ? ` subj-edge ${subjectClass(c.code)}` : ""}`} style={{ position: "relative" }}>
                   {isCur && (
                     <div className="cur-progress-track">

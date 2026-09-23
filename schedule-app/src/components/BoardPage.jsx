@@ -5,7 +5,6 @@ import {
   BOARD_KINDS, fetchBoardPosts, createBoardPost, boardImageUrl, resizeImage,
   setBoardPostStatus, deleteBoardPost, reportBoardPost, contactPoster, subscribeBoard,
 } from "../lib/board.js";
-import { EmptyState } from "./ui.jsx";
 import "../styles/board.css";
 
 // Campus Board — cohort lost & found + buy/sell. Feed is Supabase-backed with
@@ -123,32 +122,49 @@ function BoardComposer({ userId, userName, onCreated, onClose }) {
         onDragOver={onDragOver}
       >
         <div className="board-composer-head">
-          <h3><Package size={16} /> New post</h3>
+          <div>
+            <span className="board-eyebrow">Campus Board</span>
+            <h3><Package size={18} /> Create a post</h3>
+            <p>Share it with your batch for the next 30 days.</p>
+          </div>
           <button type="button" className="board-icon-btn" onClick={onClose} aria-label="Close"><X size={16} /></button>
         </div>
 
-        <div className="board-kind-picker">
+        <div className="board-field">
+          <span className="board-field-label">What kind of post is this?</span>
+          <div className="board-kind-picker">
           {BOARD_KINDS.map(k => (
-            <button key={k.id} type="button" className={`board-kind-chip${kind === k.id ? " on" : ""}`} onClick={() => setKind(k.id)}>
+            <button key={k.id} type="button" aria-pressed={kind === k.id} className={`board-kind-chip board-k-${k.id}${kind === k.id ? " on" : ""}`} onClick={() => setKind(k.id)}>
               <KindIcon kind={k.id} size={14} /> {k.label}
             </button>
           ))}
+          </div>
         </div>
 
-        <input className="board-input" placeholder={kind === "lost" ? "What did you lose?" : kind === "found" ? "What did you find?" : kind === "sell" ? "What are you selling?" : "What are you looking for?"} maxLength={80} value={title} onChange={e => setTitle(e.target.value)} autoFocus />
-        <textarea className="board-input board-textarea" placeholder="Details — where, when, condition… (optional)" maxLength={500} rows={3} value={body} onChange={e => setBody(e.target.value)} />
+        <label className="board-field">
+          <span className="board-field-label">Title</span>
+          <input className="board-input" placeholder={kind === "lost" ? "What did you lose?" : kind === "found" ? "What did you find?" : kind === "sell" ? "What are you selling?" : "What are you looking for?"} maxLength={80} value={title} onChange={e => setTitle(e.target.value)} autoFocus />
+        </label>
+        <label className="board-field">
+          <span className="board-field-label">Details <em>Optional</em></span>
+          <textarea className="board-input board-textarea" placeholder="Add where, when, condition, or anything useful…" maxLength={500} rows={3} value={body} onChange={e => setBody(e.target.value)} />
+          <span className="board-char-count">{body.length}/500</span>
+        </label>
 
         <div className="board-composer-row">
           {showPrice && (
-            <div className="board-price-wrap">
-              <IndianRupee size={13} />
-              <input className="board-input board-price" type="number" min="0" placeholder={kind === "ask" ? "Budget" : "Price"} value={price} onChange={e => setPrice(e.target.value)} />
-            </div>
+            <label className="board-field board-price-field">
+              <span className="board-field-label">{kind === "ask" ? "Budget" : "Price"}</span>
+              <div className="board-price-wrap"><IndianRupee size={13} /><input className="board-input board-price" type="number" min="0" placeholder="0" value={price} onChange={e => setPrice(e.target.value)} /></div>
+            </label>
           )}
-          <input className="board-input" placeholder="Contact (room / phone) — optional" maxLength={80} value={contact} onChange={e => setContact(e.target.value)} />
+          <label className="board-field board-contact-field">
+            <span className="board-field-label">Contact <em>Optional</em></span>
+            <input className="board-input" placeholder="Room or phone" maxLength={80} value={contact} onChange={e => setContact(e.target.value)} />
+          </label>
         </div>
 
-        <div className="board-composer-row">
+        <div className="board-photo-row">
           <input ref={fileRef} type="file" accept="image/*" hidden onChange={pickImage} />
           <button type="button" className="board-img-btn" onClick={() => fileRef.current?.click()}>
             <ImagePlus size={14} /> {imageFile ? "Change photo" : "Add photo"}
@@ -163,10 +179,12 @@ function BoardComposer({ userId, userName, onCreated, onClose }) {
 
         {failed && <div className="board-error">Couldn&rsquo;t post — check your connection and try again.</div>}
 
-        <button type="submit" className="board-submit" disabled={!title.trim() || busy}>
-          {busy ? "Posting…" : "Post to board"}
-        </button>
-        <p className="board-composer-note">Visible to the whole batch for 30 days. Without a contact, people reach you via an in-app ping.</p>
+        <div className="board-composer-footer">
+          <p className="board-composer-note">No contact added? People can still reach you with an in-app ping.</p>
+          <button type="submit" className="board-submit" disabled={!title.trim() || busy}>
+            {busy ? "Posting…" : "Post to board"}
+          </button>
+        </div>
       </form>
     </div>,
     document.body
@@ -204,6 +222,8 @@ export default function BoardPage({ userId, userName, isAdmin }) {
 
   const openCount = posts?.filter(p => p.status === "open").length ?? 0;
   const reportedCount = isAdmin ? (posts?.filter(p => (p.reported_by?.length || 0) > 0 || p.status === "removed").length ?? 0) : 0;
+  const kindCounts = useMemo(() => Object.fromEntries(BOARD_KINDS.map(k => [k.id, posts?.filter(p => p.status === "open" && p.kind === k.id).length ?? 0])), [posts]);
+  const feedTitle = filter === "all" ? "Latest from campus" : filter === "reported" ? "Moderation queue" : KIND_META[filter]?.label || "Campus posts";
 
   async function handleReport(post) {
     setReported(prev => new Set(prev).add(post.id));
@@ -217,42 +237,54 @@ export default function BoardPage({ userId, userName, isAdmin }) {
 
   return (
     <div className="board-pg">
-      <div className="board-head">
-        <div className="board-head-title">
-          <Package size={18} strokeWidth={2} />
-          <h2>Campus Board</h2>
-          {openCount > 0 && <span className="board-count">{openCount} live</span>}
+      <section className="board-hero">
+        <div className="board-head">
+          <div className="board-head-title">
+            <span className="board-eyebrow">Batch community</span>
+            <h1>Campus Board</h1>
+            <p>Find what went missing, pass things on, or ask the batch for help.</p>
+          </div>
+          <button className="board-new-btn" onClick={() => setComposerOpen(true)}>
+            <Plus size={16} /> Create post
+          </button>
         </div>
-        <button className="board-new-btn" onClick={() => setComposerOpen(true)}>
-          <Plus size={14} /> Post
-        </button>
-      </div>
+        <div className="board-hero-meta" aria-label="Board summary">
+          <div><strong>{openCount}</strong><span>Live posts</span></div>
+          <div><strong>{BOARD_KINDS.length}</strong><span>Categories</span></div>
+          <div><strong>30d</strong><span>Post lifetime</span></div>
+        </div>
+      </section>
 
-      <div className="board-chips">
-        <button className={`board-chip${filter === "all" ? " on" : ""}`} onClick={() => setFilter("all")}>All</button>
-        {BOARD_KINDS.map(k => (
-          <button key={k.id} className={`board-chip${filter === k.id ? " on" : ""}`} onClick={() => setFilter(k.id)}>
-            <KindIcon kind={k.id} size={13} /> {k.label}
-          </button>
-        ))}
-        {isAdmin && reportedCount > 0 && (
-          <button className={`board-chip board-chip-reported${filter === "reported" ? " on" : ""}`} onClick={() => setFilter("reported")}>
-            <ShieldAlert size={12} /> Reported {reportedCount}
-          </button>
-        )}
-      </div>
+      <section className="board-feed">
+        <div className="board-feed-head">
+          <div><span className="board-eyebrow">Browse</span><h2>{feedTitle}</h2></div>
+          <span>{visiblePosts.length} {visiblePosts.length === 1 ? "post" : "posts"}</span>
+        </div>
+
+        <div className="board-chips" role="group" aria-label="Filter campus posts">
+          <button aria-pressed={filter === "all"} className={`board-chip${filter === "all" ? " on" : ""}`} onClick={() => setFilter("all")}>All <span>{openCount}</span></button>
+          {BOARD_KINDS.map(k => (
+            <button key={k.id} aria-pressed={filter === k.id} className={`board-chip board-k-${k.id}${filter === k.id ? " on" : ""}`} onClick={() => setFilter(k.id)}>
+              <KindIcon kind={k.id} size={13} /> {k.label} <span>{kindCounts[k.id]}</span>
+            </button>
+          ))}
+          {isAdmin && reportedCount > 0 && (
+            <button aria-pressed={filter === "reported"} className={`board-chip board-chip-reported${filter === "reported" ? " on" : ""}`} onClick={() => setFilter("reported")}>
+              <ShieldAlert size={12} /> Reported <span>{reportedCount}</span>
+            </button>
+          )}
+        </div>
 
       {posts === null ? (
         <div className="board-grid">
-          {[0, 1, 2].map(i => <div key={i} className="board-card board-card-skeleton" style={{ opacity: 1 - i * 0.25 }} />)}
+          {[0, 1, 2, 3].map(i => <div key={i} className="board-card board-card-skeleton" style={{ opacity: 1 - i * 0.16 }} />)}
         </div>
       ) : visiblePosts.length === 0 ? (
-        <EmptyState
-          icon={Package}
-          title={filter === "all" ? "Nothing on the board yet" : "No posts here"}
-          sub="Lost something? Selling something? Put it up for the batch."
-          action={<button className="board-new-btn" onClick={() => setComposerOpen(true)}><Plus size={14} /> First post</button>}
-        />
+        <div className="board-empty">
+          <div className="board-empty-ico"><Package size={24} /></div>
+          <div><h3>{filter === "all" ? "The board is open" : `No ${filter === "reported" ? "reported" : KIND_META[filter]?.label?.toLowerCase()} posts`}</h3><p>{filter === "all" ? "Be the first to share something with the batch." : "Try another category or create a new post."}</p></div>
+          <button className="board-new-btn" onClick={() => setComposerOpen(true)}><Plus size={14} /> Create post</button>
+        </div>
       ) : (
         <div className="board-grid">
           {visiblePosts.map((p) => {
@@ -345,6 +377,7 @@ export default function BoardPage({ userId, userName, isAdmin }) {
           })}
         </div>
       )}
+      </section>
 
       {composerOpen && (
         <BoardComposer

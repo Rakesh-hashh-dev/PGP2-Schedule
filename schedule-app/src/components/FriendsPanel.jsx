@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import "../styles/friends.css";
-import { Copy, Link2, UserPlus, Users, Trash2, ArrowRight, Plus, X, Check, ChevronDown, ChevronUp, ChevronRight, RefreshCw, Globe, Lock, CheckCircle, AlertCircle, Info, AlertTriangle, Star, CalendarOff, Smile, BarChart3, CalendarPlus, BellRing, Coffee, BookOpen, Utensils, Dumbbell, Moon, MessageSquare, Pencil } from "lucide-react";
+import { Copy, Link2, UserPlus, Users, Trash2, ArrowRight, Plus, X, Check, ChevronDown, ChevronUp, ChevronRight, RefreshCw, Globe, Lock, CheckCircle, AlertCircle, Info, AlertTriangle, Star, CalendarOff, Smile, BarChart3, CalendarPlus, BellRing, Coffee, BookOpen, Utensils, Dumbbell, Moon, MessageSquare, Pencil, Search, LayoutDashboard, GripVertical } from "lucide-react";
 import { SkeletonText, EmptyState } from "./ui.jsx";
 import MeetupsStrip from "./Meetups.jsx";
 import { fetchMyNudges, scheduleNudge, cancelNudge } from "../lib/nudges.js";
@@ -17,6 +17,8 @@ import {
   avatarGradient,
 } from "../lib/friends.js";
 import { createPoll, POLL_MARKER } from "../lib/polls.js";
+import { filterSocialFriends, SOCIAL_VIEW_ITEMS } from "../lib/socialWorkspace.js";
+import { fmtTime12 } from "../lib/datetime.js";
 import PollCard, { PollComposer } from "./PollCard.jsx";
 
 // profiles still holds pre-cutover DEV ghost rows (the data source for
@@ -56,6 +58,33 @@ function Toast({ message, type = "info", action, onDone }) {
           {action.label}
         </button>
       )}
+    </div>
+  );
+}
+
+function IncomingRequestItem({ item, onAccept, onDecline, variant = "row" }) {
+  return (
+    <div className={variant === "card" ? "fr-request-row" : "fr-incoming-row"}>
+      <div className="fr-incoming-avatar">{(item.name || "?")[0].toUpperCase()}</div>
+      <span className="fr-incoming-name">{item.name || "Student"}</span>
+      <div className="fr-incoming-actions">
+        <button
+          className="fr-incoming-btn fr-incoming-accept"
+          onClick={e => { e.stopPropagation(); onAccept?.(item); }}
+          title="Accept"
+          aria-label={`Accept ${item.name || "student"}`}
+        >
+          <Check size={12} strokeWidth={2.8} />
+        </button>
+        <button
+          className="fr-incoming-btn fr-incoming-decline"
+          onClick={e => { e.stopPropagation(); onDecline?.(item); }}
+          title="Decline"
+          aria-label={`Decline ${item.name || "student"}`}
+        >
+          <X size={12} strokeWidth={2.8} />
+        </button>
+      </div>
     </div>
   );
 }
@@ -157,11 +186,11 @@ import { SortableContext, verticalListSortingStrategy, arrayMove, useSortable } 
 import { CSS } from '@dnd-kit/utilities';
 
 function SortableFriendItem({ f, renderFriendCard, isCompact }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: f.id });
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: f.id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1, zIndex: isDragging ? 10 : 1, position: 'relative' };
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      {renderFriendCard(f, isCompact)}
+    <div ref={setNodeRef} style={style}>
+      {renderFriendCard(f, isCompact, { attributes, listeners, setActivatorNodeRef })}
     </div>
   );
 }
@@ -351,6 +380,10 @@ export default function FriendsPanel({
   const [newGroupName, setNewGroupName] = useState("");
   const [showNewGroup, setShowNewGroup] = useState(false);
   const [expandedGroup, setExpandedGroup] = useState(null);
+  const [socialView, setSocialView] = useState("overview");
+  const [friendFilter, setFriendFilter] = useState("all");
+  const [workspaceSearch, setWorkspaceSearch] = useState("");
+  const [showConnectModal, setShowConnectModal] = useState(false);
 
   const [myCode, setMyCode] = useState(null);
   const isGenerating = !!userId && !myCode; // code still being fetched/created
@@ -783,8 +816,6 @@ export default function FriendsPanel({
     setSharingGroupId(null);
   }
 
-  const courseCount = enrolled ? Object.keys(enrolled).length : 0;
-
   // { state: "busy", end: "HH:MM" } | { state: "free" } | null
   function getFriendStatusNow(friend) {
     if (!allClasses || !now) return null;
@@ -808,7 +839,13 @@ export default function FriendsPanel({
     }
     return a.name.localeCompare(b.name);
   });
-  const visibleFriends = sortedFriends.slice(0, 4);
+  const freeNowFriends = sortedFriends.filter(friend => getFriendStatusNow(friend)?.state === "free");
+  const incomingRequests = friendNotifItems?.filter(item => item.kind === "friend_request") || [];
+  const filteredWorkspaceFriends = filterSocialFriends(sortedFriends, {
+    query: workspaceSearch,
+    filter: friendFilter,
+    getStatus: getFriendStatusNow,
+  });
 
   const [showAllFriendsModal, setShowAllFriendsModal] = useState(false);
   const [friendSearchQuery, setFriendSearchQuery] = useState("");
@@ -823,7 +860,7 @@ export default function FriendsPanel({
   const [requestedIds, setRequestedIds] = useState(() => new Set());
 
   useEffect(() => {
-    const isModalOpen = showAllFriendsModal || showAllGroupsModal || showAllBuddiesModal || showDirectory;
+    const isModalOpen = showAllFriendsModal || showAllGroupsModal || showAllBuddiesModal || showDirectory || showConnectModal;
     if (isModalOpen) {
       document.body.style.overflow = "hidden";
     } else {
@@ -832,7 +869,7 @@ export default function FriendsPanel({
     return () => {
       document.body.style.overflow = "";
     };
-  }, [showAllFriendsModal, showAllGroupsModal, showAllBuddiesModal, showDirectory]);
+  }, [showAllFriendsModal, showAllGroupsModal, showAllBuddiesModal, showDirectory, showConnectModal]);
 
   async function openDirectory() {
     setShowDirectory(true);
@@ -929,7 +966,7 @@ export default function FriendsPanel({
     }
   };
 
-  const renderFriendCard = (f, isCompact = false) => {
+  const renderFriendCard = (f, isCompact = false, dragHandle = null) => {
     const fCourseCount = Object.keys(f.courses || {}).length;
     const [c1, c2] = avatarGradient(f.name);
     const status = getFriendStatusNow(f);
@@ -974,7 +1011,7 @@ export default function FriendsPanel({
           {!away && status && (
             <span className={`fr-friend-status fr-friend-status-${status.state}`}>
               <span className="fr-friend-status-dot" />
-              {status.state === "free" ? "Free now" : `In class till ${status.end || "?"}`}
+              {status.state === "free" ? "Free now" : `In class till ${status.end ? fmtTime12(status.end) : "?"}`}
               {nudgeEnabled && status.state === "busy" && status.end && (
                 <button
                   className={`fr-nudge-btn ${myNudges[f.cloudId || f.id] ? "is-active" : ""}`}
@@ -1009,6 +1046,19 @@ export default function FriendsPanel({
             Compare <ArrowRight size={13} />
           </button>
           <div className="fr-friend-icon-group">
+          {dragHandle && (
+            <button
+              ref={dragHandle.setActivatorNodeRef}
+              className="fr-btn fr-btn-icon fr-drag-handle"
+              type="button"
+              aria-label={`Reorder ${f.name}`}
+              title="Drag to reorder favourite"
+              {...dragHandle.attributes}
+              {...dragHandle.listeners}
+            >
+              <GripVertical size={14} />
+            </button>
+          )}
           <button
             className={`fr-btn fr-btn-icon ${f.isFavourite ? 'favourite-active' : ''}`}
             onClick={(e) => handleToggleFavourite(e, f)}
@@ -1499,17 +1549,85 @@ export default function FriendsPanel({
         </div>
       )}
 
-      {/* ── Page Header ── */}
-      <div className="fr-page-hdr">
-        <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-          <h2 className="fr-page-hdr-title">Social</h2>
-          {(friends.length > 0 || groups.length > 0) && (
-            <span style={{ fontSize: 14, color: "var(--muted)", fontWeight: 500 }}>
-              {friends.length} friend{friends.length !== 1 ? 's' : ''} · {groups.length} group{groups.length !== 1 ? 's' : ''}
-            </span>
-          )}
+      {/* ── Add people sheet ── */}
+      {showConnectModal && (
+        <div className="fr-modal-backdrop" onClick={() => setShowConnectModal(false)}>
+          <div className="fr-connect-modal" role="dialog" aria-modal="true" aria-labelledby="fr-connect-title" onClick={e => e.stopPropagation()}>
+            <div className="fr-connect-head">
+              <div>
+                <span className="fr-eyebrow">Grow your circle</span>
+                <h2 id="fr-connect-title">Add people</h2>
+                <p>Find classmates, share your invite, or paste a friend&rsquo;s code.</p>
+              </div>
+              <button className="fr-modal-close" onClick={() => setShowConnectModal(false)} aria-label="Close add people">
+                <X size={18} />
+              </button>
+            </div>
+
+            <button className="fr-connect-directory" onClick={() => { setShowConnectModal(false); openDirectory(); }}>
+              <span className="fr-connect-icon"><Search size={18} /></span>
+              <span><strong>Find classmates</strong><small>Browse students and see shared courses</small></span>
+              <ChevronRight size={18} />
+            </button>
+
+            <div className="fr-connect-grid">
+              <div className="fr-connect-panel">
+                <span className="fr-connect-label">Your invite</span>
+                {isGenerating ? (
+                  <p className="fr-share-empty">Generating secure share code...</p>
+                ) : myCode ? (
+                  <>
+                    <div className="fr-code-display"><span className="fr-code-text">{myCodeDisplay}</span></div>
+                    <div className="fr-share-actions">
+                      <button className="fr-btn fr-btn-primary" onClick={copyCode}><Copy size={15} /> Copy code</button>
+                      <button className="fr-btn fr-btn-secondary" onClick={copyLink}><Link2 size={15} /> Copy link</button>
+                    </div>
+                  </>
+                ) : (
+                  <p className="fr-share-empty">Complete your course setup first to share your schedule.</p>
+                )}
+              </div>
+              <div className="fr-connect-panel">
+                <span className="fr-connect-label">Have an invite?</span>
+                <p className="fr-connect-help">Paste a code or invite link to add someone directly.</p>
+                <div className="fr-add-row">
+                  <input
+                    className="fr-add-input"
+                    type="text"
+                    aria-label="Friend invite code or link"
+                    placeholder="Paste code or invite link"
+                    value={addCode}
+                    onChange={e => { setAddCode(e.target.value); setAddError(""); }}
+                    onKeyDown={e => e.key === "Enter" && handleAddFriend()}
+                    autoFocus
+                  />
+                  <button className="fr-btn fr-btn-primary fr-btn-add" onClick={handleAddFriend} disabled={!addCode.trim() || isAdding}>
+                    {isAdding ? "Adding…" : "Add"}
+                  </button>
+                </div>
+                {addError && <p className="fr-add-error">{addError}</p>}
+              </div>
+            </div>
+          </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      )}
+
+      {/* ── Page Header ── */}
+      <header className="fr-workspace-head">
+        <div className="fr-workspace-copy">
+          <span className="fr-eyebrow">Campus connections</span>
+          <h1>Social</h1>
+          <p>See who&rsquo;s free, compare schedules, and keep your study circles moving.</p>
+          <div className="fr-workspace-metrics" aria-label="Social summary">
+            <span><strong>{friends.length}</strong> friends</span>
+            <span><strong>{groups.length}</strong> groups</span>
+            <span className="is-live"><i /> <strong>{freeNowFriends.length}</strong> free now</span>
+          </div>
+        </div>
+        <div className="fr-workspace-actions">
+          <button className="fr-btn fr-btn-primary fr-add-people-btn" onClick={() => setShowConnectModal(true)}>
+            <UserPlus size={16} /> Add people
+          </button>
           {statusEnabled && (
             <button
               className={`fr-btn fr-btn-secondary fr-btn-small fr-status-chip ${myStatus ? "has-status" : ""}`}
@@ -1517,8 +1635,8 @@ export default function FriendsPanel({
               title={myStatus ? `${myStatus.text} · till ${fmtStatusUntil(myStatus.until)}` : "Set a status your friends can see"}
             >
               {myStatus
-                ? <><span className="fr-status-chip-emoji" style={{ display: 'inline-flex', verticalAlign: '-2px' }}><StatusIcon id={myStatus.id} size={14} /></span><span className="desk-only">{myStatus.text}</span></>
-                : <><Smile size={14} /><span className="desk-only">Set status</span></>}
+                ? <><span className="fr-status-chip-emoji"><StatusIcon id={myStatus.id} size={14} /></span><span>{myStatus.text}</span></>
+                : <><Smile size={14} /><span>Set status</span></>}
             </button>
           )}
           {friends.length > 0 && (
@@ -1526,16 +1644,35 @@ export default function FriendsPanel({
               className="fr-btn fr-btn-secondary fr-btn-small"
               onClick={() => handleRefreshFriend("all")}
               disabled={!!syncingFriendId}
+              aria-label="Sync all friends"
             >
               <RefreshCw size={14} className={syncingFriendId ? "spin-icon" : ""} />
-              <span className="desk-only">Sync all</span>
+              <span>Sync all</span>
             </button>
           )}
         </div>
-      </div>
+      </header>
+
+      <nav className="fr-view-tabs" aria-label="Social sections">
+        {SOCIAL_VIEW_ITEMS.map(({ id, label }) => {
+          const Icon = id === "overview" ? LayoutDashboard : id === "friends" ? UserPlus : Users;
+          const count = id === "friends" ? friends.length : id === "groups" ? groups.length : null;
+          return (
+          <button
+            key={id}
+            type="button"
+            className={socialView === id ? "is-active" : ""}
+            aria-current={socialView === id ? "page" : undefined}
+            onClick={() => setSocialView(id)}
+          >
+            <Icon size={15} /> {label}{typeof count === "number" && <span>{count}</span>}
+          </button>
+          );
+        })}
+      </nav>
 
       {/* ── Plans (meetups) ── */}
-      {meetupsEnabled && (
+      {socialView === "overview" && meetupsEnabled && (
         <MeetupsStrip
           userId={userId}
           userName={userName}
@@ -1546,10 +1683,71 @@ export default function FriendsPanel({
         />
       )}
 
+      {socialView === "overview" && (
+        <div className="fr-overview-grid fr-tab-pane">
+          {incomingRequests.length > 0 && (
+            <section className="fr-overview-card fr-requests-card">
+              <div className="fr-overview-card-head">
+                <div><span className="fr-card-kicker">Requests</span><h2>People waiting to connect</h2></div>
+                <span className="fr-count-badge">{incomingRequests.length}</span>
+              </div>
+              <div className="fr-request-list">
+                {incomingRequests.map(item => (
+                  <IncomingRequestItem
+                    key={item.id}
+                    item={item}
+                    onAccept={onAcceptFriend}
+                    onDecline={onDeclineFriend}
+                    variant="card"
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
+          <section className="fr-overview-card fr-free-card">
+            <div className="fr-overview-card-head">
+              <div><span className="fr-card-kicker fr-live-kicker"><i /> Available now</span><h2>Friends you can catch up with</h2></div>
+              <button className="fr-text-button" onClick={() => { setFriendFilter("free"); setSocialView("friends"); }}>View all <ArrowRight size={13} /></button>
+            </div>
+            {freeNowFriends.length > 0 ? (
+              <div className="fr-people-preview">
+                {freeNowFriends.slice(0, 3).map(friend => renderFriendCard(friend, true))}
+              </div>
+            ) : (
+              <div className="fr-quiet-empty"><Coffee size={20} /><span>No friends are showing as free right now.</span></div>
+            )}
+          </section>
+
+          <section className="fr-overview-card fr-circle-card">
+            <div className="fr-overview-card-head">
+              <div><span className="fr-card-kicker">Study circles</span><h2>Your groups</h2></div>
+              <button className="fr-text-button" onClick={() => setSocialView("groups")}>Manage <ArrowRight size={13} /></button>
+            </div>
+            {groups.length > 0 ? (
+              <div className="fr-overview-groups">
+                {groups.slice(0, 3).map(group => renderGroupCard(group, true))}
+              </div>
+            ) : (
+              <div className="fr-quiet-empty"><Users size={20} /><span>Create a group to compare several schedules together.</span></div>
+            )}
+          </section>
+
+          {onOpenLeave && (
+            <button type="button" className="fr-overview-card fr-leave-card" onClick={onOpenLeave}>
+              <span className="fr-leave-cta-icon"><CalendarOff size={19} /></span>
+              <span><strong>Planning time away?</strong><small>Check what you&rsquo;ll miss before you go.</small></span>
+              <ChevronRight size={18} />
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="fr-layout">
       <div className="fr-left-col">
 
       {/* ── Groups ── */}
+      {socialView === "groups" && (
       <section className="fr-groups-section fr-sec-groups">
         <div className="fr-section-header">
           <h3 className="fr-section-title"><Users size={15} /> Groups</h3>
@@ -1603,12 +1801,13 @@ export default function FriendsPanel({
           </button>
         )}
       </section>
+      )}
 
-      {/* ── Incoming Requests (Desktop-only, compact) ── */}
-      {friendNotifItems?.filter(i => i.kind === "friend_request").length > 0 && (
-        <div className="fr-incoming-requests desktop-only">
+      {/* ── Incoming Requests ── */}
+      {socialView === "friends" && incomingRequests.length > 0 && (
+        <div className="fr-incoming-requests">
           <div className="fr-incoming-label"><UserPlus size={12} /> Incoming Requests</div>
-          {friendNotifItems.filter(i => i.kind === "friend_request").map(item => (
+          {incomingRequests.map(item => (
             <div key={item.id} className="fr-incoming-row">
               <div className="fr-incoming-avatar">{(item.name || "?")[0].toUpperCase()}</div>
               <span className="fr-incoming-name">{item.name}</span>
@@ -1626,16 +1825,32 @@ export default function FriendsPanel({
       )}
 
       {/* ── Saved Friends ── */}
+      {socialView === "friends" && (
       <section className="fr-friends-section fr-sec-friends">
         <div className="fr-section-header">
           <h3 className="fr-section-title">
-            Saved Friends
+            Your friends
             {friends.length > 0 && <span style={{ fontSize: 11, background: "rgba(0,0,0,0.05)", padding: "2px 8px", borderRadius: 10, color: "var(--muted)", fontWeight: 600 }}>{friends.length}</span>}
           </h3>
-          <button className="fr-btn fr-btn-icon" onClick={openDirectory} title="Find students">
-            <UserPlus size={15} />
+          <button className="fr-btn fr-btn-secondary fr-btn-small" onClick={() => setShowConnectModal(true)}>
+            <UserPlus size={14} /> Add people
           </button>
         </div>
+        {friends.length > 0 && (
+          <div className="fr-friend-tools">
+            <label className="fr-friend-search">
+              <Search size={15} />
+              <input value={workspaceSearch} onChange={e => setWorkspaceSearch(e.target.value)} placeholder="Search friends" aria-label="Search friends" />
+            </label>
+            <div className="fr-filter-row" aria-label="Filter friends">
+              {[
+                ["all", "All"], ["free", "Free now"], ["busy", "Busy"], ["favourites", "Favourites"],
+              ].map(([id, label]) => (
+                <button key={id} type="button" className={friendFilter === id ? "is-active" : ""} onClick={() => setFriendFilter(id)}>{label}</button>
+              ))}
+            </div>
+          </div>
+        )}
         {initialLoading && friends.length === 0 ? (
           <div className="fr-friend-list">
             <FriendSkeleton />
@@ -1646,7 +1861,7 @@ export default function FriendsPanel({
           <div className="fr-empty-state">
             <Users size={40} strokeWidth={1.2} />
             <p>No friends added yet</p>
-            <span>Share your code with classmates and paste theirs above to compare schedules.</span>
+            <span>Find classmates or share your invite to start comparing schedules.</span>
             <button
               className="fr-btn fr-btn-primary fr-empty-cta"
               onClick={openDirectory}
@@ -1654,11 +1869,13 @@ export default function FriendsPanel({
               <UserPlus size={14} /> Find classmates
             </button>
           </div>
+        ) : filteredWorkspaceFriends.length === 0 ? (
+          <div className="fr-quiet-empty fr-filter-empty"><Search size={20} /><span>No friends match this view.</span></div>
         ) : (
           <div className="fr-friend-list">
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={visibleFriends.filter(f => f.isFavourite).map(f => f.id)} strategy={verticalListSortingStrategy}>
-                {visibleFriends.map(f => 
+              <SortableContext items={filteredWorkspaceFriends.filter(f => f.isFavourite).map(f => f.id)} strategy={verticalListSortingStrategy}>
+                {filteredWorkspaceFriends.map(f =>
                   f.isFavourite 
                     ? <SortableFriendItem key={f.id} f={f} renderFriendCard={renderFriendCard} isCompact={false} />
                     : renderFriendCard(f, false)
@@ -1668,93 +1885,15 @@ export default function FriendsPanel({
           </div>
         )}
         
-        {sortedFriends.length > 4 && (
-          <button
-            className="fr-btn fr-btn-secondary fr-show-all-btn"
-            onClick={() => setShowAllFriendsModal(true)}
-          >
-            Show all {sortedFriends.length} friends
-          </button>
-        )}
       </section>
+      )}
 
       </div>{/* /fr-left-col */}
       <div className="fr-right-col">
-      
-      {/* ── Share & Connect ── */}
-      <section className="fr-share-card fr-sec-share" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <div className="fr-share-head" style={{ marginBottom: 0 }}>
-          <h2>Share & Connect</h2>
-          <span className="fr-share-sub">{courseCount} courses enrolled</span>
-        </div>
-        
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {isGenerating ? (
-            <p className="fr-share-empty">Generating secure share code...</p>
-          ) : myCode ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <div className="fr-code-display" style={{ margin: 0 }}>
-                <span className="fr-code-text">{myCodeDisplay}</span>
-              </div>
-              <div className="fr-share-actions" style={{ display: "flex", flexDirection: "row", gap: "8px", flexWrap: "nowrap" }}>
-                <button className="fr-btn fr-btn-primary" onClick={copyCode} style={{ flex: 1, justifyContent: "center", padding: "10px 4px", fontSize: "13px", whiteSpace: "nowrap", minWidth: 0 }}>
-                  <Copy size={16} style={{ flexShrink: 0 }} /> <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>Copy Code</span>
-                </button>
-                <button className="fr-btn fr-btn-secondary" onClick={copyLink} style={{ flex: 1, justifyContent: "center", padding: "10px 4px", fontSize: "13px", background: "#fff", border: "1px solid rgba(0,0,0,0.1)", color: "#000", whiteSpace: "nowrap", minWidth: 0 }}>
-                  <Link2 size={16} style={{ flexShrink: 0 }} /> <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>Copy Link</span>
-                </button>
-              </div>
-              <p className="fr-share-note" style={{ fontSize: "12px", color: "var(--muted)", textAlign: "center", margin: 0 }}>
-                Your friend can enter this code manually or open your invite link.
-              </p>
-            </div>
-          ) : (
-            <p className="fr-share-empty">Complete your course setup first to share your schedule.</p>
-          )}
-
-          <div style={{ height: 1, background: "rgba(0,0,0,0.06)", margin: "4px 0" }} />
-
-          <div className="fr-add-section-inner" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <h3 style={{ fontSize: 13, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px", margin: 0, display: "flex", alignItems: "center", gap: 6 }}>
-              <UserPlus size={14} /> Add a Friend
-            </h3>
-            <div className="fr-add-row" style={{ display: "flex", gap: "8px" }}>
-              <input
-                className="fr-add-input"
-                type="text"
-                placeholder="Paste friend's invite link here..."
-                value={addCode}
-                onChange={e => { setAddCode(e.target.value); setAddError(""); }}
-                onKeyDown={e => e.key === "Enter" && handleAddFriend()}
-                style={{ flex: 1, margin: 0 }}
-              />
-              <button className="fr-btn fr-btn-primary fr-btn-add" onClick={handleAddFriend} disabled={!addCode.trim() || isAdding} style={{ margin: 0 }}>
-                {isAdding ? "..." : "Add"}
-              </button>
-            </div>
-            {addError && <p className="fr-add-error" style={{ margin: 0 }}>{addError}</p>}
-          </div>
-        </div>
-      </section>
-
-      {/* ── Leave Planner entry (desktop only) ── */}
-      {onOpenLeave && (
-        <button
-          type="button"
-          className="fr-leave-cta desktop-only"
-          onClick={onOpenLeave}
-        >
-          <span className="fr-leave-cta-icon"><CalendarOff size={18} /></span>
-          <span className="fr-leave-cta-text">
-            <span className="fr-leave-cta-title">Leave Planner</span>
-            <span className="fr-leave-cta-sub">See what you&rsquo;ll miss before you go</span>
-          </span>
-          <ChevronRight size={18} className="fr-leave-cta-chev" />
-        </button>
-      )}
 
       {/* ── Suggested Study Buddies ── */}
-      <section className="fr-friends-section fr-sec-buddies" style={{ marginBottom: 24 }}>
+      {socialView === "friends" && (
+      <section className="fr-friends-section fr-sec-buddies fr-tab-pane" style={{ marginBottom: 24 }}>
         <div className="fr-section-header">
            <h3 className="fr-section-title">Suggested Study Buddies</h3>
            <label className="fr-optout-label">
@@ -1929,6 +2068,7 @@ export default function FriendsPanel({
           </div>
         )}
       </section>
+      )}
 
 
       </div>{/* /fr-right-col */}

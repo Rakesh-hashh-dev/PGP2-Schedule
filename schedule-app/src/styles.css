@@ -32,6 +32,16 @@
   /* Motion — strong curves; built-in CSS easings are too weak */
   --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
+
+  /* Shared motion language: short enough for a utility app, expressive enough
+     to preserve spatial context between pages, sheets and data updates. */
+  --motion-fast: 140ms;
+  --motion-base: 220ms;
+  --motion-slow: 320ms;
+  --motion-ease-standard: cubic-bezier(.2, .8, .2, 1);
+  --motion-ease-enter: cubic-bezier(.16, 1, .3, 1);
+  --motion-ease-exit: cubic-bezier(.4, 0, 1, 1);
+  --motion-ease-spring: cubic-bezier(.34, 1.35, .64, 1);
 }
 
 /* ── Dark theme ──
@@ -2616,6 +2626,287 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
   padding: 3px 9px;
 }
 
+/* ── Announcements workspace refresh ───────────────────────────────────── */
+.notif-workspace-head {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 18px;
+  padding: 24px 26px;
+  border: 1px solid color-mix(in srgb, var(--violet) 14%, var(--border));
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 91% 8%, color-mix(in srgb, var(--violet) 14%, transparent), transparent 34%),
+    linear-gradient(135deg, color-mix(in srgb, var(--card) 97%, transparent), color-mix(in srgb, var(--surface) 84%, transparent));
+  box-shadow: 0 16px 44px rgba(35, 28, 61, .07);
+}
+
+.notif-workspace-copy { max-width: 610px; }
+.notif-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--violet);
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+.notif-workspace-copy h1 {
+  margin: 5px 0 6px;
+  color: var(--text);
+  font-family: var(--display);
+  font-size: clamp(27px, 3vw, 38px);
+  line-height: 1;
+  letter-spacing: -.04em;
+}
+.notif-workspace-copy > p {
+  max-width: 540px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.notif-workspace-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 16px;
+}
+.notif-workspace-metrics > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--card) 75%, transparent);
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 650;
+}
+.notif-workspace-metrics strong { color: var(--text); }
+.notif-workspace-metrics .is-urgent {
+  border-color: color-mix(in srgb, var(--danger) 28%, var(--border));
+  background: color-mix(in srgb, var(--danger) 7%, var(--card));
+  color: var(--danger);
+}
+.notif-workspace-metrics .is-urgent strong { color: var(--danger); }
+.notif-workspace-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  max-width: 350px;
+}
+.notif-markall-primary {
+  border-color: var(--text);
+  background: var(--text);
+  color: var(--card);
+}
+.notif-markall-primary:hover { background: color-mix(in srgb, var(--text) 90%, var(--card)); color: var(--card); }
+
+.notif-view-tabs {
+  position: sticky;
+  top: 8px;
+  z-index: 20;
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto 18px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  background: color-mix(in srgb, var(--card) 92%, transparent);
+  box-shadow: 0 9px 26px rgba(31, 25, 52, .07);
+  backdrop-filter: blur(16px);
+}
+.notif-view-tabs button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 0 15px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 750;
+  cursor: pointer;
+}
+.notif-view-tabs button.is-active {
+  background: var(--text);
+  color: var(--card);
+  box-shadow: 0 5px 14px color-mix(in srgb, var(--text) 17%, transparent);
+}
+
+.notif-pg .notif-controls-row {
+  position: sticky;
+  top: 62px;
+  z-index: 15;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  background: color-mix(in srgb, var(--card) 91%, transparent);
+  box-shadow: 0 7px 22px rgba(31, 25, 52, .05);
+  backdrop-filter: blur(16px);
+}
+.notif-pg .notif-filter-chips { flex-wrap: nowrap; overflow-x: auto; margin: 0; scrollbar-width: none; }
+.notif-pg .notif-filter-chips::-webkit-scrollbar { display: none; }
+.notif-pg .notif-search-box { grid-column: 1 / -1; grid-row: 2; width: 100%; max-width: none; background: var(--surface); }
+.notif-pg .notif-group-toggle { justify-self: end; }
+
+.notif-pg .notif-group-label.notif-attn-label {
+  padding: 9px 12px;
+  border-color: color-mix(in srgb, var(--danger) 22%, var(--border));
+  background: color-mix(in srgb, var(--danger) 6%, var(--card));
+}
+.notif-pg .notif-group-label.notif-attn-label > span:first-child { font-size: 11px; }
+.notif-pg .notif-group-label.notif-attn-label::before { background: color-mix(in srgb, var(--danger) 25%, transparent); }
+
+.notif-update-summary {
+  color: var(--text);
+  font-weight: 700;
+}
+.notif-affected-when {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 650;
+}
+.notif-pg .notif-pg-item {
+  padding: 13px 14px;
+  border-radius: 13px;
+}
+.notif-pg .notif-pg-list { gap: 6px; }
+.notif-pg .notif-feed { gap: 20px; }
+
+.notif-settings-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(17, 13, 28, .52);
+  backdrop-filter: blur(8px);
+}
+.notif-settings-sheet {
+  width: min(720px, 100%);
+  max-height: calc(100dvh - 36px);
+  overflow-y: auto;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: var(--card);
+  box-shadow: 0 24px 80px rgba(18, 12, 32, .28);
+}
+.notif-settings-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.notif-settings-head h2 { margin: 4px 0; color: var(--text); font-family: var(--display); font-size: 25px; }
+.notif-settings-head p { margin: 0; color: var(--muted); font-size: 13px; }
+.notif-settings-close {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+.notif-settings-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0 14px; }
+.notif-settings-actions .notif-push-toggle,
+.notif-settings-actions .notif-markall { min-height: 40px; border-radius: 12px; }
+.notif-settings-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px;
+  border: 1px dashed var(--border);
+  border-radius: 13px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.poll-cohort-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 42px 20px;
+  border: 1px dashed var(--border);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--card) 72%, transparent);
+  color: var(--muted);
+  text-align: center;
+}
+.poll-cohort-empty strong { color: var(--text); font-size: 15px; }
+.poll-cohort-empty span { max-width: 380px; font-size: 12.5px; line-height: 1.45; }
+
+@media (max-width: 760px) {
+  .notif-workspace-head { align-items: stretch; flex-direction: column; padding: 20px; border-radius: 20px; }
+  .notif-workspace-actions { justify-content: flex-start; max-width: none; }
+  .notif-pg .notif-controls-row { grid-template-columns: 1fr; gap: 8px; }
+  .notif-pg .notif-search-box { order: -1; display: inline-flex; min-height: 42px; }
+  .notif-pg .notif-group-toggle { justify-self: stretch; }
+}
+
+@media (max-width: 640px) {
+  .notif-workspace-head { margin-inline: 0; padding: 18px; }
+  .notif-workspace-copy h1 { font-size: 29px; }
+  .notif-workspace-copy > p { font-size: 12.5px; }
+  .notif-workspace-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .notif-workspace-actions .notif-sync-pill { grid-column: 1 / -1; }
+  .notif-workspace-actions .notif-markall {
+    width: auto;
+    height: 44px;
+    border-radius: 12px;
+    justify-content: center;
+  }
+  .notif-workspace-actions .notif-markall-primary:only-child { grid-column: 1 / -1; }
+  .notif-view-tabs { top: 6px; width: 100%; }
+  .notif-view-tabs button { flex: 1; min-width: 0; padding-inline: 6px; font-size: 11.5px; }
+  .notif-pg .notif-controls-row { top: 58px; padding: 8px; }
+  .notif-pg .notif-filter-chips { order: 0; }
+  .notif-pg .notif-group-toggle { order: 1; }
+  .notif-pg .notif-search-box { display: inline-flex; flex-basis: auto; }
+  .notif-pg .notif-pg-item { align-items: flex-start; padding: 12px; }
+  .notif-pg .notif-pg-time { font-size: 10px; }
+  .notif-settings-backdrop { align-items: flex-end; padding: 8px 0 0; }
+  .notif-settings-sheet { max-height: calc(100dvh - 8px); padding: 20px; border-radius: 22px 22px 0 0; }
+  .notif-settings-actions { display: grid; grid-template-columns: 1fr; }
+  .notif-settings-actions .notif-push-toggle,
+  .notif-settings-actions .notif-markall { width: 100%; height: 44px; justify-content: center; border-radius: 12px; }
+  .notif-settings-actions .notif-btn-label { display: inline; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notif-workspace-head,
+  .notif-view-tabs,
+  .notif-settings-sheet { animation: none; transition: none; }
+}
+
 .tmrw-summary-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -4441,15 +4732,27 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
   color: var(--amber);
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   Semester Summary Widget (Stats Bar) — Modern Revamp
+   ══════════════════════════════════════════════════════════════════════════ */
+
 .sem-summary {
+  position: relative;
   display: flex;
-  align-items: center;
-  gap: 0;
-  background: var(--card);
-  border: 1px solid var(--border);
+  align-items: stretch;
+  gap: 2px;
+  background:
+    radial-gradient(ellipse 70% 50% at 50% 0%, color-mix(in srgb, var(--violet) 6%, transparent), transparent),
+    var(--card);
+  border: 1px solid color-mix(in srgb, var(--violet) 16%, var(--border));
   border-radius: 14px;
-  margin: 10px 0 4px;
-  overflow: hidden;
+  margin: 6px 0 3px;
+  padding: 2px 3px;
+  box-shadow:
+    0 1px 3px rgba(31, 25, 52, .03),
+    0 6px 18px rgba(31, 25, 52, .04);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .sem-stat {
@@ -4457,67 +4760,165 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
-  padding: 12px 8px;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 4px 6px;
   min-width: 0;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  transition:
+    transform 160ms var(--motion-ease-standard),
+    background 160ms var(--motion-ease-standard),
+    border-color 160ms var(--motion-ease-standard);
 }
 
 .sem-val {
-  font-family: var(--mono);
-  font-size: 18px;
-  font-weight: 700;
+  font-family: var(--display), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 16.5px;
+  font-weight: 800;
   color: var(--text);
   font-variant-numeric: tabular-nums;
+  letter-spacing: -.02em;
   line-height: 1;
 }
 
 .sem-label {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--muted);
-  font-weight: 500;
-  letter-spacing: .03em;
+  font-weight: 600;
+  letter-spacing: -.01em;
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
+  line-height: 1.15;
+  transition: color 150ms ease;
 }
 
+.sem-sublabel {
+  opacity: .85;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 600;
+}
+
+/* Status colors with refined tints and glows */
 .sem-stat.good .sem-val {
   color: var(--live);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--live) 25%, transparent);
 }
 
 .sem-stat.warn .sem-val {
   color: var(--amber);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--amber) 25%, transparent);
 }
 
 .sem-stat.bad .sem-val {
-  color: var(--danger, #e05);
+  color: #f43f5e;
+  text-shadow: 0 0 10px rgba(244, 63, 94, .25);
 }
 
+/* Interactive CTA button cells */
 .sem-stat-cta {
-  border: none;
-  background: transparent;
   cursor: pointer;
-  border-radius: 10px;
-  transition: transform .2s cubic-bezier(.34, 1.56, .64, 1), box-shadow .2s ease, background .2s ease;
+  border: 1px solid transparent;
+  background: transparent;
 }
 
 .sem-stat-cta:hover {
-  transform: translateY(-3px);
-  background: rgba(109, 91, 208, .06);
-  box-shadow: 0 6px 20px rgba(109, 91, 208, .18), 0 0 0 1px rgba(109, 91, 208, .12);
+  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--surface) 65%, var(--card));
+  border-color: color-mix(in srgb, var(--violet) 18%, var(--border));
+  box-shadow: 0 2px 8px rgba(31, 25, 52, .04);
+}
+
+.sem-stat-cta:hover .sem-label {
+  color: var(--text);
 }
 
 .sem-stat-cta:active {
-  transform: translateY(-1px);
+  transform: scale(.98);
 }
 
+/* Elegant fading vertical dividers */
 .sem-divider {
   width: 1px;
-  height: 32px;
-  background: var(--border);
+  height: 20px;
+  align-self: center;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    color-mix(in srgb, var(--border) 80%, transparent) 50%,
+    transparent 100%
+  );
   flex-shrink: 0;
+}
+
+/* Dark mode */
+html[data-theme="dark"] .sem-summary {
+  background:
+    radial-gradient(ellipse 70% 50% at 50% 0%, color-mix(in srgb, var(--violet) 11%, transparent), transparent),
+    var(--card);
+  border-color: color-mix(in srgb, var(--violet) 22%, var(--border));
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, .25),
+    0 8px 24px rgba(0, 0, 0, .35);
+}
+
+html[data-theme="dark"] .sem-stat-cta:hover {
+  background: color-mix(in srgb, var(--surface) 50%, transparent);
+  border-color: color-mix(in srgb, var(--violet) 26%, var(--border));
+}
+
+/* Premium mode */
+body.premium-mode .sem-summary {
+  border-color: color-mix(in srgb, var(--violet) 28%, var(--border));
+  box-shadow:
+    0 1px 4px rgba(31, 25, 52, .04),
+    0 10px 24px color-mix(in srgb, var(--violet) 9%, rgba(31, 25, 52, .08));
+}
+
+/* Mobile responsiveness */
+@media (max-width: 640px) {
+  .sem-summary {
+    padding: 2px;
+    border-radius: 12px;
+    margin: 5px 0 2px;
+  }
+
+  .sem-stat {
+    padding: 5px 2px;
+    border-radius: 8px;
+    gap: 1px;
+  }
+
+  .sem-val {
+    font-size: 14px;
+  }
+
+  .sem-label {
+    font-size: 8.5px;
+  }
+
+  .sem-divider {
+    height: 16px;
+  }
+}
+
+@media (max-width: 420px) {
+  .sem-val {
+    font-size: 13px;
+  }
+
+  .sem-label {
+    font-size: 8px;
+  }
+
+  .sem-sublabel {
+    font-size: 8px;
+  }
 }
 
 /* â”€â”€ Timeline panel â”€â”€ */
@@ -5643,6 +6044,841 @@ html[data-theme="dark"] .row-placement {
   letter-spacing: -0.7px;
   text-align: center;
   animation: loading-fadein .5s ease .3s both;
+}
+
+@media (max-width: 640px) {
+  .notif-pg .notif-controls-row .notif-search-box {
+    display: inline-flex;
+    flex-basis: auto;
+    min-height: 42px;
+  }
+
+  .notif-pg .notif-fab-search,
+  .notif-pg .notif-fab-search-panel {
+    display: none;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Today timeline — "Your Day at a Glance" — premium revamp
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Outer shell ── */
+.timeline-today {
+  position: relative;
+  overflow: hidden;
+  padding: 0;
+  border-radius: 26px;
+  border: 1px solid color-mix(in srgb, var(--violet) 18%, var(--border));
+  background:
+    radial-gradient(ellipse 70% 55% at 100% 0%, color-mix(in srgb, var(--violet) 9%, transparent), transparent),
+    radial-gradient(ellipse 50% 40% at 0% 100%, color-mix(in srgb, var(--live) 5%, transparent), transparent),
+    var(--card);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--violet) 8%, transparent),
+    0 20px 50px color-mix(in srgb, var(--violet) 8%, rgba(31,25,52,.08)),
+    0 6px 18px rgba(31,25,52,.06);
+}
+
+/* ── Panel head ── */
+.timeline-today .timeline-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  background: color-mix(in srgb, var(--card) 72%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* ── Eyebrow label ── */
+.timeline-eyebrow {
+  display: block;
+  font-size: 9.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .10em;
+  color: var(--violet);
+  margin-bottom: 2px;
+  opacity: .85;
+}
+
+/* ── Title row ── */
+.timeline-title-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.timeline-today .timeline-title-row h2 {
+  font-family: var(--display);
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -.045em;
+  color: var(--text);
+}
+
+.timeline-today .panel-head-left {
+  gap: 1px;
+}
+
+/* Refresh button — frosted pill */
+.timeline-today .panel-refresh {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 65%, transparent);
+  color: var(--muted);
+  cursor: pointer;
+  transition: background var(--motion-fast) ease, color var(--motion-fast) ease, transform var(--motion-fast) ease;
+}
+
+.timeline-today .panel-refresh:hover {
+  background: color-mix(in srgb, var(--violet) 10%, var(--surface));
+  color: var(--violet);
+  transform: scale(1.08);
+}
+
+/* ── Status overview bar ── */
+.timeline-overview {
+  display: flex;
+  align-items: stretch;
+  gap: 7px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* Shared chip base */
+.timeline-status,
+.timeline-progress-copy {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  border-radius: 14px;
+  border: 1px solid transparent;
+}
+
+/* "Up next / Happening now / Day complete" chip */
+.timeline-status {
+  gap: 7px;
+  padding: 0 11px;
+  background: color-mix(in srgb, var(--surface) 80%, var(--card));
+  border-color: var(--border);
+  max-width: 240px;
+}
+
+/* Live state — green glow chip */
+.timeline-status-live {
+  background: color-mix(in srgb, var(--live) 9%, var(--card));
+  border-color: color-mix(in srgb, var(--live) 28%, var(--border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--live) 8%, transparent);
+}
+
+/* Next state — amber tint chip */
+.timeline-status-next {
+  background: color-mix(in srgb, var(--amber) 8%, var(--card));
+  border-color: color-mix(in srgb, var(--amber) 26%, var(--border));
+}
+
+/* Done state — subtle green chip */
+.timeline-status-done {
+  background: color-mix(in srgb, var(--live) 5%, var(--card));
+  border-color: color-mix(in srgb, var(--live) 16%, var(--border));
+}
+
+/* Status pulsing dot */
+.timeline-status-dot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--violet);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--violet) 16%, transparent);
+}
+
+.timeline-status-live .timeline-status-dot {
+  background: var(--live);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--live) 18%, transparent);
+  animation: tl-dot-pulse 2s ease infinite;
+}
+
+.timeline-status-next .timeline-status-dot {
+  background: var(--amber);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 20%, transparent);
+}
+
+.timeline-status-done .timeline-status-dot {
+  background: var(--live);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--live) 15%, transparent);
+}
+
+@keyframes tl-dot-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--live) 20%, transparent); }
+  50%       { box-shadow: 0 0 0 6px color-mix(in srgb, var(--live) 0%, transparent); }
+}
+
+.timeline-status-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.timeline-status-copy strong {
+  font-size: 9.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--text);
+}
+
+.timeline-status-live .timeline-status-copy strong { color: var(--live); }
+.timeline-status-next .timeline-status-copy strong { color: var(--amber); }
+
+.timeline-status-copy span {
+  max-width: 185px;
+  margin-top: 1px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 9.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Count chip — bold mono number */
+.timeline-progress-copy {
+  min-width: 76px;
+  padding: 0 11px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  background: color-mix(in srgb, var(--violet) 7%, var(--card));
+  border-color: color-mix(in srgb, var(--violet) 20%, var(--border));
+}
+
+.timeline-progress-copy strong {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--text);
+}
+
+.timeline-progress-copy span {
+  margin-top: 2px;
+  font-size: 8.5px;
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* ── Timeline rail ── */
+.timeline-today .rail {
+  position: relative;
+  display: flex;
+  margin: 0;
+  padding: 8px 11px 11px;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* ── Row cards ── */
+.timeline-today .row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 64px 14px minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 0 8px;
+  min-height: 52px;
+  margin: 0;
+  padding: 2px 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  transition: opacity .15s ease;
+}
+
+/* ── Time column ── */
+.timeline-today .row-time {
+  min-width: 0;
+  padding: 8px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  font-family: var(--mono);
+}
+
+.timeline-today .rt-start {
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: -.02em;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.timeline-today .rt-end {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 9.5px;
+  font-weight: 600;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.timeline-today .rt-separator { display: none; }
+.timeline-today .rt-duration { display: none; }
+
+/* ── Timeline spine marker ── */
+.timeline-marker {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.timeline-marker::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1.5px;
+  content: "";
+  background: color-mix(in srgb, var(--border) 60%, transparent);
+  transform: translateX(-50%);
+}
+
+.timeline-today .row:first-of-type .timeline-marker::after { top: 50%; }
+.timeline-today .row:last-of-type .timeline-marker::after { bottom: 50%; }
+
+.timeline-marker > span {
+  position: relative;
+  z-index: 1;
+  width: 9px;
+  height: 9px;
+  margin: 0;
+  border: 2px solid var(--card);
+  border-radius: 50%;
+  background: var(--border-hi, var(--border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--border) 60%, transparent);
+  transition: background 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
+}
+
+/* ── Row body card ── */
+.timeline-today .row-body {
+  display: flex;
+  min-width: 0;
+  padding: 9px 12px 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--card) 90%, var(--surface));
+  flex-direction: column;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(31,25,52,.03);
+  transition:
+    transform 160ms var(--motion-ease-standard),
+    border-color 160ms var(--motion-ease-standard),
+    background 160ms var(--motion-ease-standard),
+    box-shadow 160ms var(--motion-ease-standard);
+}
+
+.timeline-today .row:hover:not(.cur):not(.past) .row-body {
+  border-color: color-mix(in srgb, var(--violet) 26%, var(--border));
+  background: color-mix(in srgb, var(--card) 96%, var(--surface));
+  box-shadow: 0 6px 18px rgba(31,25,52,.06);
+  transform: translateY(-1px);
+}
+
+/* Subject-colored edge */
+.timeline-today .row-body.subj-edge {
+  padding-left: 12px;
+  border-color: color-mix(in srgb, var(--subj) 35%, var(--border));
+  background: color-mix(in srgb, var(--subj-bg) 18%, var(--card));
+}
+
+.timeline-today .row-body.subj-edge .ses {
+  border-color: color-mix(in srgb, var(--subj) 48%, var(--subj-border));
+  background: color-mix(in srgb, var(--subj-bg) 82%, var(--card));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--subj) 9%, transparent);
+}
+
+.timeline-today .row-course {
+  font-size: 13px;
+  font-weight: 750;
+  letter-spacing: -.015em;
+  color: var(--text);
+}
+
+.timeline-today .row-meta {
+  margin-top: 3px;
+  font-size: 10.5px;
+}
+
+.timeline-today .att-tog { padding-right: 8px; }
+
+/* ── State: soft (breaks / events) ── */
+.timeline-today .row.soft { opacity: .85; }
+
+.timeline-today .row.soft .row-body {
+  background: color-mix(in srgb, var(--surface) 60%, var(--card));
+  border: 1px dashed color-mix(in srgb, var(--border) 75%, transparent);
+  box-shadow: none;
+  padding: 8px 12px;
+}
+
+.timeline-today .row.soft .tb.break {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 99px;
+  font-size: 8.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+/* ── State: past ── */
+.timeline-today .row.past { opacity: .40; }
+
+.timeline-today .row.past .row-body { box-shadow: none; }
+
+.timeline-today .row.past .rt-start { text-decoration: none; }
+
+/* ── State: current (live) ── */
+.timeline-today .row.cur { opacity: 1; }
+
+.timeline-today .row.cur .row-body {
+  border-color: color-mix(in srgb, var(--live) 38%, var(--border));
+  background: color-mix(in srgb, var(--live) 7%, var(--card));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--live) 14%, transparent),
+    0 8px 24px color-mix(in srgb, var(--live) 10%, rgba(31,25,52,.07));
+}
+
+.timeline-today .row.cur .timeline-marker > span {
+  background: var(--live);
+  border-color: var(--card);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--live) 20%, transparent),
+    0 0 8px color-mix(in srgb, var(--live) 55%, transparent);
+}
+
+.timeline-today .row.cur .rt-start {
+  color: var(--live);
+}
+
+/* ── State: up-next (amber) ── */
+.timeline-today .row.timeline-up-next { opacity: 1; }
+
+.timeline-today .row.timeline-up-next .row-body {
+  border-color: color-mix(in srgb, var(--amber) 34%, var(--border));
+  background: color-mix(in srgb, var(--amber) 6%, var(--card));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--amber) 12%, transparent),
+    0 4px 14px color-mix(in srgb, var(--amber) 8%, transparent);
+}
+
+.timeline-today .row.soft.timeline-up-next .row-body {
+  border-style: solid;
+}
+
+.timeline-today .row.timeline-up-next .timeline-marker > span {
+  background: var(--amber);
+  border-color: var(--card);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 22%, transparent);
+}
+
+.timeline-today .row.timeline-up-next .rt-start {
+  color: color-mix(in srgb, var(--amber) 85%, var(--text));
+}
+
+/* Progress bar inside live row */
+.timeline-today .cur-progress-track {
+  right: 12px;
+  bottom: 5px;
+  left: 12px;
+  height: 2.5px;
+  border-radius: 99px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--live) 15%, transparent);
+}
+
+.timeline-today .cur-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--live), color-mix(in srgb, var(--live) 60%, var(--violet)));
+  border-radius: 99px;
+  transition: width .8s ease;
+  box-shadow: 0 0 8px color-mix(in srgb, var(--live) 60%, transparent);
+}
+
+/* ── Now line — current time indicator ── */
+.timeline-today .nowline {
+  position: relative;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: 64px 14px minmax(0, 1fr);
+  align-items: center;
+  gap: 0 6px;
+  margin: 6px 0;
+  padding: 2px 0;
+  list-style: none;
+}
+
+/* Current time badge — elegant translucent pill in time column */
+.timeline-today .nowtime {
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: end;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--live) 13%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--live) 32%, transparent);
+  color: var(--live);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: -.01em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--live) 12%, transparent);
+  transition: all 160ms ease;
+}
+
+/* Pulsing beacon dot — centered on the timeline spine rail */
+.timeline-today .nowdot {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: center;
+  align-self: center;
+  position: relative;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--live);
+  border: 2px solid var(--card);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--live) 30%, transparent), 0 0 8px color-mix(in srgb, var(--live) 60%, transparent);
+  animation: tl-now-pulse 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes tl-now-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--live) 32%, transparent), 0 0 6px color-mix(in srgb, var(--live) 40%, transparent);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 5.5px color-mix(in srgb, var(--live) 0%, transparent), 0 0 12px color-mix(in srgb, var(--live) 70%, transparent);
+    transform: scale(1.12);
+  }
+}
+
+/* Luminous gradient rule across cards */
+.timeline-today .nowrule {
+  grid-column: 3;
+  grid-row: 1;
+  width: 100%;
+  height: 1.5px;
+  border-radius: 99px;
+  align-self: center;
+  background: linear-gradient(
+    90deg,
+    var(--live) 0%,
+    color-mix(in srgb, var(--live) 55%, transparent) 40%,
+    color-mix(in srgb, var(--live) 10%, transparent) 85%,
+    transparent 100%
+  );
+  box-shadow: 0 0 6px color-mix(in srgb, var(--live) 30%, transparent);
+}
+
+.timeline-today .nowline-end {
+  grid-template-columns: 64px 14px minmax(0, 1fr) auto;
+  gap: 0 8px;
+}
+
+.timeline-today .nowlabel {
+  grid-column: 4;
+  grid-row: 1;
+  justify-self: end;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--live) 10%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--live) 24%, var(--border));
+  color: var(--live);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  white-space: nowrap;
+}
+
+/* ── Premium mode enhancement ── */
+body.premium-mode .timeline-today {
+  border-color: color-mix(in srgb, var(--violet) 30%, var(--border));
+  background:
+    radial-gradient(ellipse 60% 50% at 100% 0%, color-mix(in srgb, var(--violet) 13%, transparent), transparent),
+    radial-gradient(ellipse 45% 35% at 0% 100%, color-mix(in srgb, var(--live) 7%, transparent), transparent),
+    var(--card);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--violet) 14%, transparent),
+    0 24px 60px color-mix(in srgb, var(--violet) 10%, rgba(31,25,52,.10)),
+    0 8px 22px rgba(31,25,52,.07);
+}
+
+/* ── Dark mode overrides ── */
+html[data-theme="dark"] .timeline-today {
+  border-color: color-mix(in srgb, var(--violet) 22%, var(--border));
+  background:
+    radial-gradient(ellipse 65% 50% at 100% 0%, color-mix(in srgb, var(--violet) 11%, transparent), transparent),
+    radial-gradient(ellipse 40% 30% at 0% 100%, color-mix(in srgb, var(--live) 6%, transparent), transparent),
+    var(--card);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--violet) 12%, transparent),
+    0 20px 50px rgba(0,0,0,.35);
+}
+
+html[data-theme="dark"] .timeline-today .panel-head-left .timeline-eyebrow {
+  opacity: .9;
+}
+
+html[data-theme="dark"] .timeline-today .nowtime {
+  background: color-mix(in srgb, var(--live) 18%, rgba(15,23,42,.85));
+  border-color: color-mix(in srgb, var(--live) 38%, transparent);
+  color: color-mix(in srgb, var(--live) 90%, #fff);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--live) 25%, transparent);
+}
+
+/* ── Responsive ── */
+@media (max-width: 760px) {
+  .timeline-today .timeline-panel-head {
+    align-items: center;
+    padding: 12px 13px 10px;
+    flex-direction: row;
+    gap: 8px;
+  }
+
+  .timeline-overview {
+    width: auto;
+    margin-left: auto;
+  }
+
+  .timeline-status {
+    max-width: 120px;
+    flex: none;
+  }
+
+  .timeline-status-copy span { display: none; }
+
+  .timeline-today .timeline-title-row h2 {
+    font-size: 17px;
+  }
+
+  .timeline-today .rail {
+    padding: 7px 8px 10px;
+  }
+
+  .timeline-today .row {
+    grid-template-columns: 54px 12px minmax(0, 1fr);
+    gap: 0 5px;
+    min-height: 50px;
+  }
+
+  .timeline-today .row-time { padding-left: 2px; }
+  .timeline-today .rt-start { font-size: 10px; }
+  .timeline-today .rt-end { font-size: 8.5px; }
+
+  .timeline-today .row-body {
+    padding: 7px 10px 7px 11px;
+  }
+
+  .timeline-today .row-body.subj-edge { padding-left: 11px; }
+
+  .timeline-today .att-tog {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    padding: 0;
+  }
+
+  .timeline-today .row:has(.att-tog) .row-body { padding-bottom: 42px; }
+
+  .timeline-today .nowline {
+    grid-template-columns: 54px 12px minmax(0, 1fr);
+    gap: 0 5px;
+    margin: 5px 0;
+  }
+
+  .timeline-today .nowtime {
+    font-size: 9px;
+    height: 18px;
+    padding: 0 6px;
+  }
+
+  .timeline-today .nowline-end {
+    grid-template-columns: 54px 12px minmax(0, 1fr) auto;
+    gap: 0 6px;
+  }
+}
+
+@media (max-width: 420px) {
+  .timeline-today .timeline-title-row h2 { font-size: 17px; }
+
+  .timeline-progress-copy {
+    min-width: 70px;
+    padding-inline: 9px;
+  }
+
+  .timeline-progress-copy span { font-size: 8px; }
+
+  .timeline-status-copy span { max-width: 130px; }
+
+  .timeline-today .row-course { font-size: 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timeline-today .row,
+  .timeline-status-live .timeline-status-dot,
+  .timeline-today .nowdot,
+  .timeline-today .cur-progress-fill {
+    animation: none;
+    transition: none;
+  }
+}
+
+/* ── Unified app motion ──────────────────────────────────────────────────
+   Native View Transitions keep the shell stable while the working surface
+   changes. The keyed .tf-page-stage animation below is the lightweight
+   fallback for browsers that do not expose document.startViewTransition. */
+.main-col {
+  view-transition-name: termflow-content;
+}
+
+.tf-page-stage {
+  animation: tf-page-enter 180ms var(--motion-ease-standard) both;
+}
+
+@keyframes tf-page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@supports (view-transition-name: termflow-content) {
+  .tf-page-stage {
+    animation: none;
+  }
+
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+
+  ::view-transition-group(termflow-content) {
+    animation-duration: 180ms;
+    animation-timing-function: var(--motion-ease-standard);
+  }
+
+  ::view-transition-old(termflow-content) {
+    animation: tf-view-old 140ms ease-out both;
+  }
+
+  ::view-transition-new(termflow-content) {
+    animation: tf-view-new 180ms var(--motion-ease-standard) both;
+  }
+}
+
+@keyframes tf-view-old {
+  to { opacity: 0; }
+}
+
+@keyframes tf-view-new {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Navigation acknowledges a destination change without competing with the
+   larger page transition. Bottom navigation retains its existing lens move. */
+.tab.on svg,
+.sb-link.on svg {
+  animation: tf-nav-icon-settle 160ms ease-out both;
+}
+
+@keyframes tf-nav-icon-settle {
+  from { opacity: .78; transform: scale(.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* One entrance language for the app's principal overlays. Component-specific
+   layout remains untouched; only timing and perceived depth are unified. */
+:is(.filter-modal-overlay, .wn-overlay, .notif-settings-backdrop, .fs-modal-overlay, .push-help-overlay) {
+  animation: tf-overlay-in var(--motion-fast) ease-out both;
+}
+
+.notif-settings-sheet {
+  animation: tf-dialog-in 180ms var(--motion-ease-standard) both;
+}
+
+@keyframes tf-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes tf-dialog-in {
+  from { opacity: 0; transform: translateY(5px) scale(.995); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Updated values receive a restrained highlight when components opt in with
+   .tf-data-updated; this avoids replaying an entire page after a sync. */
+.tf-data-updated {
+  animation: tf-data-updated 480ms var(--motion-ease-standard) both;
+}
+
+@keyframes tf-data-updated {
+  0% { background-color: color-mix(in srgb, var(--violet) 10%, transparent); }
+  100% { background-color: transparent; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tf-page-stage,
+  .tab.on svg,
+  .sb-link.on svg,
+  .tf-data-updated,
+  :is(.filter-modal-overlay, .wn-overlay, .notif-settings-backdrop, .fs-modal-overlay, .push-help-overlay),
+  .notif-settings-sheet {
+    animation: none !important;
+  }
+
+  ::view-transition-old(root),
+  ::view-transition-new(root),
+  ::view-transition-old(termflow-content),
+  ::view-transition-new(termflow-content) {
+    animation: none !important;
+  }
 }
 
 .loading-sub {
@@ -19238,4 +20474,18 @@ html[data-theme="dark"] .lp-glance-bad {
 .wa-stats-toggle:hover {
   background: var(--surface);
   border-color: var(--border-hi);
+}
+
+/* Final phone override for the Announcements sticky search. */
+@media (max-width: 640px) {
+  .notif-pg .notif-controls-row .notif-search-box {
+    display: inline-flex;
+    flex-basis: auto;
+    min-height: 42px;
+  }
+
+  .notif-pg .notif-fab-search,
+  .notif-pg .notif-fab-search-panel {
+    display: none;
+  }
 }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { CalendarDays, CheckCircle2, CircleDashed, Clock, GraduationCap, MapPin, X, XCircle } from "lucide-react";
 import { subjectClass } from "../../lib/subjectColors.js";
+import { fmtTime12 } from "../../lib/datetime.js";
 
 function hours(value) {
   return `${Number.isInteger(value) ? value : value.toFixed(1)}h`;
@@ -69,7 +70,7 @@ function WeekDetail({ week }) {
               </span>
               <div>
                 <strong>{event.code || event.name}</strong>
-                <span>{new Date(`${event.date}T00:00:00`).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })} · {event.start}{event.end ? `–${event.end}` : ""}</span>
+                <span>{new Date(`${event.date}T00:00:00`).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })} · {fmtTime12(event.start)}{event.end ? `–${fmtTime12(event.end)}` : ""}</span>
                 {event.code && event.name !== event.code && <small>{event.name}</small>}
               </div>
               {event.room && <span className="wrapped-detail-room"><MapPin size={11} /> {event.room}</span>}

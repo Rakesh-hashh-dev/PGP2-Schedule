@@ -20,6 +20,7 @@ import {
   detectPlatform,
 } from "../lib/calendarExport.js";
 import { subjectClass } from "../lib/subjectColors.js";
+import { fmtTime12 } from "../lib/datetime.js";
 import {
   AppleCalendarSVG,
   GoogleCalendarSVG,
@@ -374,7 +375,7 @@ export default function CalendarExportModal({
                   </div>
                   <div className="cal-preview-details">
                     <span>
-                      🕒 {previewEvent.start || "14:30"} – {previewEvent.end || "16:00"} IST
+                      🕒 {fmtTime12(previewEvent.start || "14:30")} – {fmtTime12(previewEvent.end || "16:00")} IST
                     </span>
                     <span>📍 {previewEvent.room ? `Room ${previewEvent.room}` : "IIM Sambalpur"}</span>
                     {reminderMinutes > 0 && (

@@ -3,6 +3,7 @@ import { upcomingDeadlines } from "../lib/insights.js";
 import { getMenuForDay, MEAL_TIMES } from "../data/messMenu.js";
 import { MEAL_ICONS, toMin, fmt12, fmtIn, mealStatus } from "../lib/messView.js";
 import { subjectClass } from "../lib/subjectColors.js";
+import { fmtTime12 } from "../lib/datetime.js";
 import "./../styles/glance.css";
 
 // Glance — the PWA-shortcut "3-second read": next class, rest of today,
@@ -78,7 +79,7 @@ export default function GlanceView({ current, next, todayList, now, todayISO, to
           </div>
           <div className="glance-hero-meta">
             <span><MapPin size={12} />{hero.room || "TBA"}</span>
-            <span><Clock size={12} />{hero.start}–{hero.end}</span>
+            <span><Clock size={12} />{fmtTime12(hero.start)}–{fmtTime12(hero.end)}</span>
           </div>
           {current && (
             <div className="glance-progress"><div className="glance-progress-fill" style={{ width: `${heroPct}%` }} /></div>
@@ -104,7 +105,7 @@ export default function GlanceView({ current, next, todayList, now, todayISO, to
           <ul className="glance-list">
             {remaining.slice(0, 4).map((c, i) => (
               <li key={`${c.code}-${c.start}-${i}`} className="glance-row">
-                <span className="glance-row-time">{c.start}</span>
+                <span className="glance-row-time">{fmtTime12(c.start)}</span>
                 {c.code
                   ? <span className={`ses ${subjectClass(c.code)}`}>{c.code}</span>
                   : <span className="glance-row-name">{c.name}</span>}

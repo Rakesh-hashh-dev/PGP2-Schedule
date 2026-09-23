@@ -1405,32 +1405,40 @@
   top: 0;
   z-index: 20;
   display: flex;
-  gap: 6px;
-  padding: 8px;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
   margin-bottom: 28px;
   background: var(--card);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: 14px;
   box-shadow: 0 10px 28px -18px rgba(0, 0, 0, 0.35);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.admin-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .admin-tab {
-  flex: 1;
+  flex: 1 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  min-height: 44px; /* accessible touch target */
-  padding: 10px 14px;
+  gap: 6px;
+  min-height: 40px; /* accessible touch target */
+  padding: 8px 12px;
   border: 1px solid transparent;
-  border-radius: 11px;
+  border-radius: 10px;
   background: transparent;
   color: var(--muted);
   font-family: var(--body);
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
   touch-action: manipulation; /* removes 300ms tap delay */
@@ -1455,6 +1463,20 @@
 
 .admin-tab svg {
   flex: none;
+}
+
+.admin-tab-badge-new {
+  background: linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 6px;
+  margin-left: 2px;
+  display: inline-flex;
+  align-items: center;
+  letter-spacing: 0.02em;
 }
 
 /* Hide the sections whose group isn't the active tab (direct children only).
@@ -1596,26 +1618,30 @@
   .admin-change-dock-actions .admin-btn { font-size: 12px; }
 }
 
+@media (max-width: 1100px) {
+  .admin-page {
+    padding: 24px 20px;
+  }
+  .admin-tab {
+    padding: 8px 10px;
+    font-size: 12.5px;
+    gap: 5px;
+  }
+}
+
 @media (max-width: 640px) {
   .admin-tabs {
     gap: 4px;
     padding: 5px 4px;
     margin-bottom: 16px;
     border-radius: 12px;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-
-  .admin-tabs::-webkit-scrollbar {
-    display: none;
   }
 
   .admin-tab {
     flex: 0 0 auto;
     padding: 7px 11px;
     min-height: 38px;
-    font-size: 12.5px;
+    font-size: 12px;
     gap: 5px;
     scroll-snap-align: start;
   }

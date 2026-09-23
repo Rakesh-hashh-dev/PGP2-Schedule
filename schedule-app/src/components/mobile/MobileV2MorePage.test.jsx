@@ -24,6 +24,8 @@ describe("MobileV2MorePage", () => {
       "Split expenses", "Leave planner", "Add to calendar", "Filter subjects",
       "Edit setup", "Submit feedback", "Sign out",
     ]) expect(html).toContain(label);
+    expect(html.indexOf("Social")).toBeLessThan(html.indexOf("Planner"));
+    expect(html.indexOf("Planner")).toBeLessThan(html.indexOf("Campus Board"));
   });
 
   it("removes gated rows without leaving empty personal content", () => {

@@ -174,6 +174,316 @@
 .pet-next { display: flex; align-items: center; justify-content: center; gap: 7px; margin: 9px 0 0; color: var(--muted); font-size: 11.5px; font-weight: 600; }
 .pet-next-at { padding: 2px 8px; border-radius: 999px; background: var(--violet-dim); border: 1px solid color-mix(in srgb, var(--violet) 26%, transparent); color: var(--violet); font-size: 10.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
 
+/* ── Companion hub ─────────────────────────────────────────────
+   The hero stays present while the content below changes. This keeps the pet
+   feeling like the subject of the page instead of an item in a settings list. */
+.pet-page {
+  width: 100%;
+  min-width: 0;
+  gap: 14px;
+}
+
+.pet-page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  min-width: 0;
+  padding: 4px 2px 0;
+}
+.pet-page-head > div:first-child { min-width: 0; }
+.pet-page-kicker { display: flex; align-items: center; gap: 5px; margin: 0 0 5px; color: var(--violet); font-size: 10px; font-weight: 850; letter-spacing: .11em; text-transform: uppercase; }
+.pet-page-head h1 { margin: 0; font-size: clamp(25px, 3vw, 32px); line-height: 1.08; letter-spacing: -.04em; }
+.pet-page-head > div:first-child > p:last-child { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
+.pet-page-actions { display: flex; flex: none; align-items: center; gap: 8px; }
+.pet-page-actions .pet-back { width: 36px; height: 36px; border-radius: 11px; }
+
+.pet-head { min-width: 0; }
+.pet-head h2 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pet-card { min-width: 0; padding: 18px; border-radius: 18px; }
+
+.pet-habitat-v2 {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: minmax(170px, .72fr) minmax(0, 1.28fr);
+  align-items: stretch;
+  justify-items: stretch;
+  gap: 20px;
+  overflow: hidden;
+  padding: 0;
+  text-align: left;
+  color: #f8f7ff;
+  border-color: rgba(129, 111, 226, .22);
+  box-shadow: 0 15px 34px -24px rgba(19, 17, 48, .8);
+  background:
+    radial-gradient(circle at 12% 18%, rgba(130, 100, 255, .32), transparent 34%),
+    radial-gradient(circle at 98% 96%, rgba(44, 191, 164, .16), transparent 34%),
+    linear-gradient(135deg, #15172d 0%, #211b43 58%, #123a3c 118%);
+}
+
+.pet-habitat-v2::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  right: -44px;
+  bottom: -68px;
+  width: 180px;
+  height: 180px;
+  border: 1px solid rgba(166, 151, 245, .13);
+  border-radius: 50%;
+  box-shadow: 0 0 0 24px rgba(166, 151, 245, .025);
+}
+
+.pet-habitat-art {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 6px;
+  min-height: 258px;
+  padding: 24px 16px;
+  border-right: 1px solid rgba(179, 166, 244, .14);
+  background: rgba(142, 116, 255, .07);
+}
+
+.pet-habitat-art .pet-hero { width: 142px; height: 142px; --pet-z: 29px; }
+.pet-habitat-art .pet-buddy { width: 68px; height: 68px; --pet-z: 14px; }
+.pet-habitat-art .pet-title-line { margin-top: 2px; text-align: center; }
+.pet-hero-name { margin-top: 2px; color: #fff; font-size: 14px; letter-spacing: -.01em; }
+
+.pet-stage-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  border: 1px solid rgba(181, 167, 255, .24);
+  border-radius: 999px;
+  background: rgba(139, 116, 240, .15);
+  color: #c8bfff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .035em;
+  text-transform: uppercase;
+}
+
+.pet-habitat-content {
+  display: grid;
+  align-content: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 22px 22px 22px 0;
+}
+
+.pet-eyebrow {
+  margin: 0 0 5px;
+  color: var(--violet);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+
+.pet-habitat-v2 .pet-mood {
+  margin: 0;
+  font-size: clamp(17px, 2vw, 21px);
+  line-height: 1.25;
+  letter-spacing: -.02em;
+}
+
+.pet-habitat-v2 .pet-eyebrow { color: #b9adff; }
+.pet-habitat-v2 .pet-because { margin-top: 5px; color: rgba(245, 243, 255, .7); line-height: 1.45; }
+
+.pet-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 14px;
+  margin-top: 8px;
+  color: rgba(245, 243, 255, .64);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.pet-meta-row span { display: inline-flex; align-items: center; gap: 5px; }
+.pet-meta-row span + span::before { content: ""; width: 3px; height: 3px; margin-right: 8px; border-radius: 50%; background: currentColor; opacity: .6; }
+
+.pet-progress-panel {
+  padding: 12px 13px;
+  border: 1px solid rgba(189, 178, 245, .16);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, .055);
+}
+
+.pet-xp-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.pet-xp-heading strong { font-size: 12px; }
+.pet-xp-heading span { color: var(--muted); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.pet-habitat-v2 .pet-xp-heading span, .pet-habitat-v2 .pet-xp-nums { color: rgba(245, 243, 255, .63); }
+.pet-habitat-v2 .pet-xp-bar { background: rgba(255, 255, 255, .12); }
+.pet-habitat-v2 .pet-xp-fill { background: linear-gradient(90deg, #8f7af2, #b5a8ff); }
+.pet-progress-panel .pet-xp-bar { height: 9px; }
+.pet-progress-panel .pet-next { justify-content: flex-start; margin-top: 10px; }
+
+.pet-care-wrap { min-width: 0; }
+.pet-care { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; margin-top: 0; }
+.pet-care-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 38px;
+  padding: 7px 9px;
+  border: 1px solid rgba(189, 178, 245, .18);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, .065);
+  color: #f7f5ff;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 750;
+  cursor: pointer;
+  transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
+}
+.pet-care-btn svg { color: #b8aaff; }
+.pet-care-btn:hover, .pet-care-btn:focus-visible { border-color: rgba(188, 174, 255, .5); background: rgba(151, 127, 255, .16); outline: none; }
+.pet-care-btn:active { transform: translateY(1px) scale(.98); }
+.pet-habitat-v2 .pet-care-note { color: rgba(245, 243, 255, .6); }
+.pet-habitat-v2 .pet-next { color: rgba(245, 243, 255, .68); }
+.pet-habitat-v2 .pet-next-at { border-color: rgba(190, 178, 255, .2); background: rgba(145, 119, 255, .14); color: #c9c0ff; }
+
+.pet-section-nav {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--card) 92%, transparent);
+}
+
+.pet-section-nav button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 38px;
+  padding: 8px 9px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 750;
+  cursor: pointer;
+  transition: color 150ms ease, background 150ms ease, box-shadow 150ms ease;
+}
+
+.pet-section-nav button:hover { color: var(--text); background: color-mix(in srgb, var(--violet) 6%, transparent); }
+.pet-section-nav button:focus-visible { outline: 2px solid color-mix(in srgb, var(--violet) 55%, transparent); outline-offset: 1px; }
+.pet-section-nav button.is-active { color: var(--violet); background: color-mix(in srgb, var(--violet) 12%, var(--card)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--violet) 18%, transparent); }
+
+.pet-tab-panel { animation: pet-panel-in 180ms ease both; }
+@keyframes pet-panel-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+.pet-overview-grid, .pet-profile-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.pet-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.pet-card-heading .pet-h3 { margin: 0; font-size: 14px; }
+.pet-level-orb {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--violet) 82%, #fff), var(--violet));
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--violet) 20%, transparent);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 850;
+}
+.pet-total-pill { flex: none; padding: 4px 8px; border-radius: 999px; background: color-mix(in srgb, var(--violet) 10%, var(--bg)); color: var(--violet); font-size: 10px; font-weight: 800; }
+.pet-journey-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+.pet-journey-stats div { min-width: 0; padding: 10px 8px; border: 1px solid color-mix(in srgb, var(--violet) 10%, var(--border)); border-radius: 11px; background: color-mix(in srgb, var(--violet) 4%, var(--bg)); }
+.pet-journey-stats strong, .pet-journey-stats span { display: block; overflow: hidden; text-overflow: ellipsis; }
+.pet-journey-stats strong { font-size: 11.5px; white-space: nowrap; }
+.pet-journey-stats span { margin-top: 3px; color: var(--muted); font-size: 9.5px; }
+.pet-devotion-panel { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.pet-empty-copy { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+
+.pet-tab-panel > .pet-h3 { margin-bottom: 14px; font-size: 14px; }
+.pet-tab-panel > .pet-h3 .pet-h3-note { margin-left: auto; }
+.pet-tab-panel > .pet-roster { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 10px; }
+.pet-tab-panel .pet-slot { min-width: 0; min-height: 90px; padding: 11px 6px 9px; border-radius: 14px; }
+.pet-tab-panel .pet-slot-art { width: 50px; height: 50px; }
+
+.pet-subtabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; margin-bottom: 14px; padding: 4px; border-radius: 11px; background: color-mix(in srgb, var(--violet) 7%, var(--bg)); }
+.pet-subtabs button { padding: 7px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; font-weight: 750; cursor: pointer; }
+.pet-subtabs button.is-active { background: var(--card); color: var(--violet); box-shadow: 0 2px 8px color-mix(in srgb, var(--text) 7%, transparent); }
+.pet-subtabs button:focus-visible { outline: 2px solid color-mix(in srgb, var(--violet) 45%, transparent); }
+.pet-collection-note { margin: 0 0 10px; color: var(--muted); font-size: 10.5px; font-weight: 650; }
+.pet-wardrobe-pane .pet-wardrobe { grid-template-columns: repeat(auto-fill, minmax(82px, 1fr)); }
+.pet-wardrobe-pane .pet-hat-slot, .pet-wardrobe-pane .pet-coat-slot { min-height: 82px; border-radius: 13px; }
+
+.pet-profile-grid .pet-card { height: 100%; }
+.pet-profile-grid .pet-h3 { margin-bottom: 14px; }
+.pet-profile-grid .pet-card-heading .pet-h3 { margin-bottom: 0; }
+.pet-profile-grid .pet-input { min-height: 38px; }
+.pet-profile-grid .pet-field { margin-bottom: 14px; }
+.pet-empty-state { display: grid; justify-items: center; gap: 7px; padding: 36px 18px; text-align: center; color: var(--muted); }
+.pet-empty-state svg { color: var(--violet); }
+.pet-empty-state .pet-h3, .pet-empty-state p { margin: 0; }
+.pet-empty-state p { font-size: 12px; }
+
+.pet-adopt { padding: clamp(18px, 4vw, 30px); background: linear-gradient(145deg, color-mix(in srgb, var(--violet) 8%, var(--card)), var(--card)); }
+.pet-adopt-lede { max-width: 520px; font-size: 13px; }
+.pet-adopt .pet-roster { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.pet-adopt .pet-slot { min-height: 94px; }
+.pet-adopt-confirm { margin-top: 3px; }
+
+@media (max-width: 760px) {
+  .pet-habitat-v2 { grid-template-columns: minmax(128px, .62fr) minmax(0, 1.38fr); gap: 14px; }
+  .pet-habitat-art { min-height: 232px; padding: 20px 10px; }
+  .pet-habitat-art .pet-hero { width: 116px; height: 116px; --pet-z: 24px; }
+  .pet-habitat-content { padding: 18px 18px 18px 0; }
+  .pet-overview-grid, .pet-profile-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 560px) {
+  .pet-page { gap: 11px; padding-bottom: 92px; overflow: clip; }
+  .pet-page-head { align-items: flex-start; gap: 10px; }
+  .pet-page-head h1 { font-size: 26px; }
+  .pet-page-head > div:first-child > p:last-child { max-width: 250px; }
+  .pet-page-actions { gap: 6px; }
+  .pet-head-lvl { padding-inline: 7px; }
+  .pet-card { padding: 14px; border-radius: 15px; }
+  .pet-habitat-v2 { grid-template-columns: 1fr; gap: 0; }
+  .pet-habitat-art { min-height: 160px; padding: 17px 14px 12px; border-right: 0; border-bottom: 1px solid rgba(179, 166, 244, .14); }
+  .pet-habitat-art .pet-hero { width: 104px; height: 104px; --pet-z: 22px; }
+  .pet-habitat-art .pet-buddy { width: 54px; height: 54px; --pet-z: 11px; }
+  .pet-habitat-content { gap: 12px; padding: 16px; }
+  .pet-habitat-v2 .pet-mood { font-size: 18px; }
+  .pet-meta-row span + span::before { display: none; }
+  .pet-section-nav { gap: 2px; padding: 4px; }
+  .pet-section-nav button { flex-direction: column; gap: 3px; min-height: 48px; padding: 6px 2px; font-size: 9.5px; }
+  .pet-section-nav button svg { width: 15px; height: 15px; }
+  .pet-journey-stats { gap: 5px; }
+  .pet-journey-stats div { padding: 9px 6px; }
+  .pet-sources li { grid-template-columns: minmax(72px, .9fr) 1.2fr auto; gap: 7px; }
+  .pet-tab-panel > .pet-roster { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+  .pet-tab-panel .pet-slot { min-height: 86px; padding-inline: 3px; }
+  .pet-tab-panel .pet-slot-art { width: 45px; height: 45px; }
+  .pet-wardrobe-pane .pet-wardrobe { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+  .pet-care-btn { min-height: 40px; padding-inline: 6px; }
+  .pet-adopt .pet-roster { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .pet-adopt-confirm { flex-direction: column; }
+  .pet-adopt-confirm .pet-btn { min-height: 40px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pet-tab-panel { animation: none; }
+}
+
 /* ── Cameos ─────────────────────────────────────────────────────
    The companion appearing outside the greeting and the pet page. Decorative,
    so it never takes the status dot or the pointer with it. */

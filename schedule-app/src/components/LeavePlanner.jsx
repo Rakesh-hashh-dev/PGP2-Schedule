@@ -3,14 +3,21 @@ import {
   CalendarOff, ArrowLeft, AlertTriangle, TrendingDown, Clock,
   MapPin, CalendarCheck2, PartyPopper, ChevronRight, ArrowRight, Check,
   ChevronDown, ChevronUp, CalendarRange, CalendarCheck, Flame,
-  Copy, ShieldCheck, AlertCircle, Users, X,
+  Copy, ShieldCheck, AlertCircle, Users, X, Calendar,
 } from "lucide-react";
 import { sessionKey, courseSkipStats, isExamSession } from "../lib/attendance.js";
 import { loadMyAway, setMyAway, fmtAwayEnd } from "../lib/status.js";
 import { subjectClass } from "../lib/subjectColors.js";
 import { EmptyState } from "./ui.jsx";
+import "../styles/leave.css";
 
 const THRESHOLD = 80;
+const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function fmtInputDate(iso) {
+  if (!iso) return "";
+  const [Y, M, D] = iso.split("-").map(Number);
+  return `${D}-${MONTHS_SHORT[M - 1]}-${Y}`;
+}
 
 const prefersReducedMotion = () =>
   typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -59,7 +66,7 @@ function fmtTime(t) {
   const [h, m] = t.split(":").map(Number);
   const ap = h >= 12 ? "PM" : "AM";
   const hr = h % 12 || 12;
-  return `${hr}:${String(m).padStart(2, "0")} ${ap}`;
+  return `${String(hr).padStart(2, "0")}:${String(m).padStart(2, "0")}${ap}`;
 }
 function dayDiff(fromISO, toISO) {
   return Math.round((parseISO(toISO) - parseISO(fromISO)) / 86400000) + 1;
@@ -82,6 +89,9 @@ export default function LeavePlanner({ allClasses, enrolled, legend, attendance,
   const [draftFrom, setDraftFrom] = useState(minDate);
   const [draftTo, setDraftTo] = useState(minDate);
   const applied = from !== null;
+
+  const fromInputRef = useRef(null);
+  const toInputRef = useRef(null);
 
   // Editing "from" never leaves "to" earlier than it.
   const editFrom = (v) => {
@@ -291,10 +301,17 @@ export default function LeavePlanner({ allClasses, enrolled, legend, attendance,
   if (!codes.length) {
     return (
       <div className="lp-page">
-        <div className="lp-head">
-          {onBack && <button className="lp-back" onClick={onBack} aria-label="Back"><ArrowLeft size={16} /></button>}
-          <div className="lp-head-txt"><h1>Leave Planner</h1></div>
-        </div>
+        <header className="lp-head lp-head-v3">
+          {onBack && (
+            <button className="lp-back-btn" onClick={onBack} aria-label="Back">
+              <ArrowLeft size={18} />
+            </button>
+          )}
+          <div className="lp-head-txt">
+            <h1>Leave Planner</h1>
+            <span className="lp-sub">See what you&rsquo;ll miss before you go</span>
+          </div>
+        </header>
         <EmptyState icon={CalendarOff} title="No courses enrolled" sub="Complete setup first — then plan your leave here." />
       </div>
     );
@@ -302,47 +319,78 @@ export default function LeavePlanner({ allClasses, enrolled, legend, attendance,
 
   return (
     <div className="lp-page">
-      <div className="lp-head">
-        {onBack && <button className="lp-back" onClick={onBack} aria-label="Back"><ArrowLeft size={16} /></button>}
+      <header className="lp-head lp-head-v3">
+        {onBack && (
+          <button className="lp-back-btn" onClick={onBack} aria-label="Back">
+            <ArrowLeft size={18} />
+          </button>
+        )}
         <div className="lp-head-txt">
           <h1>Leave Planner</h1>
           <span className="lp-sub">See what you&rsquo;ll miss before you go</span>
         </div>
         {applied && (
-          <button className={`lp-copy${copied ? " is-done" : ""}`} onClick={copySummary}
-            aria-label="Copy leave summary to clipboard">
-            {copied ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy</>}
-          </button>
+          <div className="lp-head-actions">
+            <button className={`lp-copy${copied ? " is-done" : ""}`} onClick={copySummary}
+              aria-label="Copy leave summary to clipboard">
+              {copied ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy plan</>}
+            </button>
+          </div>
         )}
-      </div>
+      </header>
 
       {/* ── Date range picker ── */}
       <section className="lp-picker">
         <div className="lp-dates">
           <div className="lp-field">
-            <label htmlFor="lp-from">Leave from</label>
-            <input id="lp-from" type="date" value={draftFrom} min={minDate} max={maxDate}
-              onChange={e => e.target.value && editFrom(e.target.value)} />
+            <label htmlFor="lp-from">LEAVE FROM</label>
+            <div className="lp-date-box" onClick={() => fromInputRef.current?.showPicker?.()}>
+              <span className="lp-date-value">{fmtInputDate(draftFrom)}</span>
+              <Calendar size={18} className="lp-date-icon" />
+              <input
+                ref={fromInputRef}
+                id="lp-from"
+                type="date"
+                className="lp-date-native"
+                value={draftFrom}
+                min={minDate}
+                max={maxDate}
+                onChange={e => e.target.value && editFrom(e.target.value)}
+              />
+            </div>
           </div>
-          <ArrowRight size={16} className="lp-dates-arrow" aria-hidden="true" />
+          <ArrowRight size={18} className="lp-dates-arrow" aria-hidden="true" />
           <div className="lp-field">
-            <label htmlFor="lp-to">Back on</label>
-            <input id="lp-to" type="date" value={draftTo} min={draftFrom} max={maxDate}
-              onChange={e => e.target.value && setDraftTo(e.target.value)} />
+            <label htmlFor="lp-to">BACK ON</label>
+            <div className="lp-date-box" onClick={() => toInputRef.current?.showPicker?.()}>
+              <span className="lp-date-value">{fmtInputDate(draftTo)}</span>
+              <Calendar size={18} className="lp-date-icon" />
+              <input
+                ref={toInputRef}
+                id="lp-to"
+                type="date"
+                className="lp-date-native"
+                value={draftTo}
+                min={draftFrom}
+                max={maxDate}
+                onChange={e => e.target.value && setDraftTo(e.target.value)}
+              />
+            </div>
           </div>
         </div>
         <div className="lp-picker-row">
           <div className="lp-quick" role="group" aria-label="Quick durations">
-            <button className={draftDays === 1 ? "on" : ""} onClick={() => setSpan(1)}>1 day</button>
-            <button className={draftDays === 3 ? "on" : ""} onClick={() => setSpan(3)}>3 days</button>
-            <button className={draftDays === 7 ? "on" : ""} onClick={() => setSpan(7)}>1 week</button>
+            <button type="button" className={draftDays === 1 ? "on" : ""} onClick={() => setSpan(1)}>1 day</button>
+            <button type="button" className={draftDays === 3 ? "on" : ""} onClick={() => setSpan(3)}>3 days</button>
+            <button type="button" className={draftDays === 7 ? "on" : ""} onClick={() => setSpan(7)}>1 week</button>
           </div>
           <div className="lp-picker-actions">
-            <button className="lp-apply" onClick={apply} disabled={!dirty}>
-              <Check size={15} /> {dirty ? "Apply" : "Applied"}
+            <button type="button" className="lp-apply" onClick={apply}>
+              <Check size={16} strokeWidth={2.5} /> Apply
             </button>
             {awayEnabled && userId && (
               <button
+                type="button"
                 className={`lp-book${isBooked ? " is-done" : ""}`}
                 onClick={isBooked ? stopSharingAway : bookLeave}
                 disabled={shareBusy}
@@ -351,8 +399,8 @@ export default function LeavePlanner({ allClasses, enrolled, legend, attendance,
                 {shareBusy
                   ? "Booking…"
                   : isBooked
-                    ? <><CalendarOff size={15} /> On leave</>
-                    : <><CalendarOff size={15} /> Book leave</>}
+                    ? <><CalendarOff size={16} /> On leave</>
+                    : <><CalendarOff size={16} /> Book leave</>}
               </button>
             )}
           </div>
@@ -372,8 +420,15 @@ export default function LeavePlanner({ allClasses, enrolled, legend, attendance,
       )}
 
       {!applied ? (
-        <EmptyState icon={CalendarRange} title="Plan your leave"
-          sub="Pick your dates above and tap Apply to see what you&rsquo;d miss." />
+        <section className="lp-welcome-dashed" aria-label="Plan your leave">
+          <div className="lp-welcome-badge">
+            <Calendar size={24} strokeWidth={1.8} />
+          </div>
+          <h2 className="lp-welcome-title">Plan your leave</h2>
+          <p className="lp-welcome-sub">
+            Pick your dates above and tap Apply to see what you&rsquo;d miss.
+          </p>
+        </section>
       ) : (
       <>
       {/* ── Summary card — same collapse/expand behaviour as the Week view ── */}
@@ -490,7 +545,14 @@ export default function LeavePlanner({ allClasses, enrolled, legend, attendance,
         <>
           {/* ── Attendance insights per course ── */}
           <section className="lp-section">
-            <h2 className="lp-section-title"><TrendingDown size={14} /> Attendance impact</h2>
+            <div className="lp-section-head">
+              <div>
+                <span className="lp-section-kicker">Risk check</span>
+                <h2 className="lp-section-title"><TrendingDown size={15} /> Attendance impact</h2>
+                <p>How this leave changes your recorded percentage and remaining buffer.</p>
+              </div>
+              <span className="lp-section-count">{impact.length} course{impact.length !== 1 ? "s" : ""}</span>
+            </div>
             <div className="lp-impact-grid">
               {impact.map(i => {
                 const drop = i.pct != null && i.projPct != null && i.projPct < i.pct;
@@ -549,7 +611,14 @@ export default function LeavePlanner({ allClasses, enrolled, legend, attendance,
 
           {/* ── Chronological list of missed classes ── */}
           <section className="lp-section">
-            <h2 className="lp-section-title"><CalendarOff size={14} /> Classes you&rsquo;ll miss</h2>
+            <div className="lp-section-head">
+              <div>
+                <span className="lp-section-kicker">Absence timeline</span>
+                <h2 className="lp-section-title"><CalendarOff size={15} /> Classes you&rsquo;ll miss</h2>
+                <p>Your affected sessions, grouped chronologically.</p>
+              </div>
+              <span className="lp-section-count">{missed.length} class{missed.length !== 1 ? "es" : ""}</span>
+            </div>
             {missedByDay.map(([date, list]) => (
               <div key={date} className="lp-day">
                 <div className="lp-day-label">
@@ -579,7 +648,14 @@ export default function LeavePlanner({ allClasses, enrolled, legend, attendance,
       {/* ── When you're back ── */}
       {upcoming.length > 0 && (
         <section className="lp-section">
-          <h2 className="lp-section-title"><CalendarCheck2 size={14} /> When you&rsquo;re back</h2>
+          <div className="lp-section-head">
+            <div>
+              <span className="lp-section-kicker">Return runway</span>
+              <h2 className="lp-section-title"><CalendarCheck2 size={15} /> When you&rsquo;re back</h2>
+              <p>The first sessions waiting after your leave ends.</p>
+            </div>
+            <span className="lp-section-count">Next {upcoming.length}</span>
+          </div>
           <ul className="lp-list lp-list-back">
             {upcoming.map(c => (
               <li key={sessionKey(c)} className={`lp-row lp-row-back ${subjectClass(c.code)}`}>

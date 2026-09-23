@@ -2,7 +2,7 @@ import {
   Bell, BookOpen, CalendarDays, CalendarOff, ChevronRight,
   CircleHelp, Download, LogOut, MessageSquare, Package,
   PawPrint, Settings2, Shield, SlidersHorizontal, Sparkles, Users, UtensilsCrossed,
-  Wallet,
+  Wallet, LayoutDashboard,
 } from "lucide-react";
 
 function MoreRow({ Icon, label, detail, badge, danger = false, onClick }) {
@@ -58,6 +58,7 @@ export default function MobileV2MorePage({
       <MoreSection title="Campus">
         <MoreRow Icon={Bell} label="Announcements" detail="Updates and alerts" badge={unreadCount} onClick={() => onNavigate("notifications")} />
         {enableFriends && <MoreRow Icon={Users} label="Social" detail="Friends, groups and free slots" onClick={() => onNavigate("friends")} />}
+        <MoreRow Icon={LayoutDashboard} label="Planner" detail="Brief, forecasts and workload" onClick={() => onNavigate("planner")} />
         <MoreRow Icon={Package} label="Campus Board" detail="Community posts" onClick={() => onNavigate("board")} />
         <MoreRow Icon={UtensilsCrossed} label="Mess menu" detail="Today's meals" onClick={onOpenMess} />
       </MoreSection>

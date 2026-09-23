@@ -6,6 +6,15 @@
 /** "HH:MM" → minutes since midnight. */
 export function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 
+/** "HH:MM" → zero-padded 12-hour display, e.g. "14:00" → "02:00PM". */
+export function fmtTime12(t) {
+  if (typeof t !== "string" || !/^\d{1,2}:\d{2}$/.test(t)) return t || "";
+  const [hour, minute] = t.split(":").map(Number);
+  if (hour > 23 || minute > 59) return t;
+  const suffix = hour >= 12 ? "PM" : "AM";
+  return `${String(hour % 12 || 12).padStart(2, "0")}:${String(minute).padStart(2, "0")}${suffix}`;
+}
+
 /** A future gap in ms → a short "in 5m" / "in 2h 10m" / "in 3d" label. */
 export function fmtWait(ms) {
   const m = Math.max(0, Math.round(ms / 60000));

@@ -60,7 +60,7 @@ describe("DesktopSidebar nav", () => {
 
   it("renders every row in order", () => {
     expect(labels(render())).toEqual([
-      "Today", "Tomorrow", "Full timetable",
+      "Today", "Tomorrow", "Full timetable", "Planner",
       "Attendance", "Exams", "Assignments",
       "Announcements", "Social", "Campus Board", "Mess menu",
       "Split", "Leave planner", "Companion", "Term Wrapped",
@@ -77,7 +77,7 @@ describe("DesktopSidebar nav", () => {
   it("drops rows whose feature flag is off", () => {
     const html = render({ enableAttendance: false, enableExams: false, enableFriends: false, companionEnabled: false, wrappedActive: false });
     expect(labels(html)).toEqual([
-      "Today", "Tomorrow", "Full timetable", "Assignments",
+      "Today", "Tomorrow", "Full timetable", "Planner", "Assignments",
       "Announcements", "Campus Board", "Mess menu",
       "Split", "Leave planner",
     ]);
@@ -123,8 +123,8 @@ describe("aurora entrance cascade", () => {
       if (depth === 0) depth0.push({ tag, attrs });
       if (!attrs.endsWith("/") && !["img", "br", "input"].includes(tag)) depth++;
     }
-    // Search pill, 4 group headings, 14 rows — and nothing else.
-    expect(depth0).toHaveLength(19);
+    // Search pill, 4 group headings, 15 rows — and nothing else.
+    expect(depth0).toHaveLength(20);
     for (const el of depth0) {
       expect(["button", "div"]).toContain(el.tag);
     }

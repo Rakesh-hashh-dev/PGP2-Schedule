@@ -47,11 +47,18 @@ export default function SemSummary({ enrolled, legend, attendance, visible, toda
 
   return (
     <div className="sem-summary">
-      <button className={`sem-stat sem-stat-cta ${pctColor}`} onClick={onAttendanceClick}>
+      <button
+        type="button"
+        className={`sem-stat sem-stat-cta ${pctColor}`}
+        onClick={onAttendanceClick}
+        title="View attendance details"
+      >
         <span className="sem-val">
           {pct === null ? "—" : `${pct}%`}
         </span>
-        <span className="sem-label">Attendance{total > 0 ? ` · ${present}/${total}` : ""}</span>
+        <span className="sem-label">
+          Attendance{total > 0 ? <span className="sem-sublabel"> · {present}/{total}</span> : ""}
+        </span>
       </button>
 
       <div className="sem-divider" />
@@ -63,14 +70,24 @@ export default function SemSummary({ enrolled, legend, attendance, visible, toda
 
       <div className="sem-divider" />
 
-      <button className={`sem-stat sem-stat-cta ${upcomingExams > 0 ? "warn" : ""}`} onClick={onExamsClick}>
+      <button
+        type="button"
+        className={`sem-stat sem-stat-cta ${upcomingExams > 0 ? "warn" : ""}`}
+        onClick={onExamsClick}
+        title="View upcoming exams"
+      >
         <span className="sem-val">{upcomingExams === 0 ? "None" : upcomingExams}</span>
         <span className="sem-label">Exam{upcomingExams !== 1 ? "s" : ""} this week</span>
       </button>
 
       <div className="sem-divider" />
 
-      <button className="sem-stat sem-stat-cta" onClick={onSessionsClick}>
+      <button
+        type="button"
+        className="sem-stat sem-stat-cta"
+        onClick={onSessionsClick}
+        title="View all remaining sessions"
+      >
         <span className="sem-val">{sessionsLeft}</span>
         <span className="sem-label">Sessions left</span>
       </button>

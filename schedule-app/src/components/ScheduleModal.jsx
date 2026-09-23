@@ -4,6 +4,7 @@ import WeekGlance from "./WeekGlance.jsx";
 import { subjectClass, cleanSessionLabel } from "../lib/subjectColors.js";
 import { isNationalHoliday } from "../lib/nationalHolidays.js";
 import IndiaFlagIcon from "./IndiaFlagIcon.jsx";
+import { fmtTime12 } from "../lib/datetime.js";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
@@ -129,7 +130,7 @@ export default function ScheduleModal({ visible, now, offset, setOffset, todayIS
                   ) : (
                     items.map((c, i) => (
                       <span key={i} className={`sm-item${c.type !== "class" ? " soft" : ""}`}>
-                        <span className="sm-time">{c.start}</span>
+                        <span className="sm-time">{fmtTime12(c.start)}</span>
                         <span className="sm-name">
                           {isNationalHoliday(c) && <IndiaFlagIcon size={13} className="row-flag-icon" />}
                           {c.name}

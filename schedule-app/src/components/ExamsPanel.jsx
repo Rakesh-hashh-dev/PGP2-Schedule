@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from "react";
 import "../styles/exams.css";
-import { GraduationCap, Clock, BookOpen, Trophy, CalendarDays, List, ChevronLeft, ChevronRight, Layers, FileText, CalendarClock, ChevronDown, User, MapPin, AlertTriangle, BookOpenCheck } from "lucide-react";
+import { GraduationCap, Clock, BookOpen, Trophy, CalendarDays, List, ChevronLeft, ChevronRight, Layers, CalendarClock, ChevronDown, User, MapPin, AlertTriangle, BookOpenCheck, ArrowUpRight, CheckCircle2 } from "lucide-react";
 import { sessionKey, courseSkipStats, isExamSession } from "../lib/attendance.js";
-import { clsDate } from "../lib/datetime.js";
+import { clsDate, fmtTime12 } from "../lib/datetime.js";
 import { loadAssignments } from "../lib/assignments.js";
 import { subjectClass } from "../lib/subjectColors.js";
 import { CalendarEventBadgeSVG } from "./CalendarSVGs.jsx";
@@ -128,8 +128,8 @@ function ExamCalendar({ exams, now, termStart, termEnd }) {
                         <div key={`tt-${j}`} className="ecal-tooltip-item">
                           <span className={`ecal-tooltip-dot ecal-dot tone-${e.tone}`} />
                           <div className="ecal-tooltip-content">
-                            <span className="ecal-tooltip-title">{e.code || "General"} {e.category}</span>
-                            <span className="ecal-tooltip-time">{e.start || "All Day"} - {e.end || ""}</span>
+                            <span className="ecal-tooltip-title">{e.subjectCode || "General"} {e.category}</span>
+                            <span className="ecal-tooltip-time">{e.start ? fmtTime12(e.start) : "All Day"}{e.end ? ` - ${fmtTime12(e.end)}` : ""}</span>
                           </div>
                         </div>
                       ))}
@@ -217,7 +217,7 @@ function CourseDetail({ c }) {
                 <span className="ecc-up-main">
                   <span className="ecc-up-rel">{s.rel}</span>
                   <span className="ecc-up-meta">
-                    <Clock size={11} />{s.start}–{s.end}
+                    <Clock size={11} />{fmtTime12(s.start)}–{fmtTime12(s.end)}
                     {s.room && <><MapPin size={11} className="ecc-up-sep" />{s.room}</>}
                   </span>
                 </span>
@@ -490,291 +490,167 @@ export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, al
     );
   }
 
+  const termLabel = termNumber ? `Term ${["", "I", "II", "III", "IV", "V", "VI"][termNumber] || termNumber}` : "This term";
+
+  const renderExamRow = (e, i, isPast = false) => {
+    const code = e.subjectCode || e.code;
+    const dayLabel = isPast
+      ? `${Math.abs(e.days)} ${Math.abs(e.days) === 1 ? "day" : "days"} ago`
+      : e.days === 0 ? "Today" : e.days === 1 ? "Tomorrow" : `${e.days} days`;
+
+    return (
+      <article key={`${e.date}-${code || e.name}-${i}`} className={`exam-row tone-${isPast ? "past" : e.tone}`} data-code={code || ""}>
+        <div className="exam-row-date" aria-label={fmtDate(e.date)}>
+          <span>{new Date(`${e.date}T00:00`).toLocaleDateString([], { month: "short" })}</span>
+          <strong>{Number(e.date.slice(8, 10))}</strong>
+          <small>{new Date(`${e.date}T00:00`).toLocaleDateString([], { weekday: "short" })}</small>
+        </div>
+        <div className="exam-row-main">
+          <div className="exam-row-kicker">
+            {code && <span className={`ses ${subjectClass(code)}`}>{code}</span>}
+            <span>{e.category}</span>
+          </div>
+          <h3>{e.subjectName || e.name || code || "Scheduled exam"}</h3>
+          <div className="exam-row-meta">
+            {e.start && <span><Clock size={13} />{fmtTime12(e.start)}{e.end ? ` – ${fmtTime12(e.end)}` : ""}</span>}
+            {e.room && <span><MapPin size={13} />{e.room}</span>}
+          </div>
+        </div>
+        <div className="exam-row-status">
+          {!isPast && e.days <= 3 && <span className="exam-status-dot" aria-hidden="true" />}
+          <strong>{dayLabel}</strong>
+          <span>{isPast ? "Completed" : "remaining"}</span>
+        </div>
+      </article>
+    );
+  };
+
   return (
     <div className="exam-page">
-      <div className="exam-head" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
+      <div className="exam-aura" aria-hidden="true"><i /><i /></div>
+
+      <header className="exam-head">
         <div>
-          <h1>Exams & Credits</h1>
-          <span className="att-sub">{termNumber ? `Term ${["", "I", "II", "III", "IV", "V", "VI"][termNumber] || termNumber}` : "This term"}</span>
+          <span className="exam-eyebrow"><GraduationCap size={13} /> Academic control centre</span>
+          <h1>Exam planner</h1>
+          <p>{termLabel} · dates, countdowns and course readiness in one place</p>
         </div>
         {onOpenCalendarExport && (
-          <button
-            className="exam-cal-sync-btn"
-            onClick={() => onOpenCalendarExport({ initialIncludeExams: true, initialSelectedCodes: null })}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              fontSize: "12.5px",
-              padding: "7px 12px",
-              borderRadius: "10px",
-              background: "rgba(139, 92, 246, 0.15)",
-              border: "1px solid rgba(139, 92, 246, 0.3)",
-              color: "#c084fc",
-              fontWeight: 600,
-              cursor: "pointer"
-            }}
-          >
-            <CalendarEventBadgeSVG size={16} /> Sync Exams to Calendar
+          <button className="exam-cal-sync-btn" onClick={() => onOpenCalendarExport({ initialIncludeExams: true, initialSelectedCodes: null })}>
+            <CalendarEventBadgeSVG size={17} />
+            <span>Add to calendar</span>
+            <ArrowUpRight size={14} />
           </button>
         )}
-      </div>
+      </header>
 
-      {/* ── Credit Summary Hero ── */}
-      <section className="exam-hero-new">
-        <span className="eh-tag"><GraduationCap size={13} /> Semester Progress</span>
-
-        <div className="eh-ill-block" aria-hidden="true">
-          <div className="eh-ill-img-wrap">
-            <div className="eh-ill-glow" />
-            <img src="/grad-cap-3d.png" alt="" onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} />
-            <div className="eh-ill-fallback" style={{ display: 'none' }}>
-              <GraduationCap size={44} color="#A78BFA" />
-            </div>
-          </div>
+      <section className={`exam-focus${nextExam ? ` tone-${nextExam.tone}` : " is-clear"}`}>
+        <div className="exam-focus-copy">
+          <span className="exam-focus-label"><CalendarClock size={14} /> Up next</span>
+          {nextExam ? (
+            <>
+              <div className="exam-focus-tags">
+                {nextExam.subjectCode && <span className={`ses ${subjectClass(nextExam.subjectCode)}`}>{nextExam.subjectCode}</span>}
+                <span>{nextExam.category}</span>
+              </div>
+              <h2>{nextExam.subjectName || nextExam.name || "Upcoming exam"}</h2>
+              <div className="exam-focus-meta">
+                <span><CalendarDays size={15} />{fmtDate(nextExam.date)}</span>
+                {nextExam.start && <span><Clock size={15} />{fmtTime12(nextExam.start)}{nextExam.end ? ` – ${fmtTime12(nextExam.end)}` : ""}</span>}
+                {nextExam.room && <span><MapPin size={15} />{nextExam.room}</span>}
+              </div>
+            </>
+          ) : (
+            <>
+              <h2>Your exam calendar is clear</h2>
+              <p>No upcoming exams are currently listed for your subjects.</p>
+            </>
+          )}
         </div>
 
-        <div className="eh-content">
-          <div className="eh-progress-ring">
-            <svg width="112" height="112" viewBox="0 0 100 100">
-              <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.09)" strokeWidth="8" />
-              <circle
-                cx="50" cy="50" r="42" fill="none"
-                stroke="url(#purpleGrad)"
-                strokeWidth="8" strokeLinecap="round"
-                strokeDasharray="264"
-                strokeDashoffset={264 - (264 * progressPct) / 100}
-                transform="rotate(-90 50 50)"
-                className="eh-ring-prog"
-              />
-              <defs>
-                <linearGradient id="purpleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#8B5CF6" />
-                  <stop offset="100%" stopColor="#C084FC" />
-                </linearGradient>
-              </defs>
-            </svg>
-            <div className="eh-ring-text">
-              <div className="eh-ring-val">{progressPct}<span className="eh-ring-pct">%</span></div>
-              <div className="eh-ring-sub">Completed</div>
-            </div>
+        {nextExam ? (
+          <div className="exam-focus-countdown" aria-label={`${nextExam.days} days until the next exam`}>
+            <strong>{nextExam.days}</strong>
+            <span>{nextExam.days === 0 ? "today" : nextExam.days === 1 ? "day to go" : "days to go"}</span>
           </div>
-
-          <div className="eh-stats-block">
-            <div className="eh-progress-linear">
-              <div className="eh-pl-text">
-                <span>Semester Progress</span>
-                <span>{progressPct}% Completed</span>
-              </div>
-              <div className="eh-pl-bar">
-                <div className="eh-pl-fill" style={{ width: `${progressPct}%` }} />
-              </div>
-            </div>
-
-            <div className="eh-stats-row">
-              <div className="eh-tile" style={{ animationDelay: "80ms" }}>
-                <span className="eh-tile-ico"><BookOpen size={15} /></span>
-                <div className="eh-tile-val">{creditData.total}</div>
-                <div className="eh-tile-label">Credits</div>
-              </div>
-              <div className="eh-tile" style={{ animationDelay: "140ms" }}>
-                <span className="eh-tile-ico"><Layers size={15} /></span>
-                <div className="eh-tile-val">{creditData.courses.length}</div>
-                <div className="eh-tile-label">Subjects</div>
-              </div>
-              <div className="eh-tile" style={{ animationDelay: "200ms" }}>
-                <span className="eh-tile-ico"><FileText size={15} /></span>
-                <div className="eh-tile-val">{midTermCount}</div>
-                <div className="eh-tile-label">Mid Terms</div>
-              </div>
-              <div className="eh-tile" style={{ animationDelay: "260ms" }}>
-                <span className="eh-tile-ico"><Trophy size={15} /></span>
-                <div className="eh-tile-val">{endTermCount}</div>
-                <div className="eh-tile-label">End Terms</div>
-              </div>
-            </div>
-
-            <div className={`eh-next-exam${nextExam ? ` tone-${nextExam.tone || (nextExam.days <= 3 ? "bad" : nextExam.days <= 7 ? "warn" : "ok")}` : ""}`}>
-              <div className="eh-ne-l">
-                <span className="eh-ne-label"><CalendarClock size={12} /> Next Exam</span>
-                {nextExam ? (
-                  <>
-                    <div className="eh-ne-title">{nextExam.name || nextExam.code || "Upcoming Exam"}</div>
-                    <div className="eh-ne-meta">{nextExam.days === 0 ? "Today" : `${nextExam.days} ${nextExam.days === 1 ? "day" : "days"} remaining`} &bull; {fmtDate(nextExam.date)}</div>
-                  </>
-                ) : (
-                  <div className="eh-ne-title" style={{ opacity: 0.5 }}>No upcoming exams</div>
-                )}
-              </div>
-              {nextExam && (
-                <div className="eh-ne-badge">
-                  <span className="eh-ne-badge-n">{nextExam.days}</span>
-                  <span className="eh-ne-badge-u">{nextExam.days === 1 ? "day" : "days"}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        ) : (
+          <div className="exam-focus-clear" aria-hidden="true"><CheckCircle2 size={36} /></div>
+        )}
       </section>
 
-      {/* ── Exam Countdown ── */}
-      <section className="exam-card exam-card-countdown">
-        <div className="exam-card-h">
-          <h2><Clock size={15} /> Exam Countdown</h2>
-          <div className="exam-filter-pill">
-            <button className={`exam-fp-btn${examFilter === "mine" ? " on" : ""}`} onClick={() => setExamFilter("mine")}>My Subjects</button>
-            <button className={`exam-fp-btn${examFilter === "all" ? " on" : ""}`} onClick={() => setExamFilter("all")}>All Subjects</button>
+      <div className="exam-stats" aria-label="Term overview">
+        <div className="exam-stat"><span className="exam-stat-icon violet"><CalendarDays size={16} /></span><div><strong>{upcoming.length}</strong><span>Upcoming</span></div></div>
+        <div className="exam-stat"><span className="exam-stat-icon green"><CheckCircle2 size={16} /></span><div><strong>{past.length}</strong><span>Completed</span></div></div>
+        <div className="exam-stat"><span className="exam-stat-icon amber"><BookOpen size={16} /></span><div><strong>{creditData.total}</strong><span>Credits</span></div></div>
+        <div className="exam-stat"><span className="exam-stat-icon blue"><Layers size={16} /></span><div><strong>{progressPct}%</strong><span>Term progress</span></div></div>
+      </div>
+
+      <section className="exam-section exam-schedule-section">
+        <div className="exam-section-head">
+          <div>
+            <span className="exam-section-kicker">Schedule</span>
+            <h2>Exam timeline</h2>
+            <p>{upcoming.length ? `${upcoming.length} upcoming across the selected subjects` : "No upcoming exams in this view"}</p>
           </div>
-          <div className="exam-view-toggle">
-            <button className={`exam-vt-btn${cdView === "list" ? " on" : ""}`} onClick={() => setCdView("list")} aria-label="List view">
-              <List size={14} />
-            </button>
-            <button className={`exam-vt-btn${cdView === "calendar" ? " on" : ""}`} onClick={() => setCdView("calendar")} aria-label="Calendar view">
-              <CalendarDays size={14} />
-            </button>
+          <div className="exam-toolbar">
+            <div className="exam-filter-pill" aria-label="Exam subject filter">
+              <button className={`exam-fp-btn${examFilter === "mine" ? " on" : ""}`} onClick={() => setExamFilter("mine")} aria-pressed={examFilter === "mine"}>My subjects</button>
+              <button className={`exam-fp-btn${examFilter === "all" ? " on" : ""}`} onClick={() => setExamFilter("all")} aria-pressed={examFilter === "all"}>All</button>
+            </div>
+            <div className="exam-view-toggle" aria-label="Exam layout">
+              <button className={`exam-vt-btn${cdView === "list" ? " on" : ""}`} onClick={() => setCdView("list")} aria-label="List view" aria-pressed={cdView === "list"}><List size={15} /></button>
+              <button className={`exam-vt-btn${cdView === "calendar" ? " on" : ""}`} onClick={() => setCdView("calendar")} aria-label="Calendar view" aria-pressed={cdView === "calendar"}><CalendarDays size={15} /></button>
+            </div>
           </div>
         </div>
 
         {cdView === "calendar" ? (
           <ExamCalendar exams={exams} now={now} termStart={termStart} termEnd={termEnd} />
         ) : exams.length === 0 ? (
-          <EmptyState compact icon={Trophy} title="No exams scheduled yet" sub="They'll appear here once the timetable is updated." />
+          <EmptyState compact icon={Trophy} title="No exams scheduled yet" sub="They’ll appear here when the timetable is updated." />
         ) : (
-          <>
-            <div className="exam-cd-grid">
-            {upcoming.map((e, i) => (
-              <div key={i} className={`exam-cd tone-${e.tone}`} style={{ animationDelay: `${i * 80}ms` }}>
-                {/* Left: countdown number */}
-                <div className="exam-cd-days">
-                  {e.days <= 3 && e.days >= 0 && <span className="exam-cd-pulse" />}
-                  <span className="exam-cd-days-num">
-                    {e.days === 0 ? "0" : e.days}
-                  </span>
-                  <span className="exam-cd-days-unit">
-                    {e.days === 0 ? "Today" : e.days === 1 ? "day left" : "days left"}
-                  </span>
-                </div>
-
-                {/* Divider */}
-                <div className="exam-cd-divider" />
-
-                {/* Right: info */}
-                <div className="exam-cd-info">
-                  <span className="exam-cd-cat">{e.category}</span>
-                  <span className="exam-cd-name">{e.name || e.code}</span>
-                  <div className="exam-cd-meta">
-                    <span className="exam-cd-date">
-                      <CalendarDays size={11} /> {fmtDate(e.date)}
-                    </span>
-                    {e.start && (
-                      <span className="exam-cd-time">
-                        <Clock size={11} /> {e.start} – {e.end}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Subject code badge */}
-                {e.code && (
-                  <span className={`ses ${subjectClass(e.code)} exam-cd-code`}>{e.code}</span>
-                )}
-              </div>
-            ))}
-
+          <div className="exam-timeline">
+            {upcoming.length > 0 && <div className="exam-list-label"><span>Coming up</span><span>{upcoming.length}</span></div>}
+            {upcoming.map((e, i) => renderExamRow(e, i))}
             {past.length > 0 && (
-              <>
-                <div className="exam-cd-sep">Past</div>
-                {past.map((e, i) => (
-                  <div key={`p${i}`} className="exam-cd tone-past" style={{ animationDelay: `${(upcoming.length + i) * 80}ms` }}>
-                    {/* Left: days ago */}
-                    <div className="exam-cd-days">
-                      <span className="exam-cd-days-num">{Math.abs(e.days)}</span>
-                      <span className="exam-cd-days-unit">{Math.abs(e.days) === 1 ? "day ago" : "days ago"}</span>
-                    </div>
-
-                    {/* Divider */}
-                    <div className="exam-cd-divider" />
-
-                    {/* Right: info */}
-                    <div className="exam-cd-info">
-                      <span className="exam-cd-cat">{e.category}</span>
-                      <span className="exam-cd-name">{e.name || e.code}</span>
-                      <div className="exam-cd-meta">
-                        <span className="exam-cd-date">
-                          <CalendarDays size={11} /> {fmtDate(e.date)}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Subject code badge */}
-                    {e.code && (
-                      <span className={`ses ${subjectClass(e.code)} exam-cd-code exam-cd-code-past`}>{e.code}</span>
-                    )}
-                  </div>
-                ))}
-              </>
+              <details className="exam-past">
+                <summary><span>Past exams</span><span>{past.length}<ChevronDown size={15} /></span></summary>
+                <div className="exam-past-list">{past.map((e, i) => renderExamRow(e, i, true))}</div>
+              </details>
             )}
           </div>
-
-          {/* Footer bar */}
-          {upcoming.length > 0 && (
-            <div className="exam-cd-footer">
-              <div className="exam-cd-footer-l">
-                <div className="exam-cd-footer-ico">
-                  <CalendarDays size={14} />
-                </div>
-                <div>
-                  <div className="exam-cd-footer-count">{upcoming.length} Exam{upcoming.length !== 1 ? "s" : ""} Upcoming</div>
-                  <div className="exam-cd-footer-sub">Keep going! You're on track.</div>
-                </div>
-              </div>
-            </div>
-          )}
-          </>
         )}
       </section>
 
-      {/* ── Course Progress Countdown ── */}
-      <section className="exam-card">
-        <div className="exam-card-h">
-          <h2><BookOpen size={15} /> Course Progress</h2>
-          <span className="att-count">{creditData.courses.length} courses</span>
+      <section className="exam-section">
+        <div className="exam-section-head">
+          <div>
+            <span className="exam-section-kicker">Readiness</span>
+            <h2>Course progress</h2>
+            <p>Expand a subject to see attendance, remaining classes and open work.</p>
+          </div>
+          <span className="exam-section-count">{creditData.courses.length} courses</span>
         </div>
-        <CourseCountdown
-          courses={creditData.courses}
-          allClasses={allClasses}
-          enrolled={enrolled}
-          attendance={attendance}
-          now={now}
-        />
+        <CourseCountdown courses={creditData.courses} allClasses={allClasses} enrolled={enrolled} attendance={attendance} now={now} />
       </section>
 
-      {/* ── Credits by Course ── */}
-      <section className="exam-card exam-credits-card">
-        <div className="exam-card-h">
-          <h2><GraduationCap size={15} /> Credits by Course</h2>
-          <span className="att-count">{creditData.total} total</span>
+      <section className="exam-section exam-credits-card">
+        <div className="exam-section-head">
+          <div>
+            <span className="exam-section-kicker">Course load</span>
+            <h2>Credits by course</h2>
+            <p>{midTermCount} mid term{midTermCount === 1 ? "" : "s"} · {endTermCount} end term{endTermCount === 1 ? "" : "s"} listed</p>
+          </div>
+          <span className="exam-total-credits"><strong>{creditData.total}</strong> credits</span>
         </div>
         <div className="exam-cr-grid-new">
-          {creditData.courses.map((c, i) => {
-            return (
-              <div key={c.code} className="exam-cr-badge" style={{ animationDelay: `${i * 40}ms` }}>
-                <div className="ecr-bg-text">{c.code}</div>
-                <div className="ecr-content">
-                  <div className="ecr-top">
-                    <span className="ecr-area">{c.area}</span>
-                  </div>
-                  <div className="ecr-name">{c.name}</div>
-                  <div className="ecr-bot">
-                    <span className="ecr-code">{c.code}</span>
-                    <span className={`ecr-val${!c.raw ? " ecr-missing" : ""}`}>
-                      {c.raw ? c.credits : "—"}<small>cr</small>
-                    </span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          {creditData.courses.map((c, i) => (
+            <div key={c.code} className="exam-cr-badge" style={{ animationDelay: `${i * 40}ms` }}>
+              <span className={`ses ${subjectClass(c.code)}`}>{c.code}</span>
+              <div className="ecr-content"><span className="ecr-area">{c.area}</span><span className="ecr-name">{c.name}</span></div>
+              <span className={`ecr-val${!c.raw ? " ecr-missing" : ""}`}>{c.raw ? c.credits : "—"}<small>cr</small></span>
+            </div>
+          ))}
         </div>
       </section>
     </div>

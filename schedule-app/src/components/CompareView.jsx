@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import "../styles/compare.css";
-import { ArrowLeft, Columns, Layers, Clock, BookOpen, UserCheck, Sparkles, ChevronDown, Copy, Check, CalendarDays, ArrowRight as ArrowRightIcon, Flame, X, CalendarX2, PartyPopper, CalendarPlus } from "lucide-react";
+import { ArrowLeft, Columns, Layers, Clock, BookOpen, UserCheck, Sparkles, ChevronDown, Copy, Check, CalendarDays, ArrowRight as ArrowRightIcon, Flame, X, CalendarX2, PartyPopper, CalendarPlus, Users, CalendarCheck2 } from "lucide-react";
 import { EmptyState } from "./ui.jsx";
 import { findFreeSlots, findGroupFreeSlots, scheduleInsights, friendVisibleClasses, avatarGradient } from "../lib/friends.js";
 import { isNationalHoliday } from "../lib/nationalHolidays.js";
@@ -21,7 +21,7 @@ function fmtTime(t) {
   const hr = parseInt(h, 10);
   const ampm = hr >= 12 ? "PM" : "AM";
   const hr12 = hr % 12 || 12;
-  return `${hr12}:${m} ${ampm}`;
+  return `${String(hr12).padStart(2, "0")}:${m}${ampm}`;
 }
 
 const RANGE_OPTIONS = [
@@ -46,8 +46,11 @@ function RangeDropdown({ value, onChange }) {
   return (
     <div className="cv-range-drop" ref={ref}>
       <button
+        type="button"
         className={`cv-day-btn cv-range-btn ${selected ? "on" : ""}`}
         onClick={() => setOpen(o => !o)}
+        aria-expanded={open}
+        aria-haspopup="menu"
       >
         {selected ? selected.label : "Select Range"}
         <ChevronDown size={12} className={`cv-range-caret ${open ? "open" : ""}`} />
@@ -56,6 +59,7 @@ function RangeDropdown({ value, onChange }) {
         <div className="cv-range-menu">
           {RANGE_OPTIONS.map(opt => (
             <button
+              type="button"
               key={opt.key}
               className={`cv-range-opt ${value === opt.key ? "on" : ""}`}
               onClick={() => { onChange(opt.key); setOpen(false); }}
@@ -417,6 +421,8 @@ export default function CompareView({
   const DAY_START = 480; // 8:00
   const DAY_END = 1320;  // 22:00
   const TOTAL_MIN = DAY_END - DAY_START;
+  const bestSlot = longestFreeIdx >= 0 ? freeSlots[longestFreeIdx] : null;
+  const comparisonCount = targets.length + 1;
 
   function blockStyle(start, end) {
     const s = Math.max(toMin(start), DAY_START);
@@ -429,42 +435,75 @@ export default function CompareView({
 
   return (
     <div className="cv-page">
-      {/* Header */}
-      <div className="cv-header">
-        <button className="cv-back" onClick={onExit} aria-label="Back">
-          <ArrowLeft size={18} /> <span className="cv-back-label">Back</span>
-        </button>
-        <HeaderIdentity mode={mode} label={label} targets={targets} />
-        <div className="cv-header-info">
-          <span className="cv-header-title">
-            {mode === "friend" ? `Comparing with ${label}` : label}
-          </span>
-          <span className="cv-header-sub">{groupSubtitle}</span>
-        </div>
-        <div className="cv-view-toggle">
-          <button className={`cv-toggle-btn ${viewMode === "merged" ? "on" : ""}`} onClick={() => setViewMode("merged")} title="Merged view" aria-label="Merged view">
-            <Layers size={15} /> <span className="cv-toggle-label">Merged</span>
+      <section className="cv-hero" aria-labelledby="compare-title">
+        <div className="cv-hero-orb cv-hero-orb-one" aria-hidden="true" />
+        <div className="cv-hero-orb cv-hero-orb-two" aria-hidden="true" />
+        <div className="cv-hero-topline">
+          <button type="button" className="cv-back" onClick={onExit} aria-label="Back to Social">
+            <ArrowLeft size={17} /> <span className="cv-back-label">Back to Social</span>
           </button>
-          <button className={`cv-toggle-btn ${viewMode === "side" ? "on" : ""}`} onClick={() => setViewMode("side")} title="Side by side" aria-label="Side by side view">
-            <Columns size={15} /> <span className="cv-toggle-label">Columns</span>
-          </button>
+          <span className="cv-private-note"><Check size={12} /> Shared availability only</span>
         </div>
-      </div>
 
-      {/* Day selector */}
-      <div className="cv-filters">
-        <div className="cv-day-selector">
-          <button className={`cv-day-btn ${dayFilter === "today" ? "on" : ""}`} onClick={() => setDayFilter("today")}>Today</button>
-          <button className={`cv-day-btn ${dayFilter === "tomorrow" ? "on" : ""}`} onClick={() => setDayFilter("tomorrow")}>Tomorrow</button>
-          <RangeDropdown
-            value={RANGE_OPTIONS.some(o => o.key === dayFilter) ? dayFilter : null}
-            onChange={setDayFilter}
-          />
+        <div className="cv-hero-main">
+          <div className="cv-identity-wrap">
+            <HeaderIdentity mode={mode} label={label} targets={targets} />
+            <div className="cv-header-info">
+              <span className="cv-eyebrow">Schedule compare</span>
+              <h1 className="cv-header-title" id="compare-title">
+                {mode === "friend" ? `You + ${label}` : label}
+              </h1>
+              <span className="cv-header-sub">{groupSubtitle} · Find the easiest time to meet.</span>
+            </div>
+          </div>
+          <div className="cv-view-control">
+            <span className="cv-control-label">Layout</span>
+            <div className="cv-view-toggle" aria-label="Schedule layout">
+              <button type="button" className={`cv-toggle-btn ${viewMode === "merged" ? "on" : ""}`} onClick={() => setViewMode("merged")} aria-label="Merged view" aria-pressed={viewMode === "merged"}>
+                <Layers size={15} /> <span className="cv-toggle-label">Merged</span>
+              </button>
+              <button type="button" className={`cv-toggle-btn ${viewMode === "side" ? "on" : ""}`} onClick={() => setViewMode("side")} aria-label="Columns view" aria-pressed={viewMode === "side"}>
+                <Columns size={15} /> <span className="cv-toggle-label">Columns</span>
+              </button>
+            </div>
+          </div>
         </div>
-        {/* In multi-day Columns view the range label rides in the sticky bar instead */}
-        {dayFilter !== "custom" && prettyDateLabel && !(viewMode === "side" && isMultiDay) && (
-          <span className="cv-day-label">{prettyDateLabel}</span>
-        )}
+
+        <div className="cv-stat-row" aria-label="Comparison summary">
+          <div className="cv-stat cv-stat-primary">
+            <span className="cv-stat-icon"><CalendarCheck2 size={16} /></span>
+            <span><strong>{freeSlots.length}</strong><small>open slot{freeSlots.length !== 1 ? "s" : ""}</small></span>
+          </div>
+          <div className="cv-stat">
+            <span className="cv-stat-icon"><Clock size={16} /></span>
+            <span><strong>{bestSlot ? fmtDuration(bestSlot.durationMin) : "—"}</strong><small>longest window</small></span>
+          </div>
+          <div className="cv-stat">
+            <span className="cv-stat-icon"><Users size={16} /></span>
+            <span><strong>{comparisonCount}</strong><small>people aligned</small></span>
+          </div>
+          <div className="cv-stat cv-stat-date">
+            <span className="cv-stat-icon"><CalendarDays size={16} /></span>
+            <span><strong>{selectedDates.length}</strong><small>day{selectedDates.length !== 1 ? "s" : ""} scanned</small></span>
+          </div>
+        </div>
+
+        <div className="cv-filters">
+          <div className="cv-filter-heading">
+            <span className="cv-control-label">Date range</span>
+            {dayFilter !== "custom" && prettyDateLabel && (
+              <span className="cv-day-label">{prettyDateLabel}</span>
+            )}
+          </div>
+          <div className="cv-day-selector">
+            <button type="button" className={`cv-day-btn ${dayFilter === "today" ? "on" : ""}`} onClick={() => setDayFilter("today")} aria-pressed={dayFilter === "today"}>Today</button>
+            <button type="button" className={`cv-day-btn ${dayFilter === "tomorrow" ? "on" : ""}`} onClick={() => setDayFilter("tomorrow")} aria-pressed={dayFilter === "tomorrow"}>Tomorrow</button>
+            <RangeDropdown
+              value={RANGE_OPTIONS.some(o => o.key === dayFilter) ? dayFilter : null}
+              onChange={setDayFilter}
+            />
+          </div>
+        </div>
 
         {dayFilter === "custom" && (
           <div className="cv-custom-range">
@@ -502,6 +541,7 @@ export default function CompareView({
               })()}
             </div>
             <button
+              type="button"
               className={`cv-range-apply${applyState === "applied" ? " done" : ""}${applyState === "loading" ? " loading" : ""}`}
               disabled={applyState === "loading" || !pendingRange.start || !pendingRange.end || new Date(pendingRange.start) > new Date(pendingRange.end)}
               onClick={() => {
@@ -520,7 +560,7 @@ export default function CompareView({
             </button>
           </div>
         )}
-      </div>
+      </section>
 
       {applyState === "loading" && (
         <div className="cv-applying-loader">
@@ -530,53 +570,54 @@ export default function CompareView({
       <div className={`cv-body-grid${applyState === "loading" ? " cv-applying" : ""}`}>
         {/* Left / main column: free summary + timeline */}
         <div className="cv-body-main">
-          {/* Free time summary */}
-          {freeSlots.length > 0 && (
-            <div className="cv-free-summary">
-              <Sparkles size={15} />
-              <span>
-                {freeSlots.length} free slot{freeSlots.length !== 1 ? "s" : ""} found
-                {isMultiDay ? ` across ${selectedDates.length} days` : ""}
-              </span>
+          <section className="cv-timeline-shell">
+            <div className="cv-panel-head">
+              <div>
+                <span className="cv-panel-kicker">Shared schedule</span>
+                <h2>{viewMode === "merged" ? "Overlap at a glance" : "Schedules, side by side"}</h2>
+              </div>
+              {freeSlots.length > 0 && (
+                <span className="cv-availability-badge"><Sparkles size={13} /> {freeSlots.length} match{freeSlots.length !== 1 ? "es" : ""}</span>
+              )}
             </div>
-          )}
+            <div className="cv-timeline-canvas">
+              {viewMode === "merged" ? (
+                <MergedTimeline
+                  myClasses={tlMyClasses}
+                  targetClasses={tlTargetClasses}
+                  targets={targets}
+                  freeSlots={tlFreeSlots}
+                  blockStyle={blockStyle}
+                  TOTAL_MIN={TOTAL_MIN}
+                  DAY_START={DAY_START}
+                  DAY_END={DAY_END}
+                  legend={legend}
+                  dayFilter={dayFilter}
+                />
+              ) : (
+                <SideBySide
+                  myClasses={tlMyClasses}
+                  targetClasses={tlTargetClasses}
+                  targets={targets}
+                  freeSlots={tlFreeSlots}
+                  blockStyle={blockStyle}
+                  TOTAL_MIN={TOTAL_MIN}
+                  DAY_START={DAY_START}
+                  DAY_END={DAY_END}
+                  legend={legend}
+                  userName={/* current user name */ "You"}
+                  dayFilter={dayFilter}
+                  rangeLabel={prettyDateLabel}
+                />
+              )}
+            </div>
 
-          {/* Timeline */}
-          {viewMode === "merged" ? (
-            <MergedTimeline
-              myClasses={tlMyClasses}
-              targetClasses={tlTargetClasses}
-              targets={targets}
-              freeSlots={tlFreeSlots}
-              blockStyle={blockStyle}
-              TOTAL_MIN={TOTAL_MIN}
-              DAY_START={DAY_START}
-              DAY_END={DAY_END}
-              legend={legend}
-              dayFilter={dayFilter}
-            />
-          ) : (
-            <SideBySide
-              myClasses={tlMyClasses}
-              targetClasses={tlTargetClasses}
-              targets={targets}
-              freeSlots={tlFreeSlots}
-              blockStyle={blockStyle}
-              TOTAL_MIN={TOTAL_MIN}
-              DAY_START={DAY_START}
-              DAY_END={DAY_END}
-              legend={legend}
-              userName={/* current user name */ "You"}
-              dayFilter={dayFilter}
-              rangeLabel={prettyDateLabel}
-            />
-          )}
-
-          {canTruncate && (
-            <button className="cv-show-more" onClick={() => setMoreModal("timeline")}>
-              <ChevronDown size={14} /> Show {hiddenTimelineDays} more day{hiddenTimelineDays !== 1 ? "s" : ""}
-            </button>
-          )}
+            {canTruncate && (
+              <button type="button" className="cv-show-more" onClick={() => setMoreModal("timeline")}>
+                <ChevronDown size={14} /> Show {hiddenTimelineDays} more day{hiddenTimelineDays !== 1 ? "s" : ""}
+              </button>
+            )}
+          </section>
         </div>
 
         {/* Right / side column: free slots detail + insights */}
@@ -584,7 +625,10 @@ export default function CompareView({
           {/* Free time blocks detail */}
           <section className="cv-free-section">
             <div className="cv-free-section-head">
-              <h3 className="cv-section-title"><Clock size={15} /> Matching Free Time</h3>
+              <div>
+                <span className="cv-panel-kicker">Availability</span>
+                <h3 className="cv-section-title"><Clock size={15} /> Best times to meet</h3>
+              </div>
               {freeSlots.length > 0 && (
                 <button className="cv-copy-btn" onClick={copyFreeSlots}>
                   {slotsCopied ? <><Check size={13} /> Copied!</> : <><Copy size={13} /> Copy</>}
@@ -868,7 +912,7 @@ function SideBySide({ myClasses, targetClasses, targets, dayFilter, freeSlots = 
   });
 
   const isMultiDay = ["3", "7", "14", "30", "custom"].includes(dayFilter);
-  const minTrackWidth = Math.max(100, columnsDef.length * 150);
+  const minTrackWidth = Math.max(100, columnsDef.length * 168);
 
   // Keep the sticky name pills horizontally aligned with their columns.
   // Bidirectional: swiping either the pills or the columns drags the other along.
@@ -980,7 +1024,13 @@ function SideBySide({ myClasses, targetClasses, targets, dayFilter, freeSlots = 
               const pillClass = i === 0 ? "you" : i === 1 ? "them" : i === 2 ? "them2" : "them3";
               return (
                 <div key={i} className="cv-sbs-pill-cell">
-                  <div className={`cv-sbs-name-pill ${pillClass}`}>{col.label}</div>
+                  <div className={`cv-sbs-person ${pillClass}`}>
+                    <Avatar name={col.label} size={28} />
+                    <span className="cv-sbs-person-copy">
+                      <strong>{col.label}</strong>
+                      <small>{i === 0 ? "Your schedule" : "Shared schedule"}</small>
+                    </span>
+                  </div>
                 </div>
               );
             })}
@@ -1001,8 +1051,9 @@ function SideBySide({ myClasses, targetClasses, targets, dayFilter, freeSlots = 
             return (
               <div key={dg.date} className="cv-sbs-day" data-date={dg.date} ref={el => { dayRefs.current[dg.date] = el; }}>
                 {isMultiDay && (
-                  <div className="cv-day-heading">
-                    {new Date(dg.date).toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })}
+                  <div className="cv-day-heading cv-sbs-day-heading">
+                    <span>{new Date(dg.date).toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })}</span>
+                    <span className="cv-sbs-day-count">{dg.rows.length} time block{dg.rows.length !== 1 ? "s" : ""}</span>
                   </div>
                 )}
 
@@ -1017,8 +1068,12 @@ function SideBySide({ myClasses, targetClasses, targets, dayFilter, freeSlots = 
                   <div key={ri} className="cv-sbs-row">
                     {row.freeSlots.map((fs, fsi) => (
                       <div key={fsi} className="cv-sbs-freepill">
-                        <span>{fmtTime(fs.start)} – {fmtTime(fs.end)}</span>
-                        <span className="cv-sbs-freepill-tag">Free</span>
+                        <span className="cv-sbs-freepill-icon"><Sparkles size={13} /></span>
+                        <span className="cv-sbs-freepill-copy">
+                          <strong>{fmtTime(fs.start)} – {fmtTime(fs.end)}</strong>
+                          <small>{fmtDuration(fs.durationMin)} together</small>
+                        </span>
+                        <span className="cv-sbs-freepill-tag">Everyone free</span>
                       </div>
                     ))}
 
@@ -1026,20 +1081,30 @@ function SideBySide({ myClasses, targetClasses, targets, dayFilter, freeSlots = 
                       <div className="cv-sbs-cols">
                         {row.columns.map((colItems, ci) => (
                           <div key={ci} className="cv-sbs-col">
-                            {colItems.length === 0 ? (
-                              <div className="cva-card cv-sbs-emptycell">
-                                <span>Free</span>
-                              </div>
-                            ) : colItems.map((c, cii) => {
-                              const isShared = c.type === "holiday" || c.type === "break";
-                              return (
-                                <div key={cii} className={`cva-card cv-sbs-card ${isShared ? "cva-shared" : columnsDef[ci].colorClass}`}>
-                                  <div className="cva-time-sm">{fmtTime(c.start)} – {fmtTime(c.end)}</div>
-                                  <div className="cva-title">
-                                    {isNationalHoliday(c) && <IndiaFlagIcon size={12} className="row-flag-icon" />}
-                                    {c.name}
-                                  </div>
-                                </div>
+                             {colItems.length === 0 ? (
+                               <div className="cva-card cv-sbs-emptycell">
+                                 <Clock size={14} aria-hidden="true" />
+                                 <span>Available</span>
+                               </div>
+                             ) : colItems.map((c, cii) => {
+                               const isShared = c.type === "holiday" || c.type === "break";
+                               return (
+                                 <div key={cii} className={`cva-card cv-sbs-card ${isShared ? "cva-shared" : columnsDef[ci].colorClass}`}>
+                                   <div className="cv-sbs-card-top">
+                                     <div className="cva-time-sm">{fmtTime(c.start)} – {fmtTime(c.end)}</div>
+                                     {isShared && <span className="cv-sbs-shared-tag">Shared</span>}
+                                   </div>
+                                   <div className="cva-title">
+                                     {isNationalHoliday(c) && <IndiaFlagIcon size={12} className="row-flag-icon" />}
+                                     {c.name}
+                                   </div>
+                                   {(c.code || c.room) && (
+                                     <div className="cv-sbs-card-meta">
+                                       {c.code && <span>{c.code}</span>}
+                                       {c.room && <span>{c.room}</span>}
+                                     </div>
+                                   )}
+                                 </div>
                               );
                             })}
                           </div>

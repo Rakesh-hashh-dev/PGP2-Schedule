@@ -1,9 +1,9 @@
 import { useMemo, useState, useEffect, useRef } from "react";
+import { attentionPriority } from "../lib/notificationWorkspace.js";
 
 const BUNDLE_MIN = 3;
 const BUNDLE_WINDOW_MS = 15 * 60 * 1000;
 const ATTN_MAX = 5;
-const ATTN_KINDS = new Set(["added", "removed", "moved", "course"]);
 export const FEED_PAGE_SIZE = 30;
 
 function getDateLabel(iso) {
@@ -129,13 +129,16 @@ export function useNotificationFeed({
 
   const { visible, kindCounts, weekTotal } = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const matchesKind = (k) => kindFilter === "all" ? true : kindFilter === "update" ? (k === "update" || k === "course") : k === kindFilter;
+    const matchesKind = (k) => kindFilter === "all" ? true
+      : kindFilter === "critical" ? (k === "removed" || k === "moved")
+      : kindFilter === "update" ? (k === "update" || k === "course")
+      : k === kindFilter;
     const passesBaseFilters = (c) =>
       !dismissed.has(keyOf(c)) &&
       !(c.kind === "update" && c.code && mutedCourses.has(c.code)) &&
       (!q || c.text?.toLowerCase().includes(q) || (legend?.[c.code]?.name || c.code || "").toLowerCase().includes(q));
 
-    const kindCounts = { all: 0, added: 0, removed: 0, moved: 0, update: 0 };
+    const kindCounts = { all: 0, critical: 0, added: 0, removed: 0, moved: 0, update: 0 };
     const WEEK_AGO = nowTick - 7 * 24 * 60 * 60 * 1000;
     const weekCounts = { added: 0, removed: 0, moved: 0, update: 0 };
 
@@ -144,6 +147,7 @@ export function useNotificationFeed({
       kindCounts.all++;
       const bucket = c.kind === "course" ? "update" : c.kind;
       if (kindCounts[bucket] !== undefined) kindCounts[bucket]++;
+      if (bucket === "removed" || bucket === "moved") kindCounts.critical++;
       if (bucket !== undefined && weekCounts[bucket] !== undefined && new Date(c.ts).getTime() >= WEEK_AGO) weekCounts[bucket]++;
     }
     const weekTotal = weekCounts.added + weekCounts.removed + weekCounts.moved + weekCounts.update;
@@ -161,8 +165,13 @@ export function useNotificationFeed({
       return wake && nowTick < wake;
     };
 
+    const priorityOfItem = (it) => {
+      const source = it.type === "bundle" ? it.changes[0] : it.change;
+      return attentionPriority(source, nowTick);
+    };
     const attnItems = feed
-      .filter(it => ATTN_KINDS.has(it.kind) && isUnreadItem(it) && !isSnoozed(it))
+      .filter(it => priorityOfItem(it) > 0 && isUnreadItem(it) && !isSnoozed(it))
+      .sort((a, b) => priorityOfItem(b) - priorityOfItem(a) || new Date(b.ts) - new Date(a.ts))
       .slice(0, ATTN_MAX);
     const attnIds = new Set(attnItems.map(it => it.id));
     const rest = feed.filter(it => !attnIds.has(it.id));

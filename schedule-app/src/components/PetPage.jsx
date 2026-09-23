@@ -1,5 +1,8 @@
 import { useMemo, useState } from "react";
-import { ArrowLeft, Check, Lock } from "lucide-react";
+import {
+  ArrowLeft, Check, Cookie, Gamepad2, Heart, Home, Lock,
+  PawPrint, Shirt, Sparkles, UserRound,
+} from "lucide-react";
 import { PETS, getPetByKey } from "./greetingPets.jsx";
 import {
   CARE_ACTIONS, HATS, COATS, NECKWEAR, TITLES, MAX_DEVOTION, MAX_LEVEL,
@@ -41,6 +44,33 @@ const MOOD_COPY = {
 
 const CARE_COPY = { pet: "Pet", play: "Play", treat: "Treat" };
 
+const CARE_ICONS = { pet: Heart, play: Gamepad2, treat: Cookie };
+
+const PET_SECTIONS = [
+  { id: "overview", label: "Overview", Icon: Home },
+  { id: "companions", label: "Companions", Icon: PawPrint },
+  { id: "wardrobe", label: "Wardrobe", Icon: Shirt },
+  { id: "profile", label: "Profile", Icon: UserRound },
+];
+
+const WARDROBE_SECTIONS = [
+  { id: "hats", label: "Hats" },
+  { id: "collars", label: "Collars" },
+  { id: "coats", label: "Coats" },
+];
+
+function moveTabFocus(event, index, tabs, onChange) {
+  let next = null;
+  if (event.key === "ArrowRight") next = (index + 1) % tabs.length;
+  if (event.key === "ArrowLeft") next = (index - 1 + tabs.length) % tabs.length;
+  if (event.key === "Home") next = 0;
+  if (event.key === "End") next = tabs.length - 1;
+  if (next === null) return;
+  event.preventDefault();
+  onChange(tabs[next].id);
+  event.currentTarget.parentElement?.children[next]?.focus();
+}
+
 /** "3 hours ago" / "2 days ago", or null when never seen. */
 function lastSeenLabel(pet, now) {
   const hrs = hoursSince(pet, now);
@@ -72,6 +102,8 @@ function unlockRequirement(key) {
 export default function PetPage({ pet, petActions, petContext, petSettings, now, onBack }) {
   const [nameDraft, setNameDraft] = useState(null);
   const [adoptChoice, setAdoptChoice] = useState(null);
+  const [activeSection, setActiveSection] = useState("overview");
+  const [wardrobeSection, setWardrobeSection] = useState("hats");
 
   const adopted = isAdopted(pet);
   const xp = xpOf(pet);
@@ -114,11 +146,15 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
   if (!adopted) {
     return (
       <div className="pet-page">
-        <header className="pet-head">
+        <header className="pet-page-head">
+          <div>
+            <p className="pet-page-kicker"><PawPrint size={13} aria-hidden="true" /> Companion corner</p>
+            <h1>Meet your companion</h1>
+            <p>Choose a study buddy who grows with every class and deadline.</p>
+          </div>
           <button type="button" className="pet-back" onClick={onBack} aria-label="Back">
             <ArrowLeft size={18} />
           </button>
-          <h2>Companion</h2>
         </header>
         <section className="pet-card pet-adopt">
           <p className="pet-adopt-lede">
@@ -188,149 +224,216 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
 
   return (
     <div className="pet-page">
-      <header className="pet-head">
-        <button type="button" className="pet-back" onClick={onBack} aria-label="Back">
-          <ArrowLeft size={18} />
-        </button>
-        <h2>{pet.name || current.label}</h2>
-        <span className="pet-head-lvl">Lv {progress.level}{progress.maxed ? " · Max" : ""}</span>
+      <header className="pet-page-head">
+        <div>
+          <p className="pet-page-kicker"><PawPrint size={13} aria-hidden="true" /> Companion corner</p>
+          <h1>Companion</h1>
+          <p>{pet.name || current.label} grows as you make progress across TermFlow.</p>
+        </div>
+        <div className="pet-page-actions">
+          <span className="pet-head-lvl">Lv {progress.level}{progress.maxed ? " · Max" : ""}</span>
+          <button type="button" className="pet-back" onClick={onBack} aria-label="Back">
+            <ArrowLeft size={18} />
+          </button>
+        </div>
       </header>
 
-      {/* Habitat. The pet is the same SVG as the greeting, just larger — the
-          idle animations and mood states come from the shared .dg-pet CSS. */}
-      <section className="pet-card pet-habitat">
-        <div className="pet-hero-row">
-          <span
-            className="dg-pet pet-hero"
-            data-pet={current.key}
-            data-motion="on"
-            data-stage={stage.key}
-            data-mood={mood}
-            data-beat={beat || undefined}
-            data-sig={signaturesOn ? undefined : "off"}
-            data-accessory={accessoryOn ? "on" : "off"}
-            data-coat={coat || undefined}
-            data-neck={neck || undefined}
-            aria-hidden="true"
-            {...gaze}
-          >
-            <current.Svg />
-            <PetHat hat={hat} />
-            <PetNeckwear neck={neck} />
-            <PetSleepCue />
-          </span>
-          {/* The second companion, once devotion opens the slot. Display only:
-              it shares the mood but has no XP of its own — see `buddyFor`. */}
-          {buddy && (
+      <section className="pet-card pet-habitat pet-habitat-v2">
+        <div className="pet-habitat-art">
+          <div className="pet-hero-row">
             <span
-              className="dg-pet pet-buddy"
-              data-pet={buddy.key}
+              className="dg-pet pet-hero"
+              data-pet={current.key}
               data-motion="on"
+              data-stage={stage.key}
               data-mood={mood}
+              data-beat={beat || undefined}
+              data-sig={signaturesOn ? undefined : "off"}
+              data-accessory={accessoryOn ? "on" : "off"}
               data-coat={coat || undefined}
+              data-neck={neck || undefined}
               aria-hidden="true"
+              {...gaze}
             >
-              <buddy.Svg />
+              <current.Svg />
+              <PetHat hat={hat} />
+              <PetNeckwear neck={neck} />
+              <PetSleepCue />
             </span>
-          )}
-        </div>
-        {title && <p className="pet-title-line">{titleLabel(title)}</p>}
-        <p className="pet-mood">{MOOD_COPY[mood]}</p>
-        {/* Why the pet is in this mood. The companion reads the timetable;
-            without this it had no way to say so, and a mood that looks
-            arbitrary is a mood nobody believes. */}
-        {because && <p className="pet-because">{because}</p>}
-        <p className="pet-stage">
-          <span className="pet-stage-now">{stage.label}</span>
-          {nextStage
-            ? <span className="pet-stage-next">{nextStage.label} at Lv {nextStage.from}</span>
-            : <span className="pet-stage-next">Fully grown</span>}
-        </p>
-        {seen && <p className="pet-seen">Last together {seen}</p>}
-
-        <div className="pet-xp">
-          <div className="pet-xp-bar" aria-hidden="true">
-            <div className="pet-xp-fill" style={{ width: `${progress.pct}%` }} />
+            {buddy && (
+              <span
+                className="dg-pet pet-buddy"
+                data-pet={buddy.key}
+                data-motion="on"
+                data-mood={mood}
+                data-coat={coat || undefined}
+                aria-hidden="true"
+              >
+                <buddy.Svg />
+              </span>
+            )}
           </div>
-          <div className="pet-xp-nums">
-            <span>{xp} XP total</span>
-            <span>{progress.maxed ? "Fully grown" : `${progress.into} / ${progress.need} to Lv ${progress.level + 1}`}</span>
+          <strong className="pet-hero-name">{pet.name || current.label}</strong>
+          {title && <p className="pet-title-line">{titleLabel(title)}</p>}
+          <div className="pet-stage-chip">
+            <Sparkles size={13} aria-hidden="true" />
+            {stage.label} companion
           </div>
         </div>
 
-        {/* What the next rung actually gives you. The page could say what you
-            have and never what was coming, which is the one thing that makes a
-            curve worth climbing. Derived from the same registries the wardrobe
-            reads, so a new hat appears here without anyone remembering to. */}
-        {nextUnlock && (
-          <p className="pet-next">
-            <span className="pet-next-at">{nextUnlock.by === "level" ? `Lv ${nextUnlock.at}` : `Devotion ${nextUnlock.at}`}</span>
-            {nextUnlock.kind === "companion"
-              ? `A new companion — ${getPetByKey(nextUnlock.key)?.label || nextUnlock.label}`
-              : nextUnlock.kind === "slot"
-                ? nextUnlock.label
-                : `${nextUnlock.label} (${nextUnlock.kind})`}
-          </p>
-        )}
+        <div className="pet-habitat-content">
+          <div className="pet-habitat-copy">
+            <p className="pet-eyebrow">Together today</p>
+            <h3 className="pet-mood">{MOOD_COPY[mood]}</h3>
+            {because && <p className="pet-because">{because}</p>}
+            <div className="pet-meta-row">
+              <span>{nextStage ? `${nextStage.label} at Lv ${nextStage.from}` : "Fully grown"}</span>
+              {seen && <span>Last together {seen}</span>}
+            </div>
+          </div>
 
-        {/* Past level 12 the XP bar is pinned at 100% and every pet is already
-            unlocked, so without this the rest of term earns nothing at all. */}
-        {progress.maxed && (
-          <div className="pet-xp pet-devotion">
-            <div className="pet-xp-bar" aria-hidden="true">
-              <div className="pet-xp-fill is-devotion" style={{ width: `${devotion.pct}%` }} />
+          <div className="pet-progress-panel">
+            <div className="pet-xp-heading">
+              <strong>Level {progress.level}</strong>
+              <span>{xp} XP total</span>
+            </div>
+            <div className="pet-xp-bar" aria-label={`${progress.pct}% level progress`}>
+              <div className="pet-xp-fill" style={{ width: `${progress.pct}%` }} />
             </div>
             <div className="pet-xp-nums">
-              <span>Devotion {devotion.tier}{devotion.capped ? " · max" : ""}</span>
-              <span>{devotion.capped ? "Nothing left to prove" : `${devotion.into} / ${devotion.need} to ${devotion.tier + 1}`}</span>
+              <span>{progress.maxed ? "Maximum level reached" : `${progress.into} earned`}</span>
+              <span>{progress.maxed ? "Fully grown" : `${progress.need - progress.into} XP to Lv ${progress.level + 1}`}</span>
             </div>
-            {/* Past the cap, care is most of what is left to earn, so the streak
-                is what keeps the last stretch from being the slowest one. */}
+            {nextUnlock && (
+              <div className="pet-next">
+                <span className="pet-next-at">{nextUnlock.by === "level" ? `Lv ${nextUnlock.at}` : `Devotion ${nextUnlock.at}`}</span>
+                <span>{nextUnlock.kind === "companion"
+                  ? `Meet ${getPetByKey(nextUnlock.key)?.label || nextUnlock.label}`
+                  : nextUnlock.kind === "slot"
+                    ? nextUnlock.label
+                    : `${nextUnlock.label} ${nextUnlock.kind}`}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="pet-care-wrap">
+            <div className="pet-care" aria-label="Care actions">
+              {CARE_ACTIONS.map(action => {
+                const CareIcon = CARE_ICONS[action];
+                return (
+                  <button
+                    key={action}
+                    type="button"
+                    className="pet-care-btn"
+                    onClick={() => petActions.care(action, now)}
+                  >
+                    <CareIcon size={16} aria-hidden="true" />
+                    <span>{CARE_COPY[action]}</span>
+                  </button>
+                );
+              })}
+            </div>
             <p className="pet-care-note">
-              {streak > 0
-                ? `${streak}-day streak — care is worth ${multiplier.toFixed(2)}x${streak >= STREAK_CAP ? " (the most it goes)" : ""}.`
-                : "Look after them daily and care starts earning more."}
+              {left > 0
+                ? `${left} more today can earn XP. After that, care is just for fun.`
+                : "Today's care XP is complete. Mark a class to keep growing."}
             </p>
           </div>
-        )}
-
-        <div className="pet-care">
-          {CARE_ACTIONS.map(action => (
-            <button
-              key={action}
-              type="button"
-              className="pet-btn"
-              onClick={() => petActions.care(action, now)}
-            >
-              {CARE_COPY[action]}
-            </button>
-          ))}
         </div>
-        <p className="pet-care-note">
-          {left > 0
-            ? `${left} more today will earn XP — after that they're just for fun.`
-            : "That's today's XP from care. Mark a class to keep growing."}
-        </p>
       </section>
 
-      {sources.length > 0 && (
-        <section className="pet-card">
-          <h3 className="pet-h3">Where the XP came from</h3>
-          <ul className="pet-sources">
-            {sources.map(row => (
-              <li key={row.prefix}>
-                <span className="pet-source-label">{row.label}</span>
-                <span className="pet-source-track" aria-hidden="true">
-                  <span className="pet-source-fill" style={{ width: `${Math.round((row.xp / xp) * 100)}%` }} />
-                </span>
-                <span className="pet-source-xp">{row.xp}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
+      <nav className="pet-section-nav" role="tablist" aria-label="Companion sections">
+        {PET_SECTIONS.map((section, index) => (
+          <button
+            key={section.id}
+            type="button"
+            id={`pet-tab-${section.id}`}
+            className={activeSection === section.id ? "is-active" : ""}
+            role="tab"
+            aria-selected={activeSection === section.id}
+            aria-controls={`pet-panel-${section.id}`}
+            tabIndex={activeSection === section.id ? 0 : -1}
+            onClick={() => setActiveSection(section.id)}
+            onKeyDown={event => moveTabFocus(event, index, PET_SECTIONS, setActiveSection)}
+          >
+            <section.Icon size={16} aria-hidden="true" />
+            <span>{section.label}</span>
+          </button>
+        ))}
+      </nav>
+
+      {activeSection === "overview" && (
+        <div
+          className="pet-tab-panel pet-overview-grid"
+          id="pet-panel-overview"
+          role="tabpanel"
+          aria-labelledby="pet-tab-overview"
+        >
+          <section className="pet-card pet-journey-card">
+            <div className="pet-card-heading">
+              <div>
+                <p className="pet-eyebrow">Your journey</p>
+                <h3 className="pet-h3">Growing together</h3>
+              </div>
+              <span className="pet-level-orb">{progress.level}</span>
+            </div>
+            <div className="pet-journey-stats">
+              <div><strong>{stage.label}</strong><span>Current stage</span></div>
+              <div><strong>{unlocked.size}/{PETS.length}</strong><span>Companions</span></div>
+              <div><strong>{streak} days</strong><span>Care streak</span></div>
+            </div>
+            {progress.maxed && (
+              <div className="pet-devotion-panel">
+                <div className="pet-xp-heading">
+                  <strong>Devotion {devotion.tier}{devotion.capped ? " · Max" : ""}</strong>
+                  <span>{devotion.capped ? "Nothing left to prove" : `${devotion.into} / ${devotion.need}`}</span>
+                </div>
+                <div className="pet-xp-bar" aria-label={`${devotion.pct}% devotion progress`}>
+                  <div className="pet-xp-fill is-devotion" style={{ width: `${devotion.pct}%` }} />
+                </div>
+                <p className="pet-care-note">
+                  {streak > 0
+                    ? `${streak}-day streak — care is worth ${multiplier.toFixed(2)}x${streak >= STREAK_CAP ? " (maximum)" : ""}.`
+                    : "Look after them daily and care starts earning more."}
+                </p>
+              </div>
+            )}
+          </section>
+
+          <section className="pet-card">
+            <div className="pet-card-heading">
+              <div>
+                <p className="pet-eyebrow">Progress trail</p>
+                <h3 className="pet-h3">Where the XP came from</h3>
+              </div>
+              <span className="pet-total-pill">{xp} XP</span>
+            </div>
+            {sources.length > 0 ? (
+              <ul className="pet-sources">
+                {sources.map(row => (
+                  <li key={row.prefix}>
+                    <span className="pet-source-label">{row.label}</span>
+                    <span className="pet-source-track" aria-hidden="true">
+                      <span className="pet-source-fill" style={{ width: `${Math.round((row.xp / xp) * 100)}%` }} />
+                    </span>
+                    <span className="pet-source-xp">{row.xp}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="pet-empty-copy">Complete a class or deadline and the story of your XP will appear here.</p>
+            )}
+          </section>
+        </div>
       )}
 
-      <section className="pet-card">
+      {activeSection === "companions" && (
+      <section
+        className="pet-card pet-tab-panel"
+        id="pet-panel-companions"
+        role="tabpanel"
+        aria-labelledby="pet-tab-companions"
+      >
         <h3 className="pet-h3">
           Companions <span className="pet-h3-note">{unlocked.size} of {PETS.length}</span>
         </h3>
@@ -409,12 +512,44 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
               && " Two more are out there, earned by devotion rather than levels."}
         </p>
       </section>
+      )}
 
-      {wardrobeOn && (
-      <section className="pet-card">
-        <h3 className="pet-h3">
-          Wardrobe <span className="pet-h3-note">{earnedHats.size} of {HATS.filter(h => !hatsOff.includes(h.key)).length}</span>
-        </h3>
+      {activeSection === "wardrobe" && (wardrobeOn ? (
+      <section
+        className="pet-card pet-tab-panel"
+        id="pet-panel-wardrobe"
+        role="tabpanel"
+        aria-labelledby="pet-tab-wardrobe"
+      >
+        <div className="pet-card-heading">
+          <div>
+            <p className="pet-eyebrow">Make it theirs</p>
+            <h3 className="pet-h3">Wardrobe</h3>
+          </div>
+          <span className="pet-total-pill">{earnedHats.size + earnedNeck.size + earnedCoats.size} earned</span>
+        </div>
+        <div className="pet-subtabs" role="tablist" aria-label="Wardrobe categories">
+          {WARDROBE_SECTIONS.map((section, index) => (
+            <button
+              key={section.id}
+              type="button"
+              id={`pet-wardrobe-tab-${section.id}`}
+              role="tab"
+              aria-selected={wardrobeSection === section.id}
+              aria-controls={`pet-wardrobe-panel-${section.id}`}
+              className={wardrobeSection === section.id ? "is-active" : ""}
+              tabIndex={wardrobeSection === section.id ? 0 : -1}
+              onClick={() => setWardrobeSection(section.id)}
+              onKeyDown={event => moveTabFocus(event, index, WARDROBE_SECTIONS, setWardrobeSection)}
+            >
+              {section.label}
+            </button>
+          ))}
+        </div>
+
+        {wardrobeSection === "hats" && (
+        <div className="pet-wardrobe-pane" id="pet-wardrobe-panel-hats" role="tabpanel" aria-labelledby="pet-wardrobe-tab-hats">
+        <p className="pet-collection-note">{earnedHats.size} of {HATS.filter(h => !hatsOff.includes(h.key)).length} hats unlocked</p>
         <div className="pet-wardrobe">
           <button
             type="button"
@@ -455,10 +590,14 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
               ? "Devotion keeps the wardrobe growing — every tier past level 12 opens something."
               : "More arrive as you level, and more still after level 12."}
         </p>
+        </div>
+        )}
 
         {/* A second slot, independent of the hat. Two slots multiply: the
             wardrobe grows faster than the art does. */}
-        <h4 className="pet-h4">Collars</h4>
+        {wardrobeSection === "collars" && (
+        <div className="pet-wardrobe-pane" id="pet-wardrobe-panel-collars" role="tabpanel" aria-labelledby="pet-wardrobe-tab-collars">
+        <p className="pet-collection-note">{earnedNeck.size} of {NECKWEAR.length} collars unlocked</p>
         <div className="pet-wardrobe">
           <button
             type="button"
@@ -492,11 +631,15 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
             );
           })}
         </div>
+        </div>
+        )}
 
         {/* Coats recolour the animal you already have, which is why they are
             devotion-only: they are for the stretch where there is nothing new
             left to unlock. */}
-        <h4 className="pet-h4">Coats</h4>
+        {wardrobeSection === "coats" && (
+        <div className="pet-wardrobe-pane" id="pet-wardrobe-panel-coats" role="tabpanel" aria-labelledby="pet-wardrobe-tab-coats">
+        <p className="pet-collection-note">{earnedCoats.size} of {COATS.length} coats unlocked</p>
         <div className="pet-wardrobe">
           <button
             type="button"
@@ -538,15 +681,37 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
             );
           })}
         </div>
+        </div>
+        )}
       </section>
-      )}
+      ) : (
+        <section
+          className="pet-card pet-tab-panel pet-empty-state"
+          id="pet-panel-wardrobe"
+          role="tabpanel"
+          aria-labelledby="pet-tab-wardrobe"
+        >
+          <Shirt size={24} aria-hidden="true" />
+          <h3 className="pet-h3">Wardrobe unavailable</h3>
+          <p>Your cohort has wardrobe customisation turned off.</p>
+        </section>
+      ))}
 
-      {/* Titles. Every one is derived from the pet's own history, so this is a
-          read-out of what actually happened, not a second currency. */}
+      {activeSection === "profile" && (
+      <div
+        className="pet-tab-panel pet-profile-grid"
+        id="pet-panel-profile"
+        role="tabpanel"
+        aria-labelledby="pet-tab-profile"
+      >
       <section className="pet-card">
-        <h3 className="pet-h3">
-          Titles <span className="pet-h3-note">{earnedTitles.size} of {TITLES.length}</span>
-        </h3>
+        <div className="pet-card-heading">
+          <div>
+            <p className="pet-eyebrow">Achievements</p>
+            <h3 className="pet-h3">Titles</h3>
+          </div>
+          <span className="pet-total-pill">{earnedTitles.size} of {TITLES.length}</span>
+        </div>
         <div className="pet-titles">
           <button
             type="button"
@@ -576,7 +741,8 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
       </section>
 
       <section className="pet-card">
-        <h3 className="pet-h3">Details</h3>
+        <p className="pet-eyebrow">Personalise</p>
+        <h3 className="pet-h3">Companion details</h3>
         <label className="pet-field">
           <span>Name</span>
           <input
@@ -601,6 +767,8 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
         </label>
         {pet.adoptedAt && <p className="pet-care-note">Together since {pet.adoptedAt}.</p>}
       </section>
+      </div>
+      )}
     </div>
   );
 }

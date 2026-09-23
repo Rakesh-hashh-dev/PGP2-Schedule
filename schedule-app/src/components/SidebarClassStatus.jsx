@@ -1,11 +1,11 @@
 import { Clock } from "lucide-react";
-import { prettyDate } from "../lib/datetime.js";
+import { fmtTime12, prettyDate } from "../lib/datetime.js";
 
 export default function SidebarClassStatus({ current, todayISO, isArchivedView, onOpen, showSbTip, hideSbTip }) {
   const item = isArchivedView ? null : current;
   if (!item) return null;
   const label = "In class";
-  const detail = [item.date !== todayISO ? prettyDate(item.date) : "Today", `${item.start}–${item.end}`, item.room].filter(Boolean).join(" · ");
+  const detail = [item.date !== todayISO ? prettyDate(item.date) : "Today", `${fmtTime12(item.start)}–${fmtTime12(item.end)}`, item.room].filter(Boolean).join(" · ");
   const tip = [label, item.name, detail].join(" · ");
   return (
     <button type="button" className="sb-class-status is-live"

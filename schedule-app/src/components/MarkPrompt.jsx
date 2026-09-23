@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Check, X, ClipboardCheck } from "lucide-react";
 import { sessionKey, isExamSession } from "../lib/attendance.js";
+import { fmtTime12 } from "../lib/datetime.js";
 
 function clsEnd(c) {
   const [Y, Mo, D] = c.date.split("-").map(Number);
@@ -39,7 +40,7 @@ export default function MarkPrompt({ list, now, attendance, markAttendance }) {
         <div key={sessionKey(c)} className="mark-prompt-row">
           <div className="mark-prompt-info">
             <span className="mark-prompt-name">{c.name}</span>
-            <span className="mark-prompt-meta">{c.start}–{c.end}{c.room ? ` · ${c.room}` : ""}</span>
+            <span className="mark-prompt-meta">{fmtTime12(c.start)}–{fmtTime12(c.end)}{c.room ? ` · ${c.room}` : ""}</span>
           </div>
           <div className="att-btns">
             <button className="att-b present" onClick={() => markAttendance(c, "present")} aria-label={`Mark present for ${c.name}`}>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Megaphone, PlusCircle, MinusCircle, ArrowRightLeft, BookOpen, Info, ChevronDown, ChevronUp, ChevronRight, CheckCheck, AlertTriangle, Check, EyeOff, Volume2, VolumeX, CheckCircle2, Search, X, CalendarPlus } from "lucide-react";
+import { Megaphone, PlusCircle, MinusCircle, ArrowRightLeft, BookOpen, Info, ChevronDown, ChevronUp, ChevronRight, CheckCheck, AlertTriangle, Check, EyeOff, Volume2, VolumeX, CheckCircle2, Search, X, CalendarPlus, Settings2, Inbox, BellRing } from "lucide-react";
 import { useNotificationState } from "../hooks/useNotificationState.js";
 import { useNotificationFeed, FEED_PAGE_SIZE } from "../hooks/useNotificationFeed.js";
 import { SwipeRow } from "./notifications/SwipeRow.jsx";
@@ -7,6 +7,7 @@ import { PushToggle } from "./notifications/PushToggle.jsx";
 import { NotificationPrefsPanel } from "./notifications/NotificationPrefsPanel.jsx";
 import CohortPolls from "./notifications/CohortPolls.jsx";
 import { EmptyState } from "./ui.jsx";
+import { notificationDateParts } from "../lib/notificationWorkspace.js";
 
 const SWIPE_HINT_KEY = "pgp2.notif-swipe-hint-seen";
 const LOAD_TS = Date.now();
@@ -21,10 +22,9 @@ const KIND_META = {
 const KIND_VERB = { added: "added", removed: "cancelled", moved: "shifted", course: "renamed", update: "updated" };
 const KIND_FILTERS = [
   { id: "all", label: "All" },
-  { id: "removed", label: "Cancelled", cls: "nk-removed" },
-  { id: "moved", label: "Moved", cls: "nk-moved" },
+  { id: "critical", label: "Cancelled & moved", cls: "nk-removed" },
   { id: "added", label: "Added", cls: "nk-added" },
-  { id: "update", label: "Updates", cls: "nk-update" },
+  { id: "update", label: "Course updates", cls: "nk-update" },
 ];
 
 function relTime(iso) {
@@ -38,19 +38,30 @@ function relTime(iso) {
 
 export default function NotificationsPage({ allChanges, myChanges, isAdmin, userId, userName, legend, readChangeKeys, changeKeyOf, onMarkReadMany, onMarkAllRead, onOpenDate, openPrefsSignal, onOpenCalendarExport }) {
   const [pushStatus, setPushStatus] = useState("busy");
-  const [showAll, setShowAll] = useState(false);
+  const [activeView, setActiveView] = useState("mine");
   const [kindFilter, setKindFilter] = useState("all");
   const [groupMode, setGroupMode] = useState("date"); // "date" | "course"
   const [expanded, setExpanded] = useState({});
   const [syncState, setSyncState] = useState("idle"); // idle | syncing | synced
   const [query, setQuery] = useState("");
-  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [showAlertSettings, setShowAlertSettings] = useState(false);
+  const [handledPrefsSignal, setHandledPrefsSignal] = useState(openPrefsSignal);
   const [nowTick, setNowTick] = useState(LOAD_TS);
   const [swipeHintSeen, setSwipeHintSeen] = useState(() => { try { return localStorage.getItem(SWIPE_HINT_KEY) === "1"; } catch { return true; } });
   const [olderOpen, setOlderOpen] = useState(false);
 
   const syncTimer = useRef(null);
   useEffect(() => () => clearTimeout(syncTimer.current), []);
+  if (openPrefsSignal && openPrefsSignal !== handledPrefsSignal) {
+    setHandledPrefsSignal(openPrefsSignal);
+    setShowAlertSettings(true);
+  }
+  useEffect(() => {
+    if (!showAlertSettings) return undefined;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previous; };
+  }, [showAlertSettings]);
   useEffect(() => {
     const id = setInterval(() => setNowTick(Date.now()), 60_000);
     return () => clearInterval(id);
@@ -58,6 +69,7 @@ export default function NotificationsPage({ allChanges, myChanges, isAdmin, user
 
   const readKeys = readChangeKeys || new Set();
   const keyOf = changeKeyOf || (c => `${c.ts}-${c.code || ""}`);
+  const showAll = activeView === "all";
 
   const {
     dismissed,
@@ -99,7 +111,6 @@ export default function NotificationsPage({ allChanges, myChanges, isAdmin, user
     dismissedInScope,
     newPillCount,
     setNewPillCount,
-    hasAnyChanges
   } = feedProps;
 
   function trackSync(promise) {
@@ -126,6 +137,7 @@ export default function NotificationsPage({ allChanges, myChanges, isAdmin, user
     const meta = KIND_META[c.kind] || { Icon: Info, label: c.kind || "Update", cls: "nk-update" };
     const { Icon, cls } = meta;
     const unread = !readKeys.has(keyOf(c));
+    const { affectedWhen, summary } = notificationDateParts(c);
     return (
       <li key={c.id}>
         <SwipeRow
@@ -149,8 +161,9 @@ export default function NotificationsPage({ allChanges, myChanges, isAdmin, user
               <div className="notif-pg-body">
                 <span className="notif-pg-text">
                   <span className="notif-kind-badge">{meta.label}</span>
-                  {c.text}
+                  <strong className="notif-update-summary">{summary}</strong>
                 </span>
+                <span className="notif-affected-when">{affectedWhen}</span>
               </div>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px", flex: "none" }}>
                 <span className="notif-pg-time">
@@ -245,88 +258,64 @@ export default function NotificationsPage({ allChanges, myChanges, isAdmin, user
 
   const renderItem = (it, isAttn = false) => (it.type === "bundle" ? renderBundle(it, isAttn) : renderSingle(it, isAttn));
 
-  if (!hasAnyChanges) {
-    return (
-      <div className="notif-pg">
-        <div className="notif-pg-head">
-          <div className="notif-pg-head-title">
-            <Megaphone size={18} strokeWidth={2} />
-            <h2>Announcements</h2>
-          </div>
-          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
-            {onOpenCalendarExport && (
-              <button className="notif-markall mobile-only" onClick={onOpenCalendarExport} aria-label="Add to Calendar" title="Add to Calendar">
-                <CalendarPlus size={13} /> <span className="notif-btn-label">Add to Calendar</span>
-              </button>
-            )}
-            <PushToggle userId={userId} onStatusChange={setPushStatus} />
-          </div>
-        </div>
-        {pushStatus === "on" && <NotificationPrefsPanel userId={userId} openSignal={openPrefsSignal} />}
-        <CohortPolls userId={userId} userName={userName} isAdmin={isAdmin} />
-        <EmptyState
-          icon={CheckCircle2}
-          title="You're all caught up"
-          sub="No recent announcements for your subjects."
-          action={onOpenCalendarExport && <button className="notif-show-all-link" onClick={onOpenCalendarExport}><CalendarPlus size={13} /> Add your classes to calendar</button>}
-        />
-      </div>
-    );
-  }
-
   const feed = [...attnItems, ...groups.flatMap(g => g.items)];
 
   return (
     <div className="notif-pg">
-      {/* Header */}
-      <div className="notif-pg-head">
-        <div className="notif-pg-head-title">
-          <Megaphone size={18} strokeWidth={2} />
-          <h2>Announcements</h2>
-          {unreadCount > 0 ? (
-            <span className="notif-pg-count notif-pg-count-unread">{unreadCount} new</span>
-          ) : changes.length > 0 && (
-            <span className="notif-pg-count">{changes.length}</span>
-          )}
+      <header className="notif-workspace-head">
+        <div className="notif-workspace-copy">
+          <span className="notif-eyebrow"><Megaphone size={13} /> Schedule intelligence</span>
+          <h1>Announcements</h1>
+          <p>Important timetable changes and campus updates, ordered by what needs your attention.</p>
+          <div className="notif-workspace-metrics" aria-label="Announcement summary">
+            <span className={attnItems.length ? "is-urgent" : ""}><strong>{attnItems.length}</strong> need attention</span>
+            <span><strong>{unreadCount}</strong> unread</span>
+            <span><strong>{weekTotal}</strong> this week</span>
+          </div>
+        </div>
+        <div className="notif-workspace-actions">
           {syncState !== "idle" && (
             <span className={`notif-sync-pill${syncState === "synced" ? " synced" : ""}`}>
               {syncState === "synced" ? <><Check size={11} strokeWidth={3} /> Synced</> : "Syncing…"}
             </span>
           )}
-        </div>
-        <div className="notif-pg-head-controls">
-        {unreadCount > 0 && (
-          <button className="notif-markall" onClick={() => trackSync(onMarkAllRead?.())} aria-label="Mark all read" title="Mark all announcements as read">
-            <CheckCheck size={13} /> <span className="notif-btn-label">Mark all read</span>
-          </button>
-        )}
-        {onOpenCalendarExport && (
-          <button className="notif-markall mobile-only" onClick={onOpenCalendarExport} aria-label="Add to Calendar" title="Add to Calendar">
-            <CalendarPlus size={13} /> <span className="notif-btn-label">Add to Calendar</span>
-          </button>
-        )}
-        <PushToggle userId={userId} onStatusChange={setPushStatus} />
-        {/* Compact scope toggle */}
-        <div className="notif-scope-toggle">
-          <button
-            className={`notif-scope-btn${!showAll ? " notif-scope-active" : ""}`}
-            onClick={() => setShowAll(false)}
-          >
-            Mine
-          </button>
-          <button
-            className={`notif-scope-btn${showAll ? " notif-scope-active" : ""}`}
-            onClick={() => setShowAll(true)}
-          >
-            All
+          {unreadCount > 0 && activeView !== "polls" && (
+            <button className="notif-markall notif-markall-primary" onClick={() => trackSync(onMarkAllRead?.())}>
+              <CheckCheck size={14} /> Mark all read
+            </button>
+          )}
+          <button className="notif-markall" onClick={() => setShowAlertSettings(true)}>
+            <Settings2 size={14} /> Manage alerts
           </button>
         </div>
-        </div>
-      </div>
+      </header>
 
-      {pushStatus === "on" && <NotificationPrefsPanel userId={userId} />}
+      <nav className="notif-view-tabs" aria-label="Announcement sections">
+        <button className={activeView === "mine" ? "is-active" : ""} onClick={() => setActiveView("mine")}><Inbox size={15} /> My subjects</button>
+        <button className={activeView === "all" ? "is-active" : ""} onClick={() => setActiveView("all")}><Megaphone size={15} /> All updates</button>
+        <button className={activeView === "polls" ? "is-active" : ""} onClick={() => setActiveView("polls")}><BellRing size={15} /> Polls</button>
+      </nav>
 
-      <CohortPolls userId={userId} userName={userName} isAdmin={isAdmin} />
+      {showAlertSettings && (
+        <div className="notif-settings-backdrop" onClick={() => setShowAlertSettings(false)}>
+          <section className="notif-settings-sheet" role="dialog" aria-modal="true" aria-labelledby="notif-settings-title" onClick={e => e.stopPropagation()}>
+            <div className="notif-settings-head">
+              <div><span className="notif-eyebrow">Delivery preferences</span><h2 id="notif-settings-title">Manage alerts</h2><p>Choose how TermFlow reaches you about timetable changes.</p></div>
+              <button className="notif-settings-close" onClick={() => setShowAlertSettings(false)} aria-label="Close alert settings"><X size={18} /></button>
+            </div>
+            <div className="notif-settings-actions">
+              <PushToggle userId={userId} onStatusChange={setPushStatus} />
+              {onOpenCalendarExport && <button className="notif-markall" onClick={onOpenCalendarExport}><CalendarPlus size={14} /> Add to Calendar</button>}
+            </div>
+            {pushStatus === "on" ? <NotificationPrefsPanel userId={userId} openSignal={openPrefsSignal} /> : <div className="notif-settings-note"><BellRing size={17} /><span>Enable push to configure class reminders, morning summaries and cancellation alerts.</span></div>}
+          </section>
+        </div>
+      )}
+
+      {activeView === "polls" ? (
+        <CohortPolls userId={userId} userName={userName} isAdmin={isAdmin} showEmpty />
+      ) : (
+      <>
 
       {newPillCount > 0 && (
         <button
@@ -336,26 +325,6 @@ export default function NotificationsPage({ allChanges, myChanges, isAdmin, user
         >
           <ChevronUp size={13} /> {newPillCount} new
         </button>
-      )}
-
-      {weekTotal > 0 && (
-        <div className="notif-week-strip">
-          <span className="notif-week-strip-label">This week</span>
-          <div className="notif-week-strip-segs">
-            {feedProps.kindCounts.added > 0 && (
-              <button className="notif-week-seg nk-added" onClick={() => setKindFilter("added")}>{feedProps.kindCounts.added} added</button>
-            )}
-            {feedProps.kindCounts.removed > 0 && (
-              <button className="notif-week-seg nk-removed" onClick={() => setKindFilter("removed")}>{feedProps.kindCounts.removed} cancelled</button>
-            )}
-            {feedProps.kindCounts.moved > 0 && (
-              <button className="notif-week-seg nk-moved" onClick={() => setKindFilter("moved")}>{feedProps.kindCounts.moved} shifted</button>
-            )}
-            {feedProps.kindCounts.update > 0 && (
-              <button className="notif-week-seg nk-update" onClick={() => setKindFilter("update")}>{feedProps.kindCounts.update} updated</button>
-            )}
-          </div>
-        </div>
       )}
 
       {changes.length > 0 && (
@@ -428,9 +397,10 @@ export default function NotificationsPage({ allChanges, myChanges, isAdmin, user
       {changes.length === 0 ? (
         <EmptyState
           icon={CheckCircle2}
-          title="No changes for your subjects"
+          title={showAll ? "No updates available" : "You're all caught up"}
+          sub={showAll ? "There are no timetable changes to show." : "No unread changes for your subjects."}
           action={!showAll && extraCount > 0 && (
-            <button className="notif-show-all-link" onClick={() => setShowAll(true)}>
+            <button className="notif-show-all-link" onClick={() => setActiveView("all")}>
               Show {extraCount} other announcement{extraCount > 1 ? "s" : ""}
             </button>
           )}
@@ -512,12 +482,14 @@ export default function NotificationsPage({ allChanges, myChanges, isAdmin, user
           )}
 
           {!showAll && extraCount > 0 && (
-            <button className="notif-show-all-link" onClick={() => setShowAll(true)}>
+            <button className="notif-show-all-link" onClick={() => setActiveView("all")}>
               <ChevronDown size={13} />
               {extraCount} more announcement{extraCount > 1 ? "s" : ""} from other subjects
             </button>
           )}
         </div>
+      )}
+      </>
       )}
 
       {undo && (
@@ -527,36 +499,6 @@ export default function NotificationsPage({ allChanges, myChanges, isAdmin, user
         </div>
       )}
 
-      {changes.length > 0 && (
-        <>
-          <button
-            type="button"
-            className="notif-fab-search"
-            onClick={() => setMobileSearchOpen(v => !v)}
-            aria-label={mobileSearchOpen ? "Close search" : "Search announcements"}
-          >
-            {mobileSearchOpen ? <X size={19} /> : <Search size={18} />}
-          </button>
-          {mobileSearchOpen && (
-            <div className="notif-fab-search-panel">
-              <Search size={14} />
-              <input
-                type="text"
-                autoFocus
-                value={query}
-                onChange={e => setQuery(e.target.value)}
-                placeholder="Search announcements…"
-                aria-label="Search announcements"
-              />
-              {query && (
-                <button type="button" onClick={() => setQuery("")} title="Clear search">
-                  <X size={13} />
-                </button>
-              )}
-            </div>
-          )}
-        </>
-      )}
     </div>
   );
 }

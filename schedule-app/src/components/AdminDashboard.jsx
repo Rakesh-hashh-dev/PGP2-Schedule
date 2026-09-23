@@ -2362,15 +2362,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             <Icon size={16} />
             <span className="admin-tab-label">{label}</span>
             {isNew && (
-              <span style={{
-                background: "linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%)",
-                color: "#fff",
-                fontSize: "9px",
-                fontWeight: 800,
-                padding: "1px 5px",
-                borderRadius: "6px",
-                marginLeft: "4px"
-              }}>NEW</span>
+              <span className="admin-tab-badge-new">NEW</span>
             )}
           </button>
         ))}

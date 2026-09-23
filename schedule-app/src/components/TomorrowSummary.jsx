@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { MapPin, Bell, GraduationCap, Coffee, Sunset, Clock, Calendar, Utensils, CheckSquare, ArrowRight } from "lucide-react";
 import { wIcon } from "../lib/weather.js";
 import { subjectClass } from "../lib/subjectColors.js";
+import { fmtTime12 } from "../lib/datetime.js";
 import FreeDayIllustration from "./FreeDayIllustration.jsx";
 import "../styles/freeday.css";
 
@@ -67,7 +68,7 @@ function RailSeg({ c, left, width, isLast, isOpen, onToggle }) {
       className={`tmrw-rail-seg tmrw-rail-seg-${c.type} ${colorClass}${isOpen ? " is-open" : ""}`}
       style={{ left: `${left}%`, width: `${width}%`, borderRight: isLast ? "none" : "1.5px solid var(--card)" }}
       onClick={(e) => { e.stopPropagation(); onToggle(); }}
-      aria-label={`${fullLabel}, ${c.start} to ${c.end}${c.room ? `, room ${c.room}` : ""}`}
+      aria-label={`${fullLabel}, ${fmtTime12(c.start)} to ${fmtTime12(c.end)}${c.room ? `, room ${c.room}` : ""}`}
       aria-expanded={isOpen}
     />
   );
@@ -93,7 +94,7 @@ function RailDetailStrip({ c }) {
       )}
       <div className="tmrw-rail-detail-sep" />
       <div className="tmrw-rail-detail-row">
-        <span className="tmrw-rail-detail-item"><Clock size={12} />{c.start} – {c.end}</span>
+        <span className="tmrw-rail-detail-item"><Clock size={12} />{fmtTime12(c.start)} – {fmtTime12(c.end)}</span>
         <span className="tmrw-rail-detail-chip">{duration}</span>
       </div>
       {c.room && (
@@ -191,7 +192,7 @@ export default function TomorrowSummary({
                   onViewFullSchedule?.(nextClass.date);
                 }
               }}
-              aria-label={`Next class resumes ${formatNextClassDate(nextClass.date)} at ${nextClass.start}, ${nextClass.name}. View timetable.`}
+              aria-label={`Next class resumes ${formatNextClassDate(nextClass.date)} at ${fmtTime12(nextClass.start)}, ${nextClass.name}. View timetable.`}
             >
               <div className="tmrw-free-next-left">
                 <div className="tmrw-free-next-icon">
@@ -199,7 +200,7 @@ export default function TomorrowSummary({
                 </div>
                 <div className="tmrw-free-next-info">
                   <span className="tmrw-free-next-kicker">
-                    Classes resume {formatNextClassDate(nextClass.date)} · {nextClass.start}
+                    Classes resume {formatNextClassDate(nextClass.date)} · {fmtTime12(nextClass.start)}
                   </span>
                   <span className="tmrw-free-next-course">
                     {nextClass.code ? `${nextClass.code} · ` : ""}{nextClass.name}{nextClass.room ? ` (${nextClass.room})` : ""}
@@ -271,7 +272,7 @@ export default function TomorrowSummary({
         <div className="tmrw-summary-grid">
           <Stat icon={GraduationCap} tone="violet" label={classes.length === 1 ? "class" : "classes"} value={classes.length} />
           {breaks > 0 && <Stat icon={Coffee} tone="amber" label={breaks === 1 ? "break" : "breaks"} value={breaks} />}
-          <Stat icon={MapPin} tone="teal" label={`first · ${first.room || "TBA"}`} value={first.start} />
+          <Stat icon={MapPin} tone="teal" label={`first · ${first.room || "TBA"}`} value={fmtTime12(first.start)} />
           <Stat icon={Sunset} tone="blue" label="free after" value={lastEnd} />
         </div>
         {railItems.length > 0 && (
@@ -296,7 +297,7 @@ export default function TomorrowSummary({
               })}
             </div>
             <div className="tmrw-rail-labels" aria-hidden="true">
-              <span>{first.start}</span>
+              <span>{fmtTime12(first.start)}</span>
               <span>{lastEnd}</span>
             </div>
             {openSeg !== null && railItems[openSeg] && <RailDetailStrip c={railItems[openSeg]} />}

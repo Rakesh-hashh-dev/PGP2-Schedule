@@ -1,7 +1,7 @@
 import { MORE_VIEWS } from "./lib/navItems.js";
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Suspense, lazy } from "react";
-import { createPortal } from "react-dom";
-import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, ChevronsLeft, ChevronsRight, Megaphone, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Sparkles, Wand2, BellRing, CalendarDays, ExternalLink, Download, Share, WifiOff, Zap, PanelBottom, PanelTop, PanelsTopLeft, Check, ChevronDown, Sun, Moon, Monitor, CalendarOff, CalendarRange, UtensilsCrossed, Package, Camera, Loader2, Wallet, Radio, History, PawPrint } from "lucide-react";
+import { createPortal, flushSync } from "react-dom";
+import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, ChevronsLeft, ChevronsRight, Megaphone, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Sparkles, Wand2, BellRing, CalendarDays, ExternalLink, Download, Share, WifiOff, Zap, PanelBottom, PanelTop, PanelsTopLeft, Check, ChevronDown, Sun, Moon, Monitor, CalendarOff, CalendarRange, UtensilsCrossed, Package, Camera, Loader2, Wallet, Radio, History, PawPrint, LayoutDashboard } from "lucide-react";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
 import DayGreeting from "./components/DayGreeting.jsx";
@@ -29,7 +29,7 @@ import { getSnapshot, fetchSchedule, sha256hex } from "./lib/sheet.js";
 import { taughtSectionsByCode, provisionalSectionCodes, applyRosterAllocation, manualSectionCodes, unscheduledCodes } from "./lib/sections.js";
 import { lookupOverride, buildOverrideAdds } from "./lib/overrides.js";
 import { safeUrl } from "./lib/safeUrl.js";
-import { toMin, ymd, clsDate, prettyDate, timeAgo, getSpecialDay } from "./lib/datetime.js";
+import { toMin, fmtTime12, ymd, clsDate, prettyDate, timeAgo, getSpecialDay } from "./lib/datetime.js";
 import {
   swUpdateIsStale, clearSwSeen,
   LAST_USER_KEY, VIEW_KEY, PENDING_INVITE_KEY, USER_SCOPED_KEYS,
@@ -60,6 +60,7 @@ const WrappedView = lazy(() => import("./components/WrappedView.jsx"));
 const BoardPage = lazy(() => import("./components/BoardPage.jsx"));
 const SplitPage = lazy(() => import("./components/SplitPage.jsx"));
 const PetPage = lazy(() => import("./components/PetPage.jsx"));
+const StudentPlanner = lazy(() => import("./components/StudentPlanner.jsx"));
 const CalendarExportModal = lazy(() => import("./components/CalendarExportModal.jsx"));
 import DeadlineStrip from "./components/DeadlineStrip.jsx";
 import CancellationAlert from "./components/CancellationAlert.jsx";
@@ -92,14 +93,23 @@ import "./styles/mobile-v2.css";
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent || "");
 
+// The ordering is only used to give adjacent schedule views a spatial sense
+// of direction. Everything else receives the same calm forward transition.
+const VIEW_MOTION_ORDER = [
+  "today", "tomorrow", "week", "fullSchedule", "planner", "attendance",
+  "exams", "assignments", "notifications", "friends", "board", "split",
+  "leave", "pet", "wrapped", "glance", "admin",
+];
+
 // Views that live behind the sidebar's collapsed Tools accordion / the
 // mobile overflow menu's Tools section — candidates for the "Recent" row.
 // Mobile overflow-sheet Tools section (and its "Recent" shortcut). The desktop
 // sidebar moved to lib/navItems.js and regrouped — Full timetable is a Schedule
 // view there — so these two deliberately keep the older mobile grouping until
 // the sheet is migrated onto the same config.
-const TOOLS_VIEWS = ["fullSchedule", "split", "leave", "wrapped", "pet"];
+const TOOLS_VIEWS = ["fullSchedule", "planner", "split", "leave", "wrapped", "pet"];
 const TOOLS_VIEW_META = {
+  planner:      { icon: LayoutDashboard, label: "Personal planner" },
   fullSchedule: { icon: CalendarRange, label: "Full timetable" },
   split:        { icon: Wallet,        label: "Split" },
   leave:        { icon: CalendarOff,   label: "Leave planner" },
@@ -313,7 +323,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // override nor the ticking clock changed — otherwise every render produced a
   // fresh Date and churned all the useMemo/useEffect hooks that depend on it.
   const now = useMemo(() => (timeOverride ? new Date(timeOverride) : realNow), [timeOverride, realNow]);
-  const [view, setView] = useState(() => {
+  const [view, setViewState] = useState(() => {
     try {
       const v = localStorage.getItem(VIEW_KEY) || "today";
       if (v === "courses") return "exams"; // retired view → its new home
@@ -322,6 +332,32 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       return v;
     } catch { return "today"; }
   });
+  const currentViewRef = useRef(view);
+  const setView = useCallback((nextView) => {
+    const target = typeof nextView === "function"
+      ? nextView(currentViewRef.current)
+      : nextView;
+    const previous = currentViewRef.current;
+    if (!target || target === previous) return;
+
+    currentViewRef.current = target;
+    const previousIndex = VIEW_MOTION_ORDER.indexOf(previous);
+    const targetIndex = VIEW_MOTION_ORDER.indexOf(target);
+    const direction = previousIndex >= 0 && targetIndex >= 0 && targetIndex < previousIndex
+      ? "backward"
+      : "forward";
+    const commit = () => setViewState(target);
+    const reduceMotion = typeof window !== "undefined"
+      && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+    if (typeof document === "undefined" || reduceMotion || !document.startViewTransition) {
+      commit();
+      return;
+    }
+
+    document.documentElement.dataset.viewDirection = direction;
+    document.startViewTransition(() => flushSync(commit));
+  }, []);
   // Glance is a shortcut peek, not a destination — don't make it the view the
   // app re-opens on next launch.
   useEffect(() => { if (view !== "glance") { try { localStorage.setItem(VIEW_KEY, view); } catch { } } }, [view]);
@@ -360,7 +396,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       if (view === "admin") setView("today");
       setTimeOverride(null);
     }
-  }, [view, showAdminUI, identityResolved]);
+  }, [view, showAdminUI, identityResolved, setView]);
   // Recently visited Tools-group views — the sidebar's Tools accordion is
   // collapsed by default (see sbToolsOpen below), so a "Full timetable" or
   // "Split" visit is otherwise a click-to-expand away every single time.
@@ -434,7 +470,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const { pet: myPet, actions: petActions, moment: petMoment, XP: petXP, keyFor: petKeyFor } = usePet(userId, { xpRate: sysConfig?.flags?.greetingPets?.xpRate });
   const [syncing, setSyncing] = useState(false);
   const [overflowOpen, setOverflowOpen] = useState(false);
-  const { mobileUiVersion, setMobileUiVersion } = useMobileUiVersion();
+  const { mobileUiVersion, setMobileUiVersion, v2Active } = useMobileUiVersion();
   const [mobileV2MoreOpen, setMobileV2MoreOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [greetingPetsEnabled, setGreetingPetsEnabled] = useState(() => {
@@ -515,6 +551,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       window.removeEventListener("orientationchange", update);
     };
   }, []);
+  useEffect(() => {
+    if (isTablet || !v2Active) setMobileV2MoreOpen(false);
+  }, [isTablet, v2Active]);
   const {
     sidebarCollapsed, sbCollapsed, toggleSidebar,
     sbStyle, setSidebarStyle,
@@ -624,7 +663,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   useEffect(() => {
     const DEEP_LINK_VIEWS = new Set([
       "today", "tomorrow", "week", "attendance", "exams", "assignments", "pet",
-      "notifications", "friends", "leave", "glance", "board", "split",
+      "notifications", "friends", "leave", "glance", "board", "split", "planner",
     ]);
     const captureFromUrl = () => {
       const params = new URLSearchParams(window.location.search);
@@ -670,7 +709,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       window.removeEventListener("focus", captureFromUrl);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, []);
+  }, [setView]);
 
   // Consume a captured invite once signed in, through the same friend-request
   // flow as manual code entry (request + accept), instead of the old silent
@@ -2139,7 +2178,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     : view === "today" || view === "tomorrow" ? "TermFlow"
       : view === "week" || view === "fullSchedule" ? "Schedule"
         : view === "assignments" || view === "exams" ? "Tasks"
-          : view === "attendance" ? "Attendance"
+        : view === "attendance" ? "Attendance"
+          : view === "planner" ? "Personal planner"
             : view === "notifications" ? "Announcements"
               : view === "friends" ? "Social"
                 : view === "board" ? "Campus Board"
@@ -2329,6 +2369,18 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             <button className={sbStyle === "aurora" ? "on" : ""} onClick={() => setSidebarStyle("aurora")}>Aurora</button>
           </div>
         </div>
+        {isTablet && (
+          <>
+            <div className="sb-pop-sep" />
+            <div className="sb-pop-style">
+              <span className="sb-pop-style-label">Interface</span>
+              <div className="sb-pop-seg" role="radiogroup" aria-label="Tablet interface">
+                <button type="button" role="radio" aria-checked={mobileUiVersion === "v1"} className={mobileUiVersion === "v1" ? "on" : ""} onClick={() => setMobileUiVersion("v1")}>V1</button>
+                <button type="button" role="radio" aria-checked={mobileUiVersion === "v2"} className={mobileUiVersion === "v2" ? "on" : ""} onClick={() => setMobileUiVersion("v2")}>V2</button>
+              </div>
+            </div>
+          </>
+        )}
         <div className="sb-pop-sep" />
         <button className="sb-pop-pref" onClick={toggleGreetingPets} aria-pressed={greetingPetsEnabled}>
           Your Pet <strong>{greetingPetsEnabled ? "On" : "Off"}</strong>
@@ -2367,7 +2419,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   );
 
   return (
-    <div className={`app-shell${mobileUiVersion === "v2" ? " mobile-ui-v2" : " mobile-ui-v1"}`}>
+    <div className={`app-shell${v2Active ? " mobile-ui-v2" : " mobile-ui-v1"}`}>
       {/* ── Dev→Prod Migration Banner (one-time, self-removing) ── */}
       {migrationState && <MigrationBanner state={migrationState} />}
 
@@ -2623,7 +2675,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               {overflowOpen && (
                 <>
                   <div className="notif-backdrop" onClick={() => setOverflowOpen(false)} />
-                  <div className={`over-menu${mobileUiVersion === "v2" ? " mobile-v2-quick-menu" : ""}`}>
+                  <div className={`over-menu${v2Active ? " mobile-v2-quick-menu" : ""}`}>
                     <MobileUiVersionMenu
                       version={mobileUiVersion}
                       onVersionChange={(next) => {
@@ -2633,7 +2685,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       }}
                       theme={theme}
                       onThemeChange={pickTheme}
-                      showAppearance={mobileUiVersion === "v2"}
+                      showAppearance={v2Active}
                     />
                     <div className="over-profile">
                       <UserAvatar user={user} size={36} />
@@ -2713,6 +2765,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       <div className="over-section-body">
                         <button onClick={() => { setView("fullSchedule"); setCompareTarget(null); setOverflowOpen(false); }}>
                           <CalendarRange size={14} /> Full timetable
+                        </button>
+                        <button onClick={() => { setView("planner"); setCompareTarget(null); setOverflowOpen(false); }}>
+                          <LayoutDashboard size={14} /> Personal planner
                         </button>
                         <button onClick={() => { setMessMenuOpen(true); setOverflowOpen(false); }}>
                           <UtensilsCrossed size={14} /> Mess menu
@@ -2856,9 +2911,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           </span>
         </div>
 
-        <div className="desk-layout" style={view === "friends" || view === "admin" || view === "wrapped" ? { gridTemplateColumns: "minmax(0, 1fr)" } : {}}>
+        <div className="desk-layout" style={view === "friends" || view === "admin" || view === "wrapped" || view === "planner" ? { gridTemplateColumns: "minmax(0, 1fr)" } : {}}>
           <main className="main-col">
-            {mobileUiVersion === "v2" && !mobileV2MoreOpen && (
+            {v2Active && !mobileV2MoreOpen && (
               <MobileV2Switcher view={view} examsEnabled={enableExams} onNavigate={navigateMobileV2} />
             )}
             {showTopTabs && (
@@ -3072,7 +3127,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 type="button"
                 className={`now-banner${current ? "" : " is-next"}`}
                 onClick={() => setView("today")}
-                aria-label={`${current ? "Now" : "Up next"}: ${(current || next).name} at ${(current || next).start}. Go to Today.`}
+                aria-label={`${current ? "Now" : "Up next"}: ${(current || next).name} at ${fmtTime12((current || next).start)}. Go to Today.`}
               >
                 <span className="now-banner-dot" />
                 <span className="now-banner-label">{current ? "NOW" : "UP NEXT"}</span>
@@ -3084,11 +3139,15 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                     </span>
                   )}
                 </span>
-                <span className="now-banner-time">{(current || next).start}{current ? `–${current.end}` : ""}</span>
+                <span className="now-banner-time">{fmtTime12((current || next).start)}{current ? `–${fmtTime12(current.end)}` : ""}</span>
                 <span className="now-banner-go">Today →</span>
               </button>
             )}
-            <div className={view === "week" ? "pane-today hide-mobile" : "pane-today"}>
+            <div
+              key={`${view}:${compareTarget ? "compare" : "primary"}`}
+              className={`${view === "week" ? "pane-today hide-mobile" : "pane-today"} tf-page-stage`}
+              data-page={view}
+            >
               <Suspense fallback={<div className="loading-screen" style={{ minHeight: "300px" }}><TermFlowLoader size={48} /></div>}>
                 {compareTarget
                   ? <CompareView
@@ -3165,6 +3224,25 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       planDraft={planDraft}
                       onPlanDraftConsumed={() => setPlanDraft(null)}
                     />
+                    : view === "planner"
+                      ? <StudentPlanner
+                          visible={activeVisible}
+                          today={activeVisible.filter(c => c.date === todayISO).sort((a, b) => toMin(a.start) - toMin(b.start))}
+                          tomorrow={activeVisible.filter(c => c.date === tomorrowISO).sort((a, b) => toMin(a.start) - toMin(b.start))}
+                          now={now}
+                          attendance={attendance}
+                          enrolled={activeEnrolled}
+                          legend={activeEnrolledLegend}
+                          changes={activeChanges.filter(c => !c.code || activeMine.has(c.code))}
+                          readChangeKeys={readChangeKeys}
+                          changeKeyOf={changeKey}
+                          isOffline={isOffline}
+                          syncing={syncing}
+                          syncedAgo={syncedAgo}
+                          onSync={handleSync}
+                          onNavigate={(nextView) => { setView(nextView); setCompareTarget(null); }}
+                          onOpenChange={(c) => { setJumpToSession({ date: c.date, code: c.code, start: c.start }); setView("fullSchedule"); }}
+                        />
                     : view === "exams"
                       ? <ExamsPanel
                         allClasses={activeClasses}
@@ -3359,14 +3437,14 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               )}
             </div>
           </main>
-          <aside className={view !== "week" ? "side-col hide-mobile" : "side-col side-col-week"} style={view === "friends" || view === "admin" || view === "wrapped" ? { display: "none" } : {}}>
+          <aside className={view !== "week" ? "side-col hide-mobile" : "side-col side-col-week"} style={view === "friends" || view === "admin" || view === "wrapped" || view === "planner" ? { display: "none" } : {}}>
             <WeekAgenda visible={visible} now={now} offset={weekOffset} setOffset={setWeekOffset} todayISO={todayISO} onViewFullSchedule={(iso) => { setJumpToDate(iso); setView("fullSchedule"); }} />
           </aside>
 
           {/* Floating Schedule button & Modal for wide-content views —
               the docked agenda is hidden there so the wide content gets the full
               row; desktop only (.fr-agenda-fab is display:none below 900px) */}
-          {(view === "friends" || view === "admin" || view === "wrapped") && (
+          {(view === "friends" || view === "admin" || view === "wrapped" || view === "planner") && (
             <>
               <button className="fr-agenda-fab" onClick={() => setShowFriendsAgenda(true)} title="View Schedule">
                 <Calendar size={22} />
@@ -3386,7 +3464,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           )}
         </div>
 
-        {mobileUiVersion === "v2" && mobileV2MoreOpen && (
+        {v2Active && mobileV2MoreOpen && (
           <MobileV2MorePage
             user={user}
             unreadCount={unreadTotal}
@@ -3596,9 +3674,12 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 </span>
               </button>
             )}
+            <button className={`bnav-btn${view === "planner" ? " on" : ""}`} aria-label="Planner" aria-current={view === "planner" ? "page" : undefined} onClick={() => { setView("planner"); setCompareTarget(null); }}>
+              <span className="bnav-icon"><LayoutDashboard size={19} /></span>
+            </button>
           </nav>
         )}
-        {mobileUiVersion === "v2" && (
+        {v2Active && (
           <MobileV2TabBar
             view={view}
             moreOpen={mobileV2MoreOpen}

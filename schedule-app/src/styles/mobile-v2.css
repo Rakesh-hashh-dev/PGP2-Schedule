@@ -1,12 +1,278 @@
-/* TermFlow mobile interface V2.
-   Every layout rule is phone-scoped so V1, tablet landscape and desktop keep
-   their existing rendering. */
+/* TermFlow compact interface V2.
+   Active on phones and tablets up to 1200px. Tablet landscape retains the
+   collapsed sidebar; desktop widths keep the existing V1 rendering. */
 
 .mobile-v2-only,
 .mobile-v2-tabbar,
 .mobile-v2-switcher,
 .mobile-v2-more-page {
   display: none;
+}
+
+/* Today timeline — compact V2 integration. Portrait tablets use the same
+   readable rail; landscape tablets retain the denser desktop timeline. */
+@media (max-width: 760px),
+  (min-width: 768px) and (max-width: 1024px) and (orientation: portrait) {
+  /* Container shell matches V2 card rhythm (16px radius, subtle border) */
+  .mobile-ui-v2 .timeline-today {
+    border-radius: 16px !important;
+    margin: 8px 0;
+    box-shadow: 0 1px 3px rgba(31, 25, 52, .04), 0 8px 24px rgba(31, 25, 52, .05);
+  }
+
+  /* Header — compact, balanced layout */
+  .mobile-ui-v2 .timeline-today .timeline-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 12px 9px;
+  }
+
+  .mobile-ui-v2 .timeline-today .timeline-eyebrow {
+    font-size: 8px;
+    margin-bottom: 2px;
+  }
+
+  .mobile-ui-v2 .timeline-today .timeline-title-row {
+    gap: 6px;
+  }
+
+  .mobile-ui-v2 .timeline-today .timeline-title-row h2 {
+    font-size: 17px;
+    font-weight: 800;
+    line-height: 1.1;
+  }
+
+  .mobile-ui-v2 .timeline-today .panel-date {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .mobile-ui-v2 .timeline-today .panel-refresh {
+    width: 24px;
+    height: 24px;
+    border-radius: 7px;
+  }
+
+  .mobile-ui-v2 .timeline-today .panel-refresh svg {
+    width: 13px;
+    height: 13px;
+  }
+
+  /* Header status pills — sleek compact capsules */
+  .mobile-ui-v2 .timeline-today .timeline-overview {
+    gap: 5px;
+    margin-left: auto;
+  }
+
+  .mobile-ui-v2 .timeline-today .timeline-status,
+  .mobile-ui-v2 .timeline-today .timeline-progress-copy {
+    min-height: 26px;
+    height: 26px;
+    padding: 0 8px;
+    border-radius: 99px;
+    gap: 5px;
+  }
+
+  .mobile-ui-v2 .timeline-today .timeline-status-dot {
+    width: 6px;
+    height: 6px;
+  }
+
+  .mobile-ui-v2 .timeline-today .timeline-status-copy strong {
+    font-size: 9.5px;
+    letter-spacing: .02em;
+  }
+
+  .mobile-ui-v2 .timeline-today .timeline-progress-copy strong {
+    font-size: 11px;
+  }
+
+  .mobile-ui-v2 .timeline-today .timeline-progress-copy span {
+    font-size: 8.5px;
+  }
+
+  /* Rail layout */
+  .mobile-ui-v2 .timeline-today .rail {
+    padding: 7px 8px 10px;
+    gap: 4px;
+  }
+
+  /* Row grid override — wins over .mobile-ui-v2 .row flex rules */
+  .mobile-ui-v2 .timeline-today .row {
+    display: grid !important;
+    grid-template-columns: 50px 14px minmax(0, 1fr) auto !important;
+    align-items: stretch !important;
+    gap: 0 7px !important;
+    min-height: 46px !important;
+    margin: 0 !important;
+    padding: 2px 0 !important;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  /* Time column */
+  .mobile-ui-v2 .timeline-today .row-time {
+    min-width: 0 !important;
+    padding: 6px 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-end !important;
+    justify-content: center !important;
+    font-family: var(--mono) !important;
+  }
+
+  .mobile-ui-v2 .timeline-today .row-time .rt-start {
+    font-size: 10px !important;
+    font-weight: 800 !important;
+    line-height: 1.15 !important;
+    letter-spacing: -.02em !important;
+  }
+
+  .mobile-ui-v2 .timeline-today .row-time .rt-end {
+    font-size: 8.5px !important;
+    font-weight: 600 !important;
+    line-height: 1.15 !important;
+    margin-top: 1px !important;
+    color: var(--muted) !important;
+  }
+
+  .mobile-ui-v2 .timeline-today .rt-separator {
+    display: none !important;
+  }
+
+  /* Spine Rail & Markers — continuous visible spine line */
+  .mobile-ui-v2 .timeline-today .timeline-marker {
+    position: relative !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    height: 100% !important;
+    min-height: 46px !important;
+  }
+
+  .mobile-ui-v2 .timeline-today .timeline-marker::after {
+    position: absolute !important;
+    top: -8px !important;
+    bottom: -8px !important;
+    left: 50% !important;
+    width: 1.5px !important;
+    content: "" !important;
+    background: color-mix(in srgb, var(--border) 85%, var(--text)) !important;
+    transform: translateX(-50%) !important;
+    z-index: 0 !important;
+  }
+
+  .mobile-ui-v2 .timeline-today .row:first-of-type .timeline-marker::after {
+    top: 50% !important;
+  }
+
+  .mobile-ui-v2 .timeline-today .row:last-of-type .timeline-marker::after {
+    bottom: 50% !important;
+  }
+
+  .mobile-ui-v2 .timeline-today .timeline-marker > span {
+    position: relative !important;
+    z-index: 1 !important;
+    width: 8.5px !important;
+    height: 8.5px !important;
+    margin: 0 !important;
+    border: 2px solid var(--card) !important;
+    border-radius: 50% !important;
+    background: var(--border-hi, var(--border)) !important;
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--border) 60%, transparent) !important;
+  }
+
+  /* Now-line alignment & continuous spine pass-through */
+  .mobile-ui-v2 .timeline-today .nowline {
+    display: grid !important;
+    grid-template-columns: 50px 14px minmax(0, 1fr) !important;
+    align-items: center !important;
+    gap: 0 7px !important;
+    margin: 4px 0 !important;
+    padding: 2px 0 !important;
+    position: relative !important;
+    z-index: 3 !important;
+  }
+
+  .mobile-ui-v2 .timeline-today .nowtime {
+    grid-column: 1 !important;
+    font-size: 9px !important;
+    height: 18px !important;
+    padding: 0 5px !important;
+    letter-spacing: -.02em !important;
+  }
+
+  .mobile-ui-v2 .timeline-today .nowdot {
+    grid-column: 2 !important;
+    width: 8.5px !important;
+    height: 8.5px !important;
+    position: relative !important;
+  }
+
+  .mobile-ui-v2 .timeline-today .nowdot::before {
+    position: absolute !important;
+    top: -8px !important;
+    bottom: 50% !important;
+    left: 50% !important;
+    width: 1.5px !important;
+    content: "" !important;
+    background: color-mix(in srgb, var(--border) 85%, var(--text)) !important;
+    transform: translateX(-50%) !important;
+    z-index: 0 !important;
+  }
+
+  .mobile-ui-v2 .timeline-today .nowdot::after {
+    position: absolute !important;
+    top: 50% !important;
+    bottom: -8px !important;
+    left: 50% !important;
+    width: 1.5px !important;
+    content: "" !important;
+    background: color-mix(in srgb, var(--border) 85%, var(--text)) !important;
+    transform: translateX(-50%) !important;
+    z-index: 0 !important;
+  }
+
+  .mobile-ui-v2 .timeline-today .nowrule {
+    grid-column: 3 !important;
+    height: 1.5px !important;
+  }
+
+  /* Row body cards */
+  .mobile-ui-v2 .timeline-today .row-body {
+    padding: 7px 10px !important;
+    border-radius: 11px !important;
+    border: 1px solid var(--border) !important;
+    background: color-mix(in srgb, var(--card) 92%, var(--surface)) !important;
+  }
+
+  .mobile-ui-v2 .timeline-today .row-course {
+    font-size: 12.5px !important;
+    font-weight: 700 !important;
+    line-height: 1.25 !important;
+  }
+
+  .mobile-ui-v2 .timeline-today .row-meta {
+    font-size: 10px !important;
+    margin-top: 2px !important;
+  }
+
+  .mobile-ui-v2 .timeline-today .ses,
+  .mobile-ui-v2 .timeline-today .tb {
+    font-size: 9px !important;
+  }
+
+  .mobile-ui-v2 .timeline-today .row.soft .row-body {
+    padding: 6px 10px !important;
+    border: 1px dashed color-mix(in srgb, var(--border) 75%, transparent) !important;
+  }
+
+  .mobile-ui-v2 .timeline-today .row.soft.timeline-up-next .row-body {
+    border-style: solid !important;
+  }
 }
 
 .mobile-ui-version-menu {
@@ -102,7 +368,9 @@
   font-size: 10.5px;
 }
 
-@media (max-width: 767px) {
+/* Shared V2 visual system for phones and tablets. Orientation-specific tablet
+   layout corrections live at the end of this block. */
+@media (max-width: 1200px) {
   .mobile-ui-v1 .over-menu {
     max-height: calc(100dvh - 82px - env(safe-area-inset-top, 0px));
     overflow-y: auto;
@@ -2523,6 +2791,152 @@
   }
 }
 
+/* Tablet portrait keeps the V2 navigation model, but gives it tablet-scale
+   gutters, a centred dock and a contained More surface. */
+@media (min-width: 768px) and (max-width: 1024px) and (orientation: portrait) {
+  .mobile-ui-v2 {
+    --mobile-v2-gutter: 28px;
+    --mobile-v2-appbar: 72px;
+    --mobile-v2-tabbar: 76px;
+  }
+
+  .mobile-ui-v2 .app {
+    max-width: 920px;
+    margin-inline: auto;
+    padding: 24px var(--mobile-v2-gutter) calc(var(--mobile-v2-bottom-clearance) + 28px);
+  }
+
+  .mobile-ui-v2 .bar {
+    margin: -24px calc(var(--mobile-v2-gutter) * -1) 18px;
+    padding: calc(12px + env(safe-area-inset-top, 0px)) var(--mobile-v2-gutter) 12px;
+  }
+
+  .mobile-ui-v2 .bar .brand-name {
+    max-width: 52vw;
+    font-size: 18px;
+  }
+
+  .mobile-ui-v2 .bar .brand-sub {
+    max-width: 54vw;
+  }
+
+  .mobile-ui-v2 .mobile-v2-switcher {
+    top: calc(var(--mobile-v2-appbar) + env(safe-area-inset-top, 0px) + 6px);
+    max-width: 560px;
+    margin: 0 auto 20px;
+  }
+
+  .mobile-ui-v2 .mobile-v2-tabbar {
+    right: 50%;
+    bottom: 12px;
+    left: auto;
+    width: min(560px, calc(100vw - 48px));
+    min-height: var(--mobile-v2-tabbar);
+    padding: 7px 10px;
+    border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+    border-radius: 22px;
+    transform: translateX(50%);
+    box-shadow: 0 16px 42px color-mix(in srgb, #000 18%, transparent);
+  }
+
+  .mobile-ui-v2 .mobile-v2-more-page {
+    top: calc(var(--mobile-v2-appbar) + env(safe-area-inset-top, 0px) + 10px);
+    right: 24px;
+    bottom: calc(var(--mobile-v2-tabbar) + 24px);
+    left: auto;
+    width: min(440px, calc(100vw - 48px));
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    background: color-mix(in srgb, var(--bg) 96%, transparent);
+    box-shadow: 0 22px 60px color-mix(in srgb, #000 22%, transparent);
+  }
+
+  .mobile-ui-v2 .mobile-v2-profile-card {
+    padding: 14px 16px;
+  }
+
+  .mobile-ui-v2 .mobile-v2-more-row {
+    min-height: 50px;
+    padding: 8px 12px;
+  }
+
+  .mobile-ui-v2 .panel,
+  .mobile-ui-v2 .hero,
+  .mobile-ui-v2 .sem-summary,
+  .mobile-ui-v2 .tmrw-summary,
+  .mobile-ui-v2 .announcement-banner {
+    border-radius: 20px;
+  }
+
+  .mobile-ui-v2 .assign-stats-grid,
+  .mobile-ui-v2 .exam-cd-grid,
+  .mobile-ui-v2 .exam-cc-grid,
+  .mobile-ui-v2 .att-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mobile-ui-v2 .fs-modal-content.mess-modal,
+  .fs-modal-content.mess-modal.is-v2 {
+    width: min(720px, calc(100vw - 48px)) !important;
+    max-width: 720px !important;
+    max-height: calc(100dvh - 64px) !important;
+    margin: auto !important;
+    border-radius: 24px !important;
+  }
+
+  .mobile-ui-v2 .mess-modal-drag-handle,
+  .fs-modal-content.mess-modal.is-v2 .mess-modal-drag-handle {
+    display: none;
+  }
+}
+
+/* Tablet landscape keeps the existing collapsed sidebar and two-column week
+   layout. V2 changes the content treatment only; phone navigation is hidden. */
+@media (min-width: 768px) and (max-width: 1200px) and (orientation: landscape) {
+  .mobile-ui-v2 {
+    --mobile-v2-gutter: 24px;
+    --mobile-v2-bottom-clearance: 0px;
+  }
+
+  .mobile-ui-v2 .app {
+    max-width: none;
+    padding: 20px 24px 64px;
+  }
+
+  .mobile-ui-v2 .mobile-v2-switcher,
+  .mobile-ui-v2 .mobile-v2-tabbar,
+  .mobile-ui-v2 .mobile-v2-more-page {
+    display: none !important;
+  }
+
+  .mobile-ui-v2 .main-col > :not(.tabs-wrapper) {
+    animation: mobile-v2-page-in 220ms var(--mobile-v2-motion) backwards;
+  }
+
+  .mobile-ui-v2 .panel,
+  .mobile-ui-v2 .hero,
+  .mobile-ui-v2 .sem-summary,
+  .mobile-ui-v2 .tmrw-summary,
+  .mobile-ui-v2 .announcement-banner {
+    border-radius: 18px;
+  }
+
+  .mobile-ui-v2 .fs-modal-content.mess-modal,
+  .fs-modal-content.mess-modal.is-v2 {
+    width: min(760px, calc(100vw - 112px)) !important;
+    max-width: 760px !important;
+    max-height: calc(100dvh - 48px) !important;
+    margin: auto !important;
+    border-radius: 22px !important;
+  }
+
+  .mobile-ui-v2 .mess-modal-drag-handle,
+  .fs-modal-content.mess-modal.is-v2 .mess-modal-drag-handle {
+    display: none;
+  }
+}
+
 @keyframes mobile-v2-page-in {
   from {
     opacity: 0;
@@ -2573,7 +2987,7 @@
   }
 }
 
-@media (max-width: 767px) and (prefers-reduced-motion: reduce) {
+@media (max-width: 1200px) and (prefers-reduced-motion: reduce) {
   .mobile-ui-v2 .main-col > *,
   .mobile-ui-v2 .mobile-v2-tabbar *,
   .mobile-ui-v2 .mobile-v2-switcher *,

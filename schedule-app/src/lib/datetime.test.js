@@ -1,11 +1,27 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { toMin, fmtWait, ymd, clsDate, prettyDate, timeAgo } from "./datetime.js";
+import { toMin, fmtTime12, fmtWait, ymd, clsDate, prettyDate, timeAgo } from "./datetime.js";
 
 describe("toMin", () => {
   it("converts HH:MM to minutes since midnight", () => {
     expect(toMin("00:00")).toBe(0);
     expect(toMin("09:30")).toBe(570);
     expect(toMin("23:59")).toBe(1439);
+  });
+});
+
+describe("fmtTime12", () => {
+  it("renders schedule times with a zero-padded hour and uppercase meridiem", () => {
+    expect(fmtTime12("00:00")).toBe("12:00AM");
+    expect(fmtTime12("09:30")).toBe("09:30AM");
+    expect(fmtTime12("12:00")).toBe("12:00PM");
+    expect(fmtTime12("14:00")).toBe("02:00PM");
+    expect(fmtTime12("23:59")).toBe("11:59PM");
+  });
+
+  it("leaves malformed values unchanged", () => {
+    expect(fmtTime12("")).toBe("");
+    expect(fmtTime12("All Day")).toBe("All Day");
+    expect(fmtTime12("25:00")).toBe("25:00");
   });
 });
 
