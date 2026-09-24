@@ -626,7 +626,7 @@ async function notifySplit(targetUserId, type, group, fromId, fromName, extra = 
       title: copy.title,
       body: copy.body,
       url: `/?view=split&g=${group?.id || ""}`,
-      icon: "/icon-push-bell.png",
+      icon: "/icon-192.png",
       data: {
         from_id: fromId,               // pinned to caller by RLS — do not change key
         from_name: fromName,

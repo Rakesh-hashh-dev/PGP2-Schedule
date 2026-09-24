@@ -126,7 +126,7 @@ async function runDiff(supabase: ReturnType<typeof createClient>) {
   const dayLabel = (d?: string) => (d === today ? "Today" : d === tomorrow ? "Tomorrow" : d || "");
   const rows: Record<string, unknown>[] = [];
   for (const ch of relevant) {
-    const title = ch.kind === "added" ? `🆕 ${ch.code} added` : `🔀 ${ch.code} rescheduled`;
+    const title = ch.kind === "added" ? `${ch.code} added to your schedule` : `${ch.code} rescheduled`;
     const body = ch.text || `${dayLabel(ch.date)}${ch.start ? "  ·  " + ch.start : ""}`;
     for (const p of enrolledInCode(ch.code!)) {
       rows.push({
@@ -135,7 +135,7 @@ async function runDiff(supabase: ReturnType<typeof createClient>) {
         title,
         body,
         url: "/?view=notifications",
-        icon: "/icon-push-bell.png",
+        icon: "/icon-192.png",
         data: {
           kind: ch.kind, code: ch.code, date: ch.date, start: ch.start,
           urgency: "normal", ttl: 6 * 3600,

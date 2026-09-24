@@ -42,7 +42,7 @@ async function notifyMeetup(targetUserId, type, meetup, fromId, fromName, extra 
       title: copy.title,
       body: copy.body,
       url: "/?view=friends",
-      icon: "/icon-push-bell.png",
+      icon: "/icon-192.png",
       data: {
         from_id: fromId,               // pinned to caller by RLS — do not change key
         from_name: fromName,

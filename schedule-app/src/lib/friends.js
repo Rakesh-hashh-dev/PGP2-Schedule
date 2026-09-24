@@ -658,7 +658,7 @@ export async function sendSocialNotification(targetUserId, type, meta = {}) {
       title: copy.title,
       body: copy.body,
       url: type === "board_contact" ? "/?view=board" : "/?view=friends",
-      icon: "/icon-push-bell.png",
+      icon: "/icon-192.png",
       data: {
         from_id: meta.fromId,          // pinned to caller by RLS — do not change key
         from_code: meta.fromCode || null,

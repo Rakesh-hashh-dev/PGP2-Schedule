@@ -84,17 +84,23 @@ function withAreas(data) {
   for (const code in data.LEGEND) {
     legend[code] = { ...data.LEGEND[code], area: AREA[code] || "Other" };
   }
-  const classes = (data.CLASSES || [])
-    .map(normalizeSingleSection)
-    .filter(Boolean)
-    .map((c) => reclassifyUnknown(c, data.LEGEND || {}))
-    .filter(Boolean)
-    .map((c) => ({
+  const rawClasses = data.CLASSES || [];
+  const legendMap = data.LEGEND || {};
+  const classes = [];
+  for (let i = 0; i < rawClasses.length; i++) {
+    let c = rawClasses[i];
+    if (!c) continue;
+    c = normalizeSingleSection(c);
+    if (!c) continue;
+    c = reclassifyUnknown(c, legendMap);
+    if (!c) continue;
+    classes.push({
       ...c,
       area: c.code ? (AREA[c.code] || "Other") : "",
       faculty: cleanFaculty(c.faculty),
       room: cleanRoom(c),
-    }));
+    });
+  }
   // Preserve static fields (like number) that the live feed may omit
   const term = data.TERM ? { number: TERM.number, ...data.TERM } : data.TERM;
   return { ...data, TERM: term, LEGEND: legend, CLASSES: classes };

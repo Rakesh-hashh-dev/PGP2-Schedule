@@ -27,7 +27,7 @@ export default function RecentChanges({ changes, readKeys, onMarkRead, onViewAll
         {visible.map((c) => {
           const isRead = readKeys?.has(changeKey(c));
           return (
-            <li key={c.id} className={`rc-item rc-item-clickable${isRead ? " rc-item-read" : ""}`} onClick={() => onMarkRead?.(c)}>
+            <li key={c.id} className={`rc-item rc-item-clickable${isRead ? " rc-item-read" : ""}`} role="button" tabIndex={0} onClick={() => onMarkRead?.(c)} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onMarkRead?.(c); } }}>
               <span className={`rc-dot nk-${c.kind || 'update'}`} />
               <span className="rc-text">{c.text}</span>
               <span className="rc-time">{relTime(c.ts)}</span>

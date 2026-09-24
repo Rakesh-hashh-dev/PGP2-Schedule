@@ -1,0 +1,74 @@
+<svg viewBox="0 0 256 256" width="256" height="256" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="TermFlow Concept 3 - Chrono Möbius">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="tf-bg-3" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0%" stop-color="#161131"/>
+      <stop offset="50%" stop-color="#0e0a20"/>
+      <stop offset="100%" stop-color="#06040e"/>
+    </linearGradient>
+
+    <!-- Foreground Ribbon: Cyan -> Indigo -> Purple -->
+    <linearGradient id="tf-loop-front-3" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="35%" stop-color="#818CF8"/>
+      <stop offset="70%" stop-color="#A855F7"/>
+      <stop offset="100%" stop-color="#F43F5E"/>
+    </linearGradient>
+
+    <!-- Deep Rear Ribbon: Purple -> Violet -> Dark Indigo -->
+    <linearGradient id="tf-loop-back-3" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F472B6"/>
+      <stop offset="50%" stop-color="#7C3AED"/>
+      <stop offset="100%" stop-color="#312E81"/>
+    </linearGradient>
+
+    <!-- Top 'T' Bar Shading -->
+    <linearGradient id="tf-tbar-3" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="50%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#C084FC"/>
+    </linearGradient>
+
+    <!-- Ambient Core Blur -->
+    <filter id="tf-ambient-3" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="15" result="blur"/>
+    </filter>
+
+    <!-- Element Glow -->
+    <filter id="tf-glow-3" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Squircle Base Tile -->
+  <rect width="256" height="256" rx="58" fill="url(#tf-bg-3)"/>
+  <rect width="254" height="254" x="1" y="1" rx="57" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>
+
+  <!-- Core Radiant Glow -->
+  <circle cx="128" cy="128" r="76" fill="#818CF8" opacity="0.25" filter="url(#tf-ambient-3)"/>
+
+  <!-- Infinity Möbius Loop & Chrono Anchor Group -->
+  <g transform="translate(128, 128)" filter="url(#tf-glow-3)">
+    <!-- Rear Infinity Underpass -->
+    <path d="M -52 -20 C -82 -50, -82 28, -42 46 C -4 64, 4 64, 42 46 C 82 28, 82 -50, 52 -20 C 24 8, -24 8, -52 -20 Z"
+          fill="none" stroke="url(#tf-loop-back-3)" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Front Overlapping Infinity Arch evoking stylized "T" crossbar -->
+    <path d="M -60 -26 C -38 -46, 38 -46, 60 -26 C 36 -2, -36 -2, -60 -26 Z"
+          fill="url(#tf-tbar-3)"/>
+
+    <!-- Central Vertical Time Stem -->
+    <path d="M 0 -18 L 0 54"
+          fill="none" stroke="url(#tf-loop-front-3)" stroke-width="14" stroke-linecap="round"/>
+
+    <!-- Kinetic Time-Step Nodes -->
+    <circle cx="0" cy="-26" r="6" fill="#FFFFFF"/>
+    <circle cx="-52" cy="-20" r="4.5" fill="#38BDF8"/>
+    <circle cx="52" cy="-20" r="4.5" fill="#F43F5E"/>
+    <circle cx="0" cy="54" r="5" fill="#A855F7"/>
+  </g>
+</svg>

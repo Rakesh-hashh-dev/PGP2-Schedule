@@ -128,7 +128,7 @@ export default function DesktopSidebar({
             onMouseEnter={e => showSbTip(e, "Search")} onMouseLeave={hideSbTip}
             onFocus={e => showSbTip(e, "Search")} onBlur={hideSbTip} onClick={() => { setCmdOpen(true); hideSbTip(); }}>
             <div className="sb-search-left">
-              <Search size={16} />
+              <Search size={18} strokeWidth={1.85} aria-hidden="true" />
               <span className="sb-search-label">Search</span>
             </div>
             <span className="sb-search-shortcut">{isMac ? "⌘K" : "Ctrl K"}</span>
@@ -242,7 +242,7 @@ export default function DesktopSidebar({
                       return (
                         <div key={item.id} className="sb-cust-reorder-item">
                           <span className="sb-cust-reorder-num">{idx + 1}</span>
-                          {Icon && <Icon size={12} className="sb-cust-reorder-icon" />}
+                          {Icon && <Icon size={12} strokeWidth={1.85} className="sb-cust-reorder-icon" aria-hidden="true" />}
                           <span className="sb-cust-reorder-name">{item.label}</span>
                           <div className="sb-cust-reorder-btns">
                             <button
@@ -287,7 +287,7 @@ export default function DesktopSidebar({
                       onClick={() => changePin(item.id)}
                       title={isMax ? `Max ${MAX_SIDEBAR_PINS} pinned pages` : (isPinned ? `Unpin ${item.label}` : `Pin ${item.label}`)}
                     >
-                      {Icon && <Icon size={12} className="sb-cust-chip-icon" />}
+                      {Icon && <Icon size={12} strokeWidth={1.85} className="sb-cust-chip-icon" aria-hidden="true" />}
                       <span className="sb-cust-chip-label">{item.label}</span>
                       {isPinned && <Check size={10} className="sb-cust-chip-check" />}
                     </button>
@@ -315,7 +315,7 @@ export default function DesktopSidebar({
             <div className="sb-quicklinks-label">Quick Links</div>
             {activeQuickLinks.map(ql => (
               <a key={ql.id} className="sb-link sb-quicklink" href={ql.url} target="_blank" rel="noopener noreferrer" onMouseEnter={e => showSbTip(e, ql.title)} onMouseLeave={hideSbTip}>
-                <ExternalLink size={18} /><span className="sb-link-label">{ql.title}</span>
+                <ExternalLink size={18} strokeWidth={1.85} aria-hidden="true" /><span className="sb-link-label">{ql.title}</span>
               </a>
             ))}
           </div>
@@ -326,7 +326,7 @@ export default function DesktopSidebar({
             <div className="sb-nav-label sb-nav-label-admin">Admin</div>
             <nav className="sb-nav sb-nav-static">
               <button className={`sb-link${view === "admin" ? " on" : ""}`} aria-current={view === "admin" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Admin Tools")} onMouseLeave={hideSbTip} onClick={() => { setView("admin"); setCompareTarget(null); hideSbTip(); }}>
-                <Shield size={18} /><span className="sb-link-label">Admin Tools</span>
+                <Shield size={18} strokeWidth={1.85} aria-hidden="true" /><span className="sb-link-label">Admin Tools</span>
               </button>
             </nav>
           </>

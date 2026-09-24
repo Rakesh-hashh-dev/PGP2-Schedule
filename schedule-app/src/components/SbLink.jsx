@@ -22,7 +22,7 @@ export default function SbLink({ item, active, badge, count, onSelect, showSbTip
       onMouseLeave={hideSbTip}
       onClick={() => { onSelect(item); hideSbTip(); }}
     >
-      <Icon size={18} /><span className="sb-link-label">{item.label}</span>
+      <Icon size={18} strokeWidth={1.85} aria-hidden="true" /><span className="sb-link-label">{item.label}</span>
       {badge && <> <span className="beta-badge">{badge}</span></>}
       {count > 0 && <span className="nav-badge">{count > 9 ? "9+" : count}</span>}
     </button>

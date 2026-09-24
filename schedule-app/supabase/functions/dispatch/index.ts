@@ -207,6 +207,11 @@ async function runDispatch(supabase: ReturnType<typeof createClient>) {
       url: row.url || "/",
       tag: row.dedup_key,     // on-device de-dup: a re-send replaces, never stacks
       icon: row.icon || undefined,
+      cta: row.type === "class_reminder" || row.type === "daily_summary"
+        ? "View today's classes"
+        : row.type === "class_cancelled" ? "View updated schedule"
+        : row.type === "schedule_change" ? "View schedule changes"
+        : "Open TermFlow",
     });
 
     let delivered = false;

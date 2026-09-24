@@ -759,3 +759,28 @@
     transition: none;
   }
 }
+
+/* A single icon weight and footprint across both sidebar skins. */
+.sidebar .sb-search-left > svg,
+.sidebar:not(.sb-aurora) .sb-link > svg,
+.sidebar.sb-aurora .sb-link > svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 1.85px;
+  flex-shrink: 0;
+}
+
+.sidebar.sb-aurora .sb-link:hover > svg {
+  transform: none;
+}
+
+.sidebar.sb-aurora .sb-link.on > svg {
+  filter: drop-shadow(0 0 4px rgba(196, 181, 253, 0.28));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar .sb-search-left > svg,
+  .sidebar .sb-link > svg {
+    transition: none;
+  }
+}

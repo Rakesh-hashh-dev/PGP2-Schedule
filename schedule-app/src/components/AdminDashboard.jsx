@@ -68,25 +68,26 @@ const DATABASE_TABLES = [
   { id: "share_codes", label: "Share codes", description: "Schedule sharing codes" },
 ];
 
-// Live lock-screen-style preview of a push notification, so admins see exactly
-// what subscribers get before broadcasting. Placeholders show until fields fill.
+// Approximate native lock-screen preview. The OS decides final layout/truncation.
 function PushPreview({ title, body, url, when }) {
   const t = title?.trim();
   const b = body?.trim();
+  const destination = url?.trim() || "/";
   return (
-    <div className="push-preview" aria-hidden="true">
+    <div className="push-preview" aria-label="Push notification preview">
+      <div className="push-preview-label"><span>Recipient preview</span><small>Native layout varies by device</small></div>
       <div className="push-preview-note">
-        <div className="push-preview-icon">TF</div>
         <div className="push-preview-content">
           <div className="push-preview-head">
-            <span className="push-preview-app">TERMFLOW</span>
+            <img className="push-preview-icon" src="/icon-192.png" alt="" />
+            <span className="push-preview-app">TermFlow</span>
             <span className="push-preview-time">{when || "now"}</span>
           </div>
           <div className={`push-preview-title ${t ? "" : "is-placeholder"}`}>{t || "Notification title"}</div>
           <div className={`push-preview-text ${b ? "" : "is-placeholder"}`}>{b || "Your message shows here as you type it."}</div>
-          {url?.trim() ? <div className="push-preview-url">{url.trim()}</div> : null}
         </div>
       </div>
+      <div className="push-preview-destination">Tap opens: <strong>{destination === "/" ? "TermFlow home" : destination}</strong></div>
     </div>
   );
 }

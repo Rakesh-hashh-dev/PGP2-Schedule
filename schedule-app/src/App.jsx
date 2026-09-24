@@ -1,7 +1,7 @@
 import { MORE_VIEWS } from "./lib/navItems.js";
-import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Suspense, lazy } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from "react";
 import { createPortal, flushSync } from "react-dom";
-import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, ChevronsLeft, ChevronsRight, Megaphone, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Sparkles, Wand2, BellRing, CalendarDays, ExternalLink, Download, Share, WifiOff, Zap, PanelBottom, PanelTop, PanelsTopLeft, Check, ChevronDown, Sun, Moon, Monitor, CalendarOff, CalendarRange, UtensilsCrossed, Package, Camera, Loader2, Wallet, Radio, History, PawPrint, LayoutDashboard } from "lucide-react";
+import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, Megaphone, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Sparkles, Wand2, BellRing, CalendarDays, ExternalLink, Download, Share, WifiOff, Zap, PanelBottom, PanelTop, PanelsTopLeft, Check, ChevronDown, Sun, Moon, Monitor, CalendarOff, CalendarRange, UtensilsCrossed, Package, Camera, Loader2, Wallet, Radio, History, PawPrint, LayoutDashboard } from "lucide-react";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
 import DayGreeting from "./components/DayGreeting.jsx";
@@ -35,7 +35,7 @@ import {
   LAST_USER_KEY, VIEW_KEY, PENDING_INVITE_KEY, USER_SCOPED_KEYS,
   readSetup, saveSetup,
   NOTIF_KEY, loadLastSeen, READ_PINGS_KEY,
-  READ_CHANGES_KEY, CLEARED_GROUPS_KEY, loadClearedGroups,
+  READ_CHANGES_KEY, loadClearedGroups,
 } from "./lib/appStorage.js";
 import TermFlowLoader from "./components/TermFlowLoader.jsx";
 import IndiaFlagIcon from "./components/IndiaFlagIcon.jsx";
@@ -432,12 +432,24 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // of calling setShowSetupEdit(true) directly.
   const [syncedAt, setSyncedAt] = useState(new Date());
   const notifOpenedAt = useRef(0);
+  const notifLastTriggerRef = useRef(null);
   const [, setLastSeenTs] = useState(() => loadLastSeen());
   const {
     notifOpen, setNotifOpen, notifFilter, setNotifFilter,
     readPingIds, setReadPingIds, readChangeKeys, setReadChangeKeys,
     seenRecvGroupIds, setSeenRecvGroupIds, pings, setPings, alerts, setAlerts,
   } = useNotifications();
+  useEffect(() => {
+    if (!notifOpen) return undefined;
+    notifLastTriggerRef.current?.closest(".notif-wrap")?.querySelector(".notif-panel-close")?.focus();
+    const onEscape = (event) => {
+      if (event.key !== "Escape") return;
+      setNotifOpen(false);
+      notifLastTriggerRef.current?.focus();
+    };
+    document.addEventListener("keydown", onEscape);
+    return () => document.removeEventListener("keydown", onEscape);
+  }, [notifOpen, setNotifOpen]);
   const [swUpdateFn, setSwUpdateFn] = useState(null);
   const [socialFlashToast, setSocialFlashToast] = useState(null);
   const [installPromptEvent, setInstallPromptEvent] = useState(null);
@@ -966,8 +978,29 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   }, [isSignedIn]);
 
   useEffect(() => {
-    const t = setInterval(() => setRealNow(new Date()), 20000);
-    return () => clearInterval(t);
+    let t = null;
+    const update = () => setRealNow(new Date());
+
+    const startTimer = () => {
+      if (t) clearInterval(t);
+      update();
+      t = setInterval(update, 60000);
+    };
+
+    const handleVisibility = () => {
+      if (document.hidden) {
+        if (t) { clearInterval(t); t = null; }
+      } else {
+        startTimer();
+      }
+    };
+
+    if (!document.hidden) startTimer();
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      if (t) clearInterval(t);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, []);
 
   // Supabase Realtime: stream groups/friends changes pushed by others (e.g. shared groups)
@@ -1449,9 +1482,26 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const archivedEntry = (TERM && selectedTerm != null && selectedTerm !== TERM.number)
     ? ARCHIVED_TERMS.find(t => t.number === selectedTerm) || null
     : null;
+  const [archivedClassesMap, setArchivedClassesMap] = useState({});
+
+  useEffect(() => {
+    if (archivedEntry && !archivedClassesMap[archivedEntry.number] && archivedEntry.loadClasses) {
+      archivedEntry.loadClasses().then((cls) => {
+        setArchivedClassesMap((prev) => ({ ...prev, [archivedEntry.number]: cls }));
+      });
+    }
+    // Also load previous term classes if user has saved courses for it (for Wrapped comparison)
+    const prevTerm = ARCHIVED_TERMS.find((t) => archivedCourses[t.number] && !archivedClassesMap[t.number]);
+    if (prevTerm && prevTerm.loadClasses) {
+      prevTerm.loadClasses().then((cls) => {
+        setArchivedClassesMap((prev) => ({ ...prev, [prevTerm.number]: cls }));
+      });
+    }
+  }, [archivedEntry, archivedClassesMap, archivedCourses]);
+
   const activeTerm = archivedEntry ? archivedEntry.TERM : TERM;
   const activeLegend = archivedEntry ? archivedEntry.LEGEND : LEGEND;
-  const activeClasses = archivedEntry ? archivedEntry.CLASSES : CLASSES;
+  const activeClasses = archivedEntry ? (archivedClassesMap[archivedEntry.number] || archivedEntry.CLASSES || []) : CLASSES;
   const activeChanges = archivedEntry ? [] : CHANGES;
   const isArchivedView = !!archivedEntry;
   // Enrollment source for the term currently being browsed: live `enrolled`
@@ -1469,7 +1519,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const activeMine = useMemo(() => new Set(Object.keys(activeEnrolled)), [activeEnrolled]);
   // Editing enrollment only makes sense for the live term — a no-op while
   // browsing an archived term (every "Edit setup" entry point routes through this).
-  const openEditSetup = () => { if (!isArchivedView) setShowSetupEdit(true); };
+  const openEditSetup = useCallback(() => { if (!isArchivedView) setShowSetupEdit(true); }, [isArchivedView]);
 
   const sectionsByCode = useMemo(() => (sd ? taughtSectionsByCode(sd.CLASSES) : {}), [sd]);
 
@@ -1573,11 +1623,13 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       previous = eligible[eligible.length - 1] || null;
     }
     if (!previous) return null;
+    const previousClasses = archivedClassesMap[previous.number] || previous.CLASSES;
+    if (!previousClasses || !Array.isArray(previousClasses)) return null;
     const previousEnrolled = archivedCourses[previous.number];
     if (!previousEnrolled || Object.keys(previousEnrolled).length === 0) return null;
     const previousMine = new Set(Object.keys(previousEnrolled));
     const seen = new Set();
-    const previousVisible = previous.CLASSES.filter((c) => {
+    const previousVisible = previousClasses.filter((c) => {
       if (c.type === "class") {
         const section = previousEnrolled[c.code];
         return section !== undefined && (c.section === section || c.section === "Single" || c.section === "All") && previousMine.has(c.code);
@@ -2223,7 +2275,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
   const renderNotificationBell = (variant = "topbar") => (
     <div className="tb-wrap notif-wrap">
-      <button className={variant === "sidebar" ? "sb-util-btn" : "sync"} onClick={handleOpenNotif} aria-label={hasUnread ? `Notifications, ${unreadTotal} unread` : "Notifications"} aria-expanded={notifOpen}>
+      <button className={variant === "sidebar" ? "sb-util-btn" : "sync"} onClick={e => { notifLastTriggerRef.current = e.currentTarget; handleOpenNotif(); }} aria-label={hasUnread ? `Notifications, ${unreadTotal} unread` : "Notifications"} aria-expanded={notifOpen}>
         <Bell size={variant === "sidebar" ? 16 : 15} />
         {hasUnread && <span className="notif-badge">{unreadTotal > 9 ? "9+" : unreadTotal}</span>}
       </button>
@@ -2231,33 +2283,41 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       {notifOpen && (
         <>
           <div className="notif-backdrop" onClick={() => setNotifOpen(false)} />
-          <div className="notif-panel" role="dialog" aria-label="Notifications">
+          <div className="notif-panel" role="dialog" aria-labelledby={`notif-panel-title-${variant}`}>
             <div className="notif-panel-top">
-              <div className="bell-chips" role="tablist" aria-label="Filter notifications">
-                {[["all", "All"], ["social", "Social"], ["classes", "Classes"]].map(([id, label]) => (
-                  <button
-                    key={id}
-                    role="tab"
-                    aria-selected={notifFilter === id}
-                    className={`bell-chip${notifFilter === id ? " on" : ""}`}
-                    onClick={() => setNotifFilter(id)}
-                  >
-                    {label}
-                  </button>
-                ))}
+              <div className="notif-panel-heading">
+                <div>
+                  <span className="notif-panel-eyebrow">Your updates</span>
+                  <h2 id={`notif-panel-title-${variant}`}>Notifications</h2>
+                </div>
+                <button className="notif-panel-close" type="button" aria-label="Close notifications" onClick={() => { setNotifOpen(false); notifLastTriggerRef.current?.focus(); }}><X size={17} /></button>
               </div>
-              {hasUnread
-                ? <button className="rc-mark-all" onClick={markAllRead}>Mark all read</button>
-                : <span className="rc-all-read">All caught up</span>
-              }
+              <p className="notif-panel-status">{hasUnread ? `${unreadTotal} unread notification${unreadTotal === 1 ? "" : "s"}` : "You're all caught up"}</p>
+              <div className="notif-panel-controls">
+                <div className="bell-chips" role="group" aria-label="Filter notifications">
+                  {[["all", "All"], ["social", "Social"], ["classes", "Classes"]].map(([id, label]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      aria-pressed={notifFilter === id}
+                      className={`bell-chip${notifFilter === id ? " on" : ""}`}
+                      onClick={() => setNotifFilter(id)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {hasUnread && <button className="rc-mark-all" onClick={markAllRead}>Mark all read</button>}
+              </div>
             </div>
+            <div className="notif-panel-feed">
             {(() => {
               const showSocial = notifFilter !== "classes";
               const showClasses = notifFilter !== "social";
               const socialEmpty = friendNotifItems.length === 0;
               const classesEmpty = alertItems.length === 0 && filteredChanges.length === 0;
               if ((!showSocial || socialEmpty) && (!showClasses || classesEmpty)) {
-                return <p className="notif-empty">No new notifications</p>;
+                return <div className="notif-empty"><Bell size={23} strokeWidth={1.7} /><strong>{notifFilter === "social" ? "No social updates" : notifFilter === "classes" ? "No class updates" : "Nothing here yet"}</strong><span>{notifFilter === "social" ? "Friend activity will appear here." : notifFilter === "classes" ? "Class alerts and timetable changes will appear here." : "New activity will appear here when it arrives."}</span></div>;
               }
               return (
                 <>
@@ -2272,6 +2332,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                             key={item.id}
                             className={`np-ping${item.isRead ? " np-ping-read" : ""}`}
                             onClick={() => item.kind !== "friend_request" && markPingRead(item.pingId)}
+                            onKeyDown={e => { if (item.kind !== "friend_request" && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); markPingRead(item.pingId); } }}
+                            role={item.kind !== "friend_request" ? "button" : undefined}
+                            tabIndex={item.kind !== "friend_request" ? 0 : undefined}
                             style={{ cursor: item.kind !== "friend_request" ? "pointer" : "default" }}
                           >
                             <div className="np-ping-avatar">{(item.name || "?")[0].toUpperCase()}</div>
@@ -2311,7 +2374,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                           const code = a.data?.code;
                           const titleText = code ? a.title.replace(code, "").replace(/\s{2,}/g, " ").trim() : a.title;
                           return (
-                          <li key={a.id} className={`rc-item rc-item-clickable${a.read_at ? " rc-item-read" : ""}`} onClick={() => markAlertRead(a.id)}>
+                          <li key={a.id} className={`rc-item rc-item-clickable${a.read_at ? " rc-item-read" : ""}`} role="button" tabIndex={0} onClick={() => markAlertRead(a.id)} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); markAlertRead(a.id); } }}>
                             <span className={`rc-dot ${ALERT_DOT[a.type] || "rc-alert"}`} />
                             <span className="rc-text">
                               <span className="rc-alert-title">
@@ -2332,6 +2395,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 </>
               );
             })()}
+            </div>
+            {notifFilter !== "social" && <div className="notif-panel-footer"><button type="button" onClick={handleViewAllNotifs}>Open announcements <ExternalLink size={14} /></button></div>}
           </div>
         </>
       )}

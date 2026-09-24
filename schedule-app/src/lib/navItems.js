@@ -11,9 +11,9 @@
 // grouping on purpose). This config is deliberately DOM-agnostic so that sheet
 // can be migrated onto it later, but nothing here touches mobile today.
 import {
-  Clock, Sunrise, CalendarRange, ClipboardList, GraduationCap, BookOpenCheck,
-  Megaphone, Users, Package, UtensilsCrossed, Wallet, PawPrint, CalendarOff,
-  Sparkles, LayoutDashboard,
+  Clock, Sunrise, CalendarRange, ClipboardCheck, GraduationCap, NotebookPen,
+  Megaphone, Users, LayoutGrid, UtensilsCrossed, ReceiptText, PawPrint, CalendarMinus2,
+  Sparkles, CalendarCheck2,
 } from "lucide-react";
 
 // Group order here IS the render order. `collapsible` marks the one group
@@ -42,11 +42,11 @@ export const NAV_ITEMS = [
   { id: "today", group: "schedule", label: "Today", icon: Clock, view: "today" },
   { id: "tomorrow", group: "schedule", label: "Tomorrow", icon: Sunrise, view: "tomorrow" },
   { id: "fullSchedule", group: "schedule", label: "Full timetable", icon: CalendarRange, view: "fullSchedule" },
-  { id: "planner", group: "schedule", label: "Planner", icon: LayoutDashboard, view: "planner", badge: { key: "planner", label: "New" } },
+  { id: "planner", group: "schedule", label: "Planner", icon: CalendarCheck2, view: "planner", badge: { key: "planner", label: "New" } },
 
-  { id: "attendance", group: "track", label: "Attendance", icon: ClipboardList, view: "attendance", gate: "enableAttendance" },
+  { id: "attendance", group: "track", label: "Attendance", icon: ClipboardCheck, view: "attendance", gate: "enableAttendance" },
   { id: "exams", group: "track", label: "Exams", icon: GraduationCap, view: "exams", gate: "enableExams" },
-  { id: "assignments", group: "track", label: "Assignments", icon: BookOpenCheck, view: "assignments" },
+  { id: "assignments", group: "track", label: "Assignments", icon: NotebookPen, view: "assignments" },
 
   { id: "notifications", group: "campus", label: "Announcements", icon: Megaphone, view: "notifications", count: "unreadChangeCount" },
   {
@@ -54,11 +54,11 @@ export const NAV_ITEMS = [
     gate: "enableFriends", badge: { key: "social", label: "Beta" },
     count: "unreadFriendCount", effect: "markGroupsSeen",
   },
-  { id: "board", group: "campus", label: "Campus Board", icon: Package, view: "board", badge: { key: "board", label: "New" } },
+  { id: "board", group: "campus", label: "Campus Board", icon: LayoutGrid, view: "board", badge: { key: "board", label: "New" } },
   { id: "messMenu", group: "campus", label: "Mess menu", icon: UtensilsCrossed, action: "openMessMenu" },
 
-  { id: "split", group: "more", label: "Split", tip: "Split expenses", icon: Wallet, view: "split", badge: { key: "split", label: "New" } },
-  { id: "leave", group: "more", label: "Leave planner", icon: CalendarOff, view: "leave" },
+  { id: "split", group: "more", label: "Split", tip: "Split expenses", icon: ReceiptText, view: "split", badge: { key: "split", label: "New" } },
+  { id: "leave", group: "more", label: "Leave planner", icon: CalendarMinus2, view: "leave" },
   { id: "pet", group: "more", label: "Companion", icon: PawPrint, view: "pet", gate: "companionEnabled", badge: { key: "pet", label: "New" } },
   { id: "wrapped", group: "more", label: "Term Wrapped", icon: Sparkles, view: "wrapped", gate: "wrappedActive" },
 ];

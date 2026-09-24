@@ -58,6 +58,14 @@ function toMin(hhmm?: string) {
   return h * 60 + m;
 }
 
+// Match the app's schedule display format while keeping HH:MM for calculations.
+function fmtTime12(hhmm?: string) {
+  if (!hhmm || !/^\d{1,2}:\d{2}$/.test(hhmm)) return hhmm || "";
+  const [hour, minute] = hhmm.split(":").map(Number);
+  if (hour > 23 || minute > 59) return hhmm;
+  return `${String(hour % 12 || 12).padStart(2, "0")}:${String(minute).padStart(2, "0")}${hour >= 12 ? "PM" : "AM"}`;
+}
+
 // An IST wall-clock date+time (YYYY-MM-DD, HH:mm) as a UTC ISO instant — used for
 // the push-expiry the dispatcher enforces (a reminder is worthless after the
 // class starts). Returns null on bad input.
@@ -193,7 +201,7 @@ async function runReminders(supabase: ReturnType<typeof createClient>) {
 
   // ── 5b. Morning summaries due this run (per-user summary_time) ────────────
   const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-  type SummaryJob = { userId: string; title: string; body: string; icon?: string };
+  type SummaryJob = { userId: string; title: string; body: string };
   const summaryJobs: SummaryJob[] = [];
   for (const profile of profiles || []) {
     if (!subscribed.has(profile.user_id)) continue;
@@ -239,25 +247,25 @@ async function runReminders(supabase: ReturnType<typeof createClient>) {
       // and renders 🇮🇳 as literal "IN" text in the notification banner.
       summaryJobs.push({
         userId: profile.user_id,
-        title: `🎉 Happy ${specialDay.label}`,
-        body: ["No classes today — enjoy the holiday.", ...extras].join("\n"),
-        icon: "/icon-flag-192.png",
+        title: `Happy ${specialDay.label}`,
+        body: ["No classes today. Enjoy the holiday.", ...extras].join("\n"),
       });
     } else if (mine.length === 0) {
       summaryJobs.push({
         userId: profile.user_id,
-        title: `🎉 No classes this ${weekday}`,
-        body: ["Nothing on your timetable today — enjoy the free day!", ...extras].join("\n"),
+        title: `No classes today`,
+        body: ["Your timetable is clear this " + weekday + ".", ...extras].join("\n"),
       });
     } else {
-      const lines = mine.slice(0, 6).map((c) =>
-        `${c.start || "—"}  ${c.code}${c.room ? ` · ${c.room}` : ""}`
-      );
-      if (mine.length > 6) lines.push(`+${mine.length - 6} more`);
+      const first = mine[0];
+      const lines = [
+        `First: ${first.code} at ${fmtTime12(first.start)}${first.room ? ` · Room ${first.room}` : ""}`,
+      ];
+      if (mine.length > 1) lines.push(`Then ${mine.length - 1} more class${mine.length > 2 ? "es" : ""}. Open your schedule for details.`);
       lines.push(...extras);
       summaryJobs.push({
         userId: profile.user_id,
-        title: `📋 Your ${weekday}: ${mine.length} class${mine.length > 1 ? "es" : ""}`,
+        title: `Today: ${mine.length} class${mine.length > 1 ? "es" : ""}`,
         body: lines.join("\n"),
       });
     }
@@ -335,7 +343,7 @@ async function runReminders(supabase: ReturnType<typeof createClient>) {
             title: `📅 ${m.title} in ${minsLeft} min`,
             body: [m.place, `${going.size + 1} going`].filter(Boolean).join("  ·  "),
             url: "/?view=friends",
-            icon: "/icon-push-bell.png",
+            icon: "/icon-192.png",
             data: {
               meetup_id: m.id,
               urgency: "high", ttl: 900,
@@ -368,7 +376,7 @@ async function runReminders(supabase: ReturnType<typeof createClient>) {
           title: `🔔 ${first} should be free now`,
           body: `${n.about_name}'s class just ended — ping them?`,
           url: "/?view=friends",
-          icon: "/icon-push-bell.png",
+          icon: "/icon-192.png",
           data: { urgency: "normal", ttl: 1800 },
           dedup_key: `free_nudge:${n.id}`,
         });
@@ -390,22 +398,22 @@ async function runReminders(supabase: ReturnType<typeof createClient>) {
   const classRows = jobs.map(({ userId, cls }) => {
     const lead = prefByUser.get(userId)?.lead_minutes ?? 30;
     const isGuest = (cls.session || "").toLowerCase().includes("guest");
-    const secLabel = cls.section === "Single" || cls.section === "All" ? "All sections" : `Section ${cls.section}`;
+    const secLabel = cls.section === "Single" || cls.section === "All" ? null : `Section ${cls.section}`;
     const title = isGuest
-      ? `🎓 Guest Session: ${cls.code} in ${lead} min`
-      : `⏰ ${cls.code} starts in ${lead} minutes`;
+      ? `Guest session: ${cls.code} in ${lead} min`
+      : `${cls.code} starts in ${lead} min`;
     const bodyParts = [
-      [cls.start, cls.end].filter(Boolean).join(" – "),
+      [cls.start, cls.end].filter(Boolean).map(fmtTime12).join("–"),
       cls.room ? `Room ${cls.room}` : null,
-      secLabel,
-    ].filter(Boolean).join("  ·  ");
+    ].filter(Boolean).join(" · ");
+    const detail = [secLabel, cls.name].filter(Boolean).join(" · ");
     return {
       user_id: userId,
       type: "class_reminder",
       title,
-      body: cls.name ? `${bodyParts}\n${cls.name}` : bodyParts,
+      body: [bodyParts, detail].filter(Boolean).join("\n"),
       url: "/?view=today",
-      icon: "/icon-push-clock.png",
+      icon: "/icon-192.png",
       data: {
         code: cls.code, section: cls.section, date: dateISO,
         start: cls.start, end: cls.end, room: cls.room, lead,
@@ -424,7 +432,7 @@ async function runReminders(supabase: ReturnType<typeof createClient>) {
     title: s.title,
     body: s.body,
     url: "/?view=today",
-    icon: s.icon || "/icon-push-bell.png",
+    icon: "/icon-192.png",
     data: { urgency: "high", ttl: 14400 }, // 4h — still useful when a phone wakes mid-morning
     dedup_key: `summary:${dateISO}`,
   }));
@@ -436,16 +444,17 @@ async function runReminders(supabase: ReturnType<typeof createClient>) {
         ? "tomorrow"
         : WEEKDAYS_SHORT[new Date(`${j.classDate}T00:00:00Z`).getUTCDay()];
     const bodyParts = [
-      j.start ? `${whenWord} at ${j.start}` : whenWord,
+      j.start ? fmtTime12(j.start) : null,
+      j.section === "Single" || j.section === "All" ? null : `Section ${j.section}`,
       j.room ? `Room ${j.room}` : null,
-    ].filter(Boolean).join("  ·  ");
+    ].filter(Boolean).join(" · ");
     return {
       user_id: j.userId,
       type: "class_cancelled",
-      title: `❌ ${j.code} cancelled`,
-      body: j.name ? `${bodyParts}\n${j.name} is cancelled` : `${bodyParts} — cancelled`,
+      title: `${j.code} cancelled ${whenWord}`,
+      body: [bodyParts, "Your timetable has been updated."].filter(Boolean).join("\n"),
       url: "/?view=today",
-      icon: "/icon-push-bell.png",
+      icon: "/icon-192.png",
       data: {
         code: j.code, section: j.section, date: j.classDate,
         urgency: "high", ttl: 21600, // 6h

@@ -2997,3 +2997,9 @@
     animation-duration: .01ms !important;
   }
 }
+
+@media (max-width: 600px) {
+  .mobile-ui-v2 .notif-panel {
+    max-height: min(calc(100dvh - var(--mobile-v2-appbar) - var(--mobile-v2-bottom-clearance) - 18px), 70dvh, 540px);
+  }
+}

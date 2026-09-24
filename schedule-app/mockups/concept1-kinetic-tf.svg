@@ -1,0 +1,76 @@
+<svg viewBox="0 0 256 256" width="256" height="256" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="TermFlow Concept 1 - Kinetic TF">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="tf-bg-1" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0%" stop-color="#241246"/>
+      <stop offset="50%" stop-color="#140a2b"/>
+      <stop offset="100%" stop-color="#080312"/>
+    </linearGradient>
+
+    <!-- Main Ribbon Gradient: Cyan -> Indigo -> Purple -> Magenta -->
+    <linearGradient id="tf-ribbon-1" x1="0" y1="0.1" x2="1" y2="0.9">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="32%" stop-color="#6366F1"/>
+      <stop offset="70%" stop-color="#A855F7"/>
+      <stop offset="100%" stop-color="#EC4899"/>
+    </linearGradient>
+
+    <!-- High-Luster Edge Highlight -->
+    <linearGradient id="tf-sheen-1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.9"/>
+      <stop offset="50%" stop-color="#E0E7FF" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#A855F7" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- F-Branch Velocity Arrow -->
+    <linearGradient id="tf-arrow-1" x1="0.1" y1="0.1" x2="0.9" y2="0.9">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="45%" stop-color="#C084FC"/>
+      <stop offset="100%" stop-color="#7C3AED"/>
+    </linearGradient>
+
+    <!-- Soft Ambient Glow -->
+    <filter id="tf-ambient-1" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="16" result="blur"/>
+    </filter>
+
+    <!-- Crisp Element Glow -->
+    <filter id="tf-glow-1" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Squircle Base Tile -->
+  <rect width="256" height="256" rx="58" fill="url(#tf-bg-1)"/>
+  <rect width="254" height="254" x="1" y="1" rx="57" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>
+
+  <!-- Ambient Backdrop Core Glow -->
+  <circle cx="128" cy="128" r="70" fill="#8B5CF6" opacity="0.28" filter="url(#tf-ambient-1)"/>
+
+  <!-- Graphic Elements Group -->
+  <g filter="url(#tf-glow-1)" transform="translate(128, 128)">
+    <!-- Base Ribbon Body forming 'T' crossbar and fluid left drop -->
+    <path d="M -66 -54 C -30 -66, 30 -66, 68 -54 C 54 -40, 36 -36, 12 -36 C -2 -36, -8 -34, -14 -22 L -14 54 C -14 66, -34 66, -34 54 L -34 -36 C -50 -36, -58 -44, -66 -54 Z"
+          fill="url(#tf-ribbon-1)"/>
+
+    <!-- Dynamic 'F' Forward Jet Branch & Velocity Arrowhead -->
+    <path d="M -10 -16 C 14 -18, 42 -14, 58 0 C 44 14, 18 14, -10 12 Z"
+          fill="url(#tf-arrow-1)"/>
+
+    <!-- Fluid Momentum Echo (Lower harmonic curve) -->
+    <path d="M -34 2 C -18 4, 10 16, 26 36 C 14 42, -6 34, -34 26 Z"
+          fill="url(#tf-ribbon-1)" opacity="0.85"/>
+
+    <!-- Luminous Edge Specular Light -->
+    <path d="M -62 -53 C -30 -64, 28 -64, 64 -53 C 48 -41, 30 -38, 10 -38 L -16 -38 L -16 52 C -16 58, -30 58, -30 52 L -30 -38 C -48 -38, -56 -45, -62 -53 Z"
+          fill="url(#tf-sheen-1)"/>
+
+    <!-- High-energy Kinetic Spark at the Arrow Apex -->
+    <circle cx="60" cy="-1" r="3.5" fill="#FFFFFF"/>
+    <circle cx="66" cy="-53" r="3" fill="#38BDF8"/>
+  </g>
+</svg>

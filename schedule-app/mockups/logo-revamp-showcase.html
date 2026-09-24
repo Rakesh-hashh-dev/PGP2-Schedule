@@ -1,0 +1,973 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TermFlow · Logo Revamp Verification Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0b12;
+      --card-bg: rgba(20, 21, 33, 0.85);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --card-border-active: rgba(168, 85, 247, 0.7);
+      --text: #f4f3f9;
+      --text-muted: #9493a8;
+      --accent: #a855f7;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      color-scheme: dark;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      background: radial-gradient(1200px 600px at 15% -10%, #301a58 0, transparent 70%),
+                  radial-gradient(1000px 550px at 90% 100%, #102444 0, transparent 70%),
+                  #0a0b12;
+      padding: 40px 24px 90px;
+    }
+
+    .container {
+      max-width: 1360px;
+      margin: 0 auto;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 24px;
+      padding-bottom: 28px;
+      border-bottom: 1px solid var(--card-border);
+      margin-bottom: 34px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #c084fc;
+      background: rgba(168, 85, 247, 0.12);
+      padding: 5px 13px;
+      border-radius: 999px;
+      border: 1px solid rgba(168, 85, 247, 0.25);
+      margin-bottom: 12px;
+    }
+
+    .eyebrow span {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #a855f7;
+      box-shadow: 0 0 10px #a855f7;
+    }
+
+    h1 {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-size: clamp(30px, 4.2vw, 46px);
+      letter-spacing: -0.035em;
+      font-weight: 800;
+      line-height: 1.08;
+      margin-bottom: 10px;
+      background: linear-gradient(135deg, #ffffff 40%, #c4b5fd 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 15px;
+      line-height: 1.6;
+      max-width: 680px;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #161726;
+      border: 1px solid var(--card-border);
+      border-radius: 999px;
+      padding: 8px 18px;
+      font-size: 12.5px;
+      color: #d8d7e6;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    /* 4 Design Cards Grid */
+    .concepts-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      margin-bottom: 38px;
+    }
+
+    @media (max-width: 1100px) {
+      .concepts-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 600px) {
+      .concepts-grid { grid-template-columns: 1fr; }
+    }
+
+    .concept-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 22px;
+      padding: 22px;
+      cursor: pointer;
+      position: relative;
+      transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+      backdrop-filter: blur(16px);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .concept-card:hover {
+      border-color: rgba(168, 85, 247, 0.45);
+      transform: translateY(-3px);
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35);
+    }
+
+    .concept-card.active {
+      border-color: var(--card-border-active);
+      background: rgba(30, 26, 48, 0.9);
+      box-shadow: 0 0 0 1px var(--card-border-active), 0 20px 45px rgba(109, 40, 217, 0.28);
+    }
+
+    .badge-tag {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 4px 9px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.07);
+      color: #b7b6c8;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .concept-card.active .badge-tag {
+      background: rgba(168, 85, 247, 0.25);
+      color: #f3e8ff;
+      border-color: rgba(168, 85, 247, 0.45);
+    }
+
+    .card-preview-area {
+      height: 190px;
+      display: grid;
+      place-items: center;
+      margin-bottom: 18px;
+      border-radius: 16px;
+      background: radial-gradient(circle at center, rgba(168, 85, 247, 0.1) 0%, transparent 70%),
+                  rgba(11, 12, 20, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    .card-preview-area svg {
+      width: 112px;
+      height: 112px;
+      filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.45));
+      transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .concept-card:hover .card-preview-area svg {
+      transform: scale(1.06);
+    }
+
+    .card-info h3 {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      margin-bottom: 5px;
+      color: #fff;
+    }
+
+    .card-info .concept-metaphor {
+      font-size: 12px;
+      color: #c084fc;
+      font-weight: 600;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .card-info p {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin-bottom: 16px;
+    }
+
+    .card-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: auto;
+    }
+
+    .card-tags span {
+      font-size: 11px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      padding: 3px 8px;
+      border-radius: 6px;
+      color: #a4a3b8;
+    }
+
+    /* Verification Studio Showcase Stage */
+    .showcase-stage {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 26px;
+      padding: 34px;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+    }
+
+    .stage-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: wrap;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--card-border);
+      margin-bottom: 30px;
+    }
+
+    .stage-title {
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .stage-title small {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #c084fc;
+      background: rgba(168, 85, 247, 0.15);
+      padding: 4px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(168, 85, 247, 0.3);
+    }
+
+    .stage-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .stage-btn {
+      padding: 8px 16px;
+      border-radius: 10px;
+      border: 1px solid var(--card-border);
+      background: #151624;
+      color: #d5d4e4;
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      transition: all 0.18s;
+      font-family: inherit;
+    }
+
+    .stage-btn:hover {
+      background: #25233d;
+      border-color: rgba(168, 85, 247, 0.4);
+      color: #fff;
+    }
+
+    .stage-btn.primary {
+      background: linear-gradient(135deg, #9333ea, #7c3aed);
+      color: #fff;
+      border: none;
+      box-shadow: 0 4px 14px rgba(124, 58, 237, 0.4);
+    }
+
+    .stage-btn.primary:hover {
+      filter: brightness(1.1);
+      transform: translateY(-1px);
+    }
+
+    /* Section Subheading */
+    .section-eyebrow {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #a7a6ba;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-eyebrow:before {
+      content: "";
+      width: 4px;
+      height: 12px;
+      background: #a855f7;
+      border-radius: 2px;
+    }
+
+    /* Size Scale Matrix */
+    .scale-matrix {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 16px;
+      margin-bottom: 38px;
+    }
+
+    @media (max-width: 900px) {
+      .scale-matrix { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 500px) {
+      .scale-matrix { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .scale-box {
+      background: rgba(13, 14, 22, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 18px;
+      padding: 20px 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      transition: border-color 0.2s;
+    }
+
+    .scale-box:hover {
+      border-color: rgba(168, 85, 247, 0.35);
+    }
+
+    .scale-preview {
+      height: 90px;
+      display: grid;
+      place-items: center;
+    }
+
+    .scale-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: #9290a6;
+      text-align: center;
+    }
+
+    .scale-label span {
+      display: block;
+      color: #e5e4ef;
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+
+    /* In-Situ Real UI Previews */
+    .insitu-grid {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 24px;
+      margin-bottom: 38px;
+    }
+
+    @media (max-width: 980px) {
+      .insitu-grid { grid-template-columns: 1fr; }
+    }
+
+    /* Desktop Sidebar Simulation */
+    .mock-sidebar {
+      background: #10111a;
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 22px;
+      padding: 22px 18px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4);
+    }
+
+    .mock-sidebar-brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      position: relative;
+    }
+
+    .mock-logo-tile {
+      width: 44px;
+      height: 44px;
+      border-radius: 13px;
+      flex: none;
+      display: grid;
+      place-items: center;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow: 0 4px 16px rgba(109, 91, 208, 0.35), 0 1px 4px rgba(0, 0, 0, 0.4);
+    }
+
+    .mock-logo-tile svg {
+      width: 42px;
+      height: 42px;
+      border-radius: 11px;
+    }
+
+    .mock-brand-text h4 {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-size: 17.5px;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .mock-brand-text p {
+      font-size: 11.5px;
+      color: #9290a6;
+      margin-top: 1px;
+    }
+
+    .mock-nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      margin-top: 8px;
+      border-radius: 10px;
+      font-size: 13px;
+      color: #a4a3b6;
+    }
+
+    .mock-nav-item.active {
+      background: rgba(168, 85, 247, 0.15);
+      color: #f3e8ff;
+      font-weight: 600;
+      border: 1px solid rgba(168, 85, 247, 0.25);
+    }
+
+    .mock-nav-icon {
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+      background: currentColor;
+      opacity: 0.8;
+    }
+
+    /* Login Screen Simulation */
+    .mock-login {
+      background: radial-gradient(450px 280px at 50% 12%, rgba(168, 85, 247, 0.2), transparent 70%),
+                  #121320;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 22px;
+      padding: 34px 28px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4);
+    }
+
+    .mock-login-logo {
+      width: 72px;
+      height: 72px;
+      border-radius: 19px;
+      display: grid;
+      place-items: center;
+      margin-bottom: 20px;
+      animation: pulse-glow 3.5s infinite alternate ease-in-out;
+    }
+
+    .mock-login-logo svg {
+      width: 72px;
+      height: 72px;
+      border-radius: 19px;
+    }
+
+    @keyframes pulse-glow {
+      0% { filter: drop-shadow(0 0 15px rgba(168, 85, 247, 0.25)); transform: translateY(0); }
+      100% { filter: drop-shadow(0 0 35px rgba(168, 85, 247, 0.7)); transform: translateY(-3px); }
+    }
+
+    .mock-login h4 {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-size: 24px;
+      font-weight: 800;
+      color: #fff;
+      margin-bottom: 6px;
+    }
+
+    .mock-login p {
+      font-size: 13.5px;
+      color: #9897aa;
+      max-width: 340px;
+      line-height: 1.5;
+      margin-bottom: 22px;
+    }
+
+    .mock-google-btn {
+      width: 100%;
+      max-width: 300px;
+      padding: 12px 18px;
+      background: #f7f6f9;
+      color: #1a1a24;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 11px;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    /* Comparison Bar */
+    .compare-section {
+      border-top: 1px solid var(--card-border);
+      padding-top: 30px;
+      margin-top: 10px;
+    }
+
+    .compare-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    @media (max-width: 1100px) {
+      .compare-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 600px) {
+      .compare-grid { grid-template-columns: 1fr; }
+    }
+
+    .compare-card {
+      background: rgba(13, 14, 22, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 16px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .compare-card:hover {
+      border-color: rgba(168, 85, 247, 0.4);
+      background: rgba(22, 23, 35, 0.8);
+    }
+
+    .compare-card.current {
+      border-color: rgba(255, 255, 255, 0.15);
+      background: rgba(20, 20, 28, 0.4);
+    }
+
+    .compare-card.selected {
+      border-color: var(--card-border-active);
+      background: rgba(33, 26, 54, 0.6);
+      box-shadow: 0 0 0 1px var(--card-border-active);
+    }
+
+    .compare-card svg, .compare-card img {
+      width: 56px;
+      height: 56px;
+      border-radius: 13px;
+    }
+
+    .compare-card strong {
+      font-size: 13px;
+      color: #fff;
+    }
+
+    .compare-card span {
+      font-size: 11.5px;
+      color: #8b8a9e;
+    }
+
+    /* Verification Status Banner */
+    .verify-banner {
+      margin-top: 36px;
+      background: linear-gradient(135deg, rgba(168, 85, 247, 0.12), rgba(59, 130, 246, 0.08));
+      border: 1px solid rgba(168, 85, 247, 0.3);
+      border-radius: 18px;
+      padding: 22px 26px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 18px;
+    }
+
+    .verify-banner-text h4 {
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+
+    .verify-banner-text p {
+      font-size: 13px;
+      color: #b7b6c8;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <div class="eyebrow"><span></span> TermFlow · Verification Studio</div>
+        <h1>Revamped Logo Concepts</h1>
+        <p class="subtitle">
+          All 4 design concepts are fully created in standalone SVG format. Click any concept card below to inspect its behavior across scales, sidebar navigation, login portal, and beside the current logo.
+        </p>
+      </div>
+      <div class="status-badge">
+        <a href="neo-compass-studio.html" style="color: #e9d5ff; text-decoration: none; display: flex; align-items: center; gap: 8px;">
+          <span>🎯 Focus: Open Neo-Compass &amp; Loader Studio →</span>
+        </a>
+      </div>
+    </header>
+
+    <!-- 4 Design Concepts Grid -->
+    <div class="concepts-grid">
+      <!-- Concept 1 -->
+      <div class="concept-card active" data-concept="c1" onclick="switchConcept('c1')">
+        <span class="badge-tag">Concept 1</span>
+        <div class="card-preview-area" id="top-preview-c1"></div>
+        <div class="card-info">
+          <h3>The Kinetic "TF" Stream</h3>
+          <div class="concept-metaphor">Flow Ribbon + Modern Monogram</div>
+          <p>Seamless interlocking 'T' & 'F' ribbon with an aerodynamic jet wing. Engineered for maximum contrast and legibility at tiny 16px favicon scale.</p>
+          <div class="card-tags">
+            <span>Modern Monogram</span>
+            <span>Ultra Crisp 16px</span>
+            <span>Fluid Velocity</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Concept 2 -->
+      <div class="concept-card" data-concept="c2" onclick="switchConcept('c2')">
+        <span class="badge-tag">Concept 2</span>
+        <div class="card-preview-area" id="top-preview-c2"></div>
+        <div class="card-info">
+          <h3>The Neo-Compass</h3>
+          <div class="concept-metaphor">Calibrated Dial + Supersonic Trail</div>
+          <p>Radical refinement of the original mark. Eliminates cluttered text and muddy ripples while sharpening the 42° waypoint arrow with an orbital horizon stream.</p>
+          <div class="card-tags">
+            <span>Evolutionary</span>
+            <span>Wayfinding Dial</span>
+            <span>42° Horizon Arrow</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Concept 3 -->
+      <div class="concept-card" data-concept="c3" onclick="switchConcept('c3')">
+        <span class="badge-tag">Concept 3</span>
+        <div class="card-preview-area" id="top-preview-c3"></div>
+        <div class="card-info">
+          <h3>The Chrono Möbius</h3>
+          <div class="concept-metaphor">Infinity Flow + Timetable Balance</div>
+          <p>Continuous dimensional ribbon twisting into an infinity loop with a subtle 'T' horizon canopy. Evokes daily schedule harmony and effortless routine flow.</p>
+          <div class="card-tags">
+            <span>Infinity Loop</span>
+            <span>Calm Schedule</span>
+            <span>Aurora Lavender</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Concept 4 -->
+      <div class="concept-card" data-concept="c4" onclick="switchConcept('c4')">
+        <span class="badge-tag">Concept 4</span>
+        <div class="card-preview-area" id="top-preview-c4"></div>
+        <div class="card-info">
+          <h3>The Apex Zenith</h3>
+          <div class="concept-metaphor">North Star + Academic Crest</div>
+          <p>Precision-faceted navigational star beacon with an ascending arrow spear and aerodynamic wings forming a stylized 'T'. Sharp, prestigious, executive.</p>
+          <div class="card-tags">
+            <span>Academic Prestige</span>
+            <span>Prism Facets</span>
+            <span>Zenith Star</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Concept In-Situ Studio -->
+    <div class="showcase-stage">
+      <div class="stage-header">
+        <div>
+          <div class="stage-title">
+            <span id="active-name">The Kinetic "TF" Stream</span>
+            <small id="active-badge">Active Selection</small>
+          </div>
+          <p style="color: var(--text-muted); font-size: 13.5px; margin-top: 4px;" id="active-detail">
+            Verifying visual balance, scale performance, and real-app ergonomics.
+          </p>
+        </div>
+        <div class="stage-actions">
+          <button class="stage-btn" onclick="copyCurrentSvg()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+            Copy SVG Code
+          </button>
+          <button class="stage-btn primary" onclick="downloadCurrentSvg()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download SVG
+          </button>
+        </div>
+      </div>
+
+      <!-- 1. Scale & Legibility Verification Matrix -->
+      <div class="section-eyebrow">1. Scale & Optical Clarity Verification</div>
+      <div class="scale-matrix">
+        <div class="scale-box">
+          <div class="scale-preview" id="scale-16"></div>
+          <div class="scale-label"><span>16 × 16</span>Browser Favicon</div>
+        </div>
+        <div class="scale-box">
+          <div class="scale-preview" id="scale-24"></div>
+          <div class="scale-label"><span>24 × 24</span>Header Bar</div>
+        </div>
+        <div class="scale-box">
+          <div class="scale-preview" id="scale-36"></div>
+          <div class="scale-label"><span>36 × 36</span>Mobile Nav</div>
+        </div>
+        <div class="scale-box">
+          <div class="scale-preview" id="scale-48"></div>
+          <div class="scale-label"><span>48 × 48</span>Sidebar Brand</div>
+        </div>
+        <div class="scale-box">
+          <div class="scale-preview" id="scale-72"></div>
+          <div class="scale-label"><span>72 × 72</span>Login Portal</div>
+        </div>
+        <div class="scale-box">
+          <div class="scale-preview" id="scale-128"></div>
+          <div class="scale-label"><span>128 × 128</span>PWA Splash</div>
+        </div>
+      </div>
+
+      <!-- 2. Real-App Simulated Contexts -->
+      <div class="section-eyebrow">2. App Environment Integration</div>
+      <div class="insitu-grid">
+        <!-- Desktop Sidebar -->
+        <div class="mock-sidebar">
+          <div class="mock-sidebar-brand">
+            <div class="mock-logo-tile" id="sb-logo-tile"></div>
+            <div class="mock-brand-text">
+              <h4>TermFlow</h4>
+              <p>IIM Sambalpur · Term IV</p>
+            </div>
+          </div>
+          <div class="mock-nav-item active"><span class="mock-nav-icon"></span> Schedule & Timetable</div>
+          <div class="mock-nav-item"><span class="mock-nav-icon"></span> Attendance Tracker</div>
+          <div class="mock-nav-item"><span class="mock-nav-icon"></span> Elective Selection</div>
+          <div class="mock-nav-item"><span class="mock-nav-icon"></span> Announcements</div>
+        </div>
+
+        <!-- Student Login Card -->
+        <div class="mock-login">
+          <div class="mock-login-logo" id="login-logo-tile"></div>
+          <h4>Welcome back to TermFlow</h4>
+          <p>Your campus day, finally in flow. Open your personal schedule and attendance planner.</p>
+          <button class="mock-google-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17Z"/><path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.35 24 12 24Z"/><path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25A11.96 11.96 0 0 0 0 12c0 1.92.45 3.74 1.25 5.42l4.03-3.15Z"/><path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.35 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98Z"/></svg>
+            Continue with @iimsambalpur.ac.in
+          </button>
+        </div>
+      </div>
+
+      <!-- 3. Side-by-Side Comparison -->
+      <div class="compare-section">
+        <div class="section-eyebrow">3. Side-by-Side Comparative Lineup</div>
+        <div class="compare-grid">
+          <!-- Legacy Logo -->
+          <div class="compare-card current" title="Current in-use logo">
+            <img src="../public/termflow-icon.svg" alt="Current logo">
+            <strong>Current (Legacy)</strong>
+            <span>Compass + Text "N" + Multiple Waves</span>
+          </div>
+
+          <!-- Concept 1 -->
+          <div class="compare-card selected" id="cmp-card-c1" onclick="switchConcept('c1')">
+            <div id="cmp-icon-c1"></div>
+            <strong>Concept 1</strong>
+            <span>Kinetic "TF" Monogram</span>
+          </div>
+
+          <!-- Concept 2 -->
+          <div class="compare-card" id="cmp-card-c2" onclick="switchConcept('c2')">
+            <div id="cmp-icon-c2"></div>
+            <strong>Concept 2</strong>
+            <span>The Neo-Compass</span>
+          </div>
+
+          <!-- Concept 3 -->
+          <div class="compare-card" id="cmp-card-c3" onclick="switchConcept('c3')">
+            <div id="cmp-icon-c3"></div>
+            <strong>Concept 3</strong>
+            <span>Chrono Möbius Loop</span>
+          </div>
+
+          <!-- Concept 4 -->
+          <div class="compare-card" id="cmp-card-c4" onclick="switchConcept('c4')">
+            <div id="cmp-icon-c4"></div>
+            <strong>Concept 4</strong>
+            <span>The Apex Zenith</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Verification Banner -->
+      <div class="verify-banner">
+        <div class="verify-banner-text">
+          <h4>Review & Verification Workflow</h4>
+          <p>
+            Tell me which concept you prefer, or what adjustments (colors, shapes, strokes, shadows) you’d like to see. Once you give the thumbs up, we will implement it across all app icons, PWA manifest, and UI headers.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Embedded SVG sources from the files
+    const SVGS = {
+      c1: `<svg viewBox="0 0 256 256" width="256" height="256" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="TermFlow Concept 1 - Kinetic TF"><defs><linearGradient id="tf-bg-1" x1="0.1" y1="0" x2="0.9" y2="1"><stop offset="0%" stop-color="#241246"/><stop offset="50%" stop-color="#140a2b"/><stop offset="100%" stop-color="#080312"/></linearGradient><linearGradient id="tf-ribbon-1" x1="0" y1="0.1" x2="1" y2="0.9"><stop offset="0%" stop-color="#38BDF8"/><stop offset="32%" stop-color="#6366F1"/><stop offset="70%" stop-color="#A855F7"/><stop offset="100%" stop-color="#EC4899"/></linearGradient><linearGradient id="tf-sheen-1" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.9"/><stop offset="50%" stop-color="#E0E7FF" stop-opacity="0.3"/><stop offset="100%" stop-color="#A855F7" stop-opacity="0"/></linearGradient><linearGradient id="tf-arrow-1" x1="0.1" y1="0.1" x2="0.9" y2="0.9"><stop offset="0%" stop-color="#FFFFFF"/><stop offset="45%" stop-color="#C084FC"/><stop offset="100%" stop-color="#7C3AED"/></linearGradient><filter id="tf-ambient-1" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="16" result="blur"/></filter><filter id="tf-glow-1" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="6" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><rect width="256" height="256" rx="58" fill="url(#tf-bg-1)"/><rect width="254" height="254" x="1" y="1" rx="57" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/><circle cx="128" cy="128" r="70" fill="#8B5CF6" opacity="0.28" filter="url(#tf-ambient-1)"/><g filter="url(#tf-glow-1)" transform="translate(128, 128)"><path d="M -66 -54 C -30 -66, 30 -66, 68 -54 C 54 -40, 36 -36, 12 -36 C -2 -36, -8 -34, -14 -22 L -14 54 C -14 66, -34 66, -34 54 L -34 -36 C -50 -36, -58 -44, -66 -54 Z" fill="url(#tf-ribbon-1)"/><path d="M -10 -16 C 14 -18, 42 -14, 58 0 C 44 14, 18 14, -10 12 Z" fill="url(#tf-arrow-1)"/><path d="M -34 2 C -18 4, 10 16, 26 36 C 14 42, -6 34, -34 26 Z" fill="url(#tf-ribbon-1)" opacity="0.85"/><path d="M -62 -53 C -30 -64, 28 -64, 64 -53 C 48 -41, 30 -38, 10 -38 L -16 -38 L -16 52 C -16 58, -30 58, -30 52 L -30 -38 C -48 -38, -56 -45, -62 -53 Z" fill="url(#tf-sheen-1)"/><circle cx="60" cy="-1" r="3.5" fill="#FFFFFF"/><circle cx="66" cy="-53" r="3" fill="#38BDF8"/></g></svg>`,
+
+      c2: `<svg viewBox="0 0 256 256" width="256" height="256" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="TermFlow Concept 2 - Neo-Compass"><defs><linearGradient id="tf-bg-2" x1="0.1" y1="0" x2="0.9" y2="1"><stop offset="0%" stop-color="#1c0f38"/><stop offset="50%" stop-color="#100722"/><stop offset="100%" stop-color="#070211"/></linearGradient><linearGradient id="tf-ring-2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#E9D5FF"/><stop offset="35%" stop-color="#C084FC"/><stop offset="70%" stop-color="#8B5CF6"/><stop offset="100%" stop-color="#38BDF8"/></linearGradient><linearGradient id="tf-trail-2" x1="0" y1="1" x2="1" y2="0"><stop offset="0%" stop-color="#4F46E5" stop-opacity="0"/><stop offset="40%" stop-color="#7C3AED" stop-opacity="0.45"/><stop offset="75%" stop-color="#C084FC" stop-opacity="0.8"/><stop offset="100%" stop-color="#38BDF8" stop-opacity="1"/></linearGradient><linearGradient id="tf-arrow-light-2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#FFFFFF"/><stop offset="45%" stop-color="#E9D5FF"/><stop offset="100%" stop-color="#A855F7"/></linearGradient><linearGradient id="tf-arrow-dark-2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#A855F7"/><stop offset="50%" stop-color="#6B21A8"/><stop offset="100%" stop-color="#3B0764"/></linearGradient><filter id="tf-ambient-2" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="15" result="blur"/></filter><filter id="tf-glow-2" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="5.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><rect width="256" height="256" rx="58" fill="url(#tf-bg-2)"/><rect width="254" height="254" x="1" y="1" rx="57" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/><circle cx="128" cy="128" r="74" fill="#7C3AED" opacity="0.32" filter="url(#tf-ambient-2)"/><g transform="translate(128, 128)" filter="url(#tf-glow-2)"><circle r="74" fill="none" stroke="url(#tf-ring-2)" stroke-width="4.5" stroke-dasharray="94 8 20 8 94 8 20 8" opacity="0.9"/><circle cx="0" cy="-74" r="4.5" fill="#FFFFFF"/><circle cx="74" cy="0" r="3.5" fill="#38BDF8"/><circle cx="0" cy="74" r="3.5" fill="#8B5CF6"/><circle cx="-74" cy="0" r="3.5" fill="#C084FC"/><circle r="52" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1.5" stroke-dasharray="4 6"/><path d="M -54 52 C -24 64, 22 44, 26 -2 C 28 -34, 6 -52, -14 -40 C -30 -30, -22 -6, 8 10 C 38 28, 52 -10, 60 -36" fill="none" stroke="url(#tf-trail-2)" stroke-width="8" stroke-linecap="round"/><g transform="translate(14, -14) rotate(42)"><polygon points="0,-52 20,24 0,9" fill="url(#tf-arrow-light-2)"/><polygon points="0,-52 0,9 -20,24" fill="url(#tf-arrow-dark-2)"/><line x1="0" y1="-52" x2="0" y2="9" stroke="#FFFFFF" stroke-width="1.2" opacity="0.8"/></g><circle cx="14" cy="-5" r="4" fill="#FFFFFF"/><circle cx="14" cy="-5" r="7" fill="#38BDF8" opacity="0.35"/></g></svg>`,
+
+      c3: `<svg viewBox="0 0 256 256" width="256" height="256" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="TermFlow Concept 3 - Chrono Möbius"><defs><linearGradient id="tf-bg-3" x1="0.1" y1="0" x2="0.9" y2="1"><stop offset="0%" stop-color="#161131"/><stop offset="50%" stop-color="#0e0a20"/><stop offset="100%" stop-color="#06040e"/></linearGradient><linearGradient id="tf-loop-front-3" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#38BDF8"/><stop offset="35%" stop-color="#818CF8"/><stop offset="70%" stop-color="#A855F7"/><stop offset="100%" stop-color="#F43F5E"/></linearGradient><linearGradient id="tf-loop-back-3" x1="1" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#F472B6"/><stop offset="50%" stop-color="#7C3AED"/><stop offset="100%" stop-color="#312E81"/></linearGradient><linearGradient id="tf-tbar-3" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#38BDF8"/><stop offset="50%" stop-color="#FFFFFF"/><stop offset="100%" stop-color="#C084FC"/></linearGradient><filter id="tf-ambient-3" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="15" result="blur"/></filter><filter id="tf-glow-3" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="6" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><rect width="256" height="256" rx="58" fill="url(#tf-bg-3)"/><rect width="254" height="254" x="1" y="1" rx="57" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/><circle cx="128" cy="128" r="76" fill="#818CF8" opacity="0.25" filter="url(#tf-ambient-3)"/><g transform="translate(128, 128)" filter="url(#tf-glow-3)"><path d="M -52 -20 C -82 -50, -82 28, -42 46 C -4 64, 4 64, 42 46 C 82 28, 82 -50, 52 -20 C 24 8, -24 8, -52 -20 Z" fill="none" stroke="url(#tf-loop-back-3)" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/><path d="M -60 -26 C -38 -46, 38 -46, 60 -26 C 36 -2, -36 -2, -60 -26 Z" fill="url(#tf-tbar-3)"/><path d="M 0 -18 L 0 54" fill="none" stroke="url(#tf-loop-front-3)" stroke-width="14" stroke-linecap="round"/><circle cx="0" cy="-26" r="6" fill="#FFFFFF"/><circle cx="-52" cy="-20" r="4.5" fill="#38BDF8"/><circle cx="52" cy="-20" r="4.5" fill="#F43F5E"/><circle cx="0" cy="54" r="5" fill="#A855F7"/></g></svg>`,
+
+      c4: `<svg viewBox="0 0 256 256" width="256" height="256" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="TermFlow Concept 4 - Apex Zenith"><defs><linearGradient id="tf-bg-4" x1="0.1" y1="0" x2="0.9" y2="1"><stop offset="0%" stop-color="#20133c"/><stop offset="50%" stop-color="#110924"/><stop offset="100%" stop-color="#070312"/></linearGradient><linearGradient id="tf-facet-light-4" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#FFFFFF"/><stop offset="45%" stop-color="#E9D5FF"/><stop offset="100%" stop-color="#A855F7"/></linearGradient><linearGradient id="tf-facet-dark-4" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#7C3AED"/><stop offset="60%" stop-color="#4C1D95"/><stop offset="100%" stop-color="#1E1B4B"/></linearGradient><linearGradient id="tf-wing-right-4" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#C084FC"/><stop offset="50%" stop-color="#8B5CF6"/><stop offset="100%" stop-color="#38BDF8"/></linearGradient><linearGradient id="tf-wing-left-4" x1="1" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#6B21A8"/><stop offset="100%" stop-color="#312E81"/></linearGradient><linearGradient id="tf-stem-4" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#A855F7"/><stop offset="100%" stop-color="#4F46E5"/></linearGradient><filter id="tf-ambient-4" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="15" result="blur"/></filter><filter id="tf-glow-4" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="6" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><rect width="256" height="256" rx="58" fill="url(#tf-bg-4)"/><rect width="254" height="254" x="1" y="1" rx="57" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/><circle cx="128" cy="128" r="76" fill="#A855F7" opacity="0.30" filter="url(#tf-ambient-4)"/><g transform="translate(128, 128)" filter="url(#tf-glow-4)"><polygon points="0,-74 34,-18 0,4" fill="url(#tf-facet-light-4)"/><polygon points="0,-74 0,4 -34,-18" fill="url(#tf-facet-dark-4)"/><line x1="0" y1="-74" x2="0" y2="4" stroke="#FFFFFF" stroke-width="1.4" opacity="0.9"/><polygon points="34,-18 68,8 16,24 0,4" fill="url(#tf-wing-right-4)"/><polygon points="16,24 68,8 44,22" fill="#38BDF8" opacity="0.7"/><polygon points="-34,-18 0,4 -16,24 -68,8" fill="url(#tf-wing-left-4)"/><polygon points="-16,24 -68,8 -44,22" fill="#1E1B4B" opacity="0.9"/><polygon points="0,4 16,24 0,72" fill="url(#tf-stem-4)"/><polygon points="0,4 0,72 -16,24" fill="#3B0764"/><line x1="0" y1="4" x2="0" y2="72" stroke="#FFFFFF" stroke-width="1.2" opacity="0.4"/><polygon points="0,-6 6,4 0,14 -6,4" fill="#FFFFFF"/><circle cx="0" cy="4" r="7" fill="#38BDF8" opacity="0.4"/></g></svg>`
+    };
+
+    const details = {
+      c1: {
+        name: 'The Kinetic "TF" Stream',
+        badge: 'Concept 1 Selected',
+        detail: 'Modern fluid monogram with high-contrast ribbon curvature. Flawless legibility from 16px to splash scales.'
+      },
+      c2: {
+        name: 'The Neo-Compass',
+        badge: 'Concept 2 Selected',
+        detail: 'Evolutionary cleanup of original compass. Calibrated ring dial with 42° waypoint arrow and orbital velocity stream.'
+      },
+      c3: {
+        name: 'The Chrono Möbius',
+        badge: 'Concept 3 Selected',
+        detail: 'Infinite timetable balance and continuous harmony ribbon with subtle stylized "T" crossbar canopy.'
+      },
+      c4: {
+        name: 'The Apex Zenith',
+        badge: 'Concept 4 Selected',
+        detail: 'Executive academic crest with multifaceted diamond bevels and ascending North Star spear.'
+      }
+    };
+
+    let activeKey = 'c1';
+
+    // Populate Top Cards
+    document.getElementById('top-preview-c1').innerHTML = SVGS.c1;
+    document.getElementById('top-preview-c2').innerHTML = SVGS.c2;
+    document.getElementById('top-preview-c3').innerHTML = SVGS.c3;
+    document.getElementById('top-preview-c4').innerHTML = SVGS.c4;
+
+    // Populate Comparison Icons
+    document.getElementById('cmp-icon-c1').innerHTML = SVGS.c1;
+    document.getElementById('cmp-icon-c2').innerHTML = SVGS.c2;
+    document.getElementById('cmp-icon-c3').innerHTML = SVGS.c3;
+    document.getElementById('cmp-icon-c4').innerHTML = SVGS.c4;
+
+    function renderStage() {
+      const d = details[activeKey];
+      const svg = SVGS[activeKey];
+
+      document.getElementById('active-name').textContent = d.name;
+      document.getElementById('active-badge').textContent = d.badge;
+      document.getElementById('active-detail').textContent = d.detail;
+
+      // Update Scales
+      [16, 24, 36, 48, 72, 128].forEach(size => {
+        const slot = document.getElementById(`scale-${size}`);
+        slot.innerHTML = svg;
+        const el = slot.querySelector('svg');
+        el.style.width = size + 'px';
+        el.style.height = size + 'px';
+      });
+
+      // Update Sidebar Slot
+      const sbSlot = document.getElementById('sb-logo-tile');
+      sbSlot.innerHTML = svg;
+      const sbSvg = sbSlot.querySelector('svg');
+      sbSvg.style.width = '42px';
+      sbSvg.style.height = '42px';
+
+      // Update Login Slot
+      const logSlot = document.getElementById('login-logo-tile');
+      logSlot.innerHTML = svg;
+      const logSvg = logSlot.querySelector('svg');
+      logSvg.style.width = '72px';
+      logSvg.style.height = '72px';
+
+      // Update comparison cards active class
+      ['c1', 'c2', 'c3', 'c4'].forEach(k => {
+        const card = document.getElementById(`cmp-card-${k}`);
+        if (card) card.classList.toggle('selected', k === activeKey);
+      });
+    }
+
+    function switchConcept(key) {
+      activeKey = key;
+      document.querySelectorAll('.concept-card').forEach(card => {
+        card.classList.toggle('active', card.dataset.concept === key);
+      });
+      renderStage();
+    }
+
+    function copyCurrentSvg() {
+      navigator.clipboard.writeText(SVGS[activeKey]).then(() => {
+        alert('Copied ' + details[activeKey].name + ' SVG code to clipboard!');
+      });
+    }
+
+    function downloadCurrentSvg() {
+      const blob = new Blob([SVGS[activeKey]], { type: 'image/svg+xml' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `termflow-${activeKey}.svg`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // Initial render
+    renderStage();
+  </script>
+</body>
+</html>

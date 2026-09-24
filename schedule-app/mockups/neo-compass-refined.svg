@@ -1,0 +1,104 @@
+<svg viewBox="0 0 256 256" width="256" height="256" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="TermFlow Neo-Compass Refined">
+  <defs>
+    <!-- Background Gradient: Midnight Royal Purple to Deep Obsidian -->
+    <linearGradient id="tf-bg-refined" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0%" stop-color="#1e0e3b"/>
+      <stop offset="45%" stop-color="#110724"/>
+      <stop offset="100%" stop-color="#06020e"/>
+    </linearGradient>
+
+    <!-- Calibrated Dial Ring: Platinum Violet -> Neon Amethyst -> Electric Cyan -->
+    <linearGradient id="tf-ring-refined" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#F3E8FF"/>
+      <stop offset="30%" stop-color="#C084FC"/>
+      <stop offset="70%" stop-color="#8B5CF6"/>
+      <stop offset="100%" stop-color="#38BDF8"/>
+    </linearGradient>
+
+    <!-- Supersonic Flow Trail: Deep Indigo fade -> Royal Violet -> Bright Cyan comet -->
+    <linearGradient id="tf-trail-refined" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0%" stop-color="#4F46E5" stop-opacity="0"/>
+      <stop offset="35%" stop-color="#7C3AED" stop-opacity="0.5"/>
+      <stop offset="75%" stop-color="#C084FC" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#38BDF8" stop-opacity="1"/>
+    </linearGradient>
+
+    <!-- 3D Arrow Light Facet: Crisp Specular White to Radiant Purple -->
+    <linearGradient id="tf-arrow-light" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="40%" stop-color="#F3E8FF"/>
+      <stop offset="75%" stop-color="#C084FC"/>
+      <stop offset="100%" stop-color="#8B5CF6"/>
+    </linearGradient>
+
+    <!-- 3D Arrow Shadow Facet: Deep Jewel Amethyst to Midnight Velvet -->
+    <linearGradient id="tf-arrow-dark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#8B5CF6"/>
+      <stop offset="50%" stop-color="#581C87"/>
+      <stop offset="100%" stop-color="#2E1065"/>
+    </linearGradient>
+
+    <!-- Ambient Core Blur -->
+    <filter id="tf-core-glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="16" result="blur"/>
+    </filter>
+
+    <!-- Crisp Element Specular Glow -->
+    <filter id="tf-spec-glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Squircle Base Tile -->
+  <rect width="256" height="256" rx="58" fill="url(#tf-bg-refined)"/>
+  <rect width="254" height="254" x="1" y="1" rx="57" fill="none" stroke="rgba(255,255,255,0.09)" stroke-width="1.5"/>
+
+  <!-- Core Radiant Atmosphere Glow -->
+  <circle cx="128" cy="128" r="76" fill="#8B5CF6" opacity="0.30" filter="url(#tf-core-glow)"/>
+
+  <!-- Main Dial & Compass Mark -->
+  <g transform="translate(128, 128)" filter="url(#tf-spec-glow)">
+    <!-- Outer Precision Calibrated Track (Segmented ring with cardinal breaks) -->
+    <circle r="76" fill="none" stroke="url(#tf-ring-refined)" stroke-width="4.5"
+            stroke-dasharray="98 8 20 8 98 8 20 8" opacity="0.95"/>
+
+    <!-- Subtle Orbit Micro-Ticks -->
+    <circle r="60" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1.2" stroke-dasharray="3 6"/>
+
+    <!-- 4 Cardinal Directional Jewels -->
+    <!-- North Jewel (Crisp white zenith pip with subtle indicator) -->
+    <circle cx="0" cy="-76" r="4.5" fill="#FFFFFF"/>
+    <circle cx="0" cy="-76" r="8" fill="#FFFFFF" opacity="0.25"/>
+
+    <!-- East Jewel (Cyan) -->
+    <circle cx="76" cy="0" r="3.5" fill="#38BDF8"/>
+
+    <!-- South Jewel (Violet) -->
+    <circle cx="0" cy="76" r="3.5" fill="#8B5CF6"/>
+
+    <!-- West Jewel (Lavender) -->
+    <circle cx="-76" cy="0" r="3.5" fill="#C084FC"/>
+
+    <!-- Supersonic Fluid Momentum Stream (Dynamic orbital wave) -->
+    <path d="M -54,54 C -22,66 24,46 26,-2 C 28,-36 6,-54 -16,-42 C -32,-30 -24,-6 8,10 C 38,26 54,-10 62,-36"
+          fill="none" stroke="url(#tf-trail-refined)" stroke-width="8" stroke-linecap="round"/>
+
+    <!-- 3D Chiseled Directional Needle (Angled at 42° Northeast) -->
+    <g transform="translate(16, -16) rotate(42)">
+      <!-- Light Beveled Right Facet -->
+      <polygon points="0,-56 22,26 0,10" fill="url(#tf-arrow-light)"/>
+      <!-- Shadowed Left Facet -->
+      <polygon points="0,-56 0,10 -22,26" fill="url(#tf-arrow-dark)"/>
+      <!-- Facet Center Specular Line -->
+      <line x1="0" y1="-56" x2="0" y2="10" stroke="#FFFFFF" stroke-width="1.2" opacity="0.9"/>
+    </g>
+
+    <!-- Central Gyroscopic Pivot Spark -->
+    <circle cx="16" cy="-6" r="4.5" fill="#FFFFFF"/>
+    <circle cx="16" cy="-6" r="8.5" fill="#38BDF8" opacity="0.4"/>
+  </g>
+</svg>

@@ -20492,3 +20492,217 @@ html[data-theme="dark"] .lp-glance-bad {
     display: none;
   }
 }
+
+/* Notification bell popup: keep the controls fixed while the feed scrolls. */
+.notif-panel {
+  display: flex;
+  flex-direction: column;
+  width: 408px;
+  max-height: min(76dvh, 640px);
+  overflow: hidden;
+  animation: notif-panel-enter 170ms ease-out both;
+}
+
+@keyframes notif-panel-enter {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.notif-panel-top {
+  display: block;
+  flex: none;
+  padding: 17px 18px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.notif-panel-heading,
+.notif-panel-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.notif-panel-eyebrow {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--muted);
+  font: 700 10px/1.2 var(--body);
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+
+.notif-panel-heading h2 {
+  margin: 0;
+  color: var(--ink);
+  font: 700 20px/1.2 var(--display);
+  letter-spacing: -.025em;
+}
+
+.notif-panel-close {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.notif-panel-close:hover { color: var(--ink); border-color: var(--border-hi); }
+
+.notif-panel-status {
+  margin: 4px 0 13px;
+  color: var(--muted);
+  font: 500 12px/1.4 var(--body);
+}
+
+.notif-panel-controls { align-items: center; }
+.notif-panel .bell-chips { gap: 5px; flex-wrap: nowrap; }
+.notif-panel .bell-chip { padding: 6px 10px; font-size: 11.5px; }
+.notif-panel .rc-mark-all { white-space: nowrap; }
+
+.notif-panel-feed {
+  min-height: 0;
+  padding: 4px 12px 8px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.notif-panel .rc {
+  margin: 0;
+  padding: 12px 2px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+}
+
+.notif-panel .rc:last-child { border-bottom: 0; }
+.notif-panel .rc-head { margin: 0 8px 8px; }
+.notif-panel .rc-title { gap: 7px; font-size: 12px; font-weight: 750; }
+.notif-panel .rc-title svg { color: var(--violet); }
+.notif-panel .rc-list { display: grid; gap: 4px; }
+.notif-panel .rc-item,
+.notif-panel .np-ping {
+  margin: 0;
+  padding: 11px 10px;
+  border: 1px solid color-mix(in srgb, var(--violet) 12%, var(--line));
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--violet) 6%, var(--card));
+  box-shadow: none;
+}
+
+.notif-panel .rc-item:hover,
+.notif-panel .np-ping:hover {
+  transform: none;
+  border-color: color-mix(in srgb, var(--violet) 26%, var(--line));
+  background: color-mix(in srgb, var(--violet) 9%, var(--card));
+  box-shadow: none;
+}
+
+.notif-panel .rc-item-read,
+.notif-panel .np-ping-read {
+  opacity: .72;
+  border-color: transparent;
+  background: transparent;
+}
+
+.notif-panel .rc-item-read:hover,
+.notif-panel .np-ping-read:hover { opacity: 1; background: var(--surface); }
+.notif-panel .np-ping-list { gap: 4px; margin-top: 0; }
+.notif-panel .rc-time,
+.notif-panel .np-ping-time { font-size: 10px; }
+.notif-panel .np-ping-text { font-weight: 600; }
+.notif-panel .rc-view-all { margin-top: 5px; border-top: 0; border-radius: 9px; }
+
+.notif-panel :is(.bell-chip, .rc-mark-all, .notif-panel-close, .np-link, .np-btn-accept, .np-btn-decline, .rc-item-clickable, .np-ping[role="button"], .rc-view-all):focus-visible {
+  outline: 2px solid var(--violet);
+  outline-offset: 2px;
+}
+
+.notif-panel-footer {
+  flex: none;
+  padding: 9px 12px;
+  border-top: 1px solid var(--line);
+  background: var(--card);
+}
+
+.notif-panel-footer button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  min-height: 37px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font: 650 12px var(--body);
+  cursor: pointer;
+}
+
+.notif-panel-footer button:hover { border-color: var(--border-hi); color: var(--violet); }
+.notif-panel-footer button:focus-visible { outline: 2px solid var(--violet); outline-offset: 2px; }
+
+.notif-panel .notif-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  padding: 42px 18px;
+  color: var(--muted);
+}
+
+.notif-panel .notif-empty svg { color: var(--violet); }
+.notif-panel .notif-empty strong { color: var(--ink); font-size: 14px; }
+.notif-panel .notif-empty span { max-width: 250px; font-size: 12px; line-height: 1.45; }
+
+@media (max-width: 600px) {
+  .notif-panel {
+    width: auto;
+    max-height: min(70dvh, 540px);
+    animation: notif-panel-enter 170ms ease-out both;
+  }
+
+  .notif-panel-top { padding: 12px 13px 9px; }
+  .notif-panel-eyebrow { display: none; }
+  .notif-panel-heading h2 { font-size: 17px; }
+  .notif-panel-close { width: 29px; height: 29px; }
+  .notif-panel-status { margin: 2px 0 9px; font-size: 11px; }
+  .notif-panel-controls { gap: 6px; }
+  .notif-panel .bell-chip { padding: 5px 8px; font-size: 11px; }
+  .notif-panel .rc-mark-all { padding: 4px 5px; font-size: 11px; }
+  .notif-panel-feed { padding: 2px 9px 5px; }
+  .notif-panel .rc { padding: 9px 1px; }
+  .notif-panel .rc-head { margin: 0 7px 6px; }
+  .notif-panel .rc-item,
+  .notif-panel .np-ping { gap: 8px; padding: 8px; }
+  .notif-panel .np-ping-avatar { width: 27px; height: 27px; font-size: 11px; }
+  .notif-panel .np-ping-text,
+  .notif-panel .rc-item { font-size: 12px; }
+  .notif-panel .np-ping-actions { gap: 5px; }
+  .notif-panel .np-btn-accept,
+  .notif-panel .np-btn-decline { padding: 5px 8px; font-size: 11px; }
+  .notif-panel-footer { padding: 7px 9px; }
+  .notif-panel-footer button { min-height: 33px; }
+  .notif-panel .notif-empty { padding: 28px 12px; }
+}
+
+@media (max-width: 380px) {
+  .notif-panel-top { padding-inline: 10px; }
+  .notif-panel .bell-chips { gap: 3px; }
+  .notif-panel .bell-chip { padding-inline: 7px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notif-panel { animation: none; }
+  .notif-panel .rc-item,
+  .notif-panel .np-ping { transition: none; }
+}

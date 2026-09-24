@@ -1,0 +1,95 @@
+<svg viewBox="0 0 256 256" width="256" height="256" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="TermFlow Concept 2 - Neo-Compass">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="tf-bg-2" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0%" stop-color="#1c0f38"/>
+      <stop offset="50%" stop-color="#100722"/>
+      <stop offset="100%" stop-color="#070211"/>
+    </linearGradient>
+
+    <!-- Calibrated Dial Ring Gradient -->
+    <linearGradient id="tf-ring-2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#E9D5FF"/>
+      <stop offset="35%" stop-color="#C084FC"/>
+      <stop offset="70%" stop-color="#8B5CF6"/>
+      <stop offset="100%" stop-color="#38BDF8"/>
+    </linearGradient>
+
+    <!-- Fluid Supersonic Trail Gradient -->
+    <linearGradient id="tf-trail-2" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0%" stop-color="#4F46E5" stop-opacity="0"/>
+      <stop offset="40%" stop-color="#7C3AED" stop-opacity="0.45"/>
+      <stop offset="75%" stop-color="#C084FC" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#38BDF8" stop-opacity="1"/>
+    </linearGradient>
+
+    <!-- Arrow Light Facet (Right side facing light) -->
+    <linearGradient id="tf-arrow-light-2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="45%" stop-color="#E9D5FF"/>
+      <stop offset="100%" stop-color="#A855F7"/>
+    </linearGradient>
+
+    <!-- Arrow Dark Facet (Left side shadow) -->
+    <linearGradient id="tf-arrow-dark-2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#A855F7"/>
+      <stop offset="50%" stop-color="#6B21A8"/>
+      <stop offset="100%" stop-color="#3B0764"/>
+    </linearGradient>
+
+    <!-- Ambient Core Blur -->
+    <filter id="tf-ambient-2" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="15" result="blur"/>
+    </filter>
+
+    <!-- Element Glow -->
+    <filter id="tf-glow-2" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="5.5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Squircle Base Tile -->
+  <rect width="256" height="256" rx="58" fill="url(#tf-bg-2)"/>
+  <rect width="254" height="254" x="1" y="1" rx="57" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>
+
+  <!-- Core Radiant Glow -->
+  <circle cx="128" cy="128" r="74" fill="#7C3AED" opacity="0.32" filter="url(#tf-ambient-2)"/>
+
+  <!-- Main Dial & Compass Needle Group -->
+  <g transform="translate(128, 128)" filter="url(#tf-glow-2)">
+    <!-- Outer Horizon Track (Segmented ring with optical gaps) -->
+    <circle r="74" fill="none" stroke="url(#tf-ring-2)" stroke-width="4.5"
+            stroke-dasharray="94 8 20 8 94 8 20 8" opacity="0.9"/>
+
+    <!-- 4 Cardinal Directional Pips -->
+    <circle cx="0" cy="-74" r="4.5" fill="#FFFFFF"/>
+    <circle cx="74" cy="0" r="3.5" fill="#38BDF8"/>
+    <circle cx="0" cy="74" r="3.5" fill="#8B5CF6"/>
+    <circle cx="-74" cy="0" r="3.5" fill="#C084FC"/>
+
+    <!-- Inner Orbit Guide Arc -->
+    <circle r="52" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1.5" stroke-dasharray="4 6"/>
+
+    <!-- Supersonic Fluid Wave / Momentum Stream wrapping to needle -->
+    <path d="M -54 52 C -24 64, 22 44, 26 -2 C 28 -34, 6 -52, -14 -40 C -30 -30, -22 -6, 8 10 C 38 28, 52 -10, 60 -36"
+          fill="none" stroke="url(#tf-trail-2)" stroke-width="8" stroke-linecap="round"/>
+
+    <!-- 3D Chiseled Directional Arrow (42° Northeast forward orientation) -->
+    <g transform="translate(14, -14) rotate(42)">
+      <!-- Light Beveled Right Facet -->
+      <polygon points="0,-52 20,24 0,9" fill="url(#tf-arrow-light-2)"/>
+      <!-- Shadowed Left Facet -->
+      <polygon points="0,-52 0,9 -20,24" fill="url(#tf-arrow-dark-2)"/>
+      <!-- Facet Center Crest Line -->
+      <line x1="0" y1="-52" x2="0" y2="9" stroke="#FFFFFF" stroke-width="1.2" opacity="0.8"/>
+    </g>
+
+    <!-- Navigational Zenith Spark Pivot -->
+    <circle cx="14" cy="-5" r="4" fill="#FFFFFF"/>
+    <circle cx="14" cy="-5" r="7" fill="#38BDF8" opacity="0.35"/>
+  </g>
+</svg>

@@ -155,12 +155,30 @@ export default defineConfig({
       devOptions: { enabled: true },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,webp,jpg}'],
-        // shortcut-*.png are only read by the OS at PWA install time —
-        // precaching them just bloats every user's SW download
-        globIgnores: ['**/*.unused.*', '**/push-sw.js', '**/shortcut-*.png'],
+        globIgnores: [
+          '**/*.unused.*',
+          '**/push-sw.js',
+          '**/shortcut-*.png',
+          '**/AdminDashboard-*.*',
+          '**/SplitPage-*.*',
+          '**/CompareView-*.*',
+          '**/WrappedView-*.*',
+          '**/CalendarExportModal-*.*',
+          '**/TermFlow-og.jpg',
+          '**/*.xlsx',
+        ],
         // Web Push handlers live in public/push-sw.js (imported, not precached)
         importScripts: ['push-sw.js'],
         runtimeCaching: [
+          {
+            // Cache on-demand lazy chunks (Admin, Split, Compare, Wrapped, etc.) when actually visited
+            urlPattern: /\/assets\/(AdminDashboard|SplitPage|CompareView|WrappedView|CalendarExportModal)-.*\.(js|css)$/,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'lazy-views-cache',
+              expiration: { maxEntries: 20, maxAgeSeconds: 30 * 24 * 60 * 60 },
+            },
+          },
           {
             // Google Sheets feed — network-first, 1h cache, 5s timeout before stale
             urlPattern: /^https:\/\/script\.google\.com\/.*/i,

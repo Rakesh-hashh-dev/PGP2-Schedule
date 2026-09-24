@@ -42,11 +42,12 @@ export function pushBlockReason() {
 // device. Doesn't exercise the server push path (that's the Admin test send).
 export async function showTestNotification() {
   const reg = await navigator.serviceWorker.ready;
-  await reg.showNotification("TermFlow", {
-    body: "Test notification — you're all set on this device. 🔔",
-    icon: "/icon-push-bell.png",
+  await reg.showNotification("Notifications are ready", {
+    body: "TermFlow can send updates to this device.",
+    icon: "/icon-192.png",
     badge: "/badge-72.png",
     tag: "termflow-test",
+    data: { url: "/?view=notifications" },
   });
 }
 
