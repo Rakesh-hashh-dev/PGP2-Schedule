@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { pushSupported, pushConfigured, pushBlockReason, getPushSubscription, subscribeToPush, unsubscribeFromPush } from "../lib/push.js";
+import { pushSupported, pushConfigured, pushBlockReason, syncPushSubscription, subscribeToPush, unsubscribeFromPush } from "../lib/push.js";
 
 // Shared push subscription state + toggle logic, reused by the announcements
 // header pill (PushToggle) and the mobile overflow menu (PushMenuItem).
@@ -17,12 +17,12 @@ export function usePushStatus(userId, onStatusChange) {
         return setStatus(pushBlockReason() === "ios-install" ? "ios-install" : "unsupported");
       }
       if (Notification.permission === "denied") return setStatus("denied");
-      const sub = await getPushSubscription().catch(() => null);
+      const sub = await syncPushSubscription(userId).catch(() => null);
       if (!cancelled) setStatus(sub ? "on" : "off");
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [userId]);
 
   async function toggle() {
     if (status === "busy" || status === "denied") return;

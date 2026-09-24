@@ -1,5 +1,12 @@
 # Push Notifications — One-Time Setup
 
+For the current automated morning summary and class reminder pipeline, use
+[AUTOMATED_PUSH_RUNBOOK.md](AUTOMATED_PUSH_RUNBOOK.md). The older direct-send
+instructions below describe the initial implementation and do not configure
+the `dispatch` function required by the current notification store.
+Current Admin Tools push sends authenticate with the signed-in admin session;
+the rotated cron secret is not entered or stored in the browser for those sends.
+
 The code is fully wired: students opt in via the **"Enable push"** button on the
 Announcements page, subscriptions land in `push_subscriptions`, and admins
 broadcast from the **Push Notifications** card in Admin Tools. These steps make

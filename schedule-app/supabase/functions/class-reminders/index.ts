@@ -157,11 +157,14 @@ async function runReminders(supabase: ReturnType<typeof createClient>) {
   // ── 4. Load users, prefs, subscriptions ───────────────────────────────────
   // (loaded even when no class is due — the morning summary check needs prefs;
   //  subs are used to skip producing events for users who can't receive push)
-  const [{ data: profiles }, { data: prefs }, { data: subs }] = await Promise.all([
+  const [{ data: profiles, error: profilesError }, { data: prefs, error: prefsError }, { data: subs, error: subsError }] = await Promise.all([
     supabase.from("profiles").select("user_id, courses"),
     supabase.from("push_prefs").select("user_id, class_reminders, lead_minutes, daily_summary, summary_time, cancellation_alerts"),
     supabase.from("push_subscriptions").select("user_id"),
   ]);
+  if (profilesError || prefsError || subsError) {
+    throw new Error(`Could not load reminder recipients: ${profilesError?.message || prefsError?.message || subsError?.message}`);
+  }
   if (!subs || subs.length === 0) return { created: 0, note: "no push subscribers" };
 
   const prefByUser = new Map((prefs || []).map((p) => [p.user_id, p]));
@@ -409,7 +412,9 @@ async function runReminders(supabase: ReturnType<typeof createClient>) {
         urgency: "high", ttl: Math.max(60, lead * 60),
         expires_at: istToUTCISO(dateISO, cls.start),
       },
-      dedup_key: `class:${dateISO}:${cls.code}:${cls.section}`,
+      // A course may meet twice on one day. Include the start time so both
+      // sessions get a reminder while repeat cron runs still deduplicate.
+      dedup_key: `class:${dateISO}:${cls.code}:${cls.section}:${cls.start}`,
     };
   });
 

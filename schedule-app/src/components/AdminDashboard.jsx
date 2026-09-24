@@ -7,6 +7,7 @@ import { supabase } from "../lib/supabase";
 import { logAdminAction } from "../lib/adminAudit.js";
 import { listAdminRoles, setAdminRole, removeAdminRole, myAdminRole, READ_ONLY_MESSAGE } from "../lib/adminRoles.js";
 import { safeUrl } from "../lib/safeUrl.js";
+import { isPushCronStale, pushCronIssues } from "../lib/pushCronHealth.js";
 import { LEGEND } from "../data/schedule.js";
 import snapshotMeta from "../data/snapshot-meta.json";
 import { getSnapshot } from "../lib/sheet.js";
@@ -555,6 +556,16 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
   // ── Broadcast Tab Accordion States ──
   const [openBcast, setOpenBcast] = useState({ announcements: true, push: false, social: false });
+  const selectBroadcastChannel = (channel) => setOpenBcast({
+    announcements: channel === "announcements",
+    push: channel === "push",
+    social: channel === "social",
+  });
+  const toggleBroadcastChannel = (channel) => setOpenBcast(current => ({
+    announcements: channel === "announcements" && !current.announcements,
+    push: channel === "push" && !current.push,
+    social: channel === "social" && !current.social,
+  }));
   const [openContent, setOpenContent] = useState({ whatsNew: true, quickLinks: false, updatePrompt: false });
 
   // ── Command Centre State (Week View + Quick Actions + Undo Stack) ──
@@ -1157,21 +1168,11 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     setSaving(false);
   }
 
-  function getPushKey() {
-    let pushKey = localStorage.getItem("pgp2.push-admin-key") || "";
-    if (!pushKey) {
-      pushKey = prompt("Enter the push admin key (PUSH_ADMIN_SECRET set on the send-push edge function):") || "";
-      if (!pushKey) return "";
-      localStorage.setItem("pgp2.push-admin-key", pushKey);
-    }
-    return pushKey;
-  }
-
   // Shared push sender. Pass a targetUserId to deliver only to that user's devices
   // (used by "Send test to me"); omit it to broadcast to everyone.
   async function postPush({ targetUserId } = {}) {
-    const pushKey = getPushKey();
-    if (!pushKey) return;
+    const sessionToken = await window.Clerk?.session?.getToken();
+    if (!sessionToken) { setPushResult("Your admin session is unavailable. Refresh and sign in again."); return; }
     setPushSending(true);
     setPushResult("");
     try {
@@ -1179,8 +1180,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-push-key": pushKey,
-          "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          "Authorization": `Bearer ${sessionToken}`,
         },
         body: JSON.stringify({
           title: pushTitle.trim(),
@@ -1191,7 +1191,6 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) {
-        if (resp.status === 401) localStorage.removeItem("pgp2.push-admin-key");
         setPushResult(`Failed: ${data.error || resp.status}`);
       } else if (targetUserId) {
         setPushResult("Test queued to your devices — should arrive within ~1 min.");
@@ -1384,25 +1383,26 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     // 2. Insights RPCs
     try { const { error } = await supabase.rpc("get_push_broadcast_stats"); checks.push({ name: "Insights RPCs", ok: !error, detail: error ? error.message : "responding" }); }
     catch (e) { checks.push({ name: "Insights RPCs", ok: false, detail: e.message }); }
-    // 3. Cron health (via RPC) — flag any job that hasn't run in >2h
+    // 3. Check both scheduled push stages, including jobs that are missing.
     try {
       const { data, error } = await supabase.rpc("get_cron_health");
       if (error) checks.push({ name: "Cron jobs", ok: false, detail: error.message });
       else {
-        const stale = (data || []).filter(j => !j.last_run || (LOAD_NOW - new Date(j.last_run).getTime()) > 2 * 3600000);
-        checks.push({ name: "Cron jobs", ok: stale.length === 0, detail: stale.length ? `${stale.length} stale: ${stale.map(s => s.jobname || s.jobid).join(", ")}` : `${(data || []).length} healthy` });
+        const issues = pushCronIssues(data, nowMs());
+        checks.push({ name: "Push cron jobs", ok: issues.length === 0, detail: issues.length ? issues.join("; ") : "cron submitted requests; HTTP delivery must be checked separately" });
       }
     } catch (e) { checks.push({ name: "Cron jobs", ok: false, detail: e.message }); }
-    // 4. send-push edge fn reachable
-    try {
-      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
-        // No x-push-key: a liveness probe shouldn't carry the admin secret.
-        // The function answers 401, which is itself proof it's up.
-        method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
-        body: JSON.stringify({ __healthcheck: true }),
-      });
-      checks.push({ name: "send-push fn", ok: resp.status < 500, detail: `HTTP ${resp.status}` });
-    } catch (e) { checks.push({ name: "send-push fn", ok: false, detail: e.message }); }
+    // 4. Probe each stage without the push secret. A deployed function answers
+    // 401; a missing function answers 404. No notification is queued or sent.
+    for (const fn of ["class-reminders", "dispatch", "send-push"]) {
+      try {
+        const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${fn}`, {
+          method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
+          body: JSON.stringify({ __healthcheck: true }),
+        });
+        checks.push({ name: `${fn} fn`, ok: resp.status === 401, detail: `HTTP ${resp.status}${resp.status === 404 ? " — function missing" : ""}` });
+      } catch (e) { checks.push({ name: `${fn} fn`, ok: false, detail: e.message }); }
+    }
     // 5. Google Sheets feed
     const FEED_URL = "https://script.google.com/macros/s/AKfycbwOCmpZAbzN7hRkb-xx6-SDejt3c45E5NBZ0NHuJW8CBRYO4ROJfwE_MI_g4aODwo08Gg/exec";
     try { const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), 6000); const resp = await fetch(`${FEED_URL}?action=ping`, { signal: ctrl.signal }); clearTimeout(timer); checks.push({ name: "Sheets feed", ok: resp.ok, detail: resp.ok ? "reachable" : `HTTP ${resp.status}` }); }
@@ -1533,7 +1533,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   })();
   const systemOverview = (() => {
     const maintenance = flags.maintenanceMode ? "Live lockout" : flags.maintenanceWindow?.start || flags.maintenanceWindow?.end ? "Window scheduled" : "Open";
-    const staleJobs = cronHealth?.filter(job => !job.last_run || (job.status || "").toLowerCase() !== "succeeded" || LOAD_NOW - new Date(job.last_run).getTime() > 20 * 60000).length || 0;
+    const staleJobs = cronHealth ? pushCronIssues(cronHealth, LOAD_NOW).length : 0;
     const items = [
       ...(changesCount ? [{ id: "changes", tone: "watch", title: `${changesCount} staged change${changesCount === 1 ? "" : "s"}`, detail: "Review and deploy when the configuration is ready.", action: "Review changes", onClick: () => setReviewOpen(true) }] : []),
       ...(staleJobs ? [{ id: "jobs", tone: "risk", title: `${staleJobs} automation job${staleJobs === 1 ? " needs" : "s need"} attention`, detail: "Open Insights for the latest cron and service health.", action: "Open health", onClick: () => setActiveTab("insights") }] : []),
@@ -1696,27 +1696,17 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   }
 
   // ── Push to an explicit set of user IDs (bulk "Push Selected" + re-engagement) ──
-  async function pushToUserIds(ids, { title, body, url = "/?view=today", confirmMsg, authMode = "secret" } = {}) {
+  async function pushToUserIds(ids, { title, body, url = "/?view=today", confirmMsg } = {}) {
     if (!ids || ids.length === 0) return alert("No users to push to.");
-    let authorization = `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`;
-    const headers = { "Content-Type": "application/json" };
-    if (authMode === "admin-session") {
-      const sessionToken = await window.Clerk?.session?.getToken();
-      if (!sessionToken) return { ok: false, data: { error: "Your admin session is unavailable. Refresh and sign in again." } };
-      authorization = `Bearer ${sessionToken}`;
-    } else {
-      const pushKey = getPushKey();
-      if (!pushKey) return;
-      headers["x-push-key"] = pushKey;
-    }
+    const sessionToken = await window.Clerk?.session?.getToken();
+    if (!sessionToken) return { ok: false, data: { error: "Your admin session is unavailable. Refresh and sign in again." } };
     if (confirmMsg && !confirm(confirmMsg)) return;
     const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
       method: "POST",
-      headers: { ...headers, "Authorization": authorization },
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${sessionToken}` },
       body: JSON.stringify({ title, body, url, target_user_ids: ids }),
     });
     const data = await resp.json().catch(() => ({}));
-    if (authMode === "secret" && !resp.ok && resp.status === 401) localStorage.removeItem("pgp2.push-admin-key");
     return { ok: resp.ok, data };
   }
 
@@ -1784,7 +1774,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const insightIssues = [
     ...(moderationExpiringSoon.length ? [{ id: "statuses", tone: "watch", title: `${moderationExpiringSoon.length} status${moderationExpiringSoon.length === 1 ? "" : "es"} expire within an hour`, detail: "Review the live-status queue before they disappear.", action: "Review statuses", tab: "moderation" }] : []),
     ...(ghostUsers.length ? [{ id: "inactive", tone: "watch", title: `${ghostUsers.length} students have been inactive for 7+ days`, detail: "Use the engagement controls to decide whether outreach is warranted.", action: "Review users", tab: "users" }] : []),
-    ...(cronHealth?.filter(job => !job.last_run || (job.status || "").toLowerCase() !== "succeeded" || LOAD_NOW - new Date(job.last_run).getTime() > 20 * 60000).length ? [{ id: "cron", tone: "risk", title: "A scheduled service needs attention", detail: "A cron job is stale, paused, or last reported an error.", action: "Open health", tab: "insights" }] : []),
+    ...(cronHealth && pushCronIssues(cronHealth, LOAD_NOW).length ? [{ id: "cron", tone: "risk", title: "Push delivery needs attention", detail: pushCronIssues(cronHealth, LOAD_NOW).join("; "), action: "Open health", tab: "insights" }] : []),
   ].slice(0, 3);
   const insightsSessions = activityChartData.reduce((sum, value) => sum + value, 0);
   const insightsWeeklyReach = typeof totalUsers === "number" && totalUsers ? Math.round((activeTiers.wau / totalUsers) * 100) : 0;
@@ -1842,7 +1832,6 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
         title: "We miss you at TermFlow 👋",
         body: "Your schedule, mess menu and friends are waiting — jump back in.",
         confirmMsg: `Send a re-engagement push to ${ids.length} user(s) inactive for ${inactiveDays}+ days?`,
-        authMode: "admin-session",
       });
       if (!res) { setReEngaging(false); return; }
       if (!res.ok) setReEngageMsg(`Failed: ${res.data.error || "error"}`);
@@ -3171,57 +3160,35 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               </div>
             </section>
           )}
-                <section className="admin-card admin-span-all admin-g-broadcast broadcast-command-deck" style={{ gridColumn: "1 / -1" }}>
-          <div className="broadcast-command-head"><div><span className="broadcast-eyebrow">Audience communications</span><h2><Megaphone size={20} color="var(--amber)" /> Broadcast command deck</h2><p className="admin-subtext">Plan the message, confirm the audience, then choose the channel that fits the urgency.</p></div><button type="button" className="admin-btn outline" onClick={fetchDashboardData} disabled={statsLoading}><RefreshCw size={14} className={statsLoading ? "spin-icon" : ""} /> Refresh data</button></div>
-          <div className="broadcast-command-metrics"><div><span>Live banners</span><strong>{broadcastOverview.activeBanners}</strong><small>currently visible in-app</small></div><div><span>Queued content</span><strong>{broadcastOverview.scheduledItems}</strong><small>future pushes, banners and links</small></div><div><span>Push-ready devices</span><strong>{broadcastOverview.subscribers}</strong><small>subscribed devices, not students</small></div></div>
-          <div className="admin-action-legend"><span><AdminActionBadge mode="staged" /> Banners and saved content require deployment</span><span><AdminActionBadge mode="live" /> Push and social flash send immediately</span></div>
-          <div className="broadcast-channel-guide"><button type="button" onClick={() => setOpenBcast(current => ({ ...current, announcements: true }))}><Megaphone size={16} /><span><strong>Banner</strong><small>Persistent, date-bound information</small></span><ChevronRight size={15} /></button><button type="button" onClick={() => setOpenBcast(current => ({ ...current, push: true }))}><BellRing size={16} /><span><strong>Push</strong><small>Time-sensitive reach to subscribed devices</small></span><ChevronRight size={15} /></button><button type="button" onClick={() => setOpenBcast(current => ({ ...current, social: true }))}><Sparkles size={16} /><span><strong>Social flash</strong><small>Immediate message to active users</small></span><ChevronRight size={15} /></button></div>
+        <section className="admin-card admin-span-all admin-g-broadcast broadcast-command-deck" style={{ gridColumn: "1 / -1" }}>
+          <div className="broadcast-command-head">
+            <div><span className="broadcast-eyebrow">Audience communications</span><h2><Megaphone size={20} /> Broadcast</h2><p className="admin-subtext">Choose how students should see your message, then compose it below.</p></div>
+            <button type="button" className="admin-btn outline" onClick={fetchDashboardData} disabled={statsLoading}><RefreshCw size={14} className={statsLoading ? "spin-icon" : ""} /> Refresh data</button>
+          </div>
+          <div className="broadcast-command-metrics">
+            <div><span>Visible banners</span><strong>{broadcastOverview.activeBanners}</strong><small>shown in the app now</small></div>
+            <div><span>Scheduled items</span><strong>{broadcastOverview.scheduledItems}</strong><small>future banners, pushes and links</small></div>
+            <div><span>Push devices</span><strong>{broadcastOverview.subscribers}</strong><small>subscribed devices</small></div>
+          </div>
+          <div className="broadcast-section-heading"><div><strong>Start a message</strong><span>Select a channel to open its composer</span></div><a href="#broadcast-activity">View schedule &amp; results <ChevronRight size={14} /></a></div>
+          <div className="broadcast-channel-guide" role="group" aria-label="Broadcast channel">
+            <button type="button" className={openBcast.announcements ? "is-selected" : ""} aria-pressed={openBcast.announcements} onClick={() => selectBroadcastChannel("announcements")}><Megaphone size={18} /><span><strong>Banner</strong><small>Date-bound notice in the app</small><em>Saved with deploy</em></span><ChevronRight size={16} /></button>
+            <button type="button" className={openBcast.push ? "is-selected" : ""} aria-pressed={openBcast.push} onClick={() => selectBroadcastChannel("push")}><BellRing size={18} /><span><strong>Web push</strong><small>Alert subscribed devices</small><em>Send now or schedule</em></span><ChevronRight size={16} /></button>
+            <button type="button" className={openBcast.social ? "is-selected" : ""} aria-pressed={openBcast.social} onClick={() => selectBroadcastChannel("social")}><Sparkles size={18} /><span><strong>Social flash</strong><small>Brief alert to active users</small><em>Send live</em></span><ChevronRight size={16} /></button>
+          </div>
         </section>
 
                 {/* ── 1. Broadcast Studio (Announcements + Push + Social Flash + Quiet Hours) ── */}
-        <section className="admin-card admin-span-all admin-g-broadcast" style={{ gridColumn: "1 / -1" }}>
+        <section className="admin-card admin-span-all admin-g-broadcast broadcast-studio-card" style={{ gridColumn: "1 / -1" }}>
           <div className="bcast-studio-head">
             <div>
-              <h2 style={{ marginBottom: 4 }}><Megaphone size={20} color="var(--amber)" /> Broadcast Studio</h2>
-              <p className="admin-subtext" style={{ margin: 0 }}>Compose and dispatch banners, push notifications, and live toast alerts to students.</p>
+              <span className="broadcast-eyebrow">Composer</span>
+              <h2 style={{ marginBottom: 4 }}>Create your message</h2>
+              <p className="admin-subtext" style={{ margin: 0 }}>Review the audience and delivery timing before you send.</p>
             </div>
-            <div className="bcast-tabs" role="group" aria-label="Broadcast channels">
-              <button
-                type="button"
-                className="bcast-tab"
-                aria-pressed={openBcast.announcements}
-                onClick={() => setOpenBcast(o => ({ ...o, announcements: !o.announcements }))}
-                style={{
-                  border: openBcast.announcements ? "1.5px solid var(--amber)" : "1px solid var(--border)",
-                  background: openBcast.announcements ? "rgba(245,158,11,0.12)" : "var(--bg)",
-                  color: openBcast.announcements ? "var(--amber)" : "var(--muted)",
-                }}>
-                <Megaphone size={14} /> Banners {(flags.scheduledAnnouncements || []).length > 0 ? `(${flags.scheduledAnnouncements.length})` : ""}
-              </button>
-              <button
-                type="button"
-                className="bcast-tab"
-                aria-pressed={openBcast.push}
-                onClick={() => setOpenBcast(o => ({ ...o, push: !o.push }))}
-                style={{
-                  border: openBcast.push ? "1.5px solid var(--live)" : "1px solid var(--border)",
-                  background: openBcast.push ? "rgba(31,169,113,0.12)" : "var(--bg)",
-                  color: openBcast.push ? "var(--live)" : "var(--muted)",
-                }}>
-                <BellRing size={14} /> Web Push {(flags.scheduledPushes || []).length > 0 ? `(${flags.scheduledPushes.length})` : ""}
-              </button>
-              <button
-                type="button"
-                className="bcast-tab"
-                aria-pressed={openBcast.social}
-                onClick={() => setOpenBcast(o => ({ ...o, social: !o.social }))}
-                style={{
-                  border: openBcast.social ? "1.5px solid var(--violet)" : "1px solid var(--border)",
-                  background: openBcast.social ? "rgba(139,92,246,0.12)" : "var(--bg)",
-                  color: openBcast.social ? "var(--violet)" : "var(--muted)",
-                }}>
-                <Sparkles size={14} /> Social Flash
-              </button>
+            <div className="broadcast-studio-note">
+              {(openBcast.announcements || openBcast.push || openBcast.social) && <AdminActionBadge mode={openBcast.announcements || (openBcast.push && pushScheduleDate && pushScheduleTime) ? "staged" : "live"} />}
+              {openBcast.announcements ? "Save changes, then deploy" : openBcast.push ? (Boolean(pushScheduleDate) !== Boolean(pushScheduleTime) ? "Complete date and time" : pushScheduleDate ? "Scheduled push requires deploy" : "Immediate sends queue for delivery") : openBcast.social ? "Sends to active sessions" : "Select a channel above"}
             </div>
           </div>
 
@@ -3233,8 +3200,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 role="button"
                 tabIndex={0}
                 aria-expanded={openBcast.announcements}
-                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenBcast(o => ({ ...o, announcements: !o.announcements })); } }}
-                onClick={() => setOpenBcast(o => ({ ...o, announcements: !o.announcements }))}
+                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleBroadcastChannel("announcements"); } }}
+                onClick={() => toggleBroadcastChannel("announcements")}
                 style={{ background: openBcast.announcements ? "rgba(245,158,11,0.06)" : "transparent" }}>
                 <div className="bcast-acc-title">
                   <Megaphone size={17} color="var(--amber)" />
@@ -3274,7 +3241,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                           { label: "Next 3 Days", days: 3 },
                           { label: "This Week", days: 7 },
                           { label: "2 Weeks", days: 14 },
-                          { label: "Term End", termEnd: "2026-09-04" },
+                          { label: "Term End", termEnd: snapshotMeta.termEnd },
                         ].map(p => (
                           <button key={p.label} type="button"
                             onClick={() => {
@@ -3589,8 +3556,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 role="button"
                 tabIndex={0}
                 aria-expanded={openBcast.push}
-                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenBcast(o => ({ ...o, push: !o.push })); } }}
-                onClick={() => setOpenBcast(o => ({ ...o, push: !o.push }))}
+                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleBroadcastChannel("push"); } }}
+                onClick={() => toggleBroadcastChannel("push")}
                 style={{ background: openBcast.push ? "rgba(31,169,113,0.06)" : "transparent" }}>
                 <div className="bcast-acc-title">
                   <BellRing size={17} color="var(--live)" />
@@ -3672,6 +3639,12 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     </div>
                   </div>
 
+                  <div className="broadcast-delivery-summary" aria-live="polite">
+                    <div><span>Audience</span><strong>{pushTarget === "all" ? "Everyone" : `${audienceIds(pushTarget)?.length ?? 0} matching students`}</strong><small>{pushTarget === "all" ? `${broadcastOverview.subscribers} push-ready devices` : "In-app entry and push when subscribed"}</small></div>
+                    <div><span>Timing</span><strong>{pushScheduleDate && pushScheduleTime ? `${pushScheduleDate} at ${pushScheduleTime}` : pushScheduleDate || pushScheduleTime ? "Finish date and time" : "Send now"}</strong><small>{pushScheduleDate && pushScheduleTime ? "Queued with next deploy" : pushScheduleDate || pushScheduleTime ? "Both fields are needed to schedule" : "Usually arrives within a minute"}</small></div>
+                    <div><span>Action</span><strong>{pushScheduleDate && pushScheduleTime ? "Stage scheduled push" : "Send live push"}</strong><small>{pushScheduleDate && pushScheduleTime ? "Save and deploy changes to activate" : "Affects real recipients"}</small></div>
+                  </div>
+
                   <PushPreview title={pushTitle} body={pushBody} url={pushUrl} when={pushScheduleDate && pushScheduleTime ? `${pushScheduleDate} · ${pushScheduleTime}` : "now"} />
 
                   <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
@@ -3679,6 +3652,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                       if (pushScheduleDate && pushScheduleTime) {
                         if (pushTarget !== "all") return alert("Scheduled pushes currently go to everyone. For a targeted push, clear the schedule and send now.");
                         if (!pushTitle.trim() || !pushBody.trim()) return alert("Fill in title and message.");
+                        if (new Date(`${pushScheduleDate}T${pushScheduleTime}:00`).getTime() <= Date.now()) return alert("Choose a future date and time for a scheduled push.");
                         const newItem = { id: Date.now().toString(), title: pushTitle.trim(), body: pushBody.trim(), url: pushUrl.trim(), date: pushScheduleDate, time: pushScheduleTime };
                         setFlags({...flags, scheduledPushes: [...(flags.scheduledPushes || []), newItem]});
                         setPushTitle(""); setPushBody(""); setPushUrl(""); setPushScheduleDate(""); setPushScheduleTime("");
@@ -3699,14 +3673,14 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                       } else {
                         sendPushBroadcast();
                       }
-                    }} disabled={pushSending}>
+                    }} disabled={pushSending || Boolean(pushScheduleDate) !== Boolean(pushScheduleTime)}>
                       <BellRing size={14} /> {pushSending ? "Sending..." : (pushScheduleDate && pushScheduleTime ? "Queue Push Notification" : pushTarget !== "all" ? "Send to Audience" : "Send to All Subscribers")}
                     </button>
                     <button className="admin-btn outline" onClick={sendTestPushToMe} disabled={pushSending} title="Delivers only to your own subscribed devices — arrives within ~1 min">
                       <BellRing size={14} /> Send test to me
                     </button>
                     {pushResult && (
-                      <span className="admin-subtext" style={{ margin: 0, color: pushResult.startsWith("Sent") || pushResult.startsWith("Push scheduled") || pushResult.startsWith("Test") ? "var(--live)" : "var(--danger)" }}>{pushResult}</span>
+                      <span className="admin-subtext" role="status" style={{ margin: 0, color: pushResult.startsWith("Sent") || pushResult.startsWith("Push scheduled") || pushResult.startsWith("Test") ? "var(--live)" : "var(--danger)" }}>{pushResult}</span>
                     )}
                   </div>
                 </div>
@@ -3720,8 +3694,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 role="button"
                 tabIndex={0}
                 aria-expanded={openBcast.social}
-                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenBcast(o => ({ ...o, social: !o.social })); } }}
-                onClick={() => setOpenBcast(o => ({ ...o, social: !o.social }))}
+                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleBroadcastChannel("social"); } }}
+                onClick={() => toggleBroadcastChannel("social")}
                 style={{ background: openBcast.social ? "rgba(139,92,246,0.06)" : "transparent" }}>
                 <div className="bcast-acc-title">
                   <Sparkles size={17} color="var(--violet)" />
@@ -3861,7 +3835,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
         </section>
 
         {/* ── 2. Mission Control (Timeline Agenda + Delivery Stats + Queued Pushes) ── */}
-        <section className="admin-card admin-span-all admin-g-broadcast" style={{ gridColumn: "1 / -1" }}>
+        <section id="broadcast-activity" className="admin-card admin-span-all admin-g-broadcast" style={{ gridColumn: "1 / -1" }}>
           <h2><Clock size={20} color="var(--live)" /> Broadcast Mission Control</h2>
           <p className="admin-subtext">Unified schedule of upcoming pushes, active banners, and recent broadcast delivery performance.</p>
 
@@ -5087,7 +5061,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
           {/* Edge-function / cron health */}
           <section className="admin-card admin-span-all admin-g-insights insights-service-health" style={{ gridColumn: "1 / -1" }}>
-            <div className="insights-section-head"><div><span className="insights-eyebrow"><Terminal size={13} /> Scheduled infrastructure</span><h2>Edge function and cron health</h2><p className="admin-subtext">Last reported run for dispatch, class reminders, and scheduled pushes.</p></div><span className={`insights-health-summary ${cronHealth?.some(job => !job.last_run || (job.status || "").toLowerCase() !== "succeeded" || LOAD_NOW - new Date(job.last_run).getTime() > 20 * 60000) ? "has-issues" : ""}`}><i />{cronHealth === null ? "Unavailable" : cronHealth.length ? `${cronHealth.length} jobs monitored` : "No jobs"}</span></div>
+            <div className="insights-section-head"><div><span className="insights-eyebrow"><Terminal size={13} /> Scheduled infrastructure</span><h2>Edge function and cron health</h2><p className="admin-subtext">Last reported run for dispatch, class reminders, and scheduled pushes.</p></div><span className={`insights-health-summary ${cronHealth && pushCronIssues(cronHealth, LOAD_NOW).length ? "has-issues" : ""}`}><i />{cronHealth === null ? "Unavailable" : cronHealth.length ? `${cronHealth.length} jobs monitored` : "No jobs"}</span></div>
+            {cronHealth && pushCronIssues(cronHealth, LOAD_NOW).length > 0 && <p className="admin-subtext" role="alert">{pushCronIssues(cronHealth, LOAD_NOW).join("; ")}. Check the two scheduled functions and their cron jobs.</p>}
             {cronHealth === null ? (
               <div className="insights-service-empty"><AlertTriangle size={19} /><div><strong>Health RPC unavailable</strong><span>Deploy migration <code>20260731120000</code> to enable cron monitoring.</span></div></div>
             ) : cronHealth.length === 0 ? (
@@ -5096,9 +5071,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               <div className="insights-service-list">
                 {cronHealth.map((j, i) => {
                   const ok = (j.status || "").toLowerCase() === "succeeded";
-                  const stale = j.last_run && (LOAD_NOW - new Date(j.last_run).getTime()) > 20 * 60000;
+                  const stale = isPushCronStale(j, LOAD_NOW);
                   return (
-                    <div key={i} className={`insights-service-row ${!j.last_run ? "is-unknown" : ok && !stale ? "is-healthy" : "is-unhealthy"}`}>
+                    <div key={i} className={`insights-service-row ${!j.last_run ? "is-unknown" : ok && j.active && !stale ? "is-healthy" : "is-unhealthy"}`}>
                       <span className="insights-service-dot" /><div><strong>{j.jobname}</strong><span><code>{j.schedule}</code>{j.message ? ` · ${String(j.message).slice(0, 80)}` : ""}</span></div>{!j.active && <span className="insights-paused">Paused</span>}<div className="insights-service-time"><strong>{stale ? "Stale" : j.status || "Never run"}</strong><span>{j.last_run ? new Date(j.last_run).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "No run recorded"}</span></div>
                     </div>
                   );
@@ -5109,8 +5084,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
           {/* Self-test: ping every service in one click */}
           <section className="admin-card admin-g-insights insights-diagnostic-card insights-self-test">
-            <div className="insights-card-head"><span><Check size={17} /></span><div><h2>System self-test</h2><p>Five critical service checks</p></div>{selfTest && <span className={`insights-test-result ${selfTest.checks.some(check => !check.ok) ? "has-issues" : ""}`}>{selfTest.checks.filter(check => check.ok).length}/{selfTest.checks.length} passed</span>}</div>
-            <p className="admin-subtext">Probe the database, Insights RPCs, cron jobs, push gateway, and schedule feed in one run.</p>
+            <div className="insights-card-head"><span><Check size={17} /></span><div><h2>System self-test</h2><p>Seven service checks</p></div>{selfTest && <span className={`insights-test-result ${selfTest.checks.some(check => !check.ok) ? "has-issues" : ""}`}>{selfTest.checks.filter(check => check.ok).length}/{selfTest.checks.length} passed</span>}</div>
+            <p className="admin-subtext">Check the database, required push cron jobs and functions, Insights RPCs, and schedule feed. A successful cron run only submits an HTTP request; inspect pg_net responses for 401 errors. This test does not send a notification.</p>
             <button className="admin-btn primary insights-run-test" onClick={runSelfTest} disabled={selfTesting}>
               {selfTesting ? <><RefreshCw size={14} className="spin-icon" /> Running…</> : <><Check size={14} /> Run self-test</>}
             </button>

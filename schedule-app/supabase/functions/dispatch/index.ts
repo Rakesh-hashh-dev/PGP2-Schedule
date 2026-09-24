@@ -119,8 +119,9 @@ async function runDispatch(supabase: ReturnType<typeof createClient>) {
   // an explicit false pauses all push instantly without a redeploy. Producers keep
   // inserting rows, so the in-app inbox is unaffected and pushes resume (bounded by
   // the scan window) when it's flipped back on.
-  const { data: cfg } = await supabase
+  const { data: cfg, error: configError } = await supabase
     .from("system_config").select("flags").eq("id", "global").maybeSingle();
+  if (configError) throw new Error(`Could not load dispatch config: ${configError.message}`);
   if ((cfg?.flags as { dispatchEnabled?: boolean } | null)?.dispatchEnabled === false) {
     return { skipped: "dispatch disabled by admin kill-switch" };
   }
@@ -129,7 +130,7 @@ async function runDispatch(supabase: ReturnType<typeof createClient>) {
   const sinceISO = new Date(Date.now() - SCAN_WINDOW_MS).toISOString();
 
   // Undelivered, due (scheduled_for null or past), recent rows.
-  const { data: rows } = await supabase
+  const { data: rows, error: rowsError } = await supabase
     .from("notifications")
     .select("id, user_id, type, title, body, url, icon, data, dedup_key, created_at")
     .is("delivered_push_at", null)
@@ -137,14 +138,16 @@ async function runDispatch(supabase: ReturnType<typeof createClient>) {
     .or(`scheduled_for.is.null,scheduled_for.lte.${nowISO}`)
     .order("created_at", { ascending: true })
     .limit(MAX_ROWS);
+  if (rowsError) throw new Error(`Could not load pending notifications: ${rowsError.message}`);
   if (!rows || rows.length === 0) return { delivered: 0, note: "nothing due" };
 
   // Only fetch subs + prefs for the users who actually have a pending row.
   const userIds = [...new Set((rows as Notif[]).map((r) => r.user_id))];
-  const [{ data: subs }, { data: prefRows }] = await Promise.all([
+  const [{ data: subs, error: subsError }, { data: prefRows, error: prefsError }] = await Promise.all([
     supabase.from("push_subscriptions").select("user_id, endpoint, p256dh, auth").in("user_id", userIds),
     supabase.from("push_prefs").select("user_id, quiet_start, quiet_end, prefs").in("user_id", userIds),
   ]);
+  if (subsError || prefsError) throw new Error(`Could not load push recipients: ${subsError?.message || prefsError?.message}`);
   const subsByUser = new Map<string, Sub[]>();
   for (const s of (subs || []) as Sub[]) {
     (subsByUser.get(s.user_id) ?? subsByUser.set(s.user_id, []).get(s.user_id)!).push(s);

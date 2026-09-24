@@ -65,6 +65,24 @@ export async function getPushSubscription() {
   return reg.pushManager.getSubscription();
 }
 
+// A browser can retain its subscription after the cloud row is removed (for
+// example after an account migration). Re-register it for the signed-in user
+// when the settings page opens so "Push on" reflects a deliverable endpoint.
+export async function syncPushSubscription(userId) {
+  const sub = await getPushSubscription();
+  if (!sub || !userId || Notification.permission !== "granted") return null;
+  const json = sub.toJSON();
+  if (!json.keys?.p256dh || !json.keys?.auth) throw new Error("Push subscription keys are missing. Disable and re-enable push.");
+  const { error } = await supabase.from("push_subscriptions").upsert({
+    endpoint: sub.endpoint,
+    user_id: userId,
+    p256dh: json.keys.p256dh,
+    auth: json.keys.auth,
+  }, { onConflict: "endpoint" });
+  if (error) throw new Error("Could not sync push subscription: " + error.message);
+  return sub;
+}
+
 export async function subscribeToPush(userId) {
   if (!pushSupported()) throw new Error("Push is not supported on this device/browser.");
   if (!VAPID_PUBLIC_KEY) throw new Error("Push is not configured (VITE_VAPID_PUBLIC_KEY missing).");
@@ -72,26 +90,14 @@ export async function subscribeToPush(userId) {
   if (permission !== "granted") throw new Error("Notification permission was denied.");
 
   const reg = await navigator.serviceWorker.ready;
-  let sub = await reg.pushManager.getSubscription();
-  if (!sub) {
-    sub = await reg.pushManager.subscribe({
+  if (!await reg.pushManager.getSubscription()) {
+    await reg.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
     });
   }
 
-  const json = sub.toJSON();
-  const { error } = await supabase.from("push_subscriptions").upsert(
-    {
-      endpoint: sub.endpoint,
-      user_id: userId,
-      p256dh: json.keys?.p256dh,
-      auth: json.keys?.auth,
-    },
-    { onConflict: "endpoint" }
-  );
-  if (error) throw new Error("Could not save subscription: " + error.message);
-  return sub;
+  return syncPushSubscription(userId);
 }
 
 // ── Class-reminder preferences (push_prefs table, one row per user) ────────

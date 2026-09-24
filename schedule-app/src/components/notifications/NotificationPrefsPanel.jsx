@@ -289,9 +289,9 @@ export function NotificationPrefsPanel({ userId, openSignal }) {
                 ? <><Check size={12} strokeWidth={3} /> Sent — check your notifications</>
                 : testState === "failed" ? "Couldn't show it — try re-enabling push"
                 : testState === "busy" ? "Sending…"
-                : "Send a test notification"}
+                : "Test alerts on this device"}
             </button>
-            <span className="reminder-bar-hint">Confirms alerts appear on this device</span>
+            <span className="reminder-bar-hint">Checks device display only. Admin Tools → Send test to me checks server delivery.</span>
           </div>
         </div>
       )}

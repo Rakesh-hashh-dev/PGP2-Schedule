@@ -5415,3 +5415,82 @@
   .fb-item-tags { gap: 5px; }
   .fb-tag { min-height: 28px; padding: 3px 11px; }
 }
+/* Broadcast workspace: one channel choice, one active composer, clear send state. */
+.broadcast-command-deck {
+  padding: 24px;
+  background: var(--card);
+  border-color: var(--border);
+}
+.broadcast-command-head { align-items: center; margin-bottom: 20px; }
+.broadcast-command-head h2 { display: flex; align-items: center; gap: 9px; margin: 5px 0; }
+.broadcast-command-head h2 svg { color: var(--amber); }
+.broadcast-command-head .admin-subtext { max-width: 58ch; }
+.broadcast-command-metrics > div { background: color-mix(in srgb, var(--bg) 68%, var(--card)); }
+.broadcast-section-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 22px 0 10px;
+}
+.broadcast-section-heading strong,
+.broadcast-section-heading span { display: block; }
+.broadcast-section-heading strong { color: var(--text); font-size: 15px; }
+.broadcast-section-heading span { margin-top: 3px; color: var(--muted); font-size: 12px; }
+.broadcast-section-heading a { display: inline-flex; align-items: center; gap: 3px; color: var(--blue); font-size: 12px; font-weight: 700; text-decoration: none; white-space: nowrap; }
+.broadcast-section-heading a:hover { text-decoration: underline; }
+.broadcast-channel-guide { margin-top: 0; gap: 10px; }
+.broadcast-channel-guide button {
+  --channel-accent: var(--amber);
+  min-height: 102px;
+  align-items: start;
+  padding: 15px;
+  border-radius: 13px;
+  background: var(--bg);
+  transition: border-color .16s ease, background .16s ease;
+}
+.broadcast-channel-guide button:nth-child(2) { --channel-accent: var(--live); }
+.broadcast-channel-guide button:nth-child(3) { --channel-accent: var(--violet); }
+.broadcast-channel-guide button > svg:first-child { color: var(--channel-accent); }
+.broadcast-channel-guide button > svg:last-child { color: var(--muted); }
+.broadcast-channel-guide button strong { font-size: 14px; }
+.broadcast-channel-guide button small { margin: 5px 0; font-size: 11px; line-height: 1.4; white-space: normal; }
+.broadcast-channel-guide button em { display: block; color: var(--channel-accent); font-size: 10px; font-style: normal; font-weight: 750; }
+.broadcast-channel-guide button:hover,
+.broadcast-channel-guide button.is-selected {
+  border-color: color-mix(in srgb, var(--channel-accent) 58%, var(--border));
+  background: color-mix(in srgb, var(--channel-accent) 7%, var(--card));
+  transform: none;
+}
+.broadcast-channel-guide button:focus-visible,
+.broadcast-section-heading a:focus-visible { outline: 2px solid var(--violet); outline-offset: 2px; }
+.broadcast-studio-card { scroll-margin-top: 20px; }
+.broadcast-studio-card .bcast-studio-head { align-items: center; }
+.broadcast-studio-card .bcast-studio-head h2 { margin-top: 5px; }
+.broadcast-studio-note { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; font-weight: 650; }
+.broadcast-delivery-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.broadcast-delivery-summary > div { min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: color-mix(in srgb, var(--bg) 72%, var(--card)); }
+.broadcast-delivery-summary span,
+.broadcast-delivery-summary strong,
+.broadcast-delivery-summary small { display: block; }
+.broadcast-delivery-summary span { color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.broadcast-delivery-summary strong { margin: 5px 0 3px; color: var(--text); font-size: 13px; overflow-wrap: anywhere; }
+.broadcast-delivery-summary small { color: var(--muted); font-size: 11px; line-height: 1.4; }
+#broadcast-activity { scroll-margin-top: 20px; }
+@media (max-width: 700px) {
+  .broadcast-command-deck { padding: 16px; }
+  .broadcast-command-head { align-items: start; margin-bottom: 14px; }
+  .broadcast-command-head .admin-btn { width: auto; }
+  .broadcast-section-heading { align-items: start; margin-top: 17px; }
+  .broadcast-section-heading a { white-space: normal; text-align: right; }
+  .broadcast-channel-guide { grid-template-columns: 1fr; }
+  .broadcast-channel-guide button { min-height: 0; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; padding: 12px; text-align: left; }
+  .broadcast-channel-guide button > svg:first-child { margin: 0; }
+  .broadcast-channel-guide button > svg:last-child { display: block; }
+  .broadcast-channel-guide button strong { font-size: 13px; }
+  .broadcast-channel-guide button small { display: block; margin: 2px 0; font-size: 10.5px; }
+  .broadcast-channel-guide button em { font-size: 10px; }
+  .broadcast-studio-note { width: 100%; }
+  .broadcast-delivery-summary { grid-template-columns: 1fr; }
+  .broadcast-delivery-summary > div { padding: 10px 12px; }
+}
