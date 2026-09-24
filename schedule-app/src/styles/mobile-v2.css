@@ -11,7 +11,7 @@
 
 /* Today timeline — compact V2 integration. Portrait tablets use the same
    readable rail; landscape tablets retain the denser desktop timeline. */
-@media (max-width: 760px),
+@media (max-width: 767px),
   (min-width: 768px) and (max-width: 1024px) and (orientation: portrait) {
   /* Container shell matches V2 card rhythm (16px radius, subtle border) */
   .mobile-ui-v2 .timeline-today {
@@ -50,61 +50,96 @@
   }
 
   .mobile-ui-v2 .timeline-today .panel-refresh {
-    width: 24px;
-    height: 24px;
-    border-radius: 7px;
+    width: auto !important;
+    height: auto !important;
+    min-width: unset !important;
+    min-height: unset !important;
+    padding: 3px !important;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: var(--muted) !important;
+    opacity: 0.75;
+  }
+
+  .mobile-ui-v2 .timeline-today .panel-refresh:hover,
+  .mobile-ui-v2 .timeline-today .panel-refresh:active {
+    color: var(--violet) !important;
+    opacity: 1;
+    transform: rotate(30deg);
   }
 
   .mobile-ui-v2 .timeline-today .panel-refresh svg {
-    width: 13px;
-    height: 13px;
+    width: 14px !important;
+    height: 14px !important;
   }
 
   /* Header status pills — sleek compact capsules */
   .mobile-ui-v2 .timeline-today .timeline-overview {
-    gap: 5px;
+    gap: 6px;
     margin-left: auto;
+    display: flex;
+    align-items: center;
   }
 
   .mobile-ui-v2 .timeline-today .timeline-status,
   .mobile-ui-v2 .timeline-today .timeline-progress-copy {
     min-height: 26px;
     height: 26px;
-    padding: 0 8px;
+    padding: 0 9px;
     border-radius: 99px;
-    gap: 5px;
+    gap: 4px;
+    box-sizing: border-box;
   }
 
   .mobile-ui-v2 .timeline-today .timeline-status-dot {
     width: 6px;
     height: 6px;
+    flex-shrink: 0;
+  }
+
+  .mobile-ui-v2 .timeline-today .timeline-status-copy span {
+    display: none !important;
   }
 
   .mobile-ui-v2 .timeline-today .timeline-status-copy strong {
     font-size: 9.5px;
-    letter-spacing: .02em;
+    letter-spacing: .03em;
+    white-space: nowrap;
+  }
+
+  .mobile-ui-v2 .timeline-today .timeline-progress-copy {
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: center !important;
   }
 
   .mobile-ui-v2 .timeline-today .timeline-progress-copy strong {
     font-size: 11px;
+    line-height: 1;
   }
 
-  .mobile-ui-v2 .timeline-today .timeline-progress-copy span {
-    font-size: 8.5px;
+  .mobile-ui-v2 .timeline-progress-mob-label {
+    display: inline !important;
+    font-size: 8.5px !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: .04em !important;
+    color: var(--muted) !important;
   }
 
   /* Rail layout */
   .mobile-ui-v2 .timeline-today .rail {
-    padding: 7px 8px 10px;
+    padding: 8px 10px 12px 6px;
     gap: 4px;
   }
 
-  /* Row grid override — wins over .mobile-ui-v2 .row flex rules */
+  /* Row grid override: shifted left with snug 56px time column */
   .mobile-ui-v2 .timeline-today .row {
     display: grid !important;
-    grid-template-columns: 50px 14px minmax(0, 1fr) auto !important;
+    grid-template-columns: 56px 14px minmax(0, 1fr) !important;
     align-items: stretch !important;
-    gap: 0 7px !important;
+    gap: 0 6px !important;
     min-height: 46px !important;
     margin: 0 !important;
     padding: 2px 0 !important;
@@ -113,14 +148,14 @@
     box-shadow: none !important;
   }
 
-  /* Time column */
+  /* Time column: shifted left with snug 46px width */
   .mobile-ui-v2 .timeline-today .row-time {
     min-width: 0 !important;
-    padding: 6px 0 !important;
+    padding: 8px 0 6px 0 !important;
     display: flex !important;
     flex-direction: column !important;
     align-items: flex-end !important;
-    justify-content: center !important;
+    justify-content: flex-start !important;
     font-family: var(--mono) !important;
   }
 
@@ -128,14 +163,15 @@
     font-size: 10px !important;
     font-weight: 800 !important;
     line-height: 1.15 !important;
-    letter-spacing: -.02em !important;
+    letter-spacing: -.03em !important;
   }
 
   .mobile-ui-v2 .timeline-today .row-time .rt-end {
     font-size: 8.5px !important;
     font-weight: 600 !important;
     line-height: 1.15 !important;
-    margin-top: 1px !important;
+    margin-top: 2px !important;
+    letter-spacing: -.03em !important;
     color: var(--muted) !important;
   }
 
@@ -148,15 +184,16 @@
     position: relative !important;
     display: flex !important;
     justify-content: center !important;
-    align-items: center !important;
+    align-items: flex-start !important;
+    padding-top: 10px !important;
     height: 100% !important;
     min-height: 46px !important;
   }
 
   .mobile-ui-v2 .timeline-today .timeline-marker::after {
     position: absolute !important;
-    top: -8px !important;
-    bottom: -8px !important;
+    top: 0 !important;
+    bottom: 0 !important;
     left: 50% !important;
     width: 1.5px !important;
     content: "" !important;
@@ -166,11 +203,11 @@
   }
 
   .mobile-ui-v2 .timeline-today .row:first-of-type .timeline-marker::after {
-    top: 50% !important;
+    top: 14px !important;
   }
 
-  .mobile-ui-v2 .timeline-today .row:last-of-type .timeline-marker::after {
-    bottom: 50% !important;
+  .mobile-ui-v2 .timeline-today .rail:has(.nowline-end) .row:last-of-type .timeline-marker::after {
+    bottom: -8px !important;
   }
 
   .mobile-ui-v2 .timeline-today .timeline-marker > span {
@@ -188,10 +225,10 @@
   /* Now-line alignment & continuous spine pass-through */
   .mobile-ui-v2 .timeline-today .nowline {
     display: grid !important;
-    grid-template-columns: 50px 14px minmax(0, 1fr) !important;
+    grid-template-columns: 56px 14px minmax(0, 1fr) !important;
     align-items: center !important;
-    gap: 0 7px !important;
-    margin: 4px 0 !important;
+    gap: 0 6px !important;
+    margin: 6px 0 !important;
     padding: 2px 0 !important;
     position: relative !important;
     z-index: 3 !important;
@@ -199,10 +236,12 @@
 
   .mobile-ui-v2 .timeline-today .nowtime {
     grid-column: 1 !important;
-    font-size: 9px !important;
+    font-size: 8.5px !important;
     height: 18px !important;
     padding: 0 5px !important;
     letter-spacing: -.02em !important;
+    box-sizing: border-box !important;
+    max-width: 56px !important;
   }
 
   .mobile-ui-v2 .timeline-today .nowdot {
@@ -214,7 +253,7 @@
 
   .mobile-ui-v2 .timeline-today .nowdot::before {
     position: absolute !important;
-    top: -8px !important;
+    top: -16px !important;
     bottom: 50% !important;
     left: 50% !important;
     width: 1.5px !important;
@@ -243,10 +282,45 @@
 
   /* Row body cards */
   .mobile-ui-v2 .timeline-today .row-body {
-    padding: 7px 10px !important;
+    padding: 8px 10px 8px 11px !important;
     border-radius: 11px !important;
     border: 1px solid var(--border) !important;
     background: color-mix(in srgb, var(--card) 92%, var(--surface)) !important;
+    position: relative !important;
+  }
+
+  .mobile-ui-v2 .timeline-today .att-btn {
+    width: 28px !important;
+    height: 28px !important;
+    min-width: 28px !important;
+    min-height: 28px !important;
+  }
+
+  .mobile-ui-v2 .timeline-today .att-tog {
+    position: absolute !important;
+    right: 8px !important;
+    bottom: 8px !important;
+    padding: 0 !important;
+    z-index: 2 !important;
+  }
+
+  .mobile-ui-v2 .timeline-today .row:has(.att-tog) .row-meta {
+    padding-right: 64px !important;
+  }
+
+  .mobile-ui-v2 .timeline-today .row:has(.att-tog) .row-body {
+    padding-bottom: 8px !important;
+    min-height: 48px !important;
+  }
+
+  .mobile-ui-v2 .timeline-today .nowline-end {
+    grid-template-columns: 56px 14px minmax(0, 1fr) auto !important;
+    gap: 0 6px !important;
+    margin-top: 8px !important;
+  }
+
+  .mobile-ui-v2 .timeline-today .nowline-end .nowdot::after {
+    display: none !important;
   }
 
   .mobile-ui-v2 .timeline-today .row-course {
@@ -256,8 +330,24 @@
   }
 
   .mobile-ui-v2 .timeline-today .row-meta {
-    font-size: 10px !important;
-    margin-top: 2px !important;
+    font-size: 11px !important;
+    margin-top: 4px !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 3px 6px !important;
+  }
+
+  .mobile-ui-v2 .timeline-today .row-faculty {
+    flex-basis: 100% !important;
+    margin-top: 1px !important;
+    font-size: 10.5px !important;
+    color: var(--muted) !important;
+    line-height: 1.25 !important;
+  }
+
+  .mobile-ui-v2 .timeline-today .row-faculty::before {
+    display: none !important;
   }
 
   .mobile-ui-v2 .timeline-today .ses,
@@ -2902,6 +2992,33 @@
   .mobile-ui-v2 .app {
     max-width: none;
     padding: 20px 24px 64px;
+  }
+
+  /* Keep session markers and the current-time dot on the same grid. */
+  .mobile-ui-v2 .timeline-today .row {
+    grid-template-columns: 64px 14px minmax(0, 1fr);
+    gap: 0 8px;
+    padding: 2px 0;
+  }
+
+  .mobile-ui-v2 .timeline-today .nowline {
+    grid-template-columns: 64px 14px minmax(0, 1fr);
+    gap: 0 8px;
+  }
+
+  .mobile-ui-v2 .timeline-today .nowline-end {
+    grid-template-columns: 64px 14px minmax(0, 1fr) auto;
+  }
+
+  .mobile-ui-v2 .timeline-today .row:has(.att-tog) .row-body {
+    padding-bottom: 42px;
+  }
+
+  .mobile-ui-v2 .timeline-today .att-tog {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    padding: 0;
   }
 
   .mobile-ui-v2 .mobile-v2-switcher,

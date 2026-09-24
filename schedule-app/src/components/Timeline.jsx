@@ -258,8 +258,8 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
             <h2>{label}</h2>
             {syncStatus && <div className="desk-only desk-live-pill">{syncStatus}</div>}
             {onRefresh && (
-              <button onClick={onRefresh} className="sync panel-refresh" aria-label="Refresh">
-                <RefreshCw size={16} className={isSyncing ? "spin-icon" : ""} />
+              <button onClick={onRefresh} className="panel-refresh" aria-label="Refresh">
+                <RefreshCw size={15} className={isSyncing ? "spin-icon" : ""} />
               </button>
             )}
           </div>
@@ -276,7 +276,8 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
             </div>
             <div className="timeline-progress-copy">
               <strong>{classCount ? `${completedClasses}/${classCount}` : list.length}</strong>
-              <span>{classCount ? "classes complete" : "schedule items"}</span>
+              <span className="desk-only">{classCount ? "classes complete" : "schedule items"}</span>
+              <span className="timeline-progress-mob-label">{classCount ? "done" : "items"}</span>
             </div>
           </div>
         ) : (
@@ -350,8 +351,8 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
                     {c.type === "class"
                       ? <>
                           <span className="row-loc"><MapPin size={13} /> {c.room || "TBA"}</span>
-                          {c.faculty && <span className="row-faculty">{c.faculty}</span>}
                           {c.section === "Single" && <span className="single-tag">all</span>}
+                          {c.faculty && <span className="row-faculty">{c.faculty}</span>}
                           {!isPast && attKey && !attStatus && <SkipHint info={skipInfo?.[c.code]} name={c.name} />}
                         </>
                       : <>

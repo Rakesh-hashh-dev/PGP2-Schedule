@@ -6125,25 +6125,31 @@ html[data-theme="dark"] .row-placement {
   gap: 1px;
 }
 
-/* Refresh button — frosted pill */
+/* Refresh button — clean, borderless ghost icon */
 .timeline-today .panel-refresh {
-  display: grid;
-  width: 28px;
-  height: 28px;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  min-width: unset !important;
+  min-height: unset !important;
   padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--surface) 65%, transparent);
+  border: none;
+  background: transparent;
+  box-shadow: none;
   color: var(--muted);
   cursor: pointer;
-  transition: background var(--motion-fast) ease, color var(--motion-fast) ease, transform var(--motion-fast) ease;
+  opacity: 0.65;
+  transition: background var(--motion-fast) ease, color var(--motion-fast) ease, opacity var(--motion-fast) ease, transform 0.25s ease;
 }
 
-.timeline-today .panel-refresh:hover {
-  background: color-mix(in srgb, var(--violet) 10%, var(--surface));
+.timeline-today .panel-refresh:hover,
+.timeline-today .panel-refresh:active {
+  background: transparent;
   color: var(--violet);
-  transform: scale(1.08);
+  opacity: 1;
+  transform: rotate(45deg);
 }
 
 /* ── Status overview bar ── */
@@ -6277,6 +6283,10 @@ html[data-theme="dark"] .row-placement {
   font-weight: 500;
   color: var(--muted);
   white-space: nowrap;
+}
+
+.timeline-progress-mob-label {
+  display: none;
 }
 
 /* ── Timeline rail ── */
@@ -6670,7 +6680,7 @@ html[data-theme="dark"] .timeline-today .nowtime {
 @media (max-width: 760px) {
   .timeline-today .timeline-panel-head {
     align-items: center;
-    padding: 12px 13px 10px;
+    padding: 12px 14px 10px;
     flex-direction: row;
     gap: 8px;
   }
@@ -6678,77 +6688,246 @@ html[data-theme="dark"] .timeline-today .nowtime {
   .timeline-overview {
     width: auto;
     margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* Compact, unified capsule chips with identical 26px height */
+  .timeline-status,
+  .timeline-progress-copy {
+    min-height: 26px;
+    height: 26px;
+    padding: 0 9px;
+    border-radius: 99px;
+    box-sizing: border-box;
   }
 
   .timeline-status {
-    max-width: 120px;
+    max-width: 140px;
     flex: none;
+    gap: 6px;
+  }
+
+  .timeline-status-dot {
+    width: 6px;
+    height: 6px;
+    flex-shrink: 0;
   }
 
   .timeline-status-copy span { display: none; }
+
+  .timeline-status-copy strong {
+    font-size: 9.5px;
+    letter-spacing: .03em;
+    white-space: nowrap;
+  }
+
+  .timeline-progress-copy {
+    min-width: unset;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 0 8px;
+  }
+
+  .timeline-progress-copy strong {
+    font-size: 11px;
+    line-height: 1;
+  }
+
+  .timeline-progress-mob-label {
+    display: inline;
+    font-size: 8.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--muted);
+  }
 
   .timeline-today .timeline-title-row h2 {
     font-size: 17px;
   }
 
   .timeline-today .rail {
-    padding: 7px 8px 10px;
+    padding: 8px 10px 12px 6px;
   }
 
+  /* Grid alignment: unified 56px time column moved left to maximize card width while keeping spine dead-center */
   .timeline-today .row {
-    grid-template-columns: 54px 12px minmax(0, 1fr);
-    gap: 0 5px;
-    min-height: 50px;
+    grid-template-columns: 56px 14px minmax(0, 1fr);
+    align-items: stretch;
+    gap: 0 6px;
+    min-height: 46px;
+    margin: 0;
+    padding: 2px 0;
   }
 
-  .timeline-today .row-time { padding-left: 2px; }
-  .timeline-today .rt-start { font-size: 10px; }
-  .timeline-today .rt-end { font-size: 8.5px; }
+  /* Time column: shifted left with snug 56px width */
+  .timeline-today .row-time {
+    padding: 8px 0 6px 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: flex-start;
+  }
 
+  .timeline-today .rt-start {
+    font-size: 10px;
+    letter-spacing: -.02em;
+    line-height: 1.15;
+  }
+
+  .timeline-today .rt-end {
+    font-size: 8.5px;
+    letter-spacing: -.02em;
+    line-height: 1.15;
+    margin-top: 2px;
+  }
+
+  /* Spine markers: top-aligned to level with rt-start and card title */
+  .timeline-today .timeline-marker {
+    align-items: flex-start;
+    padding-top: 10px;
+  }
+
+  .timeline-today .timeline-marker::after {
+    top: 0;
+    bottom: 0;
+  }
+
+  .timeline-today .row:first-of-type .timeline-marker::after {
+    top: 14px;
+  }
+
+  .timeline-today .rail:has(.nowline-end) .row:last-of-type .timeline-marker::after {
+    bottom: -8px;
+  }
+
+  /* Card body: enjoys ~15px extra width! */
   .timeline-today .row-body {
-    padding: 7px 10px 7px 11px;
+    padding: 8px 10px 8px 11px;
+    border-radius: 12px;
+    position: relative;
   }
 
   .timeline-today .row-body.subj-edge { padding-left: 11px; }
+
+  /* Attendance button: snug 28px buttons so they never clash with content */
+  .timeline-today .att-btn {
+    width: 28px !important;
+    height: 28px !important;
+    min-width: 28px !important;
+    min-height: 28px !important;
+  }
 
   .timeline-today .att-tog {
     position: absolute;
     right: 8px;
     bottom: 8px;
     padding: 0;
+    z-index: 2;
   }
 
-  .timeline-today .row:has(.att-tog) .row-body { padding-bottom: 42px; }
+  /* Title row keeps full width; only meta needs clearance for attendance buttons */
+  .timeline-today .row:has(.att-tog) .row-meta {
+    padding-right: 64px;
+  }
 
+  .timeline-today .row:has(.att-tog) .row-body {
+    padding-bottom: 8px;
+    min-height: 46px;
+  }
+
+  /* Course title and metadata hierarchy */
+  .timeline-today .row-course {
+    font-size: 12.5px;
+    font-weight: 750;
+    line-height: 1.25;
+  }
+
+  .timeline-today .row-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 3px 6px;
+    font-size: 11px;
+    margin-top: 4px;
+  }
+
+  /* Room & Section tag on line 1, faculty clean on line 2 without orphan dot */
+  .timeline-today .row-loc {
+    font-size: 11px;
+  }
+
+  .timeline-today .row-faculty {
+    flex-basis: 100%;
+    margin-top: 1px;
+    font-size: 10.5px;
+    color: var(--muted);
+    line-height: 1.25;
+  }
+
+  .timeline-today .row-faculty::before {
+    display: none;
+  }
+
+  /* Now line & All Done */
   .timeline-today .nowline {
-    grid-template-columns: 54px 12px minmax(0, 1fr);
-    gap: 0 5px;
-    margin: 5px 0;
+    grid-template-columns: 56px 14px minmax(0, 1fr);
+    gap: 0 6px;
+    margin: 6px 0;
+    padding: 2px 0;
   }
 
   .timeline-today .nowtime {
-    font-size: 9px;
+    font-size: 8.5px;
     height: 18px;
-    padding: 0 6px;
+    padding: 0 5px;
+    box-sizing: border-box;
+    max-width: 56px;
+    letter-spacing: -.02em;
+  }
+
+  .timeline-today .nowdot::before {
+    position: absolute;
+    top: -16px;
+    bottom: 50%;
+    left: 50%;
+    width: 1.5px;
+    content: "";
+    background: color-mix(in srgb, var(--border) 60%, transparent);
+    transform: translateX(-50%);
+    z-index: 0;
   }
 
   .timeline-today .nowline-end {
-    grid-template-columns: 54px 12px minmax(0, 1fr) auto;
+    grid-template-columns: 56px 14px minmax(0, 1fr) auto;
     gap: 0 6px;
+    margin-top: 8px;
+  }
+
+  .timeline-today .nowline-end .nowdot::after {
+    display: none;
   }
 }
 
 @media (max-width: 420px) {
-  .timeline-today .timeline-title-row h2 { font-size: 17px; }
+  .timeline-today .timeline-title-row h2 { font-size: 16px; }
 
   .timeline-progress-copy {
-    min-width: 70px;
-    padding-inline: 9px;
+    padding: 0 7px;
   }
 
+  .timeline-progress-copy strong { font-size: 10.5px; }
   .timeline-progress-copy span { font-size: 8px; }
 
-  .timeline-status-copy span { max-width: 130px; }
+  .timeline-status {
+    padding: 0 8px;
+  }
+
+  .timeline-status-copy strong { font-size: 9px; }
 
   .timeline-today .row-course { font-size: 12px; }
 }
@@ -17986,6 +18165,11 @@ a.sb-quicklink {
   .att-btn {
     width: 40px;
     height: 40px;
+  }
+
+  .timeline-today .att-btn {
+    width: 28px !important;
+    height: 28px !important;
   }
 }
 
