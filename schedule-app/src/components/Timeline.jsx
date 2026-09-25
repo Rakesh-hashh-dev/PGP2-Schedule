@@ -238,6 +238,8 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
     : list.findIndex(c => c.type === "class");
   const nextVisibleIdx = showNowLine ? list.findIndex(c => toMin(c.start) > nowMin) : -1;
   const classCount = list.filter((c) => c.type === "class").length;
+  const firstStart = list.reduce((min, c) => toMin(c.start) < toMin(min) ? c.start : min, list[0].start);
+  const lastEnd = list.reduce((max, c) => toMin(c.end) > toMin(max) ? c.end : max, list[0].end);
   const completedClasses = showNowLine
     ? list.filter((c) => c.type === "class" && nowMin >= toMin(c.end)).length
     : 0;
@@ -249,11 +251,11 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
       : { tone: "done", label: "Day complete", detail: "Nothing else scheduled" };
 
   return (
-    <section className={`panel timeline-panel${showNowLine ? " timeline-today" : ""}`}>
+    <section className={`panel timeline-panel${showNowLine ? " timeline-today" : " timeline-tomorrow"}`}>
       <PullIndicator ptr={ptr} isSyncing={isSyncing} />
       <div className="panel-head timeline-panel-head">
         <div className="panel-head-left">
-          {showNowLine && <span className="timeline-eyebrow">Your day at a glance</span>}
+          <span className="timeline-eyebrow">{showNowLine ? "Your day at a glance" : "Your schedule"}</span>
           <div className="timeline-title-row">
             <h2>{label}</h2>
             {syncStatus && <div className="desk-only desk-live-pill">{syncStatus}</div>}
@@ -281,11 +283,15 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
             </div>
           </div>
         ) : (
-          <span className="count">{`${classCount} ${classCount === 1 ? "class" : "classes"}`}</span>
+          <div className="tomorrow-timeline-overview" aria-label={`${classCount} ${classCount === 1 ? "class" : "classes"}, ${fmtTime12(firstStart)} to ${fmtTime12(lastEnd)}`}>
+            <span className="tomorrow-timeline-range">{fmtTime12(firstStart)} <span aria-hidden="true">→</span> {fmtTime12(lastEnd)}</span>
+            <span className="tomorrow-timeline-count">{classCount} {classCount === 1 ? "class" : "classes"}</span>
+          </div>
         )}
       </div>
       <ol className="rail">
         {list.map((c, i) => {
+          const gapMinutes = i > 0 ? toMin(c.start) - toMin(list[i - 1].end) : 0;
           const isCur = current && current.date === c.date && current.start === c.start && current.name === c.name;
           // For non-class items (breaks/holidays), use start time as "done" since they aren't attended
           const prevDone = i === 0 || (() => {
@@ -310,6 +316,12 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
 
           return (
             <React.Fragment key={i}>
+              {!showNowLine && gapMinutes >= 15 && (
+                <li className="tomorrow-timeline-gap" aria-label={`${fmtDuration(list[i - 1].end, c.start)} free before ${c.name}`}>
+                  <span className="tomorrow-timeline-gap-line" aria-hidden="true" />
+                  <span>Free for {fmtDuration(list[i - 1].end, c.start)}</span>
+                </li>
+              )}
               {showNow && (
                 <li className="nowline">
                   <span className="nowdot" />
@@ -318,7 +330,7 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
                 </li>
               )}
               <li
-                className={`row${isCur ? " cur" : ""}${c.type !== "class" ? " soft" : ""}${c.type === "event" ? " row-event-celebration" : ""}${c.type === "placement" ? " row-placement" : ""}${isPast ? " past" : ""}${isNext ? " next-up" : ""}${isFirst ? " first-up" : ""}${showNowLine && i === nextVisibleIdx ? " timeline-up-next" : ""}`}
+                className={`row${!showNowLine && c.type === "class" && c.code ? ` ${subjectClass(c.code)}` : ""}${isCur ? " cur" : ""}${c.type !== "class" ? " soft" : ""}${c.type === "event" ? " row-event-celebration" : ""}${c.type === "placement" ? " row-placement" : ""}${isPast ? " past" : ""}${isNext ? " next-up" : ""}${isFirst ? " first-up" : ""}${showNowLine && i === nextVisibleIdx ? " timeline-up-next" : ""}`}
                 aria-current={isCur ? "true" : undefined}
               >
                 <div className="row-time">
@@ -327,7 +339,7 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
                   <time className="rt-end" dateTime={`${c.date}T${c.end}`}>{fmtTime12(c.end)}</time>
                   {showNowLine && <span className="rt-duration">{fmtDuration(c.start, c.end)}</span>}
                 </div>
-                {showNowLine && <span className="timeline-marker" aria-hidden="true"><span /></span>}
+                <span className="timeline-marker" aria-hidden="true"><span /></span>
                 <div className={`row-body${c.type === "class" && c.code ? ` subj-edge ${subjectClass(c.code)}` : ""}`} style={{ position: "relative" }}>
                   {isCur && (
                     <div className="cur-progress-track">

@@ -770,3 +770,4 @@ html[data-theme="dark"] .atx-mark-button.absent:hover {
   .atx-pending-card,
   .atx-progress-fill { transition: none !important; }
 }
+.atx-open-course { display: inline-flex; align-items: center; gap: 4px; margin: 0 16px 12px; padding: 6px 0; border: 0; background: transparent; color: var(--violet); font: 750 .72rem var(--body); cursor: pointer; }

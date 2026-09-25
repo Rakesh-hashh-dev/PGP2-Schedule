@@ -273,7 +273,7 @@ export default function TomorrowSummary({
           <Stat icon={GraduationCap} tone="violet" label={classes.length === 1 ? "class" : "classes"} value={classes.length} />
           {breaks > 0 && <Stat icon={Coffee} tone="amber" label={breaks === 1 ? "break" : "breaks"} value={breaks} />}
           <Stat icon={MapPin} tone="teal" label={`first · ${first.room || "TBA"}`} value={fmtTime12(first.start)} />
-          <Stat icon={Sunset} tone="blue" label="free after" value={lastEnd} />
+          <Stat icon={Sunset} tone="blue" label="free after" value={fmtTime12(lastEnd)} />
         </div>
         {railItems.length > 0 && (
           <>
@@ -298,7 +298,7 @@ export default function TomorrowSummary({
             </div>
             <div className="tmrw-rail-labels" aria-hidden="true">
               <span>{fmtTime12(first.start)}</span>
-              <span>{lastEnd}</span>
+              <span>{fmtTime12(lastEnd)}</span>
             </div>
             {openSeg !== null && railItems[openSeg] && <RailDetailStrip c={railItems[openSeg]} />}
           </>

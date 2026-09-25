@@ -13,7 +13,7 @@
 import {
   Clock, Sunrise, CalendarRange, ClipboardCheck, GraduationCap, NotebookPen,
   Megaphone, Users, LayoutGrid, UtensilsCrossed, ReceiptText, PawPrint, CalendarMinus2,
-  Sparkles, CalendarCheck2,
+  Sparkles, CalendarCheck2, BookOpen,
 } from "lucide-react";
 
 // Group order here IS the render order. `collapsible` marks the one group
@@ -42,6 +42,7 @@ export const NAV_ITEMS = [
   { id: "today", group: "schedule", label: "Today", icon: Clock, view: "today" },
   { id: "tomorrow", group: "schedule", label: "Tomorrow", icon: Sunrise, view: "tomorrow" },
   { id: "fullSchedule", group: "schedule", label: "Full timetable", icon: CalendarRange, view: "fullSchedule" },
+  { id: "courseHub", group: "schedule", label: "Courses", icon: BookOpen, view: "courseHub" },
   { id: "planner", group: "schedule", label: "Planner", icon: CalendarCheck2, view: "planner", badge: { key: "planner", label: "New" } },
 
   { id: "attendance", group: "track", label: "Attendance", icon: ClipboardCheck, view: "attendance", gate: "enableAttendance" },

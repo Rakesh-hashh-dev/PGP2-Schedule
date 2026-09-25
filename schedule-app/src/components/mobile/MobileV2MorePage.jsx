@@ -64,6 +64,7 @@ export default function MobileV2MorePage({
       </MoreSection>
 
       <MoreSection title="Tools">
+        <MoreRow Icon={BookOpen} label="Courses" detail="Classes, work and materials by subject" onClick={() => onNavigate("courseHub")} />
         <MoreRow Icon={CalendarDays} label="Full timetable" detail="Browse the complete term" onClick={() => onNavigate("fullSchedule")} />
         <MoreRow Icon={Wallet} label="Split expenses" detail="Settle group spending" onClick={() => onNavigate("split")} />
         <MoreRow Icon={CalendarOff} label="Leave planner" detail="Plan absence safely" onClick={() => onNavigate("leave")} />

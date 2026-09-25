@@ -61,6 +61,7 @@ const BoardPage = lazy(() => import("./components/BoardPage.jsx"));
 const SplitPage = lazy(() => import("./components/SplitPage.jsx"));
 const PetPage = lazy(() => import("./components/PetPage.jsx"));
 const StudentPlanner = lazy(() => import("./components/StudentPlanner.jsx"));
+const CourseHub = lazy(() => import("./components/CourseHub.jsx"));
 const CalendarExportModal = lazy(() => import("./components/CalendarExportModal.jsx"));
 import DeadlineStrip from "./components/DeadlineStrip.jsx";
 import CancellationAlert from "./components/CancellationAlert.jsx";
@@ -90,13 +91,14 @@ import MobileV2TabBar from "./components/mobile/MobileV2TabBar.jsx";
 import MobileV2Switcher from "./components/mobile/MobileV2Switcher.jsx";
 import MobileV2MorePage from "./components/mobile/MobileV2MorePage.jsx";
 import "./styles/mobile-v2.css";
+import "./styles/tomorrow-timeline.css";
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent || "");
 
 // The ordering is only used to give adjacent schedule views a spatial sense
 // of direction. Everything else receives the same calm forward transition.
 const VIEW_MOTION_ORDER = [
-  "today", "tomorrow", "week", "fullSchedule", "planner", "attendance",
+  "today", "tomorrow", "week", "fullSchedule", "courseHub", "planner", "attendance",
   "exams", "assignments", "notifications", "friends", "board", "split",
   "leave", "pet", "wrapped", "glance", "admin",
 ];
@@ -107,8 +109,9 @@ const VIEW_MOTION_ORDER = [
 // sidebar moved to lib/navItems.js and regrouped — Full timetable is a Schedule
 // view there — so these two deliberately keep the older mobile grouping until
 // the sheet is migrated onto the same config.
-const TOOLS_VIEWS = ["fullSchedule", "planner", "split", "leave", "wrapped", "pet"];
+const TOOLS_VIEWS = ["fullSchedule", "courseHub", "planner", "split", "leave", "wrapped", "pet"];
 const TOOLS_VIEW_META = {
+  courseHub:    { icon: BookOpenCheck, label: "Courses" },
   planner:      { icon: LayoutDashboard, label: "Personal planner" },
   fullSchedule: { icon: CalendarRange, label: "Full timetable" },
   split:        { icon: Wallet,        label: "Split" },
@@ -332,6 +335,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       return v;
     } catch { return "today"; }
   });
+  const [courseHubCode, setCourseHubCode] = useState(null);
+  const [assignmentOpenTarget, setAssignmentOpenTarget] = useState(null);
+  useEffect(() => { if (view !== "courseHub") setCourseHubCode(null); }, [view]);
+  useEffect(() => { if (view !== "assignments") setAssignmentOpenTarget(null); }, [view]);
   const currentViewRef = useRef(view);
   const setView = useCallback((nextView) => {
     const target = typeof nextView === "function"
@@ -676,7 +683,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   useEffect(() => {
     const DEEP_LINK_VIEWS = new Set([
       "today", "tomorrow", "week", "attendance", "exams", "assignments", "pet",
-      "notifications", "friends", "leave", "glance", "board", "split", "planner",
+      "notifications", "friends", "leave", "glance", "board", "split", "planner", "courseHub",
     ]);
     const captureFromUrl = () => {
       const params = new URLSearchParams(window.location.search);
@@ -2246,6 +2253,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         : view === "assignments" || view === "exams" ? "Tasks"
         : view === "attendance" ? "Attendance"
           : view === "planner" ? "Personal planner"
+            : view === "courseHub" ? "Courses"
             : view === "notifications" ? "Announcements"
               : view === "friends" ? "Social"
                 : view === "board" ? "Campus Board"
@@ -2845,6 +2853,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                         <button onClick={() => { setView("fullSchedule"); setCompareTarget(null); setOverflowOpen(false); }}>
                           <CalendarRange size={14} /> Full timetable
                         </button>
+                        <button onClick={() => { setView("courseHub"); setCompareTarget(null); setOverflowOpen(false); }}>
+                          <BookOpenCheck size={14} /> Courses
+                        </button>
                         <button onClick={() => { setView("planner"); setCompareTarget(null); setOverflowOpen(false); }}>
                           <LayoutDashboard size={14} /> Personal planner
                         </button>
@@ -2990,7 +3001,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           </span>
         </div>
 
-        <div className="desk-layout" style={view === "friends" || view === "admin" || view === "wrapped" || view === "planner" ? { gridTemplateColumns: "minmax(0, 1fr)" } : {}}>
+        <div className="desk-layout" style={view === "friends" || view === "admin" || view === "wrapped" || view === "planner" || view === "courseHub" || view === "fullSchedule" ? { gridTemplateColumns: "minmax(0, 1fr)" } : {}}>
           <main className="main-col">
             {v2Active && !mobileV2MoreOpen && (
               <MobileV2Switcher view={view} examsEnabled={enableExams} onNavigate={navigateMobileV2} />
@@ -3036,7 +3047,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
 
 
-            {view !== "split" && view !== "attendance" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && view !== "leave" && view !== "glance" && view !== "wrapped" && view !== "board" && !compareTarget && (
+            {view !== "split" && view !== "attendance" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && view !== "courseHub" && view !== "leave" && view !== "glance" && view !== "wrapped" && view !== "board" && !compareTarget && (
               <>
                 {unseenWhatsNew.length > 0 && (
                   <WhatsNewPill item={unseenWhatsNew[0]} count={unseenWhatsNew.length} onOpen={() => setWhatsNewOpen(true)} />
@@ -3109,7 +3120,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 </div>
               </>
             )}
-            {view !== "split" && view !== "attendance" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && view !== "leave" && view !== "glance" && view !== "wrapped" && view !== "board" && view !== "admin" && !compareTarget && view !== "tomorrow" && (
+            {view !== "split" && view !== "attendance" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && view !== "courseHub" && view !== "leave" && view !== "glance" && view !== "wrapped" && view !== "board" && view !== "admin" && view !== "planner" && !compareTarget && view !== "tomorrow" && (
               view === "week"
                 ? <div className="hide-mobile"><Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} onMarkAttendance={markAttendance} attendance={attendance} sysConfig={sysConfig} onTap={() => setView("fullSchedule")} todayList={todayList} /></div>
                 : <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} onMarkAttendance={markAttendance} attendance={attendance} sysConfig={sysConfig} onTap={() => setView("fullSchedule")} todayList={todayList} />
@@ -3309,6 +3320,24 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       planDraft={planDraft}
                       onPlanDraftConsumed={() => setPlanDraft(null)}
                     />
+                    : view === "courseHub"
+                      ? <CourseHub
+                          key={userId || "guest"}
+                          allClasses={activeClasses}
+                          enrolled={activeEnrolled}
+                          legend={activeEnrolledLegend}
+                          attendance={attendance}
+                          now={now}
+                          termNumber={activeTerm?.number}
+                          userId={userId}
+                          isOffline={isOffline}
+                          isArchived={isArchivedView}
+                          selectedCode={courseHubCode}
+                          onSelectCode={setCourseHubCode}
+                          onOpenSchedule={(item) => { setJumpToSession({ date: item.date, code: item.code, start: item.start }); setView("fullSchedule"); }}
+                          onNavigate={(nextView) => { setView(nextView); setCompareTarget(null); }}
+                          onOpenTask={isArchivedView ? undefined : (code, task) => { setAssignmentOpenTarget({ code, task }); setView("assignments"); }}
+                        />
                     : view === "planner"
                       ? <StudentPlanner
                           visible={activeVisible}
@@ -3340,6 +3369,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                         termEnd={activeTerm?.end}
                         attendance={attendance}
                         onOpenCalendarExport={isArchivedView ? undefined : openCalendarExport}
+                        onOpenCourse={(code) => { setCourseHubCode(code); setView("courseHub"); }}
                       />
                       : view === "attendance"
                         ? <AttendancePanel
@@ -3351,6 +3381,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                           markAttendance={isArchivedView ? undefined : markAttendance}
                           weather={weather}
                           termNumber={activeTerm?.number}
+                          onOpenCourse={(code) => { setCourseHubCode(code); setView("courseHub"); }}
                         />
                         : view === "notifications"
                           ? <NotificationsPage
@@ -3371,7 +3402,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                           : view === "admin" && isAdmin
                             ? <AdminDashboard user={user} startImpersonation={startImpersonation} syncLogs={syncLogs} timeOverride={timeOverride} setTimeOverride={setTimeOverride} allChanges={CHANGES} onConfigSaved={flags => setSysConfig(current => ({ ...(current || {}), flags }))} />
                             : view === "fullSchedule"
-                              ? <FullSchedulePage allClasses={activeClasses} enrolled={activeEnrolled} legend={activeEnrolledLegend} termLabel={termLabel} onBack={() => setView("today")} jumpToDate={jumpToDate} setJumpToDate={setJumpToDate} jumpToSession={jumpToSession} setJumpToSession={setJumpToSession} onOpenCalendarExport={isArchivedView ? undefined : openCalendarExport} />
+                              ? <FullSchedulePage allClasses={activeClasses} enrolled={activeEnrolled} legend={activeEnrolledLegend} termLabel={termLabel} onBack={() => setView("today")} jumpToDate={jumpToDate} setJumpToDate={setJumpToDate} jumpToSession={jumpToSession} setJumpToSession={setJumpToSession} onOpenCalendarExport={isArchivedView ? undefined : openCalendarExport} onOpenCourse={(code) => { setCourseHubCode(code); setView("courseHub"); }} />
                               : view === "leave"
                                 ? <LeavePlanner
                                     allClasses={CLASSES}
@@ -3392,6 +3423,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                     enrolled={enrolled}
                                     legend={enrolledLegend}
                                     userId={userId}
+                                    openTarget={assignmentOpenTarget}
+                                    onOpenTargetConsumed={() => setAssignmentOpenTarget(null)}
+                                    onOpenCourse={(code) => { setCourseHubCode(code); setView("courseHub"); }}
                                     onTaskCompleted={taskId => {
                                       const dueKey = petKeyFor.deadline(taskId);
                                       const isNew = !(dueKey in (myPet?.awarded ?? {}));
@@ -3461,7 +3495,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                   )
                                   : tomorrowList.length === 0
                                     ? null
-                                    : <Timeline list={tomorrowList} current={null} now={now} showNowLine={false} label="Tomorrow" dateLabel={prettyDate(tomorrowISO)} attendance={attendance} markAttendance={markAttendance} skipInfo={skipInfo} syncStatus={<span className="live"><span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} />
+                                    : <Timeline list={tomorrowList} current={null} now={now} showNowLine={false} label="Tomorrow" attendance={attendance} markAttendance={markAttendance} skipInfo={skipInfo} syncStatus={<span className="live"><span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} />
                               : todayList.length === 0 && tomorrowList.length === 0
                                 ? premiumMode && syncing
                                   ? (
@@ -3522,14 +3556,14 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               )}
             </div>
           </main>
-          <aside className={view !== "week" ? "side-col hide-mobile" : "side-col side-col-week"} style={view === "friends" || view === "admin" || view === "wrapped" || view === "planner" ? { display: "none" } : {}}>
+          <aside className={view !== "week" ? "side-col hide-mobile" : "side-col side-col-week"} style={view === "friends" || view === "admin" || view === "wrapped" || view === "planner" || view === "courseHub" || view === "fullSchedule" ? { display: "none" } : {}}>
             <WeekAgenda visible={visible} now={now} offset={weekOffset} setOffset={setWeekOffset} todayISO={todayISO} onViewFullSchedule={(iso) => { setJumpToDate(iso); setView("fullSchedule"); }} />
           </aside>
 
           {/* Floating Schedule button & Modal for wide-content views —
               the docked agenda is hidden there so the wide content gets the full
               row; desktop only (.fr-agenda-fab is display:none below 900px) */}
-          {(view === "friends" || view === "admin" || view === "wrapped" || view === "planner") && (
+          {(view === "friends" || view === "admin" || view === "wrapped" || view === "planner" || view === "courseHub") && (
             <>
               <button className="fr-agenda-fab" onClick={() => setShowFriendsAgenda(true)} title="View Schedule">
                 <Calendar size={22} />

@@ -96,6 +96,45 @@ export function findFreeWindows(classes = [], now = new Date(), days = 7, minMin
   return windows;
 }
 
+export function buildWeeklyPlanner({ visible = [], assignments = {}, effort = {}, now = new Date() }) {
+  const windows = findFreeWindows(visible, now);
+  const tasks = flattenAssignments(assignments, {}, now).filter((task) => !task.completed);
+  const estimateOf = (task) => {
+    const minutes = Number(effort[task.id]);
+    return Number.isFinite(minutes) && minutes > 0 ? minutes : 0;
+  };
+  const days = Array.from({ length: 7 }, (_, offset) => {
+    const date = ymd(new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset));
+    const dueTasks = tasks.filter((task) => task.dueDate === date);
+    const classMinutes = visible
+      .filter((item) => item.date === date && (item.type === "class" || item.type === "exam") && item.start && item.end)
+      .reduce((sum, item) => sum + Math.max(0, toMin(item.end) - toMin(item.start)), 0);
+    const potentialMinutes = windows.filter((slot) => slot.date === date).reduce((sum, slot) => sum + slot.minutes, 0);
+    const estimatedMinutes = dueTasks.reduce((sum, task) => sum + estimateOf(task), 0);
+    return { date, classMinutes, potentialMinutes, estimatedMinutes, dueCount: dueTasks.length };
+  });
+  const dueTasks = tasks.filter((task) => days.some((day) => day.date === task.dueDate));
+  const unestimatedCount = dueTasks.filter((task) => !estimateOf(task)).length;
+  return {
+    days,
+    estimatedMinutes: days.reduce((sum, day) => sum + day.estimatedMinutes, 0),
+    potentialMinutes: days.reduce((sum, day) => sum + day.potentialMinutes, 0),
+    dueCount: dueTasks.length,
+    unestimatedCount,
+  };
+}
+
+export function buildAttendanceScenario(course) {
+  const count = Math.min(course.plannedMisses, course.upcoming);
+  if (!count) return { count: 0, attendPct: course.currentPct, missPct: course.currentPct };
+  const denominator = course.marked + count;
+  return {
+    count,
+    attendPct: Math.round(((course.present + count) / denominator) * 100),
+    missPct: Math.round((course.present / denominator) * 100),
+  };
+}
+
 export function buildDailyBrief({ today = [], tomorrow = [], assignments = {}, changes = [], attendanceForecast = [], legend = {}, now = new Date() }) {
   const tasks = flattenAssignments(assignments, legend, now)
     .filter((task) => !task.completed && task.days != null && task.days <= 3)

@@ -2933,11 +2933,10 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
    on touch). */
 .tmrw-rail {
   position: relative;
-  height: 6px;
+  height: 3.5px;
   margin-top: 12px;
   border-radius: 99px;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--border) 60%, var(--surface));
   overflow: hidden;
 }
 
@@ -3192,7 +3191,7 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 /* Narrow card keeps the compact 2x2 grid; rail stays but tighter */
 @media (max-width: 519px) {
   .tmrw-rail {
-    height: 5px;
+    height: 3px;
     margin-top: 10px;
   }
 }

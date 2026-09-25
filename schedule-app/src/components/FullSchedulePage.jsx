@@ -57,7 +57,7 @@ const HOUR_W = 96;  // px per hour (horizontal week view)
 const LANE_H = 64;  // px per lane row
 const TODAY = isoOf(new Date());
 
-export default React.memo(function FullSchedulePage({ allClasses, enrolled, legend, termLabel, onBack, jumpToDate, setJumpToDate, jumpToSession, setJumpToSession, onOpenCalendarExport }) {
+export default React.memo(function FullSchedulePage({ allClasses, enrolled, legend, termLabel, onBack, jumpToDate, setJumpToDate, jumpToSession, setJumpToSession, onOpenCalendarExport, onOpenCourse }) {
   const [filterCodes, setFilterCodes] = useState([]);
   const [showAllClasses, setShowAllClasses] = useState(false);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
@@ -777,6 +777,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                                 ) : "TBA"}
                               </span>
                               {c.faculty && <span className="fs-meta-item"><User size={13} /> {c.faculty}</span>}
+                              {onOpenCourse && c.code && <button type="button" className="fs-meta-link" onClick={() => onOpenCourse(c.code)}>Open course</button>}
                             </div>
                           </div>
                         </div>

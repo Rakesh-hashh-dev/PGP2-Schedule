@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { BarChart3, BookOpen, CalendarCheck2, Check, ChevronDown, CircleGauge, Clock, History, ListFilter, ShieldAlert, X } from "lucide-react";
+import { ArrowRight, BarChart3, BookOpen, CalendarCheck2, Check, ChevronDown, CircleGauge, Clock, History, ListFilter, ShieldAlert, X } from "lucide-react";
 import { sessionKey, courseSkipStats, isExamSession } from "../lib/attendance.js";
 import { attendanceCourseState, attendanceCoverage, attendanceRequirement, groupPendingSessions, sortAttendanceCourses } from "../lib/attendanceWorkspace.js";
 import { subjectClass, cleanSessionLabel } from "../lib/subjectColors.js";
@@ -159,7 +159,7 @@ function SubjectChart({ courses, isVisible = true }) {
   );
 }
 
-export default function AttendancePanel({ allClasses, now, attendance, enrolled, legend, markAttendance, weather, termNumber }) {
+export default function AttendancePanel({ allClasses, now, attendance, enrolled, legend, markAttendance, weather, termNumber, onOpenCourse }) {
   const [expandedCode, setExpandedCode] = useState(null);
   const [pendingFilter, setPendingFilter] = useState("all");
   const [courseFilter, setCourseFilter] = useState("all");
@@ -312,6 +312,7 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
               <Progress value={course.pct} target={course.requiredPct} label={`${course.name} attendance`} />
               <div className="atx-course-foot"><span>{course.state.coverage}% records complete</span><span className={`atx-skip-tracker${course.penaltyHit ? " penalty" : course.skipsRemaining <= 1 ? " low" : ""}`}>{course.penaltyHit ? "Penalty threshold crossed" : `Skips: ${course.skipsRemaining}/${course.totalAllowedSkips} left`}</span></div>
             </button>
+            {onOpenCourse && <button className="atx-open-course" onClick={() => onOpenCourse(course.code)}>Open course hub <ArrowRight size={13} /></button>}
             <div className={`atx-history-drawer${open ? " open" : ""}`} aria-hidden={!open} inert={!open ? "" : undefined}>
               <div className="atx-history-drawer-inner">
                 {canExpand && (

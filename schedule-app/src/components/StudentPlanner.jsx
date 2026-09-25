@@ -8,12 +8,13 @@ import { loadAssignments } from "../lib/assignments.js";
 import { fmtTime12 } from "../lib/datetime.js";
 import {
   ATTENDANCE_TARGET, buildAttendanceForecast, buildDailyBrief, buildPlannerInsights,
-  findFreeWindows, flattenAssignments, minutesLabel,
+  buildAttendanceScenario, buildWeeklyPlanner, findFreeWindows, flattenAssignments, minutesLabel,
 } from "../lib/studentPlanner.js";
 import "../styles/planner.css";
 
 const MISSES_KEY = "pgp2.planner-misses";
 const EFFORT_KEY = "pgp2.planner-effort";
+const BUDGET_KEY = "pgp2.planner-daily-study-budget";
 const TABS = [
   ["brief", "Brief", Sparkles],
   ["forecast", "Forecast", Target],
@@ -29,6 +30,18 @@ function loadObject(key) {
 
 function saveObject(key, value) {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* local planning remains optional */ }
+}
+
+function loadBudget() {
+  try {
+    const value = Number(JSON.parse(localStorage.getItem(BUDGET_KEY)));
+    return [60, 120, 180, 240].includes(value) ? value : 120;
+  } catch { return 120; }
+}
+
+function hoursLabel(minutes) {
+  const hours = Math.round(minutes / 60 * 10) / 10;
+  return `${hours}h`;
 }
 
 function fmtDate(iso) {
@@ -56,10 +69,44 @@ function Metric({ label, value, detail, tone = "neutral" }) {
   return <div className={`planner-metric tone-${tone}`}><span>{label}</span><strong>{value}</strong><small>{detail}</small></div>;
 }
 
-function BriefTab({ brief, legend, onNavigate, onOpenChange }) {
+function CapacityPanel({ week, budgetMinutes, setBudgetMinutes, onNavigate }) {
+  const dailyCapacity = week.days.map((day) => Math.min(day.potentialMinutes, budgetMinutes));
+  const capacity = dailyCapacity.reduce((sum, minutes) => sum + minutes, 0);
+  const firstShortfall = week.days.find((_, index) =>
+    week.days.slice(0, index + 1).reduce((sum, day) => sum + day.estimatedMinutes, 0) >
+    dailyCapacity.slice(0, index + 1).reduce((sum, minutes) => sum + minutes, 0)
+  );
+  return (
+    <section className="planner-card planner-capacity-card" aria-labelledby="planner-capacity-title">
+      <div className="planner-card-head">
+        <div><div className="planner-card-label">NEXT 7 DAYS</div><h2 id="planner-capacity-title">Work vs potential study time</h2></div>
+        <button className="planner-text-btn" onClick={() => onNavigate("planner", "workload")}>Set task estimates</button>
+      </div>
+      <div className="planner-capacity-controls">
+        <label>Daily study limit <select value={budgetMinutes} onChange={(event) => setBudgetMinutes(Number(event.target.value))}>
+          <option value="60">1 hour</option><option value="120">2 hours</option><option value="180">3 hours</option><option value="240">4 hours</option>
+        </select></label>
+        <span>Timetable gaps of at least 1 hour, from 08:00AM to 10:00PM</span>
+      </div>
+      <div className="planner-capacity-summary">
+        <div><strong>{hoursLabel(week.estimatedMinutes)}</strong><span>estimated work due</span></div>
+        <div><strong>{hoursLabel(capacity)}</strong><span>potential study time</span></div>
+        <div><strong>{week.dueCount}</strong><span>tasks due this week</span></div>
+      </div>
+      <div className="planner-capacity-track" aria-hidden="true"><span style={{ width: `${capacity ? Math.min(100, week.estimatedMinutes / capacity * 100) : 0}%` }} /></div>
+      <p className={`planner-capacity-note${firstShortfall ? " is-short" : ""}`}>
+        {week.unestimatedCount ? `${week.unestimatedCount} due task${week.unestimatedCount === 1 ? " needs" : "s need"} an effort estimate. ` : ""}
+        {firstShortfall ? `Estimated work may exceed this study limit by ${fmtDate(firstShortfall.date)}.` : "Timetable gaps are possible study time; personal commitments are not included."}
+      </p>
+    </section>
+  );
+}
+
+function BriefTab({ brief, legend, week, budgetMinutes, setBudgetMinutes, onNavigate, onOpenChange }) {
   const next = brief.nextClass;
   return (
     <div className="planner-grid planner-grid-brief">
+      <CapacityPanel week={week} budgetMinutes={budgetMinutes} setBudgetMinutes={setBudgetMinutes} onNavigate={onNavigate} />
       <section className="planner-card planner-next-card">
         <div className="planner-card-label">NEXT UP</div>
         {next ? (
@@ -131,6 +178,7 @@ function ForecastTab({ forecast, setMisses }) {
             <span><strong>{course.plannedMisses}</strong><small>planned misses</small></span>
             <button aria-label={`Increase planned misses for ${course.code}`} disabled={course.plannedMisses >= course.upcoming} onClick={() => setMisses(course.code, course.plannedMisses + 1)}>+</button>
           </div>
+          <AttendanceScenarioChart course={course} />
           <div className="planner-forecast-note">
             {course.projectedPct == null ? "Mark at least one completed class to begin forecasting."
               : course.risk === "risk" ? `Attend the next ${course.recoveryNeeded} class${course.recoveryNeeded === 1 ? "" : "es"} to return to ${ATTENDANCE_TARGET}%.`
@@ -138,6 +186,29 @@ function ForecastTab({ forecast, setMisses }) {
           </div>
         </section>
       ))}
+    </div>
+  );
+}
+
+function AttendanceScenarioChart({ course }) {
+  const scenario = buildAttendanceScenario(course);
+  if (course.currentPct == null) return null;
+  const rows = [
+    ["Current", course.currentPct, "current"],
+    [`Attend next ${scenario.count}`, scenario.count ? scenario.attendPct : null, "attend"],
+    [`Miss next ${scenario.count}`, scenario.count ? scenario.missPct : null, "miss"],
+  ];
+  return (
+    <div className="planner-scenario" aria-label={`${course.code} attendance scenarios, target ${ATTENDANCE_TARGET}%`}>
+      <div className="planner-scenario-head"><strong>Next sessions at a glance</strong><span>{scenario.count ? `Comparing the next ${scenario.count} session${scenario.count === 1 ? "" : "s"}` : "Use + to compare outcomes"}</span></div>
+      {rows.map(([label, value, tone]) => (
+        <div className={`planner-scenario-row is-${tone}`} key={tone}>
+          <span>{label}</span>
+          <div className="planner-scenario-track" aria-hidden="true"><i style={{ width: `${value ?? 0}%` }} /><b style={{ left: `${ATTENDANCE_TARGET}%` }} /></div>
+          <strong>{value == null ? "—" : `${value}%`}</strong>
+        </div>
+      ))}
+      <small>Line marks the {ATTENDANCE_TARGET}% target. These are scenarios based on marked attendance.</small>
     </div>
   );
 }
@@ -219,15 +290,37 @@ function SyncTab({ isOffline, syncing, syncedAgo, onSync }) {
   );
 }
 
-function InsightsTab({ insights }) {
+function WeeklyLoadChart({ week }) {
+  const maxMinutes = Math.max(60, ...week.days.map((day) => day.classMinutes));
+  return (
+    <section className="planner-card planner-week-card" aria-labelledby="planner-week-title">
+      <div className="planner-card-label">COMING WEEK</div><h2 id="planner-week-title">Weekly load</h2>
+      <p>Scheduled class and exam hours, with assignment deadlines on each day.</p>
+      <div className="planner-week-chart">
+        {week.days.map((day) => (
+          <div className="planner-week-day" key={day.date}>
+            <strong>{fmtDate(day.date).split(",")[0]}</strong>
+            <div className="planner-week-track" aria-label={`${hoursLabel(day.classMinutes)} scheduled, ${day.dueCount} tasks due`}><span style={{ height: `${day.classMinutes ? Math.max(5, day.classMinutes / maxMinutes * 100) : 0}%` }} /></div>
+            <span>{hoursLabel(day.classMinutes)}</span>
+            <small>{day.dueCount ? `${day.dueCount} due` : "—"}</small>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function InsightsTab({ insights, week }) {
+  const busiest = week.days.reduce((max, day) => day.classMinutes > max.classMinutes ? day : max, week.days[0]);
   return (
     <div className="planner-stack">
       <div className="planner-metrics-grid">
         <Metric label="Average attendance" value={insights.averageAttendance == null ? "—" : `${insights.averageAttendance}%`} detail="Across marked courses" tone={insights.averageAttendance != null && insights.averageAttendance < ATTENDANCE_TARGET ? "risk" : "good"} />
         <Metric label="Assignment completion" value={insights.completionRate == null ? "—" : `${insights.completionRate}%`} detail={`${insights.completed} completed · ${insights.open} open`} tone="violet" />
         <Metric label="Due this week" value={insights.dueThisWeek} detail={`${insights.overdue} currently overdue`} tone={insights.overdue ? "risk" : "neutral"} />
-        <Metric label="Busiest weekday" value={insights.busiestDay} detail={`${insights.busiestDayCount} scheduled classes`} tone="blue" />
+        <Metric label="Busiest next 7 days" value={busiest.classMinutes ? fmtDate(busiest.date).split(",")[0] : "—"} detail={`${hoursLabel(busiest.classMinutes)} scheduled`} tone="blue" />
       </div>
+      <WeeklyLoadChart week={week} />
       <div className="planner-callout"><Activity size={20} /><div><strong>Private by design</strong><span>These insights are calculated in your browser from your own timetable, assignments and attendance. They are not a leaderboard.</span></div></div>
     </div>
   );
@@ -242,6 +335,7 @@ export default function StudentPlanner({
   const [assignments, setAssignments] = useState(() => loadAssignments());
   const [misses, setMissesState] = useState(() => loadObject(MISSES_KEY));
   const [effort, setEffortState] = useState(() => loadObject(EFFORT_KEY));
+  const [budgetMinutes, setBudgetState] = useState(loadBudget);
 
   useEffect(() => {
     const refresh = () => setAssignments(loadAssignments());
@@ -254,9 +348,11 @@ export default function StudentPlanner({
   const tasks = useMemo(() => flattenAssignments(assignments, legend, now), [assignments, legend, now]);
   const freeWindows = useMemo(() => findFreeWindows(visible, now), [visible, now]);
   const insights = useMemo(() => buildPlannerInsights({ visible, assignments, attendanceForecast: forecast, now }), [visible, assignments, forecast, now]);
+  const week = useMemo(() => buildWeeklyPlanner({ visible, assignments, effort, now }), [visible, assignments, effort, now]);
 
   const setMisses = (code, value) => setMissesState((current) => { const next = { ...current, [code]: value }; saveObject(MISSES_KEY, next); return next; });
   const setEffort = (id, value) => setEffortState((current) => { const next = { ...current, [id]: value }; saveObject(EFFORT_KEY, next); return next; });
+  const setBudgetMinutes = (value) => { setBudgetState(value); saveObject(BUDGET_KEY, value); };
   const navigate = (view, plannerTab) => { if (plannerTab) setTab(plannerTab); else onNavigate(view); };
   const openChange = (change) => change?.date ? onOpenChange(change) : onNavigate("notifications");
 
@@ -270,12 +366,12 @@ export default function StudentPlanner({
         <button key={id} className={tab === id ? "is-active" : ""} aria-current={tab === id ? "page" : undefined} onClick={() => setTab(id)}><Icon size={16} />{label}</button>
       ))}</nav>
       <div className="planner-content">
-        {tab === "brief" && <BriefTab brief={brief} legend={legend} onNavigate={navigate} onOpenChange={openChange} />}
+        {tab === "brief" && <BriefTab brief={brief} legend={legend} week={week} budgetMinutes={budgetMinutes} setBudgetMinutes={setBudgetMinutes} onNavigate={navigate} onOpenChange={openChange} />}
         {tab === "forecast" && <ForecastTab forecast={forecast} setMisses={setMisses} />}
         {tab === "workload" && <WorkloadTab tasks={tasks} freeWindows={freeWindows} effort={effort} setEffort={setEffort} onNavigate={navigate} />}
         {tab === "changes" && <ChangesTab changes={changes} readKeys={readChangeKeys} keyOf={changeKeyOf} onOpenChange={openChange} onOpenAll={() => onNavigate("notifications")} />}
         {tab === "sync" && <SyncTab isOffline={isOffline} syncing={syncing} syncedAgo={syncedAgo} onSync={onSync} />}
-        {tab === "insights" && <InsightsTab insights={insights} />}
+        {tab === "insights" && <InsightsTab insights={insights} week={week} />}
       </div>
     </div>
   );

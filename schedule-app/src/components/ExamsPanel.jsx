@@ -391,7 +391,7 @@ function CourseCountdown({ courses, allClasses, enrolled, attendance, now }) {
   );
 }
 
-export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, allCodes, now, termNumber, termStart, termEnd, attendance, onOpenCalendarExport }) {
+export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, allCodes, now, termNumber, termStart, termEnd, attendance, onOpenCalendarExport, onOpenCourse }) {
   const codes = Object.keys(enrolled || {});
   const [cdView, setCdView] = useState("list"); // "list" | "calendar"
   const [examFilter, setExamFilter] = useState("mine"); // "mine" | "all"
@@ -514,6 +514,7 @@ export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, al
           <div className="exam-row-meta">
             {e.start && <span><Clock size={13} />{fmtTime12(e.start)}{e.end ? ` – ${fmtTime12(e.end)}` : ""}</span>}
             {e.room && <span><MapPin size={13} />{e.room}</span>}
+            {code && enrolled?.[code] && <button type="button" className="exam-course-link" onClick={() => onOpenCourse?.(code)}>Open course</button>}
           </div>
         </div>
         <div className="exam-row-status">

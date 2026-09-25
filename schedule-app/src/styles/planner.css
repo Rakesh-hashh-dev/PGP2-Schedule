@@ -167,6 +167,46 @@
 .planner-metric.tone-violet strong { color: var(--violet); }
 .planner-metric.tone-blue strong { color: var(--blue); }
 
+/* Analytical views share the existing Planner surfaces and theme tokens. */
+.planner-capacity-card { grid-column: 1 / -1; }
+.planner-capacity-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 9px 18px; margin-bottom: 16px; color: var(--muted); font-size: .73rem; }
+.planner-capacity-controls label { display: inline-flex; align-items: center; gap: 9px; color: var(--text); font-weight: 700; }
+.planner-capacity-controls select { padding: 7px 28px 7px 9px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--text); font: inherit; }
+.planner-capacity-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.planner-capacity-summary > div { min-width: 0; padding: 12px 14px; border-radius: 12px; background: var(--surface); }
+.planner-capacity-summary strong, .planner-capacity-summary span { display: block; }
+.planner-capacity-summary strong { font: 750 1.4rem/1 var(--display); font-variant-numeric: tabular-nums; }
+.planner-capacity-summary span { margin-top: 5px; color: var(--muted); font-size: .71rem; }
+.planner-capacity-track { height: 7px; margin-top: 16px; overflow: hidden; border-radius: 99px; background: var(--surface); }
+.planner-capacity-track span { display: block; height: 100%; border-radius: inherit; background: var(--violet); transition: width 220ms ease; }
+.planner-capacity-note { margin: 9px 0 0; color: var(--muted); font-size: .73rem; line-height: 1.5; }
+.planner-capacity-note.is-short { color: var(--danger); }
+
+.planner-scenario { grid-column: 1 / -1; padding: 14px 0 0; border-top: 1px solid var(--border); }
+.planner-scenario-head { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 3px 10px; margin-bottom: 10px; }
+.planner-scenario-head strong { font-size: .78rem; }
+.planner-scenario-head span, .planner-scenario > small { color: var(--muted); font-size: .69rem; }
+.planner-scenario-row { display: grid; grid-template-columns: 112px minmax(0, 1fr) 42px; align-items: center; gap: 10px; margin: 7px 0; font-size: .72rem; }
+.planner-scenario-row > span { color: var(--muted); }
+.planner-scenario-row > strong { text-align: right; font-variant-numeric: tabular-nums; }
+.planner-scenario-track { position: relative; height: 8px; border-radius: 99px; background: var(--surface); }
+.planner-scenario-track i { display: block; height: 100%; border-radius: inherit; background: var(--violet); transition: width 220ms ease; }
+.planner-scenario-row.is-attend .planner-scenario-track i { background: var(--live); }
+.planner-scenario-row.is-miss .planner-scenario-track i { background: var(--amber); }
+.planner-scenario-track b { position: absolute; z-index: 1; top: -3px; width: 2px; height: 14px; background: var(--text); transform: translateX(-50%); }
+.planner-scenario > small { display: block; margin-top: 9px; line-height: 1.4; }
+
+.planner-week-card > p { margin: 5px 0 18px; }
+.planner-week-chart { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 10px; animation: planner-chart-settle 200ms ease-out both; }
+.planner-week-day { display: flex; min-width: 0; flex-direction: column; align-items: center; gap: 6px; font-size: .7rem; }
+.planner-week-day > strong { color: var(--muted); font-size: .68rem; }
+.planner-week-day > span { font-weight: 750; font-variant-numeric: tabular-nums; }
+.planner-week-day > small { min-height: 20px; padding: 3px 6px; border-radius: 6px; background: var(--surface); color: var(--muted); font-size: .63rem; white-space: nowrap; }
+.planner-week-track { display: flex; align-items: end; width: min(100%, 56px); height: 112px; padding: 0 9px; border-bottom: 1px solid var(--border); background: linear-gradient(to top, color-mix(in srgb, var(--violet) 4%, transparent), transparent); }
+.planner-week-track span { display: block; width: 100%; border-radius: 6px 6px 0 0; background: color-mix(in srgb, var(--violet) 75%, var(--card)); transition: height 220ms ease; }
+@keyframes planner-chart-settle { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: translateY(0); } }
+
+
 @media (max-width: 900px) {
   .planner-page { padding-inline: 2px; }
   .planner-grid-brief, .planner-grid-workload { grid-template-columns: 1fr; }
@@ -176,6 +216,14 @@
 }
 
 @media (max-width: 560px) {
+  .planner-capacity-summary { gap: 5px; }
+  .planner-capacity-summary > div { padding: 10px 8px; }
+  .planner-capacity-summary strong { font-size: 1.1rem; }
+  .planner-capacity-summary span { font-size: .65rem; }
+  .planner-scenario-row { grid-template-columns: 91px minmax(0, 1fr) 36px; gap: 6px; font-size: .68rem; }
+  .planner-week-chart { gap: 4px; }
+  .planner-week-track { height: 86px; padding: 0 5px; }
+  .planner-week-day > small { padding: 3px; font-size: .58rem; }
   .planner-page { padding-bottom: 86px; }
   .planner-head { padding: 8px 2px 20px; }
   .planner-head h1 { font-size: 2.2rem; }
@@ -186,6 +234,7 @@
   .planner-card { padding: 18px; border-radius: 17px; }
   .planner-card-actions { align-items: flex-start; flex-direction: column; }
   .planner-forecast-row { grid-template-columns: 1fr; gap: 16px; }
+  .planner-course-copy h2 { overflow: visible; white-space: normal; overflow-wrap: anywhere; }
   .planner-forecast-values, .planner-stepper { grid-column: auto; }
   .planner-forecast-values { justify-content: flex-start; padding-left: 63px; }
   .planner-forecast-note { grid-column: auto; }
@@ -202,5 +251,5 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .planner-page *, .planner-page *::before, .planner-page *::after { scroll-behavior: auto !important; transition: none !important; }
+  .planner-page *, .planner-page *::before, .planner-page *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
 }

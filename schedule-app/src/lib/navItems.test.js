@@ -65,7 +65,7 @@ describe("itemsForGroup", () => {
 
   it("returns ungated rows regardless of flags", () => {
     expect(itemsForGroup("schedule", {}).map(i => i.id))
-      .toEqual(["today", "tomorrow", "fullSchedule", "planner"]);
+      .toEqual(["today", "tomorrow", "fullSchedule", "courseHub", "planner"]);
   });
 
   it("is empty for an unknown group", () => {

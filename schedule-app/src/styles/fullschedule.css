@@ -637,6 +637,7 @@
 }
 
 .fs-meta-link:hover { color: var(--violet); }
+.fs-card-meta button.fs-meta-link { padding: 0; border: 0; background: transparent; font: inherit; font-weight: 700; cursor: pointer; }
 
 .fs-meta-time {
   background: var(--surface);

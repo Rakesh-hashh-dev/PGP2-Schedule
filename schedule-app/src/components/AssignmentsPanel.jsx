@@ -223,17 +223,23 @@ function SwipeableTaskRow({ task, onToggle, onDelete, onOpen, courseCode, course
   );
 }
 
-export default function AssignmentsPanel({ enrolled, legend, userId, onTaskCompleted }) {
+export default function AssignmentsPanel({ enrolled, legend, userId, onTaskCompleted, openTarget, onOpenTargetConsumed, onOpenCourse }) {
   const [assignments, setAssignments] = useState(() => loadAssignments());
-  const [modalOpen, setModalOpen] = useState(false);
+  const [modalOpen, setModalOpen] = useState(Boolean(openTarget?.code));
   const [collapsedCards, setCollapsedCards] = useState({});
-  const [modalData, setModalData] = useState({ id: "", code: "", title: "", description: "", dueDate: "" });
+  const [modalData, setModalData] = useState(() => openTarget?.task
+    ? { ...openTarget.task, code: openTarget.code }
+    : { id: "", code: openTarget?.code || "", title: "", description: "", dueDate: "" });
   const [tab, setTab] = useState("open");
   const [filter, setFilter] = useState("all");
   const [groupBy, setGroupBy] = useState("course"); // "course" | "date"
   const [sortBy, setSortBy] = useState("due");       // "due" | "added" | "title"
   const [undoState, setUndoState] = useState(null);
   const undoTimer = useRef(null);
+
+  useEffect(() => {
+    if (openTarget?.code) onOpenTargetConsumed?.();
+  }, [openTarget, onOpenTargetConsumed]);
 
   useEffect(() => () => clearTimeout(undoTimer.current), []);
 
@@ -567,6 +573,7 @@ export default function AssignmentsPanel({ enrolled, legend, userId, onTaskCompl
                       <button className="assign-add-mini" onClick={(e) => { e.stopPropagation(); openModal(course.code); }}>
                         <Plus size={13} strokeWidth={3}/><span className="assign-add-label">Add</span>
                       </button>
+                      {onOpenCourse && <button className="assign-add-mini" aria-label={`Open ${course.name} course hub`} onClick={(e) => { e.stopPropagation(); onOpenCourse(course.code); }}>Course</button>}
                       <span className="assign-badge">{tab==="open" ? `${course.pendingCount} open` : `${course.doneCount} done`}</span>
                       <ProgressRing pct={progress} color={course.color} />
                       <ChevronDown size={16} className={`assign-chevron ${isOpen ? "open" : ""}`} />
