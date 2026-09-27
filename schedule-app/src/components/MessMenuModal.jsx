@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { UtensilsCrossed, X, Star, ThumbsUp, ThumbsDown, Clock3, Heart } from "lucide-react";
+import { UtensilsCrossed, X, Star, ThumbsUp, ThumbsDown, Clock3, Heart, CalendarDays } from "lucide-react";
 import { getMenuForDay, MEAL_TIMES } from "../data/messMenu.js";
 import { MEAL_ICONS, WEEK_LABELS, mondayOf, toMin, fmt12, fmtIn, mealStatus, useMessData } from "../lib/messView.js";
 import { readMobileUiVersion, supportsV2Viewport } from "../hooks/useMobileUiVersion.js";
@@ -141,6 +141,7 @@ export default function MessMenuModal({ now, onClose, favourites, onToggleFav, r
   const dateSub = isToday
     ? `Today · ${selected.date.toLocaleDateString([], { day: "numeric", month: "short" })}`
     : selected.date.toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" });
+  const weekRange = `${weekDays[0].date.toLocaleDateString([], { day: "numeric", month: "short" })} – ${weekDays[6].date.toLocaleDateString([], { day: "numeric", month: "short" })}`;
 
   return createPortal(
     <div className={`fs-modal-overlay${isV2 ? " is-v2 mobile-ui-v2" : ""}`} onClick={onClose}>
@@ -151,12 +152,11 @@ export default function MessMenuModal({ now, onClose, favourites, onToggleFav, r
             <span className="mess-modal-title-ico"><UtensilsCrossed size={17} /></span>
             <span className="mess-modal-title-text">
               <h3>Mess Menu</h3>
-              <span className="mess-modal-sub">{dateSub} · {totalItems} items</span>
+              <span className="mess-modal-sub">Weekly menu · {weekRange}</span>
             </span>
           </div>
           <div className="mess-modal-header-actions">
-            <span className="mess-header-count"><span>{MEAL_TIMES.length}</span> meals</span>
-            <span className="mess-header-count"><span>{totalItems}</span> dishes</span>
+            {!isToday && <button type="button" className="mess-today-btn" onClick={() => setDayIdx(todayIdx)}><CalendarDays size={14} aria-hidden="true" /> Today</button>}
             <button type="button" className="fs-modal-close" onClick={onClose} aria-label="Close"><X size={16} /></button>
           </div>
         </div>
@@ -207,7 +207,7 @@ export default function MessMenuModal({ now, onClose, favourites, onToggleFav, r
           </section>
 
           <div className="mess-menu-guide">
-            <span>Daily servings</span>
+            <div className="mess-guide-heading"><strong>{dateSub}</strong><span>{MEAL_TIMES.length} meals · {totalItems} dishes</span></div>
             <p className="mess-fav-hint"><Star size={11} /> Tap any dish to save it</p>
           </div>
 

@@ -68,6 +68,7 @@ import CancellationAlert from "./components/CancellationAlert.jsx";
 import ProvisionalSectionNotice from "./components/ProvisionalSectionNotice.jsx";
 import { loadMyAway, isAwayNow, fmtAwayEnd } from "./lib/status.js";
 import { loadAttendance, saveAttendance, sessionKey, syncAttendanceFromCloud, pushMark, courseSkipStats } from "./lib/attendance.js";
+import { recordFeatureUse } from "./lib/featureUsage.js";
 import { usePet } from "./hooks/usePet.js";
 import { EXAM_HORIZON_DAYS, isAdopted } from "./lib/pet.js";
 import { syncProfileFromCloud, pushProfile, stampProfileEmail } from "./lib/profile.js";
@@ -368,6 +369,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // Glance is a shortcut peek, not a destination — don't make it the view the
   // app re-opens on next launch.
   useEffect(() => { if (view !== "glance") { try { localStorage.setItem(VIEW_KEY, view); } catch { } } }, [view]);
+  useEffect(() => { if (view === "notifications") recordFeatureUse(userId, "announcements_view"); }, [view, userId]);
   // Which term's schedule is being browsed — defaults to the live term; can be
   // switched to an archived term for read-only browsing (see `activeTerm` etc.
   // below, derived once `sd`/TERM are known).
@@ -2008,6 +2010,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       return next;
     });
     pushMark(userId, key, status);
+    if (status !== null) recordFeatureUse(userId, "attendance_mark");
     // Marking a class is the pet's main XP source — deliberately, so progress
     // tracks something the student was going to do anyway rather than tapping.
     // Keyed by session, so un-marking and re-marking (or a cloud re-sync
@@ -3684,6 +3687,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           <Suspense fallback={null}>
             <CalendarExportModal
               isOpen={calendarModalOpen}
+              userId={userId}
               onClose={() => setCalendarModalOpen(false)}
               allClasses={CLASSES}
               enrolled={enrolled}

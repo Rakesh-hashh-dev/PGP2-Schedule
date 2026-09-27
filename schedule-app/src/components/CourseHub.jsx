@@ -5,7 +5,9 @@ import {
   Search, Trash2, WifiOff,
 } from "lucide-react";
 import { fmtTime12 } from "../lib/datetime.js";
-import { buildCourseHub, courseJourney, courseWeeklyLoad } from "../lib/courseHub.js";
+import { subjectClass } from "../lib/subjectColors.js";
+import { buildCourseHub, courseAttention, courseJourney, courseWeeklyLoad } from "../lib/courseHub.js";
+import CourseLearning from "./CourseLearning.jsx";
 import { loadAssignments } from "../lib/assignments.js";
 import { courseHubId, courseHubStamp, loadCourseHubItems, saveCourseHubItems, syncCourseHubItems } from "../lib/courseHubStore.js";
 import { safeUrl } from "../lib/safeUrl.js";
@@ -68,18 +70,27 @@ function AttendanceRunway({ course, onOpen }) {
 function WorkloadRhythm({ course, now, estimates, onOpenTask }) {
   const weeks = courseWeeklyLoad(course, estimates, now);
   const [active, setActive] = useState(0);
-  const max = Math.max(60, ...weeks.map((week) => week.classMinutes + week.estimatedMinutes));
+  const [hovered, setHovered] = useState(null);
+  const totals = weeks.map((week) => week.classMinutes + week.estimatedMinutes);
+  const max = Math.max(60, ...totals);
+  const points = totals.map((value, index) => ({ x: 24 + index * 96, y: 104 - value / max * 78 }));
+  const line = points.reduce((path, point, index) => index === 0 ? `M ${point.x} ${point.y}` : `${path} C ${points[index - 1].x + 48} ${points[index - 1].y}, ${point.x - 48} ${point.y}, ${point.x} ${point.y}`, "");
+  const shown = hovered ?? active;
+  const hoveredWeek = hovered == null ? null : weeks[hovered];
+  const hoverWeekAt = (event) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    if (!bounds.width) return;
+    const x = (event.clientX - bounds.left) / bounds.width * 336;
+    setHovered(Math.max(0, Math.min(3, Math.round((x - 24) / 96))));
+  };
   return <section className="ch-panel ch-workload" aria-labelledby="ch-workload-title">
     <div className="ch-panel-head"><div><span className="ch-eyebrow">COMING MONTH</span><h2 id="ch-workload-title">Workload rhythm</h2></div><Clock3 size={18} aria-hidden="true" /></div>
-    <p className="ch-sub">Class time and estimated work due each week.</p>
-    <div className="ch-work-chart" role="group" aria-label="Select a week to view tasks">{weeks.map((week, index) => <button type="button" key={week.first} className={`ch-work-week${active === index ? " is-active" : ""}`} onClick={() => setActive(index)} aria-pressed={active === index} aria-label={`Week ${index + 1}, ${hourLabel(week.classMinutes)} class time, ${hourLabel(week.estimatedMinutes)} estimated work, ${week.due.length} tasks due${week.examCount ? `, ${week.examCount} exams` : ""}`}>
-      <span className="ch-work-bars"><i style={{ height: `${week.classMinutes / max * 100}%` }} /><b style={{ height: `${week.estimatedMinutes / max * 100}%` }} /></span>
-      <strong>W{index + 1}</strong><small>{week.examCount ? `${week.examCount} exam` : `${week.due.length} due`}</small>
-    </button>)}</div>
-    <div className="ch-legend"><span><i /> Class time</span><span><i /> Estimated work</span></div>
-    <div className="ch-week-detail"><strong>Week {active + 1} · {dateLabel(weeks[active].first, { day: "numeric", month: "short" })}</strong>
-      <span>{hourLabel(weeks[active].classMinutes)} classes · {hourLabel(weeks[active].estimatedMinutes)} estimated work{weeks[active].unestimated ? ` · ${weeks[active].unestimated} without estimates` : ""}</span>
-      {weeks[active].due.map((task) => <button key={task.id} className="ch-task-link" onClick={() => onOpenTask(task)}>{task.title || "Untitled assignment"}<ArrowRight size={13} /></button>)}
+    <p className="ch-sub">A smooth view of class time and estimated work due each week.</p>
+    <div className="ch-work-curve"><svg viewBox="0 0 336 120" role="img" aria-label="Four-week workload curve; move across it for details or select a week below" onPointerMove={hoverWeekAt} onPointerLeave={() => setHovered(null)}><defs><linearGradient id="ch-work-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--violet)" stopOpacity=".24" /><stop offset="100%" stopColor="var(--violet)" stopOpacity=".01" /></linearGradient></defs><path className="ch-work-area" d={`${line} L ${points[3].x} 112 L ${points[0].x} 112 Z`} fill="url(#ch-work-fill)" /><path className="ch-work-line" d={line} pathLength="1" fill="none" stroke="var(--violet)" strokeWidth="3" strokeLinecap="round" />{points.map((point, index) => <circle className="ch-work-point" key={index} cx={point.x} cy={point.y} r="3.5" fill="var(--card)" stroke="var(--violet)" strokeWidth="2.5" style={{ animationDelay: `${280 + index * 90}ms` }} />)}</svg><span className="ch-work-cursor" aria-hidden="true" style={{ left: `${points[shown].x / 336 * 100}%`, top: `${points[shown].y / 120 * 100}%` }} />{hoveredWeek && <div className="ch-work-tooltip" aria-hidden="true" style={{ left: `clamp(100px, ${points[hovered].x / 336 * 100}%, calc(100% - 100px))` }}><strong>Week {hovered + 1} · {dateLabel(hoveredWeek.first, { day: "numeric", month: "short" })}</strong><span>{hourLabel(totals[hovered])} total · {hourLabel(hoveredWeek.classMinutes)} class · {hourLabel(hoveredWeek.estimatedMinutes)} work</span><small>{hoveredWeek.due.length} task{hoveredWeek.due.length === 1 ? "" : "s"} due · {hoveredWeek.examCount} exam{hoveredWeek.examCount === 1 ? "" : "s"}{hoveredWeek.unestimated ? ` · ${hoveredWeek.unestimated} unestimated` : ""}</small></div>}</div>
+    <div className="ch-work-axis" role="group" aria-label="Select a week to view tasks">{weeks.map((week, index) => <button type="button" key={week.first} className={shown === index ? "is-active" : ""} onClick={() => setActive(index)} aria-pressed={active === index} aria-label={`Week ${index + 1}, ${hourLabel(totals[index])} total, ${hourLabel(week.classMinutes)} class time, ${hourLabel(week.estimatedMinutes)} estimated work, ${week.due.length} tasks due${week.examCount ? `, ${week.examCount} exams` : ""}`}><strong>W{index + 1}</strong><small>{hourLabel(totals[index])}</small></button>)}</div>
+    <div className="ch-week-detail"><strong>Week {shown + 1} · {dateLabel(weeks[shown].first, { day: "numeric", month: "short" })}</strong>
+      <span>{hourLabel(weeks[shown].classMinutes)} classes · {hourLabel(weeks[shown].estimatedMinutes)} estimated work{weeks[shown].unestimated ? ` · ${weeks[shown].unestimated} without estimates` : ""}</span>
+      {weeks[shown].due.map((task) => <button key={task.id} className="ch-task-link" onClick={() => onOpenTask(task)}>{task.title || "Untitled assignment"}<ArrowRight size={13} /></button>)}
     </div>
   </section>;
 }
@@ -107,11 +118,11 @@ export default function CourseHub({ allClasses = [], enrolled = {}, legend = {},
   useEffect(() => { saveCourseHubItems(items); }, [items]);
   useEffect(() => { const online = () => setRevision((value) => value + 1); window.addEventListener("online", online); return () => window.removeEventListener("online", online); }, []);
   useEffect(() => {
-    if (isOffline || !userId || isArchived) return;
+    if (isOffline || !userId) return;
     let cancelled = false;
     const timer = setTimeout(async () => {
       const snapshot = loadCourseHubItems();
-      const result = await syncCourseHubItems(userId, snapshot);
+      const result = await syncCourseHubItems(userId, snapshot, { readOnly: isArchived });
       if (cancelled) return;
       setSynced(result.synced);
       setItems((current) => {
@@ -141,15 +152,25 @@ export default function CourseHub({ allClasses = [], enrolled = {}, legend = {},
     setItems((current) => current.map((row) => row.id === item.id ? { ...row, ...patch, updatedAt: Math.max(stamp, row.updatedAt + 1), pending: true } : row));
     setSynced(false); setRevision((value) => value + 1);
   };
+  const saveLearning = (kind, title, details, sessionKey = "", id = "") => {
+    const stamp = courseHubStamp();
+    const existing = items.find((item) => item.id === id);
+    const item = { id: id || courseHubId(), term, code: course.code, kind, title, url: "", sessionKey,
+      details, done: existing?.done || false, deleted: false,
+      updatedAt: Math.max(stamp, (existing?.updatedAt || 0) + 1), pending: true };
+    setItems((current) => [...current.filter((row) => row.id !== item.id), item]);
+    setSynced(false); setRevision((value) => value + 1);
+  };
   const openEvent = (event) => event.kind === "task" ? onOpenTask?.(course.code, event.item) : event.kind === "exam" ? onNavigate("exams") : onOpenSchedule?.(event.item);
 
   if (!course) return <div className="course-hub">
     <header className="ch-overview-head"><span className="ch-eyebrow">YOUR TERM, BY COURSE</span><h1>Courses</h1><p>Classes, work and progress brought together for each subject.</p></header>
     <label className="ch-search"><Search size={17} /><input aria-label="Search courses" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Find a course" /></label>
-    {courses.length ? visibleCourses.length ? <div className="ch-course-grid">{visibleCourses.map((item) => <button type="button" className="ch-course-card" key={item.code} onClick={() => onSelectCode(item.code)}>
-      <span className="ch-course-code">{item.code}</span><h2>{item.name}</h2><small>{item.area}{item.credits ? ` · ${item.credits} credits` : ""}</small>
+    {courses.length ? visibleCourses.length ? <div className="ch-course-grid">{visibleCourses.map((item) => { const attention = isArchived ? null : courseAttention(item, now); return <button type="button" className="ch-course-card" key={item.code} onClick={() => onSelectCode(item.code)}>
+      <span className={`ch-course-code ${subjectClass(item.code)}`}>{item.code}</span><h2>{item.name}</h2><small>{item.area}{item.credits ? ` · ${item.credits} credits` : ""}</small>
+      {attention && <span className="ch-attention"><strong>{attention.label}</strong><small>{attention.detail}</small></span>}
       <div className="ch-course-card-stats"><span>{item.nextClass ? dateLabel(item.nextClass.date) : "No class ahead"}<b>Next class</b></span><span>{item.openTasks.length}<b>Open tasks</b></span><span>{item.stats.pct == null ? "—" : `${item.stats.pct}%`}<b>Attendance</b></span></div><span className="ch-card-open">Open course <ArrowRight size={15} /></span>
-    </button>)}</div> : <Empty text="No courses match your search." /> : <Empty text="No enrolled courses yet. Complete setup to see your course hub." />}
+    </button>; })}</div> : <Empty text="No courses match your search." /> : <Empty text="No enrolled courses yet. Complete setup to see your course hub." />}
   </div>;
 
   return <div className="course-hub ch-detail" key={course.code}>
@@ -163,6 +184,7 @@ export default function CourseHub({ allClasses = [], enrolled = {}, legend = {},
         {prep.length ? <div className="ch-items">{prep.map((item) => <div className="ch-prep-item" key={item.id}><button disabled={isArchived} className={item.done ? "is-done" : ""} onClick={() => changeItem(item, { done: !item.done })} aria-label={`${item.done ? "Mark incomplete" : "Mark complete"}: ${item.title}`}><Check size={13} /></button><span className={item.done ? "is-done" : ""}>{item.title}</span>{!isArchived && <button className="ch-item-edit" onClick={() => setForm({ kind: "prep", id: item.id, title: item.title, url: "" })}>Edit</button>}{!isArchived && <button className="ch-item-delete" aria-label={`Remove ${item.title}`} onClick={() => changeItem(item, { deleted: true })}><Trash2 size={14} /></button>}</div>)}</div> : <Empty text="No preparation items for the next class." />}
         {!isArchived && course.nextClass && <button className="ch-add" onClick={() => { setForm({ kind: "prep", id: "", title: "", url: "" }); setError(""); }}><Plus size={15} /> Add preparation item</button>}
       </section>
+      <CourseLearning course={course} items={courseItems} now={now} isArchived={isArchived} onSave={saveLearning} onChange={changeItem} />
       <Journey course={course} now={now} onOpen={openEvent} />
       <section className="ch-panel ch-resources" aria-labelledby="ch-resources-title"><div className="ch-panel-head"><div><span className="ch-eyebrow">YOUR LINKS</span><h2 id="ch-resources-title">Course resources</h2></div><Link2 size={18} /></div><p className="ch-sub">Save readings, slides or course pages for your own use.</p>
         {links.length ? <div className="ch-items">{links.map((item) => <div className="ch-resource-item" key={item.id}><a href={validWebUrl(item.url) || undefined} target="_blank" rel="noopener noreferrer"><BookOpen size={16} /><span>{item.title}</span><ExternalLink size={14} /></a>{!isArchived && <button className="ch-item-edit" onClick={() => setForm({ kind: "link", id: item.id, title: item.title, url: item.url })}>Edit</button>}{!isArchived && <button className="ch-item-delete" aria-label={`Remove ${item.title}`} onClick={() => changeItem(item, { deleted: true })}><Trash2 size={14} /></button>}</div>)}</div> : <Empty text="No saved links for this course." />}

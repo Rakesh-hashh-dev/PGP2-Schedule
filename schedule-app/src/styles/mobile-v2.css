@@ -2713,6 +2713,12 @@
     font-size: 11px !important;
   }
 
+  .mess-today-btn {
+    min-height: 32px;
+    padding: 0 8px;
+    font-size: 10px;
+  }
+
   .fs-modal-close {
     width: 32px !important;
     height: 32px !important;
@@ -2790,6 +2796,11 @@
     border: 1px solid var(--border) !important;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03) !important;
     background: var(--card) !important;
+  }
+
+  .mess-meal-card.is-now {
+    border-color: color-mix(in srgb, var(--mess-acc) 42%, var(--border)) !important;
+    background: color-mix(in srgb, var(--mess-acc) 6%, var(--card)) !important;
   }
 
   .mess-meal-card-head {

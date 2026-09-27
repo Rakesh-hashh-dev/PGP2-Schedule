@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  ArrowLeft, Check, Cookie, Gamepad2, Heart, Home, Lock,
-  PawPrint, Shirt, Sparkles, UserRound,
+  ArrowLeft, CalendarDays, Check, Clock3, Cookie, Gamepad2, Heart, Home, Lock,
+  PawPrint, Shirt, Sparkles, Trophy, UserRound,
 } from "lucide-react";
 import { PETS, getPetByKey } from "./greetingPets.jsx";
 import {
@@ -12,8 +12,9 @@ import {
   growthStageFor, nextGrowthStage,
   coatsFor, neckwearFor, coatRequirement, neckwearRequirement,
   visibleCoat, visibleNeckwear, titlesFor, visibleTitle, titleLabel,
-  buddyFor, careStreak, devotionMultiplier, nextUnlockFor,
+  buddyFor, careStreak, devotionMultiplier,
 } from "../lib/pet.js";
+import { petMilestones, petWeek, recentPetMoments, unlockRoadmap } from "../lib/petInsights.js";
 import PetSleepCue from "./PetSleepCue.jsx";
 import PetHat from "./PetHat.jsx";
 import PetNeckwear from "./PetNeckwear.jsx";
@@ -43,6 +44,7 @@ const MOOD_COPY = {
 };
 
 const CARE_COPY = { pet: "Pet", play: "Play", treat: "Treat" };
+const CARE_REACTION = { pet: "Loved the attention", play: "Had fun playing", treat: "Enjoyed the treat" };
 
 const CARE_ICONS = { pet: Heart, play: Gamepad2, treat: Cookie };
 
@@ -104,6 +106,7 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
   const [adoptChoice, setAdoptChoice] = useState(null);
   const [activeSection, setActiveSection] = useState("overview");
   const [wardrobeSection, setWardrobeSection] = useState("hats");
+  const [careFeedback, setCareFeedback] = useState(null);
 
   const adopted = isAdopted(pet);
   const xp = xpOf(pet);
@@ -141,7 +144,21 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
   const buddy = buddyKey ? getPetByKey(buddyKey) : null;
   const streak = careStreak(pet, now);
   const multiplier = devotionMultiplier(pet, now);
-  const nextUnlock = useMemo(() => nextUnlockFor(pet), [pet]);
+  const roadmap = useMemo(() => unlockRoadmap(pet, { wardrobe: wardrobeOn, hatsOff }), [pet, wardrobeOn, hatsOff]);
+  const moments = useMemo(() => recentPetMoments(pet, 5, now), [pet, now]);
+  const milestones = useMemo(() => petMilestones(pet), [pet]);
+  const week = useMemo(() => petWeek(pet, now), [pet, now]);
+
+  useEffect(() => {
+    if (!careFeedback) return undefined;
+    const timer = window.setTimeout(() => setCareFeedback(null), 3600);
+    return () => window.clearTimeout(timer);
+  }, [careFeedback]);
+
+  const handleCare = action => {
+    petActions.care(action, now);
+    setCareFeedback({ action, earned: left > 0 });
+  };
 
   if (!adopted) {
     return (
@@ -231,18 +248,17 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
           <p>{pet.name || current.label} grows as you make progress across TermFlow.</p>
         </div>
         <div className="pet-page-actions">
-          <span className="pet-head-lvl">Lv {progress.level}{progress.maxed ? " · Max" : ""}</span>
           <button type="button" className="pet-back" onClick={onBack} aria-label="Back">
             <ArrowLeft size={18} />
           </button>
         </div>
       </header>
 
-      <section className="pet-card pet-habitat pet-habitat-v2">
-        <div className="pet-habitat-art">
-          <div className="pet-hero-row">
+      <div className="pet-summary-grid">
+        <section className="pet-card pet-identity-card" aria-label="Your companion">
+          <div className="pet-identity-art">
             <span
-              className="dg-pet pet-hero"
+              className="dg-pet pet-identity-pet"
               data-pet={current.key}
               data-motion="on"
               data-stage={stage.key}
@@ -262,7 +278,7 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
             </span>
             {buddy && (
               <span
-                className="dg-pet pet-buddy"
+                className="dg-pet pet-identity-buddy"
                 data-pet={buddy.key}
                 data-motion="on"
                 data-mood={mood}
@@ -273,28 +289,27 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
               </span>
             )}
           </div>
-          <strong className="pet-hero-name">{pet.name || current.label}</strong>
-          {title && <p className="pet-title-line">{titleLabel(title)}</p>}
-          <div className="pet-stage-chip">
-            <Sparkles size={13} aria-hidden="true" />
-            {stage.label} companion
-          </div>
-        </div>
 
-        <div className="pet-habitat-content">
-          <div className="pet-habitat-copy">
+          <div className="pet-identity-copy">
             <p className="pet-eyebrow">Together today</p>
-            <h3 className="pet-mood">{MOOD_COPY[mood]}</h3>
+            <div className="pet-identity-heading">
+              <h2>{pet.name || current.label}</h2>
+              <span className="pet-stage-chip"><Sparkles size={12} aria-hidden="true" /> {stage.label}</span>
+            </div>
+            {title && <p className="pet-title-line">{titleLabel(title)}</p>}
+            <p className="pet-mood">{MOOD_COPY[mood]}</p>
             {because && <p className="pet-because">{because}</p>}
             <div className="pet-meta-row">
               <span>{nextStage ? `${nextStage.label} at Lv ${nextStage.from}` : "Fully grown"}</span>
               {seen && <span>Last together {seen}</span>}
             </div>
           </div>
+        </section>
 
-          <div className="pet-progress-panel">
+        <div className="pet-tools">
+          <section className="pet-card pet-progress-panel" aria-label="Level progress">
             <div className="pet-xp-heading">
-              <strong>Level {progress.level}</strong>
+              <strong>Level {progress.level}{progress.maxed ? " · Max" : ""}</strong>
               <span>{xp} XP total</span>
             </div>
             <div className="pet-xp-bar" aria-label={`${progress.pct}% level progress`}>
@@ -304,19 +319,10 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
               <span>{progress.maxed ? "Maximum level reached" : `${progress.into} earned`}</span>
               <span>{progress.maxed ? "Fully grown" : `${progress.need - progress.into} XP to Lv ${progress.level + 1}`}</span>
             </div>
-            {nextUnlock && (
-              <div className="pet-next">
-                <span className="pet-next-at">{nextUnlock.by === "level" ? `Lv ${nextUnlock.at}` : `Devotion ${nextUnlock.at}`}</span>
-                <span>{nextUnlock.kind === "companion"
-                  ? `Meet ${getPetByKey(nextUnlock.key)?.label || nextUnlock.label}`
-                  : nextUnlock.kind === "slot"
-                    ? nextUnlock.label
-                    : `${nextUnlock.label} ${nextUnlock.kind}`}</span>
-              </div>
-            )}
-          </div>
+          </section>
 
-          <div className="pet-care-wrap">
+          <section className="pet-card pet-care-wrap" aria-label="Care for your companion">
+            <p className="pet-eyebrow">A little care</p>
             <div className="pet-care" aria-label="Care actions">
               {CARE_ACTIONS.map(action => {
                 const CareIcon = CARE_ICONS[action];
@@ -325,7 +331,7 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
                     key={action}
                     type="button"
                     className="pet-care-btn"
-                    onClick={() => petActions.care(action, now)}
+                    onClick={() => handleCare(action)}
                   >
                     <CareIcon size={16} aria-hidden="true" />
                     <span>{CARE_COPY[action]}</span>
@@ -338,9 +344,12 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
                 ? `${left} more today can earn XP. After that, care is just for fun.`
                 : "Today's care XP is complete. Mark a class to keep growing."}
             </p>
-          </div>
+            <p className="pet-care-feedback" role="status" aria-live="polite">
+              {careFeedback && `${pet.name || current.label} ${CARE_REACTION[careFeedback.action].toLowerCase()}. ${careFeedback.earned ? "Care XP earned." : "Today's care XP is complete; this one was just for fun."}`}
+            </p>
+          </section>
         </div>
-      </section>
+      </div>
 
       <nav className="pet-section-nav" role="tablist" aria-label="Companion sections">
         {PET_SECTIONS.map((section, index) => (
@@ -369,16 +378,93 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
           role="tabpanel"
           aria-labelledby="pet-tab-overview"
         >
+          <section className="pet-card pet-week-card">
+            <div className="pet-card-heading">
+              <div>
+                <p className="pet-eyebrow"><CalendarDays size={12} aria-hidden="true" /> Weekly recap</p>
+                <h3 className="pet-h3">What moved us forward</h3>
+              </div>
+              <span className="pet-total-pill">+{week.xp} XP this week</span>
+            </div>
+            <div className="pet-week-stats">
+              <div><strong>{week.classes}</strong><span>Class awards</span></div>
+              <div><strong>{week.deadlines}</strong><span>Deadlines cleared</span></div>
+              <div><strong>{week.care}</strong><span>Care moments</span></div>
+              <div><strong>{week.streak}</strong><span>Daily streak awards</span></div>
+            </div>
+            <p className="pet-week-note">{week.xp > 0 ? "Your classes, deadlines, and time together all count toward growth." : "No XP recorded yet this week. Marking a class or clearing a deadline gets things moving."}</p>
+          </section>
+
+          <section className="pet-card pet-roadmap-card">
+            <div className="pet-card-heading">
+              <div>
+                <p className="pet-eyebrow">Coming up</p>
+                <h3 className="pet-h3">Unlock roadmap</h3>
+              </div>
+              <Sparkles size={18} aria-hidden="true" />
+            </div>
+            {roadmap.length ? (
+              <ol className="pet-roadmap">
+                {roadmap.map(gate => (
+                  <li key={`${gate.by}-${gate.at}`}>
+                    <span className="pet-roadmap-gate">{gate.by === "level" ? `Lv ${gate.at}` : `Devotion ${gate.at}`}</span>
+                    <div><strong>{gate.rewards.slice(0, 2).map(reward => reward.label).join(" · ")}{gate.rewards.length > 2 ? ` +${gate.rewards.length - 2} more` : ""}</strong><span>{gate.remainingXp} XP to go</span></div>
+                  </li>
+                ))}
+              </ol>
+            ) : <p className="pet-empty-copy">Every available companion and reward is unlocked.</p>}
+          </section>
+
+          <section className="pet-card pet-moments-card">
+            <div className="pet-card-heading">
+              <div>
+                <p className="pet-eyebrow">Recent moments</p>
+                <h3 className="pet-h3">The story so far</h3>
+              </div>
+              <Clock3 size={18} aria-hidden="true" />
+            </div>
+            {moments.length ? (
+              <ol className="pet-moments">
+                {moments.map((moment, index) => (
+                  <li key={`${moment.day}-${moment.kind}-${moment.label}-${index}`}>
+                    <span className={`pet-moment-icon${moment.kind === "unlock" ? " is-unlock" : ""}`} aria-hidden="true">{moment.kind === "unlock" ? <Sparkles size={15} /> : moment.kind === "care" ? <Heart size={15} /> : <Clock3 size={15} />}</span>
+                    <div><strong>{moment.label}{moment.count > 1 ? ` ×${moment.count}` : ""}</strong><span>{new Date(`${moment.day}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span></div>
+                    {moment.xp > 0 && <b>+{moment.xp} XP</b>}
+                  </li>
+                ))}
+              </ol>
+            ) : <p className="pet-empty-copy">Recent XP and unlocks will appear here as you make progress.</p>}
+            <p className="pet-history-note">Shows the last 30 days of recorded activity. Earlier XP remains in your total.</p>
+          </section>
+
+          <section className="pet-card pet-milestones-card">
+            <div className="pet-card-heading">
+              <div>
+                <p className="pet-eyebrow">Milestone shelf</p>
+                <h3 className="pet-h3">Moments to collect</h3>
+              </div>
+              <Trophy size={18} aria-hidden="true" />
+            </div>
+            <div className="pet-milestones">
+              {milestones.map(item => (
+                <div className={`pet-milestone is-${item.status}`} key={item.key}>
+                  <span className="pet-milestone-icon" aria-hidden="true">{item.status === "completed" ? <Trophy size={18} /> : item.status === "locked" ? <Lock size={17} /> : <Sparkles size={17} />}</span>
+                  <div><strong>{item.label}</strong><span>{item.detail}</span></div>
+                  <small>{item.status === "completed" ? "Collected" : item.status === "locked" ? "Locked" : `${item.value}/${item.target} · in progress`}</small>
+                  <span className="pet-milestone-track" aria-hidden="true"><span style={{ width: `${item.progress}%` }} /></span>
+                </div>
+              ))}
+            </div>
+          </section>
+
           <section className="pet-card pet-journey-card">
             <div className="pet-card-heading">
               <div>
                 <p className="pet-eyebrow">Your journey</p>
                 <h3 className="pet-h3">Growing together</h3>
               </div>
-              <span className="pet-level-orb">{progress.level}</span>
             </div>
             <div className="pet-journey-stats">
-              <div><strong>{stage.label}</strong><span>Current stage</span></div>
               <div><strong>{unlocked.size}/{PETS.length}</strong><span>Companions</span></div>
               <div><strong>{streak} days</strong><span>Care streak</span></div>
             </div>
@@ -406,7 +492,6 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
                 <p className="pet-eyebrow">Progress trail</p>
                 <h3 className="pet-h3">Where the XP came from</h3>
               </div>
-              <span className="pet-total-pill">{xp} XP</span>
             </div>
             {sources.length > 0 ? (
               <ul className="pet-sources">

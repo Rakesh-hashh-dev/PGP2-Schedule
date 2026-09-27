@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from "react";
 import "../styles/fullschedule.css";
-import { ArrowLeft, Clock, MapPin, User, SlidersHorizontal, X, ArrowUp, Calendar, ChevronLeft, ChevronRight, List, CalendarDays, GraduationCap, CalendarClock, PartyPopper, Briefcase } from "lucide-react";
+import { ArrowLeft, Clock, MapPin, User, SlidersHorizontal, X, ArrowUp, Calendar, ChevronLeft, ChevronRight, List, CalendarDays, GraduationCap, CalendarClock, PartyPopper, Briefcase, BookOpen, ArrowRight } from "lucide-react";
 import { subjectClass, cleanSessionLabel } from "../lib/subjectColors.js";
 import { isExamSession } from "../lib/attendance.js";
 import { fmtTime12 } from "../lib/datetime.js";
@@ -375,6 +375,28 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
         </div>
 
         <div className="cal-controls-right">
+          {viewMode === "list" && (
+            <button
+              className="cal-ctrl-btn cal-ctrl-today"
+              onClick={() => {
+                let el = document.getElementById(`day-${TODAY}`);
+                if (!el) {
+                  const classDates = grouped.filter(g => g.type === "day").map(g => g.date);
+                  const nextDate = classDates.find(d => d >= TODAY);
+                  if (nextDate) el = document.getElementById(`day-${nextDate}`);
+                }
+                if (el) {
+                  const offsetPosition = el.getBoundingClientRect().top + window.pageYOffset - 100;
+                  window.scrollTo({ top: offsetPosition, behavior: "smooth" });
+                }
+              }}
+              title="Jump to Today"
+              aria-label="Jump to Today"
+            >
+              <CalendarClock size={13} /> Today
+            </button>
+          )}
+
           {onOpenCalendarExport && (
             <button
               className="cal-ctrl-btn"
@@ -397,6 +419,17 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                 : (!showAllClasses ? "My Schedule" : "All Subjects")}
             {filterCodes.length > 0 && !filterCodes.includes("__EXAMS__") && <span className="cal-ctrl-count">{filterCodes.length}</span>}
           </button>
+
+          {filterCodes.length > 0 && (
+            <button
+              className="cal-ctrl-btn cal-ctrl-clear"
+              onClick={() => setFilterCodes([])}
+              title="Clear all filters"
+              aria-label="Clear all filters"
+            >
+              <X size={13} /> Clear
+            </button>
+          )}
 
           <button className="cal-ctrl-btn" onClick={() => setDateModalOpen(true)}>
             <Calendar size={14} /> Select Date
@@ -647,15 +680,46 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                                 </div>
                               </div>
                               <div className="fs-card-meta">
-                                <span className="fs-meta-item fs-meta-time"><Clock size={12} /> {fmtTime12(c.start)} – {fmtTime12(c.end)}</span>
-                                {c.room && (
-                                  <span className="fs-meta-item"><MapPin size={13} />
-                                    <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.room + " exam hall")}`} target="_blank" rel="noreferrer" className="fs-meta-link">
-                                      {c.room}
-                                    </a>
-                                  </span>
+                                <div className="fs-meta-left">
+                                  <span className="fs-meta-item fs-meta-time"><Clock size={12} /> {fmtTime12(c.start)} – {fmtTime12(c.end)}</span>
+                                  {c.room && (
+                                    <span className="fs-meta-item">
+                                      <MapPin size={12} />
+                                      <a
+                                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.room + " exam hall")}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="fs-room-link"
+                                        title={`Find ${c.room} on map`}
+                                      >
+                                        {c.room}
+                                      </a>
+                                    </span>
+                                  )}
+                                  {c.faculty && (
+                                    <span className="fs-meta-item fs-meta-faculty" title={`Faculty: ${c.faculty}`}>
+                                      <User size={12} /> {c.faculty}
+                                    </span>
+                                  )}
+                                </div>
+                                {onOpenCourse && c.code && (
+                                  <div className="fs-meta-actions">
+                                    <button
+                                      type="button"
+                                      className="fs-course-btn fs-course-btn-exam"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onOpenCourse(c.code);
+                                      }}
+                                      title={`Open course hub for ${c.code}`}
+                                      aria-label={`Open course hub for ${c.code}`}
+                                    >
+                                      <BookOpen size={11} className="fs-course-btn-icon" />
+                                      <span>Course hub</span>
+                                      <ArrowRight size={11} className="fs-course-btn-arrow" />
+                                    </button>
+                                  </div>
                                 )}
-                                {c.faculty && <span className="fs-meta-item"><User size={13} /> {c.faculty}</span>}
                               </div>
                             </div>
                           </div>
@@ -748,17 +812,13 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                           <div className={`fs-card-accent ${subjCls}`} />
                           <div className="fs-card-body">
                             <div className="fs-card-top">
-                              <span className="fs-card-name">
+                              <span className="fs-card-name" title={c.name}>
                                 {isNow && <span className="fs-live-pulse" style={{ display: 'inline-block' }} />}
                                 {c.name}
                               </span>
-                              <div style={{ display: "flex", alignItems: "center", gap: "6px", marginLeft: "auto" }}>
+                              <div className="fs-card-badges">
                                 {showSection && (
-                                  <span style={{
-                                    fontSize: "10px", fontWeight: "700", padding: "2px 6px",
-                                    background: "var(--surface)", borderRadius: "6px",
-                                    color: "var(--muted)", letterSpacing: "0.5px", textTransform: "uppercase"
-                                  }}>
+                                  <span className="fs-sec-badge">
                                     Sec {c.section}
                                   </span>
                                 )}
@@ -767,17 +827,46 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                               {countdownStr && <span className="fs-upcoming-badge">{countdownStr}</span>}
                             </div>
                             <div className="fs-card-meta">
-                              <span className="fs-meta-item fs-meta-time"><Clock size={12} /> {fmtTime12(c.start)} – {fmtTime12(c.end)}</span>
-                              <span className="fs-meta-item">
-                                <MapPin size={13} />
-                                {c.room ? (
-                                  <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.room + " classroom")}`} target="_blank" rel="noreferrer" className="fs-meta-link">
-                                    {c.room}
-                                  </a>
-                                ) : "TBA"}
-                              </span>
-                              {c.faculty && <span className="fs-meta-item"><User size={13} /> {c.faculty}</span>}
-                              {onOpenCourse && c.code && <button type="button" className="fs-meta-link" onClick={() => onOpenCourse(c.code)}>Open course</button>}
+                              <div className="fs-meta-left">
+                                <span className="fs-meta-item fs-meta-time"><Clock size={12} /> {fmtTime12(c.start)} – {fmtTime12(c.end)}</span>
+                                <span className="fs-meta-item">
+                                  <MapPin size={12} />
+                                  {c.room ? (
+                                    <a
+                                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.room + " classroom")}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="fs-room-link"
+                                      title={`Find ${c.room} on map`}
+                                    >
+                                      {c.room}
+                                    </a>
+                                  ) : "TBA"}
+                                </span>
+                                {c.faculty && (
+                                  <span className="fs-meta-item fs-meta-faculty" title={`Faculty: ${c.faculty}`}>
+                                    <User size={12} /> {c.faculty}
+                                  </span>
+                                )}
+                              </div>
+                              {onOpenCourse && c.code && (
+                                <div className="fs-meta-actions">
+                                  <button
+                                    type="button"
+                                    className="fs-course-btn"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onOpenCourse(c.code);
+                                    }}
+                                    title={`Open course hub for ${c.code}`}
+                                    aria-label={`Open course hub for ${c.code}`}
+                                  >
+                                    <BookOpen size={11} className="fs-course-btn-icon" />
+                                    <span>Course hub</span>
+                                    <ArrowRight size={11} className="fs-course-btn-arrow" />
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -892,6 +981,8 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                             style={{ left, width, top, height }}
                             onMouseEnter={(e) => showTooltip(e, cls)}
                             onMouseLeave={() => setTooltip(null)}
+                            onClick={() => onOpenCourse && cls.code && onOpenCourse(cls.code)}
+                            title={cls.code && onOpenCourse ? `Click to open ${cls.code} course hub` : undefined}
                           >
                             <span className="cal-ev-top">
                               <GraduationCap size={10} style={{ flexShrink: 0 }} />
@@ -910,6 +1001,8 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                           style={{ left, width, top, height }}
                           onMouseEnter={(e) => showTooltip(e, cls)}
                           onMouseLeave={() => setTooltip(null)}
+                          onClick={() => onOpenCourse && cls.code && onOpenCourse(cls.code)}
+                          title={cls.code && onOpenCourse ? `Click to open ${cls.code} course hub` : undefined}
                         >
                           <span className="cal-ev-top">
                             <span className="cal-ev-dot" />
@@ -1042,10 +1135,10 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                       <div className={`fs-card-accent ${subjCls}`} />
                       <div className="fs-card-body">
                         <div className="fs-card-top">
-                          <span className="fs-card-name">{c.name}</span>
-                          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          <span className="fs-card-name" title={c.name}>{c.name}</span>
+                          <div className="fs-card-badges">
                             {showSection && (
-                              <span style={{ fontSize: "10px", fontWeight: "700", padding: "2px 6px", background: "var(--surface)", borderRadius: "6px", color: "var(--muted)", letterSpacing: "0.5px", textTransform: "uppercase" }}>
+                              <span className="fs-sec-badge">
                                 Sec {c.section}
                               </span>
                             )}
@@ -1053,9 +1146,29 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                           </div>
                         </div>
                         <div className="fs-card-meta">
-                          <span className="fs-meta-item"><Clock size={13} /> {fmtTime12(c.start)} – {fmtTime12(c.end)}</span>
-                          <span className="fs-meta-item"><MapPin size={13} /> {c.room || "TBA"}</span>
-                          {c.faculty && <span className="fs-meta-item"><User size={13} /> {c.faculty}</span>}
+                          <div className="fs-meta-left">
+                            <span className="fs-meta-item fs-meta-time"><Clock size={12} /> {fmtTime12(c.start)} – {fmtTime12(c.end)}</span>
+                            <span className="fs-meta-item"><MapPin size={12} /> {c.room || "TBA"}</span>
+                            {c.faculty && <span className="fs-meta-item fs-meta-faculty"><User size={12} /> {c.faculty}</span>}
+                          </div>
+                          {onOpenCourse && c.code && (
+                            <div className="fs-meta-actions">
+                              <button
+                                type="button"
+                                className="fs-course-btn"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onOpenCourse(c.code);
+                                }}
+                                title={`Open course hub for ${c.code}`}
+                                aria-label={`Open course hub for ${c.code}`}
+                              >
+                                <BookOpen size={11} className="fs-course-btn-icon" />
+                                <span>Course hub</span>
+                                <ArrowRight size={11} className="fs-course-btn-arrow" />
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>

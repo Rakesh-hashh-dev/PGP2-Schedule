@@ -56,6 +56,8 @@ function CategoryDropdown({ value, onChange, disabled }) {
         type="button" 
         className="sp-input sp-select" 
         onClick={() => !disabled && setOpen(!open)}
+        aria-label="Expense category"
+        aria-expanded={open}
         style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", justifyContent: "space-between" }}
       >
         <span style={{ display: "flex", alignItems: "center", gap: "8px" }}><SelectedIcon size={15} /> {selectedCat.label}</span>
@@ -182,14 +184,14 @@ function GroupModal({ userId, userName, friends, existing, balances, onClose, on
 
   return createPortal(
     <div className="sp-modal-backdrop" onClick={onClose}>
-      <form className="sp-modal" onClick={e => e.stopPropagation()} onSubmit={submit}>
+      <form className="sp-modal" role="dialog" aria-modal="true" aria-label={existing ? "Edit group" : "New group"} onClick={e => e.stopPropagation()} onKeyDown={e => { if (e.key === "Escape") onClose(); }} onSubmit={submit}>
         <div className="sp-modal-head">
           <h3><Users size={16} /> {existing ? "Edit group" : "New group"}</h3>
           <button type="button" className="sp-icon-btn" onClick={onClose} aria-label="Close"><X size={16} /></button>
         </div>
 
-        <label className="sp-field-label">Group name</label>
-        <input className="sp-input" placeholder="Goa trip, Flat 402, Sunday brunch…" maxLength={60} value={name} onChange={e => setName(e.target.value)} autoFocus />
+        <label className="sp-field-label" htmlFor="sp-group-name">Group name</label>
+        <input id="sp-group-name" className="sp-input" placeholder="Goa trip, Flat 402, Sunday brunch…" maxLength={60} value={name} onChange={e => setName(e.target.value)} autoFocus />
 
         <label className="sp-field-label">Members {picked.size > 0 && <span className="sp-field-count">{picked.size + 1}</span>}</label>
         {cloudFriends.length === 0 && !existing ? (
@@ -339,20 +341,21 @@ function ExpenseModal({ userId, userName, group, members, existing, existingShar
 
   return createPortal(
     <div className="sp-modal-backdrop" onClick={onClose}>
-      <form className="sp-modal sp-modal-lg" onClick={e => e.stopPropagation()} onSubmit={submit}>
+      <form className="sp-modal sp-modal-lg" role="dialog" aria-modal="true" aria-label={editing ? "Edit expense" : "Add expense"} onClick={e => e.stopPropagation()} onKeyDown={e => { if (e.key === "Escape") onClose(); }} onSubmit={submit}>
         <div className="sp-modal-head">
           <h3><Receipt size={16} /> {editing ? "Edit expense" : "Add expense"}</h3>
           <button type="button" className="sp-icon-btn" onClick={onClose} aria-label="Close"><X size={16} /></button>
         </div>
 
-        <input className="sp-input" placeholder="What was it for?" maxLength={100} value={description} onChange={e => setDescription(e.target.value)} autoFocus />
+        <label className="sp-field-label" htmlFor="sp-expense-description">What was it for?</label>
+        <input id="sp-expense-description" className="sp-input" placeholder="Dinner, cab, groceries…" maxLength={100} value={description} onChange={e => setDescription(e.target.value)} autoFocus />
 
         <div className="sp-row2">
-          <div className="sp-amount-wrap">
+          <div className="sp-amount-field"><label className="sp-field-label" htmlFor="sp-expense-amount">Amount</label><div className="sp-amount-wrap">
             <span className="sp-cur">{group.currency || "₹"}</span>
-            <input className="sp-input sp-amount" type="number" inputMode="decimal" min="0" step="0.01" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} />
-          </div>
-          <CategoryDropdown value={category} onChange={setCategory} disabled={busy} />
+            <input id="sp-expense-amount" className="sp-input sp-amount" type="number" inputMode="decimal" min="0" step="0.01" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} />
+          </div></div>
+          <div className="sp-category-field"><span className="sp-field-label">Category</span><CategoryDropdown value={category} onChange={setCategory} disabled={busy} /></div>
         </div>
 
         {/* Receipt photo */}
@@ -395,7 +398,7 @@ function ExpenseModal({ userId, userName, group, members, existing, existingShar
             const sharePaise = previewShares.shares[m.id] || 0;
             return (
               <div key={m.id} className={`sp-split-row${inSplit ? "" : " off"}`}>
-                <button type="button" className="sp-split-toggle" onClick={() => toggleParticipant(m.id)} aria-label="Toggle">
+                <button type="button" className="sp-split-toggle" onClick={() => toggleParticipant(m.id)} aria-label={`${inSplit ? "Remove" : "Include"} ${nameOf(m.id)} ${inSplit ? "from" : "in"} split`}>
                   <span className={`sp-check${inSplit ? " on" : ""}`}>{inSplit && <Check size={12} />}</span>
                   <Ava name={nameOf(m.id)} size={24} />
                   <span className="sp-split-name">{nameOf(m.id)}</span>
@@ -458,7 +461,7 @@ function SettleModal({ userId, userName, group, members, suggested, onClose, onS
 
   return createPortal(
     <div className="sp-modal-backdrop" onClick={onClose}>
-      <form className="sp-modal" onClick={e => e.stopPropagation()} onSubmit={submit}>
+      <form className="sp-modal" role="dialog" aria-modal="true" aria-label="Settle up" onClick={e => e.stopPropagation()} onKeyDown={e => { if (e.key === "Escape") onClose(); }} onSubmit={submit}>
         <div className="sp-modal-head">
           <h3><HandCoins size={16} /> Settle up</h3>
           <button type="button" className="sp-icon-btn" onClick={onClose} aria-label="Close"><X size={16} /></button>
@@ -467,15 +470,15 @@ function SettleModal({ userId, userName, group, members, suggested, onClose, onS
         <div className="sp-settle-flow">
           <div className="sp-settle-party"><Ava name={userName} /> <span>You</span></div>
           <ArrowRight size={18} className="sp-settle-arrow" />
-          <select className="sp-input sp-select" value={toUser} onChange={e => setToUser(e.target.value)}>
+          <select className="sp-input sp-select" aria-label="Pay to" value={toUser} onChange={e => setToUser(e.target.value)}>
             {others.map(m => <option key={m.id} value={m.id}>{nameOf(m.id)}</option>)}
           </select>
         </div>
 
-        <label className="sp-field-label">Amount</label>
+        <label className="sp-field-label" htmlFor="sp-settle-amount">Amount</label>
         <div className="sp-amount-wrap">
           <span className="sp-cur">{group.currency || "₹"}</span>
-          <input className="sp-input sp-amount" type="number" inputMode="decimal" min="0" step="0.01" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} autoFocus />
+          <input id="sp-settle-amount" className="sp-input sp-amount" type="number" inputMode="decimal" min="0" step="0.01" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} autoFocus />
         </div>
 
         <label className="sp-field-label" style={{ marginTop: 12 }}>Payment Mode</label>
@@ -618,6 +621,7 @@ function GroupLedger({ userId, userName, group, onBack, onGroupChanged, onGroupD
       <div className="sp-ledger-head">
         <button className="sp-back" onClick={onBack} aria-label="Back"><ArrowLeft size={18} /></button>
         <div className="sp-ledger-title">
+          <span className="sp-kicker">GROUP LEDGER</span>
           <h2>{group.name}</h2>
           <span className="sp-members-line"><Users size={12} /> {members.length} · {members.map(m => m.name.split(" ")[0]).join(", ")}</span>
         </div>
@@ -631,15 +635,21 @@ function GroupLedger({ userId, userName, group, onBack, onGroupChanged, onGroupD
         <div className="sp-queued"><WifiOff size={13} /> {queued} expense{queued > 1 ? "s" : ""} waiting to sync</div>
       )}
 
-      <div className={`sp-net-card${myNet > 0 ? " pos" : myNet < 0 ? " neg" : ""}`}>
-        {myNet === 0
-          ? <span className="sp-net-zero"><Check size={16} /> You&rsquo;re all settled up</span>
-          : <>
-              <span className="sp-net-label">{myNet > 0 ? "You are owed" : "You owe"}</span>
-              <span className="sp-net-amt">{fmtMoney(Math.abs(myNet), group.currency)}</span>
-            </>}
+      <div className="sp-ledger-hero">
+        <div className={`sp-net-card${myNet > 0 ? " pos" : myNet < 0 ? " neg" : ""}`}>
+          <span className="sp-kicker">YOUR POSITION</span>
+          {myNet === 0
+            ? <span className="sp-net-zero"><Check size={16} /> You&rsquo;re all settled up</span>
+            : <><span className="sp-net-label">{myNet > 0 ? "You are owed" : "You owe"}</span><span className="sp-net-amt">{fmtMoney(Math.abs(myNet), group.currency)}</span></>}
+        </div>
+        <div className="sp-ledger-actions">
+          <button className="sp-primary-btn" onClick={() => { setEditingExpense(null); setExpenseOpen(true); }}><Receipt size={16} /> Add expense</button>
+          <button className="sp-secondary-btn" onClick={() => { setSettleSuggest(iOwe[0] ? { toUser: iOwe[0].to, amountPaise: iOwe[0].amount } : null); setSettleOpen(true); }}><HandCoins size={16} /> Settle up</button>
+        </div>
       </div>
 
+      <div className="sp-ledger-sections">
+        <aside className="sp-ledger-aside">
       {transfers.length > 0 && (
         <div className="sp-settle-block">
           <div className="sp-settle-block-head">
@@ -681,11 +691,6 @@ function GroupLedger({ userId, userName, group, onBack, onGroupChanged, onGroupD
           )}
         </div>
       )}
-
-      <div className="sp-ledger-actions">
-        <button className="sp-primary-btn" onClick={() => { setEditingExpense(null); setExpenseOpen(true); }}>Add expense</button>
-        <button className="sp-secondary-btn" onClick={() => { setSettleSuggest(iOwe[0] ? { toUser: iOwe[0].to, amountPaise: iOwe[0].amount } : null); setSettleOpen(true); }}>Settle up</button>
-      </div>
 
       {/* Insights */}
       {insights && insights.count > 0 && (
@@ -748,8 +753,9 @@ function GroupLedger({ userId, userName, group, onBack, onGroupChanged, onGroupD
           )}
         </div>
       )}
-
-      <div className="sp-block-title">Activity</div>
+        </aside>
+        <section className="sp-activity">
+      <div className="sp-activity-head"><div><span className="sp-kicker">TRANSACTION HISTORY</span><h3>Activity</h3></div><span>{ledger ? `${ledger.expenses.length + ledger.settlements.length} entries` : "Loading"}</span></div>
       {ledger === null ? (
         <div className="sp-feed">
           {[0, 1, 2].map(i => <div key={i} className="sp-feed-row sp-skeleton" style={{ opacity: 1 - i * 0.25 }} />)}
@@ -771,6 +777,8 @@ function GroupLedger({ userId, userName, group, onBack, onGroupChanged, onGroupD
           )}
         </div>
       )}
+        </section>
+      </div>
 
       {expenseOpen && (
         <ExpenseModal userId={userId} userName={userName} group={group} members={members}
@@ -803,6 +811,7 @@ function mergeActivity(ledger) {
 }
 
 function ExpenseRow({ e, shares, userId, group, nameOf, confirmDel, warnDel, onEdit, onAskDel, onCancelDel, onDel }) {
+  const CategoryIcon = CAT_ICONS[e.category] || Tag;
   const myShare = shares.find(s => s.user_id === userId);
   const iPaid = e.paid_by === userId;
   const mine = e.created_by === userId;
@@ -815,6 +824,7 @@ function ExpenseRow({ e, shares, userId, group, nameOf, confirmDel, warnDel, onE
 
   return (
     <div className="sp-feed-row">
+      <span className="sp-feed-kind" aria-hidden="true"><CategoryIcon size={17} /></span>
       {receipt && (
         <a className="sp-feed-receipt" href={receipt} target="_blank" rel="noopener noreferrer">
           <img src={receipt} alt="receipt" loading="lazy" />
@@ -863,6 +873,7 @@ function SettlementRow({ s, userId, group, nameOf, onDel }) {
 
   return (
     <div className="sp-feed-row sp-feed-settle">
+      <span className="sp-feed-kind" aria-hidden="true"><HandCoins size={17} /></span>
       <div className="sp-feed-main">
         <div className="sp-feed-top">
           <span className="sp-feed-desc">{fromTxt} paid {toTxt}</span>
@@ -888,7 +899,7 @@ function SettlementRow({ s, userId, group, nameOf, onDel }) {
 //  Global Insights Hero
 // ═══════════════════════════════════════════════════════════════
 function GlobalInsights({ groups, userId }) {
-  const [globalNet, setGlobalNet] = useState(null);
+  const [summary, setSummary] = useState(null);
 
   useEffect(() => {
     // When there are no groups the component renders null (see below), so
@@ -896,7 +907,8 @@ function GlobalInsights({ groups, userId }) {
     if (!groups || groups.length === 0) return;
     let alive = true;
     async function fetchAll() {
-      let totalNet = 0;
+      let owed = 0;
+      let owe = 0;
       const ledgers = await Promise.all(groups.map(g => fetchGroupLedger(g.id)));
       if (!alive) return;
       for (let i = 0; i < groups.length; i++) {
@@ -904,10 +916,12 @@ function GlobalInsights({ groups, userId }) {
         const l = ledgers[i];
         if (l) {
           const bal = computeBalances(l.expenses, l.sharesByExpense, l.settlements, g.member_ids);
-          totalNet += (bal[userId] || 0);
+          const net = bal[userId] || 0;
+          if (net > 0) owed += net;
+          else owe += Math.abs(net);
         }
       }
-      setGlobalNet(totalNet);
+      setSummary({ net: owed - owe, owed, owe });
     }
     fetchAll();
     return () => { alive = false; };
@@ -915,28 +929,17 @@ function GlobalInsights({ groups, userId }) {
 
   if (!groups || groups.length === 0) return null;
   
-  if (globalNet === null) {
-    return <div className="sp-net-card sp-skeleton" style={{ height: 100, margin: "0 16px 24px", opacity: 0.8 }} />;
+  if (summary === null) {
+    return <div className="sp-overview-balance sp-skeleton" aria-label="Loading balances" />;
   }
 
   const currency = groups[0]?.currency || "₹";
 
   return (
-    <div style={{ padding: "0 16px 24px" }}>
-      <div className={`sp-net-card${globalNet > 0 ? " pos" : globalNet < 0 ? " neg" : ""}`}>
-        {globalNet === 0
-          ? <span className="sp-net-zero"><Check size={16} /> You're all settled up across {groups.length} groups</span>
-          : <>
-              <span className="sp-net-label">
-                {globalNet > 0 ? "Overall, you are owed" : "Overall, you owe"} 
-                <span style={{ opacity: 0.6, fontWeight: 500, fontSize: "12px", marginLeft: "6px" }}>
-                  (in {groups.length} group{groups.length !== 1 ? "s" : ""})
-                </span>
-              </span>
-              <span className="sp-net-amt">{fmtMoney(Math.abs(globalNet), currency)}</span>
-            </>}
-      </div>
-    </div>
+    <section className="sp-overview-balance" aria-label="Overall split balances">
+      <div className="sp-overview-main"><span className="sp-kicker">ACROSS {groups.length} GROUP{groups.length === 1 ? "" : "S"}</span><span className="sp-net-label">{summary.net > 0 ? "Overall, you are owed" : summary.net < 0 ? "Overall, you owe" : "All settled up"}</span><strong className="sp-net-amt">{fmtMoney(Math.abs(summary.net), currency)}</strong><span className="sp-overview-caption">Your net balance across shared expenses</span></div>
+      <div className="sp-overview-breakdown"><div><span>Owed to you</span><strong className="pos">{fmtMoney(summary.owed, currency)}</strong></div><div><span>You owe</span><strong className="neg">{fmtMoney(summary.owe, currency)}</strong></div></div>
+    </section>
   );
 }
 
@@ -1008,16 +1011,15 @@ export default function SplitPage({ userId, userName, friends, initialGroupId, i
   return (
     <div className="sp-pg">
       <div className="sp-head">
-        <div className="sp-head-title">
-          <Wallet size={22} strokeWidth={2.5} />
-          <h2>Split</h2>
-        </div>
-        <button className="sp-new-btn" onClick={() => setModalOpen(true)}>New group</button>
+        <div className="sp-head-title"><span className="sp-kicker">SHARED EXPENSES</span><h2>Split</h2><p>See what you owe, what you are owed, and what changed.</p></div>
+        {groups?.length > 0 && <button className="sp-new-btn" onClick={() => setModalOpen(true)}><Users size={16} /> New group</button>}
       </div>
 
       {joining && <div className="sp-queued"><Check size={13} /> Joining group…</div>}
 
       <GlobalInsights groups={groups} userId={userId} />
+
+      {groups !== null && groups.length > 0 && <div className="sp-section-head"><div><span className="sp-kicker">YOUR CIRCLES</span><h3>Groups <span>{groups.length}</span></h3></div><p>Open a group to add an expense or settle up.</p></div>}
 
       {groups === null ? (
         <div className="sp-grid">
@@ -1062,9 +1064,10 @@ function GroupCard({ g, userId, onOpen }) {
   return (
     <button className="sp-group-card" onClick={onOpen}>
       <div className="sp-group-top">
-        <span className="sp-group-name">{g.name}</span>
+        <span className="sp-group-symbol"><Users size={18} /></span>
         <ChevronRight size={16} className="sp-group-chev" />
       </div>
+      <span className="sp-group-name">{g.name}</span>
       <div className="sp-group-members">
         <div className="sp-ava-stack">
           {(g.member_ids || []).slice(0, 4).map((id) => (
@@ -1072,12 +1075,12 @@ function GroupCard({ g, userId, onOpen }) {
           ))}
           {(g.member_ids?.length || 0) > 4 && <span className="sp-ava sp-ava-more" style={{ width: 24, height: 24 }}>+{g.member_ids.length - 4}</span>}
         </div>
-        <span className="sp-group-mnames">{memberNames.slice(0, 3).join(", ")}{memberNames.length > 3 ? "…" : ""}</span>
+        <span className="sp-group-mnames">{memberNames.slice(0, 3).join(", ")}{memberNames.length > 3 ? "…" : ""} · {g.member_ids?.length || 0} members</span>
       </div>
       <div className={`sp-group-net${net > 0 ? " pos" : net < 0 ? " neg" : ""}`}>
         {net === null ? <span className="sp-group-net-load">···</span>
-          : net === 0 ? <span>settled up</span>
-          : <><span className="sp-group-net-label">{net > 0 ? "you're owed" : "you owe"}</span> <b>{fmtMoney(Math.abs(net), g.currency)}</b></>}
+          : net === 0 ? <><Check size={14} /><span>Settled up</span></>
+          : <><span className="sp-group-net-label">{net > 0 ? "You are owed" : "You owe"}</span> <b>{fmtMoney(Math.abs(net), g.currency)}</b></>}
       </div>
     </button>
   );

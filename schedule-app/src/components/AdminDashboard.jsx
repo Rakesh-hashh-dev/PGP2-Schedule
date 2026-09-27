@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import "../styles/admin.css";
 import "../styles/assignments.css";
 import "../styles/cmdk.css";
-import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil, BarChart2, GraduationCap, PartyPopper, Briefcase, MessageSquare, CloudOff, Shield, Smartphone, Copy, Activity, ChevronRight, Clock3, Download, Filter, Eye, ListFilter, PawPrint, Shirt } from "lucide-react";
+import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil, BarChart2, GraduationCap, PartyPopper, Briefcase, MessageSquare, CloudOff, Shield, Smartphone, Copy, Activity, ChevronRight, Clock3, Download, Filter, Eye, ListFilter, PawPrint, Shirt, BookOpen } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { logAdminAction } from "../lib/adminAudit.js";
 import { listAdminRoles, setAdminRole, removeAdminRole, myAdminRole, READ_ONLY_MESSAGE } from "../lib/adminRoles.js";
@@ -20,6 +20,8 @@ import { WhatsNewPill, WhatsNewModal } from "./WhatsNew.jsx";
 import { PETS, getPetByKey } from "./greetingPets.jsx";
 import PetHat from "./PetHat.jsx";
 import { HATS, COATS, NECKWEAR, hatRequirement } from "../lib/pet.js";
+import { buildBroadcastAudience, feedbackState, previewScheduleChange, previewStagedScheduleChanges } from "../lib/adminWorkflow.js";
+import { AdoptionTrends, AttendanceRisk, BroadcastAudienceBuilder, ChangeTimeline, IncidentCenter, ScheduleImpactWeek, SupportQueue, DataQualityMonitor, ScheduleChangePreview, FeedbackTriage, HandoffNotes } from "./AdminWorkflowPanels.jsx";
 
 // Render-stable "now" captured at module load — used for relative-time math in
 // render (inactivity windows, cron staleness) without an impure Date.now() call.
@@ -99,9 +101,12 @@ function Avatar({ name, email }) {
 }
 
 function userSection(user) {
-  const keys = Object.keys(user?.courses || {});
-  if (keys.some(code => code.endsWith("_A"))) return "A";
-  if (keys.some(code => code.endsWith("_B"))) return "B";
+  const entries = Object.entries(user?.courses || {}).filter(([code]) => !code.startsWith("_"));
+  const hasA = entries.some(([code, value]) => value === "A" || code.endsWith("_A"));
+  const hasB = entries.some(([code, value]) => value === "B" || code.endsWith("_B"));
+  if (hasA && hasB) return "A/B";
+  if (hasA) return "A";
+  if (hasB) return "B";
   return "—";
 }
 
@@ -363,7 +368,13 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
   // New states
   const [feedbackList, setFeedbackList] = useState([]);
-  const [feedbackFilter, setFeedbackFilter] = useState("pending");
+  const [feedbackTriage, setFeedbackTriage] = useState({});
+  const [triageUnavailable, setTriageUnavailable] = useState(false);
+  const [triageBusyId, setTriageBusyId] = useState(null);
+  const [handoffNotes, setHandoffNotes] = useState([]);
+  const [handoffUnavailable, setHandoffUnavailable] = useState(false);
+  const [handoffBusy, setHandoffBusy] = useState(false);
+  const [workflowMessage, setWorkflowMessage] = useState("");
   const [auditLogs, setAuditLogs] = useState([]);
   const [announcementTarget, setAnnouncementTarget] = useState("global");
   const [selectedUser, setSelectedUser] = useState(null);
@@ -413,6 +424,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [friendPingsCount, setFriendPingsCount] = useState("...");
   const [shareCodes, setShareCodes] = useState([]);
   const [userSectionFilter, setUserSectionFilter] = useState("All");
+  const [userCourseFilter, setUserCourseFilter] = useState("");
   const [userStatusFilter, setUserStatusFilter] = useState("all");
   const [userSort, setUserSort] = useState("recent");
 
@@ -465,6 +477,11 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [auditActionFilter, setAuditActionFilter] = useState("all");
   const [auditSearch, setAuditSearch] = useState("");
   const [pushTarget, setPushTarget] = useState("all"); // targeted push audience
+  const [audienceFilter, setAudienceFilter] = useState({ section: "", course: "", activity: "all", affected: false });
+  const [attendanceRisk, setAttendanceRisk] = useState([]);
+  const [attendanceRiskUnavailable, setAttendanceRiskUnavailable] = useState(false);
+  const [featureUsageTrend, setFeatureUsageTrend] = useState([]);
+  const [featureUsageUnavailable, setFeatureUsageUnavailable] = useState(false);
   const [presentAdmins, setPresentAdmins] = useState([]); // realtime admin presence
   const [scheduleDeployAt, setScheduleDeployAt] = useState(""); // scheduled config deploy time
   const [relocEmail, setRelocEmail] = useState(""); // email→relocation parser input
@@ -880,8 +897,17 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     }
 
     async function fetchFeedbackAndLogs() {
-      const { data: fb } = await supabase.from("feedback").select("*").order("created_at", { ascending: false }).limit(20);
+      const { data: fb } = await supabase.from("feedback").select("*").order("created_at", { ascending: false }).limit(200);
       if (fb) setFeedbackList(fb);
+
+      const [triageResult, handoffResult] = await Promise.all([
+        supabase.from("admin_feedback_triage").select("*").limit(500),
+        supabase.from("admin_handoff_notes").select("*").order("updated_at", { ascending: false }).limit(100),
+      ]);
+      setTriageUnavailable(!!triageResult.error);
+      if (!triageResult.error) setFeedbackTriage(Object.fromEntries((triageResult.data || []).map(row => [row.feedback_id, row])));
+      setHandoffUnavailable(!!handoffResult.error);
+      if (!handoffResult.error) setHandoffNotes(handoffResult.data || []);
 
       const { data: logs } = await supabase.from("admin_audit_logs").select("*").order("created_at", { ascending: false }).limit(200);
       if (logs) setAuditLogs(logs);
@@ -894,10 +920,16 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       if (!psErr && Array.isArray(ps)) setPushStats(ps);
       const { data: ch, error: chErr } = await supabase.rpc("get_cron_health");
       if (!chErr && Array.isArray(ch)) setCronHealth(ch);
+      const { data: featureRows, error: featureError } = await supabase.rpc("admin_feature_usage_trend");
+      setFeatureUsageUnavailable(Boolean(featureError));
+      if (!featureError) setFeatureUsageTrend(featureRows || []);
     }
 
     async function fetchExtraAdminStats() {
       try {
+        const riskResult = await supabase.rpc("admin_attendance_risk");
+        setAttendanceRiskUnavailable(Boolean(riskResult.error));
+        if (!riskResult.error) setAttendanceRisk(riskResult.data || []);
         const { data: sc } = await supabase.from("share_codes").select("*");
         if (sc) setShareCodes(sc);
 
@@ -1230,8 +1262,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     if (!target || target === "global") return allUsers.length;
     if (target === "has_friends") return null;
     if (target === "section_A" || target === "section_B") {
-      const s = target.endsWith("A") ? "_A" : "_B";
-      return allUsers.filter(u => Object.keys(u.courses || {}).some(c => c.endsWith(s))).length;
+      const section = target.endsWith("A") ? "A" : "B";
+      return allUsers.filter(u => Object.entries(u.courses || {}).some(([code, value]) => !code.startsWith("_") && (value === section || code.endsWith(`_${section}`)))).length;
     }
     if (target.startsWith("subject_")) {
       const code = target.replace("subject_", "");
@@ -1570,9 +1602,11 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   // ── Saved audiences: reusable target filters (flags.savedAudiences) ──
   function saveCurrentAudience() {
     if (pushTarget === "all") return alert("Pick a specific audience first (not Everyone).");
-    const label = prompt("Name this audience:", pushTarget.replace(/_/g, " "));
+    const label = prompt("Name this audience:", pushTarget === "custom" ? "Custom audience" : pushTarget.replace(/_/g, " "));
     if (!label?.trim()) return;
-    setFlags({ ...flags, savedAudiences: [...(flags.savedAudiences || []), { id: Date.now().toString(), label: label.trim(), target: pushTarget }] });
+    const saved = { id: Date.now().toString(), label: label.trim(), target: pushTarget };
+    if (pushTarget === "custom") saved.filter = { ...audienceFilter };
+    setFlags({ ...flags, savedAudiences: [...(flags.savedAudiences || []), saved] });
   }
 
   // ── Scheduled-announcement overlap detector ──
@@ -1758,7 +1792,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     if (moderationSort === "recent") return new Date(b.courses?._status?.until || 0) - new Date(a.courses?._status?.until || 0);
     return new Date(a.courses?._status?.until || 0) - new Date(b.courses?._status?.until || 0);
   });
-  const pendingFeedbackCount = feedbackList.filter(item => item.status === "pending").length;
+  const pendingFeedbackCount = feedbackList.filter(item => !["resolved", "duplicate"].includes(feedbackState(item, feedbackTriage).status)).length;
   function goToAdminTab(tab) {
     setActiveTab(tab);
     const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -1845,10 +1879,16 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   // Returns null for "all" (→ broadcast) or targets that can't be resolved client-side.
   function audienceIds(target) {
     if (!target || target === "all") return null;
+    if (target === "custom") return buildBroadcastAudience(allUsers, audienceFilter, stagedAudienceChanges).ids;
+    if (target.startsWith("saved:")) {
+      const saved = (flags.savedAudiences || []).find(item => item.id === target.slice(6));
+      if (!saved) return [];
+      return saved.filter ? buildBroadcastAudience(allUsers, saved.filter, stagedAudienceChanges).ids : audienceIds(saved.target);
+    }
     if (target === "inactive") return inactiveUsers.map(u => u.user_id).filter(Boolean);
     if (target === "section_A" || target === "section_B") {
-      const s = target.endsWith("A") ? "_A" : "_B";
-      return allUsers.filter(u => Object.keys(u.courses || {}).some(c => c.endsWith(s))).map(u => u.user_id).filter(Boolean);
+      const section = target.endsWith("A") ? "A" : "B";
+      return allUsers.filter(u => Object.entries(u.courses || {}).some(([code, value]) => !code.startsWith("_") && (value === section || code.endsWith(`_${section}`)))).map(u => u.user_id).filter(Boolean);
     }
     if (target.startsWith("subject_")) {
       const code = target.replace("subject_", "");
@@ -1856,6 +1896,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     }
     return null;
   }
+  const stagedAudienceChanges = previewStagedScheduleChanges(liveSchedule, flags.classOverrides, allUsers, originalFlags?.classOverrides).changes;
+  const audiencePreview = buildBroadcastAudience(allUsers, audienceFilter, stagedAudienceChanges);
 
   // ── CSV export helper ──
   function exportCsv(filename, headers, rows) {
@@ -1985,8 +2027,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                           u.user_id?.toLowerCase().includes(needle);
     let matchesSection = true;
     if (userSectionFilter !== "All") {
-       matchesSection = Object.keys(u.courses || {}).some(c => c.endsWith(`_${userSectionFilter}`));
+       matchesSection = Object.entries(u.courses || {}).some(([code, value]) => !code.startsWith("_") && (value === userSectionFilter || code.endsWith(`_${userSectionFilter}`)));
     }
+    const matchesCourse = !userCourseFilter || Object.keys(u.courses || {}).some(code => code === userCourseFilter || code.startsWith(`${userCourseFilter}_`));
     const seenAge = u.last_seen_at ? LOAD_NOW - new Date(u.last_seen_at).getTime() : Infinity;
     const matchesStatus = userStatusFilter === "all"
       || (userStatusFilter === "today" && u.last_seen_at && new Date(u.last_seen_at).getTime() >= LOAD_TODAY_START)
@@ -1997,7 +2040,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       || (userStatusFilter === "setup" && userCourseCount(u) === 0)
       || (userStatusFilter === "push" && pushSubscriberIds.has(u.user_id))
       || (userStatusFilter === "banned" && flags.bannedUsers?.includes(u.user_id));
-    return matchesSearch && matchesSection && matchesStatus;
+    return matchesSearch && matchesSection && matchesCourse && matchesStatus;
   }).sort((a, b) => {
     if (userSort === "name") return (a.name || "").localeCompare(b.name || "");
     if (userSort === "courses") return userCourseCount(b) - userCourseCount(a) || (a.name || "").localeCompare(b.name || "");
@@ -2091,9 +2134,52 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     logAdminAction(admin_id, "purge_stale_config", { overrideDates: staleOverrideDates.length, announcements: staleAnnouncements.length, quickLinks: staleQuickLinks.length });
   };
 
-  const markFeedbackResolved = async (id) => {
-    await supabase.from("feedback").update({ status: "resolved" }).eq("id", id);
-    setFeedbackList(feedbackList.map(f => f.id === id ? { ...f, status: "resolved" } : f));
+  const saveFeedbackTriage = async (item, next) => {
+    if (isReadOnlyAdmin || triageUnavailable) return;
+    setTriageBusyId(item.id);
+    setWorkflowMessage("");
+    const row = { feedback_id: String(item.id), status: next.status, severity: next.severity, owner_id: next.ownerId || null, updated_by: admin_id, updated_at: new Date().toISOString() };
+    const { data, error } = await supabase.from("admin_feedback_triage").upsert(row, { onConflict: "feedback_id" }).select().single();
+    if (error) setWorkflowMessage(`Feedback update failed: ${error.message}`);
+    else {
+      setFeedbackTriage(current => ({ ...current, [String(item.id)]: data }));
+      const baseStatus = ["resolved", "duplicate"].includes(next.status) ? "resolved" : "pending";
+      if (item.status !== baseStatus) {
+        const result = await supabase.from("feedback").update({ status: baseStatus }).eq("id", item.id);
+        if (result.error) setWorkflowMessage(`Triage saved, but feedback status did not sync: ${result.error.message}`);
+        else setFeedbackList(current => current.map(value => value.id === item.id ? { ...value, status: baseStatus } : value));
+      }
+      await logAdminAction(admin_id, "feedback_triage", { feedback: item.id, status: next.status, severity: next.severity, owner: next.ownerId || null });
+    }
+    setTriageBusyId(null);
+  };
+
+  const addHandoffNote = async draft => {
+    if (isReadOnlyAdmin || handoffUnavailable) return false;
+    setHandoffBusy(true);
+    setWorkflowMessage("");
+    const row = { title: draft.title.trim(), detail: draft.detail.trim(), next_action: draft.next_action.trim(), owner_id: draft.owner_id || null, expires_at: draft.expires_at || null, created_by: admin_id, updated_by: admin_id };
+    const { data, error } = await supabase.from("admin_handoff_notes").insert(row).select().single();
+    if (error) setWorkflowMessage(`Handoff note failed: ${error.message}`);
+    else {
+      setHandoffNotes(current => [data, ...current]);
+      await logAdminAction(admin_id, "handoff_note_created", { note: data.id, owner: data.owner_id });
+    }
+    setHandoffBusy(false);
+    return !error;
+  };
+
+  const closeHandoffNote = async note => {
+    if (isReadOnlyAdmin || handoffUnavailable) return;
+    setHandoffBusy(true);
+    setWorkflowMessage("");
+    const { data, error } = await supabase.from("admin_handoff_notes").update({ status: "closed", updated_by: admin_id, updated_at: new Date().toISOString() }).eq("id", note.id).select().single();
+    if (error) setWorkflowMessage(`Handoff update failed: ${error.message}`);
+    else {
+      setHandoffNotes(current => current.map(value => value.id === note.id ? data : value));
+      await logAdminAction(admin_id, "handoff_note_closed", { note: note.id });
+    }
+    setHandoffBusy(false);
   };
 
   const _exportConfigJSON = () => {
@@ -2364,6 +2450,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
       {/* ── Card flow: 2-col masonry ≥1200px, single column below ── */}
       <div className="admin-masonry" data-active-tab={activeTab}>
+        {workflowMessage && <div className="aw-error admin-span-all" role="alert">{workflowMessage}</div>}
 
         <section className="admin-overview-command admin-span-all admin-g-overview">
           <div className="admin-overview-head">
@@ -2770,6 +2857,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               </div>
             </details>
           </section>
+          <DataQualityMonitor classes={liveSchedule} overrides={flags.classOverrides} onOpenSchedule={date => { if (date) setLiveEditorDate(date); setActiveTab("schedule"); document.querySelector(".scc-shell")?.scrollIntoView({ behavior: "smooth", block: "start" }); }} onOpenSystem={() => setActiveTab("system")} />
+          <ScheduleImpactWeek classes={liveSchedule} overrides={flags.classOverrides} announcements={flags.scheduledAnnouncements || []} today={scheduleToday} onOpenDate={date => { setLiveEditorDate(date); document.querySelector(".scc-shell")?.scrollIntoView({ behavior: "smooth", block: "start" }); }} />
           <section className="admin-card admin-span-all admin-g-schedule schedule-ops-overview" style={{ gridColumn: "1 / -1" }}>
             <div className="schedule-ops-head"><div><span className="schedule-ops-eyebrow">Change control</span><h2><Shield size={20} color="var(--blue)" /> Schedule operations</h2><p className="admin-subtext">See what is staged before deployment and start the most common interventions from one place.</p></div><div className="schedule-ops-live"><span /> Staged locally</div></div>
             <div className="schedule-ops-metrics">
@@ -3178,6 +3267,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             <button type="button" className={openBcast.social ? "is-selected" : ""} aria-pressed={openBcast.social} onClick={() => selectBroadcastChannel("social")}><Sparkles size={18} /><span><strong>Social flash</strong><small>Brief alert to active users</small><em>Send live</em></span><ChevronRight size={16} /></button>
           </div>
         </section>
+
+        <HandoffNotes notes={handoffNotes} roster={adminRoster} onSave={addHandoffNote} onClose={closeHandoffNote} readOnly={isReadOnlyAdmin} unavailable={handoffUnavailable} busy={handoffBusy} />
+        <IncidentCenter snapshot={snapshotMeta} cronIssues={cronHealth ? pushCronIssues(cronHealth, LOAD_NOW) : []} feedbackCount={pendingFeedbackCount} handoffCount={handoffNotes.filter(note => note.status === "open").length} pushFailure={/^(Failed|Error):/.test(pushResult) ? pushResult : ""} onNavigate={goToAdminTab} />
 
                 {/* ── 1. Broadcast Studio (Announcements + Push + Social Flash + Quiet Hours) ── */}
         <section className="admin-card admin-span-all admin-g-broadcast broadcast-studio-card" style={{ gridColumn: "1 / -1" }}>
@@ -3620,25 +3712,29 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                       <option value="section_A">Section A</option>
                       <option value="section_B">Section B</option>
                       <option value="inactive">Inactive {inactiveDays}+ days</option>
+                      <option value="custom">Audience builder</option>
                       <optgroup label="Subject-wise">
                         {Object.keys(LEGEND || {}).map(c => <option key={c} value={`subject_${c}`}>{c}</option>)}
                       </optgroup>
                       {(flags.savedAudiences || []).length > 0 && (
                         <optgroup label="Saved audiences">
-                          {(flags.savedAudiences || []).map(sa => <option key={sa.id} value={sa.target}>★ {sa.label}</option>)}
+                          {(flags.savedAudiences || []).map(sa => <option key={sa.id} value={sa.filter ? `saved:${sa.id}` : sa.target}>★ {sa.label}</option>)}
                         </optgroup>
                       )}
                     </select>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6, alignItems: "center" }}>
                       {(flags.savedAudiences || []).map(sa => (
                         <span key={sa.id} className={`admin-tag${pushTarget === sa.target ? " active" : ""}`}>
-                          <button type="button" className="admin-tag-label" onClick={() => setPushTarget(sa.target)} title={sa.target}>★ {sa.label}</button>
+                          <button type="button" className="admin-tag-label" onClick={() => setPushTarget(sa.filter ? `saved:${sa.id}` : sa.target)} title={sa.label}>★ {sa.label}</button>
                           <button type="button" className="admin-tag-del" onClick={() => { if (!confirm(`Delete saved audience "${sa.label}"?`)) return; setFlags({ ...flags, savedAudiences: (flags.savedAudiences || []).filter(x => x.id !== sa.id) }); }} aria-label="Delete saved audience"><X size={12} /></button>
                         </span>
                       ))}
                       <button type="button" className="admin-btn outline" style={{ fontSize: 11, padding: "4px 10px" }} onClick={saveCurrentAudience} disabled={pushTarget === "all"}>+ Save current audience</button>
                     </div>
                   </div>
+
+                  <BroadcastAudienceBuilder filter={audienceFilter} onChange={next => { setAudienceFilter(next); setPushTarget("custom"); }} result={audiencePreview} courses={Object.keys(LEGEND || {})} changesAvailable={stagedAudienceChanges.length > 0} onSave={() => { setPushTarget("custom"); const label = prompt("Name this audience:", "Custom audience"); if (label?.trim()) setFlags({ ...flags, savedAudiences: [...(flags.savedAudiences || []), { id: Date.now().toString(), label: label.trim(), target: "custom", filter: { ...audienceFilter } }] }); }} />
+                  {pushTarget !== "all" && <p className="aw-audience-sample">Selected audience: {audienceIds(pushTarget)?.length ?? 0} students · Sample: {allUsers.filter(user => audienceIds(pushTarget)?.includes(user.user_id)).slice(0, 5).map(user => user.name || user.user_id).join(", ") || "none"}</p>}
 
                   <div className="broadcast-delivery-summary" aria-live="polite">
                     <div><span>Audience</span><strong>{pushTarget === "all" ? "Everyone" : `${audienceIds(pushTarget)?.length ?? 0} matching students`}</strong><small>{pushTarget === "all" ? `${broadcastOverview.subscribers} push-ready devices` : "In-app entry and push when subscribed"}</small></div>
@@ -4595,6 +4691,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             </div>
           </section>
 
+          <SupportQueue users={allUsers} feedback={feedbackList} triage={feedbackTriage} onInspect={setSelectedUser} onFeedback={() => document.querySelector(".admin-users-feedback")?.scrollIntoView({ behavior: "smooth", block: "start" })} />
+
           {/* Onboarding funnel */}
           <section className="admin-card admin-g-users admin-users-funnel" style={{ display: "flex", flexDirection: "column" }}>
             <h2><BarChart2 size={20} color="var(--green)" /> Onboarding Funnel</h2>
@@ -4676,6 +4774,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               {searchQuery && <button type="button" onClick={() => setSearchQuery("")} aria-label="Clear search"><X size={14} /></button>}
             </label>
             <label className="admin-users-select"><Filter size={14} /><span>Section</span><select value={userSectionFilter} onChange={e => setUserSectionFilter(e.target.value)}><option value="All">All</option><option value="A">A</option><option value="B">B</option></select></label>
+            <label className="admin-users-select"><BookOpen size={14} /><span>Course</span><select value={userCourseFilter} onChange={e => setUserCourseFilter(e.target.value)}><option value="">All</option>{[...new Set([...Object.keys(LEGEND || {}), ...attendanceRisk.map(row => row.code)])].map(code => <option key={code} value={code}>{code}</option>)}</select></label>
             <label className="admin-users-select"><Clock3 size={14} /><span>Sort</span><select value={userSort} onChange={e => setUserSort(e.target.value)}><option value="recent">Recently active</option><option value="oldest">Least recently active</option><option value="name">Name A–Z</option><option value="courses">Most courses</option></select></label>
           </div>
 
@@ -5033,6 +5132,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
           {/* Active-user tiers (DAU/WAU/MAU) */}
+          <AdoptionTrends history={presenceHistory} users={allUsers} historyAvailable={presenceHistoryAvailable} features={featureUsageTrend} featuresUnavailable={featureUsageUnavailable} />
+          <AttendanceRisk rows={attendanceRisk} unavailable={attendanceRiskUnavailable} onNavigate={row => { setUserCourseFilter(row.code); setUserSectionFilter(["A", "B"].includes(row.section) ? row.section : "All"); goToAdminTab("users"); }} />
+          <ChangeTimeline logs={auditLogs} onNavigate={item => { if (item.area === "schedule" && /^\d{4}-\d{2}-\d{2}$/.test(item.object)) setLiveEditorDate(item.object); goToAdminTab(item.area); }} />
           <section className="admin-card admin-g-insights insights-metric-card insights-engagement-card">
             <div className="insights-card-head"><span><BarChart2 size={17} /></span><div><h2>Active users</h2><p>Unique students by rolling window</p></div></div>
             <div className="insights-tier-grid">
@@ -5154,56 +5256,15 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
              </section>
 
         {/* Feedback Section */}
-        <section className="admin-card admin-g-users admin-users-feedback">
-          <div className="fb-head">
-            <h2><Terminal size={20} color="var(--green)" /> Feedback & Bug Reports</h2>
-            <div className="fb-filters">
-               <button onClick={() => setFeedbackFilter("all")} className={`admin-btn fb-filter ${feedbackFilter === "all" ? "" : "outline"}`} aria-pressed={feedbackFilter === "all"}>All</button>
-               <button onClick={() => setFeedbackFilter("pending")} className={`admin-btn fb-filter ${feedbackFilter === "pending" ? "" : "outline"}`} aria-pressed={feedbackFilter === "pending"}>Pending Only</button>
-            </div>
-          </div>
-          <div className="fb-list">
-            {feedbackList.filter(f => feedbackFilter === "all" || f.status === "pending").length === 0 ? <div className="admin-empty">No feedback found.</div> : 
-             feedbackList.filter(f => feedbackFilter === "all" || f.status === "pending").map(f => {
-               const fUser = allUsers.find(u => u.user_id === f.user_id);
-               return (
-               <div key={f.id} className="fb-item">
-                 <div className="fb-item-head">
-                   <span className="fb-item-meta">{new Date(f.created_at).toLocaleString()} • {fUser ? fUser.name : f.user_id}</span>
-                   <span className="fb-item-status" style={{ color: f.status === "resolved" ? "var(--green)" : "var(--amber)" }}>{f.status.toUpperCase()}</span>
-                 </div>
-                 <div className="fb-item-body">{f.message}</div>
-                 <div className="fb-item-actions">
-                   {f.status === "pending" && (
-                     <button onClick={() => markFeedbackResolved(f.id)} className="admin-btn outline fb-action" style={{ color: "var(--green)", borderColor: "var(--green)" }}>Mark Resolved</button>
-                   )}
-                   {f.user_id && (
-                     <button onClick={async () => {
-                       const msg = prompt(`Reply to ${fUser?.name || "user"} via push:`);
-                       if (!msg) return;
-                       const res = await pushToUserIds([f.user_id], { title: "Reply from TermFlow admin", body: msg.trim() });
-                       if (res?.ok) { await logAdminAction(admin_id, "feedback_reply", { feedback: f.id }); alert("Reply push queued."); }
-                       else alert("Failed: " + (res?.data?.error || "error"));
-                     }} className="admin-btn outline fb-action"><BellRing size={12} /> Reply</button>
-                   )}
-                   <button onClick={() => { setWnTitle(f.message.slice(0, 58)); setWnDesc(f.message); setWnEmoji("✨"); setActiveTab("broadcast"); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="admin-btn outline fb-action" title="Prefill a What's New entry from this feedback"><Sparkles size={12} /> To What&rsquo;s New</button>
-                 </div>
-                 <div className="fb-item-tags">
-                   {["bug", "idea", "dup", "wontfix"].map(t => {
-                     const on = (flags.feedbackTags?.[f.id] || []).includes(t);
-                     return (
-                       <button key={t} onClick={() => {
-                         const cur = flags.feedbackTags?.[f.id] || [];
-                         const next = on ? cur.filter(x => x !== t) : [...cur, t];
-                         setFlags({ ...flags, feedbackTags: { ...(flags.feedbackTags || {}), [f.id]: next } });
-                       }} className="fb-tag" aria-pressed={on} style={{ background: on ? "var(--violet)" : "transparent", color: on ? "#fff" : "var(--muted)" }}>{t}</button>
-                     );
-                   })}
-                 </div>
-               </div>
-             )})}
-          </div>
-        </section>
+        <FeedbackTriage feedback={feedbackList} users={allUsers} triage={feedbackTriage} roster={adminRoster} busyId={triageBusyId} onSave={saveFeedbackTriage} onInspect={setSelectedUser} readOnly={isReadOnlyAdmin} unavailable={triageUnavailable} tags={flags.feedbackTags || {}} onToggleTag={(id, tag) => { const current = flags.feedbackTags?.[id] || []; const next = current.includes(tag) ? current.filter(value => value !== tag) : [...current, tag]; setFlags({ ...flags, feedbackTags: { ...(flags.feedbackTags || {}), [id]: next } }); }}
+          onReply={async (item, student) => {
+            const message = prompt(`Reply to ${student?.name || "user"} via push:`);
+            if (!message?.trim()) return;
+            const result = await pushToUserIds([item.user_id], { title: "Reply from TermFlow admin", body: message.trim() });
+            if (result?.ok) { await logAdminAction(admin_id, "feedback_reply", { feedback: item.id }); alert("Reply push queued."); }
+            else alert("Failed: " + (result?.data?.error || "error"));
+          }}
+          onWhatsNew={item => { setWnTitle(item.message.slice(0, 58)); setWnDesc(item.message); setWnEmoji("✨"); setActiveTab("broadcast"); window.scrollTo({ top: 0, behavior: "smooth" }); }} />
 
           <section className="admin-card admin-span-all admin-g-system system-ops-console" style={{ gridColumn: "1 / -1" }}>
             <div className="system-ops-head"><div><span className="system-ops-eyebrow">Platform operations</span><h2><ShieldAlert size={20} color="var(--violet)" /> System command centre</h2><p className="admin-subtext">A practical read of what is live, what is staged, and the safest next move.</p></div><div className={`system-ops-status ${systemOverview.items.some(item => item.tone === "risk") ? "is-watch" : ""}`}><span /> {systemOverview.items.some(item => item.tone === "risk") ? "Attention needed" : "Controls ready"}</div></div>
@@ -6393,6 +6454,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       {/* Pre-deploy review modal */}
       {reviewOpen && (() => {
         const changes = summarizeConfigChanges(originalFlags, flags);
+        const scheduleImpact = previewStagedScheduleChanges(liveSchedule, flags.classOverrides, allUsers, originalFlags?.classOverrides);
         return (
           <>
             <div className="notif-backdrop" onClick={() => setReviewOpen(false)} style={{ zIndex: 10000 }} />
@@ -6440,6 +6502,14 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                   ))}
                 </div>
               )}
+
+              {scheduleImpact.changes.length > 0 && <section className="aw-deploy-impact" aria-label="Schedule impact preview">
+                <h3>Schedule impact before deployment</h3>
+                <p><strong>{scheduleImpact.changes.length}</strong> staged override changes · <strong>{scheduleImpact.affected}</strong> potentially affected students · <strong>{scheduleImpact.conflicts}</strong> possible time clashes</p>
+                <div className="aw-deploy-impact-list">{scheduleImpact.changes.slice(0, 8).map(change => <div key={`${change.date}:${change.key}`}><span>{change.date} · {change.code} · Section {change.section}</span><small>{change.restored ? "Override removed" : change.after ? `${change.after.start || "?"}–${change.after.end || "?"} · ${change.after.room || "Room TBD"}` : "Cancelled"}</small></div>)}</div>
+                {scheduleImpact.changes.length > 8 && <small>And {scheduleImpact.changes.length - 8} more changes</small>}
+                <small>Audience is estimated from current course selections. Deployment does not send a notification.</small>
+              </section>}
 
               <div style={{ display: "flex", gap: 10, marginTop: 16, justifyContent: "flex-end" }}>
                 <button className="admin-btn" onClick={() => setReviewOpen(false)}>Keep editing</button>
@@ -7355,6 +7425,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               </div>
 
               {/* Room + Save */}
+              <ScheduleChangePreview title="Proposed class edit" preview={previewScheduleChange({ classes: liveSchedule, users: allUsers, date: liveEditorModal.date, code: modalIsNew ? modalCode.trim() : classIdent(liveEditorModal), section: modalSection, original: modalIsNew ? null : liveEditorModal, proposed: { name: modalName || liveEditorModal.name, room: modalRoom || liveEditorModal.room, start: modalStart || liveEditorModal.start, end: modalEnd || liveEditorModal.end, type: modalIsNew ? modalNewType : liveEditorModal.type } })} />
               <div className="admin-field">
                 <label>New Room</label>
                 <div style={{ display: "flex", gap: 8 }}>

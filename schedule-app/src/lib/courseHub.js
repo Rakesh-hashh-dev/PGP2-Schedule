@@ -43,7 +43,7 @@ export function buildCourseHub({ allClasses = [], enrolled = {}, legend = {}, at
       section: enrolled[code], sessions: courseSessions, exams: courseExams, tasks,
       nextClass, nextExam, openTasks, stats,
       marked, coverage: past.length ? Math.round(marked / past.length * 100) : 0,
-      history: history.map((item) => ({ date: item.date, status: attendance[sessionKey(item)] })),
+      history: history.map((item) => ({ date: item.date, start: item.start, status: attendance[sessionKey(item)] })),
     };
   }).sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -73,4 +73,38 @@ export function courseWeeklyLoad(course, estimates = {}, now = new Date()) {
       estimatedMinutes, unestimated: due.filter((task) => !Number(estimates[task.id])).length,
       due, examCount: course.exams.filter((item) => between(item.date)).length };
   });
+}
+
+export function courseAttention(course, now = new Date()) {
+  const today = dayKey(now);
+  const soon = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  soon.setDate(soon.getDate() + 3);
+  const due = course.openTasks.find((task) => task.dueDate && task.dueDate <= dayKey(soon));
+  if (due) return { kind: "task", label: due.dueDate < today ? "Overdue assignment" : "Assignment due soon", detail: due.title || "Untitled assignment", task: due };
+  if (course.stats.penaltyHit) return { kind: "attendance", label: "Attendance needs attention", detail: "Skip allowance exceeded" };
+  const unmarked = course.sessions.filter((session) =>
+    (session.date < today || (session.date === today && minute(session.end) <= minute(`${now.getHours()}:${now.getMinutes()}`))) &&
+    !course.history.some((mark) => mark.date === session.date && mark.start === session.start)
+  ).length;
+  if (unmarked) return { kind: "attendance", label: `${unmarked} class${unmarked === 1 ? "" : "es"} unmarked`, detail: "Update attendance" };
+  if (course.stats.totalAllowedSkips > 0 && course.stats.skipsRemaining <= 1)
+    return { kind: "attendance", label: "Low skip buffer", detail: `${course.stats.skipsRemaining} skips remaining` };
+  if (course.nextExam && course.nextExam.date <= dayKey(soon))
+    return { kind: "exam", label: "Exam coming up", detail: course.nextExam.name || "Review this course" };
+  return null;
+}
+
+export function reviewQueue(topics, now = new Date()) {
+  const today = dayKey(now);
+  return topics.filter((topic) => topic.details?.flagged && !topic.deleted)
+    .map((topic) => ({ ...topic, dueDate: topic.details.reviewAt || today }))
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.title.localeCompare(b.title));
+}
+
+export function nextReviewDate(now, step, remembered) {
+  const intervals = [1, 3, 7, 14];
+  const nextStep = remembered ? Math.min(step + 1, intervals.length - 1) : 0;
+  const date = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  date.setDate(date.getDate() + intervals[nextStep]);
+  return { reviewAt: dayKey(date), reviewStep: nextStep };
 }

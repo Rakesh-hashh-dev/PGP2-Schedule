@@ -21,6 +21,7 @@ import {
 } from "../lib/calendarExport.js";
 import { subjectClass } from "../lib/subjectColors.js";
 import { fmtTime12 } from "../lib/datetime.js";
+import { recordFeatureUse } from "../lib/featureUsage.js";
 import {
   AppleCalendarSVG,
   GoogleCalendarSVG,
@@ -43,6 +44,7 @@ const AREA_LABELS = {
 
 export default function CalendarExportModal({
   isOpen,
+  userId,
   onClose,
   allClasses = [],
   enrolled = {},
@@ -125,7 +127,8 @@ export default function CalendarExportModal({
       });
 
       const filename = `termflow_${termLabel.toLowerCase().replace(/\s+/g, "_")}_schedule.ics`;
-      await shareOrDownloadICS(ics, filename, `TermFlow ${termLabel} Schedule`);
+      const result = await shareOrDownloadICS(ics, filename, `TermFlow ${termLabel} Schedule`);
+      if (result.shared || result.downloaded) recordFeatureUse(userId, "calendar_export");
       setExportSuccess(true);
       setTimeout(() => setExportSuccess(false), 3500);
     } catch (err) {
@@ -145,6 +148,7 @@ export default function CalendarExportModal({
     });
     const filename = `termflow_${termLabel.toLowerCase().replace(/\s+/g, "_")}_schedule.ics`;
     downloadICS(ics, filename);
+    recordFeatureUse(userId, "calendar_export");
   };
 
   const handleCopyInstructions = () => {
