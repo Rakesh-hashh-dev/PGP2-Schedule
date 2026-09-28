@@ -5,6 +5,7 @@ import { subjectClass } from "../lib/subjectColors.js";
 import { fmtTime12 } from "../lib/datetime.js";
 import FreeDayIllustration from "./FreeDayIllustration.jsx";
 import "../styles/freeday.css";
+import "../styles/tomorrow-banner.css";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function fmtDuration(mins) {
@@ -120,6 +121,8 @@ export default function TomorrowSummary({
   const classes = list.filter((c) => c.type === "class");
   const wx = weather?.tomorrow;
   const WxIcon = wx ? wIcon(wx.code).icon : null;
+  const code = wx?.code;
+  const wxKind = code == null ? "unknown" : code === 0 ? "clear" : code <= 48 ? "cloudy" : code < 95 ? "rain" : "storm";
   const [openSeg, setOpenSeg] = useState(null);
   const railRef = useRef(null);
 
@@ -137,17 +140,20 @@ export default function TomorrowSummary({
 
   if (classes.length === 0) {
     const hour = new Date().getHours();
-    const night = hour >= 19 || hour < 6;
-    // Same WMO-code buckets as wIcon(): 0-1 clear, 2-48 cloud/fog, 51+ precip, 95+ storm
-    const code = wx?.code;
-    const wxKind = code == null || code <= 1 ? "clear" : code <= 48 ? "cloudy" : code < 95 ? "rain" : "storm";
+    // Keep the optional night treatment for clear skies only. Other forecast
+    // conditions must stay visually recognizable regardless of today's hour.
+    const night = wxKind === "clear" && (hour >= 19 || hour < 6);
+    // Match the displayed condition: code 1 reads "Partly cloudy", so its
+    // banner uses clouds instead of the clear-sky night scene.
     const conditionText = wxLabel(code);
-    const sub = wxKind === "storm"
+    const sub = wxKind === "unknown"
+      ? "A free day to make your own"
+      : wxKind === "storm"
       ? "Storms outside — perfect excuse to stay in"
       : wxKind === "rain"
         ? "Rain's on the way — cozy day in"
         : wxKind === "cloudy"
-          ? "Overcast & breezy — great time to recharge"
+          ? "Clouds expected — a good day to recharge"
           : night
             ? "Sleep in tomorrow — no morning alarm"
             : "Clear skies ahead — the whole day is yours";
@@ -157,6 +163,7 @@ export default function TomorrowSummary({
     return (
       <div className="tmrw-summary">
         <div className={`tmrw-summary-card tmrw-free-card theme-${wxKind} ${night ? 'tmrw-free-night' : ''}`}>
+          {wx && <div className={`tmrw-weather-layer is-${wxKind}`} aria-hidden="true"><span /><span /></div>}
           <div className="tmrw-free-head">
             <span className="tmrw-free-kicker-pill">
               <span className="tmrw-free-kicker-dot" />
@@ -171,9 +178,9 @@ export default function TomorrowSummary({
             )}
           </div>
 
-          <div className="tmrw-free-scene" aria-hidden="true">
+          {wx && <div className="tmrw-free-scene" aria-hidden="true">
             <FreeDayIllustration kind={wxKind} isNight={night} />
-          </div>
+          </div>}
 
           <div className="tmrw-free-text">
             <div className="tmrw-free-title">No classes tomorrow</div>

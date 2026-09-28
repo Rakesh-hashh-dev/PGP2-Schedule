@@ -3406,24 +3406,24 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 }
 
 /* Night variant: indigo card, moon + stars */
-.tmrw-summary-card.tmrw-free-night {
+html[data-theme="dark"] .tmrw-summary-card.tmrw-free-night {
   background: linear-gradient(155deg, #232144 0%, #14132a 100%);
   border-color: rgba(255, 255, 255, 0.08);
 }
 
-.tmrw-free-night .tmrw-free-title {
+html[data-theme="dark"] .tmrw-free-night .tmrw-free-title {
   color: #f1f5f9;
 }
 
-.tmrw-free-night .tmrw-free-sub {
+html[data-theme="dark"] .tmrw-free-night .tmrw-free-sub {
   color: rgba(241, 245, 249, 0.6);
 }
 
-.tmrw-free-night .tmrw-summary-kicker {
+html[data-theme="dark"] .tmrw-free-night .tmrw-summary-kicker {
   color: rgba(241, 245, 249, 0.55);
 }
 
-.tmrw-free-night .tmrw-summary-wx {
+html[data-theme="dark"] .tmrw-free-night .tmrw-summary-wx {
   color: rgba(241, 245, 249, 0.9);
   background: rgba(255, 255, 255, 0.1);
   border-color: rgba(255, 255, 255, 0.16);
@@ -6950,13 +6950,13 @@ html[data-theme="dark"] .timeline-today .nowtime {
 }
 
 .tf-page-stage {
-  animation: tf-page-enter 180ms var(--motion-ease-standard) both;
+  animation: tf-page-enter 210ms var(--motion-ease-standard) both;
 }
 
 @keyframes tf-page-enter {
   from {
     opacity: 0;
-    transform: translateY(2px);
+    transform: translateY(1px);
   }
 
   to {
@@ -6976,16 +6976,15 @@ html[data-theme="dark"] .timeline-today .nowtime {
   }
 
   ::view-transition-group(termflow-content) {
-    animation-duration: 180ms;
-    animation-timing-function: var(--motion-ease-standard);
+    animation-duration: 0ms;
   }
 
   ::view-transition-old(termflow-content) {
-    animation: tf-view-old 140ms ease-out both;
+    animation: tf-view-old 110ms ease-in both;
   }
 
   ::view-transition-new(termflow-content) {
-    animation: tf-view-new 180ms var(--motion-ease-standard) both;
+    animation: tf-view-new 210ms var(--motion-ease-standard) 35ms both;
   }
 }
 
@@ -6994,8 +6993,8 @@ html[data-theme="dark"] .timeline-today .nowtime {
 }
 
 @keyframes tf-view-new {
-  from { opacity: 0; transform: translateY(2px); }
-  to { opacity: 1; transform: none; }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* Navigation acknowledges a destination change without competing with the
@@ -8117,6 +8116,13 @@ html[data-theme="dark"] .timeline-today .nowtime {
   margin-top: 6px;
   padding-top: 16px;
   border-top: 1px solid var(--border);
+}
+
+.dl-section-wrap:empty {
+  display: none;
+  margin: 0;
+  padding: 0;
+  border: none;
 }
 
 .announcement-banner {
@@ -14933,11 +14939,11 @@ body.theme-tricolor .tab.on {
 /* ── Post-class mark prompt (Today view) ── */
 .mark-prompt {
   background: var(--card);
-  border: 1px solid var(--amber);
+  border: 1px solid var(--border);
   border-radius: 16px;
   padding: 14px 16px;
   margin-bottom: 14px;
-  box-shadow: 0 10px 28px -18px rgba(201, 136, 43, .5);
+  box-shadow: var(--shadow-sm);
   animation: fade-in-up .35s var(--ease-out-strong) both;
 }
 
@@ -20662,6 +20668,7 @@ html[data-theme="dark"] .lp-glance-bad {
   border-color: var(--border-hi);
 }
 
+
 /* Final phone override for the Announcements sticky search. */
 @media (max-width: 640px) {
   .notif-pg .notif-controls-row .notif-search-box {
@@ -20750,11 +20757,37 @@ html[data-theme="dark"] .lp-glance-bad {
 
 .notif-panel-feed {
   min-height: 0;
+  min-width: 0;
   padding: 4px 12px 8px;
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--violet) 42%, var(--border)) transparent;
 }
+
+.notif-panel-feed::-webkit-scrollbar { width: 8px; height: 0; }
+.notif-panel-feed::-webkit-scrollbar-track { background: transparent; }
+.notif-panel-feed::-webkit-scrollbar-thumb {
+  border: 2px solid var(--card);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--violet) 42%, var(--border));
+}
+.notif-panel-feed::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--violet) 65%, var(--border));
+}
+.notif-panel-feed::-webkit-scrollbar-corner { display: none; }
+
+.notif-panel,
+.notif-panel :is(.rc, .rc-list, .rc-item, .rc-text, .np-ping, .np-ping-body) { min-width: 0; }
+.notif-panel :is(.rc-alert-title, .rc-alert-sub, .np-ping-text) {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.notif-panel :is(.rc-time, .np-ping-side) { flex-shrink: 0; }
+.notif-panel .np-ping-actions { flex-wrap: wrap; }
+.notif-panel .rc-head,
+.notif-panel .np-sec-foot { flex-wrap: wrap; }
 
 .notif-panel .rc {
   margin: 0;

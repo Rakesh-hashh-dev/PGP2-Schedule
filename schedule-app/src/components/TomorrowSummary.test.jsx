@@ -71,4 +71,35 @@ describe("TomorrowSummary", () => {
     expect(html).toContain("Tasks &amp; Deadlines");
     expect(html).toContain("Full Timetable");
   });
+
+  it("keeps forecast artwork and weather backgrounds exclusive to free days", () => {
+    const weather = { tomorrow: { code: 63, min: 23, max: 29 } };
+    const classDay = renderToStaticMarkup(
+      <TomorrowSummary
+        list={[{ type: "class", name: "Operations", code: "OPS601", start: "09:00", end: "10:30", room: "A01" }]}
+        weather={weather}
+        changeCount={0}
+        tomorrowISO="2026-09-28"
+      />
+    );
+    const freeDay = renderToStaticMarkup(
+      <TomorrowSummary list={[]} weather={weather} changeCount={0} tomorrowISO="2026-09-28" />
+    );
+
+    expect(classDay).toContain("tmrw-summary-card");
+    expect(classDay).not.toContain("theme-rain");
+    expect(classDay).not.toContain("fdi-rain");
+    expect(freeDay).toContain("theme-rain");
+    expect(freeDay).toContain("fdi-rain");
+    expect(freeDay).toContain("tmrw-weather-layer is-rain");
+  });
+
+  it("uses cloudy motion for a partly cloudy forecast even at night", () => {
+    const html = renderToStaticMarkup(
+      <TomorrowSummary list={[]} weather={{ tomorrow: { code: 1, min: 23, max: 29 } }} changeCount={0} tomorrowISO="2026-09-28" />
+    );
+    expect(html).toContain("theme-cloudy");
+    expect(html).toContain("tmrw-weather-layer is-cloudy");
+    expect(html).not.toContain("tmrw-free-night");
+  });
 });

@@ -888,7 +888,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
             <button className="cal-nav-btn" onClick={() => shiftWeek(-1)} aria-label="Previous week">
               <ChevronLeft size={16} />
             </button>
-            <span className="cal-nav-label">{weekLabel}</span>
+            <span className="cal-nav-label" key={weekLabel}>{weekLabel}</span>
             {calWeek !== getWeekStart(TODAY) && (
               <button className="cal-today-btn" onClick={() => setCalWeek(getWeekStart(TODAY))}>
                 Today
@@ -1062,7 +1062,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
           {/* Month navigation */}
           <div className="cal-nav">
             <button className="cal-nav-btn" onClick={() => shiftMonth(-1)} aria-label="Previous month"><ChevronLeft size={16} /></button>
-            <span className="cal-nav-label">{monthLabel}</span>
+            <span className="cal-nav-label" key={monthLabel}>{monthLabel}</span>
             <button className="cal-nav-btn" onClick={() => shiftMonth(1)} aria-label="Next month"><ChevronRight size={16} /></button>
           </div>
 

@@ -27,12 +27,12 @@
 
   /* ── Active Nav Link Pill ─────────────────────────────────────────── */
   .sb-link.on {
-    background: rgba(109, 91, 208, 0.3) !important;
-    border: 1px solid rgba(167, 139, 250, 0.4) !important;
+    background: rgba(196, 181, 253, 0.16) !important;
+    border: 1px solid rgba(196, 181, 253, 0.28) !important;
     border-radius: 12px !important;
-    box-shadow: 0 0 16px rgba(109, 91, 208, 0.25) !important;
+    box-shadow: inset 3px 0 0 #c4b5fd !important;
     color: #fff !important;
-    font-weight: 600;
+    font-weight: 700;
   }
   .sb-link.on svg {
     color: #c4b5fd !important;
@@ -40,6 +40,10 @@
   .sb-link.on::before {
     display: none !important;
   }
+
+  .sidebar:not(.collapsed) .sb-nav-label { padding-top: 12px; padding-bottom: 5px; color: rgba(255,255,255,.47); }
+  .sidebar:not(.collapsed) .sb-link { min-height: 42px; color: rgba(255,255,255,.72); }
+  .sidebar:not(.collapsed) .sb-link:hover { color: #fff; }
 
   /* ── Unread Badge Ambient Pulse ───────────────────────────────────── */
   .sb-link .nav-badge {
@@ -49,7 +53,7 @@
     place-items: center;
     color: #fff;
     font-variant-numeric: tabular-nums;
-    animation: sbBadgePulse 3.5s ease-in-out infinite;
+    animation: none;
   }
   @keyframes sbBadgePulse {
     0%, 100% {
@@ -478,11 +482,6 @@
 
   .sidebar.collapsed .sb-class-status, .sidebar.collapsed .sb-customize, .sidebar.collapsed .sb-unseen-dot, .sidebar.collapsed .sb-nav-label { display: none; }
 
-  .sidebar.sb-compact .sb-brand { margin-bottom: 8px; }
-  .sidebar.sb-compact .sb-nav-label { padding-top: 10px; padding-bottom: 4px; }
-  .sidebar.sb-compact .sb-link { min-height: 38px; padding-top: 7px; padding-bottom: 7px; }
-  .sidebar.sb-compact .sb-search-btn { margin-bottom: 10px; padding-top: 8px; padding-bottom: 8px; }
-  .sidebar.sb-compact .sb-class-status { padding-top: 6px; padding-bottom: 6px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -782,5 +781,41 @@
   .sidebar .sb-search-left > svg,
   .sidebar .sb-link > svg {
     transition: none;
+  }
+}
+
+/* Keep compact spacing after both sidebar skins so their later defaults do not win. */
+@media (min-width: 1025px), (min-width: 768px) and (orientation: landscape) {
+  .sidebar.sb-compact:not(.collapsed) .sb-brand {
+    margin-bottom: 6px;
+    padding: 7px 8px;
+  }
+
+  .sidebar.sb-compact:not(.collapsed) .sb-nav {
+    gap: 0;
+    margin-bottom: 4px;
+  }
+
+  .sidebar.sb-compact:not(.collapsed) .sb-nav-label {
+    padding-top: 8px;
+    padding-bottom: 3px;
+    line-height: 1.2;
+  }
+
+  .sidebar.sb-compact:not(.collapsed) .sb-link {
+    min-height: 34px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+  }
+
+  .sidebar.sb-compact:not(.collapsed) .sb-search-btn {
+    min-height: 36px;
+    margin-bottom: 6px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+
+  .sidebar.sb-compact:not(.collapsed) .sb-customize {
+    margin-top: 6px;
   }
 }

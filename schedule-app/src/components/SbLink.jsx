@@ -8,7 +8,7 @@
 // Must stay a DIRECT child of `.sb-nav`: the aurora entrance cascade selects
 // `.sidebar.sb-aurora .sb-nav > *:nth-child(n)`, so any wrapper element here
 // would silently kill the stagger.
-export default function SbLink({ item, active, badge, count, onSelect, showSbTip, hideSbTip }) {
+export default function SbLink({ item, active, badge, count, onSelect, onIntent, showSbTip, hideSbTip }) {
   const Icon = item.icon;
   return (
     <button
@@ -16,10 +16,11 @@ export default function SbLink({ item, active, badge, count, onSelect, showSbTip
       type="button"
       aria-label={`${item.label}${count > 0 ? `, ${count} unread` : ""}`}
       aria-current={active ? "page" : undefined}
-      onFocus={e => showSbTip(e, item.tip || item.label)}
+      onFocus={e => { onIntent?.(); showSbTip(e, item.tip || item.label); }}
       onBlur={hideSbTip}
-      onMouseEnter={e => showSbTip(e, item.tip || item.label)}
+      onMouseEnter={e => { onIntent?.(); showSbTip(e, item.tip || item.label); }}
       onMouseLeave={hideSbTip}
+      onPointerDown={() => onIntent?.()}
       onClick={() => { onSelect(item); hideSbTip(); }}
     >
       <Icon size={18} strokeWidth={1.85} aria-hidden="true" /><span className="sb-link-label">{item.label}</span>

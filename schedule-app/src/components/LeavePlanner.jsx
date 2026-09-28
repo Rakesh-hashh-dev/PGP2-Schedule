@@ -363,7 +363,7 @@ export default function LeavePlanner({ allClasses, enrolled, legend, attendance,
           <div className="lp-field">
             <label htmlFor="lp-to">BACK ON</label>
             <div className="lp-date-box" onClick={() => toInputRef.current?.showPicker?.()}>
-              <span className="lp-date-value">{fmtInputDate(draftTo)}</span>
+              <span className="lp-date-value tf-motion-value" key={draftTo}>{fmtInputDate(draftTo)}</span>
               <Calendar size={18} className="lp-date-icon" />
               <input
                 ref={toInputRef}

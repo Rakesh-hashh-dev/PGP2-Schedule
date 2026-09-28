@@ -26,7 +26,7 @@ const validWebUrl = (value) => {
   return url && /^https?:/i.test(url) ? url : null;
 };
 
-function Empty({ text }) { return <p className="ch-empty">{text}</p>; }
+function Empty({ title, text, action }) { return title ? <div className="ch-empty ch-empty-overview" role="status"><BookOpen size={20} aria-hidden="true" /><strong>{title}</strong><p>{text}</p>{action}</div> : <p className="ch-empty">{text}</p>; }
 
 function Journey({ course, now, onOpen }) {
   const events = courseJourney(course, now);
@@ -166,11 +166,16 @@ export default function CourseHub({ allClasses = [], enrolled = {}, legend = {},
   if (!course) return <div className="course-hub">
     <header className="ch-overview-head"><span className="ch-eyebrow">YOUR TERM, BY COURSE</span><h1>Courses</h1><p>Classes, work and progress brought together for each subject.</p></header>
     <label className="ch-search"><Search size={17} /><input aria-label="Search courses" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Find a course" /></label>
-    {courses.length ? visibleCourses.length ? <div className="ch-course-grid">{visibleCourses.map((item) => { const attention = isArchived ? null : courseAttention(item, now); return <button type="button" className="ch-course-card" key={item.code} onClick={() => onSelectCode(item.code)}>
-      <span className={`ch-course-code ${subjectClass(item.code)}`}>{item.code}</span><h2>{item.name}</h2><small>{item.area}{item.credits ? ` · ${item.credits} credits` : ""}</small>
-      {attention && <span className="ch-attention"><strong>{attention.label}</strong><small>{attention.detail}</small></span>}
-      <div className="ch-course-card-stats"><span>{item.nextClass ? dateLabel(item.nextClass.date) : "No class ahead"}<b>Next class</b></span><span>{item.openTasks.length}<b>Open tasks</b></span><span>{item.stats.pct == null ? "—" : `${item.stats.pct}%`}<b>Attendance</b></span></div><span className="ch-card-open">Open course <ArrowRight size={15} /></span>
-    </button>; })}</div> : <Empty text="No courses match your search." /> : <Empty text="No enrolled courses yet. Complete setup to see your course hub." />}
+    {courses.length ? visibleCourses.length ? <div className="ch-course-grid">{visibleCourses.map((item) => {
+      const attention = isArchived ? null : courseAttention(item, now);
+      const status = attention?.label || (item.nextClass ? `Next class ${dateLabel(item.nextClass.date)}` : "No class ahead");
+      return <button type="button" className={`ch-course-card${attention ? " has-attention" : ""}`} key={item.code} onClick={() => onSelectCode(item.code)} aria-label={`Open ${item.name}. ${status}`}>
+        <span className="ch-course-card-top"><span className={`ch-course-code ${subjectClass(item.code)}`}>{item.code}</span><span className="ch-card-status">{status}</span></span>
+        <h2>{item.name}</h2><small>{item.area}{item.credits ? ` · ${item.credits} credits` : ""}</small>
+        {attention && <span className="ch-attention">{attention.detail}</span>}
+        <div className="ch-course-card-stats"><span>{item.nextClass ? dateLabel(item.nextClass.date) : "—"}<b>Next class</b></span><span>{item.openTasks.length}<b>Open tasks</b></span><span>{item.stats.pct == null ? "—" : `${item.stats.pct}%`}<b>Attendance</b></span></div><span className="ch-card-open" aria-hidden="true"><ArrowRight size={16} /></span>
+      </button>;
+    })}</div> : <Empty title="No matching courses" text="Try another name or course code." action={<button type="button" className="ch-empty-action" onClick={() => setQuery("")}>Clear search</button>} /> : <Empty title="Your courses will appear here" text="Complete setup to see classes, work and progress by subject." />}
   </div>;
 
   return <div className="course-hub ch-detail" key={course.code}>

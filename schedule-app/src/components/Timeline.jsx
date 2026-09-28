@@ -205,8 +205,33 @@ function PullIndicator({ ptr, isSyncing }) {
   );
 }
 
-export default React.memo(function Timeline({ list, current, now, showNowLine = true, label = "Today", dateLabel, attendance = {}, markAttendance, skipInfo, syncStatus, onRefresh, isSyncing }) {
+// Flash only rows whose schedule details changed after this timeline mounted.
+// The existing minute updates do not restart the animation.
+function useChangedRows(list) {
+  const previous = useRef(null);
+  const [changed, setChanged] = useState(() => new Set());
+  useEffect(() => {
+    const current = new Map(list.map((item) => {
+      const key = `${item.date}|${item.code || item.name}|${item.session || item.type}|${item.start}`;
+      return [key, `${item.end}|${item.room}|${item.section}|${item.faculty}|${item.name}`];
+    }));
+    if (previous.current) {
+      const updates = new Set([...current].filter(([key, value]) => previous.current.get(key) !== value).map(([key]) => key));
+      if (updates.size) setChanged(updates);
+    }
+    previous.current = current;
+  }, [list]);
+  useEffect(() => {
+    if (!changed.size) return;
+    const timer = window.setTimeout(() => setChanged(new Set()), 700);
+    return () => window.clearTimeout(timer);
+  }, [changed]);
+  return changed;
+}
+
+export default React.memo(function Timeline({ list, current, now, showNowLine = true, label = "Today", dateLabel, attendance = {}, markAttendance, skipInfo, syncStatus, onRefresh, isSyncing, onOpenSession }) {
   const ptr = usePullToRefresh(onRefresh, isSyncing);
+  const changedRows = useChangedRows(list);
   if (!list.length)
     return (
       <section className={`panel timeline-panel${showNowLine ? " timeline-today" : ""}`}>
@@ -330,7 +355,7 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
                 </li>
               )}
               <li
-                className={`row${!showNowLine && c.type === "class" && c.code ? ` ${subjectClass(c.code)}` : ""}${isCur ? " cur" : ""}${c.type !== "class" ? " soft" : ""}${c.type === "event" ? " row-event-celebration" : ""}${c.type === "placement" ? " row-placement" : ""}${isPast ? " past" : ""}${isNext ? " next-up" : ""}${isFirst ? " first-up" : ""}${showNowLine && i === nextVisibleIdx ? " timeline-up-next" : ""}`}
+                className={`row${!showNowLine && c.type === "class" && c.code ? ` ${subjectClass(c.code)}` : ""}${isCur ? " cur" : ""}${c.type !== "class" ? " soft" : ""}${c.type === "event" ? " row-event-celebration" : ""}${c.type === "placement" ? " row-placement" : ""}${isPast ? " past" : ""}${isNext ? " next-up" : ""}${isFirst ? " first-up" : ""}${showNowLine && i === nextVisibleIdx ? " timeline-up-next" : ""}${changedRows.has(`${c.date}|${c.code || c.name}|${c.session || c.type}|${c.start}`) ? " tf-row-updated" : ""}`}
                 aria-current={isCur ? "true" : undefined}
               >
                 <div className="row-time">
@@ -358,6 +383,7 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
                     {isCur && <span className="row-flag">now</span>}
                     {isNext && !isCur && <span className="row-flag row-flag-next">next</span>}
                     {isFirst && !isCur && <span className="row-flag row-flag-first">1st class</span>}
+                    {c.type === "class" && onOpenSession && <button type="button" className="prep-open" onClick={() => onOpenSession(c)} aria-label={`Open class details for ${c.name}`}>Details</button>}
                   </div>
                   <div className="row-meta">
                     {c.type === "class"

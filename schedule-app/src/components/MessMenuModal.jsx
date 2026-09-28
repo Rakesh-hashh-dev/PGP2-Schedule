@@ -90,12 +90,17 @@ export default function MessMenuModal({ now, onClose, favourites, onToggleFav, r
     // alone leaves the background scrollable (and its hover states live).
     const html = document.documentElement;
     const prevHtml = html.style.overflow;
+    const prevGutter = html.style.scrollbarGutter;
     const prevBody = document.body.style.overflow;
+    // Keep the document's scrollbar space reserved while scroll is locked.
+    // Otherwise the page behind the modal widens by the scrollbar width.
+    html.style.scrollbarGutter = "stable";
     html.style.overflow = "hidden";
     document.body.style.overflow = "hidden";
     return () => {
       document.removeEventListener("keydown", onKey);
       html.style.overflow = prevHtml;
+      html.style.scrollbarGutter = prevGutter;
       document.body.style.overflow = prevBody;
       if (opener instanceof HTMLElement) opener.focus();
     };
@@ -192,7 +197,7 @@ export default function MessMenuModal({ now, onClose, favourites, onToggleFav, r
           ))}
         </div>
 
-        <div className="fs-modal-body mess-modal-body" id="mess-day-panel" role="tabpanel">
+        <div className="fs-modal-body mess-modal-body" id="mess-day-panel" role="tabpanel" key={dayIdx}>
           <section className={`mess-day-overview mess-acc-${focusMeal.id}`} aria-label={`${overviewEyebrow}: ${focusMeal.label}`}>
             <span className="mess-overview-icon"><Clock3 size={18} /></span>
             <span className="mess-overview-copy">

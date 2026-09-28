@@ -219,6 +219,7 @@ function GroupChat({ group, userId, userName }) {
   const [pollBusy, setPollBusy] = useState(false);
   const [editingMsg, setEditingMsg] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     let channel;
@@ -257,14 +258,19 @@ function GroupChat({ group, userId, userName }) {
 
   async function handleSend(e) {
     e.preventDefault();
-    if (!text.trim()) return;
+    if (!text.trim() || sending) return;
     const txt = text.trim();
     setText("");
-    if (editingMsg) {
-      if (txt !== editingMsg.text) await editGroupChatMessage(editingMsg.id, userId, txt);
-      setEditingMsg(null);
-    } else {
-      await sendGroupChatMessage(group.id, userId, userName, txt);
+    setSending(true);
+    try {
+      if (editingMsg) {
+        if (txt !== editingMsg.text) await editGroupChatMessage(editingMsg.id, userId, txt);
+        setEditingMsg(null);
+      } else {
+        await sendGroupChatMessage(group.id, userId, userName, txt);
+      }
+    } finally {
+      setSending(false);
     }
   }
 
@@ -351,7 +357,7 @@ function GroupChat({ group, userId, userName }) {
          {editingMsg ? (
            <button type="button" className="fr-btn fr-btn-secondary" onClick={() => { setEditingMsg(null); setText(""); }} style={{ borderRadius: 20, padding: "0 12px" }}>Cancel</button>
          ) : null}
-         <button type="submit" className="fr-btn fr-btn-primary" style={{ borderRadius: 20, padding: "0 16px" }}>{editingMsg ? "Save" : "Send"}</button>
+         <button type="submit" className="fr-btn fr-btn-primary" style={{ borderRadius: 20, padding: "0 16px" }} disabled={sending} aria-busy={sending}>{sending ? "Sending…" : editingMsg ? "Save" : "Send"}</button>
       </form>
     </div>
   );

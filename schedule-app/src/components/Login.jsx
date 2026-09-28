@@ -15,9 +15,12 @@ export default function Login() {
   const [theme, setTheme] = useState(() => {
     try {
       const savedTheme = localStorage.getItem("termflow-login-theme");
-      return themes.some(({ id }) => id === savedTheme) ? savedTheme : "dark";
+      if (themes.some(({ id }) => id === savedTheme)) return savedTheme;
+      // First visit follows the app's saved appearance, so sign-in and the
+      // first signed-in screen share a visual starting point.
+      return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
     } catch {
-      return "dark";
+      return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
     }
   });
   const [showHowItWorks, setShowHowItWorks] = useState(false);
@@ -190,7 +193,7 @@ function LoginSlideshow() {
   };
 
   return (
-    <div className="tf-login-slideshow" aria-label="Campus photo slideshow">
+    <div className={`tf-login-slideshow${playing && pageVisible && !reducedMotion ? " is-playing" : ""}`} aria-label="Campus photo slideshow">
       <img className="tf-login-slide tf-login-slide--current" src={loginSlides[shownIndex]} alt="" decoding="async" fetchPriority="high" style={{ objectPosition: slidePositions[shownIndex] }} />
       {incomingIndex !== null && <img key={incomingIndex} className={`tf-login-slide tf-login-slide--incoming${incomingReady ? " is-visible" : ""}`} src={loginSlides[incomingIndex]} alt="" decoding="async" style={{ objectPosition: slidePositions[incomingIndex] }} onLoad={() => setIncomingReady(true)} onError={() => { setIncomingIndex(null); setIncomingReady(false); }} />}
       <div className="tf-login-slide-controls">
@@ -199,6 +202,7 @@ function LoginSlideshow() {
         <button type="button" onClick={() => showSlide(shownIndex + 1)} disabled={incomingIndex !== null} aria-label="Next campus photo"><ChevronRight size={17} /></button>
         <button type="button" onClick={() => setPlaying(value => !value)} aria-label={playing ? "Pause slideshow" : "Play slideshow"} aria-pressed={!playing}>{playing ? <Pause size={15} /> : <Play size={15} />}</button>
       </div>
+      <span className="tf-login-slide-progress" aria-hidden="true"><span key={shownIndex} /></span>
     </div>
   );
 }

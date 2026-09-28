@@ -9,7 +9,7 @@ import { fmtTime12 } from "../lib/datetime.js";
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
 
-export default function WeekAgenda({ visible, now, offset, setOffset, todayISO, onViewFullSchedule }) {
+export default function WeekAgenda({ visible, now, offset, setOffset, todayISO, onViewFullSchedule, onOpenSession }) {
   const [showStats, setShowStats] = useState(false);
   const monday = new Date(now);
   const dow = (monday.getDay() + 6) % 7;
@@ -62,6 +62,7 @@ export default function WeekAgenda({ visible, now, offset, setOffset, todayISO, 
                           )}
                         </span>
                         {(c.type === "class" || c.type === "placement") && c.room && <span className="ag-r">{c.room}</span>}
+                        {c.type === "class" && onOpenSession && <button type="button" className="prep-open" onClick={() => onOpenSession(c)} aria-label={`Open class details for ${c.name}`}>Open</button>}
                       </div>
                     ))}
               </div>

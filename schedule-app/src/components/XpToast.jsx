@@ -1,7 +1,7 @@
 // XP gain toast — appears for a few seconds whenever the pet earns XP from an
 // attendance mark or a completed assignment. Keeps it non-intrusive: a small
 // pill that floats up from the bottom-nav area, shows the pet and the amount,
-// then slides away on its own.
+// then fades away on its own.
 //
 // The queue in App.jsx ensures multiple fast marks don't stack; they are shown
 // sequentially with a short gap so the student feels the earn without spam.
@@ -77,9 +77,9 @@ export default function XpToast({ pet, petContext, petSettings, xp, label, first
   const [phase, setPhase] = useState("enter"); // "enter" | "visible" | "exit"
 
   useEffect(() => {
-    // Slide in
+    // Show briefly
     const t1 = setTimeout(() => setPhase("visible"), 25);
-    // Hold for 3s then slide out
+    // Hold for 3s then fade out
     const t2 = setTimeout(() => setPhase("exit"), 3000);
     // Unmount + notify parent after exit animation
     const t3 = setTimeout(() => { onDone?.(); }, 3450);
@@ -97,17 +97,7 @@ export default function XpToast({ pet, petContext, petSettings, xp, label, first
       aria-live="polite"
       aria-label={`+${xp} XP earned for ${label}`}
     >
-      {/* Dynamic light sheen sweep */}
-      <span className="xp-toast-sheen" aria-hidden="true" />
-
-      {/* Particle burst — decorative sparkling particles */}
-      <span className="xp-toast-sparks" aria-hidden="true">
-        {[...Array(8)].map((_, i) => (
-          <span key={i} className={`xp-toast-spark xp-toast-spark--${i}`} />
-        ))}
-      </span>
-
-      {/* Pet avatar inside elevated glass cradle */}
+      {/* Pet avatar */}
       {adopted && (
         <span className="xp-toast-pet-disc" aria-hidden="true">
           <PetCameo
@@ -116,12 +106,12 @@ export default function XpToast({ pet, petContext, petSettings, xp, label, first
             petContext={petContext}
             petSettings={petSettings}
             size={34}
-            motion={true}
+            motion={false}
           />
         </span>
       )}
 
-      {/* Radiant XP Pill */}
+      {/* XP earned */}
       <span className="xp-toast-pill">
         <Zap size={11} className="xp-toast-pill-icon" strokeWidth={2.6} aria-hidden="true" />
         <span className="xp-toast-amount">+{xp}</span>
@@ -141,4 +131,3 @@ export default function XpToast({ pet, petContext, petSettings, xp, label, first
     </div>
   );
 }
-

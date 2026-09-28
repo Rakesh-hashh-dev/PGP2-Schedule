@@ -267,20 +267,21 @@
 .pet-care-btn:hover { border-color: color-mix(in srgb, var(--violet) 45%, var(--border)); background: var(--violet-dim); }
 .pet-care-btn:focus-visible { outline: 2px solid var(--violet); outline-offset: 2px; }
 /* Compact adopted companion summary */
-.pet-summary-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(300px, .85fr); align-items: stretch; gap: 14px; }
-.pet-identity-card { display: grid; grid-template-columns: 108px minmax(0, 1fr); align-items: center; gap: 18px; }
-.pet-identity-art { position: relative; display: grid; place-items: center; width: 108px; height: 108px; border-radius: 22px; background: color-mix(in srgb, var(--violet) 9%, var(--surface)); }
-.pet-identity-pet { width: 82px; height: 82px; --pet-z: 17px; }
+.pet-summary-grid { display: grid; gap: 14px; }
+.pet-identity-card { display: grid; grid-template-columns: minmax(170px, 220px) minmax(0, 1fr); align-items: center; gap: clamp(22px, 4vw, 48px); padding: clamp(22px, 3vw, 36px); background: linear-gradient(125deg, color-mix(in srgb, var(--violet) 9%, var(--card)), var(--card) 65%); }
+.pet-identity-art { position: relative; display: grid; place-items: center; width: 100%; aspect-ratio: 1; border: 1px solid color-mix(in srgb, var(--violet) 17%, var(--border)); border-radius: 30px; background: radial-gradient(circle at 50% 43%, color-mix(in srgb, var(--violet) 15%, var(--card)), color-mix(in srgb, var(--violet) 4%, var(--surface)) 72%); }
+.pet-identity-art::before { content: ""; position: absolute; inset: 14%; border: 1px solid color-mix(in srgb, var(--violet) 13%, transparent); border-radius: 50%; pointer-events: none; }
+.pet-identity-pet { width: 72%; height: 72%; --pet-z: 30px; }
 .pet-identity-pet::after, .pet-identity-buddy::after { display: none; }
-.pet-identity-buddy { position: absolute; right: 0; bottom: 3px; width: 40px; height: 40px; --pet-z: 8px; }
+.pet-identity-buddy { position: absolute; right: 8%; bottom: 7%; width: 32%; height: 32%; --pet-z: 12px; }
 .pet-identity-copy { min-width: 0; }
 .pet-identity-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
-.pet-identity-heading h2 { margin: 0; color: var(--text); font: 800 clamp(19px, 2vw, 24px) var(--display); letter-spacing: -.03em; overflow-wrap: anywhere; }
+.pet-identity-heading h2 { margin: 0; color: var(--text); font: 800 clamp(28px, 3vw, 40px) var(--display); letter-spacing: -.04em; overflow-wrap: anywhere; }
 .pet-identity-copy .pet-title-line { margin-top: 3px; text-align: left; }
-.pet-identity-copy .pet-mood { margin-top: 9px; color: var(--text); font-size: 14px; line-height: 1.3; }
+.pet-identity-copy .pet-mood { margin-top: 16px; color: var(--text); font-size: 16px; line-height: 1.35; }
 .pet-identity-copy .pet-because { line-height: 1.45; }
 .pet-stage-chip { border-color: color-mix(in srgb, var(--violet) 25%, var(--border)); background: var(--violet-dim); color: var(--violet); }
-.pet-tools { display: grid; align-content: start; gap: 10px; min-width: 0; }
+.pet-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; gap: 14px; min-width: 0; }
 .pet-progress-panel { padding: 15px 17px; border-color: var(--border); background: var(--card); }
 .pet-progress-panel .pet-xp-bar { height: 8px; }
 .pet-progress-panel .pet-next { justify-content: flex-start; flex-wrap: wrap; margin-top: 9px; }
@@ -289,11 +290,29 @@
 .pet-care-wrap .pet-care-note { margin-top: 7px; }
 .pet-care-feedback { margin: 8px 0 0; padding: 8px 10px; border-radius: 9px; background: var(--violet-dim); color: var(--violet); font-size: 11px; font-weight: 700; line-height: 1.4; animation: pet-feedback-in 180ms ease both; }
 .pet-care-feedback:empty { display: none; }
+.pet-care-feedback strong { color: var(--text); }
+.pet-identity-art[data-care="pet"] { border-color: color-mix(in srgb, var(--violet) 38%, var(--border)); }
+.pet-identity-art[data-care="play"] { border-color: color-mix(in srgb, #e6a94d 45%, var(--border)); }
+.pet-identity-art[data-care="treat"] { border-color: color-mix(in srgb, #e8899c 45%, var(--border)); }
+.pet-identity-pet[data-reaction="pet"] { animation: pet-care-nod 420ms ease-out both; }
+.pet-identity-pet[data-reaction="play"] { animation: pet-care-play 500ms ease-out both; }
+.pet-identity-pet[data-reaction="treat"] { animation: pet-care-treat 460ms ease-out both; }
+@keyframes pet-care-nod { 0%, 100% { transform: none; } 50% { transform: translateY(3px) rotate(2deg); } }
+@keyframes pet-care-play { 0%, 100% { transform: none; } 50% { transform: translateX(4px) rotate(-3deg); } }
+@keyframes pet-care-treat { 0%, 100% { transform: none; } 50% { transform: translateY(2px) scale(.98); } }
+.pet-featured-unlock { display: flex; align-items: center; gap: 12px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
+.pet-featured-art { display: grid; flex: none; place-items: center; width: 55px; height: 55px; border: 1px solid color-mix(in srgb, var(--violet) 20%, var(--border)); border-radius: 15px; background: var(--violet-dim); color: var(--violet); }
+.pet-featured-art .dg-pet { width: 42px; height: 42px; --pet-z: 9px; }
+.pet-featured-art .dg-pet::after { display: none; }
+.pet-featured-unlock > div { display: grid; gap: 2px; min-width: 0; }
+.pet-featured-unlock .pet-eyebrow { margin: 0 0 2px; }
+.pet-featured-unlock strong { color: var(--text); font-size: 13px; line-height: 1.3; }
+.pet-featured-unlock div > span { color: var(--muted); font-size: 11px; }
 @keyframes pet-feedback-in { from { opacity: 0; } to { opacity: 1; } }
 
 .pet-section-nav {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 5px;
   padding: 5px;
   border: 1px solid var(--border);
@@ -326,9 +345,15 @@
 .pet-section-nav button.is-active { color: var(--violet); background: color-mix(in srgb, var(--violet) 12%, var(--card)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--violet) 18%, transparent); }
 
 .pet-tab-panel { animation: pet-panel-in 180ms ease both; }
-@keyframes pet-panel-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes pet-panel-in { from { opacity: 0; } to { opacity: 1; } }
 
-.pet-overview-grid, .pet-profile-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.pet-overview-grid, .pet-journey-grid, .pet-profile-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.pet-overview-grid .pet-week-card { grid-column: 1 / -1; }
+.pet-overview-grid .pet-moments-card { grid-column: 1 / -1; }
+.pet-journey-link { display: inline-flex; grid-column: 1 / -1; align-items: center; justify-content: center; gap: 8px; min-height: 42px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); color: var(--violet); font: inherit; font-size: 12px; font-weight: 750; cursor: pointer; }
+.pet-journey-link svg { transform: rotate(180deg); }
+.pet-journey-link:hover { background: var(--violet-dim); }
+.pet-journey-link:focus-visible { outline: 2px solid var(--violet); outline-offset: 2px; }
 .pet-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .pet-card-heading .pet-h3 { margin: 0; font-size: 14px; }
 .pet-total-pill { flex: none; padding: 4px 8px; border-radius: 999px; background: color-mix(in srgb, var(--violet) 10%, var(--bg)); color: var(--violet); font-size: 10px; font-weight: 800; }
@@ -403,13 +428,14 @@
 .pet-adopt-confirm { margin-top: 3px; }
 
 @media (max-width: 1200px) {
-  .pet-summary-grid { grid-template-columns: 1fr; }
-  .pet-overview-grid, .pet-profile-grid, .pet-milestones { grid-template-columns: 1fr; }
+  .pet-overview-grid, .pet-journey-grid, .pet-profile-grid, .pet-milestones { grid-template-columns: 1fr; }
   .pet-week-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .pet-identity-card { grid-template-columns: 72px minmax(0, 1fr); gap: 12px; }
-  .pet-identity-art { width: 72px; height: 72px; border-radius: 17px; }
-  .pet-identity-pet { width: 60px; height: 60px; --pet-z: 12px; }
-  .pet-identity-buddy { width: 29px; height: 29px; --pet-z: 6px; }
+  .pet-identity-card { grid-template-columns: 1fr; justify-items: center; gap: 16px; padding: 22px 18px; text-align: center; }
+  .pet-identity-art { width: min(60vw, 190px); border-radius: 26px; }
+  .pet-identity-copy { width: 100%; }
+  .pet-identity-heading, .pet-meta-row { justify-content: center; }
+  .pet-identity-copy .pet-title-line { text-align: center; }
+  .pet-tools { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 760px) {
@@ -424,13 +450,13 @@
   .pet-page-actions { gap: 6px; }
   .pet-card { padding: 14px; border-radius: 15px; }
   .pet-summary-grid { gap: 10px; }
-  .pet-identity-heading h2 { font-size: 19px; }
+  .pet-identity-heading h2 { font-size: 28px; }
   .pet-identity-copy .pet-mood { margin-top: 7px; font-size: 13px; }
   .pet-meta-row { gap: 3px 9px; }
   .pet-progress-panel, .pet-care-wrap { padding: 14px; }
   .pet-meta-row span + span::before { display: none; }
   .pet-section-nav { gap: 2px; padding: 4px; }
-  .pet-section-nav button { flex-direction: column; gap: 3px; min-height: 48px; padding: 6px 2px; font-size: 9.5px; }
+  .pet-section-nav button { flex-direction: column; gap: 3px; min-height: 48px; padding: 6px 2px; font-size: 9px; overflow-wrap: anywhere; }
   .pet-section-nav button svg { width: 15px; height: 15px; }
   .pet-journey-stats { gap: 5px; }
   .pet-journey-stats div { padding: 9px 6px; }
@@ -453,6 +479,7 @@
   .pet-tab-panel { animation: none; }
   .pet-xp-fill, .pet-care-btn { transition: none; }
   .pet-care-feedback { animation: none; }
+  .pet-identity-pet[data-reaction] { animation: none; }
 }
 
 /* ── Cameos ─────────────────────────────────────────────────────
@@ -474,10 +501,7 @@
 .wrapped-hero-pet-text strong { font-size: 13.5px; font-weight: 800; }
 .wrapped-hero-pet-text span { color: var(--muted); font-size: 11.5px; font-weight: 600; }
 
-/* ── XP gain toast (Revamped Premium Floating Pill) ──────────────
-   A sleek glassmorphic capsule that springs up from the bottom-nav area
-   when the pet earns XP from attendance or assignments. Features a light
-   sheen sweep, glowing XP pill, circular avatar halo, and first-today badge. */
+/* Compact XP acknowledgement beside the bottom navigation. */
 
 .xp-toast {
   position: fixed;
@@ -487,7 +511,7 @@
   line-height: 1.2;
   bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   left: 50%;
-  transform: translateX(-50%) translateY(28px) scale(0.93);
+  transform: translateX(-50%);
   display: inline-flex;
   align-items: center;
   gap: 10px;
@@ -496,30 +520,21 @@
   box-sizing: border-box;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(109, 91, 208, 0.22);
-  box-shadow:
-    0 20px 48px -12px rgba(109, 91, 208, 0.32),
-    0 4px 16px -2px rgba(21, 24, 43, 0.1),
-    inset 0 1px 1px rgba(255, 255, 255, 0.95);
+  box-shadow: 0 12px 30px -12px rgba(21, 24, 43, 0.22);
   z-index: 10003;
   pointer-events: none;
   opacity: 0;
   overflow: hidden;
-  transition:
-    opacity 350ms cubic-bezier(0.16, 1, 0.3, 1),
-    transform 450ms cubic-bezier(0.34, 1.56, 0.64, 1),
-    bottom 300ms ease;
+  transition: opacity 200ms ease, bottom 200ms ease;
 }
 
 html[data-theme="dark"] .xp-toast {
   background: rgba(26, 29, 39, 0.92);
   border: 1px solid rgba(139, 122, 232, 0.32);
-  box-shadow:
-    0 20px 48px -10px rgba(0, 0, 0, 0.65),
-    0 0 0 1px rgba(139, 122, 232, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  box-shadow: 0 12px 30px -12px rgba(0, 0, 0, 0.55);
 }
 
 /* On mobile with the liquid-glass dock (.bnav), clear the dock + safe area */
@@ -538,15 +553,11 @@ body:has(.bnav) .xp-toast {
 
 .xp-toast--visible {
   opacity: 1;
-  transform: translateX(-50%) translateY(0) scale(1);
 }
 
 .xp-toast--exit {
   opacity: 0;
-  transform: translateX(-50%) translateY(18px) scale(0.95);
-  transition:
-    opacity 380ms ease,
-    transform 380ms ease;
+  transition: opacity 200ms ease;
 }
 
 /* Desktop & tablet landscape */
@@ -555,41 +566,6 @@ body:has(.bnav) .xp-toast {
   .xp-toast {
     bottom: calc(34px + env(safe-area-inset-bottom, 0px));
   }
-}
-
-/* Subtle light sheen ray sweeping across the capsule on mount */
-.xp-toast-sheen {
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 70%;
-  height: 100%;
-  background: linear-gradient(
-    105deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.45) 50%,
-    transparent 100%
-  );
-  pointer-events: none;
-  transform: skewX(-20deg);
-}
-
-html[data-theme="dark"] .xp-toast-sheen {
-  background: linear-gradient(
-    105deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.14) 50%,
-    transparent 100%
-  );
-}
-
-.xp-toast--visible .xp-toast-sheen {
-  animation: xp-toast-sweep 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
-}
-
-@keyframes xp-toast-sweep {
-  0% { left: -100%; }
-  100% { left: 200%; }
 }
 
 /* Pet avatar cradle disc */
@@ -604,16 +580,7 @@ html[data-theme="dark"] .xp-toast-sheen {
   flex-shrink: 0;
   background: color-mix(in srgb, var(--violet) 10%, var(--card));
   border: 1px solid color-mix(in srgb, var(--violet) 26%, transparent);
-  box-shadow: 0 2px 8px -1px color-mix(in srgb, var(--violet) 28%, transparent);
-}
-
-.xp-toast--visible .xp-toast-pet-disc {
-  animation: xp-pet-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) 0.08s both;
-}
-
-@keyframes xp-pet-pop {
-  0% { transform: scale(0.6) rotate(-8deg); opacity: 0; }
-  100% { transform: scale(1) rotate(0); opacity: 1; }
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--violet) 16%, transparent);
 }
 
 /* Radiant XP Pill */
@@ -625,7 +592,7 @@ html[data-theme="dark"] .xp-toast-sheen {
   border-radius: 999px;
   background: linear-gradient(135deg, #7C3AED 0%, #6366F1 100%);
   border: 1px solid rgba(255, 255, 255, 0.28);
-  box-shadow: 0 2px 10px rgba(124, 58, 237, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  box-shadow: none;
   color: #FFFFFF;
   font-family: var(--display);
   font-size: 13px;
@@ -705,52 +672,7 @@ html[data-theme="dark"] .xp-toast-streak-badge {
   color: #FDE047;
 }
 
-.xp-toast-streak-svg {
-  flex-shrink: 0;
-  filter: drop-shadow(0 0 2px rgba(245, 158, 11, 0.5));
-  animation: xp-streak-twinkle 2.4s ease-in-out infinite;
-}
-
-@keyframes xp-streak-twinkle {
-  0%, 100% { transform: scale(1) rotate(0deg); opacity: 1; }
-  50% { transform: scale(1.12) rotate(12deg); opacity: 0.9; }
-}
-
-/* ── Sparkle burst ────────────────────────────────────────────── */
-.xp-toast-sparks {
-  position: absolute;
-  left: 48px;
-  top: 50%;
-  pointer-events: none;
-  z-index: 10;
-}
-
-.xp-toast-spark {
-  position: absolute;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  opacity: 0;
-}
-
-.xp-toast--visible .xp-toast-spark {
-  animation: xp-spark 650ms cubic-bezier(.2, .9, .3, 1) forwards;
-}
-
-.xp-toast-spark--0 { --sx: -18px; --sy: -18px; animation-delay:  10ms; background: #8B5CF6; }
-.xp-toast-spark--1 { --sx:  16px; --sy: -18px; animation-delay:  40ms; background: #F59E0B; }
-.xp-toast-spark--2 { --sx: -24px; --sy:  -2px; animation-delay:  25ms; background: #EC4899; }
-.xp-toast-spark--3 { --sx:  24px; --sy:  -2px; animation-delay:  55ms; background: #10B981; }
-.xp-toast-spark--4 { --sx: -12px; --sy:  16px; animation-delay:  35ms; background: #3B82F6; }
-.xp-toast-spark--5 { --sx:  12px; --sy:  16px; animation-delay:  70ms; background: #8B5CF6; }
-.xp-toast-spark--6 { --sx:   0px; --sy: -22px; animation-delay:  15ms; background: #FDE047; }
-.xp-toast-spark--7 { --sx:   0px; --sy:  20px; animation-delay:  60ms; background: #A855F7; }
-
-@keyframes xp-spark {
-  0%   { opacity: 1; transform: translate(0, 0) scale(1); }
-  60%  { opacity: 0.9; }
-  100% { opacity: 0; transform: translate(var(--sx), var(--sy)) scale(0.25); }
-}
+.xp-toast-streak-svg { flex-shrink: 0; }
 
 /* Compact mobile screens (iPhone SE, small Androids, narrow viewports) */
 @media (max-width: 380px) {
@@ -780,12 +702,6 @@ html[data-theme="dark"] .xp-toast-streak-badge {
 @media (prefers-reduced-motion: reduce) {
   .xp-toast, .xp-toast--visible, .xp-toast--exit {
     transition: opacity 150ms ease;
-    transform: translateX(-50%) translateY(0) scale(1);
-  }
-  .xp-toast-sheen,
-  .xp-toast-spark,
-  .xp-toast-pet-disc {
-    animation: none !important;
   }
 }
 

@@ -181,7 +181,7 @@ function BoardComposer({ userId, userName, onCreated, onClose }) {
 
         <div className="board-composer-footer">
           <p className="board-composer-note">No contact added? People can still reach you with an in-app ping.</p>
-          <button type="submit" className="board-submit" disabled={!title.trim() || busy}>
+          <button type="submit" className="board-submit" disabled={!title.trim() || busy} aria-busy={busy}>
             {busy ? "Posting…" : "Post to board"}
           </button>
         </div>

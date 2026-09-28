@@ -640,7 +640,7 @@ function GroupLedger({ userId, userName, group, onBack, onGroupChanged, onGroupD
           <span className="sp-kicker">YOUR POSITION</span>
           {myNet === 0
             ? <span className="sp-net-zero"><Check size={16} /> You&rsquo;re all settled up</span>
-            : <><span className="sp-net-label">{myNet > 0 ? "You are owed" : "You owe"}</span><span className="sp-net-amt">{fmtMoney(Math.abs(myNet), group.currency)}</span></>}
+            : <><span className="sp-net-label">{myNet > 0 ? "You are owed" : "You owe"}</span><span className="sp-net-amt tf-motion-value" key={myNet}>{fmtMoney(Math.abs(myNet), group.currency)}</span></>}
         </div>
         <div className="sp-ledger-actions">
           <button className="sp-primary-btn" onClick={() => { setEditingExpense(null); setExpenseOpen(true); }}><Receipt size={16} /> Add expense</button>
@@ -937,7 +937,7 @@ function GlobalInsights({ groups, userId }) {
 
   return (
     <section className="sp-overview-balance" aria-label="Overall split balances">
-      <div className="sp-overview-main"><span className="sp-kicker">ACROSS {groups.length} GROUP{groups.length === 1 ? "" : "S"}</span><span className="sp-net-label">{summary.net > 0 ? "Overall, you are owed" : summary.net < 0 ? "Overall, you owe" : "All settled up"}</span><strong className="sp-net-amt">{fmtMoney(Math.abs(summary.net), currency)}</strong><span className="sp-overview-caption">Your net balance across shared expenses</span></div>
+      <div className="sp-overview-main"><span className="sp-kicker">ACROSS {groups.length} GROUP{groups.length === 1 ? "" : "S"}</span><span className="sp-net-label">{summary.net > 0 ? "Overall, you are owed" : summary.net < 0 ? "Overall, you owe" : "All settled up"}</span><strong className="sp-net-amt tf-motion-value" key={summary.net}>{fmtMoney(Math.abs(summary.net), currency)}</strong><span className="sp-overview-caption">Your net balance across shared expenses</span></div>
       <div className="sp-overview-breakdown"><div><span>Owed to you</span><strong className="pos">{fmtMoney(summary.owed, currency)}</strong></div><div><span>You owe</span><strong className="neg">{fmtMoney(summary.owe, currency)}</strong></div></div>
     </section>
   );

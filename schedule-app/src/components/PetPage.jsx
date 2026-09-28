@@ -50,6 +50,7 @@ const CARE_ICONS = { pet: Heart, play: Gamepad2, treat: Cookie };
 
 const PET_SECTIONS = [
   { id: "overview", label: "Overview", Icon: Home },
+  { id: "journey", label: "Journey", Icon: Trophy },
   { id: "companions", label: "Companions", Icon: PawPrint },
   { id: "wardrobe", label: "Wardrobe", Icon: Shirt },
   { id: "profile", label: "Profile", Icon: UserRound },
@@ -145,6 +146,10 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
   const streak = careStreak(pet, now);
   const multiplier = devotionMultiplier(pet, now);
   const roadmap = useMemo(() => unlockRoadmap(pet, { wardrobe: wardrobeOn, hatsOff }), [pet, wardrobeOn, hatsOff]);
+  const nextReward = roadmap[0];
+  const featuredCompanion = nextReward?.rewards
+    .map(reward => reward.kind === "companion" ? PETS.find(option => option.label === reward.label) : null)
+    .find(Boolean);
   const moments = useMemo(() => recentPetMoments(pet, 5, now), [pet, now]);
   const milestones = useMemo(() => petMilestones(pet), [pet]);
   const week = useMemo(() => petWeek(pet, now), [pet, now]);
@@ -157,7 +162,7 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
 
   const handleCare = action => {
     petActions.care(action, now);
-    setCareFeedback({ action, earned: left > 0 });
+    setCareFeedback(previous => ({ action, earned: left > 0, at: (previous?.at || 0) + 1 }));
   };
 
   if (!adopted) {
@@ -256,8 +261,9 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
 
       <div className="pet-summary-grid">
         <section className="pet-card pet-identity-card" aria-label="Your companion">
-          <div className="pet-identity-art">
+          <div className="pet-identity-art" data-care={careFeedback?.action || undefined}>
             <span
+              key={careFeedback?.at || "idle"}
               className="dg-pet pet-identity-pet"
               data-pet={current.key}
               data-motion="on"
@@ -268,6 +274,7 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
               data-accessory={accessoryOn ? "on" : "off"}
               data-coat={coat || undefined}
               data-neck={neck || undefined}
+              data-reaction={careFeedback?.action || undefined}
               aria-hidden="true"
               {...gaze}
             >
@@ -291,7 +298,7 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
           </div>
 
           <div className="pet-identity-copy">
-            <p className="pet-eyebrow">Together today</p>
+            <p className="pet-eyebrow">Your study companion</p>
             <div className="pet-identity-heading">
               <h2>{pet.name || current.label}</h2>
               <span className="pet-stage-chip"><Sparkles size={12} aria-hidden="true" /> {stage.label}</span>
@@ -319,6 +326,16 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
               <span>{progress.maxed ? "Maximum level reached" : `${progress.into} earned`}</span>
               <span>{progress.maxed ? "Fully grown" : `${progress.need - progress.into} XP to Lv ${progress.level + 1}`}</span>
             </div>
+            <div className="pet-featured-unlock">
+              <span className="pet-featured-art" aria-hidden="true">
+                {featuredCompanion ? <span className="dg-pet" data-pet={featuredCompanion.key} data-motion="off"><featuredCompanion.Svg /></span> : <Sparkles size={25} />}
+              </span>
+              <div>
+                <p className="pet-eyebrow">Next unlock</p>
+                <strong>{nextReward ? nextReward.rewards.slice(0, 2).map(reward => reward.label).join(" · ") : "Collection complete"}</strong>
+                <span>{nextReward ? `${nextReward.remainingXp} XP to ${nextReward.by === "level" ? `Level ${nextReward.at}` : `Devotion ${nextReward.at}`}` : "Every available reward is yours"}</span>
+              </div>
+            </div>
           </section>
 
           <section className="pet-card pet-care-wrap" aria-label="Care for your companion">
@@ -344,8 +361,8 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
                 ? `${left} more today can earn XP. After that, care is just for fun.`
                 : "Today's care XP is complete. Mark a class to keep growing."}
             </p>
-            <p className="pet-care-feedback" role="status" aria-live="polite">
-              {careFeedback && `${pet.name || current.label} ${CARE_REACTION[careFeedback.action].toLowerCase()}. ${careFeedback.earned ? "Care XP earned." : "Today's care XP is complete; this one was just for fun."}`}
+            <p className="pet-care-feedback" role="status" aria-live="polite" key={careFeedback?.at || "empty"}>
+              {careFeedback && <><strong>{pet.name || current.label} {CARE_REACTION[careFeedback.action].toLowerCase()}.</strong> {careFeedback.earned ? "Care XP earned." : "Just for fun — today's care XP is complete."}</>}
             </p>
           </section>
         </div>
@@ -395,26 +412,6 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
             <p className="pet-week-note">{week.xp > 0 ? "Your classes, deadlines, and time together all count toward growth." : "No XP recorded yet this week. Marking a class or clearing a deadline gets things moving."}</p>
           </section>
 
-          <section className="pet-card pet-roadmap-card">
-            <div className="pet-card-heading">
-              <div>
-                <p className="pet-eyebrow">Coming up</p>
-                <h3 className="pet-h3">Unlock roadmap</h3>
-              </div>
-              <Sparkles size={18} aria-hidden="true" />
-            </div>
-            {roadmap.length ? (
-              <ol className="pet-roadmap">
-                {roadmap.map(gate => (
-                  <li key={`${gate.by}-${gate.at}`}>
-                    <span className="pet-roadmap-gate">{gate.by === "level" ? `Lv ${gate.at}` : `Devotion ${gate.at}`}</span>
-                    <div><strong>{gate.rewards.slice(0, 2).map(reward => reward.label).join(" · ")}{gate.rewards.length > 2 ? ` +${gate.rewards.length - 2} more` : ""}</strong><span>{gate.remainingXp} XP to go</span></div>
-                  </li>
-                ))}
-              </ol>
-            ) : <p className="pet-empty-copy">Every available companion and reward is unlocked.</p>}
-          </section>
-
           <section className="pet-card pet-moments-card">
             <div className="pet-card-heading">
               <div>
@@ -435,6 +432,30 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
               </ol>
             ) : <p className="pet-empty-copy">Recent XP and unlocks will appear here as you make progress.</p>}
             <p className="pet-history-note">Shows the last 30 days of recorded activity. Earlier XP remains in your total.</p>
+          </section>
+          <button type="button" className="pet-journey-link" onClick={() => setActiveSection("journey")}>
+            Explore milestones and the full progress trail <ArrowLeft size={15} aria-hidden="true" />
+          </button>
+        </div>
+      )}
+
+      {activeSection === "journey" && (
+        <div className="pet-tab-panel pet-journey-grid" id="pet-panel-journey" role="tabpanel" aria-labelledby="pet-tab-journey">
+          <section className="pet-card pet-roadmap-card">
+            <div className="pet-card-heading">
+              <div><p className="pet-eyebrow">Coming up</p><h3 className="pet-h3">Unlock roadmap</h3></div>
+              <Sparkles size={18} aria-hidden="true" />
+            </div>
+            {roadmap.length ? (
+              <ol className="pet-roadmap">
+                {roadmap.map(gate => (
+                  <li key={`${gate.by}-${gate.at}`}>
+                    <span className="pet-roadmap-gate">{gate.by === "level" ? `Lv ${gate.at}` : `Devotion ${gate.at}`}</span>
+                    <div><strong>{gate.rewards.slice(0, 2).map(reward => reward.label).join(" · ")}{gate.rewards.length > 2 ? ` +${gate.rewards.length - 2} more` : ""}</strong><span>{gate.remainingXp} XP to go</span></div>
+                  </li>
+                ))}
+              </ol>
+            ) : <p className="pet-empty-copy">Every available companion and reward is unlocked.</p>}
           </section>
 
           <section className="pet-card pet-milestones-card">

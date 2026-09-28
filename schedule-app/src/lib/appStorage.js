@@ -42,6 +42,7 @@ export const USER_SCOPED_KEYS = [
   "pgp2.setup", "pgp2-notif-seen", "pgp2.read-ping-ids", "pgp2.read-change-keys",
   "pgp2.seen-recv-groups", "pgp2.recv-groups-count", "pgp2.sidebar", "pgp2.sidebar-pins", "pgp2.sidebar-compact", VIEW_KEY,
   "pgp2.attendance", "pgp2.assignments", "pgp2.planner-misses", "pgp2.planner-effort", "pgp2.course-hub-items",
+  "pgp2.dashboard-layout",
   "pgp2.my-status", "pgp2.my-away",
   // Without this, signing in as someone else on a shared laptop shows them the
   // previous student's companion until the cloud read lands.

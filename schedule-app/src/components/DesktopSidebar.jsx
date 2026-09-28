@@ -21,11 +21,11 @@ import "../styles/sidebar-enhancements.css";
 export default function DesktopSidebar({
   sbCollapsed, sbStyle, specialDay, termLabel, termProgressPct, termWeekInfo,
   termSwitcherEl, isOffline, setCmdOpen, isMac, view, showSbTip, hideSbTip,
-  setView, setCompareTarget, enableAttendance, enableExams, unreadChangeCount,
+  setView, preloadView, setCompareTarget, enableAttendance, enableExams, unreadChangeCount,
   enableFriends, markGroupsSeen, markBadgeSeen, showBadge, unreadFriendCount,
   showSbTools, wrappedActive, companionEnabled, setSbToolsOpen,
   setMessMenuOpen, activeQuickLinks, showAdminUI, renderSbUtilStrip,
-  renderSbAvatarWrap, syncing, syncedAgo, isTablet, sidebarCollapsed, toggleSidebar,
+  renderSbAvatarWrap, syncing, syncedAgo, toggleSidebar,
 }) {
   const [pins, setPins] = useState(() => {
     try { return normalizeSidebarPins(JSON.parse(localStorage.getItem(SIDEBAR_PINS_KEY))); } catch { return []; }
@@ -81,6 +81,7 @@ export default function DesktopSidebar({
       badge={item.badge && showBadge(item.badge.key) ? item.badge.label : null}
       count={item.count ? counts[item.count] : 0}
       onSelect={onSelect}
+      onIntent={() => preloadView?.(item.view)}
       showSbTip={showSbTip}
       hideSbTip={hideSbTip}
     />

@@ -5,7 +5,7 @@
   --login-ink: #191b29;
   --login-muted: #656979;
   --login-line: rgba(55, 50, 88, .12);
-  --login-accent: #6654c7;
+  --login-accent: #6d5bd0;
   --login-accent-strong: #4936ae;
   --login-soft: rgba(102, 84, 199, .09);
   --login-button: #191b29;
@@ -37,7 +37,7 @@
   --login-ink: #fff;
   --login-muted: #a2a6b5;
   --login-line: rgba(255, 255, 255, .1);
-  --login-accent: #bdb3dc;
+  --login-accent: #8b7ae8;
   --login-accent-strong: #d8d0ef;
   --login-soft: rgba(178, 168, 209, .1);
   --login-button: #f3f1ff;
@@ -194,7 +194,7 @@
 .tf-login-features > span { display: flex; align-items: center; gap: 7px; min-height: 34px; padding: 7px 10px; border: 1px solid rgba(255, 255, 255, .25); border-radius: 999px; background: rgba(13, 11, 25, .38); color: #fff; font-size: .8rem; font-weight: 600; backdrop-filter: blur(8px); }
 .tf-login-features svg { color: #e2d8ff; }
 
-.tf-login-card { position: relative; width: min(100%, 440px); flex: 0 0 auto; overflow: hidden; padding: 30px 32px 0; border: 1px solid var(--login-line); border-radius: 26px; background: var(--login-surface); box-shadow: 0 32px 80px rgba(24, 18, 54, .14); text-align: center; backdrop-filter: blur(28px); }
+.tf-login-card { position: relative; width: min(100%, 440px); flex: 0 0 auto; overflow: hidden; padding: 30px 32px 0; border: 1px solid var(--login-line); border-radius: 20px; background: var(--login-surface); box-shadow: 0 18px 48px -18px rgba(24, 18, 54, .24); text-align: center; backdrop-filter: blur(12px); }
 .tf-login-card::before { content: ""; position: absolute; inset: 0 16% auto; height: 1px; background: linear-gradient(90deg, transparent, var(--login-accent), transparent); opacity: .7; }
 .tf-login-card-icon { display: inline-flex; margin-bottom: 14px; padding: 10px; border: 1px solid var(--login-line); border-radius: 20px; background: var(--login-soft); box-shadow: 0 10px 30px rgba(24, 18, 54, .09); }
 .tf-login-card-icon img { width: 38px; height: 38px; }
@@ -238,6 +238,15 @@
 .tf-login-sample-body .tf-login-sample-note { display: flex; align-items: center; gap: 7px; margin: 12px 0 0; color: var(--login-muted); font-size: .75rem; }
 .tf-login-sample-note svg { flex: 0 0 auto; color: var(--login-accent-strong); }
 
+/* The slideshow's progress is decorative; controls remain usable without it. */
+.tf-login-slide-progress { position: absolute; z-index: 3; top: clamp(65px, calc(3vw + 45px), 87px); right: calc(clamp(20px, 3vw, 42px) + 75px); width: 133px; height: 2px; overflow: hidden; border-radius: 2px; background: rgba(255,255,255,.28); }
+.tf-login-slide-progress > span { display: block; width: 100%; height: 100%; background: #e2d8ff; transform: scaleX(0); transform-origin: left; }
+.tf-login-slideshow.is-playing .tf-login-slide-progress > span { animation: tf-login-slide-progress 8s linear both; }
+@keyframes tf-login-slide-progress { to { transform: scaleX(1); } }
+.tf-login-sample[open] .tf-login-class { animation: tf-login-sample-in 220ms ease-out both; }
+.tf-login-sample[open] .tf-login-class--second { animation-delay: 70ms; }
+@keyframes tf-login-sample-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+
 .tf-login-footer { display: flex; justify-content: space-between; gap: 12px; padding-top: 10px; border-top: 1px solid var(--login-line); color: var(--login-muted); font-size: .75rem; }
 .tf-login-footer a { color: inherit; text-underline-offset: 3px; }
 .tf-login-footer a:hover { color: var(--login-ink); }
@@ -261,6 +270,7 @@
 .tf-login--premium .tf-login-google:hover:not(:disabled), .tf-login--premium .tf-login-done:hover { border-color: rgba(170, 145, 255, .65); background: linear-gradient(180deg, rgba(109, 91, 208, .46), rgba(109, 91, 208, .2)); }
 
 @media (max-width: 880px) {
+  .tf-login-slide-progress { right: 29px; }
   .tf-login { display: block; height: auto; overflow: visible; }
   .tf-login-intro { display: flex; flex-direction: column; justify-content: flex-end; width: 100%; min-height: 520px; overflow: hidden; -webkit-mask-image: none; mask-image: none; }
   .tf-login-intro::before { display: none; }
@@ -275,6 +285,7 @@
 }
 
 @media (max-width: 560px) {
+  .tf-login-slide-progress { top: 60px; right: 21px; }
   .tf-login-brand { font-size: 1.18rem; }
   .tf-login-brand { top: 18px; left: 16px; }
   .tf-login-brand img { width: 32px; height: 32px; }
@@ -295,6 +306,7 @@
 }
 
 @media (max-width: 370px) {
+  .tf-login-slide-progress { top: 106px; }
   .tf-login-brand-sub { display: none; }
   .tf-login-slide-controls { top: 64px; }
   .tf-login-intro-content { padding-top: 128px; }

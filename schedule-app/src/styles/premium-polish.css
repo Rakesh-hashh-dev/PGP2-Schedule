@@ -1,0 +1,62 @@
+/* Shared finish for the signed-in experience. Keep weather and celebration
+   cards free to use their own artwork, while everyday surfaces stay consistent. */
+:root {
+  --tf-surface-radius: 18px;
+  --tf-surface-shadow: 0 12px 30px -18px rgba(28, 23, 58, .24);
+}
+html[data-theme="dark"] {
+  --tf-surface-shadow: 0 12px 30px -18px rgba(0, 0, 0, .52);
+}
+body .planner-card,
+body .ch-panel,
+body .ch-course-card,
+body .mark-prompt {
+  border-radius: var(--tf-surface-radius);
+  box-shadow: var(--tf-surface-shadow);
+}
+
+/* A pending attendance decision is the first actionable item on Today. */
+body .mark-prompt {
+  border: 1px solid var(--border);
+  padding: 13px 16px;
+}
+.mark-prompt .att-b {
+  display: inline-flex;
+  gap: 6px;
+  width: auto;
+  min-width: 86px;
+  min-height: 36px;
+  height: auto;
+  padding: 7px 10px;
+  border-radius: 9px;
+  font: 700 .72rem var(--body);
+  white-space: nowrap;
+}
+.mark-prompt .att-b.present { border-color: color-mix(in srgb, var(--live) 35%, var(--border)); color: var(--live); background: color-mix(in srgb, var(--live) 8%, var(--card)); }
+.mark-prompt .att-b.absent { border-color: color-mix(in srgb, var(--danger) 28%, var(--border)); color: var(--danger); background: color-mix(in srgb, var(--danger) 5%, var(--card)); }
+.mark-prompt-feedback { margin: 7px 0 0; color: var(--muted); font-size: .72rem; }
+.mark-confirm { display: inline-flex; align-items: center; gap: 8px; margin: 0 0 12px; padding: 9px 12px; border: 1px solid color-mix(in srgb, var(--live) 32%, var(--border)); border-radius: 10px; background: var(--card); color: var(--text); font: 650 .77rem var(--body); box-shadow: var(--tf-surface-shadow); }
+.mark-confirm svg { color: var(--live); }
+.tf-section-loading { margin-top: 12px; color: var(--muted); font: 650 .8rem var(--body); }
+.pane-today .loading-screen { border: 1px solid var(--border); border-radius: var(--tf-surface-radius); background: var(--card); box-shadow: var(--tf-surface-shadow); }
+
+/* Semester totals support the day briefing, with less glow and clearer labels. */
+body .sem-summary { margin: 10px 0 13px; border-color: var(--border); box-shadow: 0 4px 16px -12px rgba(28,23,58,.25); backdrop-filter: none; -webkit-backdrop-filter: none; }
+.sem-stat.good .sem-val,
+.sem-stat.warn .sem-val,
+.sem-stat.bad .sem-val { text-shadow: none; }
+.sem-summary .sem-label { font-size: 10.5px; }
+.sem-summary .sem-stat-cta:focus-visible { outline: 2px solid var(--violet); outline-offset: -2px; }
+
+/* Shared keyboard treatment and reduced motion across these surfaces. */
+.mark-prompt button:focus-visible,
+.ch-empty-action:focus-visible { outline: 2px solid var(--violet); outline-offset: 2px; }
+@media (max-width: 600px) {
+  .mark-prompt-row { flex-wrap: wrap; }
+  .mark-prompt .att-btns { width: 100%; }
+  .mark-prompt .att-b { flex: 1; justify-content: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body .ch-course-card,
+  body .mark-prompt .att-b { transition: none; animation: none; }
+}

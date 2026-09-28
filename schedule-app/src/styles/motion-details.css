@@ -1,0 +1,84 @@
+/* Small, finite cues for changes that matter. No new assets or animation runtime. */
+@keyframes tf-detail-enter {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes tf-detail-confirm {
+  from { opacity: .55; transform: scale(.94); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes tf-detail-highlight {
+  from { filter: brightness(1.12); }
+  to { filter: brightness(1); }
+}
+@keyframes tf-detail-arrow {
+  from { opacity: .35; transform: translateX(-3px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Today and Tomorrow: the now marker and changed rows stay tied to real data. */
+.nowline .nowdot, .nowline-end .nowdot { transition: background-color 180ms ease, box-shadow 180ms ease; }
+.nowline:not(.nowline-end) { animation: tf-detail-enter 200ms ease-out both; }
+.tf-row-updated .row-body { animation: tf-detail-highlight 650ms ease-out both; }
+.att-btn.on svg { animation: tf-detail-confirm 180ms ease-out both; }
+
+/* Week and full timetable: date context changes without moving the shell. */
+.wk-range, .cal-nav-label { animation: tf-detail-enter 180ms ease-out both; }
+.wa-days-scroll .agday { animation: tf-detail-enter 190ms ease-out both; }
+.cal-month-cell.cal-month-selected { transition: background-color 180ms ease, border-color 180ms ease; }
+.cal-day-panel-items .fs-card { animation: tf-detail-enter 180ms ease-out both; }
+
+/* Attendance, courses, planner, assignments and exams. Existing chart drawing
+   and progress transitions remain the primary visual treatment. */
+@property --atx-pct {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 0%;
+}
+.atx-summary-ring { transition: --atx-pct 480ms ease-out; }
+.atx-mark-button.active svg, .ch-prep-item button.is-done svg,
+.lp-book.is-done svg { animation: tf-detail-confirm 180ms ease-out both; }
+.tf-motion-value { display: inline-block; animation: tf-detail-enter 180ms ease-out both; }
+.planner-week-track span { transition: height 260ms ease-out; }
+.planner-scenario-track i { transition: width 260ms ease-out; }
+.assign-check.checked { animation: tf-detail-confirm 180ms ease-out both; }
+.exam-row .exam-row-date { transition: border-color 180ms ease, background-color 180ms ease; }
+
+/* Campus activity: entry and confirmation cues are limited to new visible items. */
+.notif-pg-list > li:nth-child(-n + 5) { animation: tf-detail-enter 200ms ease-out both; }
+.notif-dot, .fr-friend-status-dot { transition: opacity 180ms ease, background-color 180ms ease; }
+.fr-chat-msg-row:last-child { animation: tf-detail-enter 180ms ease-out both; }
+.fr-chat-form .fr-btn[aria-busy="true"] { opacity: .65; }
+.board-card:first-child { animation: tf-detail-enter 200ms ease-out both; }
+.board-submit[aria-busy="true"] { opacity: .72; transition: opacity 160ms ease; }
+
+/* Split balances and transfer arrows change once when a ledger update lands. */
+.sp-transfer svg { animation: tf-detail-arrow 220ms ease-out both; }
+.sp-transfer-amt { transition: color 180ms ease; }
+
+/* Meal and leave selections reveal only the data affected by that selection. */
+.mess-day.on .mess-day-num { animation: tf-detail-confirm 170ms ease-out both; }
+.mess-modal-body { animation: tf-detail-enter 200ms ease-out both; }
+.lp-quick button.on { transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease; }
+.lp-alert { animation: tf-detail-enter 200ms ease-out both; }
+
+/* Companion and Wrapped already have character and panel entrances. Keep those
+   as the app's expressive moments instead of adding more ambient loops. */
+.pet-milestone.is-completed .pet-milestone-icon { animation: tf-detail-confirm 220ms ease-out both; }
+.wrapped-story-cta { animation: tf-detail-enter 220ms ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .nowline:not(.nowline-end), .tf-row-updated .row-body, .att-btn.on svg,
+  .wk-range, .cal-nav-label, .wa-days-scroll .agday, .cal-day-panel-items .fs-card,
+  .atx-mark-button.active svg, .ch-prep-item button.is-done svg,
+  .lp-book.is-done svg, .tf-motion-value, .assign-check.checked,
+  .notif-pg-list > li:nth-child(-n + 5), .fr-chat-msg-row:last-child,
+  .board-card:first-child, .sp-transfer svg, .mess-day.on .mess-day-num,
+  .mess-modal-body, .lp-alert, .pet-milestone.is-completed .pet-milestone-icon,
+  .wrapped-story-cta { animation: none !important; }
+  .nowline .nowdot, .cal-month-cell.cal-month-selected,
+  .atx-summary-ring,
+  .planner-week-track span, .planner-scenario-track i, .notif-dot,
+  .fr-friend-status-dot, .sp-transfer-amt, .lp-quick button.on,
+  .exam-row .exam-row-date { transition: none !important; }
+}

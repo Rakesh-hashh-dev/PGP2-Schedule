@@ -8,6 +8,9 @@ import DayGreeting from "./components/DayGreeting.jsx";
 import SemSummary from "./components/SemSummary.jsx";
 import Timeline from "./components/Timeline.jsx";
 import WeekAgenda from "./components/WeekAgenda.jsx";
+import ClassPrepSheet from "./components/ClassPrepSheet.jsx";
+import { DashboardCustomize, ScheduleStatus } from "./components/DashboardExtras.jsx";
+import { DEFAULT_DASHBOARD, readDashboardPrefs, saveDashboardPrefs } from "./lib/dashboardPrefs.js";
 import ScheduleModal from "./components/ScheduleModal.jsx";
 import WeekGlance from "./components/WeekGlance.jsx";
 import SubjectFilter from "./components/SubjectFilter.jsx";
@@ -30,6 +33,7 @@ import { taughtSectionsByCode, provisionalSectionCodes, applyRosterAllocation, m
 import { lookupOverride, buildOverrideAdds } from "./lib/overrides.js";
 import { safeUrl } from "./lib/safeUrl.js";
 import { toMin, fmtTime12, ymd, clsDate, prettyDate, timeAgo, getSpecialDay } from "./lib/datetime.js";
+import { fetchConsensusWeather } from "./lib/weather.js";
 import {
   swUpdateIsStale, clearSwSeen,
   LAST_USER_KEY, VIEW_KEY, PENDING_INVITE_KEY, USER_SCOPED_KEYS,
@@ -63,6 +67,26 @@ const PetPage = lazy(() => import("./components/PetPage.jsx"));
 const StudentPlanner = lazy(() => import("./components/StudentPlanner.jsx"));
 const CourseHub = lazy(() => import("./components/CourseHub.jsx"));
 const CalendarExportModal = lazy(() => import("./components/CalendarExportModal.jsx"));
+// Fetch a destination only when someone aims at its navigation row. This
+// removes the first-visit loader for common pages without loading every page
+// during startup.
+const viewPreloaders = {
+  attendance: () => import("./components/AttendancePanel.jsx"),
+  exams: () => import("./components/ExamsPanel.jsx"),
+  assignments: () => import("./components/AssignmentsPanel.jsx"),
+  fullSchedule: () => import("./components/FullSchedulePage.jsx"),
+  courseHub: () => import("./components/CourseHub.jsx"),
+  planner: () => import("./components/StudentPlanner.jsx"),
+  notifications: () => import("./components/NotificationsPage.jsx"),
+  friends: () => import("./components/FriendsPanel.jsx"),
+  board: () => import("./components/BoardPage.jsx"),
+  split: () => import("./components/SplitPage.jsx"),
+  leave: () => import("./components/LeavePlanner.jsx"),
+  wrapped: () => import("./components/WrappedView.jsx"),
+  admin: () => import("./components/AdminDashboard.jsx"),
+  pet: () => import("./components/PetPage.jsx"),
+};
+const preloadView = (view) => { viewPreloaders[view]?.().catch(() => {}); };
 import DeadlineStrip from "./components/DeadlineStrip.jsx";
 import CancellationAlert from "./components/CancellationAlert.jsx";
 import ProvisionalSectionNotice from "./components/ProvisionalSectionNotice.jsx";
@@ -175,6 +199,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // no user, so `isAdmin` reads false for the first few renders of every
   // refresh. Anything that revokes admin access has to wait for this.
   const identityResolved = isLoaded && (!isSignedIn || user !== undefined);
+  const [dashboardPrefs, setDashboardPrefs] = useState(readDashboardPrefs);
+  const [classPrepSession, setClassPrepSession] = useState(null);
+  const closePrepSheet = useCallback(() => setClassPrepSession(null), []);
+  useEffect(() => { saveDashboardPrefs(dashboardPrefs); }, [dashboardPrefs]);
 
   // ── User-switch guard ──────────────────────────────────────────
   // When a different account logs in on the same browser, wipe stale
@@ -200,6 +228,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       setAttendance({});
       setCloudChecked(false);
       setClearedGroupIds(new Set());
+      setDashboardPrefs(DEFAULT_DASHBOARD);
+      setClassPrepSession(null);
     }
     try { localStorage.setItem(LAST_USER_KEY, userId); } catch { }
   }, [userId]);
@@ -937,18 +967,15 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   };
 
   useEffect(() => {
-    fetch("https://api.open-meteo.com/v1/forecast?latitude=21.4669&longitude=83.9812&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&temperature_unit=celsius&timezone=Asia%2FKolkata&forecast_days=2")
-      .then(r => r.json())
-      .then(d => setWeather({
-        temp: Math.round(d.current.temperature_2m),
-        code: d.current.weather_code,
-        tomorrow: d.daily ? {
-          max: Math.round(d.daily.temperature_2m_max[1]),
-          min: Math.round(d.daily.temperature_2m_min[1]),
-          code: d.daily.weather_code[1],
-        } : null,
-      }))
-      .catch(() => { });
+    let alive = true;
+    fetchConsensusWeather()
+      .then((data) => {
+        if (alive && data) setWeather(data);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -2637,7 +2664,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         sbCollapsed={sbCollapsed} sbStyle={sbStyle} specialDay={specialDay} termLabel={termLabel}
         termProgressPct={termProgressPct} termWeekInfo={termWeekInfo} termSwitcherEl={termSwitcherEl}
         isOffline={isOffline} setCmdOpen={setCmdOpen} isMac={isMac} view={view} showSbTip={showSbTip}
-        hideSbTip={hideSbTip} setView={setView} setCompareTarget={setCompareTarget}
+        hideSbTip={hideSbTip} setView={setView} preloadView={preloadView} setCompareTarget={setCompareTarget}
         enableAttendance={enableAttendance} enableExams={enableExams} unreadChangeCount={unreadChangeCount}
         enableFriends={enableFriends} markGroupsSeen={markGroupsSeen} markBadgeSeen={markBadgeSeen}
         showBadge={showBadge} unreadFriendCount={unreadFriendCount} showSbTools={showSbTools}
@@ -3004,7 +3031,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           </span>
         </div>
 
-        <div className="desk-layout" style={view === "friends" || view === "admin" || view === "wrapped" || view === "planner" || view === "courseHub" || view === "fullSchedule" ? { gridTemplateColumns: "minmax(0, 1fr)" } : {}}>
+        <div className="desk-layout" style={view === "friends" || view === "admin" || view === "wrapped" || view === "planner" || view === "courseHub" || view === "fullSchedule" || (view === "today" && !dashboardPrefs.weekPanel) ? { gridTemplateColumns: "minmax(0, 1fr)" } : {}}>
           <main className="main-col">
             {v2Active && !mobileV2MoreOpen && (
               <MobileV2Switcher view={view} examsEnabled={enableExams} onNavigate={navigateMobileV2} />
@@ -3106,6 +3133,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                   </span>
                   <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
                       {/* Report Bug button moved to overflow menu */}
+                    {view === "today" && <DashboardCustomize prefs={dashboardPrefs} onChange={setDashboardPrefs} />}
                     <button className="desktop-only vdh-filter-btn" onClick={() => setFilterModalOpen(true)}>
                       <SlidersHorizontal size={14} /> Filter subjects
                     </button>
@@ -3121,6 +3149,14 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                     <WeatherWidget now={now} weather={weather} />
                   </div>
                 </div>
+                {(view === "today" || view === "tomorrow" || view === "week") && <ScheduleStatus
+                  source={scheduleData?._source}
+                  isOffline={isOffline}
+                  syncing={syncing}
+                  syncedAt={syncedAt}
+                  error={syncLogs[0]?.status === "error" ? syncLogs[0].message : null}
+                  onRetry={handleSync}
+                />}
               </>
             )}
             {view !== "split" && view !== "attendance" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && view !== "courseHub" && view !== "leave" && view !== "glance" && view !== "wrapped" && view !== "board" && view !== "admin" && view !== "planner" && !compareTarget && view !== "tomorrow" && (
@@ -3172,19 +3208,13 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 <span className="wrapped-banner-go">Open →</span>
               </button>
             )}
-            {(view === "today" || view === "week") && !compareTarget && (
-              <SemSummary
-                enrolled={enrolled}
-                legend={LEGEND}
-                attendance={attendance}
-                visible={visible}
-                todayISO={todayISO}
-                now={now}
-                classes={CLASSES}
-                onAttendanceClick={enableAttendance ? () => setView("attendance") : undefined}
-                onExamsClick={enableExams ? () => setView("exams") : undefined}
-                onSessionsClick={() => setView("fullSchedule")}
-              />
+            {view === "today" && !compareTarget && (
+              <MarkPrompt list={todayList} now={now} attendance={attendance} markAttendance={markAttendance} />
+            )}
+            {(view === "week" || (view === "today" && dashboardPrefs.visible.summary)) && !compareTarget && (
+              <div className={`dashboard-widgets${dashboardPrefs.density === "compact" ? " is-compact" : ""}`}>
+                <div className="dashboard-widget-summary"><SemSummary enrolled={enrolled} legend={LEGEND} attendance={attendance} visible={visible} todayISO={todayISO} now={now} classes={CLASSES} onAttendanceClick={enableAttendance ? () => setView("attendance") : undefined} onExamsClick={enableExams ? () => setView("exams") : undefined} onSessionsClick={() => setView("fullSchedule")} /></div>
+              </div>
             )}
             {view === "today" && !compareTarget && todayChangeCount > 0 && (
               <div className="tmrw-summary">
@@ -3241,7 +3271,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               className={`${view === "week" ? "pane-today hide-mobile" : "pane-today"} tf-page-stage`}
               data-page={view}
             >
-              <Suspense fallback={<div className="loading-screen" style={{ minHeight: "300px" }}><TermFlowLoader size={48} /></div>}>
+              <Suspense fallback={<div className="loading-screen" style={{ minHeight: "300px" }} role="status" aria-live="polite"><TermFlowLoader size={48} /><span className="tf-section-loading">Opening your page…</span></div>}>
                 {compareTarget
                   ? <CompareView
                     mode={compareTarget.mode}
@@ -3498,7 +3528,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                   )
                                   : tomorrowList.length === 0
                                     ? null
-                                    : <Timeline list={tomorrowList} current={null} now={now} showNowLine={false} label="Tomorrow" attendance={attendance} markAttendance={markAttendance} skipInfo={skipInfo} syncStatus={<span className="live"><span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} />
+                                    : <Timeline list={tomorrowList} current={null} now={now} showNowLine={false} label="Tomorrow" attendance={attendance} markAttendance={markAttendance} skipInfo={skipInfo} syncStatus={<span className="live"><span className="pulse" /> {scheduleData?._source === "live" ? `Live · synced ${syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}` : "Saved schedule"}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} onOpenSession={setClassPrepSession} />
                               : todayList.length === 0 && tomorrowList.length === 0
                                 ? premiumMode && syncing
                                   ? (
@@ -3541,27 +3571,26 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                       )}
                                     </div>
                                 : <>
-                                      <MarkPrompt list={todayList} now={now} attendance={attendance} markAttendance={markAttendance} />
-                                      <Timeline list={todayList} current={current} now={now} dateLabel={prettyDate(todayISO)} attendance={attendance} markAttendance={markAttendance} skipInfo={skipInfo} syncStatus={<span className="live"><span className="pulse" /> Live · synced {syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} />
+                                      <Timeline list={todayList} current={current} now={now} dateLabel={prettyDate(todayISO)} attendance={attendance} markAttendance={markAttendance} skipInfo={skipInfo} syncStatus={<span className="live"><span className="pulse" /> {scheduleData?._source === "live" ? `Live · synced ${syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}` : "Saved schedule"}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} onOpenSession={setClassPrepSession} />
                                     </>}
               </Suspense>
               {view === "today" && !compareTarget && <MessCard now={now} userId={userId} friends={enableStatus ? friends : []} />}
               {view === "tomorrow" && !compareTarget && (
-                <div className="dl-section-wrap">
-                  <DeadlineStrip
-                    visible={visible}
-                    legend={enrolledLegend}
-                    now={now}
-                    onOpenAssignments={() => { setView("assignments"); setCompareTarget(null); }}
-                    onOpenExams={enableExams ? () => { setView("exams"); setCompareTarget(null); } : undefined}
-                  />
-                </div>
+                <DeadlineStrip
+                  visible={visible}
+                  legend={enrolledLegend}
+                  now={now}
+                  onOpenAssignments={() => { setView("assignments"); setCompareTarget(null); }}
+                  onOpenExams={enableExams ? () => { setView("exams"); setCompareTarget(null); } : undefined}
+                />
               )}
             </div>
           </main>
-          <aside className={view !== "week" ? "side-col hide-mobile" : "side-col side-col-week"} style={view === "friends" || view === "admin" || view === "wrapped" || view === "planner" || view === "courseHub" || view === "fullSchedule" ? { display: "none" } : {}}>
-            <WeekAgenda visible={visible} now={now} offset={weekOffset} setOffset={setWeekOffset} todayISO={todayISO} onViewFullSchedule={(iso) => { setJumpToDate(iso); setView("fullSchedule"); }} />
+          <aside className={view !== "week" ? "side-col hide-mobile" : "side-col side-col-week"} style={view === "friends" || view === "admin" || view === "wrapped" || view === "planner" || view === "courseHub" || view === "fullSchedule" || (view === "today" && !dashboardPrefs.weekPanel) ? { display: "none" } : {}}>
+            <WeekAgenda visible={visible} now={now} offset={weekOffset} setOffset={setWeekOffset} todayISO={todayISO} onViewFullSchedule={(iso) => { setJumpToDate(iso); setView("fullSchedule"); }} onOpenSession={setClassPrepSession} />
           </aside>
+
+          {classPrepSession && <ClassPrepSheet session={classPrepSession} termNumber={activeTerm?.number} attendance={attendance} onClose={closePrepSheet} onOpenCourse={(code) => { closePrepSheet(); setCourseHubCode(code); setView("courseHub"); }} onOpenTask={(code, task) => { closePrepSheet(); setAssignmentOpenTarget({ code, task }); setView("assignments"); }} onOpenSchedule={(session) => { closePrepSheet(); setJumpToSession({ date: session.date, code: session.code, start: session.start }); setView("fullSchedule"); }} />}
 
           {/* Floating Schedule button & Modal for wide-content views —
               the docked agenda is hidden there so the wide content gets the full

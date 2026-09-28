@@ -171,7 +171,7 @@ function ForecastTab({ forecast, setMisses }) {
           <div className="planner-forecast-values">
             <div><span>Now</span><strong>{course.currentPct == null ? "—" : `${course.currentPct}%`}</strong></div>
             <ArrowRight size={16} />
-            <div><span>Projected</span><strong>{course.projectedPct == null ? "—" : `${course.projectedPct}%`}</strong></div>
+            <div><span>Projected</span><strong className="tf-motion-value" key={`${course.code}-${course.projectedPct}`}>{course.projectedPct == null ? "—" : `${course.projectedPct}%`}</strong></div>
           </div>
           <div className="planner-stepper" aria-label={`Planned future misses for ${course.code}`}>
             <button aria-label={`Decrease planned misses for ${course.code}`} disabled={!course.plannedMisses} onClick={() => setMisses(course.code, Math.max(0, course.plannedMisses - 1))}>−</button>
