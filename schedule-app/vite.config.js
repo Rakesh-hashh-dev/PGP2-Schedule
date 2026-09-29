@@ -155,9 +155,6 @@ export default defineConfig({
       devOptions: { enabled: true },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,webp,jpg}'],
-        // Serve the branded offline page when a navigation fails and nothing is cached.
-        navigateFallback: '/offline.html',
-        navigateFallbackDenylist: [/^\/api/, /^\/push-sw\.js/, /^\/supabase/],
         globIgnores: [
           '**/*.unused.*',
           '**/push-sw.js',
