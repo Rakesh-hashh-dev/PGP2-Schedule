@@ -21,22 +21,4 @@
       <image:title>About TermFlow — IIM Sambalpur PGP2 Schedule App</image:title>
     </image:image>
   </url>
-  <url>
-    <loc>https://pgp2.termflow.tech/changelog.html</loc>
-    <lastmod>2026-09-29</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://pgp2.termflow.tech/privacy.html</loc>
-    <lastmod>2026-09-29</lastmod>
-    <changefreq>yearly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://pgp2.termflow.tech/terms.html</loc>
-    <lastmod>2026-09-29</lastmod>
-    <changefreq>yearly</changefreq>
-    <priority>0.3</priority>
-  </url>
 </urlset>

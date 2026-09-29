@@ -6,12 +6,9 @@ import "./styles/motion-details.css";
 import "./styles/premium-polish.css";
 import { registerSW } from "virtual:pwa-register";
 import StartupGreeting from "./components/StartupGreeting.jsx";
-import { inject as injectAnalytics } from "@vercel/analytics";
+import { initSentry } from "./lib/sentry.js";
 
 initSentry();
-// Vercel Analytics — privacy-first page-view tracking + Web Vitals (no cookies).
-// The package is already tree-shaken into its own 'analytics' chunk in vite.config.js.
-injectAnalytics({ debug: false });
 
 
 // Start fetching ClerkApp immediately so LCP isn't delayed by the lazy boundary

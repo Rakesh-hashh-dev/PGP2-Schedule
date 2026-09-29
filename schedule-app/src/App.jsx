@@ -2683,7 +2683,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         document.body
       )}
 
-      <a href="#main-content" className="skip-to-content">Skip to main content</a>
       <div className="app">
         <header className="bar">
           <div className="brand">
@@ -3034,10 +3033,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         </div>
 
         <div className="desk-layout" style={view === "friends" || view === "admin" || view === "wrapped" || view === "planner" || view === "courseHub" || view === "fullSchedule" || (view === "today" && !dashboardPrefs.weekPanel) ? { gridTemplateColumns: "minmax(0, 1fr)" } : {}}>
-          <main id="main-content" tabIndex={-1} className="main-col">
-            <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
-              {`Showing ${view} view`}
-            </div>
+          <main className="main-col">
             {v2Active && !mobileV2MoreOpen && (
               <MobileV2Switcher view={view} examsEnabled={enableExams} onNavigate={navigateMobileV2} />
             )}
