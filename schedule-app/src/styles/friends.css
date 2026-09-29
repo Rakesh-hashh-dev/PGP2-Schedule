@@ -3383,9 +3383,3 @@ html[data-theme="dark"] .fr-friend-card.favourite-glow:hover {
 @media (prefers-reduced-motion: reduce) {
   .fr-page .fr-group-card { transition: none; }
 }
-
-.fr-plan-type { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-bottom: 11px; }
-.fr-plan-type button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; border: 1px solid var(--border); border-radius: 11px; background: var(--surface); color: var(--muted); font: 750 12px var(--body); cursor: pointer; }
-.fr-plan-type button.is-active { border-color: color-mix(in srgb, var(--violet) 48%, var(--border)); background: var(--violet-dim); color: var(--violet); }
-.fr-study-course { display: grid; gap: 6px; margin-bottom: 11px; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
-.fr-study-course select { width: 100%; padding: 10px 11px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); font: 600 12px var(--body); text-transform: none; letter-spacing: normal; }

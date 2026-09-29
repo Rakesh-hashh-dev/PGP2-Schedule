@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
-import { ArrowRight, BarChart3, BookOpen, CalendarCheck2, Check, ChevronDown, CircleGauge, Clock, History, ListFilter, ShieldAlert, Target, X } from "lucide-react";
+import { ArrowRight, BarChart3, BookOpen, CalendarCheck2, Check, ChevronDown, CircleGauge, Clock, History, ListFilter, ShieldAlert, X } from "lucide-react";
 import { sessionKey, courseSkipStats, isExamSession } from "../lib/attendance.js";
-import { attendanceCourseState, attendanceCoverage, attendanceRequirement, groupPendingSessions, sessionsToRecover, sortAttendanceCourses } from "../lib/attendanceWorkspace.js";
+import { attendanceCourseState, attendanceCoverage, attendanceRequirement, groupPendingSessions, sortAttendanceCourses } from "../lib/attendanceWorkspace.js";
 import { subjectClass, cleanSessionLabel } from "../lib/subjectColors.js";
 import { fmtTime12 } from "../lib/datetime.js";
 import { EmptyState } from "./ui.jsx";
@@ -159,21 +159,6 @@ function SubjectChart({ courses, isVisible = true }) {
   );
 }
 
-function RecoveryPlanner({ plans, target, onTargetChange }) {
-  const marked = plans.filter((item) => item.marked > 0);
-  return <section className="atx-section atx-recovery" aria-labelledby="recovery-title">
-    <div className="atx-section-head">
-      <div><span className="atx-section-icon"><Target size={17} /></span><div><h2 id="recovery-title">Attendance recovery planner</h2><p>See exactly how the next consecutive classes affect your target.</p></div></div>
-      <label className="atx-recovery-target">Target <select value={target} onChange={(event) => onTargetChange(Number(event.target.value))}>{[60, 70, 75, 80, 90].map((value) => <option key={value} value={value}>{value}%</option>)}</select></label>
-    </div>
-    {marked.length ? <div className="atx-recovery-grid">{marked.map((item) => <article className={`atx-recovery-card${item.needed ? " is-recovering" : " is-ready"}`} key={item.code}>
-      <div><span className="atx-course-code">{item.code}</span><strong>{item.pct}%</strong></div>
-      <h3>{item.name}</h3>
-      {item.needed ? <><p>Attend the next <strong>{item.needed}</strong> consecutive class{item.needed === 1 ? "" : "es"}.</p><small>{item.recoveryDate ? `Earliest recovery: ${fmtDate(item.recoveryDate)}` : `Only ${item.upcomingCount} session${item.upcomingCount === 1 ? " remains" : "s remain"} this term`}</small></> : <><p>Target reached. You can currently miss <strong>{item.safeMisses}</strong> more class{item.safeMisses === 1 ? "" : "es"} and stay at or above {target}%.</p><small>Based on marked sessions only</small></>}
-    </article>)}</div> : <EmptyState compact icon={Target} title="Mark attendance to begin" sub="Recovery dates appear after at least one session is recorded." />}
-  </section>;
-}
-
 export default function AttendancePanel({ allClasses, now, attendance, enrolled, legend, markAttendance, weather, termNumber, onOpenCourse }) {
   const [expandedCode, setExpandedCode] = useState(null);
   const [pendingFilter, setPendingFilter] = useState("all");
@@ -181,7 +166,6 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
   const [historyFilter, setHistoryFilter] = useState("all");
   const [showChart, setShowChart] = useState(false);
   const [showAllPending, setShowAllPending] = useState(false);
-  const [recoveryTarget, setRecoveryTarget] = useState(80);
   const [liveMessage, setLiveMessage] = useState("");
   const codes = Object.keys(enrolled || {});
 
@@ -230,14 +214,6 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
     if (courseFilter === "unmarked") return course.unmarked > 0;
     return true;
   });
-  const recoveryPlans = useMemo(() => byCourse.map((course) => {
-    const upcoming = allClasses.filter((item) => item.type === "class" && !isExamSession(item) && item.code === course.code
-      && (item.section === "Single" || item.section === enrolled[course.code]) && clsEnd(item) > now)
-      .sort((a, b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start));
-    const needed = sessionsToRecover(course.present, course.absent, recoveryTarget);
-    const safeMisses = course.marked ? Math.max(0, Math.floor(course.present / (recoveryTarget / 100) - course.marked)) : 0;
-    return { ...course, needed, safeMisses, upcomingCount: upcoming.length, recoveryDate: needed > 0 && needed <= upcoming.length ? upcoming[needed - 1].date : "" };
-  }), [byCourse, allClasses, enrolled, now, recoveryTarget]);
 
   const handleMark = useCallback((session, status) => {
     markAttendance?.(session, status);
@@ -353,8 +329,6 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
           </article>;
         })}</div> : <p className="atx-filter-empty">No courses match this filter.</p>}
       </section>
-
-      <RecoveryPlanner plans={recoveryPlans} target={recoveryTarget} onTargetChange={setRecoveryTarget} />
     </div>
   );
 }

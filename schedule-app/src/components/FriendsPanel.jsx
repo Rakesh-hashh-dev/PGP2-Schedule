@@ -372,7 +372,7 @@ import { titleLabel } from "../lib/pet.js";
 import { fetchFriendPets } from "../lib/petStorage.js";
 
 export default function FriendsPanel({
-  userId, userName, enrolled, legend, friends, setFriends,
+  userId, userName, enrolled, friends, setFriends,
   groups, setGroups, allClasses, now, onCompare, onGroupCompare, onOpenLeave,
   statusEnabled = true, meetupsEnabled = true, nudgeEnabled = true, awayEnabled = true,
   petsEnabled = true,
@@ -1813,7 +1813,6 @@ export default function FriendsPanel({
           userId={userId}
           userName={userName}
           friends={friends}
-          legend={legend}
           draft={planDraft || groupPlanDraft}
           onDraftConsumed={() => { setGroupPlanDraft(null); onPlanDraftConsumed?.(); }}
           showToast={showToast}

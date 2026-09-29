@@ -10,7 +10,6 @@ import { initSentry } from "./lib/sentry.js";
 
 initSentry();
 
-
 // Start fetching ClerkApp immediately so LCP isn't delayed by the lazy boundary
 const clerkAppPromise = import("./ClerkApp.jsx");
 const ClerkApp = lazy(() => clerkAppPromise);

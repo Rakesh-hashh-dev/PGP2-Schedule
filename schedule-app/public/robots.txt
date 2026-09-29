@@ -8,28 +8,11 @@ Allow: /
 User-agent: ChatGPT-User
 Allow: /
 
-# Allow AI search indexers that surface public info in answer results.
-User-agent: PerplexityBot
-Allow: /
-
-User-agent: ClaudeBot
-Allow: /
-
-User-agent: Applebot
-Allow: /
-
-User-agent: Bingbot
-Allow: /
-
 # Private student data remains behind authentication. Keep training crawlers out.
 User-agent: GPTBot
 Disallow: /
 
 User-agent: Google-Extended
-Disallow: /
-
-# Common Crawl (used for LLM training) — keep out.
-User-agent: CCBot
 Disallow: /
 
 Sitemap: https://pgp2.termflow.tech/sitemap.xml

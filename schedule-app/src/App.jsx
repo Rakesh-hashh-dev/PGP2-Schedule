@@ -5,7 +5,6 @@ import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, C
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
 import DayGreeting from "./components/DayGreeting.jsx";
-import TodayIntelligence from "./components/TodayIntelligence.jsx";
 import SemSummary from "./components/SemSummary.jsx";
 import Timeline from "./components/Timeline.jsx";
 import WeekAgenda from "./components/WeekAgenda.jsx";
@@ -68,7 +67,6 @@ const SplitPage = lazy(() => import("./components/SplitPage.jsx"));
 const PetPage = lazy(() => import("./components/PetPage.jsx"));
 const StudentPlanner = lazy(() => import("./components/StudentPlanner.jsx"));
 const CourseHub = lazy(() => import("./components/CourseHub.jsx"));
-const PlacementWorkspace = lazy(() => import("./components/PlacementWorkspace.jsx"));
 const CalendarExportModal = lazy(() => import("./components/CalendarExportModal.jsx"));
 // Fetch a destination only when someone aims at its navigation row. This
 // removes the first-visit loader for common pages without loading every page
@@ -80,7 +78,6 @@ const viewPreloaders = {
   fullSchedule: () => import("./components/FullSchedulePage.jsx"),
   courseHub: () => import("./components/CourseHub.jsx"),
   planner: () => import("./components/StudentPlanner.jsx"),
-  placements: () => import("./components/PlacementWorkspace.jsx"),
   notifications: () => import("./components/NotificationsPage.jsx"),
   friends: () => import("./components/FriendsPanel.jsx"),
   board: () => import("./components/BoardPage.jsx"),
@@ -367,7 +364,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       if (v === "courses") return "exams"; // retired view → its new home
       if (v === "insights") return "today"; // retired view
       if (v === "glance") return "today"; // peek surface, never sticky
-      if (v === "placements") return "today"; // parked feature
       return v;
     } catch { return "today"; }
   });
@@ -3078,7 +3074,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
 
 
-            {view !== "split" && view !== "attendance" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && view !== "courseHub" && view !== "placements" && view !== "leave" && view !== "glance" && view !== "wrapped" && view !== "board" && !compareTarget && (
+            {view !== "split" && view !== "attendance" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && view !== "courseHub" && view !== "leave" && view !== "glance" && view !== "wrapped" && view !== "board" && !compareTarget && (
               <>
                 {unseenWhatsNew.length > 0 && (
                   <WhatsNewPill item={unseenWhatsNew[0]} count={unseenWhatsNew.length} onOpen={() => setWhatsNewOpen(true)} />
@@ -3160,7 +3156,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 />}
               </>
             )}
-            {view !== "split" && view !== "attendance" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && view !== "courseHub" && view !== "placements" && view !== "leave" && view !== "glance" && view !== "wrapped" && view !== "board" && view !== "admin" && view !== "planner" && !compareTarget && view !== "tomorrow" && (
+            {view !== "split" && view !== "attendance" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && view !== "courseHub" && view !== "leave" && view !== "glance" && view !== "wrapped" && view !== "board" && view !== "admin" && view !== "planner" && !compareTarget && view !== "tomorrow" && (
               view === "week"
                 ? <div className="hide-mobile"><Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} onMarkAttendance={markAttendance} attendance={attendance} sysConfig={sysConfig} onTap={() => setView("fullSchedule")} todayList={todayList} /></div>
                 : <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} onMarkAttendance={markAttendance} attendance={attendance} sysConfig={sysConfig} onTap={() => setView("fullSchedule")} todayList={todayList} />
@@ -3391,8 +3387,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                           onNavigate={(nextView) => { setView(nextView); setCompareTarget(null); }}
                           onOpenChange={(c) => { setJumpToSession({ date: c.date, code: c.code, start: c.start }); setView("fullSchedule"); }}
                         />
-                    : view === "placements"
-                      ? <PlacementWorkspace userId={userId} />
                     : view === "exams"
                       ? <ExamsPanel
                         allClasses={activeClasses}
@@ -3578,20 +3572,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                     </>}
               </Suspense>
               {view === "today" && !compareTarget && <MessCard now={now} userId={userId} friends={enableStatus ? friends : []} />}
-              {view === "today" && !compareTarget && !isArchivedView && (
-                <TodayIntelligence
-                  today={todayList}
-                  tomorrow={tomorrowList}
-                  now={now}
-                  legend={enrolledLegend}
-                  attendance={attendance}
-                  changes={filteredChanges}
-                  announcements={[...activeScheduledAnnouncements, ...(activeGlobalAnnouncement ? [{ id: "global", message: activeGlobalAnnouncement, start: todayISO }] : [])]}
-                  friendNotifications={friendNotifItems}
-                  onNavigate={(nextView) => { setView(nextView); setCompareTarget(null); }}
-                  onOpenChange={(change) => { setJumpToSession({ date: change.date, code: change.code, start: change.start }); setView("fullSchedule"); }}
-                />
-              )}
               {view === "tomorrow" && !compareTarget && (
                 <DeadlineStrip
                   visible={visible}
@@ -3725,9 +3705,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             onViewChange={(v) => setView(v)}
             allClasses={CLASSES}
             friends={friends}
-            legend={LEGEND}
-            changes={filteredChanges}
-            announcements={[...activeScheduledAnnouncements, ...(activeGlobalAnnouncement ? [{ id: "global", message: activeGlobalAnnouncement, start: todayISO }] : [])]}
             onOpenCalendarExport={openCalendarExport}
           />
         </Suspense>

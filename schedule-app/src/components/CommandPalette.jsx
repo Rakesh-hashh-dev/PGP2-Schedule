@@ -1,29 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowRight, BookOpen, Calendar, CalendarCheck2, ClipboardList, Clock, FileText, GraduationCap,
-  Megaphone, NotebookPen, Package, Search, Users, X, Zap,
+  ArrowRight, Calendar, ClipboardList, Clock, GraduationCap,
+  Megaphone, Package, Search, Users, X, Zap,
 } from "lucide-react";
 import { CalendarEventBadgeSVG } from "./CalendarSVGs.jsx";
-import { loadAssignments } from "../lib/assignments.js";
-import { loadCourseHubItems } from "../lib/courseHubStore.js";
-import { flattenAssignments } from "../lib/studentPlanner.js";
 import "../styles/cmdk.css";
 
 const PAGES = [
   { id: "today", label: "Today", detail: "Your day at a glance", Icon: Clock },
   { id: "week", label: "Week", detail: "Upcoming classes", Icon: Calendar },
-  { id: "courseHub", label: "Courses", detail: "Resources and learning progress", Icon: BookOpen },
-  { id: "planner", label: "Personal Planner", detail: "Brief, forecasts, and workload", Icon: CalendarCheck2 },
   { id: "attendance", label: "Attendance", detail: "Marks and status", Icon: ClipboardList },
   { id: "exams", label: "Exams", detail: "Exam schedule", Icon: GraduationCap },
-  { id: "assignments", label: "Assignments", detail: "Tasks and deadlines", Icon: NotebookPen },
   { id: "notifications", label: "Announcements", detail: "Campus updates", Icon: Megaphone },
   { id: "friends", label: "Social", detail: "Friends and activity", Icon: Users },
   { id: "board", label: "Campus Board", detail: "Posts and conversations", Icon: Package },
   { id: "glance", label: "Glance", detail: "Quick overview", Icon: Zap },
 ];
 
-export default function CommandPalette({ isOpen, onClose, onViewChange, allClasses = [], friends = [], legend = {}, changes = [], announcements = [], onOpenCalendarExport }) {
+export default function CommandPalette({ isOpen, onClose, onViewChange, allClasses = [], friends = [], onOpenCalendarExport }) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef(null);
@@ -64,32 +58,15 @@ export default function CommandPalette({ isOpen, onClose, onViewChange, allClass
     allClasses.filter(item => item.type === "class" && item.name && item.code)
       .map(item => [item.code, item])
   ).values()], [allClasses]);
-  const localContent = useMemo(() => {
-    if (!isOpen) return { assignments: [], courseItems: [] };
-    return {
-      assignments: flattenAssignments(loadAssignments(), legend).filter((item) => !item.completed),
-      courseItems: loadCourseHubItems().filter((item) => !item.deleted),
-    };
-  }, [isOpen, legend]);
 
   const groups = [];
-  const quickActions = [{
+  if (!q || "add subjects to calendar ios android ical export sync google apple phone".includes(q)) {
+    groups.push({ label: "Quick action", items: [{
       id: "cal-export", label: "Add subjects to Calendar", detail: "Export to your phone or calendar app",
       icon: <CalendarEventBadgeSVG size={18} />,
       perform: () => { onOpenCalendarExport?.(); onClose(); },
-      keywords: "calendar ios android ical export sync google apple phone",
-    }, {
-      id: "quick-assignment", label: "Add an assignment", detail: "Open the assignment workspace",
-      icon: <NotebookPen size={18} />, perform: () => { onViewChange("assignments"); onClose(); }, keywords: "task deadline homework assignment",
-    }, {
-      id: "quick-attendance", label: "Mark attendance", detail: "Review unmarked classes",
-      icon: <ClipboardList size={18} />, perform: () => { onViewChange("attendance"); onClose(); }, keywords: "present absent mark attendance",
-    }, {
-      id: "quick-study", label: "Plan a study circle", detail: "Invite friends from Social",
-      icon: <Users size={18} />, perform: () => { onViewChange("friends"); onClose(); }, keywords: "study circle group meetup plan friends",
-    }];
-  const matchingActions = quickActions.filter((item) => !q || `${item.label} ${item.detail} ${item.keywords}`.toLowerCase().includes(q));
-  if (matchingActions.length) groups.push({ label: "Quick actions", items: matchingActions.slice(0, q ? 5 : 3) });
+    }] });
+  }
 
   const pages = PAGES.filter(item => !q || `${item.label} ${item.detail}`.toLowerCase().includes(q))
     .map(item => ({
@@ -116,19 +93,6 @@ export default function CommandPalette({ isOpen, onClose, onViewChange, allClass
         perform: () => { onViewChange("friends"); onClose(); },
       }));
     if (people.length) groups.push({ label: "Friends", items: people });
-
-    const assignments = localContent.assignments.filter(item => `${item.title || ""} ${item.code} ${item.courseName || ""} ${item.dueDate || ""}`.toLowerCase().includes(q))
-      .slice(0, 4).map(item => ({ id: `assignment-${item.code}-${item.id}`, label: item.title || "Untitled assignment", detail: `${item.code}${item.dueDate ? ` · Due ${item.dueDate}` : ""}`, icon: <NotebookPen size={18} />, perform: () => { onViewChange("assignments"); onClose(); } }));
-    if (assignments.length) groups.push({ label: "Assignments", items: assignments });
-
-    const resources = localContent.courseItems.filter(item => `${item.title || ""} ${item.code || ""} ${item.kind || ""}`.toLowerCase().includes(q))
-      .slice(0, 4).map(item => ({ id: `course-item-${item.id}`, label: item.title, detail: `${item.code} · ${item.kind === "topic" ? "Revision topic" : item.kind === "note" ? "Class note" : "Course resource"}`, icon: <FileText size={18} />, perform: () => { onViewChange("courseHub"); onClose(); } }));
-    if (resources.length) groups.push({ label: "Course resources", items: resources });
-
-    const updates = [...changes, ...announcements].filter(item => `${item.code || ""} ${item.text || item.message || ""}`.toLowerCase().includes(q))
-      .slice(0, 4).map((item, index) => ({ id: `update-${item.id || item.ts || index}`, label: item.code || "Campus update", detail: item.text || item.message || "Announcement", icon: <Megaphone size={18} />, perform: () => { onViewChange("notifications"); onClose(); } }));
-    if (updates.length) groups.push({ label: "Announcements & changes", items: updates });
-
   }
 
   const results = groups.flatMap(group => group.items);
@@ -164,20 +128,15 @@ export default function CommandPalette({ isOpen, onClose, onViewChange, allClass
   let resultIndex = 0;
   return (
     <div className="cmd-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
-      <div className="cmd-modal cmd-modal--global" ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="cmd-title" onKeyDown={handleModalKeyDown}>
+      <div className="cmd-modal" ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="cmd-title" onKeyDown={handleModalKeyDown}>
         <div className="cmd-heading">
-          <div className="cmd-heading-mark" aria-hidden="true"><Search size={20} strokeWidth={2.1} /></div>
-          <div className="cmd-heading-copy">
-            <p>Quick find</p>
-            <h2 id="cmd-title">Search TermFlow</h2>
-            <span>Jump to a page, class, friend, or action.</span>
-          </div>
+          <div><p>TERMFlow SEARCH</p><h2 id="cmd-title">Where would you like to go?</h2></div>
           <button type="button" className="cmd-close" onClick={onClose} aria-label="Close search"><X size={18} /></button>
         </div>
         <div className="cmd-search-wrap">
           <Search size={19} className="cmd-icon" aria-hidden="true" />
           <input ref={inputRef} className="cmd-input" type="search" aria-label="Search pages, classes, and friends"
-            aria-controls="cmd-results" placeholder="Search pages, classes, friends, or rooms…" value={query}
+            aria-controls="cmd-results" placeholder="Search pages, classes, friends…" value={query}
             onChange={event => { setQuery(event.target.value); setSelectedIndex(0); }} />
           {query && <button type="button" className="cmd-clear" onClick={() => { setQuery(""); setSelectedIndex(0); inputRef.current?.focus(); }} aria-label="Clear search"><X size={15} /></button>}
         </div>
@@ -188,19 +147,17 @@ export default function CommandPalette({ isOpen, onClose, onViewChange, allClass
           ) : groups.map(group => (
             <section className="cmd-section" key={group.label} aria-label={group.label}>
               <div className="cmd-section-title"><span>{group.label}</span><span>{group.items.length}</span></div>
-              <div className="cmd-section-items">
-                {group.items.map(item => {
-                  const index = resultIndex++;
-                  return (
-                    <button type="button" key={item.id} className={`cmd-item${index === activeIndex ? " is-active" : ""}`}
-                      data-result-index={index} onMouseEnter={() => setSelectedIndex(index)} onClick={item.perform}>
-                      <span className="cmd-item-icon" aria-hidden="true">{item.icon}</span>
-                      <span className="cmd-item-copy"><strong>{item.label}</strong><small>{item.detail}</small></span>
-                      <ArrowRight className="cmd-item-arrow" size={16} aria-hidden="true" />
-                    </button>
-                  );
-                })}
-              </div>
+              {group.items.map(item => {
+                const index = resultIndex++;
+                return (
+                  <button type="button" key={item.id} className={`cmd-item${index === activeIndex ? " is-active" : ""}`}
+                    data-result-index={index} onMouseEnter={() => setSelectedIndex(index)} onClick={item.perform}>
+                    <span className="cmd-item-icon" aria-hidden="true">{item.icon}</span>
+                    <span className="cmd-item-copy"><strong>{item.label}</strong><small>{item.detail}</small></span>
+                    <ArrowRight className="cmd-item-arrow" size={16} aria-hidden="true" />
+                  </button>
+                );
+              })}
             </section>
           ))}
         </div>

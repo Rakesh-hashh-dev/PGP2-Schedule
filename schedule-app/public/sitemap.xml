@@ -1,24 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
-        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://pgp2.termflow.tech/</loc>
-    <lastmod>2026-09-29</lastmod>
+    <lastmod>2026-09-20</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
-    <image:image>
-      <image:loc>https://pgp2.termflow.tech/TermFlow-og.jpg</image:loc>
-      <image:title>TermFlow — IIM Sambalpur PGP2 Schedule &amp; Attendance App</image:title>
-    </image:image>
   </url>
   <url>
     <loc>https://pgp2.termflow.tech/about.html</loc>
-    <lastmod>2026-09-29</lastmod>
+    <lastmod>2026-09-20</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
-    <image:image>
-      <image:loc>https://pgp2.termflow.tech/TermFlow-og.jpg</image:loc>
-      <image:title>About TermFlow — IIM Sambalpur PGP2 Schedule App</image:title>
-    </image:image>
   </url>
 </urlset>
