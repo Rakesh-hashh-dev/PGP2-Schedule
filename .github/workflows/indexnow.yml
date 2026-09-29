@@ -17,22 +17,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Ping IndexNow
+        env:
+          INDEXNOW_KEY: ${{ secrets.INDEXNOW_KEY }}
         run: |
           HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
             -X POST "https://api.indexnow.org/indexnow" \
             -H "Content-Type: application/json" \
-            -d '{
-              "host": "pgp2.termflow.tech",
-              "key": "${{ secrets.INDEXNOW_KEY }}",
-              "keyLocation": "https://pgp2.termflow.tech/${{ secrets.INDEXNOW_KEY }}.txt",
-              "urlList": [
-                "https://pgp2.termflow.tech/",
-                "https://pgp2.termflow.tech/about.html",
-                "https://pgp2.termflow.tech/changelog.html",
-                "https://pgp2.termflow.tech/privacy.html",
-                "https://pgp2.termflow.tech/terms.html"
+            -d "{
+              \"host\": \"pgp2.termflow.tech\",
+              \"key\": \"$INDEXNOW_KEY\",
+              \"keyLocation\": \"https://pgp2.termflow.tech/$INDEXNOW_KEY.txt\",
+              \"urlList\": [
+                \"https://pgp2.termflow.tech/\",
+                \"https://pgp2.termflow.tech/about.html\",
+                \"https://pgp2.termflow.tech/changelog.html\",
+                \"https://pgp2.termflow.tech/privacy.html\",
+                \"https://pgp2.termflow.tech/terms.html\"
               ]
-            }')
+            }")
           echo "IndexNow returned HTTP $HTTP_CODE"
           if [ "$HTTP_CODE" -ne 200 ] && [ "$HTTP_CODE" -ne 202 ]; then
             echo "IndexNow ping returned non-success code: $HTTP_CODE"

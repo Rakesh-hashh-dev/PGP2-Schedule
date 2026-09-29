@@ -1,4 +1,4 @@
-﻿name: Dispatch Scheduled Pushes
+name: Dispatch Scheduled Pushes
 
 on:
   schedule:
@@ -11,9 +11,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Call Supabase Edge Function
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PUSH_ADMIN_SECRET: ${{ secrets.PUSH_ADMIN_SECRET }}
         run: |
-          curl -X POST "${{ secrets.SUPABASE_URL }}/functions/v1/dispatch-scheduled-pushes" \
+          curl -X POST "$SUPABASE_URL/functions/v1/dispatch-scheduled-pushes" \
             -H "Content-Type: application/json" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
-            -H "x-admin-key: ${{ secrets.PUSH_ADMIN_SECRET }}" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "x-admin-key: $PUSH_ADMIN_SECRET" \
             -d '{}'
