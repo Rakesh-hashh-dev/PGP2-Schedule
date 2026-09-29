@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en-IN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Changelog | TermFlow</title>
+    <meta name="description" content="TermFlow release notes and feature history — new features, improvements and fixes for IIM Sambalpur PGP2." />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://pgp2.termflow.tech/changelog.html" />
+    <link rel="icon" type="image/svg+xml" href="/termflow-icon.svg" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://pgp2.termflow.tech/changelog.html" />
+    <meta property="og:title" content="Changelog | TermFlow" />
+    <meta property="og:description" content="New features and improvements in TermFlow for IIM Sambalpur PGP2 students." />
+    <meta property="og:image" content="https://pgp2.termflow.tech/TermFlow-og.jpg?v=3" />
+    <style>
+      :root { color-scheme: light dark; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; --page:#f6f5f2; --card:#fff; --ink:#202132; --muted:#646879; --line:#e4e2e8; --accent:#6751bc; background: var(--page); color: var(--ink); }
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body { margin: 0; min-width: 320px; background: var(--page); }
+      a { color: var(--accent); text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      a:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+      .shell { width: min(860px, calc(100% - 48px)); margin-inline: auto; }
+      header { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 82px; }
+      .brand { display: inline-flex; align-items: center; gap: 11px; font-size: 1.15rem; font-weight: 800; letter-spacing: -.03em; text-decoration: none; color: var(--ink); }
+      .cta { display: inline-flex; align-items: center; justify-content: center; min-height: 42px; padding: 10px 17px; border-radius: 999px; background: #272438; color: #fff; font-size: .88rem; font-weight: 750; text-decoration: none; transition: background .18s; }
+      .cta:hover { background: #494064; text-decoration: none; }
+      nav.bread { padding: 10px 0 0; font-size: .82rem; color: var(--muted); }
+      nav.bread ol { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; align-items: center; }
+      nav.bread a { color: var(--muted); }
+      main { padding-bottom: 80px; }
+      .hero { padding: clamp(32px, 5vw, 60px) 0 0; margin-bottom: 56px; }
+      .eyebrow { display: inline-block; color: var(--accent); font-size: .73rem; font-weight: 850; letter-spacing: .14em; text-transform: uppercase; }
+      h1 { margin: 12px 0 8px; font-size: clamp(2rem, 4.5vw, 3rem); letter-spacing: -.055em; line-height: 1.08; }
+      .lede { margin: 0; color: var(--muted); font-size: .95rem; }
+      .releases { display: flex; flex-direction: column; gap: 0; }
+      .release { display: grid; grid-template-columns: 160px 1fr; gap: 32px; padding: 32px 0; border-top: 1px solid var(--line); }
+      .release-meta { padding-top: 4px; }
+      .release-version { font-size: .82rem; font-weight: 750; color: var(--accent); letter-spacing: .04em; font-feature-settings: "tnum"; }
+      .release-date { font-size: .82rem; color: var(--muted); margin-top: 3px; }
+      .release-tag { display: inline-block; margin-top: 8px; padding: 3px 8px; border-radius: 6px; font-size: .7rem; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
+      .tag-feature { background: color-mix(in srgb, var(--accent) 12%, var(--card)); color: var(--accent); }
+      .tag-fix { background: color-mix(in srgb, #22c55e 10%, var(--card)); color: #16a34a; }
+      .tag-infra { background: color-mix(in srgb, #f59e0b 10%, var(--card)); color: #d97706; }
+      .release-body h2 { margin: 0 0 14px; font-size: 1.22rem; font-weight: 750; letter-spacing: -.025em; }
+      .release-body p { color: var(--muted); line-height: 1.7; font-size: .92rem; margin: 0 0 12px; }
+      .feature-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+      .feature-list li { display: flex; gap: 10px; align-items: flex-start; font-size: .92rem; color: var(--muted); line-height: 1.6; }
+      .feature-list li .icon { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+      .feature-list li strong { color: var(--ink); }
+      footer { display: flex; justify-content: space-between; gap: 20px; padding: 24px 0 34px; border-top: 1px solid var(--line); color: var(--muted); font-size: .82rem; margin-top: 32px; }
+      footer a { color: var(--muted); text-decoration: none; }
+      footer a:hover { color: var(--accent); }
+      @media (max-width: 640px) { .release { grid-template-columns: 1fr; gap: 12px; } .release-meta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; } .release-date { margin-top: 0; } }
+      @media (max-width: 520px) { .shell { width: min(100% - 30px, 860px); } h1 { font-size: clamp(1.7rem, 8vw, 2.2rem); } }
+      @media (prefers-color-scheme: dark) { :root { --page: #12131b; --card: #1c1d29; --ink: #f4f1fa; --muted: #b7b5c4; --line: #343343; --accent: #bca8ff; } .cta { background: #eee8ff; color: #211e30; } .cta:hover { background: #d9cafa; } .tag-fix { color: #4ade80; } .tag-infra { color: #fbbf24; } }
+      @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .cta { transition: none; } }
+    </style>
+  </head>
+  <body>
+    <header class="shell">
+      <a class="brand" href="/"><img src="/termflow-icon.svg" alt="" width="32" height="32" />TermFlow</a>
+      <a class="cta" href="/">Open app ↗</a>
+    </header>
+    <nav class="shell bread" aria-label="Breadcrumb">
+      <ol>
+        <li><a href="/">TermFlow</a></li>
+        <li aria-hidden="true">›</li>
+        <li aria-current="page">Changelog</li>
+      </ol>
+    </nav>
+    <main class="shell">
+      <div class="hero">
+        <span class="eyebrow">Release notes</span>
+        <h1>What's new in TermFlow</h1>
+        <p class="lede">Features, improvements and fixes — newest first.</p>
+      </div>
+
+      <div class="releases" role="list">
+
+        <!-- v5.12 -->
+        <article class="release" role="listitem">
+          <div class="release-meta">
+            <div class="release-version">v5.12</div>
+            <div class="release-date">September 2026</div>
+            <span class="release-tag tag-feature">Feature</span>
+          </div>
+          <div class="release-body">
+            <h2>SEO, AI discoverability &amp; legal pages</h2>
+            <ul class="feature-list">
+              <li><span class="icon">✦</span><span><strong>Privacy Policy &amp; Terms of Service</strong> — public legal pages covering data collection, eligibility, and acceptable use.</span></li>
+              <li><span class="icon">✦</span><span><strong>AI discoverability (GEO/LLMO)</strong> — enriched <code>llms.txt</code>, new <code>llms-full.txt</code>, expanded structured data with <code>Organization</code>, <code>HowTo</code>, <code>BreadcrumbList</code>, and <code>speakable</code> schema.</span></li>
+              <li><span class="icon">✦</span><span><strong>About page expanded</strong> — 5 new FAQ entries (attendance tracking, calendar export, reminders, offline mode, eligibility), Quick Start section, and breadcrumb navigation.</span></li>
+              <li><span class="icon">✦</span><span><strong>Offline fallback</strong> — branded offline page with auto-reload on connection restored.</span></li>
+              <li><span class="icon">✦</span><span><strong>Vercel Analytics activated</strong> — privacy-first, cookie-free page analytics and Web Vitals monitoring.</span></li>
+              <li><span class="icon">✦</span><span><strong>Security headers</strong> — Content-Security-Policy and Permissions-Policy added.</span></li>
+              <li><span class="icon">✦</span><span><strong>Changelog</strong> — this page. Public release notes for all TermFlow versions.</span></li>
+            </ul>
+          </div>
+        </article>
+
+        <!-- v5.11 -->
+        <article class="release" role="listitem">
+          <div class="release-meta">
+            <div class="release-version">v5.11</div>
+            <div class="release-date">July 2026</div>
+            <span class="release-tag tag-feature">Feature</span>
+          </div>
+          <div class="release-body">
+            <h2>Courses, Insights &amp; Mess ratings</h2>
+            <ul class="feature-list">
+              <li><span class="icon">✦</span><span><strong>Courses view</strong> — per-course cards with faculty name, room, credit hours, progress, and attendance status.</span></li>
+              <li><span class="icon">✦</span><span><strong>Insights view</strong> — weekly recap with contact hours by day, subject-area split, attendance percentage, and busiest-day highlight.</span></li>
+              <li><span class="icon">✦</span><span><strong>Deadline strip</strong> — "Next 7 days" exam and assignment rail on the Today view.</span></li>
+              <li><span class="icon">✦</span><span><strong>Mess favourites</strong> — star dishes in the full menu modal; highlights carry across the app and a "favs today" pill appears in the mess card.</span></li>
+              <li><span class="icon">✦</span><span><strong>Cancellation banner</strong> — in-app alert on Today/Tomorrow for your cancelled classes.</span></li>
+              <li><span class="icon">✦</span><span><strong>Cancellation push notifications</strong> — opt-in alerts when one of your classes is cancelled (requires backend migration).</span></li>
+              <li><span class="icon">✦</span><span><strong>Cohort mess ratings</strong> — thumbs up/down per meal with live aggregate (% liked · N ratings).</span></li>
+              <li><span class="icon">✦</span><span><strong>PWA deep links</strong> — <code>?view=…</code> query param switches view on load; home-screen shortcuts expanded.</span></li>
+            </ul>
+          </div>
+        </article>
+
+        <!-- v5.x -->
+        <article class="release" role="listitem">
+          <div class="release-meta">
+            <div class="release-version">v5.x</div>
+            <div class="release-date">June 2026</div>
+            <span class="release-tag tag-feature">Feature</span>
+          </div>
+          <div class="release-body">
+            <h2>Sidebar overhaul, Social &amp; Planner</h2>
+            <ul class="feature-list">
+              <li><span class="icon">✦</span><span><strong>Desktop sidebar</strong> — collapsible, pinnnable shortcuts, compact mode, customise panel.</span></li>
+              <li><span class="icon">✦</span><span><strong>Social page</strong> — see cohort members' opt-in activity and study group signals.</span></li>
+              <li><span class="icon">✦</span><span><strong>Student Planner</strong> — personal task and deadline tracking integrated with the schedule.</span></li>
+              <li><span class="icon">✦</span><span><strong>Push notification preferences</strong> — per-class and cohort-wide reminder settings.</span></li>
+              <li><span class="icon">✦</span><span><strong>Mess menu</strong> — daily dining hall menu integrated into the dashboard.</span></li>
+            </ul>
+          </div>
+        </article>
+
+        <!-- v4.x -->
+        <article class="release" role="listitem">
+          <div class="release-meta">
+            <div class="release-version">v4.x</div>
+            <div class="release-date">March – May 2026</div>
+            <span class="release-tag tag-feature">Feature</span>
+          </div>
+          <div class="release-body">
+            <h2>Leave Planner, Exams, Assignments &amp; PWA</h2>
+            <ul class="feature-list">
+              <li><span class="icon">✦</span><span><strong>Leave Planner</strong> — simulate leave days without breaching the 75% attendance threshold.</span></li>
+              <li><span class="icon">✦</span><span><strong>Exams panel</strong> — centralised exam schedule with countdown timers.</span></li>
+              <li><span class="icon">✦</span><span><strong>Assignments panel</strong> — submission deadlines with completion tracking.</span></li>
+              <li><span class="icon">✦</span><span><strong>Calendar export</strong> — export timetable to Google Calendar or iCal.</span></li>
+              <li><span class="icon">✦</span><span><strong>PWA install</strong> — add TermFlow to your home screen; offline schedule caching via Workbox.</span></li>
+              <li><span class="icon">✦</span><span><strong>Dark mode</strong> — system-aware with manual override.</span></li>
+            </ul>
+          </div>
+        </article>
+
+        <!-- v1–3 -->
+        <article class="release" role="listitem">
+          <div class="release-meta">
+            <div class="release-version">v1–3</div>
+            <div class="release-date">Jan – Feb 2026</div>
+            <span class="release-tag tag-feature">Launch</span>
+          </div>
+          <div class="release-body">
+            <h2>Initial launch — timetable and attendance</h2>
+            <ul class="feature-list">
+              <li><span class="icon">✦</span><span><strong>Personalised timetable</strong> — daily and weekly views filtered by electives and section.</span></li>
+              <li><span class="icon">✦</span><span><strong>Attendance tracking</strong> — per-course attendance with 75% threshold indicator.</span></li>
+              <li><span class="icon">✦</span><span><strong>Announcements feed</strong> — schedule changes and campus notices.</span></li>
+              <li><span class="icon">✦</span><span><strong>Google account auth</strong> — sign in with <code>@iimsambalpur.ac.in</code> via Clerk.</span></li>
+            </ul>
+          </div>
+        </article>
+
+      </div>
+    </main>
+    <footer class="shell">
+      <span>TermFlow · IIM Sambalpur PGP2</span>
+      <span>
+        <a href="/">Student portal</a> ·
+        <a href="/about.html">About</a> ·
+        <a href="/changelog.html" aria-current="page">Changelog</a> ·
+        <a href="/privacy.html">Privacy</a>
+      </span>
+    </footer>
+  </body>
+</html>

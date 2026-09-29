@@ -347,6 +347,14 @@ export default function DesktopSidebar({
               {renderSbAvatarWrap()}
               <div className="sb-foot-sep" />
               {renderSbUtilStrip()}
+              <div className="sb-foot-sep" style={{ margin: "2px 0" }} />
+              <div style={{ display: "flex", gap: "10px", padding: "2px 2px 4px", flexWrap: "wrap" }}>
+                {[["What\u2019s new", "/changelog.html"], ["Privacy", "/privacy.html"], ["Terms", "/terms.html"], ["About", "/about.html"]].map(([label, href]) => (
+                  <a key={href} href={href} target="_blank" rel="noopener noreferrer"
+                    style={{ color: "var(--sb-muted, #9997b4)", fontSize: ".7rem", textDecoration: "none", lineHeight: 1.4 }}
+                  >{label}</a>
+                ))}
+              </div>
               <div className="sb-sync-note">
                 <span className="sb-sync-dot" style={{ animationDuration: syncing ? "1s" : "3s" }} />
                 {syncing ? "Syncing…" : syncedAgo === 0 ? "Synced just now" : `Synced ${syncedAgo}m ago`}

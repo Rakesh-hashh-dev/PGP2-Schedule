@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { CalendarPlus, MapPin, X, Check, Ban, Users, Pencil } from "lucide-react";
+import { BookOpenCheck, CalendarPlus, Coffee, MapPin, X, Check, Ban, Users, Pencil } from "lucide-react";
 import { avatarGradient } from "../lib/friends.js";
 import {
   PLACE_PRESETS, fmtMeetupTime, createMeetup, updateMeetup, fetchMyMeetups,
@@ -31,7 +31,7 @@ function defaultDateTime(now = new Date()) {
   };
 }
 
-export function MeetupModal({ userId, userName, friends, draft, onCreated, onClose }) {
+export function MeetupModal({ userId, userName, friends, legend = {}, draft, onCreated, onClose }) {
   const dflt = defaultDateTime();
   let dDraftDate = draft?.date || dflt.date;
   let dDraftTime = draft?.start ? padTime(draft.start) : dflt.time;
@@ -41,7 +41,12 @@ export function MeetupModal({ userId, userName, friends, draft, onCreated, onClo
     dDraftTime = t.substring(0, 5); // "HH:MM"
   }
 
-  const [title, setTitle] = useState(draft?.title || (draft?.id ? "" : "Catch-up"));
+  const existingStudy = draft?.title?.match(/^Study circle · ([A-Z0-9&-]+)(?: — (.*))?$/);
+  const [title, setTitle] = useState(existingStudy ? (existingStudy[2] || "Study circle") : (draft?.title || (draft?.id ? "" : "Catch-up")));
+  const [planType, setPlanType] = useState(existingStudy ? "study" : "social");
+  const [courseCode, setCourseCode] = useState(() => {
+    return existingStudy?.[1] || "";
+  });
   const [place, setPlace] = useState(draft?.place || "");
   const [date, setDate] = useState(dDraftDate);
   const [time, setTime] = useState(dDraftTime);
@@ -56,7 +61,7 @@ export function MeetupModal({ userId, userName, friends, draft, onCreated, onClo
     return next;
   });
 
-  const canCreate = title.trim() && date && time && selected.size > 0 && !saving;
+  const canCreate = (planType === "study" ? courseCode : title.trim()) && date && time && selected.size > 0 && !saving;
 
   const handleCreate = async () => {
     if (!canCreate) return;
@@ -65,10 +70,13 @@ export function MeetupModal({ userId, userName, friends, draft, onCreated, onClo
     if (startsAt.getTime() < Date.now() - 60_000) { setError("That time is in the past."); return; }
     setSaving(true);
     
+    const storedTitle = planType === "study"
+      ? `Study circle · ${courseCode}${title.trim() && title.trim() !== "Study circle" ? ` — ${title.trim()}` : ""}`
+      : title.trim();
     let row;
     if (draft?.id) {
       row = await updateMeetup(draft.id, {
-        title, place, startsAt: startsAt.toISOString(), memberIds: [...selected]
+        title: storedTitle, place, startsAt: startsAt.toISOString(), memberIds: [...selected]
       }, userId);
       setSaving(false);
       if (row) onCreated(row, true);
@@ -76,7 +84,7 @@ export function MeetupModal({ userId, userName, friends, draft, onCreated, onClo
     } else {
       row = await createMeetup({
         userId, userName,
-        title, place,
+        title: storedTitle, place,
         startsAt: startsAt.toISOString(),
         groupId: draft?.groupId || null,
         groupName: draft?.groupName || null,
@@ -96,10 +104,17 @@ export function MeetupModal({ userId, userName, friends, draft, onCreated, onClo
           <button className="fr-modal-close" onClick={onClose}><X size={18} /></button>
         </div>
 
+        <div className="fr-plan-type" aria-label="Plan type">
+          <button className={planType === "social" ? "is-active" : ""} onClick={() => setPlanType("social")}><Coffee size={14} /> Social plan</button>
+          <button className={planType === "study" ? "is-active" : ""} onClick={() => { setPlanType("study"); if (title === "Catch-up") setTitle("Study circle"); }}><BookOpenCheck size={14} /> Study circle</button>
+        </div>
+
+        {planType === "study" && <label className="fr-study-course">Course<select value={courseCode} onChange={(event) => setCourseCode(event.target.value)}><option value="">Choose a course</option>{Object.entries(legend).map(([code, item]) => <option key={code} value={code}>{code} · {item.name}</option>)}</select></label>}
+
         <input
           className="fr-add-input"
           type="text"
-          placeholder="What's the plan?"
+          placeholder={planType === "study" ? "Topic or goal (optional)" : "What's the plan?"}
           maxLength={80}
           value={title}
           onChange={e => setTitle(e.target.value)}
@@ -243,7 +258,7 @@ function PlanCard({ meetup, rsvps, userId, userName, onChanged, onEdit, showToas
   );
 }
 
-export default function MeetupsStrip({ userId, userName, friends, draft, onDraftConsumed, showToast }) {
+export default function MeetupsStrip({ userId, userName, friends, legend, draft, onDraftConsumed, showToast }) {
   const [data, setData] = useState({ meetups: [], rsvpsByMeetup: {} });
   const [modalDraft, setModalDraft] = useState(null); // null = closed, {} = blank
   const [loaded, setLoaded] = useState(false);
@@ -304,6 +319,7 @@ export default function MeetupsStrip({ userId, userName, friends, draft, onDraft
           userId={userId}
           userName={userName}
           friends={friends}
+          legend={legend}
           draft={modalDraft}
           onCreated={(row, isUpdate) => { setModalDraft(null); refetch(); showToast(isUpdate ? "Plan updated" : "Plan created — invites sent", "success"); }}
           onClose={() => setModalDraft(null)}

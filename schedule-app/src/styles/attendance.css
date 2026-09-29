@@ -771,3 +771,17 @@ html[data-theme="dark"] .atx-mark-button.absent:hover {
   .atx-progress-fill { transition: none !important; }
 }
 .atx-open-course { display: inline-flex; align-items: center; gap: 4px; margin: 0 16px 12px; padding: 6px 0; border: 0; background: transparent; color: var(--violet); font: 750 .72rem var(--body); cursor: pointer; }
+
+.atx-recovery-target { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; font-weight: 750; }
+.atx-recovery-target select { height: 34px; padding: 0 9px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--text); font: 750 11px var(--body); }
+.atx-recovery-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 9px; margin-top: 14px; }
+.atx-recovery-card { padding: 13px; border: 1px solid var(--border); border-radius: 13px; background: var(--surface); }
+.atx-recovery-card > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.atx-recovery-card > div > strong { font: 800 16px var(--display); }
+.atx-recovery-card h3 { overflow: hidden; margin: 9px 0 5px; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.atx-recovery-card p { margin: 0 0 5px; color: var(--muted); font-size: 10px; line-height: 1.45; }
+.atx-recovery-card p strong { color: var(--text); }
+.atx-recovery-card small { color: var(--muted); font-size: 9px; }
+.atx-recovery-card.is-recovering { border-color: color-mix(in srgb, #f59e0b 30%, var(--border)); }
+.atx-recovery-card.is-ready { border-color: color-mix(in srgb, #22c55e 22%, var(--border)); }
+@media (max-width: 520px) { .atx-recovery .atx-section-head { align-items: flex-start; flex-direction: column; } .atx-recovery-target { width: 100%; justify-content: space-between; } }

@@ -1,0 +1,33 @@
+.today-intelligence { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(280px, .8fr); gap: 12px; margin: 12px 0 16px; }
+.today-brief-card, .return-digest-card { min-width: 0; padding: 16px; border: 1px solid var(--border); border-radius: 17px; background: var(--card); box-shadow: 0 10px 28px color-mix(in srgb, #090616 5%, transparent); }
+.today-brief-card { background: linear-gradient(135deg, color-mix(in srgb, var(--violet) 7%, var(--card)), var(--card) 54%); }
+.today-intel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 13px; }
+.today-intel-head > span { display: inline-flex; align-items: center; gap: 6px; color: var(--violet); font-size: 9px; font-weight: 850; letter-spacing: .1em; font-family: var(--body); }
+.today-intel-head button { display: inline-flex; align-items: center; gap: 5px; border: 0; background: transparent; color: var(--violet); font-family: var(--body); font-size: 11.5px; font-weight: 700; cursor: pointer; transition: opacity .15s ease; }
+.today-intel-head button:hover { opacity: .85; }
+.today-intel-head > small { color: var(--muted); font-size: 10px; }
+.today-brief-primary { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.today-brief-icon { display: grid; flex: none; place-items: center; width: 38px; height: 38px; border-radius: 12px; background: var(--violet-dim); color: var(--violet); }
+.today-brief-primary > div { display: grid; gap: 3px; min-width: 0; }
+.today-brief-primary strong { overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.today-brief-primary small { overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.today-brief-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-top: 14px; }
+.today-brief-metrics button { display: grid; gap: 2px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 10px; background: color-mix(in srgb, var(--surface) 75%, transparent); color: var(--text); text-align: left; cursor: pointer; }
+.today-brief-metrics strong { font: 800 17px var(--display); }
+.today-brief-metrics span { color: var(--muted); font-size: 9px; }
+.today-brief-metrics button.is-warn strong { color: #d97706; }
+.return-digest-card > strong { display: block; margin-bottom: 8px; font-size: 13px; }
+.return-digest-list { display: grid; gap: 3px; }
+.return-digest-list button { display: grid; grid-template-columns: 29px minmax(0, 1fr) auto; align-items: center; gap: 8px; width: 100%; padding: 6px; border: 0; border-radius: 9px; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.return-digest-list button:hover { background: var(--surface); }
+.return-digest-list button > span:first-child { display: grid; place-items: center; width: 29px; height: 29px; border-radius: 9px; color: var(--violet); background: var(--violet-dim); }
+.return-digest-list button > span:nth-child(2) { display: grid; gap: 2px; min-width: 0; }
+.return-digest-list strong, .return-digest-list small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.return-digest-list strong { font-size: 11px; }.return-digest-list small { color: var(--muted); font-size: 9px; }
+.return-digest-list > button > svg { color: var(--muted); }
+.return-digest-clear { display: flex; align-items: center; gap: 10px; min-height: 65px; color: var(--violet); }
+.return-digest-clear span { display: grid; gap: 3px; }
+.return-digest-clear strong { color: var(--text); font-size: 12px; }
+.return-digest-clear small { color: var(--muted); font-size: 10px; line-height: 1.4; }
+@media (max-width: 900px) { .today-intelligence { grid-template-columns: 1fr; } }
+@media (max-width: 520px) { .today-intelligence { gap: 9px; } .today-brief-card, .return-digest-card { padding: 14px; border-radius: 15px; } .today-brief-metrics button { padding: 8px; } }

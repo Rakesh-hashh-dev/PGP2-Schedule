@@ -30,7 +30,7 @@
     background: rgba(196, 181, 253, 0.16) !important;
     border: 1px solid rgba(196, 181, 253, 0.28) !important;
     border-radius: 12px !important;
-    box-shadow: inset 3px 0 0 #c4b5fd !important;
+    box-shadow: none !important;
     color: #fff !important;
     font-weight: 700;
   }
@@ -771,6 +771,10 @@
 
 .sidebar.sb-aurora .sb-link:hover > svg {
   transform: none;
+}
+
+.sidebar.sb-aurora .sb-link.on {
+  box-shadow: none !important;
 }
 
 .sidebar.sb-aurora .sb-link.on > svg {
