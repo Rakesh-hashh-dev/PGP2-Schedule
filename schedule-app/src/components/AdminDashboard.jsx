@@ -2,20 +2,27 @@ import { useState, useEffect, useRef } from "react";
 import "../styles/admin.css";
 import "../styles/assignments.css";
 import "../styles/cmdk.css";
-import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil, BarChart2, GraduationCap, PartyPopper, Briefcase, MessageSquare, CloudOff, Shield, Smartphone, Copy, Activity, ChevronRight, Clock3, Download, Filter, Eye, ListFilter, PawPrint, Shirt, BookOpen } from "lucide-react";
+import "../styles/content-hub.css";
+import "../styles/broadcast-composers.css";
+import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil, BarChart2, GraduationCap, PartyPopper, Briefcase, CloudOff, Shield, Smartphone, Copy, Activity, ChevronRight, Clock3, Download, Filter, Eye, ListFilter, PawPrint, Shirt, BookOpen, Zap, Info } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { logAdminAction } from "../lib/adminAudit.js";
 import { listAdminRoles, setAdminRole, removeAdminRole, myAdminRole, READ_ONLY_MESSAGE } from "../lib/adminRoles.js";
 import { safeUrl } from "../lib/safeUrl.js";
 import { isPushCronStale, pushCronIssues } from "../lib/pushCronHealth.js";
-import { LEGEND } from "../data/schedule.js";
+import { CLASSES, LEGEND } from "../data/schedule.js";
+import { taughtSectionsByCode } from "../lib/sections.js";
 import snapshotMeta from "../data/snapshot-meta.json";
 import { getSnapshot } from "../lib/sheet.js";
 import { MESS_MENU_FEED_URL } from "../lib/messFeed.js";
 import { classIdent, makeOverrideKey, lookupOverride, parseOverrideKey } from "../lib/overrides.js";
 import { ymd } from "../lib/datetime.js";
 import AdminCommandPalette from "./AdminCommandPalette";
-import FeedbackFlashToast from "./FeedbackFlashToast.jsx";
+import FeedbackFlashScheduler from "./FeedbackFlashScheduler.jsx";
+import FeedbackResponseTracking from "./FeedbackResponseTracking.jsx";
+import PushDeliveryDiagnostics from "./PushDeliveryDiagnostics.jsx";
+import ConfigHistoryPanel from "./ConfigHistoryPanel.jsx";
+import { stageConfigSnapshot } from "../lib/configHistory.js";
 import { WhatsNewPill, WhatsNewModal } from "./WhatsNew.jsx";
 import { PETS, getPetByKey } from "./greetingPets.jsx";
 import PetHat from "./PetHat.jsx";
@@ -26,7 +33,29 @@ import { AdoptionTrends, AttendanceRisk, BroadcastAudienceBuilder, ChangeTimelin
 // Render-stable "now" captured at module load — used for relative-time math in
 // render (inactivity windows, cron staleness) without an impure Date.now() call.
 const LOAD_NOW = Date.now();
+const BANNER_ICON_CHOICES = [
+  { emoji: "⚡", Icon: Zap, label: "Urgent" },
+  { emoji: "📢", Icon: Megaphone, label: "Announcement" },
+  { emoji: "🚨", Icon: AlertTriangle, label: "Alert" },
+  { emoji: "🎉", Icon: PartyPopper, label: "Celebration" },
+  { emoji: "🎓", Icon: GraduationCap, label: "Academic" },
+  { emoji: "ℹ️", Icon: Info, label: "Information" },
+  { emoji: "🗓️", Icon: CalendarDays, label: "Calendar" },
+  { emoji: "🔔", Icon: BellRing, label: "Reminder" }
+];
+const SOCIAL_ICON_CHOICES = {
+  social: { Icon: Users, color: "#8B5CF6" },
+  alert: { Icon: Zap, color: "#F59E0B" },
+  announcement: { Icon: Megaphone, color: "#3B82F6" },
+  sparkles: { Icon: Sparkles, color: "#EC4899" },
+  success: { Icon: Check, color: "#10B981" }
+};
+function SocialFlashPreviewIcon({ type }) {
+  const { Icon, color } = SOCIAL_ICON_CHOICES[type] || SOCIAL_ICON_CHOICES.social;
+  return <span className="broadcast-social-icon" style={{ "--social-icon-color": color }}><Icon size={20} strokeWidth={1.8} aria-hidden="true" /></span>;
+}
 const LOAD_TODAY_START = new Date(LOAD_NOW).setHours(0, 0, 0, 0);
+const FLASH_SECTIONS = taughtSectionsByCode(CLASSES);
 
 // Event-time clock. Module-level indirection so the react-hooks/purity linter
 // (which flags a literal Date.now() reachable from render) stays happy — only
@@ -370,9 +399,12 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [feedbackList, setFeedbackList] = useState([]);
   const [feedbackTriage, setFeedbackTriage] = useState({});
   const [triageUnavailable, setTriageUnavailable] = useState(false);
+  const [responseTrackingUnavailable, setResponseTrackingUnavailable] = useState(false);
   const [triageBusyId, setTriageBusyId] = useState(null);
   const [handoffNotes, setHandoffNotes] = useState([]);
+  const [incidentDraft, setIncidentDraft] = useState(null);
   const [handoffUnavailable, setHandoffUnavailable] = useState(false);
+  const [incidentTrackingUnavailable, setIncidentTrackingUnavailable] = useState(false);
   const [handoffBusy, setHandoffBusy] = useState(false);
   const [workflowMessage, setWorkflowMessage] = useState("");
   const [auditLogs, setAuditLogs] = useState([]);
@@ -480,6 +512,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [audienceFilter, setAudienceFilter] = useState({ section: "", course: "", activity: "all", affected: false });
   const [attendanceRisk, setAttendanceRisk] = useState([]);
   const [attendanceRiskUnavailable, setAttendanceRiskUnavailable] = useState(false);
+  const [attendanceCoverage, setAttendanceCoverage] = useState(null);
+  const [attendanceCoverageUnavailable, setAttendanceCoverageUnavailable] = useState(false);
   const [featureUsageTrend, setFeatureUsageTrend] = useState([]);
   const [featureUsageUnavailable, setFeatureUsageUnavailable] = useState(false);
   const [presentAdmins, setPresentAdmins] = useState([]); // realtime admin presence
@@ -506,6 +540,11 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [socialFlashStatus, setSocialFlashStatus] = useState("");
 
   async function triggerSocialFlashBroadcast() {
+    if (socialFlashUrl.trim() && !safeUrl(socialFlashUrl)) {
+      setSocialFlashStatus("Failed: Enter a valid http, https, mailto, or in-app link.");
+      return;
+    }
+    if (!window.confirm(`Send this social flash live to active sessions?\n\n${socialFlashTitle.trim() || "⚡ New Social Update"}`)) return;
     setSocialFlashSending(true);
     setSocialFlashStatus("");
     try {
@@ -551,10 +590,6 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
   // Feedback Flash Config
   const [feedbackFlashes, setFeedbackFlashes] = useState([]);
-  const [previewFlashId, setPreviewFlashId] = useState(null);
-  // Which flash has its course picker expanded. Only consulted below 640px —
-  // on a wider screen CSS keeps every panel open and hides the toggle.
-  const [openCourseTargets, setOpenCourseTargets] = useState(null);
   // Minute tick so flash status badges/countdowns stay current while the page sits open
   const [flashNow, setFlashNow] = useState(() => Date.now());
   useEffect(() => {
@@ -574,6 +609,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
   // ── Broadcast Tab Accordion States ──
   const [openBcast, setOpenBcast] = useState({ announcements: true, push: false, social: false });
+  const [pushMode, setPushMode] = useState("now");
   const selectBroadcastChannel = (channel) => setOpenBcast({
     announcements: channel === "announcements",
     push: channel === "push",
@@ -900,13 +936,17 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       const { data: fb } = await supabase.from("feedback").select("*").order("created_at", { ascending: false }).limit(200);
       if (fb) setFeedbackList(fb);
 
-      const [triageResult, handoffResult] = await Promise.all([
+      const [triageResult, handoffResult, responseColumns, incidentColumns] = await Promise.all([
         supabase.from("admin_feedback_triage").select("*").limit(500),
         supabase.from("admin_handoff_notes").select("*").order("updated_at", { ascending: false }).limit(100),
+        supabase.from("admin_feedback_triage").select("response_target_hours, first_reply_queued_at").limit(1),
+        supabase.from("admin_handoff_notes").select("incident_key, resolved_at").limit(1),
       ]);
       setTriageUnavailable(!!triageResult.error);
+      setResponseTrackingUnavailable(!!responseColumns.error);
       if (!triageResult.error) setFeedbackTriage(Object.fromEntries((triageResult.data || []).map(row => [row.feedback_id, row])));
       setHandoffUnavailable(!!handoffResult.error);
+      setIncidentTrackingUnavailable(!!incidentColumns.error);
       if (!handoffResult.error) setHandoffNotes(handoffResult.data || []);
 
       const { data: logs } = await supabase.from("admin_audit_logs").select("*").order("created_at", { ascending: false }).limit(200);
@@ -974,12 +1014,24 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       }
     }
 
+    async function fetchAttendanceCoverage() {
+      try {
+        const { data, error } = await supabase.rpc("admin_attendance_coverage");
+        setAttendanceCoverageUnavailable(Boolean(error));
+        setAttendanceCoverage(error ? null : (data || []));
+      } catch {
+        setAttendanceCoverageUnavailable(true);
+        setAttendanceCoverage(null);
+      }
+    }
+
     await Promise.all([
       fetchStatsAndUsers(),
       fetchDbSize(),
       fetchFeedbackAndLogs(),
       fetchSysMetrics(),
       fetchExtraAdminStats(),
+      fetchAttendanceCoverage(),
       fetchInsightsRpcs()
     ]);
     
@@ -1098,7 +1150,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                            (originalFlags?.feedbackFlash && originalFlags.feedbackFlash.id === ff.id ? originalFlags.feedbackFlash : null);
         
         let announcedAt = ff.announcedAt;
-        if (ff.enabled && (!originalFf?.enabled || originalFf?.deadline !== ff.deadline)) {
+        if (ff.enabled && (!originalFf?.enabled || originalFf?.deadline !== ff.deadline || originalFf?.subjectCode !== ff.subjectCode || originalFf?.section !== ff.section)) {
             announcedAt = new Date().toISOString();
         }
         return { ...ff, announcedAt };
@@ -1186,6 +1238,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       } else {
         setForceDeployReady(false);
         setOriginalFlags(newFlags);
+        setFeedbackFlashes(updatedFlashes);
         setLoadedUpdatedAt(nextUpdatedAt);
         onConfigSaved?.(newFlags);
         setSaveMsg("Successfully saved to cloud!");
@@ -1575,7 +1628,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     return { maintenance, staleJobs, items: items.slice(0, 3) };
   })();
   const broadcastOverview = (() => {
-    const today = new Date(LOAD_NOW).toISOString().slice(0, 10);
+    const today = ymd(new Date(flashNow));
     const activeBanners = (flags.scheduledAnnouncements || []).filter(item => item.start <= today && today <= item.end).length;
     const scheduledItems = (flags.scheduledAnnouncements || []).filter(item => item.start > today).length + (flags.scheduledPushes || []).length + (flags.quickLinks || []).filter(item => item.start > today).length;
     return { activeBanners, scheduledItems, subscribers: Number(pushSubCount) || 0 };
@@ -2027,7 +2080,11 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                           u.user_id?.toLowerCase().includes(needle);
     let matchesSection = true;
     if (userSectionFilter !== "All") {
-       matchesSection = Object.entries(u.courses || {}).some(([code, value]) => !code.startsWith("_") && (value === userSectionFilter || code.endsWith(`_${userSectionFilter}`)));
+       matchesSection = Object.entries(u.courses || {}).some(([code, value]) =>
+         !code.startsWith("_")
+         && (!userCourseFilter || code === userCourseFilter || code.startsWith(`${userCourseFilter}_`))
+         && (value === userSectionFilter || code.endsWith(`_${userSectionFilter}`))
+       );
     }
     const matchesCourse = !userCourseFilter || Object.keys(u.courses || {}).some(code => code === userCourseFilter || code.startsWith(`${userCourseFilter}_`));
     const seenAge = u.last_seen_at ? LOAD_NOW - new Date(u.last_seen_at).getTime() : Infinity;
@@ -2111,7 +2168,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   };
 
   // Stale = date-keyed config students still download but that can never apply again
-  const todayISO = new Date().toISOString().split("T")[0];
+  const todayISO = ymd(new Date(flashNow));
   const staleOverrideDates = Object.keys(flags.classOverrides || {}).filter(d => d < todayISO);
   const staleAnnouncements = (flags.scheduledAnnouncements || []).filter(a => a.end && a.end < todayISO);
   const staleQuickLinks = (flags.quickLinks || []).filter(ql => ql.end && ql.end < todayISO);
@@ -2138,7 +2195,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     if (isReadOnlyAdmin || triageUnavailable) return;
     setTriageBusyId(item.id);
     setWorkflowMessage("");
-    const row = { feedback_id: String(item.id), status: next.status, severity: next.severity, owner_id: next.ownerId || null, updated_by: admin_id, updated_at: new Date().toISOString() };
+    const prior = feedbackTriage[String(item.id)];
+    const row = { feedback_id: String(item.id), status: next.status, severity: next.severity, owner_id: next.ownerId || null, updated_by: admin_id, updated_at: new Date().toISOString(), ...(prior?.response_target_hours ? { response_target_hours: prior.response_target_hours } : {}), ...(prior?.first_reply_queued_at ? { first_reply_queued_at: prior.first_reply_queued_at } : {}) };
     const { data, error } = await supabase.from("admin_feedback_triage").upsert(row, { onConflict: "feedback_id" }).select().single();
     if (error) setWorkflowMessage(`Feedback update failed: ${error.message}`);
     else {
@@ -2154,11 +2212,26 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     setTriageBusyId(null);
   };
 
+  const setFeedbackResponseTarget = async (item, hours) => {
+    if (isReadOnlyAdmin || triageUnavailable || responseTrackingUnavailable) return;
+    const prior = feedbackTriage[String(item.id)];
+    const state = feedbackState(item, feedbackTriage);
+    setTriageBusyId(item.id);
+    const row = { feedback_id: String(item.id), status: state.status, severity: state.severity, owner_id: state.ownerId || null, response_target_hours: hours, ...(prior?.first_reply_queued_at ? { first_reply_queued_at: prior.first_reply_queued_at } : {}), updated_by: admin_id, updated_at: new Date().toISOString() };
+    const { data, error } = await supabase.from("admin_feedback_triage").upsert(row, { onConflict: "feedback_id" }).select().single();
+    if (error) setWorkflowMessage(`Response target failed: ${error.message}`);
+    else {
+      setFeedbackTriage(current => ({ ...current, [String(item.id)]: data }));
+      await logAdminAction(admin_id, "feedback_response_target", { feedback: item.id, hours });
+    }
+    setTriageBusyId(null);
+  };
+
   const addHandoffNote = async draft => {
     if (isReadOnlyAdmin || handoffUnavailable) return false;
     setHandoffBusy(true);
     setWorkflowMessage("");
-    const row = { title: draft.title.trim(), detail: draft.detail.trim(), next_action: draft.next_action.trim(), owner_id: draft.owner_id || null, expires_at: draft.expires_at || null, created_by: admin_id, updated_by: admin_id };
+    const row = { title: draft.title.trim(), detail: draft.detail.trim(), next_action: draft.next_action.trim(), owner_id: draft.owner_id || null, expires_at: draft.expires_at || null, created_by: admin_id, updated_by: admin_id, ...(draft.incident_key ? { incident_key: draft.incident_key } : {}) };
     const { data, error } = await supabase.from("admin_handoff_notes").insert(row).select().single();
     if (error) setWorkflowMessage(`Handoff note failed: ${error.message}`);
     else {
@@ -2173,7 +2246,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     if (isReadOnlyAdmin || handoffUnavailable) return;
     setHandoffBusy(true);
     setWorkflowMessage("");
-    const { data, error } = await supabase.from("admin_handoff_notes").update({ status: "closed", updated_by: admin_id, updated_at: new Date().toISOString() }).eq("id", note.id).select().single();
+    const completedAt = new Date().toISOString();
+    const { data, error } = await supabase.from("admin_handoff_notes").update({ status: "closed", updated_by: admin_id, updated_at: completedAt, ...(note.incident_key ? { resolved_at: completedAt } : {}) }).eq("id", note.id).select().single();
     if (error) setWorkflowMessage(`Handoff update failed: ${error.message}`);
     else {
       setHandoffNotes(current => current.map(value => value.id === note.id ? data : value));
@@ -3262,14 +3336,14 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </div>
           <div className="broadcast-section-heading"><div><strong>Start a message</strong><span>Select a channel to open its composer</span></div><a href="#broadcast-activity">View schedule &amp; results <ChevronRight size={14} /></a></div>
           <div className="broadcast-channel-guide" role="group" aria-label="Broadcast channel">
-            <button type="button" className={openBcast.announcements ? "is-selected" : ""} aria-pressed={openBcast.announcements} onClick={() => selectBroadcastChannel("announcements")}><Megaphone size={18} /><span><strong>Banner</strong><small>Date-bound notice in the app</small><em>Saved with deploy</em></span><ChevronRight size={16} /></button>
-            <button type="button" className={openBcast.push ? "is-selected" : ""} aria-pressed={openBcast.push} onClick={() => selectBroadcastChannel("push")}><BellRing size={18} /><span><strong>Web push</strong><small>Alert subscribed devices</small><em>Send now or schedule</em></span><ChevronRight size={16} /></button>
-            <button type="button" className={openBcast.social ? "is-selected" : ""} aria-pressed={openBcast.social} onClick={() => selectBroadcastChannel("social")}><Sparkles size={18} /><span><strong>Social flash</strong><small>Brief alert to active users</small><em>Send live</em></span><ChevronRight size={16} /></button>
+            <button type="button" className={openBcast.announcements ? "is-selected" : ""} aria-pressed={openBcast.announcements} onClick={() => selectBroadcastChannel("announcements")}><span className="broadcast-channel-icon"><Megaphone size={20} strokeWidth={1.8} /></span><span><strong>Banner</strong><small>Date-bound notice in the app</small><em>Saved with deploy</em></span><ChevronRight size={16} /></button>
+            <button type="button" className={openBcast.push ? "is-selected" : ""} aria-pressed={openBcast.push} onClick={() => selectBroadcastChannel("push")}><span className="broadcast-channel-icon"><BellRing size={20} strokeWidth={1.8} /></span><span><strong>Web push</strong><small>Alert subscribed devices</small><em>Send now or schedule</em></span><ChevronRight size={16} /></button>
+            <button type="button" className={openBcast.social ? "is-selected" : ""} aria-pressed={openBcast.social} onClick={() => selectBroadcastChannel("social")}><span className="broadcast-channel-icon"><Sparkles size={20} strokeWidth={1.8} /></span><span><strong>Social flash</strong><small>Brief alert to active users</small><em>Send live</em></span><ChevronRight size={16} /></button>
           </div>
         </section>
 
-        <HandoffNotes notes={handoffNotes} roster={adminRoster} onSave={addHandoffNote} onClose={closeHandoffNote} readOnly={isReadOnlyAdmin} unavailable={handoffUnavailable} busy={handoffBusy} />
-        <IncidentCenter snapshot={snapshotMeta} cronIssues={cronHealth ? pushCronIssues(cronHealth, LOAD_NOW) : []} feedbackCount={pendingFeedbackCount} handoffCount={handoffNotes.filter(note => note.status === "open").length} pushFailure={/^(Failed|Error):/.test(pushResult) ? pushResult : ""} onNavigate={goToAdminTab} />
+        <HandoffNotes key={incidentDraft?.nonce || "general"} prefill={incidentDraft} notes={handoffNotes} roster={adminRoster} onSave={addHandoffNote} onClose={closeHandoffNote} readOnly={isReadOnlyAdmin} unavailable={handoffUnavailable} busy={handoffBusy} />
+        <IncidentCenter snapshot={snapshotMeta} cronIssues={cronHealth ? pushCronIssues(cronHealth, LOAD_NOW) : []} feedbackCount={pendingFeedbackCount} handoffCount={handoffNotes.filter(note => note.status === "open").length} pushFailure={/^(Failed|Error):/.test(pushResult) ? pushResult : ""} notes={handoffNotes} roster={adminRoster} readOnly={isReadOnlyAdmin} handoffUnavailable={handoffUnavailable || incidentTrackingUnavailable} onTrack={issue => { setIncidentDraft({ ...issue, nonce: Date.now() }); requestAnimationFrame(() => document.querySelector('[aria-label="Admin handoff notes"]')?.scrollIntoView({ behavior: "smooth", block: "start" })); }} onNavigate={goToAdminTab} />
 
                 {/* ── 1. Broadcast Studio (Announcements + Push + Social Flash + Quiet Hours) ── */}
         <section className="admin-card admin-span-all admin-g-broadcast broadcast-studio-card" style={{ gridColumn: "1 / -1" }}>
@@ -3280,33 +3354,30 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               <p className="admin-subtext" style={{ margin: 0 }}>Review the audience and delivery timing before you send.</p>
             </div>
             <div className="broadcast-studio-note">
-              {(openBcast.announcements || openBcast.push || openBcast.social) && <AdminActionBadge mode={openBcast.announcements || (openBcast.push && pushScheduleDate && pushScheduleTime) ? "staged" : "live"} />}
-              {openBcast.announcements ? "Save changes, then deploy" : openBcast.push ? (Boolean(pushScheduleDate) !== Boolean(pushScheduleTime) ? "Complete date and time" : pushScheduleDate ? "Scheduled push requires deploy" : "Immediate sends queue for delivery") : openBcast.social ? "Sends to active sessions" : "Select a channel above"}
+              {(openBcast.announcements || openBcast.push || openBcast.social) && <AdminActionBadge mode={openBcast.announcements || (openBcast.push && pushMode === "schedule") ? "staged" : "live"} />}
+              {openBcast.announcements ? "Stage the banner, then save configuration" : openBcast.push ? (pushMode === "schedule" ? "Scheduled pushes require a config save" : "Immediate pushes queue for delivery") : openBcast.social ? "Sends to active sessions now" : "Select a channel above"}
             </div>
           </div>
 
           <div className="bcast-acc-stack">
                         {/* ── Accordion 1: In-App Scheduled Announcements ── */}
-            <div className="bcast-acc" style={{ borderColor: openBcast.announcements ? "var(--amber)" : "var(--border)" }}>
-              <div
+            <div className="bcast-acc broadcast-compose-panel broadcast-compose-panel--banner" data-open={openBcast.announcements}>
+              <button type="button"
                 className="bcast-acc-head"
-                role="button"
-                tabIndex={0}
                 aria-expanded={openBcast.announcements}
-                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleBroadcastChannel("announcements"); } }}
                 onClick={() => toggleBroadcastChannel("announcements")}
-                style={{ background: openBcast.announcements ? "rgba(245,158,11,0.06)" : "transparent" }}>
+                >
                 <div className="bcast-acc-title">
-                  <Megaphone size={17} color="var(--amber)" />
-                  <span className="bcast-acc-name">In-App Banner Announcements</span>
+                  <span className="broadcast-panel-icon"><Megaphone size={18} strokeWidth={1.8} /></span>
+                  <span className="bcast-acc-name">In-App Banner Announcements <small>Visible in the app during the selected dates</small></span>
                   {(flags.scheduledAnnouncements || []).length > 0 && (
                     <span className="bcast-acc-badge" style={{ background: "rgba(245,158,11,0.15)", color: "var(--amber)" }}>
-                      {flags.scheduledAnnouncements.length} active
+                      {flags.scheduledAnnouncements.length} total
                     </span>
                   )}
                 </div>
                 <span className="bcast-acc-toggle">{openBcast.announcements ? "▲" : "▼"}<em>{openBcast.announcements ? "Collapse" : "Expand"}</em></span>
-              </div>
+              </button>
 
               {openBcast.announcements && (
                 <div className="bcast-acc-body">
@@ -3324,80 +3395,17 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     </div>
                   )}
 
-                  {/* Date range presets row */}
-                  <div>
-                    <div className="bcast-field-head">
-                      <label className="bcast-field-label">Schedule &amp; Dates</label>
-                      <div className="bcast-preset-row">
-                        {[
-                          { label: "Today", days: 0 },
-                          { label: "Next 3 Days", days: 3 },
-                          { label: "This Week", days: 7 },
-                          { label: "2 Weeks", days: 14 },
-                          { label: "Term End", termEnd: snapshotMeta.termEnd },
-                        ].map(p => (
-                          <button key={p.label} type="button"
-                            onClick={() => {
-                              const t = new Date();
-                              const start = t.toISOString().split("T")[0];
-                              let end = start;
-                              if (p.termEnd) {
-                                end = p.termEnd;
-                              } else {
-                                const e = new Date(); e.setDate(e.getDate() + p.days);
-                                end = e.toISOString().split("T")[0];
-                              }
-                              setAnnouncementStart(start);
-                              setAnnouncementEnd(end);
-                            }}
-                            className="bcast-preset-chip">
-                            {p.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="bcast-control-row">
-                      <input type="date" value={announcementStart} onChange={e => setAnnouncementStart(e.target.value)} className="admin-input bcast-control bcast-control--date" title="Start Date" aria-label="Announcement start date" />
-                      <input type="date" value={announcementEnd} onChange={e => setAnnouncementEnd(e.target.value)} className="admin-input bcast-control bcast-control--date" title="End Date (Inclusive)" aria-label="Announcement end date" />
-                      <select className="admin-input bcast-control bcast-control--audience" value={announcementTarget} onChange={e => setAnnouncementTarget(e.target.value)} aria-label="Announcement audience">
-                        <option value="global">🌐 Global (All Students)</option>
-                        <option value="section_A">🅰️ Section A Only</option>
-                        <option value="section_B">🅱️ Section B Only</option>
-                        <option value="has_friends">👥 Social Users</option>
-                        <optgroup label="Subject Specific">
-                          {Object.entries(LEGEND || {}).map(([code, info]) => (
-                            <option key={code} value={`subject_${code}`}>{code} — {info.name}</option>
-                          ))}
-                        </optgroup>
-                      </select>
-                      <select className="admin-input bcast-control bcast-control--severity" value={announcementSeverity} onChange={e => setAnnouncementSeverity(e.target.value)} title="Banner severity / colour" aria-label="Banner severity">
-                        <option value="info">🟣 Info (Purple)</option>
-                        <option value="warning">🟡 Warning (Amber)</option>
-                        <option value="urgent">🔴 Urgent (Red)</option>
-                        <option value="celebration">🟢 Celebration (Green 🎉)</option>
-                        <option value="exam">🎓 Exam Alert (Indigo)</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Audience estimator */}
-                  {(() => { const n = audienceCount(announcementTarget); return (
-                    <div style={{ fontSize: 12, color: "var(--muted)", display: "flex", alignItems: "center", gap: 6, marginTop: -4 }}>
-                      <Users size={13} /> Estimated Audience: <b style={{ color: "var(--text)" }}>{n === null ? "Varies per student" : `~${n} students`}</b>
-                    </div>
-                  ); })()}
-
                   {/* Message composition with quick emoji helpers */}
-                  <div>
+                  <div className="broadcast-step">
+                    <div className="broadcast-step-heading"><span>1</span><div><strong>Write the banner</strong><small>Keep the message short enough to scan between classes.</small></div></div>
                     <div className="bcast-field-head">
                       <label className="bcast-field-label">Announcement Message</label>
                       <div className="bcast-icon-row">
                         <span className="bcast-icon-row-label">Add icon:</span>
-                        {["⚡", "📢", "🚨", "🎉", "🎓", "ℹ️", "🗓️", "🔔"].map(em => (
-                          <button key={em} type="button" onClick={() => setAnnouncement(prev => prev ? `${em} ${prev}` : `${em} `)}
-                            className="bcast-icon-btn" aria-label={`Prefix message with ${em}`}>
-                            {em}
+                        {BANNER_ICON_CHOICES.map(({ emoji, Icon, label }) => (
+                          <button key={emoji} type="button" onClick={() => setAnnouncement(prev => prev ? `${emoji} ${prev}` : `${emoji} `)}
+                            className="bcast-icon-btn" aria-label={`Prefix message with ${label} icon`} title={label}>
+                            <Icon size={17} strokeWidth={1.8} aria-hidden="true" />
                           </button>
                         ))}
                       </div>
@@ -3411,9 +3419,71 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     />
                   </div>
 
+                  {/* Date range presets row */}
+                  <div className="broadcast-step">
+                    <div className="broadcast-step-heading"><span>2</span><div><strong>Choose audience and dates</strong><small>The banner appears only during this date range.</small></div></div>
+                    <div className="bcast-field-head">
+                      <label className="bcast-field-label">Schedule &amp; Dates</label>
+                      <div className="bcast-preset-row">
+                        {[
+                          { label: "Today", days: 0 },
+                          { label: "Next 3 Days", days: 3 },
+                          { label: "This Week", days: 7 },
+                          { label: "2 Weeks", days: 14 },
+                          { label: "Term End", termEnd: snapshotMeta.termEnd },
+                        ].map(p => (
+                          <button key={p.label} type="button"
+                            onClick={() => {
+                              const t = new Date();
+                              const start = ymd(t);
+                              const e = new Date(t);
+                              e.setDate(e.getDate() + (p.days || 0));
+                              const end = p.termEnd || ymd(e);
+                              setAnnouncementStart(start);
+                              setAnnouncementEnd(end);
+                            }}
+                            className="bcast-preset-chip">
+                            {p.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="bcast-control-row">
+                      <input type="date" value={announcementStart} onChange={e => setAnnouncementStart(e.target.value)} className="admin-input bcast-control bcast-control--date" title="Start Date" aria-label="Announcement start date" />
+                      <input type="date" value={announcementEnd} onChange={e => setAnnouncementEnd(e.target.value)} min={announcementStart || undefined} className="admin-input bcast-control bcast-control--date" title="End Date (Inclusive)" aria-label="Announcement end date" />
+                      <select className="admin-input bcast-control bcast-control--audience" value={announcementTarget} onChange={e => setAnnouncementTarget(e.target.value)} aria-label="Announcement audience">
+                        <option value="global">Global (All Students)</option>
+                        <option value="section_A">Section A Only</option>
+                        <option value="section_B">Section B Only</option>
+                        <option value="has_friends">Social Users</option>
+                        <optgroup label="Subject Specific">
+                          {Object.entries(LEGEND || {}).map(([code, info]) => (
+                            <option key={code} value={`subject_${code}`}>{code} — {info.name}</option>
+                          ))}
+                        </optgroup>
+                      </select>
+                      <select className="admin-input bcast-control bcast-control--severity" value={announcementSeverity} onChange={e => setAnnouncementSeverity(e.target.value)} title="Banner severity / colour" aria-label="Banner severity">
+                        <option value="info">Info (Purple)</option>
+                        <option value="warning">Warning (Amber)</option>
+                        <option value="urgent">Urgent (Red)</option>
+                        <option value="celebration">Celebration (Green)</option>
+                        <option value="exam">Exam Alert (Indigo)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Audience estimator */}
+                  {(() => { const n = audienceCount(announcementTarget); return (
+                    <div className="broadcast-audience-estimate">
+                      <Users size={13} /> Estimated Audience: <b style={{ color: "var(--text)" }}>{n === null ? "Varies per student" : `~${n} students`}</b>
+                    </div>
+                  ); })()}
+
                   {/* Realtime student preview */}
                   {announcement.trim() && (
-                    <div>
+                    <div className="broadcast-step broadcast-step--preview">
+                      <div className="broadcast-step-heading"><span>3</span><div><strong>Review the student view</strong><small>Preview updates as you write.</small></div></div>
                       <div className="bcast-field-head">
                         <span className="bcast-field-label">Student In-App Live Preview</span>
                         <button type="button" onClick={() => setPreviewTheme(previewTheme === "dark" ? "light" : "dark")} style={{ background: "transparent", border: "1px solid var(--border)", borderRadius: 8, padding: "3px 10px", fontSize: 11, fontWeight: 600, color: "var(--text)", cursor: "pointer" }}>
@@ -3444,11 +3514,12 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                   <div className="bcast-actions">
                     <button className="admin-btn primary" onClick={() => {
                       if (!announcement.trim() || !announcementStart || !announcementEnd) return alert("Please fill message and start/end dates.");
+                      if (announcementEnd < announcementStart) return alert("End date must be on or after the start date.");
                       const newItem = { id: Date.now().toString(), message: announcement.trim(), target: announcementTarget, start: announcementStart, end: announcementEnd, severity: announcementSeverity };
                       setFlags({...flags, scheduledAnnouncements: [...(flags.scheduledAnnouncements || []), newItem]});
                       setAnnouncement(""); setAnnouncementStart(""); setAnnouncementEnd(""); setAnnouncementSeverity("info");
                     }}>
-                      <Megaphone size={14} /> Add Scheduled Announcement
+                      <Megaphone size={14} /> Stage banner
                     </button>
                     <input className="admin-input bcast-tpl-input" value={tplLabel} onChange={e => setTplLabel(e.target.value)} placeholder="Template name (e.g. Exam)" aria-label="Template name" />
                     <button className="admin-btn outline" onClick={saveAnnouncementTemplate} disabled={!announcement.trim() || !tplLabel.trim()} title="Save the current message + severity as a reusable template"><Save size={14} /> Save template</button>
@@ -3468,7 +3539,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
                   {/* ── Active Announcements Manager Table / List ── */}
                   {(() => {
-                    const todayStr = new Date().toISOString().split("T")[0];
+                    const todayStr = todayISO;
                     const items = flags.scheduledAnnouncements || [];
                     const nActive = items.filter(a => a.start <= todayStr && todayStr <= a.end).length;
                     const nUpcoming = items.filter(a => a.start > todayStr).length;
@@ -3528,7 +3599,6 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                             {filtered.map(a => {
                               const isLive = a.start <= todayStr && todayStr <= a.end;
                               const isUpcoming = a.start > todayStr;
-                              const isExpired = a.end < todayStr;
                               const isEditing = editingAnnId === a.id;
 
                               const statusTag = isLive ? { label: "LIVE NOW", color: "var(--live, #10B981)", bg: "rgba(16,185,129,0.12)" }
@@ -3610,6 +3680,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                                       <div className="bcast-actions">
                                         <button className="admin-btn primary" style={{ padding: "6px 14px", fontSize: 12.5 }} onClick={() => {
                                           if (!editAnnMsg.trim() || !editAnnStart || !editAnnEnd) return alert("Fill all fields.");
+                                          if (editAnnEnd < editAnnStart) return alert("End date must be on or after the start date.");
                                           setFlags({
                                             ...flags,
                                             scheduledAnnouncements: (flags.scheduledAnnouncements || []).map(item => item.id === a.id ? {
@@ -3643,18 +3714,15 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               )}
             </div>
 {/* ── Accordion 2: Push Notifications ── */}
-            <div className="bcast-acc" style={{ borderColor: openBcast.push ? "var(--live)" : "var(--border)" }}>
-              <div
+            <div className="bcast-acc broadcast-compose-panel broadcast-compose-panel--push" data-open={openBcast.push}>
+              <button type="button"
                 className="bcast-acc-head"
-                role="button"
-                tabIndex={0}
                 aria-expanded={openBcast.push}
-                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleBroadcastChannel("push"); } }}
                 onClick={() => toggleBroadcastChannel("push")}
-                style={{ background: openBcast.push ? "rgba(31,169,113,0.06)" : "transparent" }}>
+                >
                 <div className="bcast-acc-title">
-                  <BellRing size={17} color="var(--live)" />
-                  <span className="bcast-acc-name">Web Push Notifications</span>
+                  <span className="broadcast-panel-icon"><BellRing size={18} strokeWidth={1.8} /></span>
+                  <span className="bcast-acc-name">Web Push Notifications <small>Delivered to subscribed devices</small></span>
                   {(flags.scheduledPushes || []).length > 0 && (
                     <span className="bcast-acc-badge" style={{ background: "rgba(31,169,113,0.15)", color: "var(--live)" }}>
                       {flags.scheduledPushes.length} queued
@@ -3662,10 +3730,11 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                   )}
                 </div>
                 <span className="bcast-acc-toggle">{openBcast.push ? "▲" : "▼"}<em>{openBcast.push ? "Collapse" : "Expand"}</em></span>
-              </div>
+              </button>
 
               {openBcast.push && (
                 <div className="bcast-acc-body">
+                  <div className="broadcast-step-heading"><span>1</span><div><strong>Compose the push</strong><small>Title and message appear on subscribed devices.</small></div></div>
                   {/* Saved push templates */}
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
                     {(flags.pushTemplates || []).map(t => (
@@ -3694,20 +3763,26 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     <label>Message</label>
                     <textarea className="admin-textarea" value={pushBody} onChange={e => setPushBody(e.target.value)} placeholder="e.g. Today's 11:30 FIN-201 class moved to Room C-104." rows={2} maxLength={200}></textarea>
                   </div>
-                  <div className="admin-field-row">
+                  <div className="broadcast-step-heading"><span>2</span><div><strong>Choose delivery</strong><small>Send immediately or stage a time for the next config save.</small></div></div>
+                  <div className="broadcast-mode-picker" role="group" aria-label="Push delivery mode">
+                    <button type="button" className={pushMode === "now" ? "is-selected" : ""} aria-pressed={pushMode === "now"} onClick={() => { setPushMode("now"); setPushScheduleDate(""); setPushScheduleTime(""); }}><BellRing size={15} /><strong>Send now</strong><small>Confirm and queue immediately</small></button>
+                    <button type="button" className={pushMode === "schedule" ? "is-selected" : ""} aria-pressed={pushMode === "schedule"} onClick={() => { setPushMode("schedule"); setPushTarget("all"); }}><Clock size={15} /><strong>Schedule</strong><small>Everyone · requires config save</small></button>
+                  </div>
+                  {pushMode === "schedule" && <div className="admin-field-row broadcast-schedule-fields">
                     <div className="admin-field">
-                      <label>Schedule Date <span className="admin-optional">(Optional)</span></label>
-                      <input type="date" className="admin-input" value={pushScheduleDate} onChange={e => setPushScheduleDate(e.target.value)} />
+                      <label>Schedule date</label>
+                      <input type="date" className="admin-input" value={pushScheduleDate} min={todayISO} onChange={e => setPushScheduleDate(e.target.value)} />
                     </div>
                     <div className="admin-field">
-                      <label>Schedule Time <span className="admin-optional">(Optional)</span></label>
+                      <label>Schedule time <span className="admin-optional">Local time</span></label>
                       <input type="time" className="admin-input" value={pushScheduleTime} onChange={e => setPushScheduleTime(e.target.value)} />
                     </div>
-                  </div>
+                  </div>}
 
+                  <div className="broadcast-step-heading"><span>3</span><div><strong>Review audience and preview</strong><small>Check who can receive this message before acting.</small></div></div>
                   <div className="admin-field">
                     <label>Audience {pushTarget !== "all" && (() => { const ids = audienceIds(pushTarget); return <span className="admin-optional">— {ids ? `${ids.length} recipient(s)` : "n/a"}</span>; })()}</label>
-                    <select className="admin-input" value={pushTarget} onChange={e => setPushTarget(e.target.value)}>
+                    <select className="admin-input" value={pushTarget} onChange={e => setPushTarget(e.target.value)} disabled={pushMode === "schedule"}>
                       <option value="all">Everyone (broadcast)</option>
                       <option value="section_A">Section A</option>
                       <option value="section_B">Section B</option>
@@ -3722,6 +3797,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                         </optgroup>
                       )}
                     </select>
+                    {pushMode === "schedule" && <p className="broadcast-inline-note">Scheduled pushes currently support everyone. Switch to Send now for a targeted audience.</p>}
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6, alignItems: "center" }}>
                       {(flags.savedAudiences || []).map(sa => (
                         <span key={sa.id} className={`admin-tag${pushTarget === sa.target ? " active" : ""}`}>
@@ -3733,20 +3809,21 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     </div>
                   </div>
 
-                  <BroadcastAudienceBuilder filter={audienceFilter} onChange={next => { setAudienceFilter(next); setPushTarget("custom"); }} result={audiencePreview} courses={Object.keys(LEGEND || {})} changesAvailable={stagedAudienceChanges.length > 0} onSave={() => { setPushTarget("custom"); const label = prompt("Name this audience:", "Custom audience"); if (label?.trim()) setFlags({ ...flags, savedAudiences: [...(flags.savedAudiences || []), { id: Date.now().toString(), label: label.trim(), target: "custom", filter: { ...audienceFilter } }] }); }} />
+                  {pushMode === "now" && <BroadcastAudienceBuilder filter={audienceFilter} onChange={next => { setAudienceFilter(next); setPushTarget("custom"); }} result={audiencePreview} courses={Object.keys(LEGEND || {})} changesAvailable={stagedAudienceChanges.length > 0} onSave={() => { setPushTarget("custom"); const label = prompt("Name this audience:", "Custom audience"); if (label?.trim()) setFlags({ ...flags, savedAudiences: [...(flags.savedAudiences || []), { id: Date.now().toString(), label: label.trim(), target: "custom", filter: { ...audienceFilter } }] }); }} />}
                   {pushTarget !== "all" && <p className="aw-audience-sample">Selected audience: {audienceIds(pushTarget)?.length ?? 0} students · Sample: {allUsers.filter(user => audienceIds(pushTarget)?.includes(user.user_id)).slice(0, 5).map(user => user.name || user.user_id).join(", ") || "none"}</p>}
 
                   <div className="broadcast-delivery-summary" aria-live="polite">
                     <div><span>Audience</span><strong>{pushTarget === "all" ? "Everyone" : `${audienceIds(pushTarget)?.length ?? 0} matching students`}</strong><small>{pushTarget === "all" ? `${broadcastOverview.subscribers} push-ready devices` : "In-app entry and push when subscribed"}</small></div>
-                    <div><span>Timing</span><strong>{pushScheduleDate && pushScheduleTime ? `${pushScheduleDate} at ${pushScheduleTime}` : pushScheduleDate || pushScheduleTime ? "Finish date and time" : "Send now"}</strong><small>{pushScheduleDate && pushScheduleTime ? "Queued with next deploy" : pushScheduleDate || pushScheduleTime ? "Both fields are needed to schedule" : "Usually arrives within a minute"}</small></div>
-                    <div><span>Action</span><strong>{pushScheduleDate && pushScheduleTime ? "Stage scheduled push" : "Send live push"}</strong><small>{pushScheduleDate && pushScheduleTime ? "Save and deploy changes to activate" : "Affects real recipients"}</small></div>
+                    <div><span>Timing</span><strong>{pushMode === "schedule" ? pushScheduleDate && pushScheduleTime ? `${pushScheduleDate} at ${pushScheduleTime}` : "Set date and time" : "Send now"}</strong><small>{pushMode === "schedule" ? "Queued with next config save" : "Usually arrives within a minute"}</small></div>
+                    <div><span>Action</span><strong>{pushMode === "schedule" ? "Stage scheduled push" : "Send live push"}</strong><small>{pushMode === "schedule" ? "Save configuration to activate" : "Affects real recipients"}</small></div>
                   </div>
 
-                  <PushPreview title={pushTitle} body={pushBody} url={pushUrl} when={pushScheduleDate && pushScheduleTime ? `${pushScheduleDate} · ${pushScheduleTime}` : "now"} />
+                  <PushPreview title={pushTitle} body={pushBody} url={pushUrl} when={pushMode === "schedule" && pushScheduleDate && pushScheduleTime ? `${pushScheduleDate} · ${pushScheduleTime}` : "now"} />
 
                   <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                     <button className="admin-btn primary" onClick={() => {
-                      if (pushScheduleDate && pushScheduleTime) {
+                      if (pushMode === "schedule") {
+                        if (!pushScheduleDate || !pushScheduleTime) return alert("Choose both a date and time for the scheduled push.");
                         if (pushTarget !== "all") return alert("Scheduled pushes currently go to everyone. For a targeted push, clear the schedule and send now.");
                         if (!pushTitle.trim() || !pushBody.trim()) return alert("Fill in title and message.");
                         if (new Date(`${pushScheduleDate}T${pushScheduleTime}:00`).getTime() <= Date.now()) return alert("Choose a future date and time for a scheduled push.");
@@ -3770,8 +3847,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                       } else {
                         sendPushBroadcast();
                       }
-                    }} disabled={pushSending || Boolean(pushScheduleDate) !== Boolean(pushScheduleTime)}>
-                      <BellRing size={14} /> {pushSending ? "Sending..." : (pushScheduleDate && pushScheduleTime ? "Queue Push Notification" : pushTarget !== "all" ? "Send to Audience" : "Send to All Subscribers")}
+                    }} disabled={pushSending || (pushMode === "schedule" && (!pushScheduleDate || !pushScheduleTime))}>
+                      <BellRing size={14} /> {pushSending ? "Sending..." : (pushMode === "schedule" ? "Stage scheduled push" : pushTarget !== "all" ? "Send to audience now" : "Send to all subscribers now")}
                     </button>
                     <button className="admin-btn outline" onClick={sendTestPushToMe} disabled={pushSending} title="Delivers only to your own subscribed devices — arrives within ~1 min">
                       <BellRing size={14} /> Send test to me
@@ -3785,25 +3862,23 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             </div>
 
             {/* ── Accordion 3: Social Flash Notifications ── */}
-            <div className="bcast-acc" style={{ borderColor: openBcast.social ? "var(--violet)" : "var(--border)" }}>
-              <div
+            <div className="bcast-acc broadcast-compose-panel broadcast-compose-panel--social" data-open={openBcast.social}>
+              <button type="button"
                 className="bcast-acc-head"
-                role="button"
-                tabIndex={0}
                 aria-expanded={openBcast.social}
-                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleBroadcastChannel("social"); } }}
                 onClick={() => toggleBroadcastChannel("social")}
-                style={{ background: openBcast.social ? "rgba(139,92,246,0.06)" : "transparent" }}>
+                >
                 <div className="bcast-acc-title">
-                  <Sparkles size={17} color="var(--violet)" />
-                  <span className="bcast-acc-name">Social Flash Toast Notifications</span>
+                  <span className="broadcast-panel-icon"><Sparkles size={18} strokeWidth={1.8} /></span>
+                  <span className="bcast-acc-name">Social Flash Toast Notifications <small>Brief alert for active sessions</small></span>
                   <span className="bcast-acc-badge is-realtime">REALTIME</span>
                 </div>
                 <span className="bcast-acc-toggle">{openBcast.social ? "▲" : "▼"}<em>{openBcast.social ? "Collapse" : "Expand"}</em></span>
-              </div>
+              </button>
 
               {openBcast.social && (
                 <div className="bcast-acc-body">
+                  <div className="broadcast-step-heading"><span>1</span><div><strong>Compose the flash</strong><small>A brief toast appears to students with an active session.</small></div></div>
                   <div className="admin-field">
                     <label>Title</label>
                     <input className="admin-input" value={socialFlashTitle} onChange={e => setSocialFlashTitle(e.target.value)} placeholder="⚡ New Social Update" />
@@ -3812,15 +3887,16 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     <label>Message</label>
                     <textarea className="admin-textarea" value={socialFlashMsg} onChange={e => setSocialFlashMsg(e.target.value)} placeholder="Someone added a new status on TermFlow!" rows={2}></textarea>
                   </div>
+                  <div className="broadcast-step-heading"><span>2</span><div><strong>Choose appearance and action</strong><small>The action link is optional.</small></div></div>
                   <div className="admin-grid-2">
                     <div className="admin-field">
                       <label>Icon Style</label>
                       <select className="admin-input" value={socialFlashIcon} onChange={e => setSocialFlashIcon(e.target.value)}>
-                        <option value="social">👥 Social (Purple)</option>
-                        <option value="alert">⚡ Alert (Amber)</option>
-                        <option value="announcement">📣 Announcement (Blue)</option>
-                        <option value="sparkles">✨ Sparkles (Pink)</option>
-                        <option value="success">✅ Success (Green)</option>
+                        <option value="social">Social (Purple)</option>
+                        <option value="alert">Alert (Amber)</option>
+                        <option value="announcement">Announcement (Blue)</option>
+                        <option value="sparkles">Sparkles (Pink)</option>
+                        <option value="success">Success (Green)</option>
                       </select>
                     </div>
                     <div className="admin-field">
@@ -3838,7 +3914,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                   </div>
 
                   {/* Toast preview */}
-                  <div style={{ marginTop: 4 }}>
+                  <div className="broadcast-social-preview" style={{ marginTop: 4 }}>
+                    <div className="broadcast-step-heading"><span>3</span><div><strong>Review the student toast</strong><small>Use the local test to see it on screen before sending.</small></div></div>
                     <div className="bcast-field-head">
                       <span className="bcast-field-label">Live Toast Preview ({socialFlashDuration / 1000}s)</span>
                       <button type="button" onClick={testSocialFlashLocal} className="admin-btn outline bcast-test-btn" style={{ color: "var(--violet)", borderColor: "rgba(139,92,246,0.3)" }}>
@@ -3858,24 +3935,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                       gap: 12,
                       boxShadow: "0 4px 20px rgba(0, 0, 0, 0.25)"
                     }}>
-                      <div style={{
-                        flexShrink: 0,
-                        width: 34,
-                        height: 34,
-                        borderRadius: 8,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        marginTop: 2,
-                        background: socialFlashIcon === "alert" ? "rgba(245, 158, 11, 0.2)" : socialFlashIcon === "announcement" ? "rgba(59, 130, 246, 0.2)" : socialFlashIcon === "sparkles" ? "rgba(236, 72, 153, 0.2)" : socialFlashIcon === "success" ? "rgba(16, 185, 129, 0.2)" : "rgba(139, 92, 246, 0.2)",
-                        border: `1px solid ${socialFlashIcon === "alert" ? "#F59E0B44" : socialFlashIcon === "announcement" ? "#3B82F644" : socialFlashIcon === "sparkles" ? "#EC489944" : socialFlashIcon === "success" ? "#10b98144" : "#8B5CF644"}`
-                      }}>
-                        {socialFlashIcon === "alert" && <span style={{ fontSize: 16 }}>⚡</span>}
-                        {socialFlashIcon === "announcement" && <span style={{ fontSize: 16 }}>📣</span>}
-                        {socialFlashIcon === "sparkles" && <span style={{ fontSize: 16 }}>✨</span>}
-                        {socialFlashIcon === "success" && <span style={{ fontSize: 16 }}>✅</span>}
-                        {socialFlashIcon === "social" && <span style={{ fontSize: 16 }}>👥</span>}
-                      </div>
+                      <SocialFlashPreviewIcon type={socialFlashIcon} />
 
                       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
                         <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--ink, #fff)" }}>
@@ -3896,7 +3956,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                       onClick={triggerSocialFlashBroadcast}
                     >
                       <Sparkles size={14} />
-                      {socialFlashSending ? "Pushing Live..." : "Push Social Flash to All Users"}
+                      {socialFlashSending ? "Sending live..." : "Send social flash live"}
                     </button>
                     {socialFlashStatus && (
                       <span style={{ fontSize: 12.5, fontWeight: 600, color: socialFlashStatus.startsWith("Failed") ? "var(--danger)" : "var(--live)" }}>
@@ -3914,7 +3974,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             <div className="bcast-quiet-controls">
               <label className="admin-flag-item" style={{ margin: 0, fontSize: 13 }}>
                 <input type="checkbox" checked={!!quietHours.enabled} onChange={e => setFlags({ ...flags, quietHours: { ...quietHours, enabled: e.target.checked } })} />
-                <span style={{ fontWeight: 600 }}>Quiet Hours Guard (IST)</span>
+                <span style={{ fontWeight: 600 }}>Web push quiet hours (IST)</span>
               </label>
               <div className="bcast-quiet-times" style={{ opacity: quietHours.enabled ? 1 : 0.45 }}>
                 <input type="time" className="admin-input" aria-label="Quiet hours start" value={quietHours.start || "23:00"} disabled={!quietHours.enabled} onChange={e => setFlags({ ...flags, quietHours: { ...quietHours, start: e.target.value } })} />
@@ -3925,7 +3985,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             {quietHours.enabled && (() => { const q = inQuietHours(flashNow); return (
               <div className="bcast-quiet-status" style={{ color: q ? "var(--danger)" : "var(--live)" }}>
                 <span style={{ background: q ? "var(--danger)" : "var(--live)" }} />
-                {q ? "Within quiet hours (warning active)" : "Outside quiet hours (normal)"}
+                {q ? "Within quiet hours (push warning active)" : "Outside quiet hours"}
               </div>
             ); })()}
           </div>
@@ -4024,70 +4084,38 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 </div>
               )}
             </div>
+            <PushDeliveryDiagnostics broadcasts={pushStats || []} />
           </details>
         </section>
 
         {/* ── 3. Content Hub (What's New + Quick Links + Update Prompt) ── */}
-        <section className="admin-card admin-span-all admin-g-broadcast" style={{ gridColumn: "1 / -1" }}>
-          <div className="bcast-studio-head">
+        <section className="admin-card admin-span-all admin-g-broadcast content-hub" style={{ gridColumn: "1 / -1" }}>
+          <div className="content-hub-hero">
             <div>
-              <h2 style={{ marginBottom: 4 }}><Sparkles size={20} color="var(--violet)" /> App Content Hub</h2>
-              <p className="admin-subtext" style={{ margin: 0 }}>Publish in-app feature notes, dynamic sidebar links, and client update prompts.</p>
+              <span className="content-hub-kicker"><Sparkles size={14} /> In-app content</span>
+              <h2>App Content Hub</h2>
+              <p>Manage feature notes, student links, and the message shown when a new app version is ready.</p>
             </div>
-            <div className="bcast-tabs" role="group" aria-label="Content sections">
-              <button
-                type="button"
-                className="bcast-tab"
-                aria-pressed={openContent.whatsNew}
-                onClick={() => setOpenContent(o => ({ ...o, whatsNew: !o.whatsNew }))}
-                style={{
-                  border: openContent.whatsNew ? "1.5px solid var(--violet)" : "1px solid var(--border)",
-                  background: openContent.whatsNew ? "rgba(109,91,208,0.12)" : "var(--bg)",
-                  color: openContent.whatsNew ? "var(--violet)" : "var(--muted)",
-                }}>
-                <Sparkles size={14} /> What&rsquo;s New {(flags.whatsNew || []).length > 0 ? `(${flags.whatsNew.length})` : ""}
-              </button>
-              <button
-                type="button"
-                className="bcast-tab"
-                aria-pressed={openContent.quickLinks}
-                onClick={() => setOpenContent(o => ({ ...o, quickLinks: !o.quickLinks }))}
-                style={{
-                  border: openContent.quickLinks ? "1.5px solid var(--blue)" : "1px solid var(--border)",
-                  background: openContent.quickLinks ? "rgba(59,130,246,0.12)" : "var(--bg)",
-                  color: openContent.quickLinks ? "var(--blue)" : "var(--muted)",
-                }}>
-                <Flag size={14} /> Quick Links {(flags.quickLinks || []).length > 0 ? `(${flags.quickLinks.length})` : ""}
-              </button>
-              <button
-                type="button"
-                className="bcast-tab"
-                aria-pressed={openContent.updatePrompt}
-                onClick={() => setOpenContent(o => ({ ...o, updatePrompt: !o.updatePrompt }))}
-                style={{
-                  border: openContent.updatePrompt ? "1.5px solid var(--live)" : "1px solid var(--border)",
-                  background: openContent.updatePrompt ? "rgba(31,169,113,0.12)" : "var(--bg)",
-                  color: openContent.updatePrompt ? "var(--live)" : "var(--muted)",
-                }}>
-                <RefreshCw size={14} /> Update Prompt
-              </button>
-            </div>
+            <div className="content-hub-save-note"><Save size={15} /><span>Edits are staged until you save the admin configuration.</span></div>
+          </div>
+          <div className="content-hub-overview" aria-label="Content overview">
+            <div className="content-hub-stat content-hub-stat--violet"><Sparkles size={17} /><strong>{(flags.whatsNew || []).length}</strong><span>Feature notes</span></div>
+            <div className="content-hub-stat content-hub-stat--blue"><Flag size={17} /><strong>{(flags.quickLinks || []).filter(q => q.title && safeUrl(q.url) && q.start <= todayISO && q.end >= todayISO).length}</strong><span>Links live today</span></div>
+            <div className="content-hub-stat content-hub-stat--live"><RefreshCw size={17} /><strong>{updatePromptTitle.trim() ? "Ready" : "Default"}</strong><span>Update message</span></div>
           </div>
 
-          <div className="bcast-acc-stack">
+          <div className="bcast-acc-stack content-hub-stack">
             {/* ── Content Section 1: What's New ── */}
-            <div className="bcast-acc" style={{ borderColor: openContent.whatsNew ? "var(--violet)" : "var(--border)" }}>
-              <div
+            <div className="bcast-acc content-hub-panel content-hub-panel--violet" data-open={openContent.whatsNew}>
+              <button
+                type="button"
                 className="bcast-acc-head"
-                role="button"
-                tabIndex={0}
                 aria-expanded={openContent.whatsNew}
-                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenContent(o => ({ ...o, whatsNew: !o.whatsNew })); } }}
                 onClick={() => setOpenContent(o => ({ ...o, whatsNew: !o.whatsNew }))}
-                style={{ background: openContent.whatsNew ? "rgba(109,91,208,0.06)" : "transparent" }}>
+                >
                 <div className="bcast-acc-title">
                   <Sparkles size={17} color="var(--violet)" />
-                  <span className="bcast-acc-name">What&rsquo;s New (Feature Updates)</span>
+                  <span className="bcast-acc-name">What&rsquo;s New <small>Feature notes shown to students</small></span>
                   {(flags.whatsNew || []).length > 0 && (
                     <span className="bcast-acc-badge" style={{ background: "rgba(109,91,208,0.15)", color: "var(--violet)" }}>
                       {flags.whatsNew.length} entries
@@ -4095,10 +4123,11 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                   )}
                 </div>
                 <span className="bcast-acc-toggle">{openContent.whatsNew ? "▲" : "▼"}<em>{openContent.whatsNew ? "Collapse" : "Expand"}</em></span>
-              </div>
+              </button>
 
               {openContent.whatsNew && (
                 <div className="bcast-acc-body">
+                  <div className="content-hub-editor-head"><div><strong>{wnEditingId ? "Edit feature note" : "Write a feature note"}</strong><span>Short, specific updates work best in the student view.</span></div><span>Up to 10 notes</span></div>
                   <div className="admin-field-row content-emoji-row">
                     <div className="admin-field content-emoji-field">
                       <label>Emoji</label>
@@ -4115,7 +4144,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                   </div>
 
                   {wnTitle.trim() && (
-                    <div style={{ marginTop: 2, marginBottom: 8 }}>
+                    <div className="content-hub-preview" style={{ marginTop: 2, marginBottom: 8 }}>
                       <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--muted)", display: "block", marginBottom: 6 }}>Student preview — click pill to test modal</span>
                       <WhatsNewPill
                         item={{ id: "preview", emoji: wnEmoji.trim(), title: wnTitle.trim(), desc: wnDesc.trim(), date: new Date().toISOString().split("T")[0] }}
@@ -4153,7 +4182,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                       }
                       setWnEmoji(""); setWnTitle(""); setWnDesc(""); setWnEditingId(null);
                     }}>
-                      <Sparkles size={14} /> {wnEditingId ? "Save Changes" : "Add Feature Update"}
+                      <Sparkles size={14} /> {wnEditingId ? "Stage changes" : "Stage feature note"}
                     </button>
                     {wnEditingId && (
                       <button className="admin-btn outline" onClick={() => { setWnEmoji(""); setWnTitle(""); setWnDesc(""); setWnEditingId(null); }}>
@@ -4162,9 +4191,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     )}
                   </div>
 
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
+                  <div className="content-hub-list-head"><strong>Current notes</strong><span>Newest first · edit or remove before saving</span></div>
+                  <div className="content-hub-items">
                     {(flags.whatsNew || []).map(w => (
-                      <div key={w.id} className="admin-list-item" style={{ gap: 10, background: w.id === wnEditingId ? "rgba(109, 91, 208, 0.08)" : "var(--bg)", border: `1px solid ${w.id === wnEditingId ? "var(--violet)" : "var(--border)"}` }}>
+                      <div key={w.id} className={`admin-list-item content-hub-list-item${w.id === wnEditingId ? " is-editing" : ""}`}>
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{w.emoji ? `${w.emoji} ` : ""}{w.title}</div>
                           <div style={{ fontSize: 11, color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{w.date}{w.desc ? ` — ${w.desc}` : ""}</div>
@@ -4179,106 +4209,110 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                         </div>
                       </div>
                     ))}
+                    {(flags.whatsNew || []).length === 0 && <div className="content-hub-empty">No feature notes staged yet.</div>}
                   </div>
                 </div>
               )}
             </div>
 
             {/* ── Content Section 2: Dynamic Quick Links ── */}
-            <div className="bcast-acc" style={{ borderColor: openContent.quickLinks ? "var(--blue)" : "var(--border)" }}>
-              <div
+            <div className="bcast-acc content-hub-panel content-hub-panel--blue" data-open={openContent.quickLinks}>
+              <button
+                type="button"
                 className="bcast-acc-head"
-                role="button"
-                tabIndex={0}
                 aria-expanded={openContent.quickLinks}
-                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenContent(o => ({ ...o, quickLinks: !o.quickLinks })); } }}
                 onClick={() => setOpenContent(o => ({ ...o, quickLinks: !o.quickLinks }))}
-                style={{ background: openContent.quickLinks ? "rgba(59,130,246,0.06)" : "transparent" }}>
+                >
                 <div className="bcast-acc-title">
                   <Flag size={17} color="var(--blue)" />
-                  <span className="bcast-acc-name">Dynamic Quick Links</span>
+                  <span className="bcast-acc-name">Quick Links <small>Date-bound links in the student sidebar</small></span>
                   {(flags.quickLinks || []).length > 0 && (
                     <span className="bcast-acc-badge" style={{ background: "rgba(59,130,246,0.15)", color: "var(--blue)" }}>
-                      {flags.quickLinks.length} active
+                      {flags.quickLinks.length} total
                     </span>
                   )}
                 </div>
                 <span className="bcast-acc-toggle">{openContent.quickLinks ? "▲" : "▼"}<em>{openContent.quickLinks ? "Collapse" : "Expand"}</em></span>
-              </div>
+              </button>
 
               {openContent.quickLinks && (
                 <div className="bcast-acc-body">
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <input type="text" placeholder="Link Title (e.g. Exam Portal)" value={qlTitle} onChange={e => setQlTitle(e.target.value)} className="admin-input" style={{ flex: 1, padding: "8px", minWidth: 150 }} />
-                    <input type="url" placeholder="https://..." value={qlUrl} onChange={e => setQlUrl(e.target.value)} className="admin-input" style={{ flex: 2, padding: "8px", minWidth: 200 }} />
+                  <div className="content-hub-editor-head"><div><strong>Add a student link</strong><span>Links appear only between the dates you set.</span></div><span>Order controls sidebar position</span></div>
+                  <div className="content-hub-form-grid">
+                    <div className="admin-field"><label htmlFor="content-link-title">Link title</label><input id="content-link-title" type="text" placeholder="e.g. Exam Portal" value={qlTitle} onChange={e => setQlTitle(e.target.value)} className="admin-input" maxLength={80} /></div>
+                    <div className="admin-field"><label htmlFor="content-link-url">Destination URL</label><input id="content-link-url" type="url" placeholder="https://..." value={qlUrl} onChange={e => setQlUrl(e.target.value)} className="admin-input" /></div>
                   </div>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <input type="date" value={qlStart} onChange={e => setQlStart(e.target.value)} className="admin-input" style={{ flex: "1 1 130px", padding: "8px" }} title="Start Date" />
-                    <input type="date" value={qlEnd} onChange={e => setQlEnd(e.target.value)} className="admin-input" style={{ flex: "1 1 130px", padding: "8px" }} title="End Date (Inclusive)" />
-                    <button className="admin-btn primary" style={{ flex: "1 1 130px" }} onClick={() => {
-                      if (!qlTitle || !qlUrl || !qlStart || !qlEnd) return alert("Fill all fields.");
+                  <div className="content-hub-date-row">
+                    <div className="admin-field"><label htmlFor="content-link-start">Start date</label><input id="content-link-start" type="date" value={qlStart} onChange={e => setQlStart(e.target.value)} className="admin-input" /></div>
+                    <div className="admin-field"><label htmlFor="content-link-end">End date <span className="admin-optional">Inclusive</span></label><input id="content-link-end" type="date" value={qlEnd} onChange={e => setQlEnd(e.target.value)} className="admin-input" min={qlStart || undefined} /></div>
+                    <button type="button" className="admin-btn primary" onClick={() => {
+                      if (!qlTitle.trim() || !qlUrl.trim() || !qlStart || !qlEnd) return alert("Fill all link fields.");
+                      if (qlEnd < qlStart) return alert("End date must be on or after the start date.");
                       const safe = safeUrl(qlUrl);
                       if (!safe) return alert("That URL isn't allowed — links must start with http://, https:// or mailto:.");
-                      const newItem = { id: Date.now().toString(), title: qlTitle, url: safe, start: qlStart, end: qlEnd };
+                      const newItem = { id: Date.now().toString(), title: qlTitle.trim(), url: safe, start: qlStart, end: qlEnd };
                       setFlags({...flags, quickLinks: [...(flags.quickLinks || []), newItem]});
                       setQlTitle(""); setQlUrl(""); setQlStart(""); setQlEnd("");
                     }}>
-                      Add Quick Link
+                      Stage link
                     </button>
                   </div>
 
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
+                  <div className="content-hub-list-head"><strong>Sidebar order</strong><span>Move links up or down before saving</span></div>
+                  <div className="content-hub-items">
                     {(flags.quickLinks || []).map((ql, idx) => (
-                      <div key={ql.id} className="admin-list-item" style={{ padding: "8px 12px" }}>
-                        <div style={{ flex: 1 }}>
+                      <div key={ql.id} className="admin-list-item content-hub-list-item">
+                        <span className="content-hub-order">{idx + 1}</span>
+                        <div className="content-hub-link-info">
                           <div style={{ fontSize: 13, fontWeight: 600 }}>{ql.title}</div>
-                          <div style={{ fontSize: 11, color: "var(--muted)" }}>{ql.url} · {ql.start} to {ql.end}</div>
+                          <div className="content-hub-link-url">{ql.url}</div>
+                          <div className="content-hub-link-dates">{ql.start} → {ql.end} <span className={`content-hub-link-state ${todayISO < ql.start ? "is-upcoming" : todayISO > ql.end ? "is-expired" : "is-live"}`}>{todayISO < ql.start ? "Upcoming" : todayISO > ql.end ? "Expired" : "Live"}</span></div>
                         </div>
-                        <div style={{ display: "flex", gap: 6 }}>
+                        <div className="content-hub-row-actions">
                           <button onClick={() => {
                             if(idx === 0) return;
                             const next = [...flags.quickLinks];
                             [next[idx-1], next[idx]] = [next[idx], next[idx-1]];
                             setFlags({...flags, quickLinks: next});
-                          }} disabled={idx === 0} className="admin-btn outline" style={{ padding: "4px 8px", opacity: idx === 0 ? 0.3 : 1 }}>↑</button>
+                          }} disabled={idx === 0} aria-label={`Move ${ql.title} up`} className="admin-btn outline" style={{ padding: "4px 8px", opacity: idx === 0 ? 0.3 : 1 }}>↑</button>
                           <button onClick={() => {
                             if(idx === flags.quickLinks.length - 1) return;
                             const next = [...flags.quickLinks];
                             [next[idx+1], next[idx]] = [next[idx], next[idx+1]];
                             setFlags({...flags, quickLinks: next});
-                          }} disabled={idx === flags.quickLinks.length - 1} className="admin-btn outline" style={{ padding: "4px 8px", opacity: idx === flags.quickLinks.length - 1 ? 0.3 : 1 }}>↓</button>
+                          }} disabled={idx === flags.quickLinks.length - 1} aria-label={`Move ${ql.title} down`} className="admin-btn outline" style={{ padding: "4px 8px", opacity: idx === flags.quickLinks.length - 1 ? 0.3 : 1 }}>↓</button>
                           <button onClick={() => {
                             const prev = flags.quickLinks;
                             setFlags({...flags, quickLinks: prev.filter(x => x.id !== ql.id)});
                             removeWithUndo("Quick link removed", () => setFlags(f => ({ ...f, quickLinks: prev })));
-                          }} className="admin-btn danger" style={{ padding: "4px 8px" }}><Trash2 size={14} /></button>
+                          }} className="admin-btn danger" aria-label={`Remove ${ql.title}`} style={{ padding: "4px 8px" }}><Trash2 size={14} /></button>
                         </div>
                       </div>
                     ))}
+                    {(flags.quickLinks || []).length === 0 && <div className="content-hub-empty">No quick links staged yet.</div>}
                   </div>
                 </div>
               )}
             </div>
 
             {/* ── Content Section 3: Update Prompt Text ── */}
-            <div className="bcast-acc" style={{ borderColor: openContent.updatePrompt ? "var(--live)" : "var(--border)" }}>
-              <div
+            <div className="bcast-acc content-hub-panel content-hub-panel--live" data-open={openContent.updatePrompt}>
+              <button
+                type="button"
                 className="bcast-acc-head"
-                role="button"
-                tabIndex={0}
                 aria-expanded={openContent.updatePrompt}
-                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenContent(o => ({ ...o, updatePrompt: !o.updatePrompt })); } }}
                 onClick={() => setOpenContent(o => ({ ...o, updatePrompt: !o.updatePrompt }))}
-                style={{ background: openContent.updatePrompt ? "rgba(31,169,113,0.06)" : "transparent" }}>
+                >
                 <div className="bcast-acc-title">
                   <RefreshCw size={17} color="var(--live)" />
-                  <span className="bcast-acc-name">Update Prompt Text</span>
+                  <span className="bcast-acc-name">Update Prompt <small>Message shown when a new version is available</small></span>
                 </div>
                 <span className="bcast-acc-toggle">{openContent.updatePrompt ? "▲" : "▼"}<em>{openContent.updatePrompt ? "Collapse" : "Expand"}</em></span>
-              </div>
+              </button>
 
               {openContent.updatePrompt && (
                 <div className="bcast-acc-body">
+                  <div className="content-hub-editor-head"><div><strong>Version update message</strong><span>Shown when a new version is ready to refresh.</span></div><span>Live preview below</span></div>
                   <div className="admin-field">
                     <label>Title</label>
                     <input className="admin-input" value={updatePromptTitle} onChange={e => setUpdatePromptTitle(e.target.value)} placeholder="TermFlow just got better" />
@@ -4293,7 +4327,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                   </div>
 
                   {/* Live preview */}
-                  <div style={{ marginTop: 4 }}>
+                  <div className="content-hub-preview" style={{ marginTop: 4 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                       <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Live Toast Preview</span>
                       <button
@@ -4359,305 +4393,23 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               )}
             </div>
           </div>
+          <div className="content-hub-footer">
+            <p>Feature notes, links, and update text are saved with the rest of the admin configuration.</p>
+            <button type="button" className="admin-btn primary" onClick={() => saveConfig()} disabled={saving}><Save size={15} /> {saving ? "Saving…" : "Save admin configuration"}</button>
+          </div>
+          {saveMsg && <p className="content-hub-save-message" role="status">{saveMsg}</p>}
         </section>
 
-        {/* ── 4. Feedback Flash Scheduler (Revamped Deck) ── */}
-        <section className="admin-card admin-span-all admin-g-broadcast" style={{ gridColumn: "1 / -1" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 10, marginBottom: 14 }}>
-            <div>
-              <h2 style={{ marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}>
-                <MessageSquare size={20} color="var(--amber)" /> Feedback Flash Scheduler
-              </h2>
-              <p className="admin-subtext" style={{ margin: 0 }}>
-                Automated 3-stage nudges (on announce, 2h before, 20m before deadline). Active nudges dock as in-app feedback toasts.
-              </p>
-            </div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button 
-                onClick={() => {
-                  const newId = Date.now().toString();
-                  setFeedbackFlashes([
-                    ...feedbackFlashes,
-                    { id: newId, enabled: true, deadline: "", link: "", subjects: [] }
-                  ]);
-                }} 
-                className="admin-btn primary" style={{ fontSize: 13, padding: "7px 14px" }}
-              >
-                + Add Feedback Flash
-              </button>
-            </div>
-          </div>
-
-          {/* Quick Metrics & Expired Purge Bar */}
-          {(() => {
-            const now = flashNow;
-            const total = feedbackFlashes.length;
-            const live = feedbackFlashes.filter(f => f.enabled && f.deadline && (new Date(f.deadline).getTime() > now)).length;
-            const expired = feedbackFlashes.filter(f => f.deadline && (new Date(f.deadline).getTime() <= now)).length;
-
-            return (
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, padding: "8px 12px", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, marginBottom: 14, fontSize: 12.5 }}>
-                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                  <span><b>{total}</b> total flash{total !== 1 ? "es" : ""}</span>
-                  <span style={{ color: "var(--live)" }}>• <b>{live}</b> active / scheduled</span>
-                  {expired > 0 && <span style={{ color: "var(--danger)" }}>• <b>{expired}</b> expired</span>}
-                </div>
-                {expired > 0 && (
-                  <button type="button" onClick={() => {
-                    if (!confirm(`Purge ${expired} expired flash schedule(s)?`)) return;
-                    setFeedbackFlashes(feedbackFlashes.filter(f => !f.deadline || (new Date(f.deadline).getTime() > now)));
-                  }} className="admin-btn outline" style={{ fontSize: 11, padding: "3px 8px", color: "var(--danger)", borderColor: "var(--danger)" }}>
-                    Purge Expired ({expired})
-                  </button>
-                )}
-              </div>
-            );
-          })()}
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {feedbackFlashes.map((ff, index) => {
-              const HOUR = 60 * 60 * 1000;
-              const now = flashNow;
-              const deadlineMs = ff.deadline ? new Date(ff.deadline).getTime() : null;
-
-              const fmtAbs = ms => new Date(ms).toLocaleString("en-IN", { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-              const fmtRel = ms => {
-                const diff = ms - now;
-                const mins = Math.round(Math.abs(diff) / 60000);
-                const txt = mins < 60 ? `${mins}m` : mins < 1440 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${Math.floor(mins / 1440)}d ${Math.floor((mins % 1440) / 60)}h`;
-                return diff >= 0 ? `in ${txt}` : `${txt} ago`;
-              };
-
-              const triggers = deadlineMs ? [
-                { key: "announced", name: "Stage 1: Announce", time: ff.announcedAt ? new Date(ff.announcedAt).getTime() : null, pendingNote: "on first save" },
-                { key: "2h", name: "Stage 2: 2h Before", time: deadlineMs - 2 * HOUR },
-                { key: "20m", name: "Stage 3: 20m Before", time: deadlineMs - 20 * 60 * 1000 },
-              ] : [];
-              const inWindow = t => t != null && now >= t && now <= t + HOUR;
-
-              const isExpired = deadlineMs && now > deadlineMs;
-              const isLive = deadlineMs && now <= deadlineMs && triggers.some(t => inWindow(t.time));
-              const isScheduled = deadlineMs && now <= deadlineMs && !isLive;
-
-              const status = !ff.enabled
-                ? { label: "Draft / Disabled", color: "var(--muted)", bg: "rgba(255,255,255,0.06)", border: "var(--border)" }
-                : !deadlineMs
-                  ? { label: "Needs Deadline", color: "var(--amber)", bg: "rgba(245,158,11,0.12)", border: "var(--amber)" }
-                  : isExpired
-                    ? { label: "Expired", color: "var(--danger)", bg: "rgba(239,68,68,0.12)", border: "var(--danger)" }
-                    : isLive
-                      ? { label: "🟢 Nudge Window Live Now", color: "var(--live)", bg: "rgba(16,185,129,0.14)", border: "var(--live)" }
-                      : { label: "Scheduled", color: "var(--violet)", bg: "rgba(139,92,246,0.12)", border: "var(--violet)" };
-
-              return (
-                <div key={ff.id} style={{
-                  display: "flex", flexDirection: "column", gap: 14, padding: 18,
-                  background: isLive ? "rgba(16,185,129,0.03)" : "var(--card)",
-                  border: `1.5px solid ${ff.enabled ? status.border : "var(--border)"}`,
-                  borderRadius: 14,
-                  opacity: ff.enabled ? 1 : 0.75,
-                  transition: "all 0.15s",
-                  boxShadow: isLive ? "0 4px 20px rgba(16,185,129,0.15)" : "none"
-                }}>
-
-                  {/* Header Bar */}
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontWeight: 700, fontSize: 14.5 }}>
-                        <input type="checkbox" checked={ff.enabled} onChange={e => setFeedbackFlashes(feedbackFlashes.map(f => f.id === ff.id ? { ...f, enabled: e.target.checked } : f))} />
-                        <span>Flash #{index + 1}</span>
-                      </label>
-                      <span style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em", color: status.color, background: status.bg, padding: "3px 10px", borderRadius: 20 }}>
-                        {status.label}
-                      </span>
-                    </div>
-
-                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                      {/* Test Toast Button */}
-                      <button type="button" onClick={() => setPreviewFlashId(ff.id)} className="admin-btn outline" style={{ padding: "4px 10px", fontSize: 12, color: "var(--violet)", borderColor: "rgba(139,92,246,0.35)" }}>
-                        <Sparkles size={13} /> Test Toast
-                      </button>
-                      {/* Clone Button */}
-                      <button type="button" title="Clone Flash Config" onClick={() => {
-                        const copy = { ...ff, id: Date.now().toString(), enabled: true };
-                        setFeedbackFlashes([...feedbackFlashes, copy]);
-                      }} className="admin-btn outline" style={{ padding: "4px 8px", fontSize: 12 }}>
-                        <Copy size={13} />
-                      </button>
-                      {/* Remove Button */}
-                      <button type="button" title="Remove Flash" onClick={() => setFeedbackFlashes(feedbackFlashes.filter(f => f.id !== ff.id))} className="admin-btn danger" style={{ padding: "4px 8px", fontSize: 12 }}>
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Summary Bar */}
-                  <div style={{ fontSize: 13, color: "var(--muted)", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    {deadlineMs ? (
-                      <>
-                        <span>⏰ Deadline: <strong style={{ color: "var(--text)" }}>{fmtAbs(deadlineMs)}</strong> ({fmtRel(deadlineMs)})</span>
-                        <span>•</span>
-                        <span>👥 {(ff.subjects || []).length ? `Targets ${ff.subjects.length} course(s): ${ff.subjects.join(", ")}` : "All students"}</span>
-                        <span>•</span>
-                        <span>📋 {ff.link ? "External Form Link" : "In-app Feedback Widget"}</span>
-                      </>
-                    ) : (
-                      <span style={{ color: "var(--amber)" }}>⚠️ No deadline set — pick a deadline preset below to activate nudges.</span>
-                    )}
-                  </div>
-
-                  {/* 3-Stage Visual Nudge Progression Bar */}
-                  {deadlineMs && !isExpired && (
-                    <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 14px" }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", marginBottom: 8, letterSpacing: "0.5px" }}>Automated 3-Stage Nudge Timeline</div>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 8 }}>
-                        {triggers.map(t => {
-                          const live = inWindow(t.time);
-                          const fired = t.time != null && now > t.time + HOUR;
-                          const color = live ? "var(--live)" : fired ? "var(--muted)" : "var(--violet)";
-                          return (
-                            <div key={t.key} style={{
-                              display: "flex", alignItems: "center", gap: 8, fontSize: 12, fontWeight: 600, color,
-                              background: live ? "rgba(16,185,129,0.08)" : "var(--card)",
-                              border: `1px solid ${live ? "var(--live)" : "var(--border)"}`,
-                              borderRadius: 8, padding: "6px 10px"
-                            }}>
-                              <span style={{ width: 8, height: 8, borderRadius: "50%", background: color, flexShrink: 0, boxShadow: live ? "0 0 8px var(--live)" : "none" }} />
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div>{t.name}</div>
-                                <div style={{ fontSize: 10.5, opacity: 0.8 }}>{t.time == null ? t.pendingNote : live ? "⚡ LIVE NOW" : fired ? "✓ shown" : fmtRel(t.time)}</div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Deadline Quick Presets */}
-                  <div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                      <label style={{ fontSize: 11.5, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                        Deadline Configuration
-                      </label>
-                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                        {[
-                          { label: "Today 11:59 PM", getMs: () => { const d = new Date(); d.setHours(23, 59, 0, 0); return d; } },
-                          { label: "Tomorrow 5:00 PM", getMs: () => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(17, 0, 0, 0); return d; } },
-                          { label: "This Friday 11:59 PM", getMs: () => { const d = new Date(); const day = d.getDay(); const diff = (5 - day + 7) % 7 || 7; d.setDate(d.getDate() + diff); d.setHours(23, 59, 0, 0); return d; } },
-                          { label: "+7 Days", getMs: () => { const d = new Date(); d.setDate(d.getDate() + 7); d.setHours(23, 59, 0, 0); return d; } },
-                        ].map(p => (
-                          <button key={p.label} type="button" onClick={() => {
-                            const dt = p.getMs();
-                            const isoLocal = new Date(dt.getTime() - dt.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-                            setFeedbackFlashes(feedbackFlashes.map(f => f.id === ff.id ? { ...f, deadline: isoLocal } : f));
-                          }} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, padding: "2px 8px", fontSize: 11, fontWeight: 600, color: "var(--muted)", cursor: "pointer" }}>
-                            {p.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="admin-grid-2">
-                      <div className="admin-field">
-                        <label>Deadline Date &amp; Time</label>
-                        <input type="datetime-local" className="admin-input" value={ff.deadline || ""} onChange={e => setFeedbackFlashes(feedbackFlashes.map(f => f.id === ff.id ? { ...f, deadline: e.target.value } : f))} />
-                      </div>
-
-                      <div className="admin-field">
-                        <label>External Form Link <span className="admin-optional">(Optional — leave blank for in-app form)</span></label>
-                        <input type="url" className="admin-input" value={ff.link || ""} onChange={e => setFeedbackFlashes(feedbackFlashes.map(f => f.id === ff.id ? { ...f, link: e.target.value } : f))} placeholder="https://forms.gle/..." />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Target Courses Selector — a wrap of pills on a wide screen,
-                      a collapsed dropdown on a phone (28 courses is 28 rows there). */}
-                  {(() => {
-                    const picked = ff.subjects || [];
-                    const isOpen = openCourseTargets === ff.id;
-                    const summary = picked.length === 0 ? "All courses / Everyone" : `${picked.length} selected`;
-                    return (
-                  <div className="admin-field bcast-course-field">
-                    <div className="bcast-field-head">
-                      <label>Target Courses <span className="admin-optional">({picked.length === 0 ? "All Courses / Everyone" : `${picked.length} selected`})</span></label>
-                      <div className="bcast-course-bulk">
-                        <button type="button" onClick={() => {
-                          setFeedbackFlashes(feedbackFlashes.map(f => f.id === ff.id ? { ...f, subjects: Object.keys(LEGEND) } : f));
-                        }} className="bcast-course-link is-primary">
-                          Select All
-                        </button>
-                        <span aria-hidden="true">|</span>
-                        <button type="button" onClick={() => {
-                          setFeedbackFlashes(feedbackFlashes.map(f => f.id === ff.id ? { ...f, subjects: [] } : f));
-                        }} className="bcast-course-link">
-                          Clear All (Everyone)
-                        </button>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      className="bcast-course-toggle"
-                      aria-expanded={isOpen}
-                      onClick={() => setOpenCourseTargets(isOpen ? null : ff.id)}
-                    >
-                      <span>{summary}</span>
-                      <ChevronRight size={16} className={isOpen ? "is-open" : ""} />
-                    </button>
-
-                    <div className={`bcast-course-grid${isOpen ? " is-open" : ""}`}>
-                      {Object.keys(LEGEND).map(code => {
-                        const isSelected = picked.includes(code);
-                        return (
-                          <button
-                            key={code}
-                            type="button"
-                            onClick={() => {
-                              const newSubjects = isSelected ? picked.filter(c => c !== code) : [...picked, code];
-                              setFeedbackFlashes(feedbackFlashes.map(f => f.id === ff.id ? { ...f, subjects: newSubjects } : f));
-                            }}
-                            className={`bcast-course-chip${isSelected ? " is-selected" : ""}`}
-                            aria-pressed={isSelected}
-                            title={LEGEND[code].name}
-                          >
-                            {code}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                    );
-                  })()}
-                </div>
-              );
-            })}
-
-            {feedbackFlashes.length === 0 && (
-              <div style={{ padding: 24, textAlign: "center", color: "var(--muted)", background: "var(--bg)", borderRadius: 12, border: "1px dashed var(--border)" }}>
-                No feedback flashes scheduled. Click <b>+ Add Feedback Flash</b> above to set up automated deadline nudges for course evaluations.
-              </div>
-            )}
-
-            <div style={{ display: "flex", gap: 12, marginTop: 4 }}>
-              <button onClick={saveConfig} disabled={saving} className="admin-btn primary" style={{ padding: "9px 20px" }}>
-                <Save size={15} /> Save Scheduler Config
-              </button>
-            </div>
-
-            {/* Live on-screen preview trigger */}
-            {previewFlashId && (
-              <FeedbackFlashToast 
-                config={{ 
-                  deadline: feedbackFlashes.find(f => f.id === previewFlashId)?.deadline, 
-                  link: feedbackFlashes.find(f => f.id === previewFlashId)?.link,
-                  subjectName: (feedbackFlashes.find(f => f.id === previewFlashId)?.subjects || []).length > 0 ? LEGEND[feedbackFlashes.find(f => f.id === previewFlashId).subjects[0]]?.name : null
-                }} 
-                onClose={() => setPreviewFlashId(null)} 
-              />
-            )}
-          </div>
-        </section>
+        <FeedbackFlashScheduler
+          flashes={feedbackFlashes}
+          setFlashes={setFeedbackFlashes}
+          legend={LEGEND}
+          sectionsByCode={FLASH_SECTIONS}
+          now={flashNow}
+          onSave={saveConfig}
+          saving={saving}
+          saveMsg={saveMsg}
+        />
           <section className="admin-users-overview admin-span-all admin-g-users">
             <div className="admin-users-overview-head">
               <div>
@@ -4774,7 +4526,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               {searchQuery && <button type="button" onClick={() => setSearchQuery("")} aria-label="Clear search"><X size={14} /></button>}
             </label>
             <label className="admin-users-select"><Filter size={14} /><span>Section</span><select value={userSectionFilter} onChange={e => setUserSectionFilter(e.target.value)}><option value="All">All</option><option value="A">A</option><option value="B">B</option></select></label>
-            <label className="admin-users-select"><BookOpen size={14} /><span>Course</span><select value={userCourseFilter} onChange={e => setUserCourseFilter(e.target.value)}><option value="">All</option>{[...new Set([...Object.keys(LEGEND || {}), ...attendanceRisk.map(row => row.code)])].map(code => <option key={code} value={code}>{code}</option>)}</select></label>
+            <label className="admin-users-select"><BookOpen size={14} /><span>Course</span><select value={userCourseFilter} onChange={e => setUserCourseFilter(e.target.value)}><option value="">All</option>{[...new Set([...Object.keys(LEGEND || {}), ...attendanceRisk.map(row => row.code), ...(attendanceCoverage || []).map(row => row.code)])].map(code => <option key={code} value={code}>{code}</option>)}</select></label>
             <label className="admin-users-select"><Clock3 size={14} /><span>Sort</span><select value={userSort} onChange={e => setUserSort(e.target.value)}><option value="recent">Recently active</option><option value="oldest">Least recently active</option><option value="name">Name A–Z</option><option value="courses">Most courses</option></select></label>
           </div>
 
@@ -5133,7 +4885,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
           {/* Active-user tiers (DAU/WAU/MAU) */}
           <AdoptionTrends history={presenceHistory} users={allUsers} historyAvailable={presenceHistoryAvailable} features={featureUsageTrend} featuresUnavailable={featureUsageUnavailable} />
-          <AttendanceRisk rows={attendanceRisk} unavailable={attendanceRiskUnavailable} onNavigate={row => { setUserCourseFilter(row.code); setUserSectionFilter(["A", "B"].includes(row.section) ? row.section : "All"); goToAdminTab("users"); }} />
+          <AttendanceRisk rows={attendanceRisk} unavailable={attendanceRiskUnavailable} coverageRows={attendanceCoverage} coverageUnavailable={attendanceCoverageUnavailable} onNavigate={row => { setSearchQuery(""); setUserStatusFilter("all"); setUserCourseFilter(row.code); setUserSectionFilter(["A", "B"].includes(row.section) ? row.section : "All"); goToAdminTab("users"); }} />
           <ChangeTimeline logs={auditLogs} onNavigate={item => { if (item.area === "schedule" && /^\d{4}-\d{2}-\d{2}$/.test(item.object)) setLiveEditorDate(item.object); goToAdminTab(item.area); }} />
           <section className="admin-card admin-g-insights insights-metric-card insights-engagement-card">
             <div className="insights-card-head"><span><BarChart2 size={17} /></span><div><h2>Active users</h2><p>Unique students by rolling window</p></div></div>
@@ -5261,10 +5013,26 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             const message = prompt(`Reply to ${student?.name || "user"} via push:`);
             if (!message?.trim()) return;
             const result = await pushToUserIds([item.user_id], { title: "Reply from TermFlow admin", body: message.trim() });
-            if (result?.ok) { await logAdminAction(admin_id, "feedback_reply", { feedback: item.id }); alert("Reply push queued."); }
+            if (result?.ok) {
+              await logAdminAction(admin_id, "feedback_reply", { feedback: item.id });
+              const prior = feedbackTriage[String(item.id)];
+              if (prior?.first_reply_queued_at) { alert("Reply push queued."); return; }
+              if (triageUnavailable || responseTrackingUnavailable) { alert("Reply push queued, but response tracking is unavailable."); return; }
+              const state = feedbackState(item, feedbackTriage);
+              const row = { feedback_id: String(item.id), status: state.status, severity: state.severity, owner_id: state.ownerId || null, response_target_hours: prior?.response_target_hours || 48, first_reply_queued_at: new Date().toISOString(), updated_by: admin_id, updated_at: new Date().toISOString() };
+              const saved = await supabase.from("admin_feedback_triage").upsert(row, { onConflict: "feedback_id" }).select().single();
+              if (saved.error) {
+                setWorkflowMessage(`Reply push queued, but response tracking failed: ${saved.error.message}`);
+                alert("Reply push queued, but response tracking could not be saved.");
+              } else {
+                setFeedbackTriage(current => ({ ...current, [String(item.id)]: saved.data }));
+                alert("Reply push queued and response time recorded.");
+              }
+            }
             else alert("Failed: " + (result?.data?.error || "error"));
           }}
           onWhatsNew={item => { setWnTitle(item.message.slice(0, 58)); setWnDesc(item.message); setWnEmoji("✨"); setActiveTab("broadcast"); window.scrollTo({ top: 0, behavior: "smooth" }); }} />
+        <FeedbackResponseTracking feedback={feedbackList} users={allUsers} triage={feedbackTriage} busyId={triageBusyId} onSetTarget={setFeedbackResponseTarget} readOnly={isReadOnlyAdmin} unavailable={triageUnavailable || responseTrackingUnavailable} />
 
           <section className="admin-card admin-span-all admin-g-system system-ops-console" style={{ gridColumn: "1 / -1" }}>
             <div className="system-ops-head"><div><span className="system-ops-eyebrow">Platform operations</span><h2><ShieldAlert size={20} color="var(--violet)" /> System command centre</h2><p className="admin-subtext">A practical read of what is live, what is staged, and the safest next move.</p></div><div className={`system-ops-status ${systemOverview.items.some(item => item.tone === "risk") ? "is-watch" : ""}`}><span /> {systemOverview.items.some(item => item.tone === "risk") ? "Attention needed" : "Controls ready"}</div></div>
@@ -5341,6 +5109,15 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               <input ref={configFileRef} type="file" accept="application/json,.json" onChange={handleImportConfig} style={{ display: "none" }} />
             </div>
           </section>
+
+          <ConfigHistoryPanel history={originalFlags?.configHistory || []} liveFlags={originalFlags} hasStagedChanges={changesCount > 0} isReadOnly={isReadOnlyAdmin} onStage={entry => {
+            const next = stageConfigSnapshot(entry.flags, originalFlags || flags);
+            setFlags(next);
+            setFeedbackFlashes(next.feedbackFlashes || []);
+            setUpdatePromptTitle(next.updatePrompt?.title || "");
+            setUpdatePromptDesc(next.updatePrompt?.desc || "");
+            setUpdatePromptHighlights((next.updatePrompt?.highlights || []).join("\n"));
+          }} />
 
           {/* Data export center */}
           <section className="admin-card admin-g-system system-control-card system-export-card">
@@ -6381,43 +6158,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             <RefreshCw size={15} /> Revert Changes
           </button>
         )}
-        {flags.configHistory && flags.configHistory.length > 0 && (
-           <button className="admin-btn outline" onClick={() => {
-              const last = flags.configHistory[0];
-              requestAdminConfirmation({
-                title: "Restore the previous deployment?",
-                description: `Load the configuration saved on ${new Date(last.timestamp).toLocaleString()} into the editor.`,
-                impact: "This is staged first. Review and deploy to make the restored configuration live.",
-                confirmLabel: "Stage previous version",
-                tone: "warning",
-                onConfirm: () => setFlags({ ...stripHistoryKeys(last.flags), configHistory: flags.configHistory }),
-              });
-           }} style={{ padding: "9px 16px" }} title={`Restore the config from ${new Date(flags.configHistory[0].timestamp).toLocaleString()}`}>
-              <RefreshCw size={15} /> Undo last deploy
-           </button>
-        )}
-        {flags.configHistory && flags.configHistory.length > 0 && (
-           <div style={{ position: "relative", display: "inline-block" }}>
-              <select className="admin-input" onChange={e => {
-                 if(!e.target.value) return;
-                 const selectedHistory = flags.configHistory[parseInt(e.target.value)];
-                 e.target.value = ""; // reset
-                 requestAdminConfirmation({
-                   title: "Restore this configuration version?",
-                   description: `Load the version saved on ${new Date(selectedHistory.timestamp).toLocaleString()} by ${selectedHistory.author || "Admin"}.`,
-                   impact: "This is staged first and will not affect students until you review and deploy it.",
-                   confirmLabel: "Stage selected version",
-                   tone: "warning",
-                   onConfirm: () => setFlags({ ...stripHistoryKeys(selectedHistory.flags), configHistory: flags.configHistory }),
-                 });
-              }} style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", width: 220 }}>
-                 <option value="">Restore Past Version...</option>
-                 {flags.configHistory.map((h, i) => (
-                    <option key={h.timestamp} value={i}>{new Date(h.timestamp).toLocaleString()} by {h.author || "Admin"}</option>
-                 ))}
-              </select>
-           </div>
-        )}
+        {originalFlags?.configHistory?.length > 0 && <button type="button" className="admin-btn outline" onClick={() => { setActiveTab("system"); requestAnimationFrame(() => document.querySelector(".config-history-card")?.scrollIntoView({ behavior: "smooth", block: "start" })); }} style={{ padding: "9px 16px" }}><Clock3 size={15} /> Review history</button>}
       </div>
 
       {adminConfirm && (

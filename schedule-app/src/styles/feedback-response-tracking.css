@@ -1,0 +1,18 @@
+.frt-panel { display: grid; gap: 16px; min-width: 0; }
+.frt-heading h2 { margin: 3px 0 5px; }
+.frt-heading p, .frt-note { margin: 0; color: var(--text-muted, #697386); line-height: 1.45; }
+.frt-eyebrow { color: var(--violet, #7254a3); font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+.frt-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; }
+.frt-metrics > div { display: grid; align-content: start; gap: 3px; padding: 12px; border: 1px solid var(--border, #dce2ea); border-radius: 12px; }
+.frt-metrics strong { font-size: 1.45rem; }
+.frt-metrics span, .frt-row small { color: var(--text-muted, #697386); font-size: .78rem; }
+.frt-metrics .frt-overdue { border-color: var(--danger, #c33143); }
+.frt-metrics .frt-overdue strong { color: var(--danger, #c33143); }
+.frt-note { font-size: .79rem; }
+.frt-list { display: grid; gap: 8px; }
+.frt-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 0; border-top: 1px solid var(--border, #dce2ea); }
+.frt-row > div { min-width: 0; display: grid; gap: 3px; }
+.frt-row label { display: grid; gap: 4px; flex: 0 0 150px; font-size: .74rem; }
+.frt-warning { margin: 0; color: var(--danger, #c33143); }
+.frt-empty { margin: 0; color: var(--text-muted, #697386); }
+@media (max-width: 700px) { .frt-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .frt-row { align-items: stretch; flex-direction: column; } .frt-row label { flex-basis: auto; } }

@@ -1,0 +1,76 @@
+.ff-scheduler { display: grid; gap: 20px; }
+.ff-scheduler button { font: inherit; }
+.ff-head, .ff-item-main, .ff-settings-head, .ff-audience-head, .ff-save { display: flex; justify-content: space-between; align-items: center; gap: 18px; }
+.ff-head { align-items: flex-start; }
+.ff-eyebrow { display: inline-flex; align-items: center; gap: 6px; color: var(--amber); font-size: 11px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
+.ff-head h2 { margin: 6px 0; font-size: 22px; }
+.ff-head p, .ff-settings-head p, .ff-audience-head p, .ff-save p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.ff-head .ff-add, .ff-save button { flex: none; display: inline-flex; align-items: center; gap: 7px; }
+.ff-overview { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; }
+.ff-metric { text-align: left; display: flex; flex-direction: column; gap: 3px; padding: 13px 15px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 11px; cursor: pointer; }
+.ff-metric:hover, .ff-metric.is-selected { border-color: var(--amber); background: var(--amber-dim); }
+.ff-metric strong { font-size: 23px; line-height: 1; }
+.ff-metric span { color: var(--muted); font-size: 11px; font-weight: 650; }
+.ff-list { display: grid; gap: 10px; }
+.ff-item { background: var(--bg); border: 1px solid var(--border); border-radius: 13px; overflow: hidden; }
+.ff-item--active { border-color: var(--live); }
+.ff-item-main { padding: 15px; }
+.ff-item-icon { width: 40px; height: 40px; flex: none; display: grid; place-items: center; border-radius: 10px; color: var(--amber); background: var(--amber-dim); }
+.ff-item-info { flex: 1; min-width: 0; }
+.ff-item-title, .ff-item-meta, .ff-item-actions, .ff-item-footer > div { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ff-item-title strong { font-size: 14px; }
+.ff-item-info p { margin: 4px 0; color: var(--text); font-size: 13px; }
+.ff-item-meta { color: var(--muted); font-size: 11px; }
+.ff-item-meta span + span::before { content: '·'; margin-right: 8px; }
+.ff-status { border-radius: 99px; padding: 3px 8px; background: var(--surface); color: var(--muted); font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+.ff-status--active { background: var(--live-dim, rgba(16,185,129,.12)); color: var(--live); }
+.ff-status--expired { background: rgba(239,68,68,.12); color: var(--danger); }
+.ff-item-actions { justify-content: flex-end; }
+.ff-item-actions button, .ff-item-footer button, .ff-audience-head button { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.ff-edit svg, .ff-audience-head svg { transition: transform .18s ease; }
+.ff-edit svg.is-open, .ff-audience-head svg.is-open { transform: rotate(180deg); }
+.ff-details { display: grid; gap: 18px; padding: 18px; border-top: 1px solid var(--border); background: var(--card); }
+.ff-details h3 { margin: 0 0 3px; font-size: 14px; }
+.ff-enable { display: inline-flex; align-items: center; gap: 7px; color: var(--text); font-size: 12px; font-weight: 700; cursor: pointer; }
+.ff-enable input { accent-color: var(--amber); }
+.ff-warning { margin: 0; padding: 9px 12px; border-radius: 8px; background: var(--amber-dim); color: var(--amber); font-size: 12px; }
+.ff-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.ff-form-grid .admin-field { min-width: 0; }
+.ff-form-grid select { width: 100%; }
+.ff-presets { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.ff-presets button, .ff-course-tools button { padding: 5px 8px; border: 1px solid var(--border); border-radius: 7px; background: var(--bg); color: var(--muted); font-size: 11px; cursor: pointer; }
+.ff-presets button:hover, .ff-course-tools button:hover { color: var(--text); border-color: var(--amber); }
+.ff-field-hint { margin: 6px 0 0; color: var(--muted); font-size: 11px; }
+.ff-audience { display: grid; gap: 12px; padding: 14px; border: 1px solid var(--border); border-radius: 10px; }
+.ff-timeline { padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); }
+.ff-timeline h3 { display: flex; align-items: center; gap: 7px; }
+.ff-timeline > p { margin: 10px 0 0; color: var(--muted); font-size: 11px; }
+.ff-stages { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.ff-stage { display: flex; gap: 8px; align-items: flex-start; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); min-width: 0; }
+.ff-stage-dot { width: 8px; height: 8px; flex: none; margin-top: 4px; border-radius: 50%; background: var(--muted); }
+.ff-stage--live { border-color: var(--live); }
+.ff-stage--live .ff-stage-dot { background: var(--live); }
+.ff-stage--upcoming .ff-stage-dot { background: var(--violet); }
+.ff-stage strong, .ff-stage small { display: block; }
+.ff-stage strong { font-size: 11px; }
+.ff-stage small { margin-top: 3px; color: var(--muted); font-size: 10px; line-height: 1.4; }
+.ff-item-footer { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding-top: 14px; border-top: 1px solid var(--border); }
+.ff-item-footer > span { color: var(--muted); font-size: 11px; }
+.ff-empty { display: grid; justify-items: center; gap: 8px; padding: 32px 15px; text-align: center; border: 1px dashed var(--border); border-radius: 11px; color: var(--muted); }
+.ff-empty strong { color: var(--text); }
+.ff-empty p { margin: 0; font-size: 12px; }
+.ff-save { padding-top: 14px; border-top: 1px solid var(--border); }
+.ff-save p { display: flex; align-items: flex-start; gap: 7px; }
+.ff-save p svg { flex: none; margin-top: 2px; color: var(--live); }
+.ff-save-message { margin: -10px 0 0; color: var(--text); font-size: 12px; }
+@media (max-width: 720px) {
+  .ff-scheduler { gap: 14px; }
+  .ff-head, .ff-save { align-items: stretch; flex-direction: column; }
+  .ff-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ff-item-main { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 10px; }
+  .ff-item-actions { grid-column: 1 / -1; justify-content: stretch; }
+  .ff-item-actions button { flex: 1; justify-content: center; }
+  .ff-form-grid, .ff-stages { grid-template-columns: minmax(0, 1fr); }
+  .ff-item-footer { align-items: flex-start; flex-direction: column; }
+}
+@media (prefers-reduced-motion: reduce) { .ff-edit svg, .ff-audience-head svg { transition: none; } }

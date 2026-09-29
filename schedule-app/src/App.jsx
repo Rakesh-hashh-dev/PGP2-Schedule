@@ -30,6 +30,7 @@ import { setMessMenuOverrides } from "./data/messMenu.js";
 import { fetchMessMenu } from "./lib/messFeed.js";
 import { getSnapshot, fetchSchedule, sha256hex } from "./lib/sheet.js";
 import { taughtSectionsByCode, provisionalSectionCodes, applyRosterAllocation, manualSectionCodes, unscheduledCodes } from "./lib/sections.js";
+import { feedbackFlashAudience } from "./lib/feedbackFlash.js";
 import { lookupOverride, buildOverrideAdds } from "./lib/overrides.js";
 import { safeUrl } from "./lib/safeUrl.js";
 import { toMin, fmtTime12, ymd, clsDate, prettyDate, timeAgo, getSpecialDay } from "./lib/datetime.js";
@@ -905,7 +906,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     if (!sysConfig?.flags?.feedbackFlashes) return;
     const flashes = sysConfig.flags.feedbackFlashes;
     
-    const userEnrolled = Object.keys(enrolled || {});
     const legendData = getSnapshot()?.LEGEND || {};
     const currentMs = Date.now();
     const ONE_HOUR = 60 * 60 * 1000;
@@ -913,11 +913,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     for (const config of flashes) {
       if (!config.enabled || !config.deadline) continue;
 
-      // Subject check
-      const targets = config.subjects || [];
-      const matchedSubjectCode = targets.length ? targets.find(c => userEnrolled.includes(c)) : null;
-      const isTargeted = !targets.length || !!matchedSubjectCode;
-      if (!isTargeted) continue;
+      const matchedSubjectCode = feedbackFlashAudience(config, enrolled);
+      if (!matchedSubjectCode) continue;
 
       const subjectName = matchedSubjectCode && legendData[matchedSubjectCode] 
         ? legendData[matchedSubjectCode].name 

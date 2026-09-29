@@ -25,6 +25,7 @@ describe("MobileV2TabBar", () => {
       <MobileV2TabBar view="notifications" attendanceEnabled={false} unreadCount={3} onNavigate={() => {}} onOpenMore={() => {}} />
     );
     expect(html).toContain("Updates");
+    expect(html).toContain('aria-label="Updates, 3 unread"');
     expect(html).not.toContain("Attend</span>");
   });
 });

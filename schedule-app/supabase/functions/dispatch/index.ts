@@ -161,10 +161,19 @@ async function runDispatch(supabase: ReturnType<typeof createClient>) {
   let sent = 0;
   const deliveredIds: string[] = [];
   const dead: string[] = [];
+  const deliveryStates = new Map<string, string[]>();
+  const recordState = (id: string, state: string) => {
+    const ids = deliveryStates.get(state) ?? [];
+    ids.push(id);
+    deliveryStates.set(state, ids);
+  };
 
   await Promise.all((rows as Notif[]).map(async (row) => {
     const userSubs = subsByUser.get(row.user_id);
-    if (!userSubs || userSubs.length === 0) return; // stays as in-app record
+    if (!userSubs || userSubs.length === 0) {
+      recordState(row.id, "no_subscription");
+      return; // stays as in-app record
+    }
 
     // Per-type channel pref (Phase 5). Absent prefs → push allowed (back-compat).
     // A silent social row (friend_removed) is processed in-app only, never pushed.
@@ -174,6 +183,7 @@ async function runDispatch(supabase: ReturnType<typeof createClient>) {
       // Push suppressed by preference; the row survives as an in-app record. Ages
       // out of the scan window in ≤2h, so it isn't re-scanned indefinitely.
       suppressed++;
+      recordState(row.id, "preference_off");
       return;
     }
 
@@ -184,6 +194,7 @@ async function runDispatch(supabase: ReturnType<typeof createClient>) {
       const qs = toMin(pref?.quiet_start);
       const qe = toMin(pref?.quiet_end);
       if (qs !== null && qe !== null && qs !== qe && inQuietWindow(nowMin, qs, qe)) {
+        recordState(row.id, "quiet_hours");
         return;
       }
     }
@@ -192,7 +203,10 @@ async function runDispatch(supabase: ReturnType<typeof createClient>) {
     // we skip the push entirely — the row remains visible in the inbox.
     const d = row.data || {};
     const expiresAt = typeof d.expires_at === "string" ? Date.parse(d.expires_at) : NaN;
-    if (!Number.isNaN(expiresAt) && expiresAt <= now) return;
+    if (!Number.isNaN(expiresAt) && expiresAt <= now) {
+      recordState(row.id, "expired");
+      return;
+    }
     const ttlSec = typeof d.ttl === "number" && d.ttl > 0
       ? d.ttl
       : !Number.isNaN(expiresAt)
@@ -215,6 +229,8 @@ async function runDispatch(supabase: ReturnType<typeof createClient>) {
     });
 
     let delivered = false;
+    let providerFailed = false;
+    let endpointRejected = false;
     for (const s of userSubs) {
       try {
         await webpush.sendNotification(
@@ -228,16 +244,26 @@ async function runDispatch(supabase: ReturnType<typeof createClient>) {
         const status = (e as { statusCode?: number }).statusCode;
         // 404/410 = expired/unsubscribed → prune. Anything else is transient:
         // leave delivered_push_at null so the next run retries this row.
-        if (status === 404 || status === 410) dead.push(s.endpoint);
+        if (status === 404 || status === 410) {
+          dead.push(s.endpoint);
+          endpointRejected = true;
+        } else providerFailed = true;
       }
     }
     if (delivered) deliveredIds.push(row.id);
+    else recordState(row.id, providerFailed ? "provider_error" : endpointRejected ? "endpoint_rejected" : "provider_error");
   }));
 
   if (deliveredIds.length > 0) {
-    await supabase.from("notifications")
-      .update({ delivered_push_at: new Date().toISOString() })
+    const { error } = await supabase.from("notifications")
+      .update({ delivered_push_at: new Date().toISOString(), push_delivery_state: "delivered" })
       .in("id", deliveredIds);
+    if (error) throw new Error(`Could not record push deliveries: ${error.message}`);
+  }
+  for (const [state, ids] of deliveryStates) {
+    const { error } = await supabase.from("notifications")
+      .update({ push_delivery_state: state }).in("id", ids);
+    if (error) throw new Error(`Could not record push diagnostics: ${error.message}`);
   }
   if (dead.length > 0) {
     await supabase.from("push_subscriptions").delete().in("endpoint", dead);

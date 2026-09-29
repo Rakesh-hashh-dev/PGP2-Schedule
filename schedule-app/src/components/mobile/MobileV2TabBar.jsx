@@ -33,6 +33,7 @@ export default function MobileV2TabBar({
           type="button"
           key={id}
           className={active === id ? "is-active" : ""}
+          aria-label={id === "updates" && unreadCount > 0 ? `${label}, ${unreadCount} unread` : label}
           aria-current={active === id ? "page" : undefined}
           onClick={() => id === "more" ? onOpenMore() : onNavigate(target)}
         >

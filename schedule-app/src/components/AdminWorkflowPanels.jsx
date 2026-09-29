@@ -21,20 +21,25 @@ export function BroadcastAudienceBuilder({ filter, onChange, result, courses, ch
   </section>;
 }
 
-export function IncidentCenter({ snapshot, cronIssues, feedbackCount, handoffCount, pushFailure, onNavigate }) {
+export function IncidentCenter({ snapshot, cronIssues, feedbackCount, handoffCount, pushFailure, notes = [], roster = [], readOnly, handoffUnavailable, onTrack, onNavigate }) {
   const lastSuccess = new Date(snapshot.lastSuccessTs || snapshot.ts || 0).getTime();
   const incidents = [
-    ...(snapshot.status !== "success" ? [{ title: "Timetable snapshot failed", detail: snapshot.error || "Snapshot generation failed.", area: "system", severity: "error" }] : []),
-    ...(Number.isFinite(lastSuccess) && QUEUE_NOW - lastSuccess > 3 * 86400000 ? [{ title: "Timetable snapshot is stale", detail: `Last success: ${new Date(lastSuccess).toLocaleString("en-IN")}`, area: "system", severity: "warn" }] : []),
-    ...cronIssues.map(detail => ({ title: "Scheduled job needs attention", detail, area: "insights", severity: "error" })),
-    ...(pushFailure ? [{ title: "Latest push send failed in this browser", detail: pushFailure, area: "broadcast", severity: "error" }] : []),
-    ...(feedbackCount ? [{ title: `${feedbackCount} open feedback reports`, detail: "Review owners and severity in the feedback queue.", area: "users", severity: "warn" }] : []),
-    ...(handoffCount ? [{ title: `${handoffCount} open handoff notes`, detail: "Check next actions and review dates.", area: "overview", severity: "info" }] : []),
+    ...(snapshot.status !== "success" ? [{ key: "snapshot-failed", title: "Timetable snapshot failed", detail: snapshot.error || "Snapshot generation failed.", area: "system", severity: "error" }] : []),
+    ...(Number.isFinite(lastSuccess) && QUEUE_NOW - lastSuccess > 3 * 86400000 ? [{ key: "snapshot-stale", title: "Timetable snapshot is stale", detail: `Last success: ${new Date(lastSuccess).toLocaleString("en-IN")}`, area: "system", severity: "warn" }] : []),
+    ...cronIssues.map(detail => ({ key: `cron:${detail.slice(0, 180)}`, title: "Scheduled job needs attention", detail, area: "insights", severity: "error" })),
+    ...(pushFailure ? [{ key: "browser-push-failure", title: "Latest push send failed in this browser", detail: pushFailure, area: "broadcast", severity: "error" }] : []),
+    ...(feedbackCount ? [{ key: "feedback-open", title: `${feedbackCount} open feedback reports`, detail: "Review owners and severity in the feedback queue.", area: "users", severity: "warn" }] : []),
+    ...(handoffCount ? [{ key: "handoffs-open", title: `${handoffCount} open handoff notes`, detail: "Check next actions and review dates.", area: "overview", severity: "info" }] : []),
   ];
   return <section className="admin-card admin-span-all admin-g-overview aw-panel" aria-label="Incident center">
     <div className="aw-head"><div><span className="aw-eyebrow"><AlertTriangle size={13} /> Operations</span><h2>Incident center <small>{incidents.length}</small></h2><p>Current signals from the snapshot, scheduled jobs, feedback, and admin handoffs.</p></div></div>
-    <div className="aw-list">{incidents.length ? incidents.map((item, index) => <div className={`aw-issue is-${item.severity}`} key={index}><AlertTriangle size={16} /><div><strong>{item.title}</strong><span>{item.detail}</span></div><button type="button" className="admin-btn outline" onClick={() => onNavigate(item.area)}>Open <ArrowRight size={13} /></button></div>) : <div className="admin-empty">No incidents detected in the loaded signals.</div>}</div>
+    <div className="aw-list">{incidents.length ? incidents.map(item => {
+      const followUp = notes.find(note => note.incident_key === item.key && note.status === "open");
+      const owner = followUp?.owner_id && roster.find(admin => admin.user_id === followUp.owner_id);
+      return <div className={`aw-issue is-${item.severity}`} key={item.key}><AlertTriangle size={16} /><div><strong>{item.title}</strong><span>{item.detail}</span>{followUp && <span>Follow-up: {owner?.name || owner?.email || followUp.owner_id || "Unassigned"} · Next: {followUp.next_action}</span>}</div><div className="aw-actions"><button type="button" className="admin-btn outline" onClick={() => onNavigate(item.area)}>Open <ArrowRight size={13} /></button>{item.key !== "handoffs-open" && (followUp ? <button type="button" className="admin-btn outline" onClick={() => document.querySelector('[aria-label="Admin handoff notes"]')?.scrollIntoView({ behavior: "smooth", block: "start" })}>Follow-up</button> : !readOnly && !handoffUnavailable && <button type="button" className="admin-btn outline" onClick={() => onTrack(item)}>Track issue</button>)}</div></div>;
+    }) : <div className="admin-empty">No incidents detected in the loaded signals.</div>}</div>
     <small>Push send errors here are from this browser session. Cron status is server reported. Refresh dashboard data to recheck remote signals.</small>
+    {handoffUnavailable && !readOnly && <small>Issue follow-up links require the admin incident handoffs migration. General handoff notes remain available when their table is installed.</small>}
   </section>;
 }
 
@@ -72,10 +77,25 @@ export function AdoptionTrends({ history, users, historyAvailable, features = []
   </section>;
 }
 
-export function AttendanceRisk({ rows, unavailable, onNavigate }) {
+export function AttendanceRisk({ rows, unavailable, coverageRows, coverageUnavailable, onNavigate }) {
+  const coverageReady = !coverageUnavailable && Array.isArray(coverageRows);
   return <section className="admin-card admin-span-all admin-g-insights aw-panel" aria-label="Attendance risk by course">
-    <div className="aw-head"><div><span className="aw-eyebrow"><BellRing size={13} /> Attendance</span><h2>Attendance watch by course</h2><p>Aggregate students below 80% of their recorded marks, with at least three marks. This is an early signal, not the course penalty rule.</p></div></div>
-    {unavailable ? <div className="admin-empty">Admin attendance aggregate is unavailable. Apply the admin attendance risk migration to enable this view.</div> : <div className="aw-list">{rows.length ? rows.map(row => <div className="aw-issue" key={`${row.code}:${row.section}`}><AlertTriangle size={16} /><div><strong>{row.code} · Section {row.section || "All"}</strong><span>{row.at_risk} of {row.recorded_users} students with recorded marks below 80%</span></div><button type="button" className="admin-btn outline" onClick={() => onNavigate(row)}>Users <ArrowRight size={13} /></button></div>) : <div className="admin-empty">No course groups have recorded students below this watch threshold.</div>}</div>}
+    <div className="aw-head"><div><span className="aw-eyebrow"><BellRing size={13} /> Attendance</span><h2>Self-mark coverage and watch</h2><p>Student-saved attendance marks by enrolled course and section. Below 80% is an early watch signal among students with at least three marks, not the course penalty rule or official attendance.</p></div></div>
+    {coverageUnavailable && <p className="aw-error" role="status">Self-mark coverage is unavailable. Deploy the admin attendance coverage migration to enable enrolled-student counts.</p>}
+    {coverageReady ? <div className="aw-list">{coverageRows.length ? coverageRows.map(row => {
+      const enrolled = Number(row.enrolled_students) || 0;
+      const marked = Number(row.students_with_marks) || 0;
+      const missing = Number(row.students_without_marks) || 0;
+      const eligible = Number(row.risk_eligible_students) || 0;
+      const atRisk = Number(row.at_risk_students) || 0;
+      const coverage = enrolled ? Math.round(marked / enrolled * 100) : 0;
+      return <div className="aw-issue aw-coverage-row" key={`${row.code}:${row.section}`}>
+        <div className="aw-coverage-body"><strong>{row.code} · Section {row.section || "Single"}</strong><span>{marked === 0 ? "No saved marks" : missing === 0 ? "All enrolled students have a saved mark" : "Some students have no saved marks"}</span>
+          <div className="aw-coverage-metrics"><span><b>{marked}/{enrolled}</b> with marks ({coverage}%)</span><span><b>{missing}</b> with no marks</span><span><b>{eligible}/{enrolled}</b> with three or more marks</span><span><b>{atRisk}/{eligible}</b> below 80% among eligible</span><span><b>{row.latest_marked_session || "—"}</b> latest marked class date</span></div>
+        </div><button type="button" className="admin-btn outline" aria-label={`View users in ${row.code}, section ${row.section || "Single"}`} onClick={() => onNavigate(row)}>View users <ArrowRight size={13} /></button>
+      </div>;
+    }) : <div className="admin-empty">No enrolled course groups are available.</div>}</div> : coverageRows === null && !coverageUnavailable ? <div className="admin-empty">Loading self-mark coverage…</div> : unavailable ? <div className="admin-empty">Attendance watch is unavailable.</div> : <div className="aw-list">{rows.length ? rows.map(row => <div className="aw-issue" key={`${row.code}:${row.section}`}><AlertTriangle size={16} /><div><strong>{row.code} · Section {row.section || "All"}</strong><span>{row.at_risk} of {row.recorded_users} students with at least three marks are below 80%.</span></div><button type="button" className="admin-btn outline" onClick={() => onNavigate(row)}>View users <ArrowRight size={13} /></button></div>) : <div className="admin-empty">No course groups are on the attendance watch. Coverage remains unavailable.</div>}</div>}
+    <small className="aw-footnote">Coverage means at least one student-saved present or absent mark for that enrolled course. The latest date is the class date in a saved mark, not the time it was entered.</small>
   </section>;
 }
 
@@ -135,14 +155,16 @@ export function FeedbackTriage({ feedback, users, triage, roster, busyId, onSave
   </section>;
 }
 
-export function HandoffNotes({ notes, roster, onSave, onClose, readOnly, unavailable, busy }) {
-  const [draft, setDraft] = useState({ title: "", detail: "", next_action: "", owner_id: "", expires_at: "" });
+export function HandoffNotes({ notes, roster, onSave, onClose, readOnly, unavailable, busy, prefill }) {
+  const [draft, setDraft] = useState(() => ({ title: prefill?.title || "", detail: prefill?.detail || "", next_action: "", owner_id: "", expires_at: "", incident_key: prefill?.key || null }));
   const open = notes.filter(note => note.status === "open");
-  const submit = async event => { event.preventDefault(); if (!draft.title.trim() || !draft.next_action.trim()) return; const ok = await onSave(draft); if (ok) setDraft({ title: "", detail: "", next_action: "", owner_id: "", expires_at: "" }); };
+  const closed = notes.filter(note => note.status === "closed" && note.incident_key).slice(0, 8);
+  const submit = async event => { event.preventDefault(); if (!draft.title.trim() || !draft.next_action.trim()) return; const ok = await onSave(draft); if (ok) setDraft({ title: "", detail: "", next_action: "", owner_id: "", expires_at: "", incident_key: null }); };
   return <section className="admin-card admin-span-all admin-g-overview aw-panel" aria-label="Admin handoff notes">
     <div className="aw-head"><div><span className="aw-eyebrow"><ClipboardList size={13} /> Admin coordination</span><h2>Handoff notes <small>{open.length} open</small></h2><p>Record an issue, its owner, and the next action for the next admin.</p></div></div>
     {unavailable && <p className="aw-error" role="alert">Private handoff storage is unavailable. Apply the admin workflows migration to use shared notes.</p>}
-    {!readOnly && !unavailable && <form className="aw-note-form" onSubmit={submit}><input className="admin-input" aria-label="Handoff title" placeholder="Issue title" maxLength={160} value={draft.title} onChange={event => setDraft({ ...draft, title: event.target.value })} required /><textarea className="admin-input" aria-label="Handoff context" placeholder="What happened?" rows={2} value={draft.detail} onChange={event => setDraft({ ...draft, detail: event.target.value })} /><input className="admin-input" aria-label="Next action" placeholder="Next action" maxLength={500} value={draft.next_action} onChange={event => setDraft({ ...draft, next_action: event.target.value })} required /><div className="aw-note-form-bottom"><label>Owner<select className="admin-input" value={draft.owner_id} onChange={event => setDraft({ ...draft, owner_id: event.target.value })}><option value="">Unassigned</option>{roster.map(admin => <option key={admin.user_id} value={admin.user_id}>{admin.name || admin.email || admin.user_id}</option>)}</select></label><label>Review by<input type="date" className="admin-input" value={draft.expires_at} onChange={event => setDraft({ ...draft, expires_at: event.target.value })} /></label><button type="submit" className="admin-btn primary" disabled={busy}>Add note</button></div></form>}
+    {!readOnly && !unavailable && <form className="aw-note-form" onSubmit={submit}>{draft.incident_key && <small>Tracking: {draft.title}</small>}<input className="admin-input" aria-label="Handoff title" placeholder="Issue title" maxLength={160} value={draft.title} onChange={event => setDraft({ ...draft, title: event.target.value })} required /><textarea className="admin-input" aria-label="Handoff context" placeholder="What happened?" rows={2} value={draft.detail} onChange={event => setDraft({ ...draft, detail: event.target.value })} /><input className="admin-input" aria-label="Next action" placeholder="Next action" maxLength={500} value={draft.next_action} onChange={event => setDraft({ ...draft, next_action: event.target.value })} required /><div className="aw-note-form-bottom"><label>Owner<select className="admin-input" value={draft.owner_id} onChange={event => setDraft({ ...draft, owner_id: event.target.value })}><option value="">Unassigned</option>{roster.map(admin => <option key={admin.user_id} value={admin.user_id}>{admin.name || admin.email || admin.user_id}</option>)}</select></label><label>Review by<input type="date" className="admin-input" value={draft.expires_at} onChange={event => setDraft({ ...draft, expires_at: event.target.value })} /></label><button type="submit" className="admin-btn primary" disabled={busy}>Add note</button></div></form>}
     <div className="aw-list">{open.length ? open.map(note => <article className="aw-note" key={note.id}><div><strong>{note.title}</strong><span>{note.owner_id ? `Owner: ${roster.find(admin => admin.user_id === note.owner_id)?.name || note.owner_id}` : "Unassigned"}{note.expires_at ? ` · Review by ${note.expires_at}` : ""}</span></div>{note.detail && <p>{note.detail}</p>}<p><b>Next:</b> {note.next_action}</p><div className="aw-actions"><small>Updated {new Date(note.updated_at).toLocaleString("en-IN")}</small>{!readOnly && <button type="button" className="admin-btn outline" disabled={busy} onClick={() => onClose(note)}>Mark complete</button>}</div></article>) : <div className="admin-empty">No open handoff notes.</div>}</div>
+    {closed.length > 0 && <details className="aw-completed-incidents"><summary>Completed issue follow-ups ({closed.length})</summary><div className="aw-list">{closed.map(note => { const durationHours = Math.max(0, Math.round((new Date(note.resolved_at || note.updated_at) - new Date(note.created_at)) / 3600000)); return <div className="aw-note" key={note.id}><strong>{note.title}</strong><span>Tracked to completion in {durationHours < 24 ? `${durationHours} hours` : `${Math.round(durationHours / 24)} days`} · Completed {new Date(note.resolved_at || note.updated_at).toLocaleString("en-IN")}</span></div>; })}</div></details>}
   </section>;
 }
