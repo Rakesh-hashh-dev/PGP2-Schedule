@@ -1,12 +1,18 @@
 User-agent: *
 Allow: /
+Disallow: /api/
+Disallow: /sso-callback
 
 # Allow OpenAI search discovery without opting into model-training crawls.
 User-agent: OAI-SearchBot
 Allow: /
+Disallow: /api/
+Disallow: /sso-callback
 
 User-agent: ChatGPT-User
 Allow: /
+Disallow: /api/
+Disallow: /sso-callback
 
 # Private student data remains behind authentication. Keep training crawlers out.
 User-agent: GPTBot

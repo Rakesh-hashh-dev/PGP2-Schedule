@@ -229,7 +229,7 @@ function useChangedRows(list) {
   return changed;
 }
 
-export default React.memo(function Timeline({ list, current, now, showNowLine = true, label = "Today", dateLabel, attendance = {}, markAttendance, skipInfo, syncStatus, onRefresh, isSyncing, onOpenSession }) {
+export default React.memo(function Timeline({ list, current, now, showNowLine = true, label = "Today", dateLabel, attendance = {}, markAttendance, skipInfo, syncStatus, onRefresh, isSyncing, onOpenSession, focusMode = false }) {
   const ptr = usePullToRefresh(onRefresh, isSyncing);
   const changedRows = useChangedRows(list);
   if (!list.length)
@@ -276,7 +276,7 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
       : { tone: "done", label: "Day complete", detail: "Nothing else scheduled" };
 
   return (
-    <section className={`panel timeline-panel${showNowLine ? " timeline-today" : " timeline-tomorrow"}`}>
+    <section className={`panel timeline-panel${showNowLine ? " timeline-today" : " timeline-tomorrow"}${focusMode ? " is-focus-mode" : ""}`}>
       <PullIndicator ptr={ptr} isSyncing={isSyncing} />
       <div className="panel-head timeline-panel-head">
         <div className="panel-head-left">

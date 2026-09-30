@@ -26,12 +26,20 @@ import { XP, CARE_DAILY_CAP, MAX_LEVEL, MAX_DEVOTION, DEVOTION_STEP, DEVOTION_UN
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
+function parseScheduleExport(source, name) {
+  const match = new RegExp(
+    `export\\s+const\\s+${name}\\s*=\\s*([\\s\\S]*?)\\s*;\\s*(?=export\\s+const\\s+\\w+\\s*=|$)`,
+  ).exec(source);
+  if (!match) throw new Error(`Could not read ${name} from src/data/schedule.js`);
+  return JSON.parse(match[1]);
+}
+
 /** Term length and a median student's class dates, from the bundled schedule. */
 export function termShape() {
   const src = readFileSync(resolve(root, "src/data/schedule.js"), "utf8");
-  const CLASSES = JSON.parse(/export const CLASSES=(\[.*?\]);\n/s.exec(src)[1]);
-  const STUDENTS = JSON.parse(/export const STUDENTS=(\{.*?\});?\s*$/s.exec(src)[1]);
-  const TERM = JSON.parse(/export const TERM=(\{.*?\});/s.exec(src)[1]);
+  const CLASSES = parseScheduleExport(src, "CLASSES");
+  const STUDENTS = parseScheduleExport(src, "STUDENTS");
+  const TERM = parseScheduleExport(src, "TERM");
 
   const bySection = {};
   for (const c of CLASSES) {

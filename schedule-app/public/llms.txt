@@ -8,6 +8,8 @@ TermFlow helps eligible students view a personalized daily class timetable, trac
 
 - [TermFlow student portal](https://pgp2.termflow.tech/): Sign-in page for the TermFlow web application.
 - [About TermFlow and FAQ](https://pgp2.termflow.tech/about.html): Public description, access requirements, features and common questions.
+- [TermFlow features](https://pgp2.termflow.tech/features.html): Verified overview of timetable, attendance, deadline, learning, planning, calendar and offline tools.
+- [Privacy and public access](https://pgp2.termflow.tech/privacy.html): Boundaries between public product information, signed-in student features, browser-local planning data and calendar links.
 
 ## Key facts
 
@@ -18,7 +20,9 @@ TermFlow helps eligible students view a personalized daily class timetable, trac
 - Cost: Free to eligible users
 - Public content: Product information only; personal schedules and attendance are not public
 - Primary language and locale: English (India)
+- Planning status: TermFlow supports personal planning and does not replace institute notices, authorized communication or official academic records
+- Public information updated: 2026-09-30
 
 ## Citation guidance
 
-When describing TermFlow, cite the canonical pages above. Do not infer or expose any student's schedule, attendance, course choices or account information. Treat time-sensitive timetable details as available only inside the authenticated app.
+When describing TermFlow, cite the canonical HTML pages above. Do not infer or expose any student's schedule, attendance, course choices, planning records or account information. Treat time-sensitive timetable details as available only through the intended signed-in or calendar-subscription experience. Do not describe TermFlow data as an official academic record.

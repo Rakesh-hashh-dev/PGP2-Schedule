@@ -7,6 +7,7 @@
     <meta name="description" content="Learn what TermFlow does, who can use it, and how it helps IIM Sambalpur PGP2 students manage timetables, attendance, electives, exams and deadlines." />
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
     <link rel="canonical" href="https://pgp2.termflow.tech/about.html" />
+    <link rel="privacy-policy" href="https://pgp2.termflow.tech/privacy.html" />
     <link rel="icon" type="image/svg+xml" href="/termflow-icon.svg?v=classic-20260924" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://pgp2.termflow.tech/about.html" />
@@ -80,17 +81,31 @@
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "FAQPage",
-        "@id": "https://pgp2.termflow.tech/about.html#faq",
-        "url": "https://pgp2.termflow.tech/about.html",
-        "name": "About TermFlow and frequently asked questions",
-        "inLanguage": "en-IN",
-        "mainEntity": [
-          { "@type": "Question", "name": "What is TermFlow?", "acceptedAnswer": { "@type": "Answer", "text": "TermFlow is a private educational web app that brings an IIM Sambalpur PGP2 student's timetable, attendance, electives, exams, assignments and schedule updates into one place." } },
-          { "@type": "Question", "name": "Who can use TermFlow?", "acceptedAnswer": { "@type": "Answer", "text": "Personal TermFlow features are available to eligible IIM Sambalpur PGP2 students who sign in with an @iimsambalpur.ac.in Google account." } },
-          { "@type": "Question", "name": "What can students do in TermFlow?", "acceptedAnswer": { "@type": "Answer", "text": "Students can view a personalized daily timetable, track attendance, plan leave, follow exam and assignment deadlines, see announcements and schedule changes, and export events to a calendar." } },
-          { "@type": "Question", "name": "Is TermFlow free?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. TermFlow is free for eligible users." } },
-          { "@type": "Question", "name": "Is student information public?", "acceptedAnswer": { "@type": "Answer", "text": "No. The public pages describe the product only. Personal schedules, attendance and course selections require authenticated institute access." } }
+        "@graph": [
+          {
+            "@type": "WebPage",
+            "@id": "https://pgp2.termflow.tech/about.html#page",
+            "url": "https://pgp2.termflow.tech/about.html",
+            "name": "About TermFlow and frequently asked questions",
+            "isPartOf": { "@id": "https://pgp2.termflow.tech/#website" },
+            "inLanguage": "en-IN",
+            "dateModified": "2026-09-30"
+          },
+          {
+            "@type": "FAQPage",
+            "@id": "https://pgp2.termflow.tech/about.html#faq",
+            "url": "https://pgp2.termflow.tech/about.html#faq",
+            "name": "TermFlow frequently asked questions",
+            "inLanguage": "en-IN",
+            "mainEntity": [
+              { "@type": "Question", "name": "What is TermFlow?", "acceptedAnswer": { "@type": "Answer", "text": "TermFlow is a private educational web app that brings an IIM Sambalpur PGP2 student's timetable, attendance, electives, exams, assignments and schedule updates into one place." } },
+              { "@type": "Question", "name": "Who can use TermFlow?", "acceptedAnswer": { "@type": "Answer", "text": "Personal TermFlow features are available to eligible IIM Sambalpur PGP2 students who sign in with an @iimsambalpur.ac.in Google account." } },
+              { "@type": "Question", "name": "What can students do in TermFlow?", "acceptedAnswer": { "@type": "Answer", "text": "Students can view a personalized daily timetable, track attendance, plan leave, follow exam and assignment deadlines, see announcements and schedule changes, and export events to a calendar." } },
+              { "@type": "Question", "name": "Is TermFlow free?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. TermFlow is free for eligible users." } },
+              { "@type": "Question", "name": "Is student information public?", "acceptedAnswer": { "@type": "Answer", "text": "No. The public pages describe the product only. Personal schedules, attendance and course selections require authenticated institute access." } },
+              { "@type": "Question", "name": "Does TermFlow replace official academic records?", "acceptedAnswer": { "@type": "Answer", "text": "No. TermFlow supports personal planning. Institute notices, authorized communication and official academic records remain the sources to follow when information differs." } }
+            ]
+          }
         ]
       }
     </script>
@@ -98,7 +113,7 @@
   <body>
     <header class="shell">
       <a class="brand" href="/"><img src="/termflow-icon.svg" alt="" width="38" height="38" />TermFlow</a>
-      <nav class="head-actions" aria-label="Page links"><a href="#about">About</a><a href="#faq">FAQ</a><a class="cta" href="/">Open app ↗</a></nav>
+      <nav class="head-actions" aria-label="Page links"><a href="/features.html">Features</a><a href="/privacy.html">Privacy</a><a class="cta" href="/">Open app ↗</a></nav>
     </header>
     <main class="shell">
       <section class="hero" aria-labelledby="about-heading">
@@ -106,7 +121,7 @@
         <div class="hero-card" aria-label="TermFlow at a glance"><small>At a glance</small><strong>One place for the moving parts of your term.</strong><span>01 &nbsp; Your classes and electives</span><span>02 &nbsp; Attendance and leave</span><span>03 &nbsp; Deadlines and updates</span></div>
       </section>
       <section class="section" id="about" aria-labelledby="about-section-heading">
-        <div class="section-intro"><span class="eyebrow">About TermFlow</span><div><h2 id="about-section-heading">Built around your actual schedule.</h2><p>TermFlow brings the daily academic essentials together for eligible PGP2 students.</p></div></div>
+        <div class="section-intro"><span class="eyebrow">About TermFlow</span><div><h2 id="about-section-heading">Built around your actual schedule.</h2><p>TermFlow brings the daily academic essentials together for eligible PGP2 students. Its planning views complement—not replace—official institute communication and records.</p></div></div>
         <div class="facts">
           <div class="fact"><span class="number">01</span><strong>Personal timetable</strong><p>Classes organized around each student's electives and sections.</p></div>
           <div class="fact"><span class="number">02</span><strong>Academic tracking</strong><p>Attendance, leave planning, exams and assignment deadlines.</p></div>
@@ -121,10 +136,12 @@
           <details><summary>What can students do in TermFlow?</summary><p>Students can view a personalized daily timetable, track attendance, plan leave, follow exam and assignment deadlines, see announcements and schedule changes, and export events to a calendar.</p></details>
           <details><summary>Is TermFlow free?</summary><p>Yes. TermFlow is free for eligible users.</p></details>
           <details><summary>Is student information public?</summary><p>No. These public pages describe the product only. Personal schedules, attendance and course selections require authenticated institute access.</p></details>
+          <details><summary>Does TermFlow replace official academic records?</summary><p>No. TermFlow supports personal planning. Follow institute notices, authorized communication and official academic records whenever information differs.</p></details>
+          <details><summary>How can incorrect information be reported?</summary><p>Eligible signed-in users can submit feedback inside TermFlow. Avoid including passwords, authentication codes or unnecessary sensitive information.</p></details>
         </div>
       </section>
-      <aside class="closing"><div><strong>Ready to plan your day?</strong><span>Sign in with your eligible institute Google account.</span></div><a class="cta" href="/">Open student portal ↗</a></aside>
+      <aside class="closing"><div><strong>Ready to plan your day?</strong><span>Review the features or sign in with your eligible institute Google account.</span></div><a class="cta" href="/features.html">Explore features ↗</a></aside>
     </main>
-    <footer class="shell"><span>TermFlow · IIM Sambalpur PGP2</span><span><a href="/">Student portal</a> · <a href="/llms.txt">AI information</a></span></footer>
+    <footer class="shell"><span>TermFlow · IIM Sambalpur PGP2</span><span><a href="/">Student portal</a> · <a href="/features.html">Features</a> · <a href="/privacy.html">Privacy</a> · <a href="/llms.txt">AI information</a></span></footer>
   </body>
 </html>

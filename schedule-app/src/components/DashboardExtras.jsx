@@ -10,6 +10,7 @@ export function DashboardCustomize({ prefs, onChange }) {
     {open && <div className="dashboard-customize-panel"><div className="dashboard-customize-head"><strong>Today layout</strong><button type="button" onClick={() => setOpen(false)} aria-label="Close dashboard settings">×</button></div>
       <label className="dashboard-density">Density <select value={prefs.density} onChange={(event) => update({ density: event.target.value })}><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select></label>
       <div className="dashboard-customize-row"><label><input type="checkbox" checked={prefs.visible.summary} onChange={(event) => update({ visible: { ...prefs.visible, summary: event.target.checked } })} />Semester summary</label></div>
+      <div className="dashboard-customize-row"><label><input type="checkbox" checked={prefs.visible.todayCommand !== false} onChange={(event) => update({ visible: { ...prefs.visible, todayCommand: event.target.checked } })} />Today Command</label></div>
       <label className="dashboard-week-toggle"><input type="checkbox" checked={prefs.weekPanel} onChange={(event) => update({ weekPanel: event.target.checked })} />Show week panel on laptop</label>
     </div>}
   </div>;

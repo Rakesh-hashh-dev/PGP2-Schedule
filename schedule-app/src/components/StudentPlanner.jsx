@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Activity, AlertTriangle, ArrowRight, BarChart3, BellRing,
-  CalendarClock, CalendarDays, CheckCircle2, ChevronRight, CircleGauge,
-  Cloud, CloudOff, RefreshCw, Sparkles, Target, Wifi, Workflow,
+  Activity, ArrowRight, BarChart3, BellRing,
+  BriefcaseBusiness, CalendarClock, CalendarDays, CalendarSync, CheckCircle2,
+  ChevronRight, CircleGauge, Cloud, CloudOff, Sparkles, Target,
+  Users, Workflow,
 } from "lucide-react";
 import { loadAssignments } from "../lib/assignments.js";
 import { fmtTime12 } from "../lib/datetime.js";
@@ -10,15 +11,19 @@ import {
   ATTENDANCE_TARGET, buildAttendanceForecast, buildDailyBrief, buildPlannerInsights,
   buildAttendanceScenario, buildWeeklyPlanner, findFreeWindows, flattenAssignments, minutesLabel,
 } from "../lib/studentPlanner.js";
+import { CareerPlanner, OfflineSyncCenter, SmartCalendar, StudyPlanner } from "./StudentPlannerTools.jsx";
 import "../styles/planner.css";
 
 const MISSES_KEY = "pgp2.planner-misses";
 const EFFORT_KEY = "pgp2.planner-effort";
 const BUDGET_KEY = "pgp2.planner-daily-study-budget";
 const TABS = [
-  ["brief", "Brief", Sparkles],
+  ["brief", "What's next", Sparkles],
   ["forecast", "Forecast", Target],
   ["workload", "Workload", CalendarClock],
+  ["career", "Career", BriefcaseBusiness],
+  ["calendar", "Calendar", CalendarSync],
+  ["study", "Study groups", Users],
   ["changes", "Changes", BellRing],
   ["sync", "Sync", Cloud],
   ["insights", "Insights", BarChart3],
@@ -265,31 +270,6 @@ function ChangesTab({ changes, readKeys, keyOf, onOpenChange, onOpenAll }) {
   );
 }
 
-function SyncTab({ isOffline, syncing, syncedAgo, onSync }) {
-  const stores = [
-    ["Schedule", "Cloud feed with offline snapshot", "cloud"],
-    ["Attendance", "Cloud synced with local backup", "cloud"],
-    ["Assignments", "Profile cloud data with local backup", "cloud"],
-    ["Planner scenarios", "Local to this device", "local"],
-  ];
-  return (
-    <div className="planner-stack">
-      <section className={`planner-sync-hero${isOffline ? " is-offline" : ""}`}>
-        {isOffline ? <CloudOff size={28} /> : <Wifi size={28} />}
-        <div><span>{isOffline ? "Offline mode" : syncing ? "Syncing now" : "Connected"}</span><strong>{isOffline ? "Cached information remains available." : `Last refreshed ${syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}.`}</strong></div>
-        <button disabled={isOffline || syncing} onClick={onSync}><RefreshCw size={15} className={syncing ? "spin-icon" : ""} /> Refresh</button>
-      </section>
-      <section className="planner-card">
-        <div className="planner-card-label">DATA LOCATION</div><h2>What is stored where</h2>
-        <div className="planner-sync-list">{stores.map(([name, detail, mode]) => (
-          <div key={name}><span className={`planner-sync-mark is-${mode}`}>{mode === "cloud" ? <Cloud size={15} /> : <Activity size={15} />}</span><span><strong>{name}</strong><small>{detail}</small></span><em>{mode === "cloud" ? "Cloud + device" : "This device"}</em></div>
-        ))}</div>
-      </section>
-      <div className="planner-callout"><AlertTriangle size={19} /><div><strong>Honest sync status</strong><span>“Refreshed” confirms the app’s latest global sync attempt. Individual failed writes remain cached locally and retry through their existing feature flows.</span></div></div>
-    </div>
-  );
-}
-
 function WeeklyLoadChart({ week }) {
   const maxMinutes = Math.max(60, ...week.days.map((day) => day.classMinutes));
   return (
@@ -369,8 +349,11 @@ export default function StudentPlanner({
         {tab === "brief" && <BriefTab brief={brief} legend={legend} week={week} budgetMinutes={budgetMinutes} setBudgetMinutes={setBudgetMinutes} onNavigate={navigate} onOpenChange={openChange} />}
         {tab === "forecast" && <ForecastTab forecast={forecast} setMisses={setMisses} />}
         {tab === "workload" && <WorkloadTab tasks={tasks} freeWindows={freeWindows} effort={effort} setEffort={setEffort} onNavigate={navigate} />}
+        {tab === "career" && <CareerPlanner onNavigate={onNavigate} />}
+        {tab === "calendar" && <SmartCalendar enrolled={enrolled} />}
+        {tab === "study" && <StudyPlanner enrolled={enrolled} />}
         {tab === "changes" && <ChangesTab changes={changes} readKeys={readChangeKeys} keyOf={changeKeyOf} onOpenChange={openChange} onOpenAll={() => onNavigate("notifications")} />}
-        {tab === "sync" && <SyncTab isOffline={isOffline} syncing={syncing} syncedAgo={syncedAgo} onSync={onSync} />}
+        {tab === "sync" && <OfflineSyncCenter isOffline={isOffline} syncing={syncing} syncedAgo={syncedAgo} onSync={onSync} />}
         {tab === "insights" && <InsightsTab insights={insights} week={week} />}
       </div>
     </div>

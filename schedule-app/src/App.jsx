@@ -9,6 +9,7 @@ import SemSummary from "./components/SemSummary.jsx";
 import Timeline from "./components/Timeline.jsx";
 import WeekAgenda from "./components/WeekAgenda.jsx";
 import ClassPrepSheet from "./components/ClassPrepSheet.jsx";
+import TodayCommandCenter from "./components/TodayCommandCenter.jsx";
 import { DashboardCustomize, ScheduleStatus } from "./components/DashboardExtras.jsx";
 import { DEFAULT_DASHBOARD, readDashboardPrefs, saveDashboardPrefs } from "./lib/dashboardPrefs.js";
 import ScheduleModal from "./components/ScheduleModal.jsx";
@@ -202,6 +203,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const identityResolved = isLoaded && (!isSignedIn || user !== undefined);
   const [dashboardPrefs, setDashboardPrefs] = useState(readDashboardPrefs);
   const [classPrepSession, setClassPrepSession] = useState(null);
+  const [todayFocusMode, setTodayFocusMode] = useState(false);
   const closePrepSheet = useCallback(() => setClassPrepSession(null), []);
   useEffect(() => { saveDashboardPrefs(dashboardPrefs); }, [dashboardPrefs]);
 
@@ -3028,7 +3030,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           </span>
         </div>
 
-        <div className="desk-layout" style={view === "friends" || view === "admin" || view === "wrapped" || view === "planner" || view === "courseHub" || view === "fullSchedule" || (view === "today" && !dashboardPrefs.weekPanel) ? { gridTemplateColumns: "minmax(0, 1fr)" } : {}}>
+        <div className={`desk-layout${view === "today" && todayFocusMode ? " today-focus-mode" : ""}`} style={view === "friends" || view === "admin" || view === "wrapped" || view === "planner" || view === "courseHub" || view === "fullSchedule" || (view === "today" && (!dashboardPrefs.weekPanel || todayFocusMode)) ? { gridTemplateColumns: "minmax(0, 1fr)" } : {}}>
           <main className="main-col">
             {v2Active && !mobileV2MoreOpen && (
               <MobileV2Switcher view={view} examsEnabled={enableExams} onNavigate={navigateMobileV2} />
@@ -3208,8 +3210,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             {view === "today" && !compareTarget && (
               <MarkPrompt list={todayList} now={now} attendance={attendance} markAttendance={markAttendance} />
             )}
-            {(view === "week" || (view === "today" && dashboardPrefs.visible.summary)) && !compareTarget && (
-              <div className={`dashboard-widgets${dashboardPrefs.density === "compact" ? " is-compact" : ""}`}>
+            {(view === "week" || (view === "today" && dashboardPrefs.visible.summary && !todayFocusMode)) && !compareTarget && (
+              <div className={`dashboard-widgets${view === "today" ? " dashboard-widgets-today" : ""}${dashboardPrefs.density === "compact" ? " is-compact" : ""}`}>
                 <div className="dashboard-widget-summary"><SemSummary enrolled={enrolled} legend={LEGEND} attendance={attendance} visible={visible} todayISO={todayISO} now={now} classes={CLASSES} onAttendanceClick={enableAttendance ? () => setView("attendance") : undefined} onExamsClick={enableExams ? () => setView("exams") : undefined} onSessionsClick={() => setView("fullSchedule")} /></div>
               </div>
             )}
@@ -3568,10 +3570,34 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                       )}
                                     </div>
                                 : <>
-                                      <Timeline list={todayList} current={current} now={now} dateLabel={prettyDate(todayISO)} attendance={attendance} markAttendance={markAttendance} skipInfo={skipInfo} syncStatus={<span className="live"><span className="pulse" /> {scheduleData?._source === "live" ? `Live · synced ${syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}` : "Saved schedule"}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} onOpenSession={setClassPrepSession} />
+                                      <Timeline list={todayList} current={current} now={now} dateLabel={prettyDate(todayISO)} attendance={attendance} markAttendance={markAttendance} skipInfo={skipInfo} syncStatus={<span className="live"><span className="pulse" /> {scheduleData?._source === "live" ? `Live · synced ${syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}` : "Saved schedule"}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} onOpenSession={setClassPrepSession} focusMode={todayFocusMode} />
                                     </>}
               </Suspense>
-              {view === "today" && !compareTarget && <MessCard now={now} userId={userId} friends={enableStatus ? friends : []} />}
+              {view === "today" && !compareTarget && !todayFocusMode && <MessCard now={now} userId={userId} friends={enableStatus ? friends : []} />}
+              {view === "today" && !compareTarget && !isArchivedView && dashboardPrefs.visible.todayCommand !== false && (
+                <TodayCommandCenter
+                  key={todayISO}
+                  todayList={todayList}
+                  tomorrowList={tomorrowList}
+                  attendance={attendance}
+                  now={now}
+                  todayISO={todayISO}
+                  termNumber={activeTerm?.number}
+                  changeCount={todayChangeCount}
+                  onNavigate={(target) => { setView(target); setCompareTarget(null); }}
+                  onOpenSession={setClassPrepSession}
+                  onOpenCourse={(code) => { setCourseHubCode(code); setView("courseHub"); setCompareTarget(null); }}
+                  onMarkAttendance={markAttendance}
+                  onFocusModeChange={setTodayFocusMode}
+                  onRemove={() => {
+                    setTodayFocusMode(false);
+                    setDashboardPrefs(currentPrefs => ({
+                      ...currentPrefs,
+                      visible: { ...currentPrefs.visible, todayCommand: false },
+                    }));
+                  }}
+                />
+              )}
               {view === "tomorrow" && !compareTarget && (
                 <DeadlineStrip
                   visible={visible}
@@ -3583,7 +3609,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               )}
             </div>
           </main>
-          <aside className={view !== "week" ? "side-col hide-mobile" : "side-col side-col-week"} style={view === "friends" || view === "admin" || view === "wrapped" || view === "planner" || view === "courseHub" || view === "fullSchedule" || (view === "today" && !dashboardPrefs.weekPanel) ? { display: "none" } : {}}>
+          <aside className={view !== "week" ? "side-col hide-mobile" : "side-col side-col-week"} style={view === "friends" || view === "admin" || view === "wrapped" || view === "planner" || view === "courseHub" || view === "fullSchedule" || (view === "today" && (!dashboardPrefs.weekPanel || todayFocusMode)) ? { display: "none" } : {}}>
             <WeekAgenda visible={visible} now={now} offset={weekOffset} setOffset={setWeekOffset} todayISO={todayISO} onViewFullSchedule={(iso) => { setJumpToDate(iso); setView("fullSchedule"); }} onOpenSession={setClassPrepSession} />
           </aside>
 

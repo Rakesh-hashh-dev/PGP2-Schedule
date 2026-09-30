@@ -1,12 +1,12 @@
 {
   "name": "schedule-app",
   "private": true,
-  "version": "5.12.11",
+  "version": "6.3.9",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "snapshot": "node scripts/generate-snapshot.mjs",
-    "prebuild": "node scripts/generate-snapshot.mjs",
+    "prebuild": "node scripts/generate-snapshot.mjs && node scripts/generate-public-sitemap.mjs",
     "build": "vite build",
     "lint": "eslint .",
     "test": "vitest run",

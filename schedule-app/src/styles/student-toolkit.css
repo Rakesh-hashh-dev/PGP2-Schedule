@@ -1,0 +1,90 @@
+.toolkit-stack { display: grid; gap: 16px; }
+.toolkit-card, .toolkit-sync-hero { border: 1px solid var(--border); border-radius: 18px; background: var(--card); box-shadow: var(--shadow-sm); }
+.toolkit-card { padding: 20px; }
+.toolkit-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 16px; }
+.toolkit-card-head > div { min-width: 0; }
+.toolkit-card-head span { display: block; color: var(--violet); font-size: 10.5px; font-weight: 800; letter-spacing: .1em; }
+.toolkit-card h2 { margin: 4px 0 0; font-size: 19px; }
+.toolkit-card-head p { margin: 5px 0 0; color: var(--muted); font-size: 12.5px; }
+.toolkit-card button, .toolkit-card a, .toolkit-sync-hero button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--card); color: var(--text); font: inherit; font-size: 12.5px; font-weight: 700; text-decoration: none; cursor: pointer; }
+.toolkit-card button:hover, .toolkit-card a:hover { border-color: color-mix(in srgb, var(--violet) 45%, var(--border)); }
+.toolkit-card .toolkit-primary, .toolkit-sync-hero .toolkit-primary { border-color: transparent; background: var(--violet); color: #fff; }
+.toolkit-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.toolkit-form label, .toolkit-options label { display: grid; gap: 6px; color: var(--muted); font-size: 11.5px; font-weight: 700; }
+.toolkit-form input, .toolkit-form select, .toolkit-form textarea, .toolkit-options input, .toolkit-options select, .toolkit-row select { width: 100%; min-width: 0; min-height: 39px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); font: inherit; }
+.toolkit-form textarea { resize: vertical; }
+.toolkit-form .toolkit-span { grid-column: 1 / -1; }
+.toolkit-form > .toolkit-primary { justify-self: start; }
+.toolkit-list { display: grid; gap: 8px; }
+.toolkit-row { display: flex; align-items: center; gap: 11px; min-width: 0; padding: 11px 0; border-bottom: 1px solid var(--border); }
+.toolkit-row:last-child { border-bottom: 0; }
+.toolkit-row-main { flex: 1 1 auto; min-width: 0; }
+.toolkit-row-main strong, .toolkit-row-main small { display: block; }
+.toolkit-row-main strong { overflow: hidden; font-size: 13.5px; text-overflow: ellipsis; white-space: nowrap; }
+.toolkit-row-main small, .toolkit-row > span { margin-top: 3px; color: var(--muted); font-size: 11.5px; }
+.toolkit-row-main p { display: flex; align-items: center; gap: 4px; margin: 5px 0 0; color: var(--muted); font-size: 12px; }
+.toolkit-row select { width: 124px; text-transform: capitalize; }
+.toolkit-status { width: 9px; height: 9px; flex: 0 0 auto; border-radius: 50%; background: var(--muted); }
+.toolkit-status.is-applied, .toolkit-status.is-shortlisted { background: var(--blue); }
+.toolkit-status.is-interview { background: var(--amber); }
+.toolkit-status.is-offered { background: var(--live); }
+.toolkit-status.is-rejected, .toolkit-status.is-withdrawn { background: var(--danger); }
+.toolkit-card .toolkit-icon-btn { width: 34px; min-height: 34px; flex: 0 0 auto; padding: 0; color: var(--muted); }
+.toolkit-card .toolkit-link { margin-top: 12px; }
+.toolkit-empty { display: flex; align-items: center; gap: 9px; padding: 18px; border: 1px dashed var(--border); border-radius: 13px; color: var(--muted); font-size: 13px; }
+.toolkit-empty svg { color: var(--live); }
+.toolkit-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.toolkit-metrics > div { min-width: 0; padding: 15px; border: 1px solid var(--border); border-radius: 15px; background: var(--card); }
+.toolkit-metrics span, .toolkit-metrics strong { display: block; }
+.toolkit-metrics span { color: var(--muted); font-size: 11px; }
+.toolkit-metrics strong { margin-top: 6px; overflow: hidden; font-size: 20px; text-overflow: ellipsis; white-space: nowrap; }
+.toolkit-metrics .is-unlikely strong { color: var(--danger); }
+.toolkit-metrics .is-reached strong { color: var(--live); }
+.toolkit-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.toolkit-options label:has(input[type="checkbox"]) { display: flex; align-items: center; min-height: 42px; padding: 9px 11px; border: 1px solid var(--border); border-radius: 11px; color: var(--text); }
+.toolkit-options input[type="checkbox"] { width: auto; min-height: auto; accent-color: var(--violet); }
+.toolkit-course-pills { display: flex; flex-wrap: wrap; gap: 7px; margin: 15px 0; }
+.toolkit-course-pills button { min-height: 31px; padding: 5px 10px; }
+.toolkit-course-pills button.is-active { border-color: var(--violet); background: color-mix(in srgb, var(--violet) 12%, var(--card)); color: var(--violet); }
+.toolkit-calendar-hero { min-width: 0; overflow: hidden; }
+.toolkit-calendar-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.toolkit-calendar-actions > * { flex: 0 1 auto; }
+.toolkit-url { display: block; width: 100%; max-width: 100%; margin-top: 12px; padding: 10px; overflow-wrap: anywhere; border-radius: 9px; background: var(--bg); color: var(--muted); font-size: 11px; line-height: 1.55; white-space: normal; word-break: break-all; }
+.toolkit-options > label { min-width: 0; }
+.toolkit-date { display: grid; width: 42px; height: 42px; flex: 0 0 auto; place-content: center; border-radius: 11px; background: color-mix(in srgb, var(--violet) 11%, var(--bg)); text-align: center; }
+.toolkit-date b, .toolkit-date small { line-height: 1; }
+.toolkit-date small { margin-top: 3px; }
+.toolkit-row.is-past { opacity: .7; }
+.toolkit-sync-hero { display: flex; align-items: center; gap: 14px; padding: 18px 20px; border-color: color-mix(in srgb, var(--live) 36%, var(--border)); background: color-mix(in srgb, var(--live) 6%, var(--card)); }
+.toolkit-sync-hero.is-offline { border-color: color-mix(in srgb, var(--amber) 40%, var(--border)); background: color-mix(in srgb, var(--amber) 7%, var(--card)); }
+.toolkit-sync-hero > div { flex: 1 1 auto; min-width: 0; }
+.toolkit-sync-hero span, .toolkit-sync-hero strong { display: block; }
+.toolkit-sync-hero span { font-size: 12px; font-weight: 800; text-transform: uppercase; }
+.toolkit-sync-hero strong { margin-top: 3px; font-size: 13px; }
+.toolkit-sync-dot { width: 9px; height: 9px; flex: 0 0 auto; border-radius: 50%; background: var(--border); }
+.toolkit-sync-dot.is-present { background: var(--live); box-shadow: 0 0 0 4px color-mix(in srgb, var(--live) 12%, transparent); }
+.toolkit-footer-actions { margin-top: 14px; }
+
+@media (max-width: 800px) {
+  .toolkit-form, .toolkit-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .toolkit-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 520px) {
+  .toolkit-card { padding: 16px; }
+  .toolkit-form, .toolkit-options { grid-template-columns: 1fr; }
+  .toolkit-calendar-hero .toolkit-card-head { align-items: flex-start; }
+  .toolkit-calendar-actions > * { width: 100%; flex-basis: 100%; }
+  .toolkit-course-pills { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .toolkit-course-pills button { width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .toolkit-row { align-items: flex-start; flex-wrap: wrap; }
+  .toolkit-row-main { flex-basis: calc(100% - 64px); }
+  .toolkit-row select { width: calc(100% - 44px); margin-left: 20px; }
+  .toolkit-sync-hero { align-items: flex-start; flex-wrap: wrap; }
+  .toolkit-sync-hero > div { flex-basis: calc(100% - 48px); }
+  .toolkit-sync-hero button { width: 100%; }
+}
+
+@media (max-width: 360px) {
+  .toolkit-course-pills { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
