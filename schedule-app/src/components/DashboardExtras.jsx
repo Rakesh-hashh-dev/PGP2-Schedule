@@ -6,7 +6,7 @@ export function DashboardCustomize({ prefs, onChange }) {
   const [open, setOpen] = useState(false);
   const update = (patch) => onChange({ ...prefs, ...patch });
   return <div className="dashboard-customize">
-    <button type="button" className="dashboard-customize-toggle" aria-expanded={open} onClick={() => setOpen((value) => !value)}><Settings2 size={14} /> Customize</button>
+    <button type="button" className="dashboard-customize-toggle" aria-expanded={open} onClick={() => setOpen((value) => !value)}><Settings2 size={14} /><span className="dashboard-cust-label"> Customize</span></button>
     {open && <div className="dashboard-customize-panel"><div className="dashboard-customize-head"><strong>Today layout</strong><button type="button" onClick={() => setOpen(false)} aria-label="Close dashboard settings">×</button></div>
       <label className="dashboard-density">Density <select value={prefs.density} onChange={(event) => update({ density: event.target.value })}><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select></label>
       <div className="dashboard-customize-row"><label><input type="checkbox" checked={prefs.visible.summary} onChange={(event) => update({ visible: { ...prefs.visible, summary: event.target.checked } })} />Semester summary</label></div>

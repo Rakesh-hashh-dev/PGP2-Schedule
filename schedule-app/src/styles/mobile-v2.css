@@ -3524,6 +3524,43 @@
   }
 }
 
+/* Keep mobile navigation still while only the destination content crossfades.
+   The keyed stage also supplies the fallback when View Transitions are absent. */
+@media (max-width: 1200px) {
+  .mobile-ui-v2 .main-col {
+    view-transition-name: none;
+  }
+
+  .mobile-ui-v2 .tf-page-stage {
+    animation: tf-page-enter 190ms ease-out both;
+  }
+
+  .mobile-ui-v2 .tf-page-stage :is(.assign-page, .exam-page, .att-page) {
+    animation: none;
+  }
+
+  @supports (view-transition-name: termflow-content) {
+    .mobile-ui-v2 .tf-page-stage {
+      view-transition-name: termflow-content;
+      animation: none;
+    }
+
+    ::view-transition-old(termflow-content) {
+      animation: tf-view-old 120ms ease-in both;
+    }
+
+    ::view-transition-new(termflow-content) {
+      animation: tf-view-new 190ms ease-out 20ms both;
+    }
+  }
+}
+
+@media (max-width: 1200px) and (prefers-reduced-motion: reduce) {
+  .mobile-ui-v2 .tf-page-stage {
+    animation: none;
+  }
+}
+
 @media (max-width: 600px) {
   .mobile-ui-v2 .notif-panel {
     max-height: min(calc(100dvh - var(--mobile-v2-appbar) - var(--mobile-v2-bottom-clearance) - 18px), 70dvh, 540px);

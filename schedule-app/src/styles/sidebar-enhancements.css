@@ -719,9 +719,9 @@
   }
 
   .sidebar:not(.sb-aurora) .sb-edge-tab {
-    border-color: rgba(214, 201, 250, 0.14);
-    background: #171020;
-    box-shadow: 3px 0 14px rgba(4, 2, 8, 0.3);
+    border-color: var(--border);
+    background: var(--surface);
+    box-shadow: 2px 0 6px rgba(0,0,0,.18);
   }
 
   .sidebar:not(.sb-aurora).collapsed .sb-scroll-body {

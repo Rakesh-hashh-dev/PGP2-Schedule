@@ -65,4 +65,4 @@
 .schedule-status strong, .schedule-status small { display: block; font-size: 11px; }
 .schedule-status small { margin-top: 2px; color: var(--muted); }
 .schedule-status button { border: 0; background: transparent; color: var(--violet); font-weight: 700; cursor: pointer; }
-@media (max-width: 600px) { .prep-sheet { padding: 20px 16px; } .prep-actions { flex-direction: column; } .dashboard-customize-panel { right: -8px; } }
+@media (max-width: 600px) { .prep-sheet { padding: 20px 16px; } .prep-actions { flex-direction: column; } .dashboard-customize-panel { right: -8px; } .dashboard-cust-label { display: none; } }

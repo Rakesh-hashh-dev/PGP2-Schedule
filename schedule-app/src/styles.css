@@ -2796,7 +2796,7 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 .notif-settings-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 300;
+  z-index: 1200;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -12190,12 +12190,12 @@ html[data-theme="dark"] .bnav {
   top: calc(50% - 22px);
   width: 17px;
   height: 44px;
-  border: 1px solid rgba(167, 139, 250, .3);
+  border: 1px solid var(--border);
   border-left: none;
   border-radius: 0 9px 9px 0;
-  background: linear-gradient(180deg, #221540, #150b28);
-  color: rgba(255, 255, 255, .55);
-  box-shadow: 2px 0 10px rgba(10, 5, 25, .35), inset 0 1px 0 rgba(255, 255, 255, .08);
+  background: var(--surface);
+  color: var(--muted);
+  box-shadow: 2px 0 6px rgba(0,0,0,.18);
   transition: color .18s, border-color .18s, box-shadow .18s;
 }
 
@@ -12215,9 +12215,9 @@ html[data-theme="dark"] .bnav {
 
 .sb-edge-tab:hover,
 .sb-edge-tab:focus-visible {
-  color: #fff;
-  border-color: rgba(167, 139, 250, .65);
-  box-shadow: 2px 0 14px rgba(109, 91, 208, .45), inset 0 1px 0 rgba(255, 255, 255, .12);
+  color: var(--text);
+  border-color: var(--border);
+  box-shadow: 2px 0 8px rgba(0,0,0,.22);
 }
 
 .sb-edge-tab:hover svg {
@@ -12684,6 +12684,7 @@ html[data-theme="dark"] .bnav {
     position: sticky;
     top: 24px;
     max-height: calc(100vh - 48px);
+    z-index: 0;
   }
 
   /* Week is always in the sidebar — hide the tab */
@@ -15518,7 +15519,7 @@ a.sb-quicklink {
 .wn-overlay {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: 1200;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -20921,4 +20922,51 @@ html[data-theme="dark"] .lp-glance-bad {
   .notif-panel { animation: none; }
   .notif-panel .rc-item,
   .notif-panel .np-ping { transition: none; }
+}
+
+/* Manage alerts: a contained, scrollable dialog on phones. */
+@media (max-width: 640px) {
+  .notif-settings-backdrop {
+    align-items: center;
+    padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
+  }
+
+  .notif-settings-sheet {
+    width: min(100%, 440px);
+    max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    padding: 16px;
+    border-radius: 18px;
+    overscroll-behavior: contain;
+  }
+
+  .notif-settings-head { gap: 10px; }
+  .notif-settings-head h2 { margin: 2px 0; font-size: 21px; }
+  .notif-settings-head p { font-size: 12px; line-height: 1.35; }
+  .notif-settings-close { width: 34px; height: 34px; flex: 0 0 34px; }
+
+  .notif-settings-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin: 14px 0 10px;
+  }
+
+  .notif-settings-actions .notif-push-toggle,
+  .notif-settings-actions .notif-markall {
+    min-width: 0;
+    min-height: 38px;
+    height: auto;
+    padding: 7px 8px;
+    font-size: 11.5px;
+  }
+
+  .notif-settings-actions > :only-child { grid-column: 1 / -1; }
+  .notif-settings-note { padding: 10px 12px; }
+  .notif-settings-sheet .npp-dropdown { margin-bottom: 0; }
+  .notif-settings-sheet .npp-trigger { padding: 9px 10px; }
+  .notif-settings-sheet .npp-panel { gap: 7px; padding: 8px 10px 10px; }
+  .notif-settings-sheet .npp-row { gap: 5px 8px; }
+  .notif-settings-sheet .npp-row .reminder-bar-label { flex: 1 1 auto; }
+  .notif-settings-sheet .npp-row .reminder-seg { flex: 0 0 auto; }
+  .notif-settings-sheet .npp-row .reminder-seg-btn { min-height: 30px; padding: 4px 9px; }
+  .notif-settings-sheet .npp-row .reminder-time { min-height: 30px; }
 }
