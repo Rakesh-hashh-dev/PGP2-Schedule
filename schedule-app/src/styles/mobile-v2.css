@@ -591,7 +591,7 @@
     max-width: 100vw;
     box-sizing: border-box;
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--mobile-nav-count, 5), minmax(0, 1fr));
     align-items: stretch;
     min-height: calc(var(--mobile-v2-tabbar) + env(safe-area-inset-bottom, 0px));
     padding: 7px max(8px, env(safe-area-inset-right, 0px)) max(4px, env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px));
@@ -653,6 +653,7 @@
 
   .mobile-ui-v2 .mobile-v2-tabbar button.is-active {
     color: var(--violet);
+    background: var(--v2-accent-soft);
   }
 
   .mobile-ui-v2 .mobile-v2-tabbar button.is-active .mobile-v2-tab-label {
@@ -3202,8 +3203,8 @@
   }
 
   .mobile-ui-v2 .mobile-v2-tabbar button.is-active .mobile-v2-tab-icon {
-    border-color: color-mix(in srgb, var(--violet) 17%, transparent);
-    background: var(--v2-accent-soft);
+    border-color: transparent;
+    background: transparent;
     box-shadow: none;
     transform: none;
   }
@@ -3218,6 +3219,11 @@
     width: 8px;
     height: 8px;
     box-shadow: 0 0 0 2px var(--card);
+  }
+
+  .mobile-ui-v2 .mobile-v2-tabbar button:focus-visible {
+    outline: 2px solid var(--violet);
+    outline-offset: -2px;
   }
 
   /* Shared content surfaces */
@@ -3521,6 +3527,44 @@
     scroll-behavior: auto !important;
     transition-duration: .01ms !important;
     animation-duration: .01ms !important;
+  }
+}
+
+/* Floating phone dock leaves the home-indicator area free. */
+@media (max-width: 767px) {
+  .mobile-ui-v2 {
+    --mobile-v2-tabbar: 72px;
+    --mobile-v2-bottom-clearance: calc(var(--mobile-v2-tabbar) + 12px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .mobile-ui-v2 .mobile-v2-tabbar {
+    left: max(10px, env(safe-area-inset-left, 0px));
+    right: max(10px, env(safe-area-inset-right, 0px));
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    width: auto;
+    min-height: var(--mobile-v2-tabbar);
+    gap: 3px;
+    padding: 6px;
+    border: 1px solid var(--v2-border-soft);
+    border-radius: 22px;
+    background: color-mix(in srgb, var(--card) 94%, transparent);
+    box-shadow: 0 8px 28px -10px color-mix(in srgb, var(--text) 24%, transparent), inset 0 1px 0 color-mix(in srgb, #fff 16%, transparent);
+  }
+
+  .mobile-ui-v2 .mobile-v2-tabbar button {
+    min-height: 58px;
+    border-radius: 16px;
+    gap: 4px;
+    padding: 4px 1px;
+  }
+
+  .mobile-ui-v2 .mobile-v2-tabbar button.is-active {
+    background: var(--v2-accent-soft);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--violet) 10%, transparent);
+  }
+
+  .mobile-ui-v2 .mobile-v2-tabbar button:active {
+    background: color-mix(in srgb, var(--violet) 12%, var(--card));
   }
 }
 

@@ -1,5 +1,5 @@
 import {
-  Bell, BookOpen, CalendarDays, CalendarOff, ChevronRight,
+  Bell, BookOpen, CalendarDays, CalendarOff, CheckSquare2, ChevronRight,
   CircleHelp, Download, LogOut, MessageSquare, Package,
   PawPrint, Settings2, Shield, SlidersHorizontal, Sparkles, Users, UtensilsCrossed,
   Wallet, LayoutDashboard,
@@ -64,6 +64,7 @@ export default function MobileV2MorePage({
       </MoreSection>
 
       <MoreSection title="Tools">
+        <MoreRow Icon={CheckSquare2} label="Assignments" detail="Tasks and deadlines" onClick={() => onNavigate("assignments")} />
         <MoreRow Icon={BookOpen} label="Courses" detail="Classes, work and materials by subject" onClick={() => onNavigate("courseHub")} />
         <MoreRow Icon={CalendarDays} label="Full timetable" detail="Browse the complete term" onClick={() => onNavigate("fullSchedule")} />
         <MoreRow Icon={Wallet} label="Split expenses" detail="Settle group spending" onClick={() => onNavigate("split")} />

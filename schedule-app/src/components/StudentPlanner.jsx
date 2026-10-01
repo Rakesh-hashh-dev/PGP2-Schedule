@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Activity, ArrowRight, BarChart3, BellRing,
-  BriefcaseBusiness, CalendarClock, CalendarDays, CalendarSync, CheckCircle2,
+  CalendarClock, CalendarDays, CalendarSync, CheckCircle2,
   ChevronRight, CircleGauge, Cloud, CloudOff, Sparkles, Target,
-  Users, Workflow,
+  Workflow,
 } from "lucide-react";
 import { loadAssignments } from "../lib/assignments.js";
 import { fmtTime12 } from "../lib/datetime.js";
@@ -11,7 +11,7 @@ import {
   ATTENDANCE_TARGET, buildAttendanceForecast, buildDailyBrief, buildPlannerInsights,
   buildAttendanceScenario, buildWeeklyPlanner, findFreeWindows, flattenAssignments, minutesLabel,
 } from "../lib/studentPlanner.js";
-import { CareerPlanner, OfflineSyncCenter, SmartCalendar, StudyPlanner } from "./StudentPlannerTools.jsx";
+import { OfflineSyncCenter, SmartCalendar } from "./StudentPlannerTools.jsx";
 import "../styles/planner.css";
 
 const MISSES_KEY = "pgp2.planner-misses";
@@ -21,9 +21,7 @@ const TABS = [
   ["brief", "What's next", Sparkles],
   ["forecast", "Forecast", Target],
   ["workload", "Workload", CalendarClock],
-  ["career", "Career", BriefcaseBusiness],
   ["calendar", "Calendar", CalendarSync],
-  ["study", "Study groups", Users],
   ["changes", "Changes", BellRing],
   ["sync", "Sync", Cloud],
   ["insights", "Insights", BarChart3],
@@ -120,10 +118,10 @@ function BriefTab({ brief, legend, week, budgetMinutes, setBudgetMinutes, onNavi
             <p>{fmtTime12(next.start)}–{fmtTime12(next.end)}{next.room ? ` · ${next.room}` : ""}</p>
             <div className="planner-card-actions">
               <button onClick={() => onNavigate("today")}>Open today <ArrowRight size={14} /></button>
-              <span>{brief.classesLeft} session{brief.classesLeft === 1 ? "" : "s"} left today</span>
+              <span>{brief.classesLeft} class{brief.classesLeft === 1 ? "" : "es"} left today</span>
             </div>
           </>
-        ) : <Empty title="Academic day clear" copy={`${brief.tomorrowCount} scheduled tomorrow.`} />}
+        ) : <Empty title="No more classes today" copy={`${brief.tomorrowCount} class${brief.tomorrowCount === 1 ? "" : "es"} scheduled tomorrow.`} />}
       </section>
 
       <section className="planner-card">
@@ -349,9 +347,7 @@ export default function StudentPlanner({
         {tab === "brief" && <BriefTab brief={brief} legend={legend} week={week} budgetMinutes={budgetMinutes} setBudgetMinutes={setBudgetMinutes} onNavigate={navigate} onOpenChange={openChange} />}
         {tab === "forecast" && <ForecastTab forecast={forecast} setMisses={setMisses} />}
         {tab === "workload" && <WorkloadTab tasks={tasks} freeWindows={freeWindows} effort={effort} setEffort={setEffort} onNavigate={navigate} />}
-        {tab === "career" && <CareerPlanner onNavigate={onNavigate} />}
         {tab === "calendar" && <SmartCalendar enrolled={enrolled} />}
-        {tab === "study" && <StudyPlanner enrolled={enrolled} />}
         {tab === "changes" && <ChangesTab changes={changes} readKeys={readChangeKeys} keyOf={changeKeyOf} onOpenChange={openChange} onOpenAll={() => onNavigate("notifications")} />}
         {tab === "sync" && <OfflineSyncCenter isOffline={isOffline} syncing={syncing} syncedAgo={syncedAgo} onSync={onSync} />}
         {tab === "insights" && <InsightsTab insights={insights} week={week} />}

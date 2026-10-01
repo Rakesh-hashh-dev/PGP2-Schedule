@@ -2,22 +2,28 @@
    while keeping the forecast, next class and actions in a clear reading order. */
 .tmrw-summary > .tmrw-free-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(90px, 136px);
-  column-gap: 16px;
+  grid-template-columns: minmax(0, 1fr) minmax(110px, 160px);
+  column-gap: 20px;
   align-items: center;
-  padding: 15px 18px 16px !important;
+  padding: 20px 22px 18px !important;
   text-align: left;
-  border-radius: 17px !important;
+  border-radius: 22px !important;
 }
-.tmrw-summary > .tmrw-free-card .tmrw-free-head { grid-column: 1 / -1; margin-bottom: 3px; flex-wrap: wrap; }
+.tmrw-summary > .tmrw-free-card .tmrw-free-head { grid-column: 1 / -1; margin-bottom: 18px; flex-wrap: wrap; }
 .tmrw-summary > .tmrw-free-card .tmrw-free-text { grid-column: 1; grid-row: 2; min-width: 0; }
-.tmrw-summary > .tmrw-free-card .tmrw-free-scene { grid-column: 2; grid-row: 2; padding: 0 !important; }
-.tmrw-summary > .tmrw-free-card .fdi-root { width: 100%; max-width: 136px; height: 96px; }
-.tmrw-summary > .tmrw-free-card .tmrw-free-title { margin-top: 0; font-size: clamp(17px, 2vw, 21px) !important; line-height: 1.18; }
-.tmrw-summary > .tmrw-free-card .tmrw-free-sub { max-width: none; margin: 4px 0 0; font-size: 12.5px !important; }
-.tmrw-summary > .tmrw-free-card .tmrw-free-next-wrap { grid-column: 1 / -1; max-width: none; width: 100%; margin: 7px 0 0; padding: 8px 11px; }
-.tmrw-summary > .tmrw-free-card .tmrw-free-actions { grid-column: 1 / -1; justify-content: flex-start !important; margin-top: 10px !important; }
-.tmrw-summary > .tmrw-free-card .tmrw-free-btn { min-height: 34px; padding: 6px 12px !important; }
+.tmrw-summary > .tmrw-free-card .tmrw-free-scene { grid-column: 2; grid-row: 2; padding: 0 !important; flex-direction: column; gap: 2px; }
+.tmrw-summary > .tmrw-free-card .fdi-root { width: 150px; max-width: 100%; height: 100px; }
+.tmrw-summary > .tmrw-free-card .tmrw-free-title { margin: 7px 0 0; font-size: clamp(22px, 2.6vw, 30px) !important; line-height: 1.12; letter-spacing: -.035em; }
+.tmrw-summary > .tmrw-free-card .tmrw-free-sub { max-width: 32ch; margin: 9px 0 0; font-size: 12.5px !important; line-height: 1.6; }
+.tmrw-summary > .tmrw-free-card .tmrw-free-next-wrap { grid-column: 1 / -1; box-sizing: border-box; max-width: none; width: 100%; margin: 18px 0 0; padding: 12px; background: color-mix(in srgb, var(--card) 78%, transparent); border: 1px solid var(--border); border-radius: 13px; }
+.tmrw-summary > .tmrw-free-card .tmrw-free-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; justify-content: flex-start !important; margin-top: 12px !important; gap: 8px; }
+.tmrw-summary > .tmrw-free-card .tmrw-free-btn { min-height: 36px; padding: 7px 12px !important; border-radius: 10px !important; }
+.tmrw-free-status { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 700; color: var(--ink); padding: 5px 9px; border: 1px solid var(--border); border-radius: 999px; background: color-mix(in srgb, var(--card) 70%, transparent); }
+.tmrw-free-eyebrow { color: var(--muted); font-size: 9px; font-weight: 750; letter-spacing: .12em; }
+.tmrw-free-forecast { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.tmrw-free-temperature { color: var(--ink); font-size: 18px; font-weight: 750; letter-spacing: -.03em; }
+.tmrw-free-temperature > span { color: var(--muted); font-weight: 400; }
+.tmrw-free-condition { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 10px; }
 .tmrw-summary > .tmrw-free-card.theme-unknown { grid-template-columns: minmax(0, 1fr); background: linear-gradient(135deg, var(--card-hi), var(--card)) !important; border-color: var(--border) !important; }
 
 /* The forecast paints the whole free-day card. Keep the left side quieter so
@@ -39,7 +45,7 @@
   content: "";
   position: absolute;
   inset: 0;
-  background: rgba(15, 23, 42, .14);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--card) 78%, transparent), transparent);
 }
 html[data-theme="dark"] .tmrw-summary > .tmrw-free-card .tmrw-weather-layer::after {
   background: rgba(2, 6, 23, .09);
@@ -137,12 +143,13 @@ html[data-theme="dark"] .tmrw-weather-layer.is-storm::before { background: linea
 
 @media (max-width: 600px) {
   .tmrw-summary > .tmrw-free-card,
-  .mobile-ui-v2 .tmrw-summary > .tmrw-free-card { grid-template-columns: minmax(0, 1fr) 80px; column-gap: 8px; padding: 12px 13px 13px !important; }
-  .tmrw-summary > .tmrw-free-card .fdi-root { max-width: 80px; height: 74px; }
-  .tmrw-summary > .tmrw-free-card .tmrw-free-title { font-size: 17px !important; }
+  .mobile-ui-v2 .tmrw-summary > .tmrw-free-card { grid-template-columns: minmax(0, 1fr) 100px; column-gap: 12px; padding: 16px !important; }
+  .tmrw-summary > .tmrw-free-card .tmrw-free-head { margin-bottom: 16px; gap: 6px; }
+  .tmrw-summary > .tmrw-free-card .fdi-root { width: 100px; height: 78px; }
+  .tmrw-summary > .tmrw-free-card .tmrw-free-title { font-size: 22px !important; }
   .tmrw-summary > .tmrw-free-card .tmrw-free-sub { font-size: 11.5px !important; }
   .tmrw-summary > .tmrw-free-card .tmrw-free-wx-pill > span:last-child { display: none; }
-  .tmrw-summary > .tmrw-free-card .tmrw-free-next-wrap { margin-top: 8px; }
+  .tmrw-summary > .tmrw-free-card .tmrw-free-next-wrap { margin-top: 16px; }
   .tmrw-summary > .tmrw-free-card .tmrw-free-actions { gap: 6px !important; margin-top: 8px !important; }
   .tmrw-summary > .tmrw-free-card .tmrw-free-btn { font-size: 11px !important; }
 }
@@ -151,4 +158,81 @@ html[data-theme="dark"] .tmrw-weather-layer.is-storm::before { background: linea
   .tmrw-summary > .tmrw-free-card .tmrw-free-kicker-pill { font-size: 9px; }
   .tmrw-summary > .tmrw-free-card .tmrw-free-wx-pill { font-size: 10px; }
   .tmrw-summary > .tmrw-free-card .tmrw-free-btn { flex: 1 1 auto; justify-content: center !important; }
+}
+
+/* Free-day motion stays in the artwork; copy and controls remain steady. */
+.tmrw-summary > .tmrw-free-card > .tmrw-atmosphere {
+  position: absolute; inset: 0 0 0 48%; z-index: 0;
+  overflow: hidden; pointer-events: none; color: var(--weather-particle, #d99a28);
+}
+.tmrw-atmosphere.is-cloudy { --weather-particle: #94a3b8; }
+.tmrw-atmosphere.is-rain { --weather-particle: #38a3db; }
+.tmrw-atmosphere.is-storm { --weather-particle: #a78bfa; }
+.tmrw-atmosphere.is-night { --weather-particle: #b8c5ff; }
+.tmrw-atmosphere i {
+  position: absolute; left: calc(8% + var(--particle) * 11%);
+  top: calc(12% + var(--particle) * 8%); width: 3px; height: 3px;
+  border-radius: 50%; background: currentColor; opacity: .3;
+  animation: tmrw-mote 9s ease-in-out infinite alternate;
+  animation-delay: calc(var(--particle) * -1.4s);
+}
+.tmrw-atmosphere.is-cloudy i { width: 28px; height: 10px; opacity: .12; filter: blur(3px); animation-duration: 16s; }
+.tmrw-atmosphere:is(.is-rain, .is-storm) i {
+  top: -15%; width: 1.5px; height: 14px; opacity: .22;
+  animation-name: tmrw-particle-rain; animation-duration: 3.2s; animation-timing-function: linear;
+  animation-direction: normal;
+}
+.tmrw-atmosphere.is-night i { animation-name: tmrw-star; animation-duration: 7s; }
+.tmrw-atmosphere-halo {
+  position: absolute; right: 15%; top: 12%; width: 100px; height: 100px;
+  border: 1px solid currentColor; border-radius: 50%; opacity: .1;
+  animation: tmrw-halo 10s ease-in-out infinite;
+}
+.tmrw-atmosphere:is(.is-cloudy, .is-rain, .is-storm) .tmrw-atmosphere-halo { display: none; }
+.tmrw-atmosphere-ripple {
+  position: absolute; top: 62%; right: 25%; width: 54px; height: 12px;
+  border: 1px solid currentColor; border-radius: 50%; opacity: .15;
+  animation: tmrw-ripple 4s ease-out infinite;
+}
+@keyframes tmrw-mote { from { transform: translate(0, 7px); opacity: .15; } to { transform: translate(-9px, -9px); opacity: .4; } }
+@keyframes tmrw-particle-rain { from { transform: translate(0, 0); } to { transform: translate(-25px, 380px); } }
+@keyframes tmrw-star { 0%, 100% { opacity: .12; } 50% { opacity: .55; } }
+@keyframes tmrw-halo { 0%, 100% { transform: scale(.94); opacity: .08; } 50% { transform: scale(1.08); opacity: .2; } }
+@keyframes tmrw-ripple { from { transform: scale(.65); opacity: .25; } to { transform: scale(1.5); opacity: 0; } }
+@keyframes tmrw-reveal { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+.tmrw-free-card .tmrw-free-scene { animation: tmrw-reveal 500ms ease-out both; }
+.tmrw-free-card .tmrw-free-forecast { animation: tmrw-reveal 450ms ease-out 100ms both; }
+.tmrw-free-card .tmrw-free-next-wrap { animation: tmrw-reveal 450ms ease-out 180ms both; }
+.tmrw-free-card .tmrw-free-btn:focus-visible,
+.tmrw-free-card .tmrw-free-next-wrap:focus-visible { outline: 2px solid var(--violet); outline-offset: 3px; }
+.tmrw-free-card .tmrw-free-btn:active { filter: brightness(.96); }
+.tmrw-free-card .tmrw-free-next-wrap:active .tmrw-free-next-arrow { transform: translateX(3px); }
+
+/* Slow, single lightning pulses replace the illustration's quick double flash. */
+.tmrw-free-card .fdi-anim-lightning-bolt { animation: tmrw-soft-lightning 12s ease-in-out infinite; }
+.tmrw-free-card .fdi-anim-lightning-flash { animation: tmrw-soft-lightning 12s ease-in-out infinite; opacity: .12; }
+.tmrw-free-card .tmrw-weather-layer.is-storm::before { animation: tmrw-soft-storm 12s ease-in-out infinite; }
+@keyframes tmrw-soft-lightning { 0%, 75%, 100% { opacity: 0; } 82% { opacity: .6; } 90% { opacity: 0; } }
+@keyframes tmrw-soft-storm { 0%, 75%, 100% { opacity: .62; } 82% { opacity: .82; } 90% { opacity: .62; } }
+.tmrw-free-card .fdi-anim-drift-left { animation-duration: 10s; }
+.tmrw-free-card .fdi-anim-drift-right { animation-duration: 14s; }
+.tmrw-free-card .fdi-anim-twinkle { animation-duration: 5s; }
+.tmrw-free-card.motion-paused *,
+.tmrw-free-card.motion-paused *::before,
+.tmrw-free-card.motion-paused *::after { animation-play-state: paused !important; }
+@media (max-width: 767px) {
+  .tmrw-atmosphere i:nth-child(n + 5) { display: none; }
+  .tmrw-atmosphere i { animation-duration: 12s; }
+  .tmrw-atmosphere:is(.is-rain, .is-storm) i { animation-duration: 4.5s; }
+  .tmrw-free-card .fdi-anim-pulse { animation-duration: 6s; }
+  .tmrw-free-card .fdi-anim-spin { animation-duration: 48s; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tmrw-free-card *, .tmrw-free-card *::before, .tmrw-free-card *::after {
+    animation: none !important; transition: none !important;
+  }
+  .tmrw-free-card .tmrw-atmosphere { display: none; }
+  .tmrw-free-card .tmrw-free-scene,
+  .tmrw-free-card .tmrw-free-forecast,
+  .tmrw-free-card .tmrw-free-next-wrap { opacity: 1; transform: none; }
 }

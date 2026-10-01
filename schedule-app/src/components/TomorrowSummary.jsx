@@ -125,6 +125,25 @@ export default function TomorrowSummary({
   const wxKind = code == null ? "unknown" : code === 0 ? "clear" : code <= 48 ? "cloudy" : code < 95 ? "rain" : "storm";
   const [openSeg, setOpenSeg] = useState(null);
   const railRef = useRef(null);
+  const freeCardRef = useRef(null);
+  const [motionActive, setMotionActive] = useState(true);
+
+  useEffect(() => {
+    if (classes.length !== 0) return;
+    let inView = true;
+    const update = () => setMotionActive(inView && !document.hidden);
+    const observer = typeof IntersectionObserver === "undefined" ? null : new IntersectionObserver(([entry]) => {
+      inView = entry.isIntersecting;
+      update();
+    });
+    if (freeCardRef.current) observer?.observe(freeCardRef.current);
+    document.addEventListener("visibilitychange", update);
+    update();
+    return () => {
+      observer?.disconnect();
+      document.removeEventListener("visibilitychange", update);
+    };
+  }, [classes.length]);
 
   useEffect(() => {
     if (openSeg === null) return;
@@ -162,27 +181,31 @@ export default function TomorrowSummary({
 
     return (
       <div className="tmrw-summary">
-        <div className={`tmrw-summary-card tmrw-free-card theme-${wxKind} ${night ? 'tmrw-free-night' : ''}`}>
+        <div ref={freeCardRef} className={`tmrw-summary-card tmrw-free-card theme-${wxKind} ${night ? 'tmrw-free-night' : ''}${motionActive ? '' : ' motion-paused'}`}>
           {wx && <div className={`tmrw-weather-layer is-${wxKind}`} aria-hidden="true"><span /><span /></div>}
+          {wx && <div className={`tmrw-atmosphere is-${wxKind}${night ? ' is-night' : ''}`} aria-hidden="true">
+            {Array.from({ length: 8 }, (_, i) => <i key={i} style={{ "--particle": i }} />)}
+            <span className="tmrw-atmosphere-halo" />
+            {(wxKind === "rain" || wxKind === "storm") && <span className="tmrw-atmosphere-ripple" />}
+          </div>}
           <div className="tmrw-free-head">
             <span className="tmrw-free-kicker-pill">
               <span className="tmrw-free-kicker-dot" />
               {kickerText}
             </span>
-            {wx && (
-              <span className="tmrw-free-wx-pill">
-                {WxIcon && <WxIcon size={13} style={{ color: wIcon(wx.code).color }} />}
-                <span>{wx.min}°–{wx.max}°C</span>
-                {conditionText && <span style={{ opacity: 0.7 }}>· {conditionText}</span>}
-              </span>
-            )}
+            <span className="tmrw-free-status"><Coffee size={12} /> Free day</span>
           </div>
 
-          {wx && <div className="tmrw-free-scene" aria-hidden="true">
-            <FreeDayIllustration kind={wxKind} isNight={night} />
+          {wx && <div className="tmrw-free-scene">
+            <div aria-hidden="true"><FreeDayIllustration kind={wxKind} isNight={night} /></div>
+            <div className="tmrw-free-forecast">
+              <span className="tmrw-free-temperature" aria-label={`${wx.min}°–${wx.max}°C`}>{wx.min}°<span> / </span>{wx.max}°C</span>
+              <span className="tmrw-free-condition">{WxIcon && <WxIcon size={12} />}{conditionText}</span>
+            </div>
           </div>}
 
           <div className="tmrw-free-text">
+            <span className="tmrw-free-eyebrow">A LITTLE BREATHING ROOM</span>
             <div className="tmrw-free-title">No classes tomorrow</div>
             <div className="tmrw-free-sub">{sub}</div>
           </div>

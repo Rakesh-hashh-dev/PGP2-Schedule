@@ -62,6 +62,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
   const [showAllClasses, setShowAllClasses] = useState(false);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [dateModalOpen, setDateModalOpen] = useState(false);
+  const [dateToJump, setDateToJump] = useState(TODAY);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [viewMode, setViewMode] = useState("list");
   const [calWeek, setCalWeek] = useState(() => getWeekStart(TODAY));
@@ -431,7 +432,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
             </button>
           )}
 
-          <button className="cal-ctrl-btn" onClick={() => setDateModalOpen(true)}>
+          <button className="cal-ctrl-btn" onClick={() => { setDateToJump(TODAY); setDateModalOpen(true); }}>
             <Calendar size={14} /> Select Date
           </button>
         </div>
@@ -445,44 +446,38 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
               <h3>Jump to Date</h3>
               <button onClick={() => setDateModalOpen(false)}><X size={18} /></button>
             </div>
-            <div className="filter-modal-scroll" style={{ padding: "20px" }}>
+            <form className="filter-modal-scroll fs-date-jump-form" onSubmit={(e) => {
+              e.preventDefault();
+              if (!dateToJump) return;
+              if (viewMode === "list") {
+                const classDates = grouped.filter(g => g.type === "day").map(g => g.date);
+                const targetDate = classDates.find(d => d >= dateToJump);
+                if (!targetDate) {
+                  alert("There are no upcoming classes from the selected date.");
+                  return;
+                }
+                setDateModalOpen(false);
+                requestAnimationFrame(() => {
+                  document.getElementById(`day-${targetDate}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+                });
+              } else {
+                if (viewMode === "calendar") setCalWeek(getWeekStart(dateToJump));
+                if (viewMode === "month") {
+                  const [Y, M] = dateToJump.split("-").map(Number);
+                  setCalMonth({ year: Y, month: M - 1 });
+                  setSelectedDate(dateToJump);
+                }
+                setDateModalOpen(false);
+              }
+            }}>
               <input
                 type="date"
-                autoFocus
-                onChange={(e) => {
-                  const targetDate = e.target.value;
-                  if (!targetDate) return;
-
-                  if (viewMode === "list") {
-                    let el = document.getElementById(`day-${targetDate}`);
-                    if (!el) {
-                      const classDates = grouped.filter(g => g.type === "day").map(g => g.date);
-                      const nextDate = classDates.find(d => d >= targetDate);
-                      if (nextDate) el = document.getElementById(`day-${nextDate}`);
-                    }
-                    if (el) {
-                      const offsetPosition = el.getBoundingClientRect().top + window.pageYOffset - 100;
-                      window.scrollTo({ top: offsetPosition, behavior: "smooth" });
-                    } else {
-                      alert("There are no upcoming classes from the selected date.");
-                    }
-                  } else if (viewMode === "calendar") {
-                    setCalWeek(getWeekStart(targetDate));
-                  } else if (viewMode === "month") {
-                    const [Y, M] = targetDate.split("-").map(Number);
-                    setCalMonth({ year: Y, month: M - 1 });
-                    setSelectedDate(targetDate);
-                  }
-
-                  setDateModalOpen(false);
-                }}
-                style={{
-                  width: "100%", padding: "12px 14px", fontSize: "15px",
-                  borderRadius: "10px", border: "1px solid var(--border)",
-                  background: "var(--bg)", color: "var(--text)", fontFamily: "var(--body)"
-                }}
+                aria-label="Date to jump to"
+                value={dateToJump}
+                onChange={(e) => setDateToJump(e.target.value)}
               />
-            </div>
+              <button type="submit" disabled={!dateToJump}>Go to date</button>
+            </form>
           </div>
         </div>
       )}

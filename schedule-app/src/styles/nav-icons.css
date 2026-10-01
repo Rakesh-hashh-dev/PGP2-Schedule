@@ -1,0 +1,6 @@
+.premium-nav-icon { display: block; flex: none; }
+.premium-nav-icon .nav-icon-wash { fill: currentColor; stroke: none; opacity: .1; transition: opacity 180ms ease; }
+:is(.bnav-btn.on, .mobile-v2-tabbar .is-active) .premium-nav-icon .nav-icon-wash { opacity: .22; }
+@media (prefers-reduced-motion: reduce) {
+  .premium-nav-icon .nav-icon-wash { transition: none; }
+}

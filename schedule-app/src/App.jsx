@@ -46,6 +46,7 @@ import {
 import TermFlowLoader from "./components/TermFlowLoader.jsx";
 import IndiaFlagIcon from "./components/IndiaFlagIcon.jsx";
 import DesktopSidebar from "./components/DesktopSidebar.jsx";
+import NavIcon from "./components/mobile/NavIcon.jsx";
 import { ARCHIVED_TERMS } from "./data/archive/index.js";
 
 const AttendancePanel = lazy(() => import("./components/AttendancePanel.jsx"));
@@ -3814,43 +3815,34 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               />
             )}
             <button className={`bnav-btn${view === "today" ? " on" : ""}`} aria-label="Today" aria-current={view === "today" ? "page" : undefined} onClick={() => { setView("today"); setCompareTarget(null); }}>
-              <span className="bnav-icon"><Clock size={19} /></span>
+              <span className="bnav-icon"><NavIcon kind="today" /></span>
             </button>
             <button className={`bnav-btn${view === "tomorrow" ? " on" : ""}`} aria-label="Tomorrow" aria-current={view === "tomorrow" ? "page" : undefined} onClick={() => { setView("tomorrow"); setCompareTarget(null); }}>
-              <span className="bnav-icon"><Sunrise size={19} /></span>
+              <span className="bnav-icon"><NavIcon kind="tomorrow" /></span>
             </button>
             <button className={`bnav-btn${view === "week" ? " on" : ""}`} aria-label="Week" aria-current={view === "week" ? "page" : undefined} onClick={() => { setView("week"); setCompareTarget(null); }}>
-              <span className="bnav-icon"><Calendar size={19} /></span>
+              <span className="bnav-icon"><NavIcon kind="schedule" /></span>
             </button>
             {enableAttendance && (
               <button className={`bnav-btn${view === "attendance" ? " on" : ""}`} aria-label="Attendance" aria-current={view === "attendance" ? "page" : undefined} onClick={() => { setView("attendance"); setCompareTarget(null); }}>
-                <span className="bnav-icon"><ClipboardList size={19} /></span>
+                <span className="bnav-icon"><NavIcon kind="attendance" /></span>
               </button>
             )}
             {enableExams && (
               <button className={`bnav-btn${view === "exams" ? " on" : ""}`} aria-label="Exams" aria-current={view === "exams" ? "page" : undefined} onClick={() => { setView("exams"); setCompareTarget(null); }}>
-                <span className="bnav-icon"><GraduationCap size={19} /></span>
+                <span className="bnav-icon"><NavIcon kind="exams" /></span>
               </button>
             )}
-            <button className={`bnav-btn${view === "notifications" ? " on" : ""}`} aria-label="Announcements" aria-current={view === "notifications" ? "page" : undefined} onClick={() => { setView("notifications"); setCompareTarget(null); }}>
-              <span className="bnav-icon">
-                <Megaphone size={19} />
-                {unreadChangeCount > 0 && <span className="bnav-dot" />}
-              </span>
-            </button>
-            <button className={`bnav-btn${view === "assignments" ? " on" : ""}`} aria-label="Assignments" aria-current={view === "assignments" ? "page" : undefined} onClick={() => { setView("assignments"); setCompareTarget(null); }}>
-              <span className="bnav-icon"><BookOpenCheck size={19} /></span>
-            </button>
             {enableFriends && (
               <button className={`bnav-btn${view === "friends" ? " on" : ""}`} aria-label="Social" aria-current={view === "friends" ? "page" : undefined} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); }}>
                 <span className="bnav-icon">
-                  <Users size={19} />
+                  <NavIcon kind="social" />
                   {unreadFriendCount > 0 && <span className="bnav-dot" />}
                 </span>
               </button>
             )}
             <button className={`bnav-btn${view === "planner" ? " on" : ""}`} aria-label="Planner" aria-current={view === "planner" ? "page" : undefined} onClick={() => { setView("planner"); setCompareTarget(null); }}>
-              <span className="bnav-icon"><LayoutDashboard size={19} /></span>
+              <span className="bnav-icon"><NavIcon kind="planner" /></span>
             </button>
           </nav>
         )}
