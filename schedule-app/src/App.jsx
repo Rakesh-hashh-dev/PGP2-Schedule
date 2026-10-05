@@ -10,8 +10,9 @@ import Timeline from "./components/Timeline.jsx";
 import WeekAgenda from "./components/WeekAgenda.jsx";
 import ClassPrepSheet from "./components/ClassPrepSheet.jsx";
 import TodayCommandCenter from "./components/TodayCommandCenter.jsx";
+import TodayDashboard from "./components/TodayDashboard.jsx";
 import { DashboardCustomize, ScheduleStatus } from "./components/DashboardExtras.jsx";
-import { DEFAULT_DASHBOARD, readDashboardPrefs, saveDashboardPrefs } from "./lib/dashboardPrefs.js";
+import { DEFAULT_DASHBOARD, dashboardCardVisible, readDashboardPrefs, saveDashboardPrefs } from "./lib/dashboardPrefs.js";
 import ScheduleModal from "./components/ScheduleModal.jsx";
 import WeekGlance from "./components/WeekGlance.jsx";
 import SubjectFilter from "./components/SubjectFilter.jsx";
@@ -204,7 +205,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const identityResolved = isLoaded && (!isSignedIn || user !== undefined);
   const [dashboardPrefs, setDashboardPrefs] = useState(readDashboardPrefs);
   const [classPrepSession, setClassPrepSession] = useState(null);
-  const [todayFocusMode, setTodayFocusMode] = useState(false);
+  const todayFocusMode = dashboardPrefs.focusMode;
+  const setTodayFocusMode = useCallback((focusMode) => setDashboardPrefs((prefs) => ({ ...prefs, focusMode })), []);
   const closePrepSheet = useCallback(() => setClassPrepSession(null), []);
   useEffect(() => { saveDashboardPrefs(dashboardPrefs); }, [dashboardPrefs]);
 
@@ -525,7 +527,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const { pet: myPet, actions: petActions, moment: petMoment, XP: petXP, keyFor: petKeyFor } = usePet(userId, { xpRate: sysConfig?.flags?.greetingPets?.xpRate });
   const [syncing, setSyncing] = useState(false);
   const [overflowOpen, setOverflowOpen] = useState(false);
-  const { mobileUiVersion, setMobileUiVersion, v2Active } = useMobileUiVersion();
+  const { mobileUiVersion, setMobileUiVersion, supportsV2: compactViewport, v2Active } = useMobileUiVersion();
   const [mobileV2MoreOpen, setMobileV2MoreOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [greetingPetsEnabled, setGreetingPetsEnabled] = useState(() => {
@@ -2535,6 +2537,87 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     </div>
   );
 
+  // Optional Today cards share one renderer so visibility and ordering apply
+  // to the real content. Notices and attendance prompts stay above this stack.
+  const todayTimeline = (
+    todayList.length === 0 && tomorrowList.length === 0
+      ? premiumMode && syncing
+        ? (
+          <ul className="rail">
+            <li className="row premium-skeleton" style={{ height: "80px", marginBottom: "12px", border: "none" }} />
+            <li className="row premium-skeleton" style={{ height: "80px", marginBottom: "12px", border: "none", opacity: 0.7 }} />
+            <li className="row premium-skeleton" style={{ height: "80px", marginBottom: "12px", border: "none", opacity: 0.4 }} />
+          </ul>
+        )
+        : <div className="tmrw-summary-card tmrw-free-card theme-clear" style={{ margin: "0 12px 20px" }}>
+            <div className="tmrw-free-head">
+              <span className="tmrw-free-kicker-pill">
+                <span className="tmrw-free-kicker-dot" />
+                Today · Free Day
+              </span>
+              {weather?.today && dashboardCardVisible(dashboardPrefs, "weather") && (
+                <span className="tmrw-free-wx-pill">
+                  <span>{weather.today.min}°–{weather.today.max}°C</span>
+                </span>
+              )}
+            </div>
+            <div className="tmrw-free-scene" aria-hidden="true">
+              <FreeDayIllustration kind="clear" isNight={now.getHours() >= 19 || now.getHours() < 6} />
+            </div>
+            <div className="tmrw-free-text">
+              <div className="tmrw-free-title">No classes today!</div>
+              <div className="tmrw-free-sub">Enjoy your free time.</div>
+            </div>
+            {/* The companion has a mood for exactly this day — "relaxed"
+                before three, "cozy" after — and nowhere to show it until now. */}
+            {enableCompanion && (
+              <PetCameo
+                pet={myPet}
+                now={now}
+                petContext={petContext}
+                petSettings={sysConfig?.flags?.greetingPets}
+                size={52}
+                className="tmrw-free-pet"
+              />
+            )}
+          </div>
+      : <>
+            <Timeline list={todayList} current={current} now={now} dateLabel={prettyDate(todayISO)} attendance={attendance} markAttendance={markAttendance} skipInfo={skipInfo} syncStatus={<span className="live"><span className="pulse" /> {scheduleData?._source === "live" ? `Live · synced ${syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}` : "Saved schedule"}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} onOpenSession={setClassPrepSession} focusMode={todayFocusMode} />
+          </>
+  );
+  const todayCards = view === "today" && !compareTarget ? {
+    upcoming: <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} onMarkAttendance={markAttendance} attendance={attendance} sysConfig={sysConfig} onTap={() => setView("fullSchedule")} todayList={todayList} />,
+    summary: <div className={`dashboard-widgets dashboard-widgets-today${dashboardPrefs.density === "compact" ? " is-compact" : ""}`}><div className="dashboard-widget-summary"><SemSummary enrolled={enrolled} legend={LEGEND} attendance={attendance} visible={visible} todayISO={todayISO} now={now} classes={CLASSES} onAttendanceClick={enableAttendance ? () => setView("attendance") : undefined} onExamsClick={enableExams ? () => setView("exams") : undefined} onSessionsClick={() => setView("fullSchedule")} /></div></div>,
+    timeline: todayTimeline,
+    mess: <MessCard now={now} userId={userId} friends={enableStatus ? friends : []} />,
+    todayCommand: !isArchivedView ? (
+      <TodayCommandCenter
+        key={todayISO}
+        todayList={todayList}
+        tomorrowList={tomorrowList}
+        attendance={attendance}
+        now={now}
+        todayISO={todayISO}
+        termNumber={activeTerm?.number}
+        changeCount={todayChangeCount}
+        onNavigate={(target) => { setView(target); setCompareTarget(null); }}
+        onOpenSession={setClassPrepSession}
+        onOpenCourse={(code) => { setCourseHubCode(code); setView("courseHub"); setCompareTarget(null); }}
+        onMarkAttendance={markAttendance}
+        focusMode={todayFocusMode}
+        onFocusModeChange={setTodayFocusMode}
+        onRemove={() => {
+          setTodayFocusMode(false);
+          setDashboardPrefs(currentPrefs => ({
+            ...currentPrefs,
+            visible: { ...currentPrefs.visible, todayCommand: false },
+          }));
+        }}
+      />
+    ) : null,
+    deadlines: <DeadlineStrip visible={visible} legend={enrolledLegend} now={now} onOpenAssignments={() => { setView("assignments"); setCompareTarget(null); }} onOpenExams={enableExams ? () => { setView("exams"); setCompareTarget(null); } : undefined} />,
+  } : {};
+
   return (
     <div className={`app-shell${v2Active ? " mobile-ui-v2" : " mobile-ui-v1"}`}>
       {/* ── Dev→Prod Migration Banner (one-time, self-removing) ── */}
@@ -3133,7 +3216,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                   </span>
                   <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
                       {/* Report Bug button moved to overflow menu */}
-                    {view === "today" && <DashboardCustomize prefs={dashboardPrefs} onChange={setDashboardPrefs} />}
+                    {view === "today" && <DashboardCustomize prefs={dashboardPrefs} onChange={setDashboardPrefs} compact={compactViewport} />}
                     <button className="desktop-only vdh-filter-btn" onClick={() => setFilterModalOpen(true)}>
                       <SlidersHorizontal size={14} /> Filter subjects
                     </button>
@@ -3146,7 +3229,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       {theme === "dark" ? <Moon size={14} /> : theme === "light" ? <Sun size={14} /> : <Monitor size={14} />}
                       {theme === "system" ? "Auto" : theme === "dark" ? "Dark" : "Light"}
                     </button>
-                    <WeatherWidget now={now} weather={weather} />
+                    {(view !== "today" || dashboardCardVisible(dashboardPrefs, "weather")) && <WeatherWidget now={now} weather={weather} />}
                   </div>
                 </div>
                 {(view === "today" || view === "tomorrow" || view === "week") && <ScheduleStatus
@@ -3159,7 +3242,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 />}
               </>
             )}
-            {view !== "split" && view !== "attendance" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && view !== "courseHub" && view !== "leave" && view !== "glance" && view !== "wrapped" && view !== "board" && view !== "admin" && view !== "planner" && !compareTarget && view !== "tomorrow" && (
+            {view !== "split" && view !== "attendance" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && view !== "courseHub" && view !== "leave" && view !== "glance" && view !== "wrapped" && view !== "board" && view !== "admin" && view !== "planner" && !compareTarget && view !== "tomorrow" && view !== "today" && (
               view === "week"
                 ? <div className="hide-mobile"><Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} onMarkAttendance={markAttendance} attendance={attendance} sysConfig={sysConfig} onTap={() => setView("fullSchedule")} todayList={todayList} /></div>
                 : <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} onMarkAttendance={markAttendance} attendance={attendance} sysConfig={sysConfig} onTap={() => setView("fullSchedule")} todayList={todayList} />
@@ -3211,7 +3294,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             {view === "today" && !compareTarget && (
               <MarkPrompt list={todayList} now={now} attendance={attendance} markAttendance={markAttendance} />
             )}
-            {(view === "week" || (view === "today" && dashboardPrefs.visible.summary && !todayFocusMode)) && !compareTarget && (
+            {view === "week" && !compareTarget && (
               <div className={`dashboard-widgets${view === "today" ? " dashboard-widgets-today" : ""}${dashboardPrefs.density === "compact" ? " is-compact" : ""}`}>
                 <div className="dashboard-widget-summary"><SemSummary enrolled={enrolled} legend={LEGEND} attendance={attendance} visible={visible} todayISO={todayISO} now={now} classes={CLASSES} onAttendanceClick={enableAttendance ? () => setView("attendance") : undefined} onExamsClick={enableExams ? () => setView("exams") : undefined} onSessionsClick={() => setView("fullSchedule")} /></div>
               </div>
@@ -3529,76 +3612,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                   : tomorrowList.length === 0
                                     ? null
                                     : <Timeline list={tomorrowList} current={null} now={now} showNowLine={false} label="Tomorrow" attendance={attendance} markAttendance={markAttendance} skipInfo={skipInfo} syncStatus={<span className="live"><span className="pulse" /> {scheduleData?._source === "live" ? `Live · synced ${syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}` : "Saved schedule"}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} onOpenSession={setClassPrepSession} />
-                              : todayList.length === 0 && tomorrowList.length === 0
-                                ? premiumMode && syncing
-                                  ? (
-                                    <ul className="rail">
-                                      <li className="row premium-skeleton" style={{ height: "80px", marginBottom: "12px", border: "none" }} />
-                                      <li className="row premium-skeleton" style={{ height: "80px", marginBottom: "12px", border: "none", opacity: 0.7 }} />
-                                      <li className="row premium-skeleton" style={{ height: "80px", marginBottom: "12px", border: "none", opacity: 0.4 }} />
-                                    </ul>
-                                  )
-                                  : <div className="tmrw-summary-card tmrw-free-card theme-clear" style={{ margin: "0 12px 20px" }}>
-                                      <div className="tmrw-free-head">
-                                        <span className="tmrw-free-kicker-pill">
-                                          <span className="tmrw-free-kicker-dot" />
-                                          Today · Free Day
-                                        </span>
-                                        {weather?.today && (
-                                          <span className="tmrw-free-wx-pill">
-                                            <span>{weather.today.min}°–{weather.today.max}°C</span>
-                                          </span>
-                                        )}
-                                      </div>
-                                      <div className="tmrw-free-scene" aria-hidden="true">
-                                        <FreeDayIllustration kind="clear" isNight={now.getHours() >= 19 || now.getHours() < 6} />
-                                      </div>
-                                      <div className="tmrw-free-text">
-                                        <div className="tmrw-free-title">No classes today!</div>
-                                        <div className="tmrw-free-sub">Enjoy your free time.</div>
-                                      </div>
-                                      {/* The companion has a mood for exactly this day — "relaxed"
-                                          before three, "cozy" after — and nowhere to show it until now. */}
-                                      {enableCompanion && (
-                                        <PetCameo
-                                          pet={myPet}
-                                          now={now}
-                                          petContext={petContext}
-                                          petSettings={sysConfig?.flags?.greetingPets}
-                                          size={52}
-                                          className="tmrw-free-pet"
-                                        />
-                                      )}
-                                    </div>
-                                : <>
-                                      <Timeline list={todayList} current={current} now={now} dateLabel={prettyDate(todayISO)} attendance={attendance} markAttendance={markAttendance} skipInfo={skipInfo} syncStatus={<span className="live"><span className="pulse" /> {scheduleData?._source === "live" ? `Live · synced ${syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}` : "Saved schedule"}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} onOpenSession={setClassPrepSession} focusMode={todayFocusMode} />
-                                    </>}
+                              : view === "today"
+                                ? <TodayDashboard prefs={dashboardPrefs} cards={todayCards} onExitFocus={() => setTodayFocusMode(false)} />
+                                : todayTimeline}
               </Suspense>
-              {view === "today" && !compareTarget && !todayFocusMode && <MessCard now={now} userId={userId} friends={enableStatus ? friends : []} />}
-              {view === "today" && !compareTarget && !isArchivedView && dashboardPrefs.visible.todayCommand !== false && (
-                <TodayCommandCenter
-                  key={todayISO}
-                  todayList={todayList}
-                  tomorrowList={tomorrowList}
-                  attendance={attendance}
-                  now={now}
-                  todayISO={todayISO}
-                  termNumber={activeTerm?.number}
-                  changeCount={todayChangeCount}
-                  onNavigate={(target) => { setView(target); setCompareTarget(null); }}
-                  onOpenSession={setClassPrepSession}
-                  onOpenCourse={(code) => { setCourseHubCode(code); setView("courseHub"); setCompareTarget(null); }}
-                  onMarkAttendance={markAttendance}
-                  onFocusModeChange={setTodayFocusMode}
-                  onRemove={() => {
-                    setTodayFocusMode(false);
-                    setDashboardPrefs(currentPrefs => ({
-                      ...currentPrefs,
-                      visible: { ...currentPrefs.visible, todayCommand: false },
-                    }));
-                  }}
-                />
-              )}
               {view === "tomorrow" && !compareTarget && (
                 <DeadlineStrip
                   visible={visible}
