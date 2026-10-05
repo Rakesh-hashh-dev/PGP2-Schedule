@@ -105,7 +105,6 @@ export default function LeavePlanner({ allClasses, enrolled, legend, attendance,
     const end = maxDate && ymd(d) > maxDate ? maxDate : ymd(d);
     setDraftTo(end);
   };
-  const dirty = !applied || draftFrom !== from || draftTo !== to;
   const apply = () => { setFrom(draftFrom); setTo(draftTo); };
   const draftDays = dayDiff(draftFrom, draftTo);
 

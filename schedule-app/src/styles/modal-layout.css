@@ -1,0 +1,50 @@
+/* Center dialogs in the content area beside the visible navigation rail.
+   Keep the backdrop across the whole viewport so modal dismissal still works.
+   These sizes match the Classic and Aurora sidebar layouts. */
+@media (min-width: 1025px), (min-width: 768px) and (orientation: landscape) {
+  :root:has(.app-shell > .sidebar) { --tf-modal-sidebar-space: 268px; }
+  :root:has(.app-shell > .sidebar.sb-aurora) { --tf-modal-sidebar-space: 296px; }
+  :root:has(.app-shell > .sidebar.collapsed) { --tf-modal-sidebar-space: 72px; }
+  :root:has(.app-shell > .sidebar.sb-aurora.collapsed) { --tf-modal-sidebar-space: 84px; }
+
+  :root:has(.app-shell > .sidebar) :is(
+    .admin-modal-overlay, .assign-modal-overlay, .cmd-backdrop,
+    .cal-modal-backdrop, .fs-modal-overlay, .filter-modal-overlay,
+    .fr-modal-backdrop, .cv-more-backdrop, .board-modal-backdrop,
+    .ch-modal-backdrop, .notif-settings-backdrop, .push-help-overlay,
+    .wn-overlay, .sp-modal-backdrop, .wrapped-share-overlay,
+    .wrapped-detail-overlay
+  ) {
+    padding-inline-start: calc(var(--tf-modal-sidebar-space) + 20px);
+    padding-inline-end: 20px;
+    box-sizing: border-box;
+  }
+
+  :root:has(.app-shell > .sidebar) :is(
+    .admin-modal-card, .assign-modal, .cmd-modal, .cal-modal,
+    .fs-modal-content, .sm-card, .filter-modal-sheet, .fr-modal, .cv-more-modal,
+    .board-composer, .ch-modal, .notif-settings-sheet,
+    .push-help-sheet, .wn-modal, .sp-modal,
+    .wrapped-share-sheet, .wrapped-detail-modal
+  ) { min-width: 0; flex-shrink: 1; }
+
+  /* Admin editors use a separate fixed card rather than a flex backdrop. */
+  :root:has(.app-shell > .sidebar) :is(.admin-mobile-dialog, .tf-centered-dialog) {
+    left: calc(50% + var(--tf-modal-sidebar-space) / 2) !important;
+    width: calc(100vw - var(--tf-modal-sidebar-space) - 40px) !important;
+    max-height: calc(100dvh - 40px) !important;
+    box-sizing: border-box;
+    overflow-y: auto;
+  }
+
+  :root:has(.app-shell > .sidebar) .hiw-bottom-sheet {
+    left: var(--tf-modal-sidebar-space);
+  }
+
+  :root:has(.app-shell > .sidebar) .admin-modal-card {
+    max-height: min(85dvh, calc(100dvh - 40px));
+  }
+  :root:has(.app-shell > .sidebar) .admin-modal-header > div { min-width: 0; }
+  :root:has(.app-shell > .sidebar) .admin-modal-title { flex-wrap: wrap; }
+  :root:has(.app-shell > .sidebar) .admin-modal-close-btn { flex-shrink: 0; }
+}

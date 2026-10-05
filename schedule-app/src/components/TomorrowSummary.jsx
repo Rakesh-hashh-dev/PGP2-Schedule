@@ -83,7 +83,7 @@ function RailDetailStrip({ c }) {
   const duration = fmtDuration(toMin(c.end) - toMin(c.start));
 
   return (
-    <div className={`tmrw-rail-detail ${colorClass}`} style={isClass ? undefined : { "--subj": "var(--amber)" }}>
+    <div className={`tmrw-rail-detail ${colorClass}`} style={isClass ? undefined : { "--subj": "var(--muted)" }}>
       <div className="tmrw-rail-detail-top">
         <span className="tmrw-rail-detail-dot" />
         <span className="tmrw-rail-detail-code">

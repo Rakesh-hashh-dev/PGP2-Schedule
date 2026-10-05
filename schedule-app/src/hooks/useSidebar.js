@@ -30,6 +30,7 @@ export function useSidebar({ isTablet, view, sysConfig }) {
   useEffect(() => {
     try {
       if (!localStorage.getItem("pgp2.sidebar") && isTablet) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time tablet default when no saved preference
         setSidebarCollapsed(true);
       }
     } catch { }

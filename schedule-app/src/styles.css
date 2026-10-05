@@ -20970,3 +20970,15 @@ html[data-theme="dark"] .lp-glance-bad {
   .notif-settings-sheet .npp-row .reminder-seg-btn { min-height: 30px; padding: 4px 9px; }
   .notif-settings-sheet .npp-row .reminder-time { min-height: 30px; }
 }
+
+/* Meal breaks provide context without class/activity emphasis. */
+.timeline-panel .row.row-break,
+.timeline-today .row.row-break,
+.timeline-tomorrow .row.row-break { opacity: .55; }
+.timeline-panel .row.row-break .row-body { background: transparent; box-shadow: none; border: 1px dashed var(--border); }
+.timeline-panel .row.row-break .row-course,
+.timeline-panel .row.row-break .row-time { color: var(--muted); }
+.timeline-panel .row.row-break .timeline-marker > span { background: var(--muted); box-shadow: none; }
+.ag.ag-break, .sm-item.sm-break { opacity: .5; color: var(--muted); }
+.tmrw-rail-seg-break { background: var(--muted); opacity: .3; }
+.cva-card.cva-break { opacity: .5; color: var(--muted); box-shadow: none; }

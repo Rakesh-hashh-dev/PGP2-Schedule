@@ -18,6 +18,7 @@ import { MESS_MENU_FEED_URL } from "../lib/messFeed.js";
 import { classIdent, makeOverrideKey, lookupOverride, parseOverrideKey } from "../lib/overrides.js";
 import { ymd } from "../lib/datetime.js";
 import AdminCommandPalette from "./AdminCommandPalette";
+import ActiveUsersTodayPanel from "./ActiveUsersTodayPanel.jsx";
 import FeedbackFlashScheduler from "./FeedbackFlashScheduler.jsx";
 import FeedbackResponseTracking from "./FeedbackResponseTracking.jsx";
 import PushDeliveryDiagnostics from "./PushDeliveryDiagnostics.jsx";
@@ -184,17 +185,17 @@ function istDateKey(value) {
 // scrolls with a hidden scrollbar track. Width is per-modal (list modals want
 // more room than a short confirm), everything else (positioning, max-height,
 // close affordance) stays identical so a future fix only has to land once.
-function AdminModal({ title, onClose, width = 640, subtitle, children }) {
+function AdminModal({ title, onClose, width = 640, subtitle, className = "", showHeader = true, children }) {
   return (
     <div className="admin-modal-overlay" onClick={onClose}>
-      <div className="admin-modal-card admin-scroll-hide" style={{ maxWidth: width }} onClick={e => e.stopPropagation()}>
-        <div className="admin-modal-header">
+      <div className={`admin-modal-card admin-scroll-hide ${className}`} style={{ maxWidth: width }} onClick={e => e.stopPropagation()}>
+        {showHeader && <div className="admin-modal-header">
           <div>
             <h3 className="admin-modal-title">{title}</h3>
             {subtitle && <p className="admin-modal-subtitle">{subtitle}</p>}
           </div>
           <button onClick={onClose} className="admin-modal-close-btn" aria-label="Close modal"><X size={18} /></button>
-        </div>
+        </div>}
         <div className="admin-modal-body">
           {children}
         </div>
@@ -359,7 +360,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   });
   
   const [popularCourses, setPopularCourses] = useState([]);
-  const [overrideDate, setOverrideDate] = useState(new Date().toISOString().split("T")[0]);
+  const [overrideDate] = useState(new Date().toISOString().split("T")[0]);
   const [overrideClass, setOverrideClass] = useState("");
   const [overrideSection, setOverrideSection] = useState("All");
 
@@ -442,11 +443,6 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [petBulkMessage, setPetBulkMessage] = useState("");
 
   const [activeUsersListModalOpen, setActiveUsersListModalOpen] = useState(false);
-  const [activeUsersSort, setActiveUsersSort] = useState("recent"); // "recent" | "oldest" | "name"
-  const [activeUsersSearch, setActiveUsersSearch] = useState("");
-  const [activeUsersSection, setActiveUsersSection] = useState("all"); // "all" | "A" | "B"
-  const [activeUsersPushOnly, setActiveUsersPushOnly] = useState(false);
-  const [activeCopiedToast, setActiveCopiedToast] = useState("");
   const [pushSubscribersModalOpen, setPushSubscribersModalOpen] = useState(false);
   const [pushSubscribersList, setPushSubscribersList] = useState([]);
 
@@ -761,6 +757,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   useEffect(() => {
     if (activeTab === "database") {
       let isMounted = true;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset loading UI before async fetch
       setDbLoading(true); setDbError(""); setDbSelectedRow(null);
       supabase.from(dbTable).select("*").limit(50).then(({ data, error }) => {
         if (!isMounted) return;
@@ -7234,234 +7231,33 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
         </>
       )}
 
-      {activeUsersListModalOpen && (() => {
-        const todayPresenceIds = new Set((weeklyPresence[6]?.users || []).map(item => item.userId));
-        const activeUsersToday = allUsers.filter(u => todayPresenceIds.has(u.user_id));
-        const secACount = activeUsersToday.filter(u => Object.keys(u.courses || {}).some(k => k.endsWith("_A"))).length;
-        const secBCount = activeUsersToday.filter(u => Object.keys(u.courses || {}).some(k => k.endsWith("_B"))).length;
-        const pushActiveCount = activeUsersToday.filter(u => (pushSubscribersList || []).includes(u.user_id)).length;
-
-        const filteredList = activeUsersToday
-          .filter(u => {
-            if (activeUsersSection !== "all") {
-              const keys = Object.keys(u.courses || {});
-              const hasSec = keys.some(c => c.endsWith(`_${activeUsersSection}`));
-              if (!hasSec) return false;
-            }
-            if (activeUsersPushOnly) {
-              if (!(pushSubscribersList || []).includes(u.user_id)) return false;
-            }
-            if (activeUsersSearch.trim()) {
-              const q = activeUsersSearch.toLowerCase().trim();
-              const matchName = (u.name || "").toLowerCase().includes(q);
-              const matchEmail = (u.email || "").toLowerCase().includes(q);
-              const matchId = (u.user_id || "").toLowerCase().includes(q);
-              return matchName || matchEmail || matchId;
-            }
-            return true;
-          })
-          .sort((a, b) => {
-            if (activeUsersSort === "name") return (a.name || "").localeCompare(b.name || "");
-            const ta = new Date(a.last_seen_at).getTime();
-            const tb = new Date(b.last_seen_at).getTime();
-            return activeUsersSort === "oldest" ? ta - tb : tb - ta;
-          });
-
-        function copyActiveUsersRoster() {
-          const text = filteredList.map((u, i) => `${i + 1}. ${u.name || "Unknown"} (${u.email || "No email"}) - Last seen: ${new Date(u.last_seen_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST`).join("\n");
-          navigator.clipboard?.writeText(text);
-          setActiveCopiedToast(`Copied ${filteredList.length} active students to clipboard!`);
-          setTimeout(() => setActiveCopiedToast(""), 3000);
-        }
-
-        return (
-          <AdminModal
-            title={
-              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <Activity size={20} color="var(--live)" />
-                <span>Active Users Today</span>
-                <span className="admin-modal-live-pill">
-                  <span className="admin-hero-online-dot" style={{ position: "static", display: "inline-block", marginRight: 4 }} />
-                  {filteredList.length} / {activeUsersToday.length} Active
-                </span>
-              </span>
-            }
-            subtitle="Unique students who opened TermFlow from 12:00 AM to 11:59 PM IST. Last-seen values refresh about every five minutes while the app is visible."
-            onClose={() => { setActiveUsersListModalOpen(false); setActiveUsersSearch(""); }}
-            width={700}
-          >
-            {/* Top Metric Strip */}
-            <div className="admin-modal-stats">
-              <div className="admin-modal-stat-pill">
-                <span className="admin-modal-stat-pill-label">Total Active</span>
-                <span className="admin-modal-stat-pill-val" style={{ color: "var(--live)" }}>{activeUsersToday.length}</span>
-              </div>
-              <div className="admin-modal-stat-pill">
-                <span className="admin-modal-stat-pill-label">Section A</span>
-                <span className="admin-modal-stat-pill-val" style={{ color: "#0D9488" }}>{secACount}</span>
-              </div>
-              <div className="admin-modal-stat-pill">
-                <span className="admin-modal-stat-pill-label">Section B</span>
-                <span className="admin-modal-stat-pill-val" style={{ color: "#9333EA" }}>{secBCount}</span>
-              </div>
-              <div className="admin-modal-stat-pill">
-                <span className="admin-modal-stat-pill-label">Push Subscribers</span>
-                <span className="admin-modal-stat-pill-val" style={{ color: "var(--blue)" }}>{pushActiveCount}</span>
-              </div>
-            </div>
-
-            {/* Filter & Action Toolbar */}
-            <div className="admin-modal-toolbar">
-              <div className="admin-modal-search-wrap">
-                <Search size={14} className="search-icon" />
-                <input
-                  type="text"
-                  className="admin-modal-search-input"
-                  placeholder="Search by student name, email, or user ID…"
-                  value={activeUsersSearch}
-                  onChange={e => setActiveUsersSearch(e.target.value)}
-                />
-                {activeUsersSearch && (
-                  <button
-                    onClick={() => setActiveUsersSearch("")}
-                    style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "var(--muted)", cursor: "pointer", padding: 2, display: "flex" }}
-                    title="Clear search"
-                  >
-                    <X size={13} />
-                  </button>
-                )}
-              </div>
-
-              {/* Section Segmented Filter */}
-              <div className="admin-modal-filter-pills">
-                {[["all", "All"], ["A", "Sec A"], ["B", "Sec B"]].map(([val, label]) => (
-                  <button
-                    key={val}
-                    className={`admin-modal-filter-btn ${activeUsersSection === val ? "active" : ""}`}
-                    onClick={() => setActiveUsersSection(val)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Push Subscribers Filter Toggle */}
-              <button
-                className={`admin-modal-filter-btn ${activeUsersPushOnly ? "active" : ""}`}
-                style={{ border: "1px solid var(--border)", borderRadius: 9, padding: "5px 9px", display: "inline-flex", alignItems: "center", gap: 4 }}
-                onClick={() => setActiveUsersPushOnly(!activeUsersPushOnly)}
-                title="Filter only users with web push enabled"
-              >
-                <BellRing size={11} color={activeUsersPushOnly ? "var(--blue)" : "var(--muted)"} /> Push Only
-              </button>
-
-              {/* Sort Dropdown */}
-              <select
-                value={activeUsersSort}
-                onChange={e => setActiveUsersSort(e.target.value)}
-                className="admin-input"
-                style={{ width: "auto", fontSize: 12, padding: "6px 8px", borderRadius: 9, minWidth: 130 }}
-              >
-                <option value="recent">Sort: Most recent</option>
-                <option value="oldest">Sort: Oldest first</option>
-                <option value="name">Sort: Name (A-Z)</option>
-              </select>
-
-              {/* Copy Roster Button */}
-              <button
-                onClick={copyActiveUsersRoster}
-                className="admin-btn outline"
-                style={{ padding: "6px 10px", fontSize: 12, borderRadius: 9, gap: 5, marginLeft: "auto" }}
-                title="Copy active students list to clipboard"
-              >
-                <Copy size={13} /> Copy List
-              </button>
-            </div>
-
-            {/* Copy Toast Notification */}
-            {activeCopiedToast && (
-              <div style={{ background: "var(--live-dim)", color: "var(--live)", border: "1px solid rgba(31,169,113,0.3)", borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 700, marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
-                <Check size={14} /> {activeCopiedToast}
-              </div>
-            )}
-
-            {/* Active User Cards List */}
-            <div className="admin-active-user-list admin-scroll-hide">
-              {filteredList.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "40px 16px", color: "var(--muted)" }}>
-                  <Users size={36} style={{ opacity: 0.3, marginBottom: 8, margin: "0 auto", display: "block" }} />
-                  <p style={{ margin: 0, fontWeight: 700, fontSize: 14 }}>No active students match your filters</p>
-                  {(activeUsersSearch || activeUsersSection !== "all" || activeUsersPushOnly) && (
-                    <button
-                      onClick={() => { setActiveUsersSearch(""); setActiveUsersSection("all"); setActiveUsersPushOnly(false); }}
-                      className="admin-btn outline"
-                      style={{ marginTop: 12, fontSize: 12, padding: "4px 10px" }}
-                    >
-                      Reset Filters
-                    </button>
-                  )}
-                </div>
-              ) : (
-                filteredList.map((u, i) => {
-                  const sec = (() => {
-                    const keys = Object.keys(u.courses || {});
-                    if (keys.some(c => c.endsWith("_A"))) return "A";
-                    if (keys.some(c => c.endsWith("_B"))) return "B";
-                    return null;
-                  })();
-                  const isPush = (pushSubscribersList || []).includes(u.user_id);
-                  const role = adminRoster.find(r => r.user_id === u.user_id)?.role;
-                  const courseCount = Object.keys(u.courses || {}).length;
-                  const initials = (u.name || "?").split(" ").map(w => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "U";
-                  
-                  // Relative time calculation
-                  const diffMin = Math.floor((Date.now() - new Date(u.last_seen_at).getTime()) / 60000);
-                  const relTime = diffMin < 1 ? "Just now" : diffMin < 60 ? `${diffMin}m ago` : `${Math.floor(diffMin / 60)}h ago`;
-
-                  return (
-                    <div
-                      key={u.user_id || i}
-                      className="admin-active-user-row"
-                      onClick={() => {
-                        setSelectedUser(u);
-                        setActiveUsersListModalOpen(false);
-                      }}
-                      title="Click to view student profile, courses & attendance"
-                    >
-                      <div className="admin-active-user-left">
-                        <div className="admin-active-user-avatar">
-                          {initials}
-                          <span className="admin-active-user-dot" />
-                        </div>
-                        <div className="admin-active-user-meta">
-                          <div className="admin-active-user-name">{u.name || "Unknown Student"}</div>
-                          <div className="admin-active-user-tags">
-                            {sec && <span className={`admin-tag-sec ${sec}`}>Sec {sec}</span>}
-                            {isPush && <span className="admin-tag-push"><BellRing size={9} /> Push</span>}
-                            {role && <span className="admin-profile-role-badge" style={{ fontSize: 9 }}>{role}</span>}
-                            {courseCount > 0 && <span className="admin-tag-courses">• {courseCount} subjects</span>}
-                            {u.email && <span className="admin-tag-courses" style={{ opacity: 0.7 }}>• {u.email}</span>}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="admin-active-user-right">
-                        <div className="admin-active-user-time-pill" title={`Last seen at ${new Date(u.last_seen_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST`}>
-                          <Clock3 size={12} color="var(--muted)" />
-                          <span>{new Date(u.last_seen_at).toLocaleTimeString("en-IN", { hour: '2-digit', minute: '2-digit', timeZone: "Asia/Kolkata" })}</span>
-                          <span style={{ opacity: 0.6, fontSize: 10.5 }}>({relTime})</span>
-                        </div>
-                        <ChevronRight size={15} className="admin-active-user-chevron" />
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </AdminModal>
-        );
-      })()}
-
+      {activeUsersListModalOpen && (
+        <AdminModal
+          showHeader={false}
+          onClose={() => setActiveUsersListModalOpen(false)}
+          className="admin-active-users-modal"
+          width="var(--admin-active-users-modal-width, 700px)"
+        >
+          <ActiveUsersTodayPanel
+            onClose={() => setActiveUsersListModalOpen(false)}
+            users={allUsers} day={weeklyPresence[6]} historyAvailable={presenceHistoryAvailable}
+            asOf={presenceAsOf} pushIds={pushSubscribersList} roster={adminRoster}
+            bannedIds={flags.bannedUsers || []} loading={statsLoading || loadingUsers}
+            onRefresh={fetchDashboardData} readOnly={isReadOnlyAdmin} exportCsv={exportCsv} legend={LEGEND}
+            onInspect={u => { setSelectedUser(u); setActiveUsersListModalOpen(false); }}
+            onViewAs={u => { if (isReadOnlyAdmin) return; setActiveUsersListModalOpen(false); startImpersonation(u); }}
+            onToggleBan={u => {
+              if (isReadOnlyAdmin) return;
+              const previous = flags.bannedUsers || [];
+              const wasBanned = previous.includes(u.user_id);
+              if (!wasBanned && !confirm(`Stage a ban for ${u.name || u.user_id}? Deploy configuration to apply it.`)) return;
+              setFlags(f => ({ ...f, bannedUsers: wasBanned ? (f.bannedUsers || []).filter(id => id !== u.user_id) : [...new Set([...(f.bannedUsers || []), u.user_id])] }));
+              logAdminAction(admin_id, wasBanned ? "unban_user" : "ban_user", { target_user: u.user_id });
+              removeWithUndo(`${wasBanned ? "Unbanned" : "Banned"} ${u.name || "user"} (Deploy to apply)`, () => setFlags(f => ({ ...f, bannedUsers: previous })));
+            }}
+          />
+        </AdminModal>
+      )}
       {pushSubscribersModalOpen && (
         <AdminModal
           title={

@@ -6,6 +6,7 @@ import { haptic } from "../lib/haptics.js";
 import IndiaFlagIcon from "./IndiaFlagIcon.jsx";
 import { isNationalHoliday } from "../lib/nationalHolidays.js";
 import { fmtTime12 } from "../lib/datetime.js";
+import { isScheduleBreak, timelineActivitySummary } from "../lib/scheduleBreaks.js";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function fmtClock(d) { return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }); }
@@ -255,25 +256,23 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
     );
 
   const nowMin = now.getHours() * 60 + now.getMinutes();
-  const allDone = showNowLine && list.every(c => nowMin >= toMin(c.end));
+  const summary = timelineActivitySummary(list, nowMin);
+  const allDone = showNowLine && summary.allDone;
   // Find the first upcoming class (not break/holiday) for the "next" badge
   // If we're not showing the now line (e.g. Tomorrow view), just highlight the very first class
   const nextUpIdx = showNowLine 
-    ? list.findIndex(c => c.type === "class" && toMin(c.start) > nowMin) 
-    : list.findIndex(c => c.type === "class");
-  const nextVisibleIdx = showNowLine ? list.findIndex(c => toMin(c.start) > nowMin) : -1;
-  const classCount = list.filter((c) => c.type === "class").length;
-  const firstStart = list.reduce((min, c) => toMin(c.start) < toMin(min) ? c.start : min, list[0].start);
-  const lastEnd = list.reduce((max, c) => toMin(c.end) > toMin(max) ? c.end : max, list[0].end);
-  const completedClasses = showNowLine
-    ? list.filter((c) => c.type === "class" && nowMin >= toMin(c.end)).length
-    : 0;
+    ? list.findIndex(c => c.type === "class" && !isScheduleBreak(c) && toMin(c.start) > nowMin)
+    : list.findIndex(c => c.type === "class" && !isScheduleBreak(c));
+  const nextVisibleIdx = showNowLine ? summary.nextIndex : -1;
+  const { classCount, firstStart, lastEnd } = summary;
+  const activityCount = summary.activities.length;
+  const completedClasses = showNowLine ? summary.completedClasses : 0;
   const nextVisible = nextVisibleIdx >= 0 ? list[nextVisibleIdx] : null;
-  const dayStatus = current
+  const dayStatus = current && !isScheduleBreak(current)
     ? { tone: "live", label: "Happening now", detail: current.name }
     : nextVisible
       ? { tone: "next", label: "Up next", detail: `${nextVisible.name} · ${fmtTime12(nextVisible.start)}` }
-      : { tone: "done", label: "Day complete", detail: "Nothing else scheduled" };
+      : { tone: "done", label: activityCount ? "Day complete" : "No activities today", detail: activityCount ? "Nothing else scheduled" : "Breaks only" };
 
   return (
     <section className={`panel timeline-panel${showNowLine ? " timeline-today" : " timeline-tomorrow"}${focusMode ? " is-focus-mode" : ""}`}>
@@ -293,7 +292,7 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
           {dateLabel && <span className="panel-date">{dateLabel}</span>}
         </div>
         {showNowLine ? (
-          <div className="timeline-overview" aria-label={classCount ? `${classCount} classes, ${completedClasses} completed` : `${list.length} schedule items`}>
+          <div className="timeline-overview" aria-label={classCount ? `${classCount} classes, ${completedClasses} completed` : `${activityCount} activities`}>
             <div className={`timeline-status timeline-status-${dayStatus.tone}`}>
               <span className="timeline-status-dot" aria-hidden="true" />
               <span className="timeline-status-copy">
@@ -302,14 +301,14 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
               </span>
             </div>
             <div className="timeline-progress-copy">
-              <strong>{classCount ? `${completedClasses}/${classCount}` : list.length}</strong>
-              <span className="desk-only">{classCount ? "classes complete" : "schedule items"}</span>
-              <span className="timeline-progress-mob-label">{classCount ? "done" : "items"}</span>
+              <strong>{classCount ? `${completedClasses}/${classCount}` : activityCount}</strong>
+              <span className="desk-only">{classCount ? "classes complete" : "activities"}</span>
+              <span className="timeline-progress-mob-label">{classCount ? "done" : "activities"}</span>
             </div>
           </div>
         ) : (
-          <div className="tomorrow-timeline-overview" aria-label={`${classCount} ${classCount === 1 ? "class" : "classes"}, ${fmtTime12(firstStart)} to ${fmtTime12(lastEnd)}`}>
-            <span className="tomorrow-timeline-range">{fmtTime12(firstStart)} <span aria-hidden="true">→</span> {fmtTime12(lastEnd)}</span>
+          <div className="tomorrow-timeline-overview" aria-label={`${classCount} ${classCount === 1 ? "class" : "classes"}${firstStart ? `, ${fmtTime12(firstStart)} to ${fmtTime12(lastEnd)}` : ""}`}>
+            <span className="tomorrow-timeline-range">{firstStart ? <>{fmtTime12(firstStart)} <span aria-hidden="true">→</span> {fmtTime12(lastEnd)}</> : "Breaks only"}</span>
             <span className="tomorrow-timeline-count">{classCount} {classCount === 1 ? "class" : "classes"}</span>
           </div>
         )}
@@ -317,19 +316,20 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
       <ol className="rail">
         {list.map((c, i) => {
           const gapMinutes = i > 0 ? toMin(c.start) - toMin(list[i - 1].end) : 0;
-          const isCur = current && current.date === c.date && current.start === c.start && current.name === c.name;
+          const isBreak = isScheduleBreak(c);
+          const isCur = !isBreak && current && current.date === c.date && current.start === c.start && current.name === c.name;
           // For non-class items (breaks/holidays), use start time as "done" since they aren't attended
           const prevDone = i === 0 || (() => {
             const prev = list[i - 1];
             const threshold = prev.type !== "class" ? toMin(prev.start) : toMin(prev.end);
             return nowMin >= threshold;
           })();
-          const showNow = showNowLine && !isCur && nowMin < toMin(c.start) && prevDone;
+          const showNow = showNowLine && !isBreak && !isCur && nowMin < toMin(c.start) && prevDone;
           const isPast = showNowLine && !isCur && nowMin >= (c.type !== "class" ? toMin(c.start) : toMin(c.end));
           const isNext = showNowLine && i === nextUpIdx;
           const isFirst = !showNowLine && i === nextUpIdx;
-          const canMark = c.type === "class" && !isExamSession(c) && !!markAttendance && clsStart(c) <= now;
-          const attKey = c.type === "class" && !isExamSession(c) ? sessionKey(c) : null;
+          const canMark = !isBreak && c.type === "class" && !isExamSession(c) && !!markAttendance && clsStart(c) <= now;
+          const attKey = !isBreak && c.type === "class" && !isExamSession(c) ? sessionKey(c) : null;
           const attStatus = attKey ? attendance[attKey] : null;
 
           let progress = 0;
@@ -341,7 +341,7 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
 
           return (
             <React.Fragment key={i}>
-              {!showNowLine && gapMinutes >= 15 && (
+              {!showNowLine && !isBreak && gapMinutes >= 15 && (
                 <li className="tomorrow-timeline-gap" aria-label={`${fmtDuration(list[i - 1].end, c.start)} free before ${c.name}`}>
                   <span className="tomorrow-timeline-gap-line" aria-hidden="true" />
                   <span>Free for {fmtDuration(list[i - 1].end, c.start)}</span>
@@ -355,7 +355,7 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
                 </li>
               )}
               <li
-                className={`row${!showNowLine && c.type === "class" && c.code ? ` ${subjectClass(c.code)}` : ""}${isCur ? " cur" : ""}${c.type !== "class" ? " soft" : ""}${c.type === "event" ? " row-event-celebration" : ""}${c.type === "placement" ? " row-placement" : ""}${isPast ? " past" : ""}${isNext ? " next-up" : ""}${isFirst ? " first-up" : ""}${showNowLine && i === nextVisibleIdx ? " timeline-up-next" : ""}${changedRows.has(`${c.date}|${c.code || c.name}|${c.session || c.type}|${c.start}`) ? " tf-row-updated" : ""}`}
+                className={`row${isBreak ? " row-break" : ""}${!showNowLine && c.type === "class" && c.code ? ` ${subjectClass(c.code)}` : ""}${isCur ? " cur" : ""}${c.type !== "class" ? " soft" : ""}${c.type === "event" ? " row-event-celebration" : ""}${c.type === "placement" ? " row-placement" : ""}${isPast ? " past" : ""}${isNext ? " next-up" : ""}${isFirst ? " first-up" : ""}${showNowLine && i === nextVisibleIdx ? " timeline-up-next" : ""}${changedRows.has(`${c.date}|${c.code || c.name}|${c.session || c.type}|${c.start}`) ? " tf-row-updated" : ""}`}
                 aria-current={isCur ? "true" : undefined}
               >
                 <div className="row-time">

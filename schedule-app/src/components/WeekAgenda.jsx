@@ -50,7 +50,7 @@ export default function WeekAgenda({ visible, now, offset, setOffset, todayISO, 
                 {items.length === 0
                   ? <span className="agday-free">–</span>
                   : items.map((c, i) => (
-                      <div key={i} className={`ag ${c.type !== "class" ? "soft" : ""}`}>
+                      <div key={i} className={`ag ${c.type !== "class" ? "soft" : ""}${c.type === "break" ? " ag-break" : ""}`}>
                         <span className="ag-t">{fmtTime12(c.start)}</span>
                         <span className="ag-c">
                           {isNationalHoliday(c) && <IndiaFlagIcon size={13} className="row-flag-icon" />}

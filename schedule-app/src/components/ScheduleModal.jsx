@@ -129,7 +129,7 @@ export default function ScheduleModal({ visible, now, offset, setOffset, todayIS
                     <span className="sm-free">No classes</span>
                   ) : (
                     items.map((c, i) => (
-                      <span key={i} className={`sm-item${c.type !== "class" ? " soft" : ""}`}>
+                      <span key={i} className={`sm-item${c.type !== "class" ? " soft" : ""}${c.type === "break" ? " sm-break" : ""}`}>
                         <span className="sm-time">{fmtTime12(c.start)}</span>
                         <span className="sm-name">
                           {isNationalHoliday(c) && <IndiaFlagIcon size={13} className="row-flag-icon" />}

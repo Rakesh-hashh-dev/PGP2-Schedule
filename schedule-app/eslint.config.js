@@ -10,6 +10,7 @@ export default defineConfig([
     'dev-dist',
     '**/dev-dist',
     'backups',
+    '.local',
   ]),
   {
     files: ['**/*.{js,jsx}'],

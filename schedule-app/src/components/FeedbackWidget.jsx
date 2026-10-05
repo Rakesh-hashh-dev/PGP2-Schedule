@@ -35,7 +35,7 @@ export default function FeedbackWidget({ user, onClose }) {
   return (
     <>
       <div className="notif-backdrop" onClick={onClose} style={{ zIndex: 10000 }} />
-      <div style={{
+      <div className="tf-centered-dialog" style={{
         position: "fixed",
         top: "50%",
         left: "50%",

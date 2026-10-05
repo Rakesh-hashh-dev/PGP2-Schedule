@@ -1,4 +1,5 @@
 import { AREA } from "../data/areas.js";
+import { normalizeScheduleBreak } from "./scheduleBreaks.js";
 // Eager import — snapshot is bundled, no network round-trip needed for fallback
 import { TERM, LEGEND, CLASSES, STUDENTS } from "../data/schedule.js";
 
@@ -90,7 +91,7 @@ function withAreas(data) {
   for (let i = 0; i < rawClasses.length; i++) {
     let c = rawClasses[i];
     if (!c) continue;
-    c = normalizeSingleSection(c);
+    c = normalizeSingleSection(normalizeScheduleBreak(c));
     if (!c) continue;
     c = reclassifyUnknown(c, legendMap);
     if (!c) continue;
