@@ -9,7 +9,7 @@ import { supabase } from "../lib/supabase";
 import { logAdminAction } from "../lib/adminAudit.js";
 import { listAdminRoles, setAdminRole, removeAdminRole, myAdminRole, READ_ONLY_MESSAGE } from "../lib/adminRoles.js";
 import { safeUrl } from "../lib/safeUrl.js";
-import { isPushCronStale, pushCronIssues } from "../lib/pushCronHealth.js";
+import { isPushCronStale, pushCronIssueDetails, pushCronIssues } from "../lib/pushCronHealth.js";
 import { CLASSES, LEGEND } from "../data/schedule.js";
 import { taughtSectionsByCode } from "../lib/sections.js";
 import snapshotMeta from "../data/snapshot-meta.json";
@@ -472,6 +472,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [pushUrl, setPushUrl] = useState("");
   const [pushSending, setPushSending] = useState(false);
   const [pushResult, setPushResult] = useState("");
+  const [pushFailureAt, setPushFailureAt] = useState(null);
   const [pushScheduleDate, setPushScheduleDate] = useState("");
   const [pushScheduleTime, setPushScheduleTime] = useState("");
 
@@ -1274,6 +1275,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) {
+        setPushFailureAt(Date.now());
         setPushResult(`Failed: ${data.error || resp.status}`);
       } else if (targetUserId) {
         setPushResult("Test queued to your devices — should arrive within ~1 min.");
@@ -1285,6 +1287,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
         await logAdminAction(admin_id, "push_broadcast", { title: pushTitle.trim() });
       }
     } catch (e) {
+      setPushFailureAt(Date.now());
       setPushResult("Error: " + e.message);
     }
     setPushSending(false);
@@ -2305,7 +2308,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     // 4. Mess-menu Apps Script — validate both reachability and its menu payload.
     try {
       const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 6000);
+      const timer = setTimeout(() => ctrl.abort(), 15000);
       const resp = await fetch(MESS_MENU_FEED_URL, { signal: ctrl.signal, redirect: "follow" });
       const data = resp.ok ? await resp.json() : null;
       clearTimeout(timer);
@@ -3340,7 +3343,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
         </section>
 
         <HandoffNotes key={incidentDraft?.nonce || "general"} prefill={incidentDraft} notes={handoffNotes} roster={adminRoster} onSave={addHandoffNote} onClose={closeHandoffNote} readOnly={isReadOnlyAdmin} unavailable={handoffUnavailable} busy={handoffBusy} />
-        <IncidentCenter snapshot={snapshotMeta} cronIssues={cronHealth ? pushCronIssues(cronHealth, LOAD_NOW) : []} feedbackCount={pendingFeedbackCount} handoffCount={handoffNotes.filter(note => note.status === "open").length} pushFailure={/^(Failed|Error):/.test(pushResult) ? pushResult : ""} notes={handoffNotes} roster={adminRoster} readOnly={isReadOnlyAdmin} handoffUnavailable={handoffUnavailable || incidentTrackingUnavailable} onTrack={issue => { setIncidentDraft({ ...issue, nonce: Date.now() }); requestAnimationFrame(() => document.querySelector('[aria-label="Admin handoff notes"]')?.scrollIntoView({ behavior: "smooth", block: "start" })); }} onNavigate={goToAdminTab} />
+        <IncidentCenter snapshot={snapshotMeta} cronIssues={cronHealth ? pushCronIssueDetails(cronHealth, LOAD_NOW) : []} feedbackCount={pendingFeedbackCount} feedback={feedbackList.filter(item => !["resolved", "duplicate"].includes(feedbackState(item, feedbackTriage).status))} handoffCount={handoffNotes.filter(note => note.status === "open").length} pushFailure={/^(Failed|Error):/.test(pushResult) ? pushResult : ""} pushFailureAt={pushFailureAt} notes={handoffNotes} roster={adminRoster} readOnly={isReadOnlyAdmin} handoffUnavailable={handoffUnavailable || incidentTrackingUnavailable} onTrack={issue => { setIncidentDraft({ ...issue, nonce: Date.now() }); requestAnimationFrame(() => document.querySelector('[aria-label="Admin handoff notes"]')?.scrollIntoView({ behavior: "smooth", block: "start" })); }} onNavigate={goToAdminTab} />
 
                 {/* ── 1. Broadcast Studio (Announcements + Push + Social Flash + Quiet Hours) ── */}
         <section className="admin-card admin-span-all admin-g-broadcast broadcast-studio-card" style={{ gridColumn: "1 / -1" }}>
@@ -3838,7 +3841,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                           setPushSending(true); setPushResult("");
                           const res = await pushToUserIds(ids, { title: pushTitle.trim(), body: pushBody.trim(), url: pushUrl.trim() || "/", confirmMsg: `Send this push to ${ids.length} user(s) in "${pushTarget}"?` });
                           if (res?.ok) { setPushResult(`Sent to ${res.data.queued ?? ids.length} user(s).`); setPushTitle(""); setPushBody(""); setPushUrl(""); await logAdminAction(admin_id, "push_targeted", { target: pushTarget, count: ids.length }); }
-                          else if (res) setPushResult(`Failed: ${res.data?.error || "error"}`);
+                          else if (res) { setPushFailureAt(Date.now()); setPushResult(`Failed: ${res.data?.error || "error"}`); }
                           setPushSending(false);
                         })();
                       } else {

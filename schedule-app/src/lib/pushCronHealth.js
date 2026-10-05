@@ -23,14 +23,19 @@ export function isPushCronStale(job, now = Date.now()) {
 }
 
 export function pushCronIssues(jobs, now = Date.now()) {
-  if (!Array.isArray(jobs)) return ["Cron health unavailable"];
+  return pushCronIssueDetails(jobs, now).map(issue => issue.detail);
+}
+
+export function pushCronIssueDetails(jobs, now = Date.now()) {
+  if (!Array.isArray(jobs)) return [{ detail: "Cron health unavailable", lastRun: null }];
   return REQUIRED.flatMap(({ label, names }) => {
     const job = jobs.find((item) => names.includes(item.jobname));
-    if (!job) return [`${label} cron not reported`];
-    if (!job.active) return [`${label} cron paused`];
-    if (!job.last_run) return [`${label} cron has never run`];
-    if ((job.status || "").toLowerCase() !== "succeeded") return [`${label} cron failed: ${job.message || job.status || "unknown error"}`];
-    if (isPushCronStale(job, now)) return [`${label} cron is stale`];
+    const issue = detail => [{ detail, lastRun: job?.last_run || null }];
+    if (!job) return issue(`${label} cron not reported`);
+    if (!job.active) return issue(`${label} cron paused`);
+    if (!job.last_run) return issue(`${label} cron has never run`);
+    if ((job.status || "").toLowerCase() !== "succeeded") return issue(`${label} cron failed: ${job.message || job.status || "unknown error"}`);
+    if (isPushCronStale(job, now)) return issue(`${label} cron is stale`);
     return [];
   });
 }

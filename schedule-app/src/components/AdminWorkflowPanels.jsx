@@ -21,22 +21,29 @@ export function BroadcastAudienceBuilder({ filter, onChange, result, courses, ch
   </section>;
 }
 
-export function IncidentCenter({ snapshot, cronIssues, feedbackCount, handoffCount, pushFailure, notes = [], roster = [], readOnly, handoffUnavailable, onTrack, onNavigate }) {
+function IncidentTimestamp({ label, value }) {
+  const date = value == null || value === "" ? null : new Date(value);
+  if (!date || !Number.isFinite(date.getTime())) return <span className="aw-incident-time">{label}: Time unavailable</span>;
+  return <span className="aw-incident-time">{label}: <time dateTime={date.toISOString()}>{date.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true })} IST</time></span>;
+}
+
+export function IncidentCenter({ snapshot, cronIssues, feedbackCount, feedback = [], handoffCount, pushFailure, pushFailureAt, notes = [], roster = [], readOnly, handoffUnavailable, onTrack, onNavigate }) {
   const lastSuccess = new Date(snapshot.lastSuccessTs || snapshot.ts || 0).getTime();
+  const oldestCreatedAt = rows => rows.map(row => row.created_at).filter(value => value && Number.isFinite(new Date(value).getTime())).sort((a, b) => new Date(a) - new Date(b))[0];
   const incidents = [
-    ...(snapshot.status !== "success" ? [{ key: "snapshot-failed", title: "Timetable snapshot failed", detail: snapshot.error || "Snapshot generation failed.", area: "system", severity: "error" }] : []),
-    ...(Number.isFinite(lastSuccess) && QUEUE_NOW - lastSuccess > 3 * 86400000 ? [{ key: "snapshot-stale", title: "Timetable snapshot is stale", detail: `Last success: ${new Date(lastSuccess).toLocaleString("en-IN")}`, area: "system", severity: "warn" }] : []),
-    ...cronIssues.map(detail => ({ key: `cron:${detail.slice(0, 180)}`, title: "Scheduled job needs attention", detail, area: "insights", severity: "error" })),
-    ...(pushFailure ? [{ key: "browser-push-failure", title: "Latest push send failed in this browser", detail: pushFailure, area: "broadcast", severity: "error" }] : []),
-    ...(feedbackCount ? [{ key: "feedback-open", title: `${feedbackCount} open feedback reports`, detail: "Review owners and severity in the feedback queue.", area: "users", severity: "warn" }] : []),
-    ...(handoffCount ? [{ key: "handoffs-open", title: `${handoffCount} open handoff notes`, detail: "Check next actions and review dates.", area: "overview", severity: "info" }] : []),
+    ...(snapshot.status !== "success" ? [{ key: "snapshot-failed", title: "Timetable snapshot failed", detail: snapshot.error || "Snapshot generation failed.", area: "system", severity: "error", timeLabel: "Last attempt", at: snapshot.ts }] : []),
+    ...(Number.isFinite(lastSuccess) && QUEUE_NOW - lastSuccess > 3 * 86400000 ? [{ key: "snapshot-stale", title: "Timetable snapshot is stale", detail: "The last successful snapshot is more than three days old.", area: "system", severity: "warn", timeLabel: "Last success", at: snapshot.lastSuccessTs || snapshot.ts }] : []),
+    ...cronIssues.map(issue => { const detail = typeof issue === "string" ? issue : issue.detail; return { key: `cron:${detail.slice(0, 180)}`, title: "Scheduled job needs attention", detail, area: "insights", severity: "error", timeLabel: "Last run", at: issue.lastRun }; }),
+    ...(pushFailure ? [{ key: "browser-push-failure", title: "Latest push send failed in this browser", detail: pushFailure, area: "broadcast", severity: "error", timeLabel: "Failed at", at: pushFailureAt }] : []),
+    ...(feedbackCount ? [{ key: "feedback-open", title: `${feedbackCount} open feedback reports`, detail: "Review owners and severity in the feedback queue.", area: "users", severity: "warn", timeLabel: "Oldest open report", at: oldestCreatedAt(feedback) }] : []),
+    ...(handoffCount ? [{ key: "handoffs-open", title: `${handoffCount} open handoff notes`, detail: "Check next actions and review dates.", area: "overview", severity: "info", timeLabel: "Oldest open note", at: oldestCreatedAt(notes.filter(note => note.status === "open")) }] : []),
   ];
   return <section className="admin-card admin-span-all admin-g-overview aw-panel" aria-label="Incident center">
     <div className="aw-head"><div><span className="aw-eyebrow"><AlertTriangle size={13} /> Operations</span><h2>Incident center <small>{incidents.length}</small></h2><p>Current signals from the snapshot, scheduled jobs, feedback, and admin handoffs.</p></div></div>
     <div className="aw-list">{incidents.length ? incidents.map(item => {
       const followUp = notes.find(note => note.incident_key === item.key && note.status === "open");
       const owner = followUp?.owner_id && roster.find(admin => admin.user_id === followUp.owner_id);
-      return <div className={`aw-issue is-${item.severity}`} key={item.key}><AlertTriangle size={16} /><div><strong>{item.title}</strong><span>{item.detail}</span>{followUp && <span>Follow-up: {owner?.name || owner?.email || followUp.owner_id || "Unassigned"} · Next: {followUp.next_action}</span>}</div><div className="aw-actions"><button type="button" className="admin-btn outline" onClick={() => onNavigate(item.area)}>Open <ArrowRight size={13} /></button>{item.key !== "handoffs-open" && (followUp ? <button type="button" className="admin-btn outline" onClick={() => document.querySelector('[aria-label="Admin handoff notes"]')?.scrollIntoView({ behavior: "smooth", block: "start" })}>Follow-up</button> : !readOnly && !handoffUnavailable && <button type="button" className="admin-btn outline" onClick={() => onTrack(item)}>Track issue</button>)}</div></div>;
+      return <div className={`aw-issue is-${item.severity}`} key={item.key}><AlertTriangle size={16} /><div><strong>{item.title}</strong><span>{item.detail}</span><IncidentTimestamp label={item.timeLabel} value={item.at} />{followUp && <><span>Follow-up: {owner?.name || owner?.email || followUp.owner_id || "Unassigned"} · Next: {followUp.next_action}</span><IncidentTimestamp label="Tracked since" value={followUp.created_at} /></>}</div><div className="aw-actions"><button type="button" className="admin-btn outline" onClick={() => onNavigate(item.area)}>Open <ArrowRight size={13} /></button>{item.key !== "handoffs-open" && (followUp ? <button type="button" className="admin-btn outline" onClick={() => document.querySelector('[aria-label="Admin handoff notes"]')?.scrollIntoView({ behavior: "smooth", block: "start" })}>Follow-up</button> : !readOnly && !handoffUnavailable && <button type="button" className="admin-btn outline" onClick={() => onTrack(item)}>Track issue</button>)}</div></div>;
     }) : <div className="admin-empty">No incidents detected in the loaded signals.</div>}</div>
     <small>Push send errors here are from this browser session. Cron status is server reported. Refresh dashboard data to recheck remote signals.</small>
     {handoffUnavailable && !readOnly && <small>Issue follow-up links require the admin incident handoffs migration. General handoff notes remain available when their table is installed.</small>}
