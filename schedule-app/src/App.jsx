@@ -124,6 +124,7 @@ import MobileV2TabBar from "./components/mobile/MobileV2TabBar.jsx";
 import MobileV2Switcher from "./components/mobile/MobileV2Switcher.jsx";
 import MobileV2MorePage from "./components/mobile/MobileV2MorePage.jsx";
 import "./styles/mobile-v2.css";
+import "./styles/tablet-layout.css";
 import "./styles/tomorrow-timeline.css";
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent || "");
@@ -600,7 +601,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // Tablet landscape tier (768–1200px landscape): sidebar is forced to the collapsed icon
   // rail — there isn't room for the expanded 256px panel next to content and the week rail,
   // so the user's stored expand/collapse preference only applies on desktop displays (above 1200px).
-  // Portrait tablets (e.g. iPad portrait 768–1024px) get the single-column mobile view with header/tabs,
+  // Portrait tablets (768–1200px) get the single-column mobile view with header/tabs,
   // matching the orientation-aware breakpoints in styles.css.
   const checkIsTabletLandscape = () => {
     if (typeof window === "undefined") return false;
@@ -3134,7 +3135,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           </span>
         </div>
 
-        <div className={`desk-layout${view === "today" && todayFocusMode ? " today-focus-mode" : ""}`} style={view === "friends" || view === "admin" || view === "wrapped" || view === "planner" || view === "courseHub" || view === "fullSchedule" || (view === "today" && (!dashboardPrefs.weekPanel || todayFocusMode)) ? { gridTemplateColumns: "minmax(0, 1fr)" } : {}}>
+        <div data-view={compareTarget ? "compare" : view} className={`desk-layout${view === "today" && todayFocusMode ? " today-focus-mode" : ""}`} style={view === "friends" || view === "admin" || view === "wrapped" || view === "planner" || view === "courseHub" || view === "fullSchedule" || (view === "today" && (!dashboardPrefs.weekPanel || todayFocusMode)) ? { gridTemplateColumns: "minmax(0, 1fr)" } : {}}>
           <main className="main-col">
             {v2Active && !mobileV2MoreOpen && (
               <MobileV2Switcher view={view} examsEnabled={enableExams} onNavigate={navigateMobileV2} />

@@ -71,3 +71,36 @@ Evidence: `.local/pet-browser-report.json`, `.local/pet-qa-luna.png`,
 `.local/pet-qa-luna-phone.png`, `.local/pet-qa-luna-reduced.png`,
 `.local/luna-mood-sheet.png`. These are offline component/CSS previews;
 authenticated production interaction was not tested. Changes remain local.
+
+## 2026-10-07 — Tablet layout alignment
+
+Restored the forced landscape icon rail while retaining the saved desktop
+sidebar preference. Unified portrait navigation through 1200px for V1/V2,
+including sidebar and dialog breakpoints. Feature pages use the full tablet
+content width; Today/Tomorrow keep the week rail beside them only above 1100px.
+Added tablet grid, header wrapping, attendance, planner, course, and expense
+layout rules, and contained the Exams decorative aura within the page width.
+Kept fixed dialogs anchored to the viewport without layout containment.
+
+- Isolated Chromium: 18 destinations at five V2 tablet sizes (90 cases) and
+  three V1 tablet sizes (54 cases), with no page horizontal overflow.
+- Expanded panels: Attendance, Exams calendar, Courses detail, Planner forecast,
+  Split ledger, Board composer and Admin users. Final expanded checks: 24 cases,
+  zero document-width or loading failures, including 768x600 touch landscape.
+- Dark/Aurora, Compare and Login checks: 16 cases, zero width/loading failures.
+- Course, expense and Board dialogs plus Login: 12 final cases at 768x600,
+  820x1180 and 1100x1366; inspected screenshots for viewport fit and centering.
+- Resize 1440 -> 1024 -> 820 -> 1440 retained `pgp2.sidebar=expanded`, showed
+  the compact rail in landscape tablet, and restored expanded desktop/V1.
+- Phone 390px and desktop 1280/1440px checks: no document horizontal overflow.
+- Functional suite: 45 files, 450 tests passed. The unrelated calendar export
+  performance benchmark was excluded. Added the tablet sidebar control regression.
+- Targeted ESLint: exit 0; App.jsx reports 11 hook warnings and zero errors.
+- Production Vite build to `.local/tablet-build`: passed (2415 modules).
+- `git diff --check`: passed.
+
+Evidence: `.local/tablet-qa/{fixed,v1-tablet,expanded,final-expanded,dialogs,
+dark-aurora,narrow-touch,boundaries}.json` and corresponding PNG screenshots.
+Browser validation uses the bundled schedule and local fixture services; no
+authenticated production changes were made. The initial Login readiness probe
+used the wrong selector; corrected Login checks passed. Changes remain local.

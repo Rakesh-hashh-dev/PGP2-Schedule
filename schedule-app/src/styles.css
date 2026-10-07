@@ -3956,7 +3956,7 @@ html[data-theme="dark"] .tmrw-free-night .tmrw-summary-wx {
 }
 
 @media (max-width: 768px),
-(max-width: 1024px) and (orientation: portrait) {
+(max-width: 1200px) and (orientation: portrait) {
   .hero-img-bg {
     opacity: 0.25;
     mask-image: linear-gradient(to right, transparent 0%, transparent 45%, rgba(0, 0, 0, 0.3) 60%, black 100%);
@@ -8479,7 +8479,7 @@ html[data-theme="dark"] .timeline-today .nowtime {
   gap: 10px;
 }
 
-@media (min-width: 1025px),
+@media (min-width: 1201px),
 (min-width: 768px) and (orientation: landscape) {
   .att-grid {
     display: grid;
@@ -11331,7 +11331,7 @@ html[data-theme="dark"] .bnav {
   }
 }
 
-@media (min-width: 1025px),
+@media (min-width: 1201px),
 (min-width: 768px) and (orientation: landscape) {
   .mobile-only {
     display: none !important;
@@ -11344,7 +11344,7 @@ html[data-theme="dark"] .bnav {
 
 /* Mobile: hide-mobile toggles views based on current tab */
 @media (max-width: 767px),
-(min-width: 768px) and (max-width: 1024px) and (orientation: portrait) {
+(min-width: 768px) and (max-width: 1200px) and (orientation: portrait) {
   .hide-mobile {
     display: none;
   }
@@ -11372,7 +11372,7 @@ html[data-theme="dark"] .bnav {
 }
 
 /* Tablet portrait: provide generous container width and edge-to-edge sticky bars */
-@media (min-width: 768px) and (max-width: 1024px) and (orientation: portrait) {
+@media (min-width: 768px) and (max-width: 1200px) and (orientation: portrait) {
   .app {
     max-width: 920px;
     padding: 24px 28px calc(88px + env(safe-area-inset-bottom, 0px));
@@ -11400,7 +11400,7 @@ html[data-theme="dark"] .bnav {
   min-height: 100vh;
 }
 
-@media (min-width: 1025px),
+@media (min-width: 1201px),
 (min-width: 768px) and (orientation: landscape) {
   .app-shell {
     display: flex;
@@ -11412,7 +11412,7 @@ html[data-theme="dark"] .bnav {
   display: none;
 }
 
-@media (min-width: 1025px),
+@media (min-width: 1201px),
 (min-width: 768px) and (orientation: landscape) {
   .sidebar {
     display: flex;
@@ -12621,7 +12621,7 @@ html[data-theme="dark"] .bnav {
 }
 
 /* Desktop + tablet: full layout with sidebar (icon rail on tablet) */
-@media (min-width: 1025px),
+@media (min-width: 1201px),
 (min-width: 768px) and (orientation: landscape) {
   .app {
     flex: 1;
@@ -14178,7 +14178,7 @@ body.premium-mode .rail>li:nth-child(10) {
   white-space: nowrap;
 }
 
-@media (min-width: 1025px),
+@media (min-width: 1201px),
 (min-width: 768px) and (orientation: landscape) {
   .app-toast {
     bottom: 32px;
@@ -14378,7 +14378,7 @@ html[data-theme="dark"] .install-banner-btn {
   transform: rotate(90deg);
 }
 
-@media (min-width: 1025px),
+@media (min-width: 1201px),
 (min-width: 768px) and (orientation: landscape) {
   .install-banner {
     bottom: 32px;
@@ -14694,7 +14694,7 @@ body.theme-tricolor .tab.on {
   outline-offset: 2px;
 }
 
-@media (min-width: 1025px),
+@media (min-width: 1201px),
 (min-width: 768px) and (orientation: landscape) {
   .specialday-banner {
     bottom: 32px;
@@ -18083,7 +18083,7 @@ a.sb-quicklink {
 /* ── Subject-wise chart: clamp edge tooltips on phones ──
    Centered tooltips on the first/last bar run off the screen edges. */
 @media (max-width: 768px),
-(max-width: 1024px) and (orientation: portrait) {
+(max-width: 1200px) and (orientation: portrait) {
   .att-chart-col:first-child .att-ctip {
     left: -6px;
     transform: translateX(0) translateY(4px) scale(.96);
@@ -18177,7 +18177,7 @@ a.sb-quicklink {
 
 /* Week view on mobile and tablet (portrait): display the agenda cleanly in the main vertical flow */
 @media (max-width: 767px),
-(min-width: 768px) and (max-width: 1024px) and (orientation: portrait) {
+(min-width: 768px) and (max-width: 1200px) and (orientation: portrait) {
   .side-col-week {
     display: block;
     width: 100%;
@@ -18193,7 +18193,7 @@ a.sb-quicklink {
   }
 }
 
-@media (min-width: 1025px),
+@media (min-width: 1201px),
 (min-width: 768px) and (orientation: landscape) {
   .fr-agenda-fab {
     position: fixed;
@@ -18338,7 +18338,7 @@ a.sb-quicklink {
    Floating glass panel, animated: aurora drift, entrance cascade,
    breathing active pill, progress sheens. Same DOM as classic.
    ═══════════════════════════════════════════════════════════════════ */
-@media (min-width: 1025px),
+@media (min-width: 1201px),
 (min-width: 768px) and (orientation: landscape) {
   .sidebar.sb-aurora {
     top: 12px;
@@ -19100,7 +19100,7 @@ html[data-theme="dark"] .lp-glance-bad {
 }
 
 @media (max-width: 767px),
-(min-width: 768px) and (max-width: 1024px) and (orientation: portrait) {
+(min-width: 768px) and (max-width: 1200px) and (orientation: portrait) {
   .lp-sticky {
     display: flex;
   }

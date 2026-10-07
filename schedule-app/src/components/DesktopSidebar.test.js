@@ -37,6 +37,13 @@ function groups(html) {
 }
 
 describe("DesktopSidebar nav", () => {
+  it("keeps tablet navigation compact without offering a desktop expand control", () => {
+    const tablet = render({ isTablet: true, sbCollapsed: true });
+    expect(tablet).toContain('class="sidebar collapsed"');
+    expect(tablet).not.toContain('aria-label="Toggle sidebar"');
+    expect(render()).toContain('aria-label="Toggle sidebar"');
+  });
+
   it("renders the groups in order", () => {
     expect(groups(render())).toEqual(["Schedule", "Track", "Campus", "More"]);
   });

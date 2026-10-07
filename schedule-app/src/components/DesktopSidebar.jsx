@@ -32,7 +32,7 @@ export default function DesktopSidebar({
   enableFriends, markGroupsSeen, markBadgeSeen, showBadge, unreadFriendCount,
   showSbTools, wrappedActive, companionEnabled, setSbToolsOpen,
   setMessMenuOpen, activeQuickLinks, showAdminUI, renderSbUtilStrip,
-  renderSbAvatarWrap, syncing, syncedAgo, toggleSidebar,
+  renderSbAvatarWrap, syncing, syncedAgo, toggleSidebar, isTablet,
 }) {
   const [pins, setPins] = useState(() => {
     try { return normalizeSidebarPins(JSON.parse(localStorage.getItem(SIDEBAR_PINS_KEY))); } catch { return []; }
@@ -363,7 +363,7 @@ export default function DesktopSidebar({
         </div>
       </div>
 
-      <button
+      {!isTablet && <button
         className="sb-edge-handle sb-edge-tab"
         onMouseEnter={e => showSbTip(e, sbCollapsed ? "Expand" : "Collapse")}
         onMouseLeave={hideSbTip}
@@ -372,7 +372,7 @@ export default function DesktopSidebar({
         aria-expanded={!sbCollapsed}
       >
         {sbCollapsed ? <ChevronsRight size={12} /> : <ChevronsLeft size={12} />}
-      </button>
+      </button>}
     </aside>
   );
 }

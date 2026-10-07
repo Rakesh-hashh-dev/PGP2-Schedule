@@ -17,7 +17,9 @@ export function useSidebar({ isTablet }) {
       return Boolean(isTablet);
     }
   });
-  const sbCollapsed = sidebarCollapsed;
+  // Tablet content needs the icon rail even when desktop expansion is saved.
+  // Keep the preference intact so rotating/resizing back restores desktop.
+  const sbCollapsed = isTablet || sidebarCollapsed;
   function toggleSidebar() {
     setSidebarCollapsed(prev => {
       const next = !prev;

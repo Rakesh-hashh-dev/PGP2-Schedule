@@ -12,7 +12,7 @@
 /* Today timeline — compact V2 integration. Portrait tablets use the same
    readable rail; landscape tablets retain the denser desktop timeline. */
 @media (max-width: 767px),
-  (min-width: 768px) and (max-width: 1024px) and (orientation: portrait) {
+  (min-width: 768px) and (max-width: 1200px) and (orientation: portrait) {
   /* Container shell matches V2 card rhythm (16px radius, subtle border) */
   .mobile-ui-v2 .timeline-today {
     border-radius: 16px !important;
@@ -2895,7 +2895,7 @@
 
 /* Tablet portrait keeps the V2 navigation model, but gives it tablet-scale
    gutters, a centred dock and a contained More surface. */
-@media (min-width: 768px) and (max-width: 1024px) and (orientation: portrait) {
+@media (min-width: 768px) and (max-width: 1200px) and (orientation: portrait) {
   .mobile-ui-v2 {
     --mobile-v2-gutter: 28px;
     --mobile-v2-appbar: 72px;
@@ -2993,8 +2993,8 @@
   }
 }
 
-/* Tablet landscape keeps the existing collapsed sidebar and two-column week
-   layout. V2 changes the content treatment only; phone navigation is hidden. */
+/* Tablet landscape uses the collapsed sidebar. The shared tablet layout sizes
+   the week rail to available space; phone navigation is hidden. */
 @media (min-width: 768px) and (max-width: 1200px) and (orientation: landscape) {
   .mobile-ui-v2 {
     --mobile-v2-gutter: 24px;
