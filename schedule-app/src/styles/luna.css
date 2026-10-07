@@ -1,17 +1,13 @@
-/* Luna uses supplied full-body frames: no lean or drawn-on blink. She keeps
-   the roster's slow body bob between bursts (it is 2px, under the frames'
-   own breathing) so a held pose never reads as a paused video. */
-.dg-pet[data-pet="luna"] { --pet-lean: 0deg; --pet-drop: 0px;
+/* Luna uses supplied full-body frames. Avoid a second bob, lean or eye blink. */
+.dg-pet[data-pet="luna"] { animation: none; --pet-lean: 0deg; --pet-drop: 0px;
   --luna-idle: inline; --luna-run-right: none; --luna-run-left: none; --luna-wave: none; --luna-jump: none; --luna-rest: none; --luna-wait: none; --luna-think: none; --luna-review: none;
   --pet-hat-x: 0px; --pet-hat-y: -7.5px; --pet-hat-scale: 0.68; --pet-neck-x: 0px; --pet-neck-y: -7.5px; --pet-neck-scale: 0.68;
 }
-.dg-pet[data-pet="luna"]:is([data-reaction], [data-beat]) { animation: none; }
+.dg-pet[data-pet="luna"][data-reaction] { animation: none; }
 .dg-pet .luna-viewport { overflow: hidden; filter: none; transform: none; position: static; }
 .dg-pet[data-pet="luna"] .luna-still { display: none; }
-/* The run strips were drawn 15-19px higher than every sitting pose; drop them
-   onto the same ground line so a dash never lifts her off the floor. */
-.dg-pet .luna-state-run-right { transform: translateY(15px); }
-.dg-pet .luna-state-run-left { transform: translateY(19px); }
+.dg-pet .luna-strip { animation: lunaFrames var(--luna-duration) steps(var(--luna-steps), end) infinite; }
+@keyframes lunaFrames { from { transform: translateX(0); } to { transform: translateX(var(--luna-distance)); } }
 .dg-pet .luna-state-idle { display: var(--luna-idle, none); }
 .dg-pet .luna-state-run-right { display: var(--luna-run-right, none); }
 .dg-pet .luna-state-run-left { display: var(--luna-run-left, none); }
@@ -42,6 +38,14 @@
 .dg-pet[data-pet="luna"]:where([data-mood="excited"], [data-mood="celebrating"], [data-mood="festive"], [data-mood="birthday"]) {
   --luna-idle: none; --luna-run-right: none; --luna-run-left: none; --luna-wave: none; --luna-jump: inline; --luna-rest: none; --luna-wait: none; --luna-think: none; --luna-review: none;
   --pet-hat-x: 0px; --pet-hat-y: -7.5px; --pet-hat-scale: 0.68; --pet-neck-x: 0px; --pet-neck-y: -7.5px; --pet-neck-scale: 0.68;
+}
+.dg-pet[data-pet="luna"]:where([data-beat="luna-run-right"]) {
+  --luna-idle: none; --luna-run-right: inline; --luna-run-left: none; --luna-wave: none; --luna-jump: none; --luna-rest: none; --luna-wait: none; --luna-think: none; --luna-review: none;
+  --pet-hat-x: 9px; --pet-hat-y: -5px; --pet-hat-scale: 0.62; --pet-neck-x: 7.4px; --pet-neck-y: -7px; --pet-neck-scale: 0.6;
+}
+.dg-pet[data-pet="luna"]:where([data-beat="luna-run-left"]) {
+  --luna-idle: none; --luna-run-right: none; --luna-run-left: inline; --luna-wave: none; --luna-jump: none; --luna-rest: none; --luna-wait: none; --luna-think: none; --luna-review: none;
+  --pet-hat-x: -9px; --pet-hat-y: -5px; --pet-hat-scale: 0.62; --pet-neck-x: -7.4px; --pet-neck-y: -7px; --pet-neck-scale: 0.6;
 }
 .dg-pet[data-pet="luna"]:where([data-beat="luna-wave"]) {
   --luna-idle: none; --luna-run-right: none; --luna-run-left: none; --luna-wave: inline; --luna-jump: none; --luna-rest: none; --luna-wait: none; --luna-think: none; --luna-review: none;
@@ -80,98 +84,6 @@
   --pet-hat-x: 0.4px; --pet-hat-y: -7.3px; --pet-hat-scale: 0.68; --pet-neck-x: 0.4px; --pet-neck-y: -7.4px; --pet-neck-scale: 0.68;
 }
 
-/* -- Motion, in the companion system's rhythm ---------------------------
-   GENERATED from the strips' measured head positions (scratch generator; the
-   numbers below are frame offsets, not hand-tuned). Three rules:
-   - Moods hold a resting pose and play one short burst per cycle (blink,
-     paw lift, ear flick), scaled by --pet-tempo like every other pet - not
-     the full strip on a 120ms loop, which read as non-stop fidgeting.
-   - Beats and care reactions play their strip ONCE and settle; their JS
-     timers (LUNA_BEAT_MS / LUNA_REACTION_MS) match, so nothing is cut off
-     mid-jump and nothing loops a second time.
-   - A run beat is a dash: out one way, turn, back the other, so she runs
-     somewhere instead of on the spot. Hat and neckwear follow the head. */
-.dg-pet[data-pet="luna"] .luna-state-idle .luna-strip { animation: lunaAmbIdle calc(3800ms * var(--pet-tempo, 1)) step-end infinite; }
-.dg-pet[data-pet="luna"] :is(.dg-pet-hat, .dg-pet-neck) { animation: lunaAmbIdleHat calc(3800ms * var(--pet-tempo, 1)) step-end infinite; }
-.dg-pet[data-pet="luna"]:where([data-mood="happy"], [data-mood="proud"], [data-mood="playful"]) .luna-state-wait .luna-strip { animation: lunaAmbWait calc(3200ms * var(--pet-tempo, 1)) step-end infinite; }
-.dg-pet[data-pet="luna"]:where([data-mood="happy"], [data-mood="proud"], [data-mood="playful"]) :is(.dg-pet-hat, .dg-pet-neck) { animation: lunaAmbWaitHat calc(3200ms * var(--pet-tempo, 1)) step-end infinite; }
-.dg-pet[data-pet="luna"]:where([data-mood="focused"], [data-mood="bored"]) .luna-state-think .luna-strip { animation: lunaAmbThink calc(3800ms * var(--pet-tempo, 1)) step-end infinite; }
-.dg-pet[data-pet="luna"]:where([data-mood="focused"], [data-mood="bored"]) :is(.dg-pet-hat, .dg-pet-neck) { animation: lunaAmbThinkHat calc(3800ms * var(--pet-tempo, 1)) step-end infinite; }
-.dg-pet[data-pet="luna"]:where([data-mood="curious"], [data-mood="restless"]) .luna-state-review .luna-strip { animation: lunaAmbReview calc(3000ms * var(--pet-tempo, 1)) step-end infinite; }
-.dg-pet[data-pet="luna"]:where([data-mood="curious"], [data-mood="restless"]) :is(.dg-pet-hat, .dg-pet-neck) { animation: lunaAmbReviewHat calc(3000ms * var(--pet-tempo, 1)) step-end infinite; }
-.dg-pet[data-pet="luna"]:where([data-mood="tired"], [data-mood="sleepy"], [data-mood="cozy"], [data-mood="missing"]) .luna-state-rest .luna-strip { animation: lunaAmbRest calc(3900ms * var(--pet-tempo, 1)) step-end infinite; }
-.dg-pet[data-pet="luna"]:where([data-mood="tired"], [data-mood="sleepy"], [data-mood="cozy"], [data-mood="missing"]) :is(.dg-pet-hat, .dg-pet-neck) { animation: lunaAmbRestHat calc(3900ms * var(--pet-tempo, 1)) step-end infinite; }
-.dg-pet[data-pet="luna"]:where([data-mood="excited"], [data-mood="celebrating"], [data-mood="festive"], [data-mood="birthday"]) .luna-state-jump .luna-strip { animation: lunaAmbJump calc(2480ms * var(--pet-tempo, 1)) step-end infinite; }
-.dg-pet[data-pet="luna"]:where([data-mood="excited"], [data-mood="celebrating"], [data-mood="festive"], [data-mood="birthday"]) :is(.dg-pet-hat, .dg-pet-neck) { animation: lunaAmbJumpHat calc(2480ms * var(--pet-tempo, 1)) step-end infinite; }
-.dg-pet[data-pet="luna"]:where([data-beat="luna-wave"]) .luna-state-wave .luna-strip { animation: lunaOnceWave 960ms step-end both; }
-.dg-pet[data-pet="luna"]:where([data-beat="luna-wave"]) :is(.dg-pet-hat, .dg-pet-neck) { animation: lunaOnceWaveHat 960ms step-end both; }
-.dg-pet[data-pet="luna"]:where([data-beat="luna-jump"]) .luna-state-jump .luna-strip { animation: lunaOnceJump 1200ms step-end both; }
-.dg-pet[data-pet="luna"]:where([data-beat="luna-jump"]) :is(.dg-pet-hat, .dg-pet-neck) { animation: lunaOnceJumpHat 1200ms step-end both; }
-.dg-pet[data-pet="luna"]:where([data-beat="luna-rest"]) .luna-state-rest .luna-strip { animation: lunaOnceRest 1440ms step-end both; }
-.dg-pet[data-pet="luna"]:where([data-beat="luna-rest"]) :is(.dg-pet-hat, .dg-pet-neck) { animation: lunaOnceRestHat 1440ms step-end both; }
-.dg-pet[data-pet="luna"]:where([data-beat="luna-wait"]) .luna-state-wait .luna-strip { animation: lunaOnceWait 1440ms step-end both; }
-.dg-pet[data-pet="luna"]:where([data-beat="luna-wait"]) :is(.dg-pet-hat, .dg-pet-neck) { animation: lunaOnceWaitHat 1440ms step-end both; }
-.dg-pet[data-pet="luna"]:where([data-beat="luna-think"]) .luna-state-think .luna-strip { animation: lunaOnceThink 1440ms step-end both; }
-.dg-pet[data-pet="luna"]:where([data-beat="luna-think"]) :is(.dg-pet-hat, .dg-pet-neck) { animation: lunaOnceThinkHat 1440ms step-end both; }
-.dg-pet[data-pet="luna"]:where([data-beat="luna-review"]) .luna-state-review .luna-strip { animation: lunaOnceReview 1440ms step-end both; }
-.dg-pet[data-pet="luna"]:where([data-beat="luna-review"]) :is(.dg-pet-hat, .dg-pet-neck) { animation: lunaOnceReviewHat 1440ms step-end both; }
-.dg-pet[data-pet="luna"]:where([data-reaction="pet"]) .luna-state-wave .luna-strip { animation: lunaOnceWave 960ms step-end both; }
-.dg-pet[data-pet="luna"]:where([data-reaction="pet"]) :is(.dg-pet-hat, .dg-pet-neck) { animation: lunaOnceWaveHat 960ms step-end both; }
-.dg-pet[data-pet="luna"]:where([data-reaction="play"]) .luna-state-jump .luna-strip { animation: lunaOnceJump 1200ms step-end both; }
-.dg-pet[data-pet="luna"]:where([data-reaction="play"]) :is(.dg-pet-hat, .dg-pet-neck) { animation: lunaOnceJumpHat 1200ms step-end both; }
-.dg-pet[data-pet="luna"]:where([data-reaction="treat"]) .luna-state-wait .luna-strip { animation: lunaOnceWait 1440ms step-end both; }
-.dg-pet[data-pet="luna"]:where([data-reaction="treat"]) :is(.dg-pet-hat, .dg-pet-neck) { animation: lunaOnceWaitHat 1440ms step-end both; }
-.dg-pet[data-pet="luna"]:where([data-beat="luna-run-right"]) { --luna-idle: none; --luna-wave: none; --luna-jump: none; --luna-rest: none; --luna-wait: none; --luna-think: none; --luna-review: none; --luna-run-right: inline; --luna-run-left: inline; --pet-hat-x: 0px; --pet-hat-y: -7.5px; --pet-hat-scale: .68; --pet-neck-x: 0px; --pet-neck-y: -7.5px; --pet-neck-scale: .68; }
-.dg-pet[data-pet="luna"]:where([data-beat="luna-run-right"]) .luna-state-run-right { animation: lunaLegFirst 1920ms step-end both; }
-.dg-pet[data-pet="luna"]:where([data-beat="luna-run-right"]) .luna-state-run-left { animation: lunaLegSecond 1920ms step-end both; }
-.dg-pet[data-pet="luna"]:where([data-beat="luna-run-right"]) .luna-state-run-right .luna-strip { animation: lunaDashRunRightA 1920ms step-end both; }
-.dg-pet[data-pet="luna"]:where([data-beat="luna-run-right"]) .luna-state-run-left .luna-strip { animation: lunaDashRunRightB 1920ms step-end both; }
-.dg-pet[data-pet="luna"]:where([data-beat="luna-run-right"]) .luna-art { animation: lunaDashRunRightMove 1920ms both; }
-.dg-pet[data-pet="luna"]:where([data-beat="luna-run-right"]) :is(.dg-pet-hat, .dg-pet-neck) { animation: lunaDashRunRightHatMove 1920ms both, lunaDashRunRightHat 1920ms step-end both; }
-.dg-pet[data-pet="luna"]:where([data-beat="luna-run-left"]) { --luna-idle: none; --luna-wave: none; --luna-jump: none; --luna-rest: none; --luna-wait: none; --luna-think: none; --luna-review: none; --luna-run-left: inline; --luna-run-right: inline; --pet-hat-x: 0px; --pet-hat-y: -7.5px; --pet-hat-scale: .68; --pet-neck-x: 0px; --pet-neck-y: -7.5px; --pet-neck-scale: .68; }
-.dg-pet[data-pet="luna"]:where([data-beat="luna-run-left"]) .luna-state-run-left { animation: lunaLegFirst 1920ms step-end both; }
-.dg-pet[data-pet="luna"]:where([data-beat="luna-run-left"]) .luna-state-run-right { animation: lunaLegSecond 1920ms step-end both; }
-.dg-pet[data-pet="luna"]:where([data-beat="luna-run-left"]) .luna-state-run-left .luna-strip { animation: lunaDashRunLeftA 1920ms step-end both; }
-.dg-pet[data-pet="luna"]:where([data-beat="luna-run-left"]) .luna-state-run-right .luna-strip { animation: lunaDashRunLeftB 1920ms step-end both; }
-.dg-pet[data-pet="luna"]:where([data-beat="luna-run-left"]) .luna-art { animation: lunaDashRunLeftMove 1920ms both; }
-.dg-pet[data-pet="luna"]:where([data-beat="luna-run-left"]) :is(.dg-pet-hat, .dg-pet-neck) { animation: lunaDashRunLeftHatMove 1920ms both, lunaDashRunLeftHat 1920ms step-end both; }
-@keyframes lunaAmbIdle { 0% { transform: translateX(0px); } 84.211% { transform: translateX(-192px); } 87.368% { transform: translateX(-384px); } 90.526% { transform: translateX(-576px); } 93.684% { transform: translateX(-768px); } 96.842% { transform: translateX(-960px); } 100% { transform: translateX(-960px); } }
-@keyframes lunaAmbIdleHat { 0% { transform: translate(0%, 0%); } 84.211% { transform: translate(0%, 0%); } 87.368% { transform: translate(0%, 0%); } 90.526% { transform: translate(0%, 0%); } 93.684% { transform: translate(0%, 0%); } 96.842% { transform: translate(0%, 0%); } 100% { transform: translate(0%, 0%); } }
-@keyframes lunaAmbWait { 0% { transform: translateX(0px); } 81.25% { transform: translateX(-192px); } 85% { transform: translateX(-384px); } 88.75% { transform: translateX(-576px); } 92.5% { transform: translateX(-768px); } 96.25% { transform: translateX(-960px); } 100% { transform: translateX(-960px); } }
-@keyframes lunaAmbWaitHat { 0% { transform: translate(0%, 0%); } 81.25% { transform: translate(0%, 0%); } 85% { transform: translate(5.602%, 0%); } 88.75% { transform: translate(0%, 0%); } 92.5% { transform: translate(0%, 0%); } 96.25% { transform: translate(0%, 0%); } 100% { transform: translate(0%, 0%); } }
-@keyframes lunaAmbThink { 0% { transform: translateX(0px); } 84.211% { transform: translateX(-192px); } 87.368% { transform: translateX(-384px); } 90.526% { transform: translateX(-576px); } 93.684% { transform: translateX(-768px); } 96.842% { transform: translateX(-960px); } 100% { transform: translateX(-960px); } }
-@keyframes lunaAmbThinkHat { 0% { transform: translate(0%, 0%); } 84.211% { transform: translate(0%, 0%); } 87.368% { transform: translate(0%, 0%); } 90.526% { transform: translate(0%, 0%); } 93.684% { transform: translate(0%, 0%); } 96.842% { transform: translate(0%, 0%); } 100% { transform: translate(0%, 0%); } }
-@keyframes lunaAmbReview { 0% { transform: translateX(0px); } 80% { transform: translateX(-192px); } 84% { transform: translateX(-384px); } 88% { transform: translateX(-576px); } 92% { transform: translateX(-768px); } 96% { transform: translateX(-960px); } 100% { transform: translateX(-960px); } }
-@keyframes lunaAmbReviewHat { 0% { transform: translate(0%, 0%); } 80% { transform: translate(0%, 12.605%); } 84% { transform: translate(0%, 0%); } 88% { transform: translate(0%, 0%); } 92% { transform: translate(0%, 0%); } 96% { transform: translate(0%, 0%); } 100% { transform: translate(0%, 0%); } }
-@keyframes lunaAmbRest { 0% { transform: translateX(0px); } 23.077% { transform: translateX(-192px); } 28.205% { transform: translateX(-384px); } 33.333% { transform: translateX(-576px); } 74.359% { transform: translateX(-768px); } 84.615% { transform: translateX(-960px); } 89.744% { transform: translateX(-1152px); } 94.872% { transform: translateX(-1344px); } 100% { transform: translateX(-1344px); } }
-@keyframes lunaAmbRestHat { 0% { transform: translate(0%, 0%); } 23.077% { transform: translate(0%, 5.602%); } 28.205% { transform: translate(0%, 11.905%); } 33.333% { transform: translate(0%, 25.21%); } 74.359% { transform: translate(0%, 25.21%); } 84.615% { transform: translate(0%, 0%); } 89.744% { transform: translate(0%, 0%); } 94.872% { transform: translate(0%, 0%); } 100% { transform: translate(0%, 0%); } }
-@keyframes lunaAmbJump { 0% { transform: translateX(0px); } 80.645% { transform: translateX(-192px); } 85.484% { transform: translateX(-384px); } 90.323% { transform: translateX(-576px); } 95.161% { transform: translateX(-768px); } 100% { transform: translateX(-768px); } }
-@keyframes lunaAmbJumpHat { 0% { transform: translate(0%, 0%); } 80.645% { transform: translate(0%, 9.804%); } 85.484% { transform: translate(0%, -9.804%); } 90.323% { transform: translate(0%, 0%); } 95.161% { transform: translate(0%, 0%); } 100% { transform: translate(0%, 0%); } }
-@keyframes lunaOnceWave { 0% { transform: translateX(0px); } 12.5% { transform: translateX(-192px); } 25% { transform: translateX(-384px); } 37.5% { transform: translateX(-576px); } 50% { transform: translateX(-768px); } 62.5% { transform: translateX(-960px); } 75% { transform: translateX(-1152px); } 87.5% { transform: translateX(-1344px); } 100% { transform: translateX(-1344px); } }
-@keyframes lunaOnceWaveHat { 0% { transform: translate(0%, 0%); } 12.5% { transform: translate(6.303%, 0%); } 25% { transform: translate(8.403%, 0%); } 37.5% { transform: translate(0%, 0%); } 50% { transform: translate(0%, 0%); } 62.5% { transform: translate(6.303%, 0%); } 75% { transform: translate(8.403%, 0%); } 87.5% { transform: translate(0%, 0%); } 100% { transform: translate(0%, 0%); } }
-@keyframes lunaOnceJump { 0% { transform: translateX(0px); } 10% { transform: translateX(-192px); } 20% { transform: translateX(-384px); } 30% { transform: translateX(-576px); } 40% { transform: translateX(-768px); } 50% { transform: translateX(-960px); } 60% { transform: translateX(-1152px); } 70% { transform: translateX(-1344px); } 80% { transform: translateX(-1536px); } 90% { transform: translateX(-1728px); } 100% { transform: translateX(-1728px); } }
-@keyframes lunaOnceJumpHat { 0% { transform: translate(0%, 0%); } 10% { transform: translate(0%, 9.804%); } 20% { transform: translate(0%, -9.804%); } 30% { transform: translate(0%, 0%); } 40% { transform: translate(0%, 0%); } 50% { transform: translate(0%, 0%); } 60% { transform: translate(0%, 9.804%); } 70% { transform: translate(0%, -9.804%); } 80% { transform: translate(0%, 0%); } 90% { transform: translate(0%, 0%); } 100% { transform: translate(0%, 0%); } }
-@keyframes lunaOnceRest { 0% { transform: translateX(0px); } 12.5% { transform: translateX(-192px); } 25% { transform: translateX(-384px); } 37.5% { transform: translateX(-576px); } 50% { transform: translateX(-768px); } 62.5% { transform: translateX(-960px); } 75% { transform: translateX(-1152px); } 87.5% { transform: translateX(-1344px); } 100% { transform: translateX(-1344px); } }
-@keyframes lunaOnceRestHat { 0% { transform: translate(0%, 0%); } 12.5% { transform: translate(0%, 5.602%); } 25% { transform: translate(0%, 11.905%); } 37.5% { transform: translate(0%, 25.21%); } 50% { transform: translate(0%, 25.21%); } 62.5% { transform: translate(0%, 0%); } 75% { transform: translate(0%, 0%); } 87.5% { transform: translate(0%, 0%); } 100% { transform: translate(0%, 0%); } }
-@keyframes lunaOnceWait { 0% { transform: translateX(0px); } 8.333% { transform: translateX(-192px); } 16.667% { transform: translateX(-384px); } 25% { transform: translateX(-576px); } 33.333% { transform: translateX(-768px); } 41.667% { transform: translateX(-960px); } 50% { transform: translateX(-1152px); } 58.333% { transform: translateX(-1344px); } 66.667% { transform: translateX(-1536px); } 75% { transform: translateX(-1728px); } 83.333% { transform: translateX(-1920px); } 91.667% { transform: translateX(-2112px); } 100% { transform: translateX(-2112px); } }
-@keyframes lunaOnceWaitHat { 0% { transform: translate(0%, 0%); } 8.333% { transform: translate(0%, 0%); } 16.667% { transform: translate(5.602%, 0%); } 25% { transform: translate(0%, 0%); } 33.333% { transform: translate(0%, 0%); } 41.667% { transform: translate(0%, 0%); } 50% { transform: translate(0%, 0%); } 58.333% { transform: translate(0%, 0%); } 66.667% { transform: translate(5.602%, 0%); } 75% { transform: translate(0%, 0%); } 83.333% { transform: translate(0%, 0%); } 91.667% { transform: translate(0%, 0%); } 100% { transform: translate(0%, 0%); } }
-@keyframes lunaOnceThink { 0% { transform: translateX(0px); } 8.333% { transform: translateX(-192px); } 16.667% { transform: translateX(-384px); } 25% { transform: translateX(-576px); } 33.333% { transform: translateX(-768px); } 41.667% { transform: translateX(-960px); } 50% { transform: translateX(-1152px); } 58.333% { transform: translateX(-1344px); } 66.667% { transform: translateX(-1536px); } 75% { transform: translateX(-1728px); } 83.333% { transform: translateX(-1920px); } 91.667% { transform: translateX(-2112px); } 100% { transform: translateX(-2112px); } }
-@keyframes lunaOnceThinkHat { 0% { transform: translate(0%, 0%); } 8.333% { transform: translate(0%, 0%); } 16.667% { transform: translate(0%, 0%); } 25% { transform: translate(0%, 0%); } 33.333% { transform: translate(0%, 0%); } 41.667% { transform: translate(0%, 0%); } 50% { transform: translate(0%, 0%); } 58.333% { transform: translate(0%, 0%); } 66.667% { transform: translate(0%, 0%); } 75% { transform: translate(0%, 0%); } 83.333% { transform: translate(0%, 0%); } 91.667% { transform: translate(0%, 0%); } 100% { transform: translate(0%, 0%); } }
-@keyframes lunaOnceReview { 0% { transform: translateX(0px); } 8.333% { transform: translateX(-192px); } 16.667% { transform: translateX(-384px); } 25% { transform: translateX(-576px); } 33.333% { transform: translateX(-768px); } 41.667% { transform: translateX(-960px); } 50% { transform: translateX(-1152px); } 58.333% { transform: translateX(-1344px); } 66.667% { transform: translateX(-1536px); } 75% { transform: translateX(-1728px); } 83.333% { transform: translateX(-1920px); } 91.667% { transform: translateX(-2112px); } 100% { transform: translateX(-2112px); } }
-@keyframes lunaOnceReviewHat { 0% { transform: translate(0%, 0%); } 8.333% { transform: translate(0%, 12.605%); } 16.667% { transform: translate(0%, 0%); } 25% { transform: translate(0%, 0%); } 33.333% { transform: translate(0%, 0%); } 41.667% { transform: translate(0%, 0%); } 50% { transform: translate(0%, 0%); } 58.333% { transform: translate(0%, 12.605%); } 66.667% { transform: translate(0%, 0%); } 75% { transform: translate(0%, 0%); } 83.333% { transform: translate(0%, 0%); } 91.667% { transform: translate(0%, 0%); } 100% { transform: translate(0%, 0%); } }
-@keyframes lunaDashRunRightA { 0% { transform: translateX(0px); } 6.25% { transform: translateX(-192px); } 12.5% { transform: translateX(-384px); } 18.75% { transform: translateX(-576px); } 25% { transform: translateX(-768px); } 31.25% { transform: translateX(-960px); } 37.5% { transform: translateX(-1152px); } 43.75% { transform: translateX(-1344px); } 100% { transform: translateX(-1344px); } }
-@keyframes lunaDashRunRightB { 0% { transform: translateX(0); } 50% { transform: translateX(0px); } 56.25% { transform: translateX(-192px); } 62.5% { transform: translateX(-384px); } 68.75% { transform: translateX(-576px); } 75% { transform: translateX(-768px); } 81.25% { transform: translateX(-960px); } 87.5% { transform: translateX(-1152px); } 93.75% { transform: translateX(-1344px); } 100% { transform: translateX(-1344px); } }
-@keyframes lunaDashRunRightMove { 0% { translate: 0 0; animation-timing-function: cubic-bezier(.45, 0, .4, 1); } 50% { translate: 18% 0; animation-timing-function: cubic-bezier(.45, 0, .4, 1); } 100% { translate: 0 0; } }
-@keyframes lunaDashRunRightHatMove { 0% { left: 0; right: 0; animation-timing-function: cubic-bezier(.45, 0, .4, 1); } 50% { left: 18%; right: -18%; animation-timing-function: cubic-bezier(.45, 0, .4, 1); } 100% { left: 0; right: 0; } }
-@keyframes lunaDashRunRightHat { 0% { transform: translate(35.189%, 18.557%); } 50% { transform: translate(-14.881%, 23.722%); } 100% { transform: translate(-14.881%, 23.722%); } }
-@keyframes lunaDashRunLeftA { 0% { transform: translateX(0px); } 6.25% { transform: translateX(-192px); } 12.5% { transform: translateX(-384px); } 18.75% { transform: translateX(-576px); } 25% { transform: translateX(-768px); } 31.25% { transform: translateX(-960px); } 37.5% { transform: translateX(-1152px); } 43.75% { transform: translateX(-1344px); } 100% { transform: translateX(-1344px); } }
-@keyframes lunaDashRunLeftB { 0% { transform: translateX(0); } 50% { transform: translateX(0px); } 56.25% { transform: translateX(-192px); } 62.5% { transform: translateX(-384px); } 68.75% { transform: translateX(-576px); } 75% { transform: translateX(-768px); } 81.25% { transform: translateX(-960px); } 87.5% { transform: translateX(-1152px); } 93.75% { transform: translateX(-1344px); } 100% { transform: translateX(-1344px); } }
-@keyframes lunaDashRunLeftMove { 0% { translate: 0 0; animation-timing-function: cubic-bezier(.45, 0, .4, 1); } 50% { translate: -18% 0; animation-timing-function: cubic-bezier(.45, 0, .4, 1); } 100% { translate: 0 0; } }
-@keyframes lunaDashRunLeftHatMove { 0% { left: 0; right: 0; animation-timing-function: cubic-bezier(.45, 0, .4, 1); } 50% { left: -18%; right: 18%; animation-timing-function: cubic-bezier(.45, 0, .4, 1); } 100% { left: 0; right: 0; } }
-@keyframes lunaDashRunLeftHat { 0% { transform: translate(-14.881%, 23.722%); } 50% { transform: translate(35.189%, 18.557%); } 100% { transform: translate(35.189%, 18.557%); } }
-@keyframes lunaLegFirst { 0% { visibility: visible; } 50%, 100% { visibility: hidden; } }
-@keyframes lunaLegSecond { 0% { visibility: hidden; } 50%, 100% { visibility: visible; } }
-
 /* Hidden pages pause in-place. The shared off-screen watcher also reaches
    these strips, so an off-screen companion costs no animation work. */
 .luna-art[data-paused] .luna-strip { animation-play-state: paused; }
@@ -179,12 +91,10 @@
 .dg-pet:where([data-motion="off"], [data-sig="off"]) .luna-strip { animation: none; }
 .dg-pet:where([data-motion="off"], [data-sig="off"]) .luna-state { display: none; }
 .dg-pet[data-pet="luna"]:where([data-motion="off"], [data-sig="off"]) .luna-still { display: inline; }
-.dg-pet.dg-pet[data-pet="luna"]:is([data-motion="off"], [data-sig="off"]) :is(.luna-strip, .luna-state, .luna-art, .dg-pet-hat, .dg-pet-neck) { animation: none; }
 .dg-pet[data-pet="luna"]:where([data-motion="off"], [data-sig="off"]) { --luna-idle: inline; --luna-run-right: none; --luna-run-left: none; --luna-wave: none; --luna-jump: none; --luna-rest: none; --luna-wait: none; --luna-think: none; --luna-review: none;
   --pet-hat-x: 0px; --pet-hat-y: -7.5px; --pet-hat-scale: 0.68; --pet-neck-x: 0px; --pet-neck-y: -7.5px; --pet-neck-scale: 0.68; }
 @media (prefers-reduced-motion: reduce) {
   .dg-pet .luna-strip { animation: none; }
-  .dg-pet.dg-pet[data-pet="luna"] :is(.luna-strip, .luna-state, .luna-art, .dg-pet-hat, .dg-pet-neck) { animation: none; }
   .dg-pet .luna-state { display: none; }
   .dg-pet[data-pet="luna"] .luna-still { display: inline; }
   .dg-pet[data-pet="luna"] { --luna-idle: inline; --luna-run-right: none; --luna-run-left: none; --luna-wave: none; --luna-jump: none; --luna-rest: none; --luna-wait: none; --luna-think: none; --luna-review: none;

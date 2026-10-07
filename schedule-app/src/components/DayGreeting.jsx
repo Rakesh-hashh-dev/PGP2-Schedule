@@ -12,7 +12,6 @@ import PetNeckwear from "./PetNeckwear.jsx";
 import { usePetBeat } from "../hooks/usePetBeat.js";
 import { usePetGaze } from "../hooks/usePetGaze.js";
 import { recordMood } from "../lib/petStats.js";
-import { LUNA_REACTION_MS } from "../lib/petPersonality.js";
 
 // Flavour per action, per mood-neutral. The pet's *name* carries the warmth, so
 // these stay short — the tray is a 195px popover, not a chat window.
@@ -147,7 +146,7 @@ export default function DayGreeting({
     });
     setPetReaction(action);
     window.clearTimeout(reactionTimer.current);
-    reactionTimer.current = window.setTimeout(() => setPetReaction(""), displayPet?.key === "luna" ? LUNA_REACTION_MS[action] ?? 1150 : 1150);
+    reactionTimer.current = window.setTimeout(() => setPetReaction(""), displayPet?.key === "luna" ? 1920 : 1150);
   };
 
   if (!greeting) return null;
