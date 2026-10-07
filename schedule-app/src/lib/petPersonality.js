@@ -46,6 +46,15 @@ const LUNA_MOODS = {
   tired: ["luna-rest", "luna-wait"], sleepy: ["luna-rest", "luna-wait"],
   bored: ["luna-think", "luna-wait"], missing: ["luna-rest", "luna-wait"],
 };
+// Luna's beats play their sprite strip once (styles/luna.css); each beat lasts
+// exactly as long as its strip, so none is cut off or loops a second time.
+// Runs are a dash: one gallop cycle out, one back.
+export const LUNA_BEAT_MS = {
+  "luna-wave": 960, "luna-jump": 1200, "luna-rest": 1440, "luna-wait": 1440,
+  "luna-think": 1440, "luna-review": 1440, "luna-run-right": 1920, "luna-run-left": 1920,
+};
+// Care reactions reuse a beat's strip: pet -> wave, play -> jump, treat -> wait.
+export const LUNA_REACTION_MS = { pet: 960, play: 1200, treat: 1440 };
 export function beatPoolFor(petKey, mood) {
   if (petKey === "luna") return LUNA_MOODS[mood] || PET_PERSONALITIES.luna;
   const signature = PET_PERSONALITIES[petKey] || [];
@@ -68,7 +77,7 @@ export function createPetBeatClock({ petKey, mood, onBeat, random = Math.random,
     timer = setTimer(() => {
       previous = choosePetBeat(petKey, mood, previous, random);
       onBeat(previous);
-      timer = setTimer(() => { onBeat(""); schedule(); }, petKey === "luna" ? 1_920 : PET_BEAT_MS);
+      timer = setTimer(() => { onBeat(""); schedule(); }, petKey === "luna" ? LUNA_BEAT_MS[previous] ?? PET_BEAT_MS : PET_BEAT_MS);
     }, PET_GAP_MIN_MS + random() * (PET_GAP_MAX_MS - PET_GAP_MIN_MS));
   }
   return {

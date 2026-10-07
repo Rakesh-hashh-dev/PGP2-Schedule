@@ -59,48 +59,52 @@ export function DashboardCustomize({ prefs, onChange, compact = false }) {
 
   const Panel = sheetMode ? "dialog" : "div";
   return <div className="dashboard-customize" ref={rootRef}>
-    <button ref={toggleRef} type="button" className="dashboard-customize-toggle" aria-label="Customize today layout" aria-haspopup="dialog" aria-controls={open ? panelId : undefined} aria-expanded={open} onClick={toggle}><Settings2 size={14} /><span className="dashboard-cust-label"> Customize</span></button>
+    <button ref={toggleRef} type="button" className="dashboard-customize-toggle vdh-filter-btn" aria-label="Customize today layout" aria-haspopup="dialog" aria-controls={open ? panelId : undefined} aria-expanded={open} onClick={toggle}><Settings2 size={14} /><span className="dashboard-cust-label"> Customize</span></button>
     {open && <Panel ref={panelRef} id={panelId} className="dashboard-customize-panel" role="dialog" aria-labelledby={`${panelId}-title`} onCancel={(event) => { event.preventDefault(); close(); }} onClick={(event) => {
       if (!sheetMode || event.target !== event.currentTarget) return;
       const bounds = event.currentTarget.getBoundingClientRect();
       if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) close();
     }}>
       <div className="dashboard-customize-head">
-        <span className="dashboard-customize-icon"><LayoutDashboard size={19} /></span>
-        <div><h2 id={`${panelId}-title`}>Make Today yours</h2><p>Choose what appears on your dashboard.</p></div>
-        <button type="button" onClick={close} aria-label="Close dashboard settings"><X size={18} /></button>
+        <span className="dashboard-customize-icon"><LayoutDashboard size={16} /></span>
+        <div><h2 id={`${panelId}-title`}>Make Today yours</h2><p>Choose what shows on Today.</p></div>
+        <button type="button" onClick={close} aria-label="Close dashboard settings"><X size={16} /></button>
       </div>
-      <fieldset className="dashboard-density"><legend>Layout preset</legend>
+      {/* Compact segmented rows: label left, two-option pill switch right. The
+          option descriptions moved into title tooltips to keep each row one line. */}
+      <fieldset className="dashboard-density"><legend>Layout</legend>
         <div className="dashboard-density-options">
-          {[false, true].map((focusMode) => <label key={String(focusMode)} className={`dashboard-density-option${layout.focusMode === focusMode ? " is-selected" : ""}`}>
+          {[false, true].map((focusMode) => <label key={String(focusMode)} title={focusMode ? "Only classes & deadlines" : "Your saved choices"} className={`dashboard-density-option${layout.focusMode === focusMode ? " is-selected" : ""}`}>
             <input type="radio" name={`${panelId}-preset`} checked={layout.focusMode === focusMode} onChange={() => update({ focusMode })} />
-            <span><strong>{focusMode ? "Focus" : "My layout"}</strong><small>{focusMode ? "Classes & deadlines" : "Your saved choices"}</small></span>
+            <strong>{focusMode ? "Focus" : "My layout"}</strong>
           </label>)}
         </div>
-        {layout.focusMode && <p className="dashboard-customize-hint"><Focus size={14} />Exit Focus to edit visibility. Your saved choices will return.</p>}
       </fieldset>
-      <fieldset className="dashboard-density"><legend>Card spacing</legend>
+      {layout.focusMode && <p className="dashboard-customize-hint"><Focus size={13} />Exit Focus to edit visibility. Your saved choices will return.</p>}
+      <fieldset className="dashboard-density"><legend>Spacing</legend>
         <div className="dashboard-density-options">
-          {["comfortable", "compact"].map((density) => <label key={density} className={`dashboard-density-option${prefs.density === density ? " is-selected" : ""}`}>
+          {["comfortable", "compact"].map((density) => <label key={density} title={density === "comfortable" ? "More breathing room" : "Cards closer together"} className={`dashboard-density-option${prefs.density === density ? " is-selected" : ""}`}>
             <input type="radio" name={`${panelId}-density`} value={density} checked={prefs.density === density} onChange={() => update({ density })} />
-            <span><strong>{density === "comfortable" ? "Comfortable" : "Compact"}</strong><small>{density === "comfortable" ? "More breathing room" : "Closer together"}</small></span>
+            <strong>{density === "comfortable" ? "Comfortable" : "Compact"}</strong>
           </label>)}
         </div>
       </fieldset>
       <fieldset className="dashboard-visibility" disabled={layout.focusMode}><legend className="dashboard-customize-section">Visible on Today</legend>
-        {settings.map(({ id, label, description, Icon }) => <label key={id} className="dashboard-setting"><Icon size={18} /><span><strong>{label}</strong><small>{description}</small></span><input type="checkbox" role="switch" aria-label={label} checked={dashboardCardVisible(layout, id)} onChange={(event) => update({ visible: { ...layout.visible, [id]: event.target.checked } })} /><span className="dashboard-setting-switch" aria-hidden="true" /></label>)}
+        {settings.map(({ id, label, description, Icon }) => <label key={id} className="dashboard-setting" title={description}><Icon size={16} /><span><strong>{label}</strong></span><input type="checkbox" role="switch" aria-label={label} checked={dashboardCardVisible(layout, id)} onChange={(event) => update({ visible: { ...layout.visible, [id]: event.target.checked } })} /><span className="dashboard-setting-switch" aria-hidden="true" /></label>)}
       </fieldset>
-      <details className="dashboard-card-order"><summary>Card order <span>Move up or down</span></summary><p className="dashboard-customize-hint">Classes stay visible. Hidden cards keep their position.</p>
+      <details className="dashboard-card-order"><summary>Card order</summary><p className="dashboard-customize-hint">Classes stay visible. Hidden cards keep their position.</p>
         <ol>{layout.order.map((id, index) => {
           const label = DASHBOARD_CARDS.find((card) => card.id === id).label;
-          return <li key={id}><span className="dashboard-order-number">{index + 1}</span><span className="dashboard-order-label">{label}{!dashboardCardVisible(layout, id) && <small>Hidden</small>}</span><button type="button" aria-label={`Move ${label} up`} disabled={index === 0} onClick={() => moveCard(id, -1)}><ArrowUp size={16} /></button><button type="button" aria-label={`Move ${label} down`} disabled={index === layout.order.length - 1} onClick={() => moveCard(id, 1)}><ArrowDown size={16} /></button></li>;
+          return <li key={id}><span className="dashboard-order-number">{index + 1}</span><span className="dashboard-order-label">{label}{!dashboardCardVisible(layout, id) && <small>Hidden</small>}</span><button type="button" aria-label={`Move ${label} up`} disabled={index === 0} onClick={() => moveCard(id, -1)}><ArrowUp size={14} /></button><button type="button" aria-label={`Move ${label} down`} disabled={index === layout.order.length - 1} onClick={() => moveCard(id, 1)}><ArrowDown size={14} /></button></li>;
         })}</ol>
       </details>
       <div className="dashboard-customize-section">Wide-screen layout</div>
-      <label className="dashboard-setting"><CalendarDays size={18} /><span><strong>Week panel</strong><small>Show the week beside Today on wider screens.</small></span><input type="checkbox" role="switch" aria-label="Week panel" checked={!layout.focusMode && layout.weekPanel} disabled={layout.focusMode} onChange={(event) => update({ weekPanel: event.target.checked })} /><span className="dashboard-setting-switch" aria-hidden="true" /></label>
-      <button type="button" className="dashboard-reset" onClick={() => { onChange(normalizeDashboardPrefs(null)); setAnnouncement("Default layout restored."); }}><RotateCcw size={15} />Reset to default</button>
+      <label className="dashboard-setting" title="Show the week beside Today on wider screens."><CalendarDays size={16} /><span><strong>Week panel</strong></span><input type="checkbox" role="switch" aria-label="Week panel" checked={!layout.focusMode && layout.weekPanel} disabled={layout.focusMode} onChange={(event) => update({ weekPanel: event.target.checked })} /><span className="dashboard-setting-switch" aria-hidden="true" /></label>
       <span className="dashboard-announcement" role="status">{announcement}</span>
-      <div className="dashboard-customize-foot"><Check size={14} /> Changes save automatically</div>
+      <div className="dashboard-customize-foot">
+        <span><Check size={13} /> Saves automatically</span>
+        <button type="button" className="dashboard-reset" onClick={() => { onChange(normalizeDashboardPrefs(null)); setAnnouncement("Default layout restored."); }}><RotateCcw size={13} />Reset</button>
+      </div>
     </Panel>}
   </div>;
 }

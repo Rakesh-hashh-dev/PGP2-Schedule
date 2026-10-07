@@ -1,10 +1,11 @@
 import React, { useMemo, useState, useEffect } from "react";
 import "../styles/fullschedule.css";
-import { ArrowLeft, Clock, MapPin, User, SlidersHorizontal, X, ArrowUp, Calendar, ChevronLeft, ChevronRight, List, CalendarDays, GraduationCap, CalendarClock, PartyPopper, Briefcase, BookOpen, ArrowRight } from "lucide-react";
+import { ArrowLeft, Clock, MapPin, User, SlidersHorizontal, X, ArrowUp, Calendar, ChevronLeft, ChevronRight, List, CalendarDays, GraduationCap, CalendarClock, BookOpen, ArrowRight } from "lucide-react";
 import { subjectClass, cleanSessionLabel } from "../lib/subjectColors.js";
 import { isExamSession } from "../lib/attendance.js";
 import { fmtTime12 } from "../lib/datetime.js";
 import { CalendarEventBadgeSVG } from "./CalendarSVGs.jsx";
+import { PlacementIcon, CelebrationIcon } from "./PremiumIcons.jsx";
 
 function examCategory(name, session) {
   const n = (name || "").toLowerCase();
@@ -733,11 +734,11 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                             <div className="fs-card-body">
                               <div className="fs-card-top">
                                 <span className="fs-card-name" style={{ color: "#2563EB", display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700 }}>
-                                  <Briefcase size={14} />
+                                  <PlacementIcon size={15} />
                                   {c.name || (c.code ? `${c.code} Placement` : "Placement Activity")}
                                 </span>
                                 <div style={{ display: "flex", alignItems: "center", gap: "6px", marginLeft: "auto" }}>
-                                  <span style={{ fontSize: 10, fontWeight: 800, background: "linear-gradient(135deg, #2563EB, #1D4ED8)", color: "#fff", padding: "1px 7px", borderRadius: 4 }}>💼 PLACEMENT</span>
+                                  <span className="tf-placement-chip"><PlacementIcon size={11} />PLACEMENT</span>
                                   {c.code && <span className={`ses ${subjectClass(c.code)} fs-exam-code`}>{c.code}</span>}
                                 </div>
                               </div>
@@ -771,11 +772,11 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                             <div className="fs-card-body">
                               <div className="fs-card-top">
                                 <span className="fs-card-name" style={{ color: "var(--live, #10B981)", display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700 }}>
-                                  <PartyPopper size={14} />
+                                  <CelebrationIcon size={15} />
                                   {c.name || (c.code ? `${c.code} Event` : "Celebration Event")}
                                 </span>
                                 <div style={{ display: "flex", alignItems: "center", gap: "6px", marginLeft: "auto" }}>
-                                  <span style={{ fontSize: 10, fontWeight: 800, background: "linear-gradient(135deg, #10B981, #059669)", color: "#fff", padding: "1px 7px", borderRadius: 4 }}>🎉 CELEBRATION</span>
+                                  <span className="tf-celebration-chip"><CelebrationIcon size={11} />CELEBRATION</span>
                                   {c.code && <span className={`ses ${subjectClass(c.code)} fs-exam-code`}>{c.code}</span>}
                                 </div>
                               </div>

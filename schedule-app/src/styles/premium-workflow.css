@@ -53,8 +53,8 @@
 .dashboard-focus-banner button { flex: none; min-height: 40px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--card); color: var(--text); font-size: 12px; font-weight: 700; cursor: pointer; }
 .prep-links button:hover { border-color: var(--border-hi); background: var(--card-hi); }
 .dashboard-customize { position: relative; }
-.dashboard-customize-toggle { display: inline-flex; align-items: center; gap: 5px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--card); color: var(--text); font-size: 12px; font-weight: 700; cursor: pointer; }
-.dashboard-customize-toggle { min-width: 44px; min-height: 44px; justify-content: center; }
+/* Pill look comes from .vdh-filter-btn, so it sits flush with Filter / theme. */
+.dashboard-customize-toggle { justify-content: center; }
 .dashboard-customize-panel { position: absolute; top: calc(100% + 8px); right: 0; z-index: 60; box-sizing: border-box; width: min(360px, calc(100vw - 24px)); padding: 20px; border: 1px solid var(--border); border-radius: 20px; background: var(--card); color: var(--text); box-shadow: 0 18px 60px color-mix(in srgb, var(--text) 18%, transparent); overflow-y: auto; overscroll-behavior: contain; }
 .dashboard-customize-head { display: flex; align-items: flex-start; gap: 10px; }
 .dashboard-customize-head { position: sticky; top: -20px; z-index: 2; margin-top: -20px; padding-top: 20px; padding-bottom: 14px; background: var(--card); }
@@ -136,3 +136,287 @@
   }
 }
 @media (prefers-reduced-motion: reduce) { .dashboard-setting-switch, .dashboard-setting-switch::after { transition: none; } }
+
+/* ── "Make Today yours" — compact pass ───────────────────────────────────
+   Overrides the roomier rules above: tighter padding, one-line setting rows
+   (descriptions live in title tooltips), presets as small segmented pills on
+   a single row, and a slim custom scrollbar. Touch keeps 44px targets. */
+.dashboard-customize-panel { width: min(320px, calc(100vw - 24px)); padding: 14px 14px 12px; border-radius: 16px; }
+.view-date-header .dashboard-customize-panel:not(dialog) { width: min(320px, 100%); }
+.dashboard-customize-head { top: -14px; margin-top: -14px; padding-top: 14px; padding-bottom: 8px; align-items: center; gap: 9px; }
+.dashboard-customize-icon { width: 30px; height: 30px; border-radius: 9px; }
+.dashboard-customize-head h2 { margin: 0 0 1px; font-size: 15.5px; }
+.dashboard-customize-head p { font-size: 11px; line-height: 1.35; }
+.dashboard-customize-head button { width: 30px; height: 30px; margin: 0; border-radius: 9px; }
+
+/* Preset rows: legend left, segmented pill right */
+.dashboard-density { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 8px 0 0; }
+.dashboard-density legend { float: left; }
+.dashboard-density-options { display: inline-flex; gap: 2px; margin: 0; padding: 2px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); }
+.dashboard-density-option { min-height: 0; padding: 4px 10px; border: 0; border-radius: 7px; background: transparent; transition: background-color 140ms ease, color 140ms ease; }
+.dashboard-density-option strong { font-size: 11.5px; font-weight: 650; color: var(--muted); white-space: nowrap; }
+.dashboard-density-option:hover strong { color: var(--text); }
+.dashboard-density-option.is-selected { background: var(--card); box-shadow: 0 1px 2px color-mix(in srgb, var(--text) 12%, transparent), 0 0 0 1px color-mix(in srgb, var(--violet) 35%, transparent); }
+.dashboard-density-option.is-selected strong { color: var(--violet); font-weight: 750; }
+.dashboard-customize-hint { margin: 6px 0 0; font-size: 10.5px; line-height: 1.4; }
+
+/* Visibility list: one line per setting */
+.dashboard-visibility { margin: 12px 0 0; }
+.dashboard-customize-section { margin: 12px 0 2px; }
+.dashboard-visibility .dashboard-customize-section { margin: 0 0 2px; }
+.dashboard-setting { gap: 9px; min-height: 36px; padding: 5px 0; border-bottom-color: color-mix(in srgb, var(--border) 70%, transparent); }
+.dashboard-setting:last-of-type { border-bottom: 0; }
+.dashboard-setting strong { font-size: 12px; font-weight: 600; }
+.dashboard-setting-switch { width: 30px; height: 18px; }
+.dashboard-setting-switch::after { top: 2px; left: 2px; width: 12px; height: 12px; }
+.dashboard-setting input:checked + .dashboard-setting-switch::after { transform: translateX(12px); }
+
+/* Card order */
+.dashboard-card-order { margin-top: 10px; padding: 7px 10px; border-radius: 10px; }
+.dashboard-card-order summary { min-height: 0; font-size: 11.5px; }
+.dashboard-card-order ol { margin-top: 6px; }
+.dashboard-card-order li { padding: 2px 0; }
+.dashboard-card-order button { width: 28px; height: 28px; border-radius: 7px; }
+
+/* Footer: status + reset share one line */
+.dashboard-customize-foot { justify-content: space-between; margin-top: 10px; padding-top: 10px; border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); font-size: 10.5px; }
+.dashboard-customize-foot > span { display: inline-flex; align-items: center; gap: 5px; }
+.dashboard-reset { width: auto; min-height: 0; margin: 0; padding: 5px 9px; border-radius: 8px; gap: 5px; font-size: 11px; color: var(--muted); }
+.dashboard-reset:hover { color: var(--text); }
+
+/* Slim scrollbar: no track, a rounded violet-tinted thumb inset from the
+   panel's rounded edge (the transparent border pads it), darker on hover. */
+@supports not selector(::-webkit-scrollbar) {
+  .dashboard-customize-panel { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--violet) 28%, transparent) transparent; }
+}
+.dashboard-customize-panel::-webkit-scrollbar { width: 10px; }
+.dashboard-customize-panel::-webkit-scrollbar-track { background: transparent; margin: 14px 0; }
+.dashboard-customize-panel::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 999px; background: color-mix(in srgb, var(--violet) 26%, transparent) padding-box; }
+.dashboard-customize-panel::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, var(--violet) 50%, transparent); }
+
+/* Touch: keep comfortable 44px targets */
+@media (pointer: coarse) {
+  .dashboard-setting { min-height: 44px; }
+  .dashboard-density-option { padding: 8px 12px; }
+  .dashboard-customize-head button, .dashboard-card-order button { width: 40px; height: 40px; }
+  .dashboard-reset { min-height: 36px; }
+}
+
+/* ── Compact density (Customize → Spacing → Compact) ─────────────────────
+   Used to only shave 4px off the gap between cards, which read as no change.
+   Now every Today card tightens its own padding, type scale and rows, so
+   noticeably more of the day fits on screen. All scoped to .is-compact. */
+.today-dashboard.is-compact { gap: 6px; }
+.dashboard-widgets.is-compact { gap: 6px; }
+
+/* Up-next hero: ~196px → ~120px */
+.today-dashboard.is-compact .hero { padding: 16px 20px; }
+.today-dashboard.is-compact .hero-state-row { margin-bottom: 7px; }
+.today-dashboard.is-compact .hero-course { margin-bottom: 5px; font-size: 22px; line-height: 1.15; }
+.today-dashboard.is-compact .hero-meta { font-size: 12px; }
+.today-dashboard.is-compact .hero-meta .t { font-size: 12.5px; }
+.today-dashboard.is-compact .hero-countdown { margin-top: 9px; }
+.today-dashboard.is-compact .hero-cd-text { font-size: 18px; }
+.today-dashboard.is-compact .hero-cd-colon { font-size: inherit; }
+
+/* Semester summary strip */
+.today-dashboard.is-compact .sem-summary { margin-block: 0; }
+.today-dashboard.is-compact .sem-stat { padding: 3px 4px; }
+.today-dashboard.is-compact .sem-val { font-size: 14.5px; }
+.today-dashboard.is-compact .sem-label { font-size: 9.5px; }
+
+/* Timeline panel + rows: ~55px → ~40px per row */
+.today-dashboard.is-compact .timeline-panel { padding: 12px 14px; }
+.today-dashboard.is-compact .timeline-panel-head { padding: 6px 4px 8px; }
+.today-dashboard.is-compact .timeline-today .row { min-height: 0; padding-block: 1px; }
+.today-dashboard.is-compact .timeline-today .row-body,
+.today-dashboard.is-compact .timeline-today .row.soft .row-body { padding: 5px 10px; border-radius: 10px; }
+.today-dashboard.is-compact .timeline-today .row-course { font-size: 12.5px; }
+.today-dashboard.is-compact .timeline-today .row-meta { margin-top: 2px; font-size: 11.5px; }
+.today-dashboard.is-compact .timeline-today :is(.row-time, .row-start) { padding-block: 5px; font-size: 11px; }
+
+/* Mess menu */
+.today-dashboard.is-compact .mess-card { padding: 9px 12px; border-radius: 14px; }
+.today-dashboard.is-compact .mess-bar-title { padding-bottom: 4px; }
+.today-dashboard.is-compact .mess-bar { padding: 5px 6px; row-gap: 6px; }
+.today-dashboard.is-compact .mess-bar-rail { padding-top: 5px; }
+.today-dashboard.is-compact .mess-bar .mess-meal-icon { width: 26px; height: 26px; border-radius: 8px; }
+.today-dashboard.is-compact .mess-bar-chip { padding: 3px 9px; font-size: 12px; }
+.today-dashboard.is-compact .mess-bar-chips { gap: 5px; }
+.today-dashboard.is-compact .mess-bar-arrow { width: 26px; height: 26px; }
+
+/* Today Command */
+.today-dashboard.is-compact .today-command { gap: 8px; padding: 11px 13px; border-radius: 16px; }
+.today-dashboard.is-compact .today-command-head h2 { font-size: 16px; }
+
+/* Upcoming deadlines strip */
+.today-dashboard.is-compact .dl-section-wrap { padding-block: 8px; }
+
+/* ── Phone-width timeline cards (both densities) ──
+   The NOW/NEXT flag + a "Details" text link squeezed course names into two
+   lines and pushed the code chip onto its own row; faculty wrapped to two
+   lines. On phones Details becomes a chevron and faculty stays on one line
+   (full names in its title tooltip). */
+.prep-open-chev { display: none; }
+@media (max-width: 760px) {
+  .timeline-today .row-head { gap: 6px; }
+  .timeline-today .prep-open { display: inline-grid; place-items: center; width: 22px; height: 22px; margin: -3px -5px 0 0; padding: 0; border-radius: 7px; }
+  .timeline-today .prep-open:hover { background: color-mix(in srgb, var(--violet) 10%, transparent); }
+  .timeline-today .prep-open-label { display: none; }
+  .timeline-today .prep-open-chev { display: block; }
+  .timeline-today .row-faculty { min-width: 0; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+  /* Compact on phones: one tight two-line card per class (name, then room).
+     Faculty and the skip hint live in Details. */
+  .today-dashboard.is-compact .timeline-today .row-faculty,
+  .today-dashboard.is-compact .timeline-today .skip-hint-wrap { display: none; }
+  .today-dashboard.is-compact .timeline-today .row-body { margin-top: 2px; padding: 6px 9px; }
+  .today-dashboard.is-compact .timeline-today .row-time { padding-top: 6px; }
+  .today-dashboard.is-compact .timeline-today .timeline-marker { padding-top: 8px; }
+}
+
+/* ── Timeline row: live countdown, plain meta, in-card attendance footer ──
+   The live class shows time left instead of a NOW pill; started classes get
+   a footer strip with labelled Attended/Skipped buttons, the skip what-if and
+   the Details chevron, so the actions sit inside the card they belong to. */
+.timeline-today .row-left {
+  flex: none;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding: 2px 8px 2px 6px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--live) 82%, var(--text));
+  background: color-mix(in srgb, var(--live) 12%, transparent);
+}
+.timeline-today .row-left.row-left-soon {
+  color: color-mix(in srgb, var(--amber) 80%, var(--text));
+  background: var(--amber-dim);
+}
+
+/* Meta reads as one dotted line rather than a row of chips. */
+.timeline-today .row-meta > * + *:not(.skip-hint-wrap)::before {
+  content: "·";
+  margin-right: 6px;
+  color: color-mix(in srgb, var(--muted) 60%, transparent);
+}
+.timeline-today .row-meta .row-sec { white-space: nowrap; }
+
+.timeline-today .row-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+}
+.timeline-today .row.cur .row-foot { border-top-color: color-mix(in srgb, var(--live) 22%, var(--border)); }
+.timeline-today .row-foot .prep-open { margin-left: auto; align-self: center; display: inline-grid; place-items: center; width: 24px; height: 24px; padding: 0; border-radius: 7px; }
+.timeline-today .row-foot .prep-open:hover { background: color-mix(in srgb, var(--violet) 10%, transparent); }
+.timeline-today .row-foot .prep-open-chev { display: block; }
+
+/* Attendance: one segmented pill. Each side carries its colour in the icon
+   at rest, tints on hover, and fills with a soft gradient + glow when set. */
+.row-att {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 70%, var(--card));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 85%, transparent);
+}
+.row-att-btn {
+  --att: var(--live);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 11px 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: color-mix(in srgb, var(--text) 62%, var(--muted));
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: -.005em;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background .15s ease, color .15s ease, box-shadow .15s ease, transform .1s ease;
+}
+.row-att-a { --att: var(--danger); }
+.row-att-btn svg { color: var(--att); flex: none; transition: color .15s ease; }
+.row-att-btn:hover {
+  color: color-mix(in srgb, var(--att) 75%, var(--text));
+  background: color-mix(in srgb, var(--att) 10%, var(--card));
+  box-shadow: 0 1px 2px rgba(31, 25, 52, .06), inset 0 0 0 1px color-mix(in srgb, var(--att) 22%, transparent);
+}
+.row-att-btn:active { transform: scale(.95); }
+.row-att-btn.on {
+  color: #fff;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--att) 86%, #fff), var(--att));
+  box-shadow:
+    0 2px 8px color-mix(in srgb, var(--att) 32%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, .22);
+}
+.row-att-btn.on svg { color: #fff; animation: tf-detail-confirm 180ms ease-out both; }
+/* Once one side is chosen, the other steps back. */
+.row-att:has(.on) .row-att-btn:not(.on) { opacity: .62; }
+.row-att:has(.on) .row-att-btn:not(.on):hover { opacity: 1; }
+.row-att-btn:focus-visible { outline: 2px solid var(--violet); outline-offset: 1px; }
+
+/* Skip what-if: quiet text while it's safe; warn/bad keep their colours. */
+.timeline-today .row-foot .skip-hint { margin-left: 0; font-family: inherit; font-size: 11px; }
+.timeline-today .row-foot .skip-hint-ok { background: none; padding: 0; color: var(--muted); }
+
+/* Narrow cards (phones, split panes): the footer wraps instead of
+   overflowing. The pill stretches to the chevron and the skip what-if
+   drops onto its own line underneath. */
+.timeline-today .row-foot { flex-wrap: wrap; row-gap: 6px; min-width: 0; }
+.timeline-today .row-foot .skip-hint-wrap { min-width: 0; max-width: 100%; }
+@media (max-width: 760px) {
+  .timeline-today .row-foot { gap: 6px; margin-top: 6px; padding-top: 6px; }
+  .timeline-today .row-att { flex: 1 1 auto; min-width: 0; }
+  .row-att-btn { flex: 1 1 0; justify-content: center; min-width: 0; height: 30px; padding: 0 6px; gap: 4px; }
+  .timeline-today .row-foot .skip-hint-wrap { order: 3; flex: 1 0 100%; }
+  .timeline-today .row-foot .skip-hint { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+  .timeline-today .row-foot .prep-open { margin: 0 -4px 0 0; }
+  .today-dashboard.is-compact .timeline-today .row-foot { margin-top: 5px; padding-top: 5px; }
+  .today-dashboard.is-compact .row-att-btn { height: 26px; }
+}
+@media (max-width: 360px) {
+  .row-att-btn svg { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .row-att-btn.on svg { animation: none; }
+}
+
+/* Live status pill: on phones the subject code replaces "Happening now" -
+   the green dot already says it is live, the code says what is. */
+.timeline-status-code { display: none; }
+@media (max-width: 760px) {
+  .timeline-today .timeline-status-live .timeline-status-label:has(+ .timeline-status-code) { display: none; }
+  .timeline-today .timeline-status-live .timeline-status-code { display: inline; font-family: var(--mono); letter-spacing: .02em; }
+}
+
+/* Phone header: the icon-only Customize button matches the weather pill
+   beside it (30px, pill-shaped). An invisible ring keeps the 44px tap target. */
+@media (max-width: 760px) {
+  .dashboard-customize-toggle {
+    position: relative;
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    min-height: 30px;
+    padding: 0;
+    border-radius: 99px;
+  }
+  .dashboard-customize-toggle::after { content: ""; position: absolute; inset: -7px; }
+}

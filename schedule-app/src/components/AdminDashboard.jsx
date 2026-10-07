@@ -4,7 +4,8 @@ import "../styles/assignments.css";
 import "../styles/cmdk.css";
 import "../styles/content-hub.css";
 import "../styles/broadcast-composers.css";
-import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil, BarChart2, GraduationCap, PartyPopper, Briefcase, CloudOff, Shield, Smartphone, Copy, Activity, ChevronRight, Clock3, Download, Filter, Eye, ListFilter, PawPrint, Shirt, BookOpen, Zap, Info } from "lucide-react";
+import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil, BarChart2, GraduationCap, PartyPopper, CloudOff, Shield, Smartphone, Copy, Activity, ChevronRight, Clock3, Download, Filter, Eye, ListFilter, PawPrint, Shirt, BookOpen, Zap, Info } from "lucide-react";
+import { PlacementIcon, ExamIcon, CelebrationIcon, CancelClassIcon } from "./PremiumIcons.jsx";
 import { supabase } from "../lib/supabase";
 import { logAdminAction } from "../lib/adminAudit.js";
 import { listAdminRoles, setAdminRole, removeAdminRole, myAdminRole, READ_ONLY_MESSAGE } from "../lib/adminRoles.js";
@@ -2833,7 +2834,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                                   gap: 3,
                                   boxShadow: "0 1px 4px rgba(37,99,235,0.3)"
                                 }}>
-                                  <Briefcase size={11} /> PLACEMENT
+                                  <PlacementIcon size={12} /> PLACEMENT
                                 </span>
                               )}
                               {isExam && !isCancelled && !isEvent && !isPlacement && <span style={{ fontSize: 10, fontWeight: 800, background: "var(--violet)", color: "#fff", padding: "1px 7px", borderRadius: 4 }}>EXAM</span>}
@@ -2926,7 +2927,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                   </select>
                 </div>
                 <button className="admin-btn danger" onClick={handleAddOverride} style={{ flex: "0 0 auto", marginBottom: 10, padding: "9px 16px" }}>
-                  <XCircle size={15} /> Cancel Class
+                  <CancelClassIcon size={16} /> Cancel Class
                 </button>
               </div>
             </details>
@@ -3216,9 +3217,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
                     // Type badge
                     const typeBadge = isCancelled ? { label: "CANCELLED", color: "var(--danger)", bg: "rgba(231,76,60,0.10)" }
-                      : isEvent ? { label: "🎉 EVENT", color: "var(--live, #10B981)", bg: "rgba(16,185,129,0.14)" }
-                      : isPlacement ? { label: "💼 PLACEMENT", color: "#2563EB", bg: "rgba(37,99,235,0.14)" }
-                      : isExam ? { label: "EXAM", color: "var(--violet)", bg: "rgba(109,91,208,0.10)" }
+                      : isEvent ? { label: "EVENT", Icon: CelebrationIcon, color: "var(--live, #10B981)", bg: "rgba(16,185,129,0.14)" }
+                      : isPlacement ? { label: "PLACEMENT", Icon: PlacementIcon, color: "#2563EB", bg: "rgba(37,99,235,0.14)" }
+                      : isExam ? { label: "EXAM", Icon: ExamIcon, color: "var(--violet)", bg: "rgba(109,91,208,0.10)" }
                       : isCustom ? { label: "CUSTOM CLASS", color: "var(--live)", bg: "rgba(31,169,113,0.10)" }
                       : hasRoom && hasTime ? { label: `ROOM+TIME`, color: "var(--amber)", bg: "rgba(245,158,11,0.10)" }
                       : hasRoom ? { label: `ROOM: ${override.room}`, color: "var(--blue)", bg: "rgba(59,130,246,0.10)" }
@@ -3229,7 +3230,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                         {/* Main row */}
                         <div className="aco-row-main">
                           {/* Type badge */}
-                          <span className="aco-badge" style={{ background: typeBadge.bg, color: typeBadge.color }}>{typeBadge.label}</span>
+                          <span className="aco-badge" style={{ background: typeBadge.bg, color: typeBadge.color }}>{typeBadge.Icon && <typeBadge.Icon size={11} />}{typeBadge.label}</span>
                           {/* Info */}
                           <div className="aco-info">
                             <div className="aco-title">
@@ -6896,7 +6897,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                   <div className="admin-field">
                     <label>Type</label>
                     <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                      {[["class", "Class"], ["exam", "Exam"], ["event", "🎉 Celebration Event"], ["placement", "💼 Placement"]].map(([val, label]) => (
+                      {[["class", "Class"], ["exam", "Exam", ExamIcon], ["event", "Celebration Event", CelebrationIcon], ["placement", "Placement", PlacementIcon]].map(([val, label, TypeIcon]) => (
                         <button
                           key={val}
                           type="button"
@@ -6912,9 +6913,13 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                             fontSize: 13,
                             cursor: "pointer",
                             transition: "all 0.15s",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 6,
                           }}
                         >
-                          {label}
+                          {TypeIcon && <TypeIcon size={15} />}{label}
                         </button>
                       ))}
                     </div>
@@ -6945,7 +6950,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                             gap: 4,
                             boxShadow: "0 1px 6px rgba(37, 99, 235, 0.3)"
                           }}>
-                            <Briefcase size={12} /> Placement
+                            <PlacementIcon size={13} /> Placement
                           </span>
                         );
                       }
@@ -7023,7 +7028,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 logAdminAction(admin_id, "cancel_class", { date: liveEditorModal.date, class: overrideKey });
                 setLiveEditorModal(null);
               }} className="admin-btn outline" style={{ color: "var(--danger)", borderColor: "var(--danger)" }}>
-                <Ban size={16} /> Cancel Class
+                <CancelClassIcon size={17} /> Cancel Class
               </button>
 
               {/* Mark as Exam toggle */}
@@ -7059,7 +7064,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     setFlags({ ...flags, classOverrides: nextOverrides });
                     setLiveEditorModal(null);
                   }} className="admin-btn outline" style={{ color: isExamOverride ? "var(--warning)" : "var(--violet)", borderColor: isExamOverride ? "var(--warning)" : "var(--violet)" }}>
-                    <GraduationCap size={16} /> {isExamOverride ? "Remove Exam Flag" : "Mark as Exam"}
+                    <ExamIcon size={17} /> {isExamOverride ? "Remove Exam Flag" : "Mark as Exam"}
                   </button>
                 );
               })()}
@@ -7103,7 +7108,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     boxShadow: isEventOverride ? "0 2px 10px rgba(16, 185, 129, 0.35)" : "none",
                     fontWeight: isEventOverride ? 700 : 600,
                   }}>
-                    <PartyPopper size={16} /> {isEventOverride ? "Remove Celebration Flag" : "Mark as Event (Celebration)"}
+                    <CelebrationIcon size={17} /> {isEventOverride ? "Remove Celebration Flag" : "Mark as Event (Celebration)"}
                   </button>
                 );
               })()}
@@ -7147,7 +7152,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     boxShadow: isPlacementOverride ? "0 2px 10px rgba(37, 99, 235, 0.35)" : "none",
                     fontWeight: isPlacementOverride ? 700 : 600,
                   }}>
-                    <Briefcase size={16} /> {isPlacementOverride ? "Remove Placement Flag" : "Mark as Placement"}
+                    <PlacementIcon size={17} /> {isPlacementOverride ? "Remove Placement Flag" : "Mark as Placement"}
                   </button>
                 );
               })()}

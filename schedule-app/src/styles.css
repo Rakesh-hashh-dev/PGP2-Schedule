@@ -5613,15 +5613,12 @@ html[data-theme="dark"] .tb.holiday.tb-tricolor {
   gap: 4px;
 }
 
-.row-event-celebration {
-  background: linear-gradient(90deg, rgba(16, 185, 129, 0.08) 0%, transparent 60%);
-  border-left: 3px solid #10B981 !important;
-}
 
 .tb.placement {
-  color: #2563EB;
-  background: rgba(37, 99, 235, 0.12);
-  border: 1px solid rgba(37, 99, 235, 0.3);
+  color: #1D4ED8;
+  background: linear-gradient(180deg, rgba(37, 99, 235, 0.10), rgba(37, 99, 235, 0.16));
+  border: 1px solid rgba(37, 99, 235, 0.28);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55);
   font-weight: 700;
   display: inline-flex;
   align-items: center;
@@ -5629,20 +5626,12 @@ html[data-theme="dark"] .tb.holiday.tb-tricolor {
 }
 
 html[data-theme="dark"] .tb.placement {
-  color: #60A5FA;
-  background: rgba(96, 165, 250, 0.14);
+  color: #93C5FD;
+  background: linear-gradient(180deg, rgba(96, 165, 250, 0.12), rgba(96, 165, 250, 0.18));
   border-color: rgba(96, 165, 250, 0.35);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06);
 }
 
-.row-placement {
-  background: linear-gradient(90deg, rgba(37, 99, 235, 0.08) 0%, transparent 60%);
-  border-left: 3px solid #2563EB !important;
-}
-
-html[data-theme="dark"] .row-placement {
-  background: linear-gradient(90deg, rgba(96, 165, 250, 0.09) 0%, transparent 60%);
-  border-left: 3px solid #60A5FA !important;
-}
 
 .tb.break {
   color: var(--muted);
@@ -20959,3 +20948,44 @@ html[data-theme="dark"] .lp-glance-bad {
 .ag.ag-break, .sm-item.sm-break { opacity: .5; color: var(--muted); }
 .tmrw-rail-seg-break { background: var(--muted); opacity: .3; }
 .cva-card.cva-break { opacity: .5; color: var(--muted); box-shadow: none; }
+
+/* ── Duotone event icons (components/PremiumIcons.jsx) ── */
+.tf-icon { flex: none; display: inline-block; vertical-align: -0.15em; }
+.tb:has(.tf-icon) { display: inline-flex; align-items: center; gap: 4px; }
+.aco-badge:has(.tf-icon) { display: inline-flex; align-items: center; gap: 4px; }
+
+/* Solid type chips on Full timetable cards (replace the 💼/🎉 text chips) */
+.tf-placement-chip,
+.tf-celebration-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px 2px 6px;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .22), 0 1px 3px rgba(15, 23, 42, .18);
+}
+.tf-placement-chip { background: linear-gradient(135deg, #3B82F6, #1D4ED8); }
+.tf-celebration-chip { background: linear-gradient(135deg, #10B981, #047857); }
+
+/* ── Celebration / placement rows ──
+   A soft tint + matching hairline border on the card — no coloured edge stripe
+   (the old row-level border-left ran down the time column and bent around the
+   rounded corner). These rows are always .soft, so the selectors out-rank the
+   dashed soft-card rules on Today/Tomorrow (and mobile's !important ones). */
+.row.row-event-celebration .row-body { --row-accent: #10B981; }
+.row.row-placement .row-body { --row-accent: #2563EB; }
+html[data-theme="dark"] .row.row-event-celebration .row-body { --row-accent: #34D399; }
+html[data-theme="dark"] .row.row-placement .row-body { --row-accent: #60A5FA; }
+
+:is(.timeline-today, .timeline-tomorrow, .timeline-panel, .timeline) .row.soft:is(.row-event-celebration, .row-placement) .row-body,
+.row.soft:is(.row-event-celebration, .row-placement) .row-body {
+  border: 1px solid color-mix(in srgb, var(--row-accent) 28%, var(--border));
+  background: linear-gradient(100deg, color-mix(in srgb, var(--row-accent) 9%, var(--card)) 0%, var(--card) 72%);
+}
+.mobile-ui-v2 .timeline-today .row.soft:is(.row-event-celebration, .row-placement) .row-body {
+  border: 1px solid color-mix(in srgb, var(--row-accent) 28%, var(--border)) !important;
+}
