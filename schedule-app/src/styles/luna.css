@@ -1,0 +1,102 @@
+/* Luna uses supplied full-body frames. Avoid a second bob, lean or eye blink. */
+.dg-pet[data-pet="luna"] { animation: none; --pet-lean: 0deg; --pet-drop: 0px;
+  --luna-idle: inline; --luna-run-right: none; --luna-run-left: none; --luna-wave: none; --luna-jump: none; --luna-rest: none; --luna-wait: none; --luna-think: none; --luna-review: none;
+  --pet-hat-x: 0px; --pet-hat-y: -7.5px; --pet-hat-scale: 0.68; --pet-neck-x: 0px; --pet-neck-y: -7.5px; --pet-neck-scale: 0.68;
+}
+.dg-pet[data-pet="luna"][data-reaction] { animation: none; }
+.dg-pet .luna-viewport { overflow: hidden; filter: none; transform: none; position: static; }
+.dg-pet[data-pet="luna"] .luna-still { display: none; }
+.dg-pet .luna-strip { animation: lunaFrames var(--luna-duration) steps(var(--luna-steps), end) infinite; }
+@keyframes lunaFrames { from { transform: translateX(0); } to { transform: translateX(var(--luna-distance)); } }
+.dg-pet .luna-state-idle { display: var(--luna-idle, none); }
+.dg-pet .luna-state-run-right { display: var(--luna-run-right, none); }
+.dg-pet .luna-state-run-left { display: var(--luna-run-left, none); }
+.dg-pet .luna-state-wave { display: var(--luna-wave, none); }
+.dg-pet .luna-state-jump { display: var(--luna-jump, none); }
+.dg-pet .luna-state-rest { display: var(--luna-rest, none); }
+.dg-pet .luna-state-wait { display: var(--luna-wait, none); }
+.dg-pet .luna-state-think { display: var(--luna-think, none); }
+.dg-pet .luna-state-review { display: var(--luna-review, none); }
+
+/* Mood selects the baseline; idle actions and care override it below. */
+.dg-pet[data-pet="luna"]:where([data-mood="happy"], [data-mood="proud"], [data-mood="playful"]) {
+  --luna-idle: none; --luna-run-right: none; --luna-run-left: none; --luna-wave: none; --luna-jump: none; --luna-rest: none; --luna-wait: inline; --luna-think: none; --luna-review: none;
+  --pet-hat-x: 0.4px; --pet-hat-y: -7.3px; --pet-hat-scale: 0.68; --pet-neck-x: 0.4px; --pet-neck-y: -7.4px; --pet-neck-scale: 0.68;
+}
+.dg-pet[data-pet="luna"]:where([data-mood="focused"], [data-mood="bored"]) {
+  --luna-idle: none; --luna-run-right: none; --luna-run-left: none; --luna-wave: none; --luna-jump: none; --luna-rest: none; --luna-wait: none; --luna-think: inline; --luna-review: none;
+  --pet-hat-x: 0px; --pet-hat-y: -5.5px; --pet-hat-scale: 0.68; --pet-neck-x: 0px; --pet-neck-y: -6.6px; --pet-neck-scale: 0.68;
+}
+.dg-pet[data-pet="luna"]:where([data-mood="curious"], [data-mood="restless"]) {
+  --luna-idle: none; --luna-run-right: none; --luna-run-left: none; --luna-wave: none; --luna-jump: none; --luna-rest: none; --luna-wait: none; --luna-think: none; --luna-review: inline;
+  --pet-hat-x: 0px; --pet-hat-y: -6.7px; --pet-hat-scale: 0.68; --pet-neck-x: 0px; --pet-neck-y: -7.2px; --pet-neck-scale: 0.68;
+}
+.dg-pet[data-pet="luna"]:where([data-mood="tired"], [data-mood="sleepy"], [data-mood="cozy"], [data-mood="missing"]) {
+  --luna-idle: none; --luna-run-right: none; --luna-run-left: none; --luna-wave: none; --luna-jump: none; --luna-rest: inline; --luna-wait: none; --luna-think: none; --luna-review: none;
+  --pet-hat-x: 0px; --pet-hat-y: -5.4px; --pet-hat-scale: 0.68; --pet-neck-x: 0px; --pet-neck-y: -6.6px; --pet-neck-scale: 0.68;
+}
+.dg-pet[data-pet="luna"]:where([data-mood="excited"], [data-mood="celebrating"], [data-mood="festive"], [data-mood="birthday"]) {
+  --luna-idle: none; --luna-run-right: none; --luna-run-left: none; --luna-wave: none; --luna-jump: inline; --luna-rest: none; --luna-wait: none; --luna-think: none; --luna-review: none;
+  --pet-hat-x: 0px; --pet-hat-y: -7.5px; --pet-hat-scale: 0.68; --pet-neck-x: 0px; --pet-neck-y: -7.5px; --pet-neck-scale: 0.68;
+}
+.dg-pet[data-pet="luna"]:where([data-beat="luna-run-right"]) {
+  --luna-idle: none; --luna-run-right: inline; --luna-run-left: none; --luna-wave: none; --luna-jump: none; --luna-rest: none; --luna-wait: none; --luna-think: none; --luna-review: none;
+  --pet-hat-x: 9px; --pet-hat-y: -5px; --pet-hat-scale: 0.62; --pet-neck-x: 7.4px; --pet-neck-y: -7px; --pet-neck-scale: 0.6;
+}
+.dg-pet[data-pet="luna"]:where([data-beat="luna-run-left"]) {
+  --luna-idle: none; --luna-run-right: none; --luna-run-left: inline; --luna-wave: none; --luna-jump: none; --luna-rest: none; --luna-wait: none; --luna-think: none; --luna-review: none;
+  --pet-hat-x: -9px; --pet-hat-y: -5px; --pet-hat-scale: 0.62; --pet-neck-x: -7.4px; --pet-neck-y: -7px; --pet-neck-scale: 0.6;
+}
+.dg-pet[data-pet="luna"]:where([data-beat="luna-wave"]) {
+  --luna-idle: none; --luna-run-right: none; --luna-run-left: none; --luna-wave: inline; --luna-jump: none; --luna-rest: none; --luna-wait: none; --luna-think: none; --luna-review: none;
+  --pet-hat-x: 0px; --pet-hat-y: -7.5px; --pet-hat-scale: 0.68; --pet-neck-x: 0px; --pet-neck-y: -7.5px; --pet-neck-scale: 0.68;
+}
+.dg-pet[data-pet="luna"]:where([data-beat="luna-jump"]) {
+  --luna-idle: none; --luna-run-right: none; --luna-run-left: none; --luna-wave: none; --luna-jump: inline; --luna-rest: none; --luna-wait: none; --luna-think: none; --luna-review: none;
+  --pet-hat-x: 0px; --pet-hat-y: -7.5px; --pet-hat-scale: 0.68; --pet-neck-x: 0px; --pet-neck-y: -7.5px; --pet-neck-scale: 0.68;
+}
+.dg-pet[data-pet="luna"]:where([data-beat="luna-rest"]) {
+  --luna-idle: none; --luna-run-right: none; --luna-run-left: none; --luna-wave: none; --luna-jump: none; --luna-rest: inline; --luna-wait: none; --luna-think: none; --luna-review: none;
+  --pet-hat-x: 0px; --pet-hat-y: -5.4px; --pet-hat-scale: 0.68; --pet-neck-x: 0px; --pet-neck-y: -6.6px; --pet-neck-scale: 0.68;
+}
+.dg-pet[data-pet="luna"]:where([data-beat="luna-wait"]) {
+  --luna-idle: none; --luna-run-right: none; --luna-run-left: none; --luna-wave: none; --luna-jump: none; --luna-rest: none; --luna-wait: inline; --luna-think: none; --luna-review: none;
+  --pet-hat-x: 0.4px; --pet-hat-y: -7.3px; --pet-hat-scale: 0.68; --pet-neck-x: 0.4px; --pet-neck-y: -7.4px; --pet-neck-scale: 0.68;
+}
+.dg-pet[data-pet="luna"]:where([data-beat="luna-think"]) {
+  --luna-idle: none; --luna-run-right: none; --luna-run-left: none; --luna-wave: none; --luna-jump: none; --luna-rest: none; --luna-wait: none; --luna-think: inline; --luna-review: none;
+  --pet-hat-x: 0px; --pet-hat-y: -5.5px; --pet-hat-scale: 0.68; --pet-neck-x: 0px; --pet-neck-y: -6.6px; --pet-neck-scale: 0.68;
+}
+.dg-pet[data-pet="luna"]:where([data-beat="luna-review"]) {
+  --luna-idle: none; --luna-run-right: none; --luna-run-left: none; --luna-wave: none; --luna-jump: none; --luna-rest: none; --luna-wait: none; --luna-think: none; --luna-review: inline;
+  --pet-hat-x: 0px; --pet-hat-y: -6.7px; --pet-hat-scale: 0.68; --pet-neck-x: 0px; --pet-neck-y: -7.2px; --pet-neck-scale: 0.68;
+}
+.dg-pet[data-pet="luna"]:where([data-reaction="pet"]) {
+  --luna-idle: none; --luna-run-right: none; --luna-run-left: none; --luna-wave: inline; --luna-jump: none; --luna-rest: none; --luna-wait: none; --luna-think: none; --luna-review: none;
+  --pet-hat-x: 0px; --pet-hat-y: -7.5px; --pet-hat-scale: 0.68; --pet-neck-x: 0px; --pet-neck-y: -7.5px; --pet-neck-scale: 0.68;
+}
+.dg-pet[data-pet="luna"]:where([data-reaction="play"]) {
+  --luna-idle: none; --luna-run-right: none; --luna-run-left: none; --luna-wave: none; --luna-jump: inline; --luna-rest: none; --luna-wait: none; --luna-think: none; --luna-review: none;
+  --pet-hat-x: 0px; --pet-hat-y: -7.5px; --pet-hat-scale: 0.68; --pet-neck-x: 0px; --pet-neck-y: -7.5px; --pet-neck-scale: 0.68;
+}
+.dg-pet[data-pet="luna"]:where([data-reaction="treat"]) {
+  --luna-idle: none; --luna-run-right: none; --luna-run-left: none; --luna-wave: none; --luna-jump: none; --luna-rest: none; --luna-wait: inline; --luna-think: none; --luna-review: none;
+  --pet-hat-x: 0.4px; --pet-hat-y: -7.3px; --pet-hat-scale: 0.68; --pet-neck-x: 0.4px; --pet-neck-y: -7.4px; --pet-neck-scale: 0.68;
+}
+
+/* Hidden pages pause in-place. The shared off-screen watcher also reaches
+   these strips, so an off-screen companion costs no animation work. */
+.luna-art[data-paused] .luna-strip { animation-play-state: paused; }
+/* A real still image avoids loading a self-playing GIF in either still mode. */
+.dg-pet:where([data-motion="off"], [data-sig="off"]) .luna-strip { animation: none; }
+.dg-pet:where([data-motion="off"], [data-sig="off"]) .luna-state { display: none; }
+.dg-pet[data-pet="luna"]:where([data-motion="off"], [data-sig="off"]) .luna-still { display: inline; }
+.dg-pet[data-pet="luna"]:where([data-motion="off"], [data-sig="off"]) { --luna-idle: inline; --luna-run-right: none; --luna-run-left: none; --luna-wave: none; --luna-jump: none; --luna-rest: none; --luna-wait: none; --luna-think: none; --luna-review: none;
+  --pet-hat-x: 0px; --pet-hat-y: -7.5px; --pet-hat-scale: 0.68; --pet-neck-x: 0px; --pet-neck-y: -7.5px; --pet-neck-scale: 0.68; }
+@media (prefers-reduced-motion: reduce) {
+  .dg-pet .luna-strip { animation: none; }
+  .dg-pet .luna-state { display: none; }
+  .dg-pet[data-pet="luna"] .luna-still { display: inline; }
+  .dg-pet[data-pet="luna"] { --luna-idle: inline; --luna-run-right: none; --luna-run-left: none; --luna-wave: none; --luna-jump: none; --luna-rest: none; --luna-wait: none; --luna-think: none; --luna-review: none;
+  --pet-hat-x: 0px; --pet-hat-y: -7.5px; --pet-hat-scale: 0.68; --pet-neck-x: 0px; --pet-neck-y: -7.5px; --pet-neck-scale: 0.68; }
+}

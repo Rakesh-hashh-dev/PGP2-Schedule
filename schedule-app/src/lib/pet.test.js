@@ -13,7 +13,7 @@ import {
   GROWTH_STAGES, growthStageFor, nextGrowthStage,
   unlockedAtLevel, unlockedFor, newlyUnlocked,
   prune, mergePets, publicSummary, xpBySource,
-  HATS, COATS, NECKWEAR, TITLES, DEVOTION_UNLOCKS, BUDDY_DEVOTION, STREAK_CAP,
+  HATS, COATS, NECKWEAR, TITLES, DEVOTION_UNLOCKS, DEVOTION_COMPANIONS, BUDDY_DEVOTION, STREAK_CAP,
   coatsFor, neckwearFor, coatRequirement, neckwearRequirement,
   visibleCoat, visibleNeckwear, titlesFor, visibleTitle, titleLabel,
   buddyFor, daysAdopted, seasonFor, careStreak, devotionMultiplier, unlockedAtDevotion,
@@ -361,7 +361,7 @@ describe("xpBySource", () => {
 describe("unlocks", () => {
   it("every unlock key is a real pet", () => {
     const real = new Set(PETS.map(p => p.key));
-    for (const k of [...STARTER_KEYS, ...Object.values(UNLOCKS), ...Object.values(DEVOTION_UNLOCKS)]) {
+    for (const k of [...STARTER_KEYS, ...Object.values(UNLOCKS), ...DEVOTION_COMPANIONS.map(([, key]) => key)]) {
       expect(real.has(k)).toBe(true);
     }
   });
@@ -370,7 +370,7 @@ describe("unlocks", () => {
     expect(new Set(all).size).toBe(all.length);
     // The level curve hands out every pet EXCEPT the devotion companions, which
     // are the point of the tiers past the cap and must not arrive before them.
-    expect(new Set(all).size).toBe(PETS.length - Object.keys(DEVOTION_UNLOCKS).length);
+    expect(new Set(all).size).toBe(PETS.length - DEVOTION_COMPANIONS.length);
   });
   it("grows with level and is complete at MAX_LEVEL", () => {
     expect(unlockedAtLevel(1)).toEqual(STARTER_KEYS);
@@ -378,7 +378,7 @@ describe("unlocks", () => {
     expect(unlockedAtLevel(1)).not.toContain("fox");
     // The curve runs to 12, so the roster should too: 11 and 12 used to unlock
     // nothing, which made the last two level-ups feel empty.
-    const byLevel = PETS.length - Object.keys(DEVOTION_UNLOCKS).length;
+    const byLevel = PETS.length - DEVOTION_COMPANIONS.length;
     expect(unlockedAtLevel(10)).not.toHaveLength(byLevel);
     expect(unlockedAtLevel(MAX_LEVEL)).toHaveLength(byLevel);
     expect(unlockedAtLevel(MAX_LEVEL)).toContain("spark");
@@ -941,15 +941,15 @@ describe("devotion wardrobe", () => {
 
 describe("devotion companions", () => {
   it("arrives only at its tier", () => {
-    for (const [tier, key] of Object.entries(DEVOTION_UNLOCKS)) {
+    for (const [tier, key] of DEVOTION_COMPANIONS) {
       expect(unlockedFor(atDevotion(Number(tier) - 1))).not.toContain(key);
       expect(unlockedFor(atDevotion(Number(tier)))).toContain(key);
-      expect(unlockedAtDevotion(Number(tier))).toBe(key);
+      if (DEVOTION_UNLOCKS[tier] === key) expect(unlockedAtDevotion(Number(tier))).toBe(key);
     }
   });
 
   it("is a real pet in the registry", () => {
-    for (const key of Object.values(DEVOTION_UNLOCKS)) {
+    for (const key of DEVOTION_COMPANIONS.map(([, key]) => key)) {
       expect(PETS.map(p => p.key), `${key} is unlockable but not drawn`).toContain(key);
     }
   });

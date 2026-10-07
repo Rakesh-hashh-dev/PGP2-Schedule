@@ -3383,3 +3383,137 @@ html[data-theme="dark"] .fr-friend-card.favourite-glow:hover {
 @media (prefers-reduced-motion: reduce) {
   .fr-page .fr-group-card { transition: none; }
 }
+
+/* ── Share-code thought cloud ─────────────────────────────────────────────
+   A one-time nudge floating above "Add people": the share code lives in
+   that sheet and people kept missing it. Cloud = rounded body + two puffs
+   (::before/::after) + a trail of shrinking dots down to the button. No
+   border (it can't follow the puffs); a drop-shadow outlines the union. */
+.fr-share-hint-anchor { display: contents; }
+.fr-share-hint-anchor.has-hint { position: relative; display: inline-flex; }
+
+.fr-share-cloud {
+  --cloud-bg: color-mix(in srgb, var(--violet) 9%, var(--card));
+  position: absolute;
+  z-index: 2;
+  bottom: calc(100% + 22px);
+  left: -4px;
+  width: max-content;
+  max-width: 240px;
+  filter: drop-shadow(0 10px 22px rgba(52, 38, 94, .16)) drop-shadow(0 1px 1px rgba(52, 38, 94, .10));
+  transform-origin: 30% 100%;
+  animation:
+    fr-cloud-in 420ms cubic-bezier(.2, .9, .3, 1.25) 450ms backwards,
+    fr-cloud-float 3.2s ease-in-out 900ms 3;
+}
+html[data-theme="dark"] .fr-share-cloud {
+  --cloud-bg: color-mix(in srgb, var(--violet) 18%, var(--card));
+  filter: drop-shadow(0 10px 24px rgba(0, 0, 0, .45));
+}
+
+.fr-share-cloud-body {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 28px 8px 8px;
+  border: 0;
+  border-radius: 18px;
+  background: var(--cloud-bg);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+/* Puffs: same fill as the body, poking above its top edge */
+.fr-share-cloud-body::before,
+.fr-share-cloud-body::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  border-radius: 50%;
+  background: var(--cloud-bg);
+}
+.fr-share-cloud-body::before { width: 32px; height: 32px; top: -9px; left: 18px; }
+.fr-share-cloud-body::after { width: 24px; height: 24px; top: -6px; left: 44px; }
+.fr-share-cloud-body:focus-visible { outline: 2px solid var(--violet); outline-offset: 3px; }
+
+.fr-share-cloud-icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--card);
+  color: var(--violet);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--violet) 22%, transparent);
+}
+.fr-share-cloud-copy { display: grid; gap: 2px; min-width: 0; }
+.fr-share-cloud-copy strong { font-size: 12px; font-weight: 750; line-height: 1.25; white-space: nowrap; }
+.fr-share-cloud-copy small { color: var(--muted); font-size: 11px; line-height: 1.35; white-space: nowrap; }
+.fr-share-cloud-copy code {
+  padding: 0 5px;
+  border-radius: 5px;
+  background: var(--card);
+  color: var(--violet);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+
+.fr-share-cloud-close {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background-color .15s, color .15s;
+}
+.fr-share-cloud-close:hover { background: var(--card); color: var(--text); }
+.fr-share-cloud-close:focus-visible { outline: 2px solid var(--violet); outline-offset: 1px; }
+
+/* Thought trail: big dot under the cloud, small dot just above the button */
+.fr-share-cloud-dot {
+  position: absolute;
+  border-radius: 50%;
+  background: var(--cloud-bg);
+  animation: fr-cloud-in 300ms ease-out backwards;
+}
+.fr-share-cloud-dot-lg { width: 10px; height: 10px; bottom: -13px; left: 34px; animation-delay: 380ms; }
+.fr-share-cloud-dot-sm { width: 6px; height: 6px; bottom: -21px; left: 26px; animation-delay: 320ms; }
+
+@keyframes fr-cloud-in {
+  from { opacity: 0; transform: translateY(6px) scale(.85); }
+}
+@keyframes fr-cloud-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+/* Stacked header (tablet/phone): the cloud joins the flow above the button,
+   since the header clips anything that pokes outside it. */
+@media (max-width: 760px) {
+  .fr-workspace-actions:has(.fr-share-hint-anchor.has-hint) { align-items: flex-end; }
+  .fr-share-hint-anchor.has-hint { flex-direction: column; align-items: flex-start; gap: 26px; padding-top: 10px; }
+  .fr-share-cloud { position: relative; bottom: auto; left: 0; max-width: 100%; }
+}
+@media (max-width: 480px) {
+  .fr-workspace-actions .fr-share-hint-anchor.has-hint { grid-column: 1 / -1; align-items: stretch; }
+  .fr-share-cloud { width: auto; }
+  .fr-share-cloud-copy strong, .fr-share-cloud-copy small { white-space: normal; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fr-share-cloud, .fr-share-cloud-dot { animation: none; }
+}

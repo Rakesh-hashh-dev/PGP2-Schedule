@@ -17,6 +17,9 @@
 // role/label here would double-announce the pet.
 
 import { useId } from "react";
+import PetExpression, { PetGesture } from "./PetExpression.jsx";
+import { Hoot, Byte, Pebble, Prickle } from "./petExtras.jsx";
+import Luna from "./Luna.jsx";
 
 const EYE = "#22242e";
 
@@ -115,7 +118,7 @@ function Cat() {
 
       {/* Nose and mouth: a small pink triangle over a wide w-mouth. */}
       <path d="M16 19.6c.9 0 1.4.3 1.4.9 0 .65-.65 1.2-1.4 1.2s-1.4-.55-1.4-1.2c0-.6.5-.9 1.4-.9z" fill="#e88fa6" stroke={ink} strokeWidth=".5" strokeLinejoin="round" />
-      <path d="M16 21.7v.7M16 22.4q-1.25 1.25-2.2 0M16 22.4q1.25 1.25 2.2 0" fill="none" stroke={ink} strokeWidth=".9" strokeLinecap="round" />
+      <path className="dg-pet-mouth-base" d="M16 21.7v.7M16 22.4q-1.25 1.25-2.2 0M16 22.4q1.25 1.25 2.2 0" fill="none" stroke={ink} strokeWidth=".9" strokeLinecap="round" />
 
       {/* Whiskers — the signature twitch. */}
       <path
@@ -135,6 +138,8 @@ function Cat() {
         <path d="M15 26.2h2" stroke="#92400e" strokeWidth=".35" strokeLinecap="round" />
         <circle cx="16" cy="26.8" r=".25" fill="#543807" />
       </g>
+      <PetExpression left={11.7} right={20.3} y={16.5} mouthY={22.4} ink="#241f2b" />
+      <PetGesture fur="#8d95ab" />
     </svg>
   );
 }
@@ -299,7 +304,7 @@ function Fox() {
 
       {/* Fox smirk: philtrum and sly w-mouth (dgPetSigSmirk) */}
       <path
-        className="dg-pet-sig dg-pet-sig-fox"
+        className="dg-pet-sig dg-pet-sig-fox dg-pet-mouth-base"
         d="M16 19.8v.5M16 20.3q-.95.85-1.7 0M16 20.3q.95.85 1.7 0"
         fill="none"
         stroke={ink}
@@ -320,6 +325,7 @@ function Fox() {
       {/* Default collar with gold bell, replaced when custom neckwear is worn */}
       <path className="dg-pet-accessory" d="M11.4 24.6c2.9 1.1 6.3 1.1 9.2 0l.35 1.4c-3.3 1.2-6.5 1.2-9.9 0z" fill="#3f8576" stroke={ink} strokeWidth=".55" strokeLinejoin="round" />
       <circle className="dg-pet-accessory" cx="16" cy="26.4" r="1.1" fill="#f6ca59" stroke={ink} strokeWidth=".55" />
+      <PetExpression left={12.2} right={19.8} y={15.2} mouthY={20} ink="#241f2b" />
     </svg>
   );
 }
@@ -411,10 +417,10 @@ function Dog() {
       {/* Nose and smiling mouth with panting tongue */}
       <path d="M14.2 18.6c0-1.1.8-1.7 1.8-1.7s1.8.6 1.8 1.7c0 1.2-.8 2-1.8 2s-1.8-.8-1.8-2z" fill={ink} />
       <ellipse cx="15.3" cy="18.1" rx=".5" ry=".25" fill="#fff" opacity=".55" transform="rotate(-15 15.3 18.1)" />
-      <path d="M16 20.4v.9" stroke={ink} strokeWidth=".8" strokeLinecap="round" />
-      <path d="M13.8 21.2q2.2 2 4.4 0c.1 2.8-.9 3.9-2.2 3.9s-2.3-1.1-2.2-3.9z" fill={ink} />
-      <path className="dg-pet-sig dg-pet-sig-dog" d="M14.7 22.1q1.3 1.1 2.6 0c.05 2.1-.4 2.9-1.3 2.9s-1.35-.8-1.3-2.9z" fill="#f4788f" />
-      <path d="M16 22.8v1.7" stroke="#d8586f" strokeWidth=".35" strokeLinecap="round" opacity=".7" />
+      <path className="dg-pet-mouth-base" d="M16 20.4v.9" stroke={ink} strokeWidth=".8" strokeLinecap="round" />
+      <path className="dg-pet-mouth-base" d="M13.8 21.2q2.2 2 4.4 0c.1 2.8-.9 3.9-2.2 3.9s-2.3-1.1-2.2-3.9z" fill={ink} />
+      <path className="dg-pet-sig dg-pet-sig-dog dg-pet-mouth-base" d="M14.7 22.1q1.3 1.1 2.6 0c.05 2.1-.4 2.9-1.3 2.9s-1.35-.8-1.3-2.9z" fill="#f4788f" />
+      <path className="dg-pet-mouth-base" d="M16 22.8v1.7" stroke="#d8586f" strokeWidth=".35" strokeLinecap="round" opacity=".7" />
 
       {/* Collar with gold bone tag */}
       <path className="dg-pet-accessory" d="M11.6 24.2c2.8 1.1 6 1.1 8.8 0l.3 1.4c-3.1 1.2-6.3 1.2-9.4 0z" fill="#4d82b2" stroke={ink} strokeWidth=".55" strokeLinejoin="round" />
@@ -422,6 +428,7 @@ function Dog() {
         <path d="M14.7 26.2c-.3-.3-.7-.3-.9 0-.3.3-.2.8.1 1-.3.2-.4.6-.1.9.3.3.7.3.9 0h2.6c.3.3.7.3.9 0 .3-.3.2-.8-.1-1 .3-.2.4-.6.1-.9-.3-.3-.7-.3-.9 0z" fill="#f6ca59" stroke={ink} strokeWidth=".35" />
         <circle cx="15.2" cy="26.8" r=".25" fill="#ffffff" />
       </g>
+      <PetExpression left={12} right={20} y={15.8} mouthY={21.8} ink="#241f2b" />
     </svg>
   );
 }
@@ -521,7 +528,7 @@ function Bunny() {
 
       {/* Velvety triangular nose with twitching mouth */}
       <path className="dg-pet-sig dg-pet-sig-bunny" d="M16 19.6l-1.4 1.2h2.8z" fill="#e8789c" stroke={ink} strokeWidth=".4" strokeLinejoin="round" />
-      <path d="M16 20.8v.65M16 21.45q-1.1 1-2 0M16 21.45q1.1 1 2 0" fill="none" stroke={ink} strokeWidth=".75" strokeLinecap="round" />
+      <path className="dg-pet-mouth-base" d="M16 20.8v.65M16 21.45q-1.1 1-2 0M16 21.45q1.1 1 2 0" fill="none" stroke={ink} strokeWidth=".75" strokeLinecap="round" />
       {/* Whisker ticks */}
       <path d="M6.6 20h3.6M6.4 21.6l3.4-.5M25.4 20h-3.6M25.6 21.6l-3.4-.5" fill="none" stroke="#8a92a8" strokeWidth=".65" strokeLinecap="round" opacity=".85" />
 
@@ -531,6 +538,7 @@ function Bunny() {
       <path d="M16 25.2l2.6 1.4" stroke="#b988d4" strokeWidth=".6" strokeLinecap="round" opacity=".6" />
       <circle className="dg-pet-accessory" cx="16" cy="25.2" r="1.1" fill="#f8ce5e" stroke={ink} strokeWidth=".4" />
       <circle cx="15.7" cy="24.9" r=".3" fill="#fff" opacity=".9" />
+      <PetExpression left={12.4} right={19.6} y={16.8} mouthY={21.45} ink="#252333" />
     </svg>
   );
 }
@@ -612,6 +620,7 @@ function Penguin() {
       <path className="dg-pet-accessory" d="M9.4 21.6c4 1.6 9.2 1.6 13.2 0l-.35 2c-3.8 1.5-8.8 1.5-12.5 0z" fill="#3a82a6" stroke={ink} strokeWidth=".55" strokeLinejoin="round" />
       <circle className="dg-pet-accessory" cx="16" cy="22.8" r="1.15" fill="#f6ca59" stroke={ink} strokeWidth=".4" />
       <circle className="dg-pet-accessory" cx="15.7" cy="22.4" r=".3" fill="#fff" />
+      <PetExpression left={12.4} right={19.6} y={14.4} mouthY={19} ink="#252333" beak />
     </svg>
   );
 }
@@ -677,7 +686,7 @@ function Panda() {
       {/* Nose and cheerful mouth */}
       <ellipse cx="16" cy="19.6" rx="1.6" ry="1.1" fill={ink} />
       <circle cx="15.5" cy="19.3" r=".3" fill="#fff" opacity=".5" />
-      <path className="dg-pet-sig dg-pet-sig-panda" d="M16 20.7v.8M16 21.5q-1.4.9-2.1 0M16 21.5q1.4.9 2.1 0" fill="none" stroke={ink} strokeWidth=".85" strokeLinecap="round" />
+      <path className="dg-pet-sig dg-pet-sig-panda dg-pet-mouth-base" d="M16 20.7v.8M16 21.5q-1.4.9-2.1 0M16 21.5q1.4.9 2.1 0" fill="none" stroke={ink} strokeWidth=".85" strokeLinecap="round" />
 
       {/* Blushing cheeks */}
       <ellipse cx="8.8" cy="19.6" rx="1.5" ry=".85" fill="#f4b2be" opacity=".5" />
@@ -693,6 +702,8 @@ function Panda() {
         <path d="M24.2 23.4q2.4-2.8 4.2-1.4-1.2 2.8-3.6 2z" fill="#69b85c" stroke={ink} strokeWidth=".4" />
         <path d="M25.6 20.2q2.2-2.4 3.8-1.2-.8 2.6-3.2 1.8z" fill="#7ecb6f" stroke={ink} strokeWidth=".4" />
       </g>
+      <PetExpression left={12} right={20} y={16.2} mouthY={21.5} ink="#252333" />
+      <PetGesture fur="#313646" />
     </svg>
   );
 }
@@ -754,6 +765,7 @@ function Chick() {
       {/* Bow tie accessory */}
       <path className="dg-pet-accessory" d="M16 23.8l-2.4-1.5-1.6 1.7 1.6 1.5 2.4-1.3 2.4 1.3 1.6-1.5-1.6-1.7z" fill="#e2564c" stroke={ink} strokeWidth=".5" strokeLinejoin="round" />
       <circle className="dg-pet-accessory" cx="16" cy="23.8" r=".9" fill="#f6ca59" stroke={ink} strokeWidth=".4" />
+      <PetExpression left={12.4} right={19.6} y={16.2} mouthY={21} ink="#252333" beak />
     </svg>
   );
 }
@@ -819,13 +831,14 @@ function Koala() {
       <ellipse cx="15.2" cy="17.6" rx=".5" ry=".28" fill="#fff" opacity=".35" transform="rotate(-18 15.2 17.6)" />
 
       {/* Sweet smile */}
-      <path d="M13.8 23q2.2 1.6 4.4 0" fill="none" stroke={ink} strokeWidth=".8" strokeLinecap="round" />
+      <path className="dg-pet-mouth-base" d="M13.8 23q2.2 1.6 4.4 0" fill="none" stroke={ink} strokeWidth=".8" strokeLinecap="round" />
 
       {/* Eucalyptus sprig accessory */}
       <g className="dg-pet-accessory">
         <path d="M21.8 25c2.6-3.4 4.6-3 5-1.8.4 1.2-1.4 2-2.2 3.2 1-.5 2.2 0 1.9 1-.5 1.6-3 1.6-4.7.2z" fill="#6ba86b" stroke={ink} strokeWidth=".5" strokeLinejoin="round" />
         <path d="M22.6 25.2q1.6-1.5 3.2-1.8M23 26.2q1.4-.5 2.5-.4" fill="none" stroke="#487848" strokeWidth=".5" strokeLinecap="round" />
       </g>
+      <PetExpression left={12.2} right={19.8} y={16.4} mouthY={23} ink="#252333" />
     </svg>
   );
 }
@@ -882,7 +895,7 @@ function Otter() {
       {/* Dark button nose and mouth */}
       <path d="M14.2 19.4c0-1 .8-1.6 1.8-1.6s1.8.6 1.8 1.6c0 1.1-.8 1.8-1.8 1.8s-1.8-.7-1.8-1.8z" fill={ink} />
       <circle cx="15.5" cy="19.1" r=".3" fill="#fff" opacity=".5" />
-      <path d="M16 21.3v1.2M16 22.5q-1.6 1-2.2-.2M16 22.5q1.6 1 2.2-.2" fill="none" stroke={ink} strokeWidth=".8" strokeLinecap="round" />
+      <path className="dg-pet-mouth-base" d="M16 21.3v1.2M16 22.5q-1.6 1-2.2-.2M16 22.5q1.6 1 2.2-.2" fill="none" stroke={ink} strokeWidth=".8" strokeLinecap="round" />
 
       {/* Whiskers */}
       <path d="M6.6 19.6h4.4M6.6 21.6l4.4-.7M21 19.6h4.4M21 20.9l4.4.7" stroke={ink} strokeWidth=".7" strokeLinecap="round" opacity=".75" />
@@ -890,6 +903,8 @@ function Otter() {
       {/* Coral collar with bell */}
       <path className="dg-pet-accessory" d="M10.2 25c3.6 1.4 8 1.4 11.6 0l.35 1.5c-3.9 1.6-8.3 1.6-12.3 0z" fill="#e26c54" stroke={ink} strokeWidth=".5" strokeLinejoin="round" />
       <circle className="dg-pet-accessory" cx="16" cy="26.8" r="1.1" fill="#f6ca59" stroke={ink} strokeWidth=".4" />
+      <PetExpression left={12.2} right={19.8} y={16.4} mouthY={22.5} ink="#252333" />
+      <PetGesture fur="#b17a50" />
     </svg>
   );
 }
@@ -946,17 +961,18 @@ function Rover() {
       <circle className="dg-pet-sig dg-pet-sig-rover" cx="9.4" cy="11.6" r=".95" fill="#46ed96" stroke={ink} strokeWidth=".4" />
 
       {/* Chassis smile curve */}
-      <path d="M13.6 20.8q2.4 1.5 4.8 0" fill="none" stroke="#485c70" strokeWidth=".85" strokeLinecap="round" />
+      <path className="dg-pet-mouth-base" d="M13.6 20.8q2.4 1.5 4.8 0" fill="none" stroke="#485c70" strokeWidth=".85" strokeLinecap="round" />
 
       {/* Lower base and front tracks */}
       <rect x="8.4" y="22.2" width="15.2" height="6.2" rx="2.8" fill="#323e4d" stroke={ink} strokeWidth="1.15" />
       <path d="M10.8 25.2h2.6m2 0h2.6m2 0h2.6" stroke="#8fa0b2" strokeWidth=".95" strokeLinecap="round" />
 
       {/* Top antenna beacon accessory */}
-      <g className="dg-pet-accessory">
+      <g className="dg-pet-accessory dg-pet-antenna">
         <path d="M16 9.6V5.8m0 0 1.6-1.6" stroke={ink} strokeWidth="1.1" strokeLinecap="round" fill="none" />
         <circle cx="18" cy="4.4" r="1.3" fill="#f4c45e" stroke={ink} strokeWidth=".4" />
       </g>
+      <PetExpression left={12.6} right={19.4} y={16.3} mouthY={20.8} ink="#46d9ed" digital />
     </svg>
   );
 }
@@ -1019,7 +1035,7 @@ function Raccoon() {
       {/* Pointed white muzzle and sniffing nose */}
       <ellipse cx="16" cy="22.2" rx="4.8" ry="3.6" fill="#f4f6fa" stroke={ink} strokeWidth=".7" />
       <ellipse className="dg-pet-sig dg-pet-sig-raccoon" cx="16" cy="20.4" rx="1.6" ry="1.1" fill={ink} />
-      <path d="M16 21.6v.8M16 22.4q-1.4 1-2.2 0M16 22.4q1.4 1 2.2 0" fill="none" stroke={ink} strokeWidth=".8" strokeLinecap="round" />
+      <path className="dg-pet-mouth-base" d="M16 21.6v.8M16 22.4q-1.4 1-2.2 0M16 22.4q1.4 1 2.2 0" fill="none" stroke={ink} strokeWidth=".8" strokeLinecap="round" />
 
       {/* Whiskers */}
       <path d="M9.2 21h-3M9.4 22.4l-2.8.6M22.8 21h3M22.6 22.4l2.8.6" fill="none" stroke="#778091" strokeWidth=".65" strokeLinecap="round" />
@@ -1027,6 +1043,8 @@ function Raccoon() {
       {/* Crimson collar accessory */}
       <path className="dg-pet-accessory" d="M10.2 25.2c3.6 1.4 8 1.4 11.6 0l.35 1.5c-3.9 1.6-8.3 1.6-12.3 0z" fill="#cf4e46" stroke={ink} strokeWidth=".5" strokeLinejoin="round" />
       <circle className="dg-pet-accessory" cx="16" cy="26.8" r="1.1" fill="#f6ca59" stroke={ink} strokeWidth=".4" />
+      <PetExpression left={12} right={20} y={16.8} mouthY={22.4} ink="#252333" />
+      <PetGesture fur="#9099ab" />
     </svg>
   );
 }
@@ -1100,10 +1118,11 @@ function Axolotl() {
       <circle cx="22.6" cy="19.2" r="1.2" fill="#ef6699" opacity=".6" />
 
       {/* Sweet derpy wide smile */}
-      <path d="M16 19.4v1.4m0 0q-1.8 1.4-2.8 0m2.8 0q1.8 1.4 2.8 0" fill="none" stroke={ink} strokeWidth=".85" strokeLinecap="round" />
+      <path className="dg-pet-mouth-base" d="M16 19.4v1.4m0 0q-1.8 1.4-2.8 0m2.8 0q1.8 1.4 2.8 0" fill="none" stroke={ink} strokeWidth=".85" strokeLinecap="round" />
 
       {/* Sea-pearl collar accessory */}
       <path className="dg-pet-accessory" d="M10 24.4c3.8 1.4 8.2 1.4 12 0l.4 1.6c-4 1.6-8.8 1.6-12.8 0z" fill="#7a58d8" stroke={ink} strokeWidth=".5" strokeLinejoin="round" />
+      <PetExpression left={11.8} right={20.2} y={16.4} mouthY={20.8} ink="#252333" />
     </svg>
   );
 }
@@ -1207,13 +1226,14 @@ function Spark() {
 
       {/* Open, delighted mouth */}
       <path d="M16 18.3l-.7.9h1.4z" fill="#4a3a1c" />
-      <path d="M13.3 20.3q2.7 3.4 5.4 0z" fill="#5a2a1c" />
-      <path d="M14.5 21.3q1.5 1.9 3 0z" fill="#ef6a72" />
-      <path d="M13.3 20.3q2.7 3.4 5.4 0" fill="none" stroke="#4a3a1c" strokeWidth=".85" strokeLinecap="round" />
+      <path className="dg-pet-mouth-base" d="M13.3 20.3q2.7 3.4 5.4 0z" fill="#5a2a1c" />
+      <path className="dg-pet-mouth-base" d="M14.5 21.3q1.5 1.9 3 0z" fill="#ef6a72" />
+      <path className="dg-pet-mouth-base" d="M13.3 20.3q2.7 3.4 5.4 0" fill="none" stroke="#4a3a1c" strokeWidth=".85" strokeLinecap="round" />
 
       {/* Navy band with bolt charm */}
       <path className="dg-pet-accessory" d="M10.2 24.7c3.6 1.5 8 1.5 11.6 0l.35 1.55c-3.9 1.7-8.4 1.7-12.3 0z" fill="#2d3b66" stroke={ink} strokeWidth=".55" strokeLinejoin="round" />
       <path className="dg-pet-accessory" d="M16.5 25.3 15.2 27.4h1l-.6 1.7 1.8-2.3h-1z" fill="#ffd23f" stroke={ink} strokeWidth=".4" />
+      <PetExpression left={12.5} right={19.5} y={16.2} mouthY={20.3} ink="#4a3a1c" />
     </svg>
   );
 }
@@ -1337,8 +1357,9 @@ function Leafy() {
       {/* Nostrils, wide grin, and cute fangs */}
       <circle cx="14.9" cy="22.4" r=".32" fill="#2f5a49" opacity=".7" />
       <circle cx="17.1" cy="22.4" r=".32" fill="#2f5a49" opacity=".7" />
-      <path d="M11.4 23.6q4.6 3.8 9.2 0" fill="none" stroke={ink} strokeWidth="1.05" strokeLinecap="round" />
-      <path d="M13 24.7l.55 1.5.55-1.3zM17.9 24.9l.55 1.3.55-1.5z" fill="#f4fbf8" stroke={ink} strokeWidth=".3" />
+      <path className="dg-pet-mouth-base" d="M11.4 23.6q4.6 3.8 9.2 0" fill="none" stroke={ink} strokeWidth="1.05" strokeLinecap="round" />
+      <path className="dg-pet-mouth-base" d="M13 24.7l.55 1.5.55-1.3zM17.9 24.9l.55 1.3.55-1.5z" fill="#f4fbf8" stroke={ink} strokeWidth=".3" />
+      <PetExpression left={11.6} right={20.4} y={19.6} mouthY={23.6} ink="#203a32" />
     </svg>
   );
 }
@@ -1443,217 +1464,98 @@ function Nova() {
       </g>
 
       <path d="M16 19.4l-1.1 1.2h2.2z" fill="#12102e" />
-      <path d="M13.6 21.4q2.4 2.6 4.8 0" fill="none" stroke="#12102e" strokeWidth=".9" strokeLinecap="round" />
+      <path className="dg-pet-mouth-base" d="M13.6 21.4q2.4 2.6 4.8 0" fill="none" stroke="#12102e" strokeWidth=".9" strokeLinecap="round" />
 
       {/* Celestial choker with golden compass star */}
       <path className="dg-pet-accessory" d="M10.2 24.6c3.6 1.5 8 1.5 11.6 0l.35 1.55c-3.9 1.7-8.4 1.7-12.3 0z" fill="#6d58cf" stroke="#818cf8" strokeWidth=".45" strokeLinejoin="round" />
       <path className="dg-pet-accessory" d="M16 25.4 16.7 27 18.3 27.7 16.7 28.4 16 30 15.3 28.4 13.7 27.7 15.3 27z" fill={star} stroke="#d99a18" strokeWidth=".35" />
+      <PetExpression left={12.4} right={19.6} y={16.6} mouthY={21.4} ink="#12102e" />
     </svg>
   );
 }
 
+// A rounded cub silhouette: the mane, tufted tail and broad muzzle carry the
+// species at small sizes. Stable key "cinder" preserves existing companions.
 function Lion() {
   const id = "ln" + useId().replace(/\W/g, "");
-  const ink = "#1c1917";
+  const ink = "#473023";
   const coat = `url(#${id}-coat)`;
-  const maneDark = `url(#${id}-mane-dark)`;
-  const maneLight = `url(#${id}-mane-light)`;
-  const innerEar = `url(#${id}-ear)`;
-  const iris = `url(#${id}-iris)`;
+  const mane = `url(#${id}-mane)`;
   return (
     <svg viewBox="0 0 32 32" aria-hidden="true">
       <defs>
-        <radialGradient id={`${id}-coat`} cx="42%" cy="30%" r="75%">
-          <stop offset="0%" stopColor="#fde047" />
-          <stop offset="40%" stopColor="#f59e0b" />
-          <stop offset="100%" stopColor="#d97706" />
+        <radialGradient id={`${id}-coat`} cx="38%" cy="25%" r="85%">
+          <stop offset="0" stopColor="#ffdfa0" />
+          <stop offset=".65" stopColor="#edb65c" />
+          <stop offset="1" stopColor="#d99742" />
         </radialGradient>
-        <linearGradient id={`${id}-mane-dark`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#78350f" />
-          <stop offset="60%" stopColor="#551a05" />
-          <stop offset="100%" stopColor="#300d02" />
-        </linearGradient>
-        <linearGradient id={`${id}-mane-light`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#fbbf24" />
-          <stop offset="45%" stopColor="#d97706" />
-          <stop offset="100%" stopColor="#92400e" />
-        </linearGradient>
-        <linearGradient id={`${id}-ear`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#fed7aa" />
-          <stop offset="100%" stopColor="#c2410c" />
-        </linearGradient>
-        <linearGradient id={`${id}-iris`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#fef08a" />
-          <stop offset="50%" stopColor="#f59e0b" />
-          <stop offset="100%" stopColor="#b45309" />
-        </linearGradient>
-        <radialGradient id={`${id}-sun`}>
-          <stop offset="0%" stopColor="#fbbf24" stopOpacity=".7" />
-          <stop offset="60%" stopColor="#f59e0b" stopOpacity=".2" />
-          <stop offset="100%" stopColor="#f59e0b" stopOpacity="0" />
+        <radialGradient id={`${id}-mane`} cx="42%" cy="35%" r="75%">
+          <stop offset="0" stopColor="#c98643" />
+          <stop offset=".6" stopColor="#ad6836" />
+          <stop offset="1" stopColor="#85502f" />
         </radialGradient>
       </defs>
 
-      {/* Solar aura of the king of beasts */}
-      <circle className="dg-pet-heat" cx="16" cy="16.5" r="13" fill={`url(#${id}-sun)`} />
-
-      {/* Fiery embers rising from the lion's mane */}
-      <g fill="#fbbf24">
-        <circle className="dg-pet-ember" cx="6.5" cy="10.8" r=".5" />
-        <circle className="dg-pet-ember dg-pet-ember-b" cx="25.5" cy="9.2" r=".45" />
-        <circle className="dg-pet-ember dg-pet-ember-c" cx="27.2" cy="15.2" r=".38" />
+      {/* Curved tail with a soft, unmistakably lion-shaped brush. */}
+      <g className="dg-pet-tail">
+        <path d="M21 27c5 2 7-1.5 6.5-5.5" fill="none" stroke={ink} strokeWidth="2.6" strokeLinecap="round" />
+        <path d="M21 27c5 2 7-1.5 6.5-5.5" fill="none" stroke="#edb65c" strokeWidth="1.3" strokeLinecap="round" />
+        <path d="M27.5 23c-2.5-1-3-4-.8-5.8 2.7.4 4.4 3.2 2.3 5.3z" fill="#ad6836" stroke={ink} strokeWidth=".8" strokeLinejoin="round" />
+        <path d="M27.5 21.8q-1-1.4-.2-3" fill="none" stroke="#d89854" strokeWidth=".65" strokeLinecap="round" />
       </g>
 
-      {/* Muscular Lion Tail with fiery tuft */}
-      <g className="dg-pet-tail dg-pet-flame">
-        <path d="M19 25.5c4 .5 7-1.5 7.8-5.5.5-2.6-.2-4.5-1.5-5.2-.6-.3-1.3 0-1.5.6-.2.6 0 1.3.6 1.6.8.4 1.1 1.5.7 3-.5 2.2-2.3 3.1-5.6 2.5" fill="none" stroke={ink} strokeWidth="2.8" strokeLinecap="round" />
-        <path d="M19 25.5c4 .5 7-1.5 7.8-5.5.5-2.6-.2-4.5-1.5-5.2-.6-.3-1.3 0-1.5.6-.2.6 0 1.3.6 1.6.8.4 1.1 1.5.7 3-.5 2.2-2.3 3.1-5.6 2.5" fill="none" stroke="#d97706" strokeWidth="1.6" strokeLinecap="round" />
-        {/* Bushy spiked tail tuft */}
-        <path d="M26 14.5c-.8-2 1-4 3-4.2 1.6-.2 2.8 1 2.9 2.6.2 2.2-1.5 4.2-3.6 4.3-.9 0-1.8-.8-2.3-2.7z" fill={maneLight} stroke={ink} strokeWidth=".7" />
-        <path className="dg-pet-flicker" d="M27 13.5c-.3-1.2.6-2.4 1.8-2.6 1.1-.1 2 .6 2.1 1.7.2 1.4-1 2.6-2.3 2.7-.6.1-1.3-.4-1.6-1.8z" fill="#fef08a" opacity=".85" />
+      {/* A small seated body and cream chest bib leave room for the paws. */}
+      <path d="M10 23c.5-3.8 11.5-3.8 12 0l.4 4.5c0 2.3-3 3.2-6.4 3.2s-6.4-.9-6.4-3.2z" fill={coat} stroke={ink} strokeWidth="1" />
+      <path d="M12.8 24q3.2-1.1 6.4 0l-.6 4.3q-2.6 1.7-5.2 0z" fill="#f9e7c3" />
+
+      {/* Scalloped mane: rounded lobes, a copper highlight and a little fringe. */}
+      <g className="dg-pet-mane">
+        <path d="M16 3c2-1.4 4.8-.2 5.8 1.8 2.6-.5 5 1.3 5 4 2.4.9 3.4 3.7 2 5.8 1.6 2 .8 4.9-1.4 6 0 2.8-2.2 4.6-4.8 4.5-1.2 2.6-4.2 3.2-6.6 1.7-2.4 1.5-5.4.9-6.6-1.7-2.6.1-4.8-1.7-4.8-4.5-2.2-1.1-3-4-1.4-6-1.4-2.1-.4-4.9 2-5.8 0-2.7 2.4-4.5 5-4C11.2 2.8 14 1.6 16 3z" fill={mane} stroke={ink} strokeWidth="1.15" strokeLinejoin="round" />
+        <path d="M7.8 10q1.4-3.2 4.6-3.8M20.2 6.7q3.1 1.2 4.1 4.2M5.8 17q.2 3.3 2.7 4.5M23.5 22q2.4-1.3 2.7-3.7" fill="none" stroke="#dfaa66" strokeWidth=".95" strokeLinecap="round" opacity=".65" />
       </g>
 
-      {/* Massive Wild Outer Mane (deep mahogany/sienna spiked crown) */}
-      <path
-        d="M16 2.4 L18.8 5.2 L22.4 3.8 L23.5 7.2 L27.2 6.8 L26.4 10.8 L29.6 12.2 L28 15.8 L30.5 18.8 L27.5 21 L28.5 23.8 L25 24.6 L23.6 27.6 L20 26.6 L17.5 29 L14.5 29 L12 26.6 L8.4 27.6 L7 24.6 L3.5 23.8 L4.5 21 L1.5 18.8 L4 15.8 L2.4 12.2 L5.6 10.8 L4.8 6.8 L8.5 7.2 L9.6 3.8 L13.2 5.2 Z"
-        fill={maneDark}
-        stroke={ink}
-        strokeWidth="1.1"
-        strokeLinejoin="round"
-      />
-
-      {/* Mid-layer Golden/Amber Mane Tufts */}
-      <path
-        d="M16 4.2 L18.6 6.8 L21.6 5.8 L22.4 8.8 L25.4 9.2 L24.5 12.6 L27.4 14.6 L25 17.6 L26.8 20.4 L23.5 22 L22 25 L18.8 24.2 L16 26.8 L13.2 24.2 L10 25 L8.5 22 L5.2 20.4 L7 17.6 L4.6 14.6 L7.5 12.6 L6.6 9.2 L9.6 8.8 L10.4 5.8 L13.4 6.8 Z"
-        fill={maneLight}
-        stroke={ink}
-        strokeWidth=".8"
-        strokeLinejoin="round"
-      />
-
-      {/* Muscular Ears nestled in the mane */}
       <g className="dg-pet-ear dg-pet-ear-left">
-        <path d="M7.8 7.5 C6.2 9 6.8 12.2 9.5 12.5 C10.8 12.6 11.8 11.4 11.2 9.2 C10.6 7 9.2 6.2 7.8 7.5 Z" fill={coat} stroke={ink} strokeWidth="1" strokeLinejoin="round" />
-        <path d="M8.2 8.4 C7.2 9.4 7.6 11.4 9.4 11.6 C10.2 11.7 10.8 11 10.4 9.6 C10 8.2 9 7.6 8.2 8.4 Z" fill={innerEar} />
-        <path d="M7.5 8 C7.2 9.2 7.5 10.8 8.8 11.5" stroke="#1c1917" strokeWidth=".5" fill="none" strokeLinecap="round" />
+        <circle cx="9.4" cy="9.2" r="3" fill={coat} stroke={ink} strokeWidth=".9" />
+        <circle cx="9.4" cy="9.4" r="1.7" fill="#d78977" />
       </g>
       <g className="dg-pet-ear dg-pet-ear-right">
-        <path d="M24.2 7.5 C25.8 9 25.2 12.2 22.5 12.5 C21.2 12.6 20.2 11.4 20.8 9.2 C21.4 7 22.8 6.2 24.2 7.5 Z" fill={coat} stroke={ink} strokeWidth="1" strokeLinejoin="round" />
-        <path d="M23.8 8.4 C24.8 9.4 24.4 11.4 22.6 11.6 C21.8 11.7 21.2 11 21.6 9.6 C22 8.2 23 7.6 23.8 8.4 Z" fill={innerEar} />
-        <path d="M24.5 8 C24.8 9.2 24.5 10.8 23.2 11.5" stroke="#1c1917" strokeWidth=".5" fill="none" strokeLinecap="round" />
+        <circle cx="22.6" cy="9.2" r="3" fill={coat} stroke={ink} strokeWidth=".9" />
+        <circle cx="22.6" cy="9.4" r="1.7" fill="#d78977" />
       </g>
 
-      {/* Muscular Chest & Body */}
-      <path d="M11 22.6 C11 21 12.5 20 16 20 C19.5 20 21 21 21 22.6 L21.5 28 C21.5 29.5 19.5 30.5 16 30.5 C12.5 30.5 10.5 29.5 10.5 28 Z" fill={coat} stroke={ink} strokeWidth="1" strokeLinejoin="round" />
-      {/* Chest mane drapery */}
-      <path d="M13.6 21 L16 24.8 L18.4 21 L17 23.8 L16 26.2 L15 23.8 Z" fill={maneDark} stroke={ink} strokeWidth=".45" />
+      <path className="dg-pet-face" d="M16 7.8c5.5 0 9 3.2 9 8 0 5.4-3.6 9-9 9s-9-3.6-9-9c0-4.8 3.5-8 9-8z" fill={coat} stroke={ink} strokeWidth="1.1" />
+      <path d="M13 8.3q1.4 1.1 1.5 2.1M16 8v2.4M19 8.3q-1.4 1.1-1.5 2.1" fill="none" stroke="#ca8b3f" strokeWidth=".7" strokeLinecap="round" />
+      <ellipse cx="11.4" cy="11.3" rx="2.4" ry="1.2" fill="#ffeab5" opacity=".7" transform="rotate(-25 11.4 11.3)" />
 
-      {/* Lion Paws with Fierce Unsheathed Claws */}
-      <g stroke={ink} strokeLinecap="round">
-        {/* Left Paw */}
-        <path d="M10.2 27.2 C10.2 26 12 25.5 13.6 26.2 C14.4 26.6 14.6 28 14.2 29.2 C13.8 30.2 11.8 30.5 10.8 29.8 C10.3 29.2 10.2 28.2 10.2 27.2 Z" fill="#fef3c7" strokeWidth=".85" />
-        <path d="M11 29.8 L11 30.8 M12.4 30.1 L12.6 31.2 M13.8 29.6 L14.2 30.5" stroke="#1c1917" strokeWidth=".65" />
-        {/* Right Paw */}
-        <path d="M21.8 27.2 C21.8 26 20 25.5 18.4 26.2 C17.6 26.6 17.4 28 17.8 29.2 C18.2 30.2 20.2 30.5 21.2 29.8 C21.7 29.2 21.8 28.2 21.8 27.2 Z" fill="#fef3c7" strokeWidth=".85" />
-        <path d="M21 29.8 L21 30.8 M19.6 30.1 L19.4 31.2 M18.2 29.6 L17.8 30.5" stroke="#1c1917" strokeWidth=".65" />
-      </g>
-
-      {/* Fierce Lion Head Shape */}
-      <path
-        className="dg-pet-face"
-        d="M11.2 11.4 C12.6 9.4 19.4 9.4 20.8 11.4 C22.4 13.6 22.8 16.8 22 19.4 C21.2 22 18.6 23.8 16 23.8 C13.4 23.8 10.8 22 10 19.4 C9.2 16.8 9.6 13.6 11.2 11.4 Z"
-        fill={coat}
-        stroke={ink}
-        strokeWidth="1.15"
-        strokeLinejoin="round"
-      />
-
-      {/* Cheek Mane Ruffs framing the fierce jaw */}
-      <path d="M9.8 16 L8.2 18 L10.4 18.6 L9 20.8 L11.8 20.2" fill={maneLight} stroke={ink} strokeWidth=".6" />
-      <path d="M22.2 16 L23.8 18 L21.6 18.6 L23 20.8 L20.2 20.2" fill={maneLight} stroke={ink} strokeWidth=".6" />
-
-      {/* Formidable Lion Brow Furrow & Forehead Wrinkles */}
-      <g stroke="#78350f" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M14.5 10.8 L16 12.2 L17.5 10.8" fill="none" strokeWidth=".8" />
-        <path d="M15.2 9.6 L16 10.6 L16.8 9.6" fill="none" strokeWidth=".6" opacity=".8" />
-        <path d="M16 12.2 L16 14" strokeWidth=".7" />
-      </g>
-
-      {/* Fierce Predator Feline Almond Eyes */}
       <g className="dg-pet-eyes">
-        {/* Left Eye: Fierce Slanted Contour & Heavy Brow */}
-        <path d="M10.2 14.6 C10.8 13.2 13.4 13.5 14.6 15 C13.8 16.1 11.4 16.2 10.2 14.6 Z" fill={ink} />
-        {/* Amber predatory iris */}
-        <path d="M10.8 14.7 C11.2 13.8 13.2 14 14.1 15 C13.5 15.8 11.6 15.8 10.8 14.7 Z" fill={iris} />
-        {/* Vertical slit pupil */}
-        <ellipse cx="12.4" cy="14.8" rx=".55" ry="1.2" fill={ink} />
-        {/* Cold predatory glint */}
-        <circle cx="12.1" cy="14.2" r=".32" fill="#ffffff" />
-        {/* Classic lion white under-eye facial fur marking */}
-        <path d="M10.4 15.8 C11.6 16.5 13.4 16.3 14.4 15.5" stroke="#fef3c7" strokeWidth=".6" fill="none" strokeLinecap="round" />
-        {/* Fierce brow ridge shadow */}
-        <path d="M9.6 13.6 L14.6 14.7" stroke={ink} strokeWidth=".95" strokeLinecap="round" />
-
-        {/* Right Eye: Fierce Slanted Contour & Heavy Brow */}
-        <path d="M21.8 14.6 C21.2 13.2 18.6 13.5 17.4 15 C18.2 16.1 20.6 16.2 21.8 14.6 Z" fill={ink} />
-        {/* Amber predatory iris */}
-        <path d="M21.2 14.7 C20.8 13.8 18.8 14 17.9 15 C18.5 15.8 20.4 15.8 21.2 14.7 Z" fill={iris} />
-        {/* Vertical slit pupil */}
-        <ellipse cx="19.6" cy="14.8" rx=".55" ry="1.2" fill={ink} />
-        {/* Cold predatory glint */}
-        <circle cx="19.3" cy="14.2" r=".32" fill="#ffffff" />
-        {/* Classic lion white under-eye facial fur marking */}
-        <path d="M21.6 15.8 C20.4 16.5 18.6 16.3 17.6 15.5" stroke="#fef3c7" strokeWidth=".6" fill="none" strokeLinecap="round" />
-        {/* Fierce brow ridge shadow */}
-        <path d="M22.4 13.6 L17.4 14.7" stroke={ink} strokeWidth=".95" strokeLinecap="round" />
+        <ellipse cx="12" cy="15.4" rx="2.05" ry="2.35" fill={ink} />
+        <ellipse cx="20" cy="15.4" rx="2.05" ry="2.35" fill={ink} />
+        <g fill="#fff"><circle cx="11.4" cy="14.7" r=".7" /><circle cx="19.4" cy="14.7" r=".7" /><circle cx="12.6" cy="16.2" r=".3" /><circle cx="20.6" cy="16.2" r=".3" /></g>
       </g>
+      <g fill="#df9678" opacity=".5"><ellipse cx="9.1" cy="18.2" rx="1.7" ry="1" /><ellipse cx="22.9" cy="18.2" rx="1.7" ry="1" /></g>
+      <path d="M16 18.6c-3.4-2.8-6.5-.4-5.3 2.2.8 1.8 3.8 2.3 5.3.9 1.5 1.4 4.5.9 5.3-.9 1.2-2.6-1.9-5-5.3-2.2z" fill="#f9e7c3" />
+      <path d="M14.5 18.2q1.5-.8 3 0l-1.5 1.5z" fill="#9b5b4c" stroke={ink} strokeWidth=".5" strokeLinejoin="round" />
+      <path className="dg-pet-mouth-base" d="M16 19.7v.8m0 0q-1.4 1.5-2.6.2m2.6-.2q1.4 1.5 2.6.2" fill="none" stroke={ink} strokeWidth=".8" strokeLinecap="round" />
+      <g fill={ink} opacity=".5"><circle cx="12.4" cy="19.8" r=".23" /><circle cx="13.2" cy="20.3" r=".23" /><circle cx="19.6" cy="19.8" r=".23" /><circle cx="18.8" cy="20.3" r=".23" /></g>
+      <PetExpression left={12} right={20} y={15.4} mouthY={20.8} ink={ink} />
 
-      {/* Lion Muzzle Bridge */}
-      <path d="M14.6 14.8 L14.2 18 L17.8 18 L17.4 14.8" fill={coat} opacity=".5" />
-
-      {/* Broad Lion Muzzle Pads */}
-      <path
-        d="M12.2 18.5 C11.5 19.8 12.2 21.6 14.5 21.6 C15.6 21.6 16 20.8 16 20.2 C16 20.8 16.4 21.6 17.5 21.6 C19.8 21.6 20.5 19.8 19.8 18.5 C19 17.8 17.2 18 16 18.2 C14.8 18 13 17.8 12.2 18.5 Z"
-        fill="#fef3c7"
-        stroke={ink}
-        strokeWidth=".65"
-      />
-
-      {/* Bold Dark Leather Lion Nose */}
-      <path d="M14.4 17.6 L17.6 17.6 C17.9 17.6 18.1 18 17.9 18.3 L16.4 20 C16.2 20.2 15.8 20.2 15.6 20 L14.1 18.3 C13.9 18 14.1 17.6 14.4 17.6 Z" fill="#1c1917" stroke={ink} strokeWidth=".35" />
-      <ellipse cx="15.2" cy="18.5" rx=".3" ry=".4" fill="#3f3f46" />
-      <ellipse cx="16.8" cy="18.5" rx=".3" ry=".4" fill="#3f3f46" />
-
-      {/* Whisker Prickle Dots */}
-      <circle cx="13.6" cy="19.4" r=".32" fill={ink} opacity=".7" />
-      <circle cx="14.4" cy="20.3" r=".32" fill={ink} opacity=".7" />
-      <circle cx="13.2" cy="20.2" r=".28" fill={ink} opacity=".5" />
-      <circle cx="18.4" cy="19.4" r=".32" fill={ink} opacity=".7" />
-      <circle cx="17.6" cy="20.3" r=".32" fill={ink} opacity=".7" />
-      <circle cx="18.8" cy="20.2" r=".28" fill={ink} opacity=".5" />
-
-      {/* Snarl Mouth & Sharp Canine Fangs */}
-      <path d="M14.2 21 C14.8 22.4 17.2 22.4 17.8 21" fill="#450a0a" stroke={ink} strokeWidth=".7" strokeLinecap="round" />
-      {/* Left Sharp Fang */}
-      <polygon points="14.3,21 15.1,21 14.7,22.7" fill="#ffffff" stroke={ink} strokeWidth=".35" />
-      {/* Right Sharp Fang */}
-      <polygon points="17.7,21 16.9,21 17.3,22.7" fill="#ffffff" stroke={ink} strokeWidth=".35" />
-
-      {/* Lion Chin / Regal Goatee Tuft */}
-      <path d="M15 22.4 L16 24.2 L17 22.4 Z" fill="#fef3c7" stroke={ink} strokeWidth=".5" strokeLinejoin="round" />
-
-      {/* Regal Collar & Spiked Crest */}
-      <path className="dg-pet-accessory" d="M11 23.4 C14 24.4 18 24.4 21 23.4 L21.4 24.8 C18 26 14 26 10.6 24.8 Z" fill="#78350f" stroke={ink} strokeWidth=".5" />
+      {/* The paws belong to the cub and move independently for its paw lift. */}
+      <g className="dg-pet-paw dg-pet-paw-left" fill="#f9e7c3" stroke={ink} strokeWidth=".8">
+        <ellipse cx="11.9" cy="28.9" rx="2.7" ry="1.7" />
+        <path d="M11.1 29v.9M12.5 29v.9" fill="none" strokeWidth=".45" strokeLinecap="round" />
+      </g>
+      <g className="dg-pet-paw dg-pet-paw-right" fill="#f9e7c3" stroke={ink} strokeWidth=".8">
+        <ellipse cx="20.1" cy="28.9" rx="2.7" ry="1.7" />
+        <path d="M19.3 29v.9M20.7 29v.9" fill="none" strokeWidth=".45" strokeLinecap="round" />
+      </g>
       <g className="dg-pet-accessory">
-        <polygon points="16,24.6 17.4,26.2 16,28 14.6,26.2" fill="#f59e0b" stroke={ink} strokeWidth=".4" />
-        <circle cx="16" cy="26.2" r=".7" fill="#dc2626" />
+        <path d="M11.1 24q4.9 1.7 9.8 0l.3 1.3q-5.2 1.8-10.4 0z" fill="#598b80" stroke={ink} strokeWidth=".45" />
+        <path d="m16 25.2.6 1.3 1.4.2-1 1 .2 1.4-1.2-.7-1.2.7.2-1.4-1-1 1.4-.2z" fill="#f2c668" stroke={ink} strokeWidth=".4" strokeLinejoin="round" />
       </g>
     </svg>
   );
 }
 
-// Order is stable — the day's index maps into this list, so reordering or
-// removing an entry changes which pet every past/future date resolves to.
 export const PETS = [
   { key: "cat", label: "Cat", Svg: Cat },
   { key: "fox", label: "Fox", Svg: Fox },
@@ -1671,6 +1573,11 @@ export const PETS = [
   { key: "leafy", label: "Leafy", Svg: Leafy },
   { key: "nova", label: "Nova", Svg: Nova },
   { key: "cinder", label: "Lion", Svg: Lion },
+  { key: "hoot", label: "Hoot", Svg: Hoot },
+  { key: "byte", label: "Byte", Svg: Byte },
+  { key: "pebble", label: "Pebble", Svg: Pebble },
+  { key: "prickle", label: "Prickle", Svg: Prickle },
+  { key: "luna", label: "Luna", Svg: Luna, art: "sprite" },
 ];
 
 // The rover shipped as a turtle originally and admin configs saved in prod may

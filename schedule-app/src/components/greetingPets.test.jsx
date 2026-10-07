@@ -71,7 +71,7 @@ describe("signature micro-motion", () => {
 
   it("gives every non-premium pet one", () => {
     for (const pet of PETS) {
-      if (PREMIUM.includes(pet.key)) continue;
+      if (PREMIUM.includes(pet.key) || pet.art === "sprite") continue;
       const html = renderToStaticMarkup(<pet.Svg />);
       expect(html, `${pet.key} has no dg-pet-sig element`).toContain("dg-pet-sig");
     }
@@ -118,6 +118,7 @@ describe("signature micro-motion", () => {
 describe("mood posture", () => {
   it("gives every pet a part that carries the droop", () => {
     for (const pet of PETS) {
+      if (pet.art === "sprite") continue; // authored frames carry the posture
       const html = renderToStaticMarkup(<pet.Svg />);
       const hasEars = html.includes("dg-pet-ear-left") && html.includes("dg-pet-ear-right");
       const hasWings = html.includes("dg-pet-wing-left") && html.includes("dg-pet-wing-right");

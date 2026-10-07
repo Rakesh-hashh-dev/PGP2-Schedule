@@ -15,7 +15,7 @@
 // out of reach again.
 import { describe, it, expect } from "vitest";
 import { model, milestones, reachedAt, termShape, PROFILES } from "../../scripts/xp-model.mjs";
-import { DEVOTION_UNLOCKS, MAX_LEVEL, UNLOCKS, xpToReach } from "./pet.js";
+import { DEVOTION_COMPANIONS, MAX_LEVEL, UNLOCKS, xpToReach } from "./pet.js";
 
 const runs = Object.fromEntries(
   Object.entries(PROFILES).map(([name, profile]) => [name, model(profile)])
@@ -80,7 +80,7 @@ describe("the term can actually deliver the roster", () => {
   it("keeps the companions ahead of the cosmetics they are gated beside", () => {
     // Every devotion companion must sit at a tier a real student reaches, which
     // is what moving them from tiers 4 and 8 down to 2 and 4 was about.
-    for (const tier of Object.keys(DEVOTION_UNLOCKS).map(Number)) {
+    for (const tier of DEVOTION_COMPANIONS.map(([tier]) => Number(tier))) {
       const need = xpToReach(MAX_LEVEL) + tier * runs.engaged.rates.dev;
       expect(reachedAt(need, runs.engaged), `devotion ${tier} is out of reach`).not.toBeNull();
     }

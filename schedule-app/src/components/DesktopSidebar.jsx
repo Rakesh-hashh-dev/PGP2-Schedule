@@ -12,6 +12,13 @@ import {
 } from "lucide-react";
 import IndiaFlagIcon from "./IndiaFlagIcon.jsx";
 import SbLink from "./SbLink.jsx";
+import { useNavView } from "../lib/navView.js";
+
+// Admin row sits outside NAV_ITEMS; same store-driven highlight as SbLink.
+function SbAdminLink({ view, children, ...rest }) {
+  const on = (useNavView() ?? view) === "admin";
+  return <button className={`sb-link${on ? " on" : ""}`} aria-current={on ? "page" : undefined} {...rest}>{children}</button>;
+}
 import { NAV_GROUPS, itemsForGroup } from "../lib/navItems.js";
 // SidebarClassStatus is intentionally parked for a future sidebar iteration.
 // import SidebarClassStatus from "./SidebarClassStatus.jsx";
@@ -77,7 +84,7 @@ export default function DesktopSidebar({
     <SbLink
       key={item.id}
       item={item}
-      active={Boolean(item.view) && view === item.view}
+      view={view}
       badge={item.badge && showBadge(item.badge.key) ? item.badge.label : null}
       count={item.count ? counts[item.count] : 0}
       onSelect={onSelect}
@@ -326,9 +333,9 @@ export default function DesktopSidebar({
           <>
             <div className="sb-nav-label sb-nav-label-admin">Admin</div>
             <nav className="sb-nav sb-nav-static">
-              <button className={`sb-link${view === "admin" ? " on" : ""}`} aria-current={view === "admin" ? "page" : undefined} onMouseEnter={e => showSbTip(e, "Admin Tools")} onMouseLeave={hideSbTip} onClick={() => { setView("admin"); setCompareTarget(null); hideSbTip(); }}>
+              <SbAdminLink view={view} onMouseEnter={e => showSbTip(e, "Admin Tools")} onMouseLeave={hideSbTip} onClick={() => { setView("admin"); setCompareTarget(null); hideSbTip(); }}>
                 <Shield size={18} strokeWidth={1.85} aria-hidden="true" /><span className="sb-link-label">Admin Tools</span>
-              </button>
+              </SbAdminLink>
             </nav>
           </>
         )}

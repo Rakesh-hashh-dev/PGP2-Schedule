@@ -22,7 +22,7 @@
 import { readFileSync } from "fs";
 import { dirname, resolve } from "path";
 import { fileURLToPath } from "url";
-import { XP, CARE_DAILY_CAP, MAX_LEVEL, MAX_DEVOTION, DEVOTION_STEP, DEVOTION_UNLOCKS, xpToReach } from "../src/lib/pet.js";
+import { XP, CARE_DAILY_CAP, MAX_LEVEL, MAX_DEVOTION, DEVOTION_STEP, DEVOTION_COMPANIONS, xpToReach } from "../src/lib/pet.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -111,7 +111,7 @@ export function milestones(run) {
     ["Spark", "Lv 11", xpToReach(11)],
     ["Leafy", `Lv ${MAX_LEVEL}`, run.cap],
   ];
-  for (const [tier, key] of Object.entries(DEVOTION_UNLOCKS)) {
+  for (const [tier, key] of DEVOTION_COMPANIONS) {
     rows.push([key[0].toUpperCase() + key.slice(1), `Dv ${tier}`, run.cap + Number(tier) * run.rates.dev]);
   }
   rows.push(["wardrobe done", `Dv ${MAX_DEVOTION}`, run.cap + MAX_DEVOTION * run.rates.dev]);

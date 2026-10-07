@@ -335,9 +335,11 @@ html[data-theme="dark"] .board-kind-badge-float {
 .board-empty span { font-size: 12.5px; color: var(--muted); }
 .board-empty .board-new-btn { margin-top: 10px; }
 
+/* Fade only: animating the blur radius re-renders the whole blurred
+   backdrop every frame; the static blur below fades in with the opacity. */
 @keyframes backdrop-in {
-  from { opacity: 0; backdrop-filter: blur(0px); }
-  to { opacity: 1; backdrop-filter: blur(6px); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* ── Composer modal ── */

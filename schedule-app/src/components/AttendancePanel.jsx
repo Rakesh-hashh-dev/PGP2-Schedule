@@ -342,7 +342,7 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
                 </button>
               )}
             </div>
-            <div className={`atx-history-drawer${open ? " open" : ""}`} aria-hidden={!open} inert={!open ? "" : undefined}>
+            <div className={`atx-history-drawer${open ? " open" : ""}`} aria-hidden={!open} inert={!open}>
               <div className="atx-history-drawer-inner">
                 {canExpand && (
                   <CourseHistory

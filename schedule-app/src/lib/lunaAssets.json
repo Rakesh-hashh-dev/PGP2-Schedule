@@ -1,0 +1,52 @@
+{
+  "width": 192,
+  "height": 210,
+  "sourceSha256": "f35720b660377ab8aa3a43c96a7c78764b3a78f81340ed404dedd812342fcd36",
+  "states": {
+    "idle": {
+      "frames": 12,
+      "durationMs": 1440,
+      "file": "/pets/luna/idle.webp"
+    },
+    "run-right": {
+      "frames": 16,
+      "durationMs": 1920,
+      "file": "/pets/luna/run-right.webp"
+    },
+    "run-left": {
+      "frames": 16,
+      "durationMs": 1920,
+      "file": "/pets/luna/run-left.webp"
+    },
+    "wave": {
+      "frames": 8,
+      "durationMs": 960,
+      "file": "/pets/luna/wave.webp"
+    },
+    "jump": {
+      "frames": 10,
+      "durationMs": 1200,
+      "file": "/pets/luna/jump.webp"
+    },
+    "rest": {
+      "frames": 16,
+      "durationMs": 1920,
+      "file": "/pets/luna/rest.webp"
+    },
+    "wait": {
+      "frames": 12,
+      "durationMs": 1440,
+      "file": "/pets/luna/wait.webp"
+    },
+    "think": {
+      "frames": 12,
+      "durationMs": 1440,
+      "file": "/pets/luna/think.webp"
+    },
+    "review": {
+      "frames": 12,
+      "durationMs": 1440,
+      "file": "/pets/luna/review.webp"
+    }
+  }
+}

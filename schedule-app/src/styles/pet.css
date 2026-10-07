@@ -705,3 +705,6 @@ html[data-theme="dark"] .xp-toast-streak-badge {
   }
 }
 
+
+/* Cohort motion policy also applies while a care reaction is active. */
+.pet-identity-pet[data-motion="off"] { animation: none; transition: none; }

@@ -379,7 +379,11 @@ html[data-theme="dark"] .bar .logo {
   -webkit-backdrop-filter: blur(20px) saturate(150%);
   pointer-events: none;
   opacity: 0;
-  transition: opacity 160ms cubic-bezier(.16, 1, .3, 1), transform 160ms cubic-bezier(.16, 1, .3, 1);
+  /* Hidden, not just transparent, while closed: an invisible element with a
+     backdrop blur still gets composited. The visibility flip waits out the
+     fade so the close animation still plays. */
+  visibility: hidden;
+  transition: opacity 160ms cubic-bezier(.16, 1, .3, 1), transform 160ms cubic-bezier(.16, 1, .3, 1), visibility 0s linear 160ms;
   z-index: 200;
   letter-spacing: .01em;
 }
@@ -409,6 +413,8 @@ html[data-theme="dark"] .bar .logo {
 .tb-wrap:hover .tooltip,
 .tb-wrap:has(button:focus-visible) .tooltip {
   opacity: 1;
+  visibility: visible;
+  transition-delay: 0s;
   transform: translateX(-50%) translateY(0) scale(1);
 }
 
@@ -1468,6 +1474,11 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 .dg-pet-wing-right { transform-origin: 0 100%; animation: dgPetWingRight 2.35s ease-in-out infinite; }
 .dg-pet-tuft { transform-origin: 50% 100%; animation: dgPetTuft 2.05s ease-in-out infinite; }
 .dg-pet-accessory { transform-origin: 50% 0; animation: dgPetAccessory 2.4s ease-in-out infinite; }
+/* Off-screen pets hold still (lib/petMotion.js sets the attribute): their
+   endless loops otherwise keep costing style and paint work nobody sees. */
+.dg-pet[data-offscreen],
+.dg-pet[data-offscreen]::before,
+.dg-pet[data-offscreen] * { animation-play-state: paused !important; }
 @keyframes dgPetBob {
   0%, 100% { transform: translateY(0) rotate(0); }
   45% { transform: translateY(-2px) rotate(var(--pet-turn)); }
@@ -2099,6 +2110,12 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 .dg-pet-sig-axolotl-bubbles { animation-name: dgPetSigBubbles; animation-duration: 3.2s; animation-timing-function: ease-in; }
 @keyframes dgPetSigGills { 0%, 100% { transform: rotate(0) scale(1); } 48% { transform: rotate(-7deg) scale(1.06); } }
 @keyframes dgPetSigBubbles { 0%, 20% { opacity: 0; transform: translateY(2px) scale(.72); } 42% { opacity: .85; } 100% { opacity: 0; transform: translateY(-5px) scale(1.08); } }
+
+/* New companion signatures share the same motion guards as the roster. */
+.dg-pet-sig-hoot { animation-name: dgPetSigSniff; animation-duration: 5.8s; }
+.dg-pet-sig-byte { animation-name: dgPetSigSniff; animation-duration: 3.4s; }
+.dg-pet-sig-pebble { animation-name: dgPetSigTwitch; animation-duration: 6.4s; }
+.dg-pet-sig-prickle { animation-name: dgPetSigSniff; animation-duration: 4.1s; }
 
 @media (prefers-reduced-motion: reduce) {
   .dg-pet, .dg-pet::before, .dg-pet *, .dg-pet-eyes, .dg-pet-tray { animation: none; }
@@ -6942,59 +6959,22 @@ html[data-theme="dark"] .timeline-today .nowtime {
 }
 
 /* ── Unified app motion ──────────────────────────────────────────────────
-   Native View Transitions keep the shell stable while the working surface
-   changes. The keyed .tf-page-stage animation below is the lightweight
-   fallback for browsers that do not expose document.startViewTransition. */
-.main-col {
-  view-transition-name: termflow-content;
-}
+   Views render in a React transition (see setView in App.jsx); the keyed
+   .tf-page-stage remounts on each view change and plays this entrance.
+   (Native View Transitions were dropped: they freeze the screen until the
+   new page has rendered, which read as lag on every heavy view.)
 
+   Opacity only, and `backwards` fill so nothing stays applied afterwards: a
+   transform on the stage — even a finished, filled `transform: none` —
+   makes it the containing block for every position:fixed overlay inside the
+   page, so dialogs like Manage alerts got centred on the full page height,
+   off-screen on desktop. */
 .tf-page-stage {
-  animation: tf-page-enter 210ms var(--motion-ease-standard) both;
+  animation: tf-page-enter 200ms ease-out backwards;
 }
 
 @keyframes tf-page-enter {
-  from {
-    opacity: 0;
-    transform: translateY(1px);
-  }
-
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@supports (view-transition-name: termflow-content) {
-  .tf-page-stage {
-    animation: none;
-  }
-
-  ::view-transition-old(root),
-  ::view-transition-new(root) {
-    animation: none;
-  }
-
-  ::view-transition-group(termflow-content) {
-    animation-duration: 0ms;
-  }
-
-  ::view-transition-old(termflow-content) {
-    animation: tf-view-old 110ms ease-in both;
-  }
-
-  ::view-transition-new(termflow-content) {
-    animation: tf-view-new 210ms var(--motion-ease-standard) 35ms both;
-  }
-}
-
-@keyframes tf-view-old {
-  to { opacity: 0; }
-}
-
-@keyframes tf-view-new {
   from { opacity: 0; }
-  to { opacity: 1; }
 }
 
 /* Navigation acknowledges a destination change without competing with the
@@ -7047,13 +7027,6 @@ html[data-theme="dark"] .timeline-today .nowtime {
   .tf-data-updated,
   :is(.filter-modal-overlay, .wn-overlay, .notif-settings-backdrop, .fs-modal-overlay, .push-help-overlay),
   .notif-settings-sheet {
-    animation: none !important;
-  }
-
-  ::view-transition-old(root),
-  ::view-transition-new(root),
-  ::view-transition-old(termflow-content),
-  ::view-transition-new(termflow-content) {
     animation: none !important;
   }
 }
@@ -12426,12 +12399,16 @@ html[data-theme="dark"] .bnav {
   opacity: 0;
   pointer-events: none;
   transform: translateX(-10px) scale(.96);
-  transition: opacity .25s, transform .3s var(--ease-out-strong);
+  /* visibility: see .tooltip — keeps the closed popover's blur uncomposited */
+  visibility: hidden;
+  transition: opacity .25s, transform .3s var(--ease-out-strong), visibility 0s linear .3s;
   z-index: 300;
 }
 
 .sb-profile-pop.sb-open {
   opacity: 1;
+  visibility: visible;
+  transition-delay: 0s;
   pointer-events: auto;
   transform: translateX(0) scale(1);
 }

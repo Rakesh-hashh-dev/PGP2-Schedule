@@ -6,7 +6,7 @@ import {
 import { PETS, getPetByKey } from "./greetingPets.jsx";
 import {
   CARE_ACTIONS, HATS, COATS, NECKWEAR, TITLES, MAX_DEVOTION, MAX_LEVEL,
-  STARTER_KEYS, UNLOCKS, DEVOTION_UNLOCKS, BUDDY_DEVOTION, STREAK_CAP,
+  STARTER_KEYS, UNLOCKS, DEVOTION_COMPANIONS, BUDDY_DEVOTION, STREAK_CAP,
   careLeft, devotionFor, hatRequirement, hatsFor, hoursSince, isAdopted,
   levelProgress, moodExplainFor, unlockedFor, visibleHat, xpBySource, xpOf,
   growthStageFor, nextGrowthStage,
@@ -96,7 +96,7 @@ function unlockLevel(key) {
  * what the roster rendered the moment the first devotion pet was registered.
  */
 function unlockRequirement(key) {
-  const tier = Object.entries(DEVOTION_UNLOCKS).find(([, k]) => k === key);
+  const tier = DEVOTION_COMPANIONS.find(([, k]) => k === key);
   if (tier) return `Dv ${tier[0]}`;
   const level = unlockLevel(key);
   return level ? `Lv ${level}` : null;
@@ -115,8 +115,9 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
   const { mood, because } = adopted
     ? moodExplainFor(pet, now, petContext)
     : { mood: "content", because: "" };
-  const beat = usePetBeat(mood, adopted);
-  const gaze = usePetGaze(true);
+  const motionEnabled = petSettings?.motion !== false;
+  const beat = usePetBeat(mood, adopted && motionEnabled && petSettings?.signatures !== false, pet?.petKey, careFeedback?.action);
+  const gaze = usePetGaze(motionEnabled);
   const left = careLeft(pet, now);
   const unlocked = useMemo(() => new Set(unlockedFor(pet)), [pet]);
   const sources = useMemo(() => xpBySource(pet), [pet]);
@@ -188,7 +189,7 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
               <span
                 className="dg-pet pet-hero"
                 data-pet={adoptChoice}
-                data-motion="on"
+                data-motion={motionEnabled ? "on" : "off"}
                 data-mood="excited"
                 aria-hidden="true"
                 {...gaze}
@@ -209,7 +210,7 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
                   aria-pressed={adoptChoice === key}
                   onClick={() => setAdoptChoice(key)}
                 >
-                  <span className="dg-pet pet-slot-art" data-pet={key} data-motion="on" aria-hidden="true">
+                  <span className="dg-pet pet-slot-art" data-pet={key} data-motion={motionEnabled ? "on" : "off"} aria-hidden="true">
                     <option.Svg />
                   </span>
                   <span className="pet-slot-name">{option.label}</span>
@@ -266,10 +267,10 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
               key={careFeedback?.at || "idle"}
               className="dg-pet pet-identity-pet"
               data-pet={current.key}
-              data-motion="on"
+              data-motion={motionEnabled ? "on" : "off"}
               data-stage={stage.key}
               data-mood={mood}
-              data-beat={beat || undefined}
+              data-beat={!careFeedback ? beat || undefined : undefined}
               data-sig={signaturesOn ? undefined : "off"}
               data-accessory={accessoryOn ? "on" : "off"}
               data-coat={coat || undefined}
@@ -287,7 +288,7 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
               <span
                 className="dg-pet pet-identity-buddy"
                 data-pet={buddy.key}
-                data-motion="on"
+                data-motion={motionEnabled ? "on" : "off"}
                 data-mood={mood}
                 data-coat={coat || undefined}
                 aria-hidden="true"
@@ -561,7 +562,7 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
                 <span
                   className="dg-pet pet-slot-art"
                   data-pet={option.key}
-                  data-motion={isCurrent ? "on" : "off"}
+                  data-motion={isCurrent && motionEnabled ? "on" : "off"}
                   aria-hidden="true"
                 >
                   <option.Svg />
@@ -614,8 +615,8 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
           Switching is free — XP belongs to you, not the animal.
           {progress.level < MAX_LEVEL
             ? " Keep levelling to meet the rest."
-            : devotion.tier < Math.max(...Object.keys(DEVOTION_UNLOCKS).map(Number))
-              && " Two more are out there, earned by devotion rather than levels."}
+            : devotion.tier < Math.max(...DEVOTION_COMPANIONS.map(([tier]) => Number(tier)))
+              && " More companions are out there, earned by devotion rather than levels."}
         </p>
       </section>
       )}

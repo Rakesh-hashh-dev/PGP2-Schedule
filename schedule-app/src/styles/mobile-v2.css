@@ -3568,34 +3568,15 @@
   }
 }
 
-/* Keep mobile navigation still while only the destination content crossfades.
-   The keyed stage also supplies the fallback when View Transitions are absent. */
+/* Mobile keeps the navigation still and uses a slightly shorter entrance
+   for the keyed page stage. */
 @media (max-width: 1200px) {
-  .mobile-ui-v2 .main-col {
-    view-transition-name: none;
-  }
-
   .mobile-ui-v2 .tf-page-stage {
-    animation: tf-page-enter 190ms ease-out both;
+    animation: tf-page-enter 190ms ease-out backwards;
   }
 
   .mobile-ui-v2 .tf-page-stage :is(.assign-page, .exam-page, .att-page) {
     animation: none;
-  }
-
-  @supports (view-transition-name: termflow-content) {
-    .mobile-ui-v2 .tf-page-stage {
-      view-transition-name: termflow-content;
-      animation: none;
-    }
-
-    ::view-transition-old(termflow-content) {
-      animation: tf-view-old 120ms ease-in both;
-    }
-
-    ::view-transition-new(termflow-content) {
-      animation: tf-view-new 190ms ease-out 20ms both;
-    }
   }
 }
 

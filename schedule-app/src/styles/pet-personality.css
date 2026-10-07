@@ -1,0 +1,119 @@
+/* All conditional parts have a complete neutral pose when motion is disabled. */
+.dg-pet {
+  --pet-face-base: inline; --pet-mouth-base: inline;
+  --pet-face-joy: none; --pet-face-rest: none; --pet-face-surprise: none;
+  --pet-face-brows: none; --pet-mouth-smile: none; --pet-mouth-yawn: none; --pet-mouth-oh: none;
+}
+.dg-pet .dg-pet-eyes { display: var(--pet-face-base); }
+.dg-pet .dg-pet-mouth-base { display: var(--pet-mouth-base); }
+.dg-pet .dg-pet-expression-joy { display: var(--pet-face-joy); }
+.dg-pet .dg-pet-expression-rest { display: var(--pet-face-rest); }
+.dg-pet .dg-pet-expression-surprise { display: var(--pet-face-surprise); }
+.dg-pet .dg-pet-expression-brows { display: var(--pet-face-brows); }
+.dg-pet .dg-pet-expression-smile { display: var(--pet-mouth-smile); }
+.dg-pet .dg-pet-expression-yawn { display: var(--pet-mouth-yawn); }
+.dg-pet .dg-pet-expression-oh { display: var(--pet-mouth-oh); }
+.dg-pet .dg-pet-expression-heart { display: none; }
+.dg-pet:where([data-mood="happy"], [data-mood="playful"], [data-mood="excited"], [data-mood="celebrating"], [data-mood="proud"], [data-mood="birthday"], [data-mood="festive"]) {
+  --pet-face-base: none; --pet-face-joy: inline; --pet-mouth-base: none; --pet-mouth-smile: inline;
+}
+.dg-pet:where([data-mood="sleepy"], [data-mood="tired"], [data-mood="cozy"]) {
+  --pet-face-base: none; --pet-face-rest: inline;
+}
+.dg-pet:where([data-mood="curious"], [data-mood="focused"], [data-mood="restless"]) { --pet-face-brows: inline; }
+.dg-pet:where([data-beat="slowblink"], [data-beat="dreamyblink"], [data-beat="tuck"], [data-beat="yawn"]) {
+  --pet-face-base: none; --pet-face-joy: none; --pet-face-rest: inline; --pet-face-brows: none;
+}
+.dg-pet:where([data-beat="yawn"]) { --pet-mouth-base: none; --pet-mouth-smile: none; --pet-mouth-yawn: inline; }
+.dg-pet:where([data-beat="peek"], [data-beat="sidepeek"], [data-beat="uncurl"]) {
+  --pet-face-base: none; --pet-face-joy: none; --pet-face-rest: none; --pet-face-surprise: inline;
+  --pet-mouth-base: none; --pet-mouth-smile: none; --pet-mouth-oh: inline;
+}
+/* Care wins over idle expressions and quiet moods. */
+.dg-pet:where([data-reaction]) {
+  --pet-face-base: none; --pet-face-rest: none; --pet-face-surprise: none; --pet-face-brows: none;
+  --pet-mouth-base: none; --pet-mouth-yawn: none; --pet-mouth-oh: none; --pet-mouth-smile: inline; --pet-face-joy: inline;
+}
+.dg-pet:where([data-pet="byte"], [data-pet="rover"]):where([data-reaction="play"]) .dg-pet-expression-joy { display: none; }
+.dg-pet:where([data-pet="byte"], [data-pet="rover"]):where([data-reaction="play"]) .dg-pet-expression-heart { display: inline; }
+
+/* Wearable offsets use SVG units, scaled by the existing overlay factor. */
+.dg-pet[data-pet="hoot"] { --pet-hat-y: -1px; --pet-neck-y: .1px; --pet-neck-scale: .88; }
+.dg-pet[data-pet="byte"] { --pet-hat-y: -1px; --pet-neck-y: -1.8px; --pet-neck-scale: .8; }
+.dg-pet[data-pet="pebble"] { --pet-hat-x: 7.75px; --pet-hat-y: 3px; --pet-hat-scale: .65; --pet-neck-x: 7.75px; --pet-neck-y: .5px; --pet-neck-scale: .65; }
+.dg-pet[data-pet="prickle"] { --pet-hat-x: 3.75px; --pet-hat-y: 1.6px; --pet-hat-scale: .82; --pet-neck-x: 3.75px; --pet-neck-y: 2.2px; --pet-neck-scale: .8; }
+
+/* Body choreography. A sequence is short, with its last frame back at rest. */
+.dg-pet[data-beat] { animation-duration: 1.6s; animation-iteration-count: 1; animation-fill-mode: both; }
+.dg-pet:where([data-beat="waddle"], [data-beat="shuffle"], [data-beat="chassis"]) { animation-name: dgPetStep; }
+.dg-pet:where([data-beat="doublehop"], [data-beat="hop"], [data-beat="zap"]) { animation-name: dgPetDoubleHop; }
+.dg-pet:where([data-beat="bow"], [data-beat="peck"], [data-beat="charge"]) { animation-name: dgPetBow; }
+.dg-pet:where([data-beat="headtilt"], [data-beat="think"], [data-beat="sidepeek"], [data-beat="stargaze"], [data-beat="orbit"]) { animation-name: dgPetPonder; }
+.dg-pet:where([data-beat="float"], [data-beat="sway"], [data-beat="paddle"], [data-beat="unfurl"], [data-beat="spore"]) { animation-name: dgPetFloat; }
+.dg-pet:where([data-beat="slowstretch"], [data-beat="proudpose"]) { animation-name: dgPetSlowStretch; }
+.dg-pet:where([data-beat="tuck"], [data-beat="hide"], [data-beat="curl"]) { animation-name: dgPetTuck; }
+.dg-pet:where([data-beat="uncurl"], [data-beat="maneshake"]) { animation-name: dgPetBeatShake; }
+@keyframes dgPetStep { 0%, 100% { transform: translateX(0) rotate(0); } 22% { transform: translateX(-2px) rotate(-7deg); } 48% { transform: translateX(2px) rotate(7deg); } 72% { transform: translateX(-1px) rotate(-4deg); } }
+@keyframes dgPetDoubleHop { 0%, 100% { transform: translateY(0) scale(1); } 15%, 53% { transform: translateY(1px) scale(1.04, .95); } 32%, 70% { transform: translateY(-5px) scale(.97, 1.05); } 45%, 85% { transform: translateY(0) scale(1); } }
+@keyframes dgPetBow { 0%, 100% { transform: rotate(0) scale(1); } 30%, 48% { transform: translateY(2px) rotate(8deg) scale(1.04, .91); } 66% { transform: translateY(-1px) rotate(-3deg) scale(.98, 1.04); } }
+@keyframes dgPetPonder { 0%, 100% { transform: rotate(0); } 28%, 47% { transform: rotate(-9deg) translateY(-1px); } 68%, 80% { transform: rotate(5deg); } }
+@keyframes dgPetFloat { 0%, 100% { transform: translateY(0) rotate(0); } 30% { transform: translateY(-3px) rotate(-3deg); } 65% { transform: translateY(-2px) rotate(3deg); } }
+@keyframes dgPetSlowStretch { 0%, 100% { transform: scale(1); } 36%, 56% { transform: translateY(-2px) scale(.97, 1.08); } 80% { transform: scale(1.02, .98); } }
+@keyframes dgPetTuck { 0%, 100% { transform: scale(1); } 32%, 66% { transform: translateY(2px) scale(.94, .88); } }
+
+/* Part choreography makes an action belong to this animal, not just its bob. */
+.dg-pet .dg-pet-paw, .dg-pet .dg-pet-antenna, .dg-pet .dg-pet-neck-stretch,
+.dg-pet .dg-pet-unfurled, .dg-pet .dg-pet-glasses, .dg-pet .dg-pet-mane { transform-box: fill-box; transform-origin: 50% 80%; }
+.dg-pet .dg-pet-gesture { display: none; }
+.dg-pet:where([data-beat="groom"], [data-beat="covereyes"], [data-beat="clap"], [data-beat="pawrub"], [data-beat="bellypat"], [data-beat="pawlift"]) .dg-pet-gesture { display: inline; }
+.dg-pet:where([data-beat="groom"], [data-beat="covereyes"], [data-beat="pawlift"]) .dg-pet-paw-left { animation: dgPetPawLift 1.6s ease-in-out both; }
+.dg-pet:where([data-beat="covereyes"]) .dg-pet-paw-right { animation: dgPetPawCover 1.6s ease-in-out both; }
+.dg-pet:where([data-beat="clap"], [data-beat="pawrub"], [data-beat="bellypat"]) .dg-pet-paw-left { animation: dgPetClapLeft 1.6s ease-in-out both; }
+.dg-pet:where([data-beat="clap"], [data-beat="pawrub"], [data-beat="bellypat"]) .dg-pet-paw-right { animation: dgPetClapRight 1.6s ease-in-out both; }
+.dg-pet:where([data-beat="tailcurl"], [data-beat="tailwag"], [data-beat="tailflick"]) .dg-pet-tail { animation: dgPetTailGreeting 1.6s ease-in-out both; }
+.dg-pet:where([data-beat="eartwitch"], [data-beat="earperk"], [data-beat="earlisten"]) .dg-pet-ear-left { animation: dgPetEarListen 1.6s ease-in-out both; }
+.dg-pet:where([data-beat="gillripple"]) .dg-pet-ear { animation: dgPetGillWave 1.6s ease-in-out both; }
+.dg-pet:where([data-beat="nosetwitch"], [data-beat="nosewiggle"], [data-beat="sniff"]) .dg-pet-sig { animation: dgPetNoseTick 1.6s ease-in-out both; }
+.dg-pet:where([data-beat="flutter"], [data-reaction="play"]) .dg-pet-wing { animation: dgPetFlutter 1.6s ease-in-out both; }
+.dg-pet:where([data-beat="wave"]) .dg-pet-wing-right { animation: dgPetWave 1.6s ease-in-out both; }
+.dg-pet:where([data-beat="glasses"]) .dg-pet-glasses { animation: dgPetGlasses 1.6s ease-in-out both; }
+.dg-pet:where([data-beat="think"]) .dg-pet-wing-left { animation: dgPetWingThink 1.6s ease-in-out both; }
+.dg-pet:where([data-beat="antenna"]) .dg-pet-antenna { animation: dgPetEarListen 1.6s ease-in-out both; }
+.dg-pet:where([data-beat="scan"]) .dg-pet-eyes { animation: dgPetScan 1.6s ease-in-out both; }
+.dg-pet:where([data-beat="neckstretch"], [data-beat="hide"]) .dg-pet-neck-stretch { animation: dgPetNeckStretch 1.6s ease-in-out both; }
+.dg-pet:where([data-beat="hide"]) .dg-pet-neck-stretch { animation-name: dgPetNeckHide; }
+.dg-pet:where([data-beat="curl"], [data-beat="uncurl"]) .dg-pet-unfurled { animation: dgPetCurl 1.6s ease-in-out both; }
+.dg-pet:where([data-beat="uncurl"]) .dg-pet-unfurled { animation-name: dgPetUncurl; }
+.dg-pet:where([data-beat="unfurl"]) .dg-pet-vine-leaf { animation: dgPetUnfurl 1.6s ease-in-out both; }
+.dg-pet:where([data-beat="spore"]) .dg-pet-spore { animation-duration: 1s; }
+.dg-pet:where([data-beat="orbit"]) .dg-pet-orbit { animation-duration: 1.6s; }
+.dg-pet:where([data-beat="maneshake"]) .dg-pet-mane { animation: dgPetManeShake 1.6s ease-in-out both; }
+.dg-pet:where([data-reaction="treat"]) .dg-pet-expression-smile { animation: dgPetChew 1s ease-in-out both; transform-box: fill-box; transform-origin: center; }
+@keyframes dgPetPawLift { 0%, 100% { transform: translate(0, 0); } 32%, 60% { transform: translate(2px, -7px) rotate(20deg); } 45% { transform: translate(3px, -6px) rotate(35deg); } }
+@keyframes dgPetPawCover { 0%, 100% { transform: translate(0, 0); } 32%, 60% { transform: translate(-2px, -8px) rotate(-20deg); } }
+@keyframes dgPetClapLeft { 0%, 100% { transform: translateX(0); } 28%, 55%, 78% { transform: translate(4px, -2px) rotate(15deg); } 40%, 67% { transform: translate(2px, -1px); } }
+@keyframes dgPetClapRight { 0%, 100% { transform: translateX(0); } 28%, 55%, 78% { transform: translate(-4px, -2px) rotate(-15deg); } 40%, 67% { transform: translate(-2px, -1px); } }
+@keyframes dgPetTailGreeting { 0%, 100% { transform: rotate(0); } 20%, 60% { transform: rotate(-20deg); } 40%, 80% { transform: rotate(18deg); } }
+@keyframes dgPetEarListen { 0%, 100% { transform: rotate(0); } 22%, 44% { transform: rotate(-17deg); } 34%, 62% { transform: rotate(9deg); } }
+@keyframes dgPetGillWave { 0%, 100% { transform: scale(1); } 28%, 70% { transform: scale(1.15) rotate(-7deg); } 48% { transform: scale(.94) rotate(5deg); } }
+@keyframes dgPetNoseTick { 0%, 100% { transform: translateY(0); } 25%, 50%, 75% { transform: translateY(-.6px); } 35%, 60% { transform: translateY(.3px); } }
+@keyframes dgPetFlutter { 0%, 100% { transform: rotate(0); } 20%, 50%, 80% { transform: rotate(-18deg); } 35%, 65% { transform: rotate(13deg); } }
+@keyframes dgPetWave { 0%, 100% { transform: rotate(0); } 22%, 54% { transform: rotate(-50deg); } 38%, 70% { transform: rotate(-25deg); } }
+@keyframes dgPetWingThink { 0%, 100% { transform: rotate(0); } 30%, 70% { transform: rotate(-28deg) translateY(-2px); } }
+@keyframes dgPetGlasses { 0%, 100% { transform: translateY(0); } 30%, 62% { transform: translateY(-.7px) rotate(-2deg); } }
+@keyframes dgPetScan { 0%, 100% { transform: translateX(0); } 25%, 40% { transform: translateX(-.8px); } 60%, 75% { transform: translateX(.8px); } }
+@keyframes dgPetNeckStretch { 0%, 100% { transform: translateX(0); } 35%, 65% { transform: translate(1.2px, -1px) rotate(-5deg); } }
+@keyframes dgPetNeckHide { 0%, 100% { transform: translateX(0); } 35%, 65% { transform: translate(-4px, 2px) scale(.8); } }
+@keyframes dgPetCurl { 0%, 100% { transform: scale(1); opacity: 1; } 35%, 65% { transform: scale(.35); opacity: 0; } }
+@keyframes dgPetUncurl { 0% { transform: scale(.35); opacity: 0; } 32% { transform: scale(1.08); opacity: 1; } 58% { transform: scale(.97); } 100% { transform: scale(1); opacity: 1; } }
+@keyframes dgPetUnfurl { 0%, 100% { transform: scale(1); } 25% { transform: scale(.6); } 55% { transform: scale(1.18); } }
+@keyframes dgPetManeShake { 0%, 100% { transform: rotate(0); } 25%, 65% { transform: rotate(-6deg); } 45%, 80% { transform: rotate(6deg); } }
+@keyframes dgPetChew { 0%, 100% { transform: scaleY(1); } 25%, 65% { transform: scaleY(.4); } 45%, 85% { transform: scaleY(1.1); } }
+
+/* This sheet follows the mood rules. Equal-specificity guards keep every
+   one-shot still in motion-off previews and when the OS preference changes. */
+.dg-pet[data-motion="off"], .dg-pet[data-motion="off"] *,
+.dg-pet[data-sig="off"]:where([data-beat]), .dg-pet[data-sig="off"]:where([data-beat]) * { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .dg-pet[data-beat], .dg-pet[data-reaction], .dg-pet *, .dg-pet[data-beat] *, .dg-pet[data-reaction] * { animation: none; transition: none; }
+}

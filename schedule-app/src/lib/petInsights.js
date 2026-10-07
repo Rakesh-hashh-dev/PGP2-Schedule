@@ -1,5 +1,5 @@
 import {
-  BUDDY_DEVOTION, COATS, DEVOTION_STEP, DEVOTION_UNLOCKS, HATS,
+  BUDDY_DEVOTION, COATS, DEVOTION_STEP, DEVOTION_COMPANIONS, HATS,
   MAX_LEVEL, NECKWEAR, STARTER_KEYS, UNLOCKS, XP_SOURCES, devotionFor, levelFor,
   normalize, unlockedFor, xpOf, xpToReach,
 } from "./pet.js";
@@ -25,7 +25,7 @@ export function unlockRoadmap(state, { wardrobe = true, hatsOff = [] } = {}) {
   for (const [at, key] of Object.entries(UNLOCKS)) {
     if (!unlocked.has(key)) add("level", Number(at), "companion", labelFor(key));
   }
-  for (const [at, key] of Object.entries(DEVOTION_UNLOCKS)) {
+  for (const [at, key] of DEVOTION_COMPANIONS) {
     if (!unlocked.has(key)) add("devotion", Number(at), "companion", labelFor(key));
   }
   if (wardrobe) {
@@ -104,7 +104,9 @@ export function recentPetMoments(state, limit = 5, now = new Date()) {
       if (UNLOCKS[level]) moments.push({ day, kind: "unlock", label: `${labelFor(UNLOCKS[level])} unlocked`, count: 1, xp: 0 });
     }
     for (let tier = beforeTier + 1; tier <= afterTier; tier++) {
-      if (DEVOTION_UNLOCKS[tier]) moments.push({ day, kind: "unlock", label: `${labelFor(DEVOTION_UNLOCKS[tier])} unlocked`, count: 1, xp: 0 });
+      for (const [at, key] of DEVOTION_COMPANIONS) {
+        if (Number(at) === tier) moments.push({ day, kind: "unlock", label: `${labelFor(key)} unlocked`, count: 1, xp: 0 });
+      }
     }
   }
   if (s.adoptedAt && s.adoptedAt >= cutoff && s.adoptedAt <= through) {
@@ -118,7 +120,7 @@ export function petMilestones(state) {
   const xp = xpOf(state);
   const level = levelFor(xp);
   const companions = unlockedFor(state).length;
-  const totalCompanions = STARTER_KEYS.length + Object.keys(UNLOCKS).length + Object.keys(DEVOTION_UNLOCKS).length;
+  const totalCompanions = STARTER_KEYS.length + Object.keys(UNLOCKS).length + DEVOTION_COMPANIONS.length;
   return [
     { key: "friend", label: "First friend", detail: "Adopt a companion", value: normalize(state).adoptedAt ? 1 : 0, target: 1, ready: true },
     { key: "level4", label: "Study partner", detail: "Reach level 4", value: level, target: 4, ready: true },

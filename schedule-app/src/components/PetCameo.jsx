@@ -44,7 +44,7 @@ export default function PetCameo({
       // wardrobe straight (see --pet-overlay-k in styles.css).
       style={{ width: size, height: size, "--pet-z": `${Math.round(size * 0.22)}px`, "--pet-overlay-k": size / 40 }}
       data-pet={art.key}
-      data-motion={motion ? "on" : "off"}
+      data-motion={motion && petSettings?.motion !== false ? "on" : "off"}
       data-mood={mood}
       data-coat={visibleCoat(pet, { wardrobe }) || undefined}
       data-neck={visibleNeckwear(pet, { wardrobe }) || undefined}

@@ -7,6 +7,9 @@
   border-radius: 16px;
   padding: 14px 16px;
   animation: mess-in .45s var(--ease-out-strong) both;
+  /* The full-menu modal is portaled out, so nothing inside needs to escape;
+     containment keeps the open/close reflow and repaint local to the card. */
+  contain: layout paint;
 }
 @keyframes mess-in {
   from { opacity: 0; transform: translateY(6px); }
@@ -19,37 +22,27 @@
 
 /* ── Open/close animation ──
    Both states stay mounted; height animates via grid-template-rows 0fr↔1fr
-   with a cross-fade. Asymmetric timing: opening is quick (duration on the
-   .is-open rules), closing eases out slower (duration on the base rules). */
+   with a cross-fade. One ease-out timing both ways: motion starts the moment
+   the state flips (the old in-out curve and .8s close read as lag), and the
+   outgoing layer fades faster than the incoming one so they never muddle. */
 .mess-collapse {
   display: grid;
   grid-template-rows: 0fr;
   opacity: 0;
+  transition: grid-template-rows 280ms var(--ease-out-strong), opacity 140ms ease-out;
 }
 .mess-clip { min-height: 0; overflow: hidden; }
 
-.mess-collapse-bar {
+.mess-collapse-bar,
+.mess-card.is-open .mess-collapse-exp {
   grid-template-rows: 1fr;
   opacity: 1;
-  /* closing: bar re-appears, slow */
-  transition: grid-template-rows .8s var(--ease-in-out-strong), opacity .55s ease .2s;
+  transition: grid-template-rows 280ms var(--ease-out-strong), opacity 220ms ease-out 40ms;
 }
 .mess-card.is-open .mess-collapse-bar {
   grid-template-rows: 0fr;
   opacity: 0;
-  /* opening: bar tucks away, fast */
-  transition: grid-template-rows .5s var(--ease-in-out-strong), opacity .25s ease;
-}
-
-.mess-collapse-exp {
-  /* closing: dropdown folds up, slow */
-  transition: grid-template-rows .8s var(--ease-in-out-strong), opacity .5s ease;
-}
-.mess-card.is-open .mess-collapse-exp {
-  grid-template-rows: 1fr;
-  opacity: 1;
-  /* opening: dropdown unfolds, fast */
-  transition: grid-template-rows .5s var(--ease-in-out-strong), opacity .35s ease .08s;
+  transition: grid-template-rows 280ms var(--ease-out-strong), opacity 140ms ease-out;
 }
 .mess-exp-inner { padding: 2px; }
 

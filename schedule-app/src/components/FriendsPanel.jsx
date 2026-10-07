@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import "../styles/friends.css";
-import { Copy, Link2, UserPlus, Users, Trash2, ArrowRight, Plus, X, Check, ChevronDown, ChevronUp, ChevronRight, RefreshCw, Globe, Lock, CheckCircle, AlertCircle, Info, AlertTriangle, Star, CalendarOff, Smile, BarChart3, CalendarPlus, BellRing, Coffee, BookOpen, Utensils, Dumbbell, Moon, MessageSquare, Pencil, Search, LayoutDashboard, GripVertical } from "lucide-react";
+import { Copy, Link2, Sparkles, UserPlus, Users, Trash2, ArrowRight, Plus, X, Check, ChevronDown, ChevronUp, ChevronRight, RefreshCw, Globe, Lock, CheckCircle, AlertCircle, Info, AlertTriangle, Star, CalendarOff, Smile, BarChart3, CalendarPlus, BellRing, Coffee, BookOpen, Utensils, Dumbbell, Moon, MessageSquare, Pencil, Search, LayoutDashboard, GripVertical } from "lucide-react";
 import { SkeletonText, EmptyState } from "./ui.jsx";
 import MeetupsStrip from "./Meetups.jsx";
 import { fetchMyNudges, scheduleNudge, cancelNudge } from "../lib/nudges.js";
@@ -19,6 +19,8 @@ import {
 import { createPoll, POLL_MARKER } from "../lib/polls.js";
 import { filterSocialFriends, SOCIAL_VIEW_ITEMS } from "../lib/socialWorkspace.js";
 import { fmtTime12 } from "../lib/datetime.js";
+
+const SHARE_HINT_KEY = "pgp2.share-hint-seen";
 import PollCard, { PollComposer } from "./PollCard.jsx";
 import { groupInvite, groupInviteUrl } from "../lib/groupInvites.js";
 
@@ -392,6 +394,18 @@ export default function FriendsPanel({
   const [friendFilter, setFriendFilter] = useState("all");
   const [workspaceSearch, setWorkspaceSearch] = useState("");
   const [showConnectModal, setShowConnectModal] = useState(false);
+  // One-time thought-cloud nudge pointing at "Add people": the share code
+  // lives inside that sheet and people kept missing it. Retires for good once
+  // they open the sheet, copy their code/link, or dismiss the cloud.
+  const [shareHintSeen, setShareHintSeen] = useState(() => {
+    try { return localStorage.getItem(SHARE_HINT_KEY) === "1"; } catch { return true; }
+  });
+  const retireShareHint = () => {
+    if (shareHintSeen) return;
+    setShareHintSeen(true);
+    try { localStorage.setItem(SHARE_HINT_KEY, "1"); } catch { }
+  };
+  const openConnect = () => { retireShareHint(); setShowConnectModal(true); };
 
   const [myCode, setMyCode] = useState(null);
   const isGenerating = !!userId && !myCode; // code still being fetched/created
@@ -651,6 +665,7 @@ export default function FriendsPanel({
   }, []);
 
   const myCodeDisplay = codeDisplayPart(myCode);
+  const showShareHint = !shareHintSeen && !!myCode && !showConnectModal;
 
   // In-app browsers (WhatsApp, Instagram, LinkedIn) often lack or block
   // navigator.clipboard — fall back to the legacy textarea + execCommand path.
@@ -677,12 +692,14 @@ export default function FriendsPanel({
   async function copyCode() {
     if (!myCode) return;
     const ok = await copyText(myCode);
+    if (ok) retireShareHint();
     showToast(ok ? "Code copied!" : "Failed to copy", ok ? "success" : "error");
   }
 
   async function copyLink() {
     if (!myCode) return;
     const ok = await copyText(buildShareUrl(myCode));
+    if (ok) retireShareHint();
     showToast(ok ? "Link copied!" : "Failed to copy", ok ? "success" : "error");
   }
 
@@ -1761,9 +1778,27 @@ export default function FriendsPanel({
           </div>
         </div>
         <div className="fr-workspace-actions">
-          <button className="fr-btn fr-btn-primary fr-add-people-btn" onClick={() => setShowConnectModal(true)}>
-            <UserPlus size={16} /> Add people
-          </button>
+          <span className={`fr-share-hint-anchor${showShareHint ? " has-hint" : ""}`}>
+            {showShareHint && (
+              <span className="fr-share-cloud" role="note">
+                <button type="button" className="fr-share-cloud-body" onClick={openConnect}>
+                  <span className="fr-share-cloud-icon" aria-hidden="true"><Sparkles size={13} /></span>
+                  <span className="fr-share-cloud-copy">
+                    <strong>Your share code is in here</strong>
+                    <small><code>{myCodeDisplay}</code> tap to copy &amp; invite</small>
+                  </span>
+                </button>
+                <button type="button" className="fr-share-cloud-close" onClick={retireShareHint} aria-label="Dismiss share code tip">
+                  <X size={13} />
+                </button>
+                <span className="fr-share-cloud-dot fr-share-cloud-dot-lg" aria-hidden="true" />
+                <span className="fr-share-cloud-dot fr-share-cloud-dot-sm" aria-hidden="true" />
+              </span>
+            )}
+            <button className="fr-btn fr-btn-primary fr-add-people-btn" onClick={openConnect}>
+              <UserPlus size={16} /> Add people
+            </button>
+          </span>
           {statusEnabled && (
             <button
               className={`fr-btn fr-btn-secondary fr-btn-small fr-status-chip ${myStatus ? "has-status" : ""}`}
@@ -1972,7 +2007,7 @@ export default function FriendsPanel({
             Your friends
             {friends.length > 0 && <span style={{ fontSize: 11, background: "rgba(0,0,0,0.05)", padding: "2px 8px", borderRadius: 10, color: "var(--muted)", fontWeight: 600 }}>{friends.length}</span>}
           </h3>
-          <button className="fr-btn fr-btn-secondary fr-btn-small" onClick={() => setShowConnectModal(true)}>
+          <button className="fr-btn fr-btn-secondary fr-btn-small" onClick={openConnect}>
             <UserPlus size={14} /> Add people
           </button>
         </div>

@@ -1,6 +1,10 @@
 import { MORE_VIEWS } from "./lib/navItems.js";
-import { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from "react";
-import { createPortal, flushSync } from "react-dom";
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Suspense, lazy, startTransition } from "react";
+import { createPortal } from "react-dom";
+import { setNavView, useNavView } from "./lib/navView.js";
+import BnavLens from "./components/BnavLens.jsx";
+import SbFloatTip from "./components/SbFloatTip.jsx";
+import { startPetMotionWatcher } from "./lib/petMotion.js";
 import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, Megaphone, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Sparkles, Wand2, BellRing, CalendarDays, ExternalLink, Download, Share, WifiOff, Zap, PanelBottom, PanelTop, PanelsTopLeft, Check, ChevronDown, Sun, Moon, Monitor, CalendarOff, CalendarRange, UtensilsCrossed, Package, Camera, Loader2, Wallet, Radio, History, PawPrint, LayoutDashboard } from "lucide-react";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
@@ -40,7 +44,7 @@ import { fetchConsensusWeather } from "./lib/weather.js";
 import {
   swUpdateIsStale, clearSwSeen,
   LAST_USER_KEY, VIEW_KEY, PENDING_INVITE_KEY, USER_SCOPED_KEYS,
-  readSetup, saveSetup,
+  readSetup, saveSetup, SETUP_KEY,
   NOTIF_KEY, loadLastSeen, READ_PINGS_KEY,
   READ_CHANGES_KEY, loadClearedGroups,
 } from "./lib/appStorage.js";
@@ -124,14 +128,6 @@ import "./styles/tomorrow-timeline.css";
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent || "");
 
-// The ordering is only used to give adjacent schedule views a spatial sense
-// of direction. Everything else receives the same calm forward transition.
-const VIEW_MOTION_ORDER = [
-  "today", "tomorrow", "week", "fullSchedule", "courseHub", "planner", "attendance",
-  "exams", "assignments", "notifications", "friends", "board", "split",
-  "leave", "pet", "wrapped", "glance", "admin",
-];
-
 // Views that live behind the sidebar's collapsed Tools accordion / the
 // mobile overflow menu's Tools section — candidates for the "Recent" row.
 // Mobile overflow-sheet Tools section (and its "Recent" shortcut). The desktop
@@ -190,6 +186,17 @@ const ADMIN_EMAILS = [
   "mba25rakeshb@iimsambalpur.ac.in",
   "test@iimsambalpur.ac.in"
 ];
+
+// Mobile tab / dock button. Reads the nav store rather than App's `view`, so
+// it highlights on the tap itself while the page renders in a transition.
+function NavButton({ nav, className, children, ...rest }) {
+  const on = useNavView() === nav;
+  return (
+    <button className={`${className}${on ? " on" : ""}`} aria-current={on ? "page" : undefined} {...rest}>
+      {children}
+    </button>
+  );
+}
 
 function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const userEmail = user?.primaryEmailAddress?.emailAddress?.toLowerCase();
@@ -364,19 +371,27 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // fresh Date and churned all the useMemo/useEffect hooks that depend on it.
   const now = useMemo(() => (timeOverride ? new Date(timeOverride) : realNow), [timeOverride, realNow]);
   const [view, setViewState] = useState(() => {
+    let v = "today";
     try {
-      const v = localStorage.getItem(VIEW_KEY) || "today";
-      if (v === "courses") return "exams"; // retired view → its new home
-      if (v === "insights") return "today"; // retired view
-      if (v === "glance") return "today"; // peek surface, never sticky
-      return v;
-    } catch { return "today"; }
+      v = localStorage.getItem(VIEW_KEY) || "today";
+      if (v === "courses") v = "exams"; // retired view → its new home
+      if (v === "insights") v = "today"; // retired view
+      if (v === "glance") v = "today"; // peek surface, never sticky
+    } catch { }
+    setNavView(v);
+    return v;
   });
   const [courseHubCode, setCourseHubCode] = useState(null);
   const [assignmentOpenTarget, setAssignmentOpenTarget] = useState(null);
   useEffect(() => { if (view !== "courseHub") setCourseHubCode(null); }, [view]);
   useEffect(() => { if (view !== "assignments") setAssignmentOpenTarget(null); }, [view]);
   const currentViewRef = useRef(view);
+  // True for the rest of the event that called setView: nav handlers follow
+  // setView(x) with setCompareTarget(null), and that clear has to land in the
+  // same transition — urgently, it would first commit the OLD page without
+  // compare (a flash of e.g. the full Social page) before the new view.
+  const navInFlightRef = useRef(false);
+  useEffect(() => { startPetMotionWatcher(); }, []);
   const setView = useCallback((nextView) => {
     const target = typeof nextView === "function"
       ? nextView(currentViewRef.current)
@@ -385,22 +400,15 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     if (!target || target === previous) return;
 
     currentViewRef.current = target;
-    const previousIndex = VIEW_MOTION_ORDER.indexOf(previous);
-    const targetIndex = VIEW_MOTION_ORDER.indexOf(target);
-    const direction = previousIndex >= 0 && targetIndex >= 0 && targetIndex < previousIndex
-      ? "backward"
-      : "forward";
-    const commit = () => setViewState(target);
-    const reduceMotion = typeof window !== "undefined"
-      && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-
-    if (typeof document === "undefined" || reduceMotion || !document.startViewTransition) {
-      commit();
-      return;
-    }
-
-    document.documentElement.dataset.viewDirection = direction;
-    document.startViewTransition(() => flushSync(commit));
+    // The highlight moves now; the page renders as an interruptible
+    // transition. (This used to be startViewTransition + flushSync, which
+    // froze the screen for the whole render — 100ms+ on Today, far more on
+    // Full timetable — before the crossfade could even start.) The keyed
+    // .tf-page-stage plays the enter animation once the new page commits.
+    setNavView(target);
+    startTransition(() => setViewState(target));
+    navInFlightRef.current = true;
+    queueMicrotask(() => { navInFlightRef.current = false; });
   }, []);
   // Glance is a shortcut peek, not a destination — don't make it the view the
   // app re-opens on next launch.
@@ -469,6 +477,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // Onboarding show "Term rolled over" copy instead of the generic first-time
   // setup screen.
   const [reonboardFromTerm, setReonboardFromTerm] = useState(null);
+  const [cloudEnrolledTerm, setCloudEnrolledTerm] = useState(null);
   const [allocationApplied, setAllocationApplied] = useState(false);
   const [prefillPicked, setPrefillPicked] = useState(null);
   const [showSetupEdit, setShowSetupEdit] = useState(false);
@@ -552,7 +561,11 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [clearedGroupIds, setClearedGroupIds] = useState(() => loadClearedGroups());
   const [friends, setFriends] = useState(() => loadFriends());
   const [groups, setGroups] = useState(() => loadGroups());
-  const [compareTarget, setCompareTarget] = useState(null); // { mode, friendData?, groupData? }
+  const [compareTarget, setCompareTargetState] = useState(null); // { mode, friendData?, groupData? }
+  const setCompareTarget = useCallback((next) => {
+    if (navInFlightRef.current) startTransition(() => setCompareTargetState(next));
+    else setCompareTargetState(next);
+  }, []);
   // A free slot picked in CompareView, waiting to prefill the meetup modal on
   // the Social page: { title?, date, start, memberCloudIds, groupId?, groupName? }
   // (Lives up here with the other hooks — declaring it below the login/
@@ -616,10 +629,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     sidebarCollapsed, sbCollapsed, toggleSidebar,
     sbStyle, setSidebarStyle,
     theme, pickTheme,
-    sbTip, showSbTip, hideSbTip,
+    showSbTip, hideSbTip,
     mobileNavMode, pickNavMode, showBottomNav, showTopTabs,
-    bnavRef, bnavLens, bnavCompact,
-    onBnavPointerDown, onBnavPointerUp,
+    bnavRef,
     navMenuOpen, setNavMenuOpen,
     themeMenuOpen, setThemeMenuOpen,
     toolsSecOpen, setToolsSecOpen,
@@ -629,7 +641,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     adminSecOpen, setAdminSecOpen,
     showRightScroll, setShowRightScroll,
     showLeftScroll, setShowLeftScroll,
-  } = useSidebar({ isTablet, view, sysConfig });
+  } = useSidebar({ isTablet });
 
   const tabsRef = useRef(null);
   const [termMenuOpen, setTermMenuOpen] = useState(false);
@@ -838,14 +850,14 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           setSysConfig(sysConfigRes.data);
         }
         if (p?.archivedCourses) setArchivedCourses(p.archivedCourses);
-        // A profile's courses are only valid for the term they were picked in
-        // (_enrolledTerm, stamped on every pushProfile). If the live term has
-        // rolled over since this student last touched their enrollment, those
-        // picks are stale — the old ones are already safely archived server-side
-        // (see profile.js pushProfile), so just force them back into onboarding
-        // for the new term instead of silently rendering last term's schedule.
-        const enrollmentStale = p?.enrolledTerm && p.enrolledTerm !== TERM?.number;
-        if (p?.courses && !enrollmentStale) {
+        // Which term these courses were picked in (stamped on every
+        // pushProfile). Whether that makes them stale is decided by the effect
+        // next to `TERM` below, NOT here: this sync is keyed on sign-in, so
+        // TERM in this closure is from the first render — undefined on any
+        // device without a cached feed — and comparing against it wiped every
+        // fresh login's current courses and forced a re-onboard.
+        setCloudEnrolledTerm(p?.enrolledTerm ?? null);
+        if (p?.courses) {
           setEnrolled(p.courses);
           setMine(new Set(Object.keys(p.courses)));
           setSetup(p);
@@ -883,14 +895,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               return merged;
             });
           }
-        } else if (enrollmentStale) {
-          // Local cache (readSetup()) may still hold last term's courses from
-          // before this load — clear the gate so Onboarding renders instead of
-          // last term's now-invalid schedule.
-          setSetup(null);
-          setEnrolled({});
-          setMine(new Set());
-          setReonboardFromTerm(p.enrolledTerm);
         }
         setAttendance(a);
         if (fg) {
@@ -1513,6 +1517,26 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
   const { TERM, LEGEND, CLASSES, CHANGES } = sd || { TERM: null, LEGEND: {}, CLASSES: [], CHANGES: [] };
 
+  // Term rollover: a profile's courses are only valid for the term they were
+  // picked in. Once BOTH the live term and the cloud profile's term are known
+  // and differ, those picks are stale — already archived server-side (see
+  // profile.js pushProfile) — so send the student back to onboarding for the
+  // new term. Layout effect so last term's schedule never paints.
+  const staleEnrollmentHandled = useRef(false);
+  useLayoutEffect(() => {
+    if (staleEnrollmentHandled.current) return;
+    if (!TERM?.number || !cloudEnrolledTerm || cloudEnrolledTerm === TERM.number) return;
+    staleEnrollmentHandled.current = true;
+    // Drop the cached copy too: the sheet auto-fill skips anyone with a stored
+    // setup, which left re-onboarding students with zero subjects picked.
+    try { localStorage.removeItem(SETUP_KEY); } catch { }
+    setSetup(null);
+    setEnrolled({});
+    setMine(new Set());
+    setReonboardFromTerm(cloudEnrolledTerm);
+    setAllocationApplied(false); // re-arm the auto-fill for the new term's allocation
+  }, [TERM?.number, cloudEnrolledTerm]);
+
   // Term switcher: when browsing an archived term, shadow the live TERM/LEGEND/
   // CLASSES/CHANGES with the archived entry's data for everything render-facing.
   // Live-only actions (attendance marking, push, admin config, live feed sync)
@@ -1864,6 +1888,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     setSetup(s);
     setShowSetupEdit(false);
     setReonboardFromTerm(null);
+    setCloudEnrolledTerm(TERM?.number ?? null);
   }
 
   const filteredChanges = useMemo(() => {
@@ -2758,12 +2783,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         syncedAgo={syncedAgo} isTablet={isTablet} sidebarCollapsed={sidebarCollapsed} toggleSidebar={toggleSidebar}
       />
 
-      {sbTip && createPortal(
-        <div className="sb-float-tip" style={{ top: sbTip.top, left: sbTip.left }}>
-          {sbTip.label}
-        </div>,
-        document.body
-      )}
+      <SbFloatTip />
 
       <div className="app">
         <header className="bar">
@@ -3122,37 +3142,37 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             {showTopTabs && (
             <div className="tabs-wrapper">
               <nav className={`tabs${showLeftScroll ? " tabs-scrolled" : ""}${showRightScroll ? " tabs-overflow-right" : ""}`} ref={tabsRef} onScroll={handleTabsScroll}>
-                <button className={`tab ${view === "today" ? "on" : ""}`} aria-label="Today" onClick={() => { setView("today"); setCompareTarget(null); }}>
+                <NavButton nav="today" className="tab" aria-label="Today" onClick={() => { setView("today"); setCompareTarget(null); }}>
                   <Clock size={15} /> <span className="tab-label">Today</span>
-                </button>
-                <button className={`tab ${view === "tomorrow" ? "on" : ""}`} aria-label="Tomorrow" onClick={() => { setView("tomorrow"); setCompareTarget(null); }}>
+                </NavButton>
+                <NavButton nav="tomorrow" className="tab" aria-label="Tomorrow" onClick={() => { setView("tomorrow"); setCompareTarget(null); }}>
                   <Sunrise size={15} /> <span className="tab-label">Tomorrow</span>
-                </button>
-                <button className={`tab tab-week ${view === "week" ? "on" : ""}`} aria-label="Week" onClick={() => { setView("week"); setCompareTarget(null); }}>
+                </NavButton>
+                <NavButton nav="week" className="tab tab-week" aria-label="Week" onClick={() => { setView("week"); setCompareTarget(null); }}>
                   <Calendar size={15} /> <span className="tab-label">Week</span>
-                </button>
+                </NavButton>
                 {enableAttendance && (
-                  <button className={`tab ${view === "attendance" ? "on" : ""}`} aria-label="Attendance" onClick={() => { setView("attendance"); setCompareTarget(null); }}>
+                  <NavButton nav="attendance" className="tab" aria-label="Attendance" onClick={() => { setView("attendance"); setCompareTarget(null); }}>
                     <ClipboardList size={15} /> <span className="tab-label">Attendance</span>
-                  </button>
+                  </NavButton>
                 )}
                 {enableExams && (
-                  <button className={`tab ${view === "exams" ? "on" : ""}`} aria-label="Exams" onClick={() => { setView("exams"); setCompareTarget(null); }}>
+                  <NavButton nav="exams" className="tab" aria-label="Exams" onClick={() => { setView("exams"); setCompareTarget(null); }}>
                     <GraduationCap size={15} /> <span className="tab-label">Exams</span>
-                  </button>
+                  </NavButton>
                 )}
-                <button className={`tab ${view === "notifications" ? "on" : ""}`} aria-label="Announcements" onClick={() => { setView("notifications"); setCompareTarget(null); }}>
+                <NavButton nav="notifications" className="tab" aria-label="Announcements" onClick={() => { setView("notifications"); setCompareTarget(null); }}>
                   <Megaphone size={15} /> <span className="tab-label">Announcements</span>
                   {unreadChangeCount > 0 && <span className="nav-badge">{unreadChangeCount}</span>}
-                </button>
-                <button className={`tab ${view === "assignments" ? "on" : ""}`} aria-label="Assignments" onClick={() => { setView("assignments"); setCompareTarget(null); }}>
+                </NavButton>
+                <NavButton nav="assignments" className="tab" aria-label="Assignments" onClick={() => { setView("assignments"); setCompareTarget(null); }}>
                   <BookOpenCheck size={15} /> <span className="tab-label">Assignments</span>
-                </button>
+                </NavButton>
                 {enableFriends && (
-                  <button className={`tab ${view === "friends" ? "on" : ""}`} aria-label="Social" onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); markBadgeSeen("social"); }}>
+                  <NavButton nav="friends" className="tab" aria-label="Social" onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); markBadgeSeen("social"); }}>
                     <Users size={15} /> <span className="tab-label">Social</span> {showBadge("social") && <span className="beta-badge tab-label">Beta</span>}
                     {unreadFriendCount > 0 && <span className="nav-badge">{unreadFriendCount}</span>}
-                  </button>
+                  </NavButton>
                 )}
               </nav>
             </div>
@@ -3818,49 +3838,40 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         {showBottomNav && (
           <nav
             ref={bnavRef}
-            className={`bnav${bnavCompact ? " bnav-compact" : ""}`}
+            className="bnav"
             aria-label="Main navigation"
-            onPointerDown={onBnavPointerDown}
-            onPointerUp={onBnavPointerUp}
-            onPointerCancel={onBnavPointerUp}
           >
-            {bnavLens && (
-              <span
-                className="bnav-lens"
-                aria-hidden="true"
-                style={{ transform: `translateX(${bnavLens.x}px)`, width: bnavLens.w }}
-              />
-            )}
-            <button className={`bnav-btn${view === "today" ? " on" : ""}`} aria-label="Today" aria-current={view === "today" ? "page" : undefined} onClick={() => { setView("today"); setCompareTarget(null); }}>
+            <BnavLens />
+            <NavButton nav="today" className="bnav-btn" aria-label="Today" onClick={() => { setView("today"); setCompareTarget(null); }}>
               <span className="bnav-icon"><NavIcon kind="today" /></span>
-            </button>
-            <button className={`bnav-btn${view === "tomorrow" ? " on" : ""}`} aria-label="Tomorrow" aria-current={view === "tomorrow" ? "page" : undefined} onClick={() => { setView("tomorrow"); setCompareTarget(null); }}>
+            </NavButton>
+            <NavButton nav="tomorrow" className="bnav-btn" aria-label="Tomorrow" onClick={() => { setView("tomorrow"); setCompareTarget(null); }}>
               <span className="bnav-icon"><NavIcon kind="tomorrow" /></span>
-            </button>
-            <button className={`bnav-btn${view === "week" ? " on" : ""}`} aria-label="Week" aria-current={view === "week" ? "page" : undefined} onClick={() => { setView("week"); setCompareTarget(null); }}>
+            </NavButton>
+            <NavButton nav="week" className="bnav-btn" aria-label="Week" onClick={() => { setView("week"); setCompareTarget(null); }}>
               <span className="bnav-icon"><NavIcon kind="schedule" /></span>
-            </button>
+            </NavButton>
             {enableAttendance && (
-              <button className={`bnav-btn${view === "attendance" ? " on" : ""}`} aria-label="Attendance" aria-current={view === "attendance" ? "page" : undefined} onClick={() => { setView("attendance"); setCompareTarget(null); }}>
+              <NavButton nav="attendance" className="bnav-btn" aria-label="Attendance" onClick={() => { setView("attendance"); setCompareTarget(null); }}>
                 <span className="bnav-icon"><NavIcon kind="attendance" /></span>
-              </button>
+              </NavButton>
             )}
             {enableExams && (
-              <button className={`bnav-btn${view === "exams" ? " on" : ""}`} aria-label="Exams" aria-current={view === "exams" ? "page" : undefined} onClick={() => { setView("exams"); setCompareTarget(null); }}>
+              <NavButton nav="exams" className="bnav-btn" aria-label="Exams" onClick={() => { setView("exams"); setCompareTarget(null); }}>
                 <span className="bnav-icon"><NavIcon kind="exams" /></span>
-              </button>
+              </NavButton>
             )}
             {enableFriends && (
-              <button className={`bnav-btn${view === "friends" ? " on" : ""}`} aria-label="Social" aria-current={view === "friends" ? "page" : undefined} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); }}>
+              <NavButton nav="friends" className="bnav-btn" aria-label="Social" onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); }}>
                 <span className="bnav-icon">
                   <NavIcon kind="social" />
                   {unreadFriendCount > 0 && <span className="bnav-dot" />}
                 </span>
-              </button>
+              </NavButton>
             )}
-            <button className={`bnav-btn${view === "planner" ? " on" : ""}`} aria-label="Planner" aria-current={view === "planner" ? "page" : undefined} onClick={() => { setView("planner"); setCompareTarget(null); }}>
+            <NavButton nav="planner" className="bnav-btn" aria-label="Planner" onClick={() => { setView("planner"); setCompareTarget(null); }}>
               <span className="bnav-icon"><NavIcon kind="planner" /></span>
-            </button>
+            </NavButton>
           </nav>
         )}
         {v2Active && (

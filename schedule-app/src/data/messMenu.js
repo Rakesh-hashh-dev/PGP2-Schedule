@@ -16,10 +16,10 @@ export const MEAL_TIMES = [
 // menu cycle. Used to resolve Week 1&3 vs Week 2&4 snacks by parity. Re-anchor
 // this whenever the institute publishes a new cycle (only the parity matters,
 // not the exact date).
-// 2026-10-05: Shifted anchor to Mon 2026-10-05 (first full week of October)
-// so that the week of Oct 05-11 evaluates to Week 1&3 snacks (resolving Monday's
-// snack as Papdi Chat instead of Dahi Bhalla).
-const MENU_START = new Date(2026, 9, 5);
+// 2026-10-07: Anchored to Mon 2026-09-28 so that the current week (Oct 05-11)
+// evaluates to Week 2&4 snacks (resolving Tuesday's snack as Pyaz Pakoda
+// per actual mess service).
+const MENU_START = new Date(2026, 8, 28);
 
 // Served every day alongside the day's breakfast mains
 export const DAILY_BREAKFAST = [

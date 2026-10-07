@@ -85,7 +85,7 @@ export default function DayGreeting({
   const mood = adopted ? moodExplainFor(pet, now, petContext).mood : "content";
   // Cohort policy, defaulting ON — same rule as the pet page.
   const wardrobeOn = petSettings?.wardrobe !== false;
-  const beat = usePetBeat(mood, adopted && motionEnabled);
+  const beat = usePetBeat(mood, adopted && motionEnabled && petSettings?.signatures !== false, displayPet?.key, petReaction);
   const gaze = usePetGaze(adopted && motionEnabled);
   const progress = adopted ? levelProgress(xpOf(pet)) : null;
   const left = adopted ? careLeft(pet, now) : 0;
@@ -146,7 +146,7 @@ export default function DayGreeting({
     });
     setPetReaction(action);
     window.clearTimeout(reactionTimer.current);
-    reactionTimer.current = window.setTimeout(() => setPetReaction(""), 1150);
+    reactionTimer.current = window.setTimeout(() => setPetReaction(""), displayPet?.key === "luna" ? 1920 : 1150);
   };
 
   if (!greeting) return null;

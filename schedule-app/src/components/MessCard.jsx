@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { UtensilsCrossed, ChevronDown, CalendarDays, Heart, Users } from "lucide-react";
 import { fetchFriendStatuses } from "../lib/status.js";
 import { getMenuForDay, MEAL_TIMES, favouritesInMenu } from "../data/messMenu.js";
@@ -8,6 +8,10 @@ import "./../styles/mess.css";
 
 // Desktop (mouse) expands on hover; touch devices keep the tap toggle
 const CAN_HOVER = typeof window !== "undefined" && window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+// Hover intent: a pointer passing over the card on its way elsewhere
+// shouldn't fling it open (and shove the page below it around).
+const HOVER_OPEN_MS = 120;
+const HOVER_CLOSE_MS = 200;
 
 function fmt12min(min) {
   return fmt12(`${Math.floor(min / 60)}:${String(min % 60).padStart(2, "0")}`);
@@ -16,6 +20,12 @@ function fmt12min(min) {
 export default function MessCard({ now, userId, friends = [] }) {
   const [expanded, setExpanded] = useState(false);
   const [fullMenuOpen, setFullMenuOpen] = useState(false);
+  const hoverTimer = useRef(0);
+  useEffect(() => () => clearTimeout(hoverTimer.current), []);
+  const hoverTo = (open, delay) => {
+    clearTimeout(hoverTimer.current);
+    hoverTimer.current = setTimeout(() => setExpanded(open), delay);
+  };
   const { favourites, toggleFav, ratings } = useMessData(now, userId);
 
   // Friends who set the "Heading to mess" quick status (fresh fetch — the
@@ -61,7 +71,7 @@ export default function MessCard({ now, userId, friends = [] }) {
   // Disable hover-to-expand while the full-menu modal is open, so the card
   // behind the overlay doesn't react to the pointer.
   const hoverProps = CAN_HOVER && !fullMenuOpen
-    ? { onMouseEnter: () => setExpanded(true), onMouseLeave: () => setExpanded(false) }
+    ? { onMouseEnter: () => hoverTo(true, HOVER_OPEN_MS), onMouseLeave: () => hoverTo(false, HOVER_CLOSE_MS) }
     : {};
 
   return (

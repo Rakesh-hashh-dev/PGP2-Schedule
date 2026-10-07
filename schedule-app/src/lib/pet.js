@@ -181,7 +181,15 @@ const NECK_KEYS = new Set(NECKWEAR.map(n => n.key));
  * term (the last one lands at ~80% of it — see XP), while the tiers above them
  * carry cosmetics, which are allowed to outlast the term.
  */
+// Additional companions fill the gaps without moving existing unlocks.
 export const DEVOTION_UNLOCKS = { 2: "nova", 4: "cinder" };
+export const BONUS_DEVOTION_UNLOCKS = { 1: "hoot", 2: "pebble", 3: "byte", 4: "prickle" };
+// Multiple companions can share a tier. Keep the original singular lookup
+// for callers, and use this combined list for collection and reward displays.
+export const DEVOTION_COMPANIONS = [
+  ...Object.entries(DEVOTION_UNLOCKS), ...Object.entries(BONUS_DEVOTION_UNLOCKS),
+  ["3", "luna"],
+].sort(([a], [b]) => Number(a) - Number(b));
 
 /**
  * Titles. Cosmetic, never a rank against anybody else (docs §2), and every one
@@ -222,7 +230,7 @@ export function nextUnlockFor(state) {
   for (const [lvl, key] of Object.entries(UNLOCKS)) {
     byLevel.push({ kind: "companion", key, label: key, at: Number(lvl) });
   }
-  for (const [t, key] of Object.entries(DEVOTION_UNLOCKS)) {
+  for (const [t, key] of DEVOTION_COMPANIONS) {
     byDevotion.push({ kind: "companion", key, label: key, at: Number(t) });
   }
   for (const [list, kind] of [[HATS, "hat"], [COATS, "coat"], [NECKWEAR, "collar"]]) {
@@ -1034,7 +1042,7 @@ export function unlockedFor(state) {
   const s = normalize(state);
   const xp = xpOf(s);
   const { tier } = devotionFor(xp);
-  const devoted = Object.entries(DEVOTION_UNLOCKS)
+  const devoted = DEVOTION_COMPANIONS
     .filter(([t]) => Number(t) <= tier)
     .map(([, key]) => key);
   return Array.from(new Set([...unlockedAtLevel(levelFor(xp)), ...devoted, ...s.unlocked]));
