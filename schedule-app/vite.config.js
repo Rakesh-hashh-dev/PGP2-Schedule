@@ -146,6 +146,9 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(BUILD_VERSION),
   },
+  server: {
+    port: 3000,
+  },
   plugins: [
     react(),
     generateMeta(outDir),

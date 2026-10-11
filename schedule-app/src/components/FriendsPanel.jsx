@@ -1,8 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import "../styles/friends.css";
-import { Copy, Link2, Sparkles, UserPlus, Users, Trash2, ArrowRight, Plus, X, Check, ChevronDown, ChevronUp, ChevronRight, RefreshCw, Globe, Lock, CheckCircle, AlertCircle, Info, AlertTriangle, Star, CalendarOff, Smile, BarChart3, CalendarPlus, BellRing, Coffee, BookOpen, Utensils, Dumbbell, Moon, MessageSquare, Pencil, Search, LayoutDashboard, GripVertical } from "lucide-react";
+import { Copy, Link2, Sparkles, UserPlus, Users, Trash2, ArrowRight, Plus, X, Check, ChevronDown, ChevronUp, ChevronRight, RefreshCw, Globe, Lock, CheckCircle, AlertCircle, Info, AlertTriangle, Star, CalendarOff, Smile, BarChart3, CalendarPlus, BellRing, Coffee, BookOpen, Utensils, Dumbbell, Moon, MessageSquare, Pencil, Search, LayoutDashboard, GripVertical, Pin } from "lucide-react";
 import { SkeletonText, EmptyState } from "./ui.jsx";
 import MeetupsStrip from "./Meetups.jsx";
+import SocialOverviewExtras from "./SocialOverviewExtras.jsx";
+import SocialActivity from "./SocialActivity.jsx";
+import GroupPins from "./GroupPins.jsx";
+import BuddyPreferences from "./BuddyPreferences.jsx";
+import { matchBuddy, loadBuddyPreferences, fetchBuddyPreferences } from "../lib/buddyPreferences.js";
+import { scheduleAvailability } from "../lib/socialPlanning.js";
+import { markGroupRead, saveGroupPin } from "../lib/socialActivity.js";
+import "../styles/social-extras.css";
 import { fetchMyNudges, scheduleNudge, cancelNudge } from "../lib/nudges.js";
 
 import {
@@ -95,7 +103,7 @@ function IncomingRequestItem({ item, onAccept, onDecline, variant = "row" }) {
 import {
   STATUS_PRESETS, STATUS_DURATIONS, statusUntil,
   fmtStatusUntil, loadMyStatus, setMyStatus,
-  fetchFriendPresence, isAwayNow, fmtAwayEnd,
+  fetchFriendPresence, isAwayNow, fmtAwayEnd, activeStatus,
 } from "../lib/status.js";
 
 const STATUS_ICONS = {
@@ -114,10 +122,11 @@ function StatusIcon({ id, size = 14, className = "" }) {
 function StatusModal({ current, onSave, onClose }) {
   const [presetId, setPresetId] = useState(current?.id || null);
   const [customText, setCustomText] = useState(current && !current.id ? current.text : "");
+  const [availability, setAvailability] = useState(current?.availability || "unspecified");
   const [durationIdx, setDurationIdx] = useState(1); // default 1 hr
 
   const preset = STATUS_PRESETS.find(p => p.id === presetId) || null;
-  const text = preset ? preset.text : customText.trim();
+  const text = preset ? preset.text : customText.trim() || (availability === "available" ? "Available to meet" : availability === "unavailable" ? "Busy outside class" : "");
   const canSet = !!text;
 
   const handleSet = () => {
@@ -126,6 +135,7 @@ function StatusModal({ current, onSave, onClose }) {
       id: preset?.id || null,
       emoji: preset?.emoji || "💬",
       text,
+      availability,
       until: statusUntil(STATUS_DURATIONS[durationIdx].mins),
     });
   };
@@ -157,6 +167,13 @@ function StatusModal({ current, onSave, onClose }) {
           onChange={e => { setCustomText(e.target.value); if (e.target.value) setPresetId(null); }}
           onKeyDown={e => e.key === "Enter" && handleSet()}
         />
+        <label className="fr-availability-select">Availability
+          <select className="fr-add-input" aria-label="Availability" value={availability} onChange={e => setAvailability(e.target.value)}>
+            <option value="unspecified">No availability set</option>
+            <option value="available">Available to meet</option>
+            <option value="unavailable">Busy outside class</option>
+          </select>
+        </label>
         <div className="fr-status-durations">
           <span className="fr-status-durations-label">Clear after</span>
           {STATUS_DURATIONS.map((d, i) => (
@@ -213,7 +230,9 @@ function FriendSkeleton() {
   );
 }
 
-function GroupChat({ group, userId, userName }) {
+function GroupChat({ group, userId, userName, focusPollId }) {
+  const chatRef = useRef(null);
+  const [pinError, setPinError] = useState("");
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(true);
@@ -258,6 +277,26 @@ function GroupChat({ group, userId, userName }) {
     return () => { if (channel) channel.unsubscribe(); };
   }, [group.id]);
 
+  useEffect(() => {
+    const seenAt = messages.reduce((latest, message) => new Date(message.created_at) > new Date(latest || 0) ? message.created_at : latest, null);
+    const read = () => { if (document.visibilityState === "visible" && seenAt) markGroupRead(userId, group.id, seenAt); };
+    read(); document.addEventListener("visibilitychange", read);
+    return () => document.removeEventListener("visibilitychange", read);
+  }, [messages, userId, group.id]);
+  useEffect(() => {
+    if (!focusPollId || loading) return;
+    const target = chatRef.current?.querySelector(`[data-poll-id="${globalThis.CSS.escape(focusPollId)}"]`);
+    target?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    target?.focus({ preventScroll: true });
+  }, [focusPollId, loading, messages]);
+  async function pinMessage(message) {
+    setPinError("");
+    try {
+      await saveGroupPin({ groupId: group.id, userId, userName, title: `Message from ${message.name}`, body: message.text, url: null, messageId: message.id });
+      window.dispatchEvent(new CustomEvent("pgp2:social-pins"));
+    } catch (error) { setPinError(error.message); }
+  }
+
   async function handleSend(e) {
     e.preventDefault();
     if (!text.trim() || sending) return;
@@ -297,14 +336,15 @@ function GroupChat({ group, userId, userName }) {
   }
 
   return (
-    <div className="fr-chat-box">
+    <div className="fr-chat-box" ref={chatRef}>
       <p className="fr-group-body-label">Group Chat</p>
+      {!loading && focusPollId && !messages.some(m => m.text === `${POLL_MARKER}${focusPollId}`) && <div data-poll-id={focusPollId} tabIndex={-1}><PollCard pollId={focusPollId} userId={userId} userName={userName} /></div>}
       <div className="fr-chat-msgs">
          {loading ? <SkeletonText lines={3} /> : messages.length === 0 ? <div className="fr-empty">No messages yet. Say hi!</div> : messages.map(m => {
            const isMine = m.from_id === userId;
            const canDelete = isMine;
            return m.text.startsWith(POLL_MARKER) ? (
-             <div key={m.id} style={{ display: "flex", gap: 8, marginBottom: 12, flexDirection: isMine ? "row-reverse" : "row" }}>
+             <div key={m.id} data-poll-id={m.text.slice(POLL_MARKER.length)} tabIndex={-1} style={{ display: "flex", gap: 8, marginBottom: 12, flexDirection: isMine ? "row-reverse" : "row" }}>
                <div className="fr-group-avatar-dot" style={{ background: avatarGradient(m.name)[0], flexShrink: 0 }}>{m.name[0]?.toUpperCase()}</div>
                <PollCard pollId={m.text.slice(POLL_MARKER.length)} userId={userId} userName={userName} />
              </div>
@@ -320,6 +360,7 @@ function GroupChat({ group, userId, userName }) {
                  {m.text}
                  {m.id === editingMsg?.id && <span style={{ fontSize: 10, opacity: 0.6, marginLeft: 8, fontStyle: "italic" }}>(Editing)</span>}
                </div>
+               <button type="button" className="fr-chat-del-btn" aria-label={`Pin message from ${m.name}`} title="Pin message" onClick={() => pinMessage(m)}><Pin size={12} /></button>
                {canDelete && (
                  <div style={{ display: "flex", gap: 4 }}>
                    <button
@@ -346,6 +387,7 @@ function GroupChat({ group, userId, userName }) {
            );
          })}
       </div>
+      {pinError && <p className="fr-meetup-error" role="alert">{pinError}</p>}
       {showPollComposer && (
         <div style={{ marginBottom: 8 }}>
           <PollComposer onSubmit={handleCreatePoll} onCancel={() => setShowPollComposer(false)} busy={pollBusy} />
@@ -365,8 +407,6 @@ function GroupChat({ group, userId, userName }) {
   );
 }
 
-function toMinFP(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
-function ymdFP(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
 import { getPetByKey } from "./greetingPets.jsx";
 import PetHat from "./PetHat.jsx";
 import PetNeckwear from "./PetNeckwear.jsx";
@@ -391,6 +431,23 @@ export default function FriendsPanel({
   const [showNewGroup, setShowNewGroup] = useState(false);
   const [expandedGroup, setExpandedGroup] = useState(null);
   const [socialView, setSocialView] = useState("overview");
+  const [focusPollId, setFocusPollId] = useState(null);
+  const [buddyPreferences, setBuddyPreferences] = useState(() => loadBuddyPreferences(userId));
+  const [buddyPreferencesError, setBuddyPreferencesError] = useState("");
+  useEffect(() => {
+    let alive = true;
+    fetchBuddyPreferences(userId).then(value => { if (alive) { setBuddyPreferences(value); setBuddyPreferencesError(""); } })
+      .catch(error => { if (alive) setBuddyPreferencesError(error.message); });
+    return () => { alive = false; };
+  }, [userId]);
+  const openActivityGroup = (groupId, pollId) => {
+    setSocialView("groups"); setExpandedGroup(groupId); setFocusPollId(pollId || null);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const element = document.getElementById(`fr-group-${groupId}`);
+      element?.scrollIntoView({ block: "start", behavior: "smooth" });
+      if (!pollId) element?.querySelector(".fr-group-summary")?.focus({ preventScroll: true });
+    }));
+  };
   const [friendFilter, setFriendFilter] = useState("all");
   const [workspaceSearch, setWorkspaceSearch] = useState("");
   const [showConnectModal, setShowConnectModal] = useState(false);
@@ -550,25 +607,23 @@ export default function FriendsPanel({
         const theirCourses = Object.keys(profile.courses || {}).filter(k => !k.startsWith("_"));
         if (theirCourses.length === 0) return null;
 
-        const intersection = myCourseKeys.filter(c => theirCourses.includes(c)).length;
-        const union = new Set([...myCourseKeys, ...theirCourses]).size;
-        const score = union === 0 ? 0 : Math.round((intersection / union) * 100);
-
-        if (score >= 40) {
-           return { user_id: profile.user_id, name: profile.courses?._name || "Student", score };
+        const match = matchBuddy(enrolled, profile.courses, buddyPreferences, profile.courses?._buddy_preferences);
+        if (match.eligible) {
+          return { user_id: profile.user_id, name: profile.courses?._name || "Student", ...match };
         }
         return null;
-      }).filter(Boolean).sort((a, b) => b.score - a.score).slice(0, 12);
+      }).filter(Boolean).sort((a, b) => b.rank - a.rank).slice(0, 12);
       
       setSuggestedBuddies(matches);
     }
     
     fetchMatches();
-  }, [userId, enrolled, friends, optOutMatchmaker]);
+  }, [userId, enrolled, friends, optOutMatchmaker, buddyPreferences]);
 
   const showToast = (message, type = "success", action = null) => setToast({ message, type, action });
 
-  const [myStatus, setMyStatusState] = useState(() => loadMyStatus());
+  const [myStatusRaw, setMyStatusState] = useState(() => loadMyStatus());
+  const myStatus = activeStatus(myStatusRaw);
   const [showStatusModal, setShowStatusModal] = useState(false);
 
   const handleSaveStatus = (status) => {
@@ -588,8 +643,9 @@ export default function FriendsPanel({
     // replaces the whole map whenever the friend list changes.
     if ((!statusEnabled && !awayEnabled) || !friendCloudKey) return;
     let alive = true;
-    fetchFriendPresence(friendCloudKey.split(",")).then(map => { if (alive) setFriendStatuses(map); });
-    return () => { alive = false; };
+    const refresh = () => { if (document.visibilityState === "visible") fetchFriendPresence(friendCloudKey.split(",")).then(map => { if (alive) setFriendStatuses(map); }); };
+    refresh(); const timer = setInterval(refresh, 60000); window.addEventListener("focus", refresh);
+    return () => { alive = false; clearInterval(timer); window.removeEventListener("focus", refresh); };
   }, [statusEnabled, awayEnabled, friendCloudKey]);
 
   // Friends' companions. Same batched-by-cloudId shape as presence above, but
@@ -626,7 +682,7 @@ export default function FriendsPanel({
     const row = await scheduleNudge(userId, f, fireAt.toISOString());
     if (row) {
       setMyNudges(prev => ({ ...prev, [key]: row }));
-      showToast(`We'll nudge you around ${fmtStatusUntil(row.fire_at)} when ${f.name.split(" ")[0]} is free`, "success");
+      showToast(`We'll nudge you around ${fmtStatusUntil(row.fire_at)} when ${f.name.split(" ")[0]}'s class ends`, "success");
     } else {
       showToast("Couldn't schedule the nudge", "error");
     }
@@ -635,6 +691,7 @@ export default function FriendsPanel({
   // Plan drafts from a group card (CompareView drafts arrive via planDraft prop)
   const [groupPlanDraft, setGroupPlanDraft] = useState(null);
   const openGroupPlan = (group) => {
+    setSocialView("overview");
     const memberCloudIds = group.isReceived
       ? (group.cloudMemberIds || []).filter(cid => cid !== userId)
       : [...(group.memberIds || [])
@@ -913,18 +970,12 @@ export default function FriendsPanel({
     setSharingGroupId(null);
   }
 
-  // { state: "busy", end: "HH:MM" } | { state: "free" } | null
   function getFriendStatusNow(friend) {
-    if (!allClasses || !now) return null;
-    const todayISO = ymdFP(now);
-    const nowMin = now.getHours() * 60 + now.getMinutes();
-    const current = allClasses.find(c => {
-      if (c.date !== todayISO || (c.type !== "class" && c.type !== "exam") || !c.code) return false;
-      const sec = friend.courses?.[c.code];
-      return sec !== undefined && (c.section === "Single" || c.section === sec) &&
-        toMinFP(c.start) <= nowMin && nowMin < toMinFP(c.end);
+    const presence = friendStatuses[friend.cloudId] || {};
+    return scheduleAvailability(friend, allClasses || [], now, {
+      status: statusEnabled ? presence.status : null,
+      away: awayEnabled ? presence.away : null,
     });
-    return current ? { state: "busy", end: current.end } : { state: "free" };
   }
 
   const sortedFriends = [...friends].sort((a, b) => {
@@ -936,7 +987,7 @@ export default function FriendsPanel({
     }
     return a.name.localeCompare(b.name);
   });
-  const freeNowFriends = sortedFriends.filter(friend => getFriendStatusNow(friend)?.state === "free");
+  const freeNowFriends = sortedFriends.filter(friend => { const status = getFriendStatusNow(friend); return status?.state === "free" || (status?.state === "available" && status.scheduleKnown); });
   const incomingRequests = friendNotifItems?.filter(item => item.kind === "friend_request") || [];
   const filteredWorkspaceFriends = filterSocialFriends(sortedFriends, {
     query: workspaceSearch,
@@ -1068,7 +1119,7 @@ export default function FriendsPanel({
     const [c1, c2] = avatarGradient(f.name);
     const status = getFriendStatusNow(f);
     const presence = f.cloudId ? friendStatuses[f.cloudId] : null;
-    const selfStatus = statusEnabled ? presence?.status || null : null;
+    const selfStatus = statusEnabled ? activeStatus(presence?.status) : null;
     const away = awayEnabled && isAwayNow(presence?.away) ? presence.away : null;
     const theirPet = petsEnabled && f.cloudId ? friendPets[f.cloudId] : null;
     return (
@@ -1108,11 +1159,11 @@ export default function FriendsPanel({
           {!away && status && (
             <span className={`fr-friend-status fr-friend-status-${status.state}`}>
               <span className="fr-friend-status-dot" />
-              {status.state === "free" ? "Free now" : `In class till ${status.end ? fmtTime12(status.end) : "?"}`}
+              {status.state === "free" ? "No scheduled class" : status.state === "available" ? "Available to meet" : status.state === "unavailable" ? "Busy outside class" : `In class till ${status.end ? fmtTime12(status.end) : "?"}`}
               {nudgeEnabled && status.state === "busy" && status.end && (
                 <button
                   className={`fr-nudge-btn ${myNudges[f.cloudId || f.id] ? "is-active" : ""}`}
-                  title={myNudges[f.cloudId || f.id] ? "Cancel the free-time nudge" : "Notify me when they're free"}
+                  title={myNudges[f.cloudId || f.id] ? "Cancel the free-time nudge" : "Notify me when their class ends"}
                   onClick={() => handleToggleNudge(f, status.end)}
                 >
                   <BellRing size={11} />
@@ -1200,7 +1251,7 @@ export default function FriendsPanel({
     const displayCount = displayMembers.length;
 
     return (
-      <div key={group.id} className={`fr-group-card ${group.isReceived ? "fr-group-received" : ""} ${isCompact ? "compact" : ""}`}>
+      <div id={`fr-group-${group.id}`} key={group.id} className={`fr-group-card ${group.isReceived ? "fr-group-received" : ""} ${isCompact ? "compact" : ""}`}>
         <div className="fr-group-head">
           <button type="button" className="fr-group-summary" aria-expanded={!isCompact ? isExpanded : undefined}
             onClick={() => { if (isCompact) openGroupMembers(group); else if (isExpanded) setExpandedGroup(null); else openGroupMembers(group); }}>
@@ -1249,6 +1300,7 @@ export default function FriendsPanel({
         </div>
         {isExpanded && !isCompact && (
           <div className="fr-group-body">
+            <GroupPins key={group.id} group={group} userId={userId} userName={userName} />
             {group.isReceived ? (
               <>
                 <p className="fr-group-body-label">Members in this group:</p>
@@ -1279,7 +1331,7 @@ export default function FriendsPanel({
                   )}
                 </div>
                 
-                <GroupChat group={group} userId={userId} userName={userName} />
+                <GroupChat group={group} userId={userId} userName={userName} focusPollId={focusPollId} />
               </>
             ) : (
               <>
@@ -1397,7 +1449,7 @@ export default function FriendsPanel({
                 </div>
                 
                 {(group.visibility === "shared" || group.visibility === "global" || (group.inviteMembers || []).length > 0) && (
-                  <GroupChat group={group} userId={userId} userName={userName} />
+                  <GroupChat group={group} userId={userId} userName={userName} focusPollId={focusPollId} />
                 )}
               </>
             )}
@@ -1410,10 +1462,7 @@ export default function FriendsPanel({
   const renderBuddyCard = (match, isCompact = false) => {
     const [c1, c2] = avatarGradient(match.name);
     const score = match.score || 0;
-    const compatLabel = score >= 70 ? "Excellent compatibility"
-                      : score >= 55 ? "Good compatibility"
-                      : score >= 35 ? "Moderate compatibility"
-                      : "Low compatibility";
+    const compatLabel = match.reasons?.join(" · ") || "Shared courses";
     return (
       <div key={match.user_id} className={`fr-friend-card fr-buddy ${isCompact ? "compact" : ""}`}
         style={{ '--buddy-c1': c1, '--buddy-c2': c2 }}>
@@ -1431,10 +1480,10 @@ export default function FriendsPanel({
                 <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
                 <polyline points="17 6 23 6 23 12"/>
               </svg>
-              {score}% <span className="fr-buddy-match-text">match</span>
+              {score}% <span className="fr-buddy-match-text">course overlap</span>
             </span>
           </div>
-          {!isCompact && <span className="fr-buddy-compat">{compatLabel}</span>}
+          <span className="fr-buddy-compat">{compatLabel}</span>
         </div>
         <div className="fr-buddy-divider" />
         <div className="fr-friend-actions">
@@ -1770,11 +1819,11 @@ export default function FriendsPanel({
         <div className="fr-workspace-copy">
           <span className="fr-eyebrow">Campus connections</span>
           <h1>Social</h1>
-          <p>See who&rsquo;s free, compare schedules, and keep your study circles moving.</p>
+          <p>See timetable gaps, compare schedules, and keep your study circles moving.</p>
           <div className="fr-workspace-metrics" aria-label="Social summary">
             <span><strong>{friends.length}</strong> friends</span>
             <span><strong>{groups.length}</strong> groups</span>
-            <span className="is-live"><i /> <strong>{freeNowFriends.length}</strong> free now</span>
+            <span className="is-live"><i /> <strong>{freeNowFriends.length}</strong> without classes</span>
           </div>
         </div>
         <div className="fr-workspace-actions">
@@ -1848,11 +1897,21 @@ export default function FriendsPanel({
           userId={userId}
           userName={userName}
           friends={friends}
+          allClasses={allClasses}
+          enrolled={enrolled}
+          now={now}
           draft={planDraft || groupPlanDraft}
           onDraftConsumed={() => { setGroupPlanDraft(null); onPlanDraftConsumed?.(); }}
           showToast={showToast}
         />
       )}
+
+      {socialView === "overview" && <>
+        <SocialActivity key={`${userId}:activity`} userId={userId} userName={userName} groups={groups} now={now} onOpenGroup={openActivityGroup} meetupsEnabled={meetupsEnabled} />
+        {meetupsEnabled && <SocialOverviewExtras key={`${userId}:suggestions`} userId={userId} enrolled={enrolled} friends={friends} groups={groups} allClasses={allClasses} now={now} presence={awayEnabled ? friendStatuses : {}} onPlan={setGroupPlanDraft} />}
+      </>}
+      {(socialView === "overview" || socialView === "friends") && <BuddyPreferences key={`${userId}:preferences`} userId={userId} preferences={buddyPreferences} enrolled={enrolled} onSaved={value => { setBuddyPreferences(value); showToast("Study preferences saved"); }} />}
+      {buddyPreferencesError && socialView === "friends" && <p className="fr-meetup-error" role="alert">{buddyPreferencesError}</p>}
 
       {socialView === "overview" && (
         <div className="fr-overview-grid fr-tab-pane">
@@ -1878,7 +1937,7 @@ export default function FriendsPanel({
 
           <section className="fr-overview-card fr-free-card">
             <div className="fr-overview-card-head">
-              <div><span className="fr-card-kicker fr-live-kicker"><i /> Available now</span><h2>Friends you can catch up with</h2></div>
+              <div><span className="fr-card-kicker fr-live-kicker"><i /> Timetable gaps</span><h2>Friends without scheduled classes</h2></div>
               <button className="fr-text-button" onClick={() => { setFriendFilter("free"); setSocialView("friends"); }}>View all <ArrowRight size={13} /></button>
             </div>
             {freeNowFriends.length > 0 ? (
@@ -1886,7 +1945,7 @@ export default function FriendsPanel({
                 {freeNowFriends.slice(0, 3).map(friend => renderFriendCard(friend, true))}
               </div>
             ) : (
-              <div className="fr-quiet-empty"><Coffee size={20} /><span>No friends are showing as free right now.</span></div>
+              <div className="fr-quiet-empty"><Coffee size={20} /><span>No friends are showing a timetable gap right now.</span></div>
             )}
           </section>
 
@@ -2019,7 +2078,7 @@ export default function FriendsPanel({
             </label>
             <div className="fr-filter-row" aria-label="Filter friends">
               {[
-                ["all", "All"], ["free", "Free now"], ["busy", "Busy"], ["favourites", "Favourites"],
+                ["all", "All"], ["free", "No classes"], ["available", "Available to meet"], ["busy", "In class"], ["favourites", "Favourites"],
               ].map(([id, label]) => (
                 <button key={id} type="button" className={friendFilter === id ? "is-active" : ""} onClick={() => setFriendFilter(id)}>{label}</button>
               ))}

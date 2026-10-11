@@ -1,3 +1,4 @@
+import { rememberSplitInvite, pendingSplitInvite, clearSplitInvite } from "./lib/splitInvite.js";
 import { MORE_VIEWS } from "./lib/navItems.js";
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Suspense, lazy, startTransition } from "react";
 import { createPortal } from "react-dom";
@@ -757,7 +758,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         const g = params.get("g");
         if (g) setSplitDeepLink(g);
         const join = params.get("join");
-        if (join) setSplitJoinLink(join);
+        if (join && rememberSplitInvite(join)) setSplitJoinLink(join);
       }
 
       // Strip the consumed params, preserving anything else on the URL.
@@ -777,6 +778,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       if (stashed) setPendingInvite(stashed);
       const groupStashed = localStorage.getItem("pgp2.pending-group-invite");
       if (groupStashed) { setPendingGroupInvite(groupStashed); setView("friends"); }
+      const splitStashed = pendingSplitInvite();
+      if (splitStashed) { setSplitJoinLink(splitStashed); setView("split"); }
     } catch { }
 
     captureFromUrl();
@@ -2504,7 +2507,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         <div className="sb-pop-meta">
           <span className="sb-pop-batch">PGP2 · 2025–27</span>
           {termLabel && <span className="sb-pop-term">{termLabel}</span>}
-          <span className="sb-pop-version">v{__APP_VERSION__.split("+")[0]}</span>
+          <span className="sb-pop-version">v{__APP_VERSION__.split("+")[0].replace(/\.0$/, "")}</span>
         </div>
         <div className="sb-pop-sep" />
         <div className="sb-pop-style">
@@ -2883,7 +2886,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                     <button className="over-danger" onClick={() => { signOut(); setProfileOpen(false); }}>
                       <LogOut size={14} /> Sign out
                     </button>
-                    <div className="over-version">v{__APP_VERSION__.split("+")[0]}</div>
+                    <div className="over-version">v{__APP_VERSION__.split("+")[0].replace(/\.0$/, "")}</div>
                   </div>
                 </>
               )}
@@ -3594,7 +3597,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                     friends={friends}
                                     initialGroupId={splitDeepLink}
                                     initialJoinId={splitJoinLink}
-                                    onConsumeDeepLink={() => { setSplitDeepLink(null); setSplitJoinLink(null); }}
+                                    onConsumeDeepLink={() => { setSplitDeepLink(null); setSplitJoinLink(null); clearSplitInvite(); }}
                                   />
                               : view === "wrapped"
                                 ? <WrappedView

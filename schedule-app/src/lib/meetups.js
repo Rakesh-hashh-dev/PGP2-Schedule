@@ -88,8 +88,8 @@ export async function createMeetup({ userId, userName, title, place, startsAt, g
 /**
  * Update an existing meetup. memberIds will overwrite the existing list.
  */
-export async function updateMeetup(meetupId, { title, place, startsAt, memberIds = [] }, userId) {
-  if (!meetupId || !userId || !title?.trim() || !startsAt) return null;
+export async function updateMeetup(meetupId, { title, place, startsAt, endsAt, templateId = null, memberIds = [] }, userId) {
+  if (!meetupId || !userId || !title?.trim() || !validPlanInterval(startsAt, endsAt)) return null;
   const invitees = [...new Set(memberIds.filter(id => id && id !== userId))];
   try {
     const { data, error } = await supabase
@@ -98,6 +98,8 @@ export async function updateMeetup(meetupId, { title, place, startsAt, memberIds
         title: title.trim().slice(0, 80),
         place: (place || "").trim().slice(0, 60) || null,
         starts_at: startsAt,
+        ends_at: endsAt,
+        template_id: templateId,
         member_ids: invitees,
       })
       .eq("id", meetupId)
@@ -111,15 +113,16 @@ export async function updateMeetup(meetupId, { title, place, startsAt, memberIds
 }
 
 /**
- * Upcoming plans I created or am invited to (starting within the last hour or
- * later, not cancelled), plus all their RSVPs.
+ * Upcoming and ongoing plans I created or am invited to, plus their RSVPs.
+ * Legacy plans without an end time retain their one-hour grace window.
  * Returns { meetups: [...], rsvpsByMeetup: { [id]: rows[] } }.
  */
-export async function fetchMyMeetups(userId) {
+export async function fetchMyMeetups(userId, { strict = false } = {}) {
   const empty = { meetups: [], rsvpsByMeetup: {} };
   if (!userId) return empty;
   try {
-    const cutoff = new Date(Date.now() - 3600_000).toISOString();
+    const now = Date.now();
+    const cutoff = new Date(now - 4 * 3600_000).toISOString();
     const { data: meetups, error } = await supabase
       .from("meetups")
       .select("*")
@@ -127,19 +130,25 @@ export async function fetchMyMeetups(userId) {
       .eq("cancelled", false)
       .gte("starts_at", cutoff)
       .order("starts_at", { ascending: true })
-      .limit(20);
+      .limit(100);
     if (error || !meetups?.length) {
+      if (error && strict) throw new Error("Could not load upcoming plans.");
       if (error) console.error("[fetchMyMeetups]", error.message);
       return empty;
     }
-    const { data: rsvps } = await supabase
+    const activeMeetups = meetups.filter(meetup => meetup.ends_at
+      ? new Date(meetup.ends_at).getTime() > now
+      : new Date(meetup.starts_at).getTime() >= now - 3600_000);
+    if (!activeMeetups.length) return empty;
+    const { data: rsvps, error: rsvpError } = await supabase
       .from("meetup_rsvps")
       .select("*")
-      .in("meetup_id", meetups.map(m => m.id));
+      .in("meetup_id", activeMeetups.map(m => m.id));
+    if (rsvpError && strict) throw new Error("Could not load meetup responses.");
     const rsvpsByMeetup = {};
     for (const r of rsvps || []) (rsvpsByMeetup[r.meetup_id] ||= []).push(r);
-    return { meetups, rsvpsByMeetup };
-  } catch { return empty; }
+    return { meetups: activeMeetups, rsvpsByMeetup };
+  } catch (error) { if (strict) throw error; return empty; }
 }
 
 /** RSVP going/declined (upsert — tapping the other button changes it). */
@@ -182,4 +191,27 @@ export function subscribeMeetups(userId, onChange) {
     .on("postgres_changes", { event: "*", schema: "public", table: "meetup_rsvps" }, () => onChange?.())
     .subscribe();
   return () => { supabase.removeChannel(channel); };
+}
+
+
+export function validPlanInterval(startsAt, endsAt) {
+  const duration = new Date(endsAt) - new Date(startsAt);
+  return Number.isFinite(duration) && duration >= 15 * 60000 && duration <= 240 * 60000;
+}
+
+/** One batch insert makes a recurring plan all-or-nothing. Every occurrence
+ * remains a normal meetup for existing reminders, RSVP and cancellation. */
+export async function createMeetupSeries({ userId, userName, title, place, occurrences, memberIds = [], groupId = null, groupName = null, templateId = null }) {
+  const invitees = [...new Set(memberIds.filter(id => id && id !== userId))];
+  if (!userId || !title?.trim() || !invitees.length || !occurrences?.length || occurrences.length > 8 || occurrences.some(row => !validPlanInterval(row.startsAt, row.endsAt))) throw new Error("Choose a title, invitees and valid plan times.");
+  const seriesId = occurrences.length > 1 ? crypto.randomUUID() : null;
+  const rows = occurrences.map((row, index) => ({
+    created_by: userId, created_by_name: userName || "Someone", title: title.trim().slice(0, 80), place: (place || "").trim().slice(0, 60) || null,
+    starts_at: row.startsAt, ends_at: row.endsAt, group_id: groupId, group_name: groupName, member_ids: invitees,
+    series_id: seriesId, series_index: seriesId ? index : null, template_id: templateId,
+  }));
+  const { data, error } = await supabase.from("meetups").insert(rows).select();
+  if (error || data?.length !== rows.length) throw new Error("Could not create the plans. Please try again.");
+  await Promise.all(data.flatMap(meetup => invitees.map(id => notifyMeetup(id, "meetup_invite", meetup, userId, userName || "Someone"))));
+  return data.sort((a, b) => a.starts_at.localeCompare(b.starts_at));
 }

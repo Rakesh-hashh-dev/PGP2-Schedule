@@ -104,3 +104,124 @@ dark-aurora,narrow-touch,boundaries}.json` and corresponding PNG screenshots.
 Browser validation uses the bundled schedule and local fixture services; no
 authenticated production changes were made. The initial Login readiness probe
 used the wrong selector; corrected Login checks passed. Changes remain local.
+
+## 2026-10-08 — Social planning and group upgrades
+
+Implemented all six accepted additions: shared timetable gaps, pending responses,
+shared pinned notes/links/messages, plan templates, durations/class-clash warnings
+and bounded weekly repeats, and optional explained study-buddy preferences.
+Explicit availability is separate from having no scheduled class. Existing
+attendance Risk Watch changes were preserved.
+
+- Full Vitest suite: 50 files, 473 tests passed, including ongoing four-hour plans,
+  atomic series writes, failures, recurring dates, unknown schedules and preferences.
+- Targeted ESLint across all changed/new Social JS and JSX files: exit 0.
+- Production Vite build: passed, 2423 modules, PWA 116 entries.
+- Isolated Chromium with actual Social components and production CSS: 1280, 820,
+  390 and 320px widths; no horizontal overflow and no console/page errors.
+- Browser interactions passed: RSVP, correct poll destination/voting, chat read
+  cursors, message/custom pins and removal, group plan navigation, templates,
+  explicit class-clash override, four weekly occurrences, preference save failure
+  and retry, explained matches, explicit availability filter and persistent dismissal.
+- Reviewed desktop/phone screenshots and checked phone dialog viewport containment.
+- New SQL migration applied to disposable PostgreSQL 15 with minimal platform
+  schema and auth roles. Membership/forged groups, ownership, safe URLs, own read
+  cursors, monotonic/future-clamped reads, preference isolation/preservation,
+  interval/series constraints and all-or-nothing inserts passed.
+- `git diff --check`: passed. No dependency install, commit, push or production
+  migration. Local QA browser uses mock services; signed-in production and real
+  realtime delivery have not been verified.
+
+Evidence: `.local/social-qa/report.json`, corresponding overview/group/friends
+screenshots and `plan-clashes-viewport.png`; `.local/social-sql-bootstrap.sql`.
+Cloud features require `20261008120000_social_workspace_upgrades.sql` to be
+applied before release. The disposable QA database was removed after validation.
+
+## 2026-10-10 — SplitCircle-inspired Split implementation, v7.3
+
+Adapted the reviewed local SplitCircle flows to TermFlow's Clerk/Supabase
+contracts. Added responsive workspace, itemized/OCR-assisted review, FX,
+budgets, reviewed recurring bills, comments/history, secure invitations,
+transactional/versioned writes, CSV import/export and ledger backup. Preserved
+existing financial rows and account identities; migration remains unapplied.
+Package metadata is 7.3.0 and visible version is v7.3.
+
+- Full Vitest output: `Test Files 52 passed (52); Tests 492 passed (492)`.
+- PostgreSQL output: `Completed 26 PostgreSQL migration and authorization checks.`
+- Chromium output: `Completed 19 browser checks.` Screenshots cover desktop,
+  tablet, phone, dark theme, ledger, insights and item/detail dialogs.
+- Targeted ESLint: exit 0. Production Vite/PWA build and version metadata
+  verified; full final build output saved under `.local/split-qa/`.
+- `git diff --check`: passed.
+
+Database checks include atomic rollback, invalid participants, immutable audit,
+exact allocation, retry/import deduplication, recurrence anchors, author-only
+edits, private preferences/receipts and revoked/single-use invites. Browser
+checks include save-failure draft retention, keyboard focus containment, CSV,
+receipt-text reconciliation, FX and pre-migration fallback/error reporting.
+New tests prove invitation persistence/cleanup across login reloads.
+
+No production migration, deploy, commit or push. Real signed-in Supabase,
+OAuth redirects, realtime delivery and external OCR image recognition remain
+unverified; browser used mocked services and SQL used disposable PostgreSQL.
+Release instructions: `.gsd/split-circle/IMPLEMENTATION.md`.
+
+## 2026-10-10 - Split staged production expansion and v7.3 frontend
+
+Split expansion was applied alone to PGP2 Supabase and registered atomically.
+Production counts/totals/anomalies and original grants, policies, active triggers,
+receipt settings and legacy invitation function were verified unchanged. Feature
+version 0 / phase expanded keeps advanced controls disabled. Social migration
+remains deferred; normal db push now reports that older missing migration and
+must not be used blindly. No commit/push was performed.
+
+Consistent Split JSON and full schema/data/roles logical backups were saved in
+ignored `.local/split-release/`, with checksums. Platform PITR is disabled and
+no listed restorable platform backup was returned. Storage logical dumps contain
+metadata, not bytes; Split had zero receipt objects at backup time.
+
+- 26 PostgreSQL authorization checks and 14 staged restore/rollback checks passed.
+- Production Split backup restored in isolated PostgreSQL 17.6; expansion,
+  cutover, compatibility rollback and re-cutover passed.
+- Isolated release: 48 files / 473 tests passed; local production build passed.
+- Vercel production build passed: 2447 modules, 117 PWA entries.
+- Version, app shell, OAuth callback shell, main/Clerk/Split bundles, manifest
+  and service worker were checked on the prepared deployment before promotion.
+- v7.3 deployment `dpl_6B1guGiS47b1NJyk2nJW6gc9pEr7` promoted. Existing
+  production baseline was `6.3.9+5f8860a`; its commit matches the isolated source
+  baseline. New metadata is `7.3.0+local`; previous deployment retained for rollback.
+
+Deployment includes committed baseline plus Split edits only. Unrelated dirty
+Social/Attendance/Vite changes remain locally untouched. Signed-in production
+flows, realtime, storage upload and external OCR remain unverified. Browser
+automation could not start its runtime; requested the user's live smoke check.
+Stage B is unapplied and intentionally outside the automatic migration queue
+until that gate passes. Documentation: `.gsd/split-circle/ROLLOUT.md`.
+
+### Split rollout completion
+
+User confirmed signed-in pages, existing Split, timetable and attendance work;
+they did not perform a browser expense test. A production authenticated-role
+transaction verified legacy and RPC write/edit/delete, exact shares, retries,
+version conflicts, invalid inputs, outsider isolation and settlements; all test
+rows rolled back. Fresh nine-table backup captured and hashed.
+
+Stage B was promoted to `20261010020000_split_circle_cutover.sql` and applied
+with a fresh-backup equality guard, bounded write locks and another rollback-only
+smoke test inside the migration transaction. Atomic writes, audit, private
+preferences, comments, revoked invites and denied legacy writes/join links passed.
+All test rows rolled back before atomic migration registration/commit.
+
+Final production checks: version 1 / active; private receipt bucket; expected
+audit/group triggers and write revocations; all nine Split tables and receipt
+metadata exactly preserved; financial counts/totals/anomalies unchanged. Both
+Split migrations registered, Social absent. Live custom-domain metadata verified
+`7.3.0+local`. Saved prior frontend deployment and compatibility rollback SQL.
+Rehearsal containers removed by verified exact identity. Root ignore-file content
+restored after Vercel metadata setup. No Git commit/push; user Social/Attendance
+work preserved.
+
+Remaining verification limits: actual browser expense cycle, realtime delivery,
+receipt upload and external OCR downloads. SQL synthetic-role checks are not an
+OAuth exchange or browser-to-API save. Evidence: ignored
+`.local/split-release/final-verification.txt` and the linked logs/backups.
