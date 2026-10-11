@@ -1510,7 +1510,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           return classOverride ? { ...c, ...classOverride } : c;
         });
 
-        const newClasses = buildOverrideAdds(overrides, data.CLASSES);
+        // Match adds against the ORIGINAL feed rows: session keys carry the feed
+        // start time, which a time override has already replaced in data.CLASSES.
+        const newClasses = buildOverrideAdds(overrides, scheduleData.CLASSES);
         if (newClasses.length > 0) {
           data.CLASSES = [...data.CLASSES, ...newClasses];
         }

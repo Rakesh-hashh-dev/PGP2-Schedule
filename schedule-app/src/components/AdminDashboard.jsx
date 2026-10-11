@@ -16,8 +16,17 @@ import { taughtSectionsByCode } from "../lib/sections.js";
 import snapshotMeta from "../data/snapshot-meta.json";
 import { getSnapshot } from "../lib/sheet.js";
 import { MESS_MENU_FEED_URL } from "../lib/messFeed.js";
-import { classIdent, makeOverrideKey, lookupOverride, parseOverrideKey } from "../lib/overrides.js";
+import { classIdent, makeOverrideKey, classOverrideKey, classMatchesKey, lookupOverride, parseOverrideKey } from "../lib/overrides.js";
 import { ymd } from "../lib/datetime.js";
+
+// Key an edit-modal change lands on. Editing a class in its own section targets
+// that one SESSION (a course can meet twice a day); widening to "Both" sections
+// is a deliberate day-wide edit and keeps the legacy whole-day key.
+function editOverrideKey(cls, section, ident = classIdent(cls)) {
+  const own = !cls.section || cls.section === "Single" ? "All" : cls.section;
+  if (section !== own || !cls.start) return makeOverrideKey(ident, section);
+  return cls._ovrKey || makeOverrideKey(ident, section, cls.start);
+}
 import AdminCommandPalette from "./AdminCommandPalette";
 import ActiveUsersTodayPanel from "./ActiveUsersTodayPanel.jsx";
 import FeedbackFlashScheduler from "./FeedbackFlashScheduler.jsx";
@@ -1335,7 +1344,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     if (!confirm(`Cancel ${affected.length} class(es) between ${holidayStart} and ${holidayEnd}? This writes overrides — deploy to apply.`)) return;
     const next = { ...flags.classOverrides };
     affected.forEach(c => {
-      const key = makeOverrideKey(classIdent(c), c.section);
+      const key = classOverrideKey(c);
       next[c.date] = { ...(next[c.date] || {}), [key]: { type: "cancelled", modifiedAt: new Date().toISOString(), modifiedBy: admin_id } };
     });
     setFlags({ ...flags, classOverrides: next });
@@ -1354,7 +1363,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     if (!confirm(`Move ${affected.length} class(es) from ${from} to ${to} between ${relocStart} and ${relocEnd}? Stages overrides — Review & Deploy to apply.`)) return;
     const next = { ...flags.classOverrides };
     affected.forEach(c => {
-      const key = makeOverrideKey(classIdent(c), c.section);
+      const key = classOverrideKey(c);
       const existing = next[c.date]?.[key] || {};
       // keep any existing time override, just swap the room
       next[c.date] = { ...(next[c.date] || {}), [key]: { type: "class", ...existing, room: to, modifiedAt: new Date().toISOString(), modifiedBy: admin_id } };
@@ -2107,8 +2116,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     return userSort === "oldest" ? aSeen - bSeen : bSeen - aSeen;
   });
 
-  const cancelClass = (date, code, section) => {
-    const key = !section || section === "All" || section === "Single" ? code : `${code}_${section}`;
+  // `start` (the class's original feed start) scopes the cancel to one session;
+  // omitted, it cancels every session of that code/section on the date.
+  const cancelClass = (date, code, section, start) => {
+    const key = makeOverrideKey(code, section, start);
     const nextOverrides = { ...(flags.classOverrides || {}) };
     nextOverrides[date] = { ...(nextOverrides[date] || {}), [key]: { type: "cancelled", name: `Cancelled: ${key}`, modifiedAt: new Date().toISOString(), modifiedBy: admin_id } };
     setFlags({ ...flags, classOverrides: nextOverrides });
@@ -2116,10 +2127,12 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   };
 
   // Only lifts the cancellation — leaves room/time overrides on the same key intact
-  const restoreClass = (date, code, section) => {
+  const restoreClass = (date, code, section, start) => {
     const nextOverrides = { ...(flags.classOverrides || {}) };
     const forDate = { ...(nextOverrides[date] || {}) };
-    [code, `${code}_${section}`].forEach(key => {
+    const keys = [code, `${code}_${section}`];
+    if (start) keys.push(`${code}@${start}`, `${code}_${section}@${start}`);
+    keys.forEach(key => {
       if (forDate[key]?.type === "cancelled") delete forDate[key];
     });
     if (Object.keys(forDate).length === 0) delete nextOverrides[date];
@@ -2148,7 +2161,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     const nextOverrides = { ...(flags.classOverrides || {}) };
     nextOverrides[roomOverrideDate] = { ...(nextOverrides[roomOverrideDate] || {}) };
     
-    const overrideKey = roomOverrideSection === "All" ? roomOverrideClass : `${roomOverrideClass}_${roomOverrideSection}`;
+    const overrideKey = makeOverrideKey(roomOverrideClass, roomOverrideSection);
     const existing = nextOverrides[roomOverrideDate][overrideKey] || {};
     
     const changes = { ...existing };
@@ -2622,7 +2635,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     const prev = flags.classOverrides;
                     const next = { ...flags.classOverrides };
                     if (!next[liveEditorDate]) next[liveEditorDate] = {};
-                    dayClasses.forEach(c => { const k = makeOverrideKey(classIdent(c), c.section); next[liveEditorDate][k] = { type: "cancelled", modifiedAt: new Date().toISOString(), modifiedBy: admin_id }; });
+                    dayClasses.forEach(c => { const k = classOverrideKey(c); next[liveEditorDate][k] = { type: "cancelled", modifiedAt: new Date().toISOString(), modifiedBy: admin_id }; });
                     setFlags({ ...flags, classOverrides: next });
                     setCmdUndoStack(s => [{ label: `Holiday: all classes on ${liveEditorDate} cancelled`, prevOverrides: prev }, ...s.slice(0, 9)]);
                   }}>
@@ -2711,11 +2724,14 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               const baseClasses = liveSchedule.filter(c => c.date === liveEditorDate && c.type !== "break");
               const newClasses = [];
               Object.keys(overridesForDate).forEach(key => {
-                const { ident: code, section } = parseOverrideKey(key);
-                const exists = baseClasses.some(c => classIdent(c) === code && (c.section === section || section === "All" || c.section === "Single"));
+                const parsed = parseOverrideKey(key);
+                const { ident: code, section } = parsed;
+                const exists = baseClasses.some(c => classMatchesKey(c, parsed));
                 if (!exists) {
                   const ovr = overridesForDate[key];
-                  if (ovr.type !== "cancelled") newClasses.push({ date: liveEditorDate, code, section, name: ovr.name || "Custom Class", room: ovr.room || "", start: ovr.start || "", end: ovr.end || "", type: ovr.type || "class" });
+                  // _ovrKey: an override-created row is written back under its own key,
+                  // not one derived from its (overridden) start time.
+                  if (ovr.type !== "cancelled") newClasses.push({ date: liveEditorDate, code, section, name: ovr.name || "Custom Class", room: ovr.room || "", start: ovr.start || "", end: ovr.end || "", type: ovr.type || "class", _ovrKey: key });
                 }
               });
               let displayClasses = [...baseClasses, ...newClasses]
@@ -2765,7 +2781,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     const displayEnd = override?.end || c.end;
                     const ident = classIdent(c);
                     const isBeingDragged = draggedIdx === idx;
-                    const isQuickRoomOpen = cmdQuickRoom?.date === liveEditorDate && cmdQuickRoom?.classKey === ident + "_" + c.section;
+                    const sessionKey = classOverrideKey(c);
+                    const isQuickRoomOpen = cmdQuickRoom?.date === liveEditorDate && cmdQuickRoom?.classKey === sessionKey;
 
                     return (
                       <div key={idx} className={`scc-class-card${isCancelled ? " is-cancelled" : ""}${isEvent ? " is-event" : ""}${isExam ? " is-exam" : ""}${isModified ? " is-modified" : ""}${isGuest ? " is-guest" : ""}${isBeingDragged ? " is-dragging" : ""}`}
@@ -2786,8 +2803,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                           const prev = flags.classOverrides;
                           const next = { ...flags.classOverrides };
                           next[liveEditorDate] = { ...(next[liveEditorDate] || {}) };
-                          const srcKey = makeOverrideKey(classIdent(src), src.section);
-                          const dstKey = makeOverrideKey(classIdent(dst), dst.section);
+                          const srcKey = classOverrideKey(src);
+                          const dstKey = classOverrideKey(dst);
                           next[liveEditorDate][srcKey] = { ...(next[liveEditorDate][srcKey] || {}), start: dstStart, end: dstEnd, modifiedAt: new Date().toISOString(), modifiedBy: admin_id };
                           next[liveEditorDate][dstKey] = { ...(next[liveEditorDate][dstKey] || {}), start: srcStart, end: srcEnd, modifiedAt: new Date().toISOString(), modifiedBy: admin_id };
                           setFlags({ ...flags, classOverrides: next });
@@ -2850,7 +2867,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                             {isCancelled ? (
                               <button title="Restore class" onClick={() => {
                                 const prev = flags.classOverrides;
-                                restoreClass(liveEditorDate, ident, c.section);
+                                restoreClass(liveEditorDate, ident, c.section, c.start);
                                 setCmdUndoStack(s => [{ label: `Restored: ${c.code} on ${liveEditorDate}`, prevOverrides: prev }, ...s.slice(0, 9)]);
                               }} className="sched-class-btn" style={{ color: "var(--live)" }}>
                                 <RefreshCw size={12} /> Restore
@@ -2859,14 +2876,19 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                               <button title="Quick cancel this class" onClick={() => {
                                 if (!window.confirm(`Cancel ${c.code} on ${liveEditorDate}?`)) return;
                                 const prev = flags.classOverrides;
-                                cancelClass(liveEditorDate, ident, c.section);
+                                if (c._ovrKey) {
+                                  // Override-created row: cancel it under its own key.
+                                  const next = { ...flags.classOverrides, [liveEditorDate]: { ...flags.classOverrides[liveEditorDate] } };
+                                  next[liveEditorDate][c._ovrKey] = { ...next[liveEditorDate][c._ovrKey], type: "cancelled", modifiedAt: new Date().toISOString(), modifiedBy: admin_id };
+                                  setFlags({ ...flags, classOverrides: next });
+                                } else cancelClass(liveEditorDate, ident, c.section, c.start);
                                 setCmdUndoStack(s => [{ label: `Cancelled: ${c.code} on ${liveEditorDate}`, prevOverrides: prev }, ...s.slice(0, 9)]);
                               }} className="sched-class-btn" style={{ borderColor: "var(--danger)", color: "var(--danger)" }}>
                                 <XCircle size={12} /> Cancel
                               </button>
                             )}
                             <button title="Quick room change" onClick={() => {
-                              setCmdQuickRoom(isQuickRoomOpen ? null : { date: liveEditorDate, classKey: ident + "_" + c.section });
+                              setCmdQuickRoom(isQuickRoomOpen ? null : { date: liveEditorDate, classKey: sessionKey });
                               setCmdQuickRoomValue(displayRoom || "");
                             }} className="sched-class-btn" style={{ borderColor: isQuickRoomOpen ? "var(--blue)" : "var(--border)", background: isQuickRoomOpen ? "rgba(59,130,246,0.10)" : "var(--bg)", color: isQuickRoomOpen ? "var(--blue)" : "var(--muted)" }}>
                               📍 Room
@@ -2889,7 +2911,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                                 const prev = flags.classOverrides;
                                 const next = { ...flags.classOverrides };
                                 next[liveEditorDate] = { ...(next[liveEditorDate] || {}) };
-                                const key = makeOverrideKey(ident, c.section);
+                                const key = sessionKey;
                                 next[liveEditorDate][key] = { ...(next[liveEditorDate][key] || {}), room: cmdQuickRoomValue.trim(), modifiedAt: new Date().toISOString(), modifiedBy: admin_id };
                                 setFlags({ ...flags, classOverrides: next });
                                 setCmdUndoStack(s => [{ label: `Room: ${c.code} → ${cmdQuickRoomValue.trim()}`, prevOverrides: prev }, ...s.slice(0, 9)]);
@@ -3041,9 +3063,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             </div>
             <div className="sched-editor-actions">
                <button className="admin-btn blue" onClick={handleAddRoomOverride}><CalendarDays size={15} /> Save Change</button>
-               {roomOverrideDate && roomOverrideClass && flags.classOverrides?.[roomOverrideDate]?.[roomOverrideSection === "All" ? roomOverrideClass : `${roomOverrideClass}_${roomOverrideSection}`] && (
+               {roomOverrideDate && roomOverrideClass && flags.classOverrides?.[roomOverrideDate]?.[makeOverrideKey(roomOverrideClass, roomOverrideSection)] && (
                  <button onClick={() => {
-                    const overrideKey = roomOverrideSection === "All" ? roomOverrideClass : `${roomOverrideClass}_${roomOverrideSection}`;
+                    const overrideKey = makeOverrideKey(roomOverrideClass, roomOverrideSection);
                     const next = {...flags.classOverrides};
                     next[roomOverrideDate] = { ...next[roomOverrideDate] };
                     delete next[roomOverrideDate][overrideKey];
@@ -3197,9 +3219,13 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     const isCustom = override.type === "class";
                     const hasRoom = !!override.room;
                     const hasTime = !!override.start || !!override.end;
-                    const { ident: keyIdent, section: keySection } = parseOverrideKey(code);
+                    const parsedKey = parseOverrideKey(code);
+                    const { ident: keyIdent, section: keySection, start: keyStart } = parsedKey;
                     const displayBase = keyIdent || "⚠ legacy";
-                    const displayCode = keySection !== "All" ? `${displayBase} (Sec ${keySection})` : displayBase;
+                    const displayCode = `${keySection !== "All" ? `${displayBase} (Sec ${keySection})` : displayBase}${keyStart ? ` · ${keyStart} session` : ""}`;
+                    // Legacy whole-day key that now spans several same-day sessions —
+                    // it edits all of them at once; re-edit per session to split it.
+                    const sessionsCovered = keyStart ? 1 : liveSchedule.filter(c => c.date === date && classMatchesKey(c, parsedKey)).length;
                     const rowKey = `${date}::${code}`;
                     const isEditing = ovrEditKey === rowKey;
 
@@ -3236,6 +3262,11 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                             <div className="aco-title">
                               {new Date(date + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short" })} — {displayCode}
                             </div>
+                            {sessionsCovered > 1 && (
+                              <div className="aco-meta" style={{ color: "var(--amber)" }}>
+                                <AlertTriangle size={11} style={{ verticalAlign: "-1px", marginRight: 4 }} />Applies to all {sessionsCovered} sessions this day — delete and re-edit each session to split
+                              </div>
+                            )}
                             {override.modifiedAt && (
                               <div className="aco-meta">
                                 Modified {new Date(override.modifiedAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
@@ -6932,7 +6963,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     <div style={{ fontWeight: 700, color: "var(--text)" }}>{liveEditorModal.code ? `${liveEditorModal.code} — ` : "— "}{liveEditorModal.name || "Class"}</div>
                     {(() => {
                       const ident = classIdent(liveEditorModal);
-                      const overrideKey = makeOverrideKey(ident, modalSection);
+                      const overrideKey = editOverrideKey(liveEditorModal, modalSection, ident);
                       const existing = flags.classOverrides?.[liveEditorModal.date]?.[overrideKey];
                       const isEv = existing?.type === "event" || (!existing?.type && liveEditorModal.type === "event");
                       const isPl = existing?.type === "placement" || (!existing?.type && liveEditorModal.type === "placement");
@@ -7014,7 +7045,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               {/* Cancel button */}
               <button type="button" onClick={() => {
                 const ident = classIdent(liveEditorModal);
-                const overrideKey = makeOverrideKey(ident, modalSection);
+                const overrideKey = editOverrideKey(liveEditorModal, modalSection, ident);
                 const nextOverrides = { ...(flags.classOverrides || {}) };
                 nextOverrides[liveEditorModal.date] = { ...(nextOverrides[liveEditorModal.date] || {}) };
                 // "All Sections" must supersede any per-section override, otherwise the
@@ -7034,7 +7065,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               {/* Mark as Exam toggle */}
               {(() => {
                 const ident = classIdent(liveEditorModal);
-                const overrideKey = makeOverrideKey(ident, modalSection);
+                const overrideKey = editOverrideKey(liveEditorModal, modalSection, ident);
                 const existing = flags.classOverrides?.[liveEditorModal.date]?.[overrideKey];
                 const isExamOverride = existing?.type === "exam";
                 return (
@@ -7072,7 +7103,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               {/* Mark as Event (Celebration) toggle */}
               {(() => {
                 const ident = classIdent(liveEditorModal);
-                const overrideKey = makeOverrideKey(ident, modalSection);
+                const overrideKey = editOverrideKey(liveEditorModal, modalSection, ident);
                 const existing = flags.classOverrides?.[liveEditorModal.date]?.[overrideKey];
                 const isEventOverride = existing?.type === "event" || (!existing?.type && liveEditorModal.type === "event");
                 return (
@@ -7116,7 +7147,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               {/* Mark as Placement toggle */}
               {(() => {
                 const ident = classIdent(liveEditorModal);
-                const overrideKey = makeOverrideKey(ident, modalSection);
+                const overrideKey = editOverrideKey(liveEditorModal, modalSection, ident);
                 const existing = flags.classOverrides?.[liveEditorModal.date]?.[overrideKey];
                 const isPlacementOverride = existing?.type === "placement" || (!existing?.type && liveEditorModal.type === "placement");
                 return (
@@ -7187,7 +7218,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                       const nameChanged = modalName !== (liveEditorModal.name || "");
                       if (!modalRoom && !modalStart && !modalEnd && !sectionChanged && !nameChanged) return alert("Enter at least one change (name, section, room, start, or end time).");
                     }
-                    const overrideKey = makeOverrideKey(codeToUse, modalSection);
+                    const overrideKey = modalIsNew ? makeOverrideKey(codeToUse, modalSection) : editOverrideKey(liveEditorModal, modalSection, codeToUse);
                     const nextOverrides = { ...(flags.classOverrides || {}) };
                     nextOverrides[liveEditorModal.date] = { ...(nextOverrides[liveEditorModal.date] || {}) };
                     // "All Sections" must supersede any per-section override, otherwise the
@@ -7226,6 +7257,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                   nextOverrides[liveEditorModal.date] = { ...nextOverrides[liveEditorModal.date] };
                   delete nextOverrides[liveEditorModal.date][ident];
                   delete nextOverrides[liveEditorModal.date][`${ident}_${liveEditorModal.section}`];
+                  delete nextOverrides[liveEditorModal.date][classOverrideKey(liveEditorModal)];
+                  if (liveEditorModal.start) delete nextOverrides[liveEditorModal.date][`${ident}@${liveEditorModal.start}`];
                   if (Object.keys(nextOverrides[liveEditorModal.date]).length === 0) delete nextOverrides[liveEditorModal.date];
                   setFlags({ ...flags, classOverrides: nextOverrides });
                   logAdminAction(admin_id, "clear_override", { date: liveEditorModal.date, class: ident });

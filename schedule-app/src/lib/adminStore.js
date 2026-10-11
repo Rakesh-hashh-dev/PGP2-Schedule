@@ -84,8 +84,8 @@ export function draftEntries(draft) {
 
 // Build a draft payload entry with the same keying the live map uses, so a
 // published draft lands on exactly the class the admin picked.
-export function draftKeyFor(ident, section) {
-  return makeOverrideKey(ident, section);
+export function draftKeyFor(ident, section, start) {
+  return makeOverrideKey(ident, section, start);
 }
 
 // Mark a draft published. The caller writes the merged flags to system_config

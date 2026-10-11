@@ -141,9 +141,13 @@ async function runReminders(supabase: ReturnType<typeof createClient>) {
   // ── 2. Apply admin class overrides (cancel / room / time) ─────────────────
   const { data: sysConfig } = await supabase.from("system_config").select("flags").eq("id", "global").maybeSingle();
   const overrides = sysConfig?.flags?.classOverrides?.[dateISO] || {};
+  // Mirrors src/lib/overrides.js lookupOverride: a legacy whole-day key
+  // (`CODE_A` / `CODE`) is the base, a session key (`CODE_A@HH:MM`, keyed by the
+  // feed start) layers on top — a course can meet twice a day.
   const applyOverride = (c: Cls): Cls => {
-    const ovr = overrides[`${c.code}_${c.section}`] || overrides[c.code];
-    return ovr ? { ...c, ...ovr } : c;
+    const legacy = overrides[`${c.code}_${c.section}`] || overrides[c.code];
+    const slot = c.start ? overrides[`${c.code}_${c.section}@${c.start}`] || overrides[`${c.code}@${c.start}`] : undefined;
+    return legacy || slot ? { ...c, ...legacy, ...slot } : c;
   };
 
   // ── 3. Classes whose start hits a lead window this run ────────────────────
@@ -272,19 +276,24 @@ async function runReminders(supabase: ReturnType<typeof createClient>) {
   }
 
   // ── 5c. Cancellation alerts (today's still-upcoming + all of tomorrow's) ───
-  type CancelJob = { userId: string; code: string; section: string; classDate: string; start?: string; room?: string; name?: string };
+  type CancelJob = { userId: string; code: string; section: string; classDate: string; slot?: string | null; start?: string; room?: string; name?: string };
   const cancelJobs: CancelJob[] = [];
   const allOverrides = sysConfig?.flags?.classOverrides || {};
   for (const cancelDate of [dateISO, tomorrowISO]) {
     const dayOverrides = allOverrides[cancelDate] || {};
     for (const [key, ovr] of Object.entries(dayOverrides)) {
       if ((ovr as { type?: string })?.type !== "cancelled") continue;
-      const us = key.lastIndexOf("_");
-      const code = us === -1 ? key : key.slice(0, us);
-      const section = us === -1 ? "All" : key.slice(us + 1);
+      // Key grammar mirrors src/lib/overrides.js parseOverrideKey.
+      const slotM = /^(.*)@(\d{1,2}:\d{2})$/.exec(key);
+      const base = slotM ? slotM[1] : key;
+      const slotStart = slotM ? slotM[2] : null;
+      const secM = /^(.*)_(A|B)$/.exec(base);
+      const code = secM ? secM[1] : base;
+      const section = secM ? secM[2] : "All";
       const orig = classes.find(
         (c) => c.date === cancelDate && c.code === code &&
-          (section === "All" || c.section === section || c.section === "Single"),
+          (section === "All" || c.section === section || c.section === "Single") &&
+          (!slotStart || c.start === slotStart),
       );
       const startMin = toMin(orig?.start);
       // Today: skip classes that already started — a "cancelled" alert then is moot
@@ -298,7 +307,7 @@ async function runReminders(supabase: ReturnType<typeof createClient>) {
         const matches = section === "All" || enrolledSection === section;
         if (!matches) continue;
         cancelJobs.push({
-          userId: profile.user_id, code, section, classDate: cancelDate,
+          userId: profile.user_id, code, section, classDate: cancelDate, slot: slotStart,
           start: orig?.start, room: orig?.room, name: orig?.name,
         });
       }
@@ -460,7 +469,9 @@ async function runReminders(supabase: ReturnType<typeof createClient>) {
         urgency: "high", ttl: 21600, // 6h
         expires_at: istToUTCISO(j.classDate, j.start) || istToUTCISO(j.classDate, "23:59"),
       },
-      dedup_key: `cancel:${j.classDate}:${j.code}:${j.section}`,
+      // Session-scoped cancels get their own dedup slot so both of a day's
+      // sessions can alert; legacy keys keep the old format (no re-sends).
+      dedup_key: `cancel:${j.classDate}:${j.code}:${j.section}${j.slot ? `@${j.slot}` : ""}`,
     };
   });
 

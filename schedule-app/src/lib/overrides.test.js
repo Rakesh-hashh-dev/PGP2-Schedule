@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classIdent, makeOverrideKey, lookupOverride, parseOverrideKey, buildOverrideAdds } from "./overrides.js";
+import { classIdent, makeOverrideKey, classOverrideKey, classMatchesKey, lookupOverride, parseOverrideKey, buildOverrideAdds } from "./overrides.js";
 
 describe("classIdent", () => {
   it("uses the course code when present", () => {
@@ -111,5 +111,48 @@ describe("buildOverrideAdds", () => {
     expect(buildOverrideAdds(overrides, [])).toEqual([
       { date: "2026-09-04", code: "BBM", section: "All", name: "Business to Business Marketing", room: "", start: "", end: "", type: "exam" },
     ]);
+  });
+});
+
+// Regression: a course meeting twice a day in the same section (BMD Sec A at
+// 17:00 and 18:30) shared one `BMD_A` key, so editing one session edited both.
+describe("same-day double sessions", () => {
+  const early = { date: "2026-10-12", code: "BMD", section: "A", start: "17:00", end: "18:30", type: "class" };
+  const late = { date: "2026-10-12", code: "BMD", section: "A", start: "18:30", end: "20:00", type: "class" };
+
+  it("gives each session its own key", () => {
+    expect(classOverrideKey(early)).toBe("BMD_A@17:00");
+    expect(classOverrideKey(late)).toBe("BMD_A@18:30");
+    expect(classOverrideKey({ code: "SCA", section: "Single", start: "08:00" })).toBe("SCA@08:00");
+  });
+
+  it("an edit to one session does not touch the other", () => {
+    const forDate = { [classOverrideKey(early)]: { room: "A04" } };
+    expect(lookupOverride(forDate, early)).toEqual({ room: "A04" });
+    expect(lookupOverride(forDate, late)).toBeNull();
+  });
+
+  it("layers a session edit over a legacy whole-day override", () => {
+    const forDate = { BMD_A: { room: "A02" }, "BMD_A@18:30": { start: "19:00" } };
+    expect(lookupOverride(forDate, early)).toEqual({ room: "A02" });
+    expect(lookupOverride(forDate, late)).toEqual({ room: "A02", start: "19:00" });
+  });
+
+  it("parses session keys and round-trips", () => {
+    expect(parseOverrideKey("BMD_A@18:30")).toEqual({ ident: "BMD", section: "A", start: "18:30" });
+    expect(parseOverrideKey("SCA@08:00")).toEqual({ ident: "SCA", section: "All", start: "08:00" });
+    expect(parseOverrideKey(makeOverrideKey("PMA End Term", "B", "10:00"))).toEqual({ ident: "PMA End Term", section: "B", start: "10:00" });
+  });
+
+  it("matches a session key only to its own session", () => {
+    const parsed = parseOverrideKey("BMD_A@18:30");
+    expect(classMatchesKey(early, parsed)).toBe(false);
+    expect(classMatchesKey(late, parsed)).toBe(true);
+    expect(classMatchesKey(late, parseOverrideKey("BMD_A"))).toBe(true);
+  });
+
+  it("does not treat a moved session's own override as an added class", () => {
+    const overrides = { "2026-10-12": { "BMD_A@18:30": { name: "Business Models", start: "19:00" } } };
+    expect(buildOverrideAdds(overrides, [early, late])).toEqual([]);
   });
 });
