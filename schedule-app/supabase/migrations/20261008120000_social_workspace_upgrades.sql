@@ -8,6 +8,19 @@ alter table public.meetups add constraint meetups_valid_end check (ends_at is nu
 alter table public.meetups add constraint meetups_valid_series check ((series_id is null and series_index is null) or (series_id is not null and series_index is not null and series_index between 0 and 7));
 create unique index if not exists meetups_series_occurrence_idx on public.meetups(series_id, series_index) where series_id is not null;
 
+-- Register existing owner-defined groups so received members can use pins and
+-- read receipts without waiting for the owner to open Social. Never infer an
+-- owner from a received copy or choose between conflicting owners.
+insert into public.study_group_invites(group_id, owner_id)
+select g->>'id', min(p.user_id)
+from public.profiles p
+cross join lateral jsonb_array_elements(coalesce(p.groups, '[]'::jsonb)) g
+where coalesce(g->>'isReceived', 'false') <> 'true'
+  and nullif(g->>'id', '') is not null
+group by g->>'id'
+having count(distinct p.user_id) = 1
+on conflict(group_id) do nothing;
+
 -- Require a real owner record and membership recorded by that owner. Do not
 -- use study_group_can_access's permissive legacy-group fallback for new data.
 create or replace function public.social_group_member(p_group_id text, p_owner_only boolean default false)
@@ -81,4 +94,5 @@ do $$ begin
     alter publication supabase_realtime add table public.social_group_pins, public.social_group_reads;
   end if;
 end $$;
+notify pgrst, 'reload schema';
 commit;

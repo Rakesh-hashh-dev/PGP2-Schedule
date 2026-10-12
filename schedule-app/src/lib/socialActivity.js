@@ -1,6 +1,22 @@
 import { supabase } from "./supabase.js";
 import { groupInvite } from "./groupInvites.js";
 import { pollIsClosed, POLL_MARKER } from "./polls.js";
+import { fetchMyMeetups } from "./meetups.js";
+
+export async function fetchSocialResponses(userId, groups, { meetupsEnabled = true } = {}) {
+  const [plans, activity] = await Promise.allSettled([
+    meetupsEnabled ? fetchMyMeetups(userId, { strict: true }) : Promise.resolve({ meetups: [], rsvpsByMeetup: {} }),
+    fetchGroupActivity(userId, groups),
+  ]);
+  return {
+    ...(plans.status === "fulfilled" ? plans.value : { meetups: [], rsvpsByMeetup: {} }),
+    ...(activity.status === "fulfilled" ? activity.value : { polls: [], votes: [], messages: [], reads: {} }),
+    errors: {
+      plans: plans.status === "rejected" ? "Could not load meetup invitations." : null,
+      groups: activity.status === "rejected" ? "Could not load group activity." : null,
+    },
+  };
+}
 
 export function buildResponseItems({ meetups = [], rsvpsByMeetup = {}, polls = [], votes = [], messages = [], reads = {}, groups = [], userId, now = new Date() }) {
   const groupNames = new Map(groups.map(g => [g.id, g.name]));
@@ -29,21 +45,66 @@ export function buildResponseItems({ meetups = [], rsvpsByMeetup = {}, polls = [
 export function loadGroupReads(userId) {
   try { return JSON.parse(localStorage.getItem(`pgp2.group-reads:${userId}`)) || {}; } catch { return {}; }
 }
+const pendingReadCache = new Map();
+const confirmedReads = new Map();
+const readSavesInFlight = new Map();
+function pendingGroupReads(userId) {
+  let reads;
+  try { reads = JSON.parse(localStorage.getItem(`pgp2.group-reads-pending:${userId}`)) || pendingReadCache.get(userId) || {}; }
+  catch { reads = pendingReadCache.get(userId) || {}; }
+  pendingReadCache.set(userId, reads);
+  return reads;
+}
+function savePendingGroupReads(userId, reads) {
+  pendingReadCache.set(userId, reads);
+  try { localStorage.setItem(`pgp2.group-reads-pending:${userId}`, JSON.stringify(reads)); } catch { /* retry from memory */ }
+}
 export async function markGroupRead(userId, groupId, seenAt) {
   if (!userId || !groupId || !seenAt || !Number.isFinite(new Date(seenAt).getTime())) return;
   const reads = loadGroupReads(userId);
-  if (new Date(reads[groupId] || 0) >= new Date(seenAt)) return;
-  reads[groupId] = seenAt;
-  try { localStorage.setItem(`pgp2.group-reads:${userId}`, JSON.stringify(reads)); } catch { /* optional cache */ }
-  globalThis.dispatchEvent?.(new CustomEvent("pgp2:social-read"));
-  const { error } = await supabase.rpc("social_mark_group_read", { p_group_id: groupId, p_seen_at: seenAt });
-  if (error) console.error("[social read]", error.message);
+  const key = JSON.stringify([userId, groupId]);
+  if (new Date(reads[groupId] || 0) < new Date(seenAt)) {
+    reads[groupId] = seenAt;
+    try { localStorage.setItem(`pgp2.group-reads:${userId}`, JSON.stringify(reads)); } catch { /* optional cache */ }
+    globalThis.dispatchEvent?.(new CustomEvent("pgp2:social-read"));
+  }
+  const target = new Date(reads[groupId] || 0) > new Date(seenAt) ? reads[groupId] : seenAt;
+  if (new Date(confirmedReads.get(key) || 0) >= new Date(target) && !pendingGroupReads(userId)[groupId]) return true;
+  const pending = pendingGroupReads(userId);
+  if (new Date(pending[groupId] || 0) < new Date(target)) pending[groupId] = target;
+  savePendingGroupReads(userId, pending);
+  if (readSavesInFlight.has(key)) return readSavesInFlight.get(key);
+  const save = async () => {
+    try {
+      while (pendingGroupReads(userId)[groupId]) {
+        const timestamp = pendingGroupReads(userId)[groupId];
+        const { error } = await supabase.rpc("social_mark_group_read", { p_group_id: groupId, p_seen_at: timestamp });
+        if (error) return false;
+        confirmedReads.set(key, timestamp);
+        const remaining = pendingGroupReads(userId);
+        if (new Date(remaining[groupId] || 0) <= new Date(timestamp)) delete remaining[groupId];
+        savePendingGroupReads(userId, remaining);
+      }
+      return true;
+    } catch { return false; }
+    finally { readSavesInFlight.delete(key); }
+  };
+  const request = Promise.resolve().then(save);
+  readSavesInFlight.set(key, request);
+  return request;
+}
+export async function retryPendingGroupReads(userId, groupIds) {
+  if (!userId) return;
+  await Promise.all(Object.entries(pendingGroupReads(userId))
+    .filter(([groupId]) => groupIds.includes(groupId))
+    .map(([groupId, seenAt]) => markGroupRead(userId, groupId, seenAt)));
 }
 export async function fetchGroupActivity(userId, groups) {
   const ids = [...new Set(groups.filter(g => g.isReceived || g.visibility === "shared" || g.visibility === "global" || g.inviteMembers?.length).map(g => g.id))];
   if (!userId || !ids.length) return { polls: [], votes: [], messages: [], reads: loadGroupReads(userId) };
   // Establish canonical ownership only for groups with shared activity.
   await Promise.all(groups.filter(g => !g.isReceived && ids.includes(g.id)).map(g => groupInvite("create", { groupId: g.id })));
+  await retryPendingGroupReads(userId, ids);
   const cutoff = new Date(Date.now() - 30 * 86400000).toISOString();
   const [polls, messages, reads] = await Promise.all([
     supabase.from("polls").select("*").eq("scope", "group").in("group_id", ids).eq("closed", false),

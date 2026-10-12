@@ -241,16 +241,29 @@ function GroupChat({ group, userId, userName, focusPollId }) {
   const [editingMsg, setEditingMsg] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [sending, setSending] = useState(false);
+  const [chatError, setChatError] = useState("");
+  const [saveError, setSaveError] = useState("");
+  const [pollError, setPollError] = useState("");
+  const [chatReload, setChatReload] = useState(0);
 
   useEffect(() => {
     let channel;
+    let alive = true;
     async function load() {
       setLoading(true);
-      const msgs = await fetchGroupChatMessages(group.id);
-      setMessages(msgs);
-      setLoading(false);
-
+      setChatError("");
+      try {
+        const msgs = await fetchGroupChatMessages(group.id);
+        if (!alive) return;
+        setMessages(msgs);
+      } catch (error) {
+        if (alive) setChatError(error.message);
+      } finally {
+        if (alive) setLoading(false);
+      }
+      if (!alive) return;
       const { supabase } = await import("../lib/supabase.js");
+      if (!alive) return;
       channel = supabase.channel(`group-chat-${group.id}`)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'group_messages', filter: `group_id=eq.${group.id}` }, payload => {
           const p = payload.new;
@@ -274,8 +287,8 @@ function GroupChat({ group, userId, userName, focusPollId }) {
         .subscribe();
     }
     load();
-    return () => { if (channel) channel.unsubscribe(); };
-  }, [group.id]);
+    return () => { alive = false; if (channel) channel.unsubscribe(); };
+  }, [group.id, chatReload]);
 
   useEffect(() => {
     const seenAt = messages.reduce((latest, message) => new Date(message.created_at) > new Date(latest || 0) ? message.created_at : latest, null);
@@ -298,18 +311,26 @@ function GroupChat({ group, userId, userName, focusPollId }) {
   }
 
   async function handleSend(e) {
-    e.preventDefault();
+    e?.preventDefault();
     if (!text.trim() || sending) return;
     const txt = text.trim();
-    setText("");
     setSending(true);
+    setSaveError("");
     try {
       if (editingMsg) {
-        if (txt !== editingMsg.text) await editGroupChatMessage(editingMsg.id, userId, txt);
+        if (txt !== editingMsg.text) {
+          const saved = await editGroupChatMessage(editingMsg.id, userId, txt);
+          if (!saved) throw new Error("Could not save your edit. Please try again.");
+          setMessages(prev => prev.map(message => message.id === editingMsg.id ? { ...message, text: txt } : message));
+        }
         setEditingMsg(null);
       } else {
-        await sendGroupChatMessage(group.id, userId, userName, txt);
+        const message = await sendGroupChatMessage(group.id, userId, userName, txt);
+        setMessages(prev => prev.some(item => item.id === message.id) ? prev : [...prev, message]);
       }
+      setText("");
+    } catch (error) {
+      setSaveError(error.message || "Could not save your message. Please try again.");
     } finally {
       setSending(false);
     }
@@ -324,15 +345,24 @@ function GroupChat({ group, userId, userName, focusPollId }) {
 
   async function handleCreatePoll({ question, options, multi, closesAt }) {
     setPollBusy(true);
-    const poll = await createPoll({ scope: "group", groupId: group.id, userId, userName, question, options, multi, closesAt });
-    setPollBusy(false);
-    if (!poll) return;
-    setShowPollComposer(false);
-    await sendGroupChatMessage(group.id, userId, userName, `${POLL_MARKER}${poll.id}`);
-    for (const memberId of new Set([...(group.cloudMemberIds || []), ...(group.inviteMembers || []).map(m => m.userId)])) {
-      if (memberId === userId) continue;
-      sendSocialNotification(memberId, "group_poll", { fromId: userId, fromName: userName, group: group.name, pollId: poll.id });
-    }
+    setPollError("");
+    try {
+      const poll = await createPoll({ scope: "group", groupId: group.id, userId, userName, question, options, multi, closesAt });
+      if (!poll) throw new Error("Could not create the poll. Please try again.");
+      setShowPollComposer(false);
+      try {
+        const message = await sendGroupChatMessage(group.id, userId, userName, `${POLL_MARKER}${poll.id}`);
+        setMessages(prev => prev.some(item => item.id === message.id) ? prev : [...prev, message]);
+      } catch {
+        setPollError("The poll was created, but its chat message could not be sent.");
+      }
+      for (const memberId of new Set([...(group.cloudMemberIds || []), ...(group.inviteMembers || []).map(m => m.userId)])) {
+        if (memberId === userId) continue;
+        sendSocialNotification(memberId, "group_poll", { fromId: userId, fromName: userName, group: group.name, pollId: poll.id });
+      }
+    } catch (error) {
+      setPollError(error.message || "Could not create the poll. Please try again.");
+    } finally { setPollBusy(false); }
   }
 
   return (
@@ -340,7 +370,7 @@ function GroupChat({ group, userId, userName, focusPollId }) {
       <p className="fr-group-body-label">Group Chat</p>
       {!loading && focusPollId && !messages.some(m => m.text === `${POLL_MARKER}${focusPollId}`) && <div data-poll-id={focusPollId} tabIndex={-1}><PollCard pollId={focusPollId} userId={userId} userName={userName} /></div>}
       <div className="fr-chat-msgs">
-         {loading ? <SkeletonText lines={3} /> : messages.length === 0 ? <div className="fr-empty">No messages yet. Say hi!</div> : messages.map(m => {
+         {loading ? <SkeletonText lines={3} /> : messages.length === 0 && !chatError ? <div className="fr-empty">No messages yet. Say hi!</div> : messages.map(m => {
            const isMine = m.from_id === userId;
            const canDelete = isMine;
            return m.text.startsWith(POLL_MARKER) ? (
@@ -366,7 +396,8 @@ function GroupChat({ group, userId, userName, focusPollId }) {
                    <button
                      className="fr-chat-del-btn"
                      style={{ color: "var(--violet)", background: "rgba(124, 58, 237, 0.12)" }}
-                     onClick={() => { setEditingMsg({ id: m.id, text: m.text }); setText(m.text); }}
+                      disabled={sending}
+                      onClick={() => { setEditingMsg({ id: m.id, text: m.text }); setText(m.text); setSaveError(""); }}
                      title="Edit message"
                      aria-label="Edit message"
                    >
@@ -388,6 +419,9 @@ function GroupChat({ group, userId, userName, focusPollId }) {
          })}
       </div>
       {pinError && <p className="fr-meetup-error" role="alert">{pinError}</p>}
+      {chatError && <p className="fr-meetup-error" role="alert">{chatError} <button type="button" className="fr-text-button" onClick={() => setChatReload(value => value + 1)}>Retry</button></p>}
+      {saveError && <p className="fr-meetup-error" role="alert">{saveError} Your message stays here until it is saved.</p>}
+      {pollError && <p className="fr-meetup-error" role="alert">{pollError}</p>}
       {showPollComposer && (
         <div style={{ marginBottom: 8 }}>
           <PollComposer onSubmit={handleCreatePoll} onCancel={() => setShowPollComposer(false)} busy={pollBusy} />
@@ -397,11 +431,11 @@ function GroupChat({ group, userId, userName, focusPollId }) {
          <button type="button" className="fr-btn fr-btn-secondary" title="Start a poll" aria-label="Start a poll" onClick={() => setShowPollComposer(o => !o)} style={{ borderRadius: 20, padding: "0 12px" }}>
             <BarChart3 size={15} />
          </button>
-         <input type="text" className="fr-chat-input" placeholder={editingMsg ? "Edit message..." : "Message group..."} value={text} onChange={e => setText(e.target.value)} />
+          <input type="text" className="fr-chat-input" placeholder={editingMsg ? "Edit message..." : "Message group..."} value={text} disabled={sending} onChange={e => { setText(e.target.value); setSaveError(""); }} />
          {editingMsg ? (
-           <button type="button" className="fr-btn fr-btn-secondary" onClick={() => { setEditingMsg(null); setText(""); }} style={{ borderRadius: 20, padding: "0 12px" }}>Cancel</button>
+            <button type="button" className="fr-btn fr-btn-secondary" disabled={sending} onClick={() => { setEditingMsg(null); setText(""); setSaveError(""); }} style={{ borderRadius: 20, padding: "0 12px" }}>Cancel</button>
          ) : null}
-         <button type="submit" className="fr-btn fr-btn-primary" style={{ borderRadius: 20, padding: "0 16px" }} disabled={sending} aria-busy={sending}>{sending ? "Sending…" : editingMsg ? "Save" : "Send"}</button>
+          <button type="submit" className="fr-btn fr-btn-primary" style={{ borderRadius: 20, padding: "0 16px" }} disabled={sending || !text.trim()} aria-busy={sending}>{sending ? "Saving…" : saveError ? "Retry" : editingMsg ? "Save" : "Send"}</button>
       </form>
     </div>
   );

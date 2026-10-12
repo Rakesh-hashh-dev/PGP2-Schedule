@@ -681,36 +681,33 @@ export async function sendSocialNotification(targetUserId, type, meta = {}) {
 // Phase 3: chat lives in its own `group_messages` table (out of the notification
 // path). from_id is pinned to the caller by the group_msg_insert RLS policy.
 export async function sendGroupChatMessage(groupId, fromUserId, fromName, text) {
-  if (!groupId || !fromUserId || !text) return;
-  try {
-    const { error } = await supabase.from("group_messages").insert({
-      group_id: groupId,
-      from_id: fromUserId,
-      from_name: fromName || "Someone",
-      text,
-    });
-    if (error) console.error("[sendGroupChatMessage] error:", error.message);
-  } catch (e) {
-    console.error("[sendGroupChatMessage] catch:", e);
-  }
+  if (!groupId || !fromUserId || !text?.trim()) throw new Error("Choose a group and enter a message.");
+  const { data, error } = await supabase.from("group_messages").insert({
+    group_id: groupId,
+    from_id: fromUserId,
+    from_name: fromName || "Someone",
+    text: text.trim(),
+  }).select().single();
+  if (error || !data) throw new Error("Could not send your message. Please try again.");
+  return { id: data.id, from_id: data.from_id, name: data.from_name || "Someone", text: data.text || "", created_at: data.created_at };
 }
 
 export async function fetchGroupChatMessages(groupId) {
   if (!groupId) return [];
   try {
     const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    supabase.from("group_messages").delete().eq("group_id", groupId).lt("created_at", cutoff).then(() => {});
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("group_messages")
       .select("*")
       .eq("group_id", groupId)
       .gte("created_at", cutoff)
       .order("created_at", { ascending: true });
+    if (error) throw error;
     return (data || []).map((m) => ({
       id: m.id, from_id: m.from_id, name: m.from_name || "Someone",
       text: m.text || "", created_at: m.created_at,
     }));
-  } catch { return []; }
+  } catch { throw new Error("Could not load group chat. Please try again."); }
 }
 
 export async function deleteGroupChatMessage(messageId, fromUserId) {
@@ -732,12 +729,13 @@ export async function deleteGroupChatMessage(messageId, fromUserId) {
 export async function editGroupChatMessage(messageId, fromUserId, text) {
   if (!messageId || !fromUserId || !text) return false;
   try {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("group_messages")
       .update({ text })
       .eq("id", messageId)
-      .eq("from_id", fromUserId);
-    if (error) { console.error("[editGroupChatMessage] error:", error.message); return false; }
+      .eq("from_id", fromUserId)
+      .select("id");
+    if (error || data?.length !== 1) return false;
     return true;
   } catch (e) {
     console.error("[editGroupChatMessage] catch:", e);
