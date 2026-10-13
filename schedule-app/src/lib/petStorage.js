@@ -14,7 +14,7 @@
 // See docs/pet-companion-plan.md §3.
 
 import { supabase } from "./supabase.js";
-import { levelFor, mergePets, normalize, xpOf } from "./pet.js";
+import { SERVER_LEVEL_CAP, levelFor, mergePets, normalize, xpOf } from "./pet.js";
 
 export const PET_KEY = "pgp2.pet";
 
@@ -85,7 +85,8 @@ export function toRow(userId, state) {
     user_id: userId,
     pet_key: s.petKey,
     name: s.name || null,
-    level: levelFor(xpOf(s)),
+    // Clamped to what the prod check constraint accepts; see SERVER_LEVEL_CAP.
+    level: Math.min(SERVER_LEVEL_CAP, levelFor(xpOf(s))),
     // base_xp / legacy_xp are intentionally absent: base_xp is retired (the server
     // keeps it at 0) and legacy_xp is server-owned, like granted_xp.
     // granted_xp is intentionally absent: it is admin-owned and server-pinned.
@@ -122,8 +123,8 @@ export function fromRow(row) {
     petKey: row.pet_key ?? null,
     name: row.name ?? "",
     adoptedAt: row.adopted_at ?? null,
-    legacyXp: legacyXpOf(row),
     grantedXp: row.granted_xp ?? 0,
+    legacyXp: legacyXpOf(row),
     companionEnabled: row.companion_enabled !== false,
     awarded: row.awarded ?? {},
     care: row.care ?? { day: null, used: 0 },

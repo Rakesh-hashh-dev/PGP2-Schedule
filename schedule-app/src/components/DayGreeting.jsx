@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getGreetingBucket, getTimeGreeting } from "../lib/datetime.js";
 import { dayKey, getPetByKey } from "./greetingPets.jsx";
 import {
-  CARE_ACTIONS, careLeft, careUsedToday, growthStageFor, isAdopted, levelProgress, moodExplainFor,
+  CARE_ACTIONS, REUNION_HOURS, careLeft, careUsedToday, growthStageFor, hoursSince, isAdopted, levelProgress, moodExplainFor,
   visibleCoat, visibleNeckwear,
   visibleHat, xpOf,
 } from "../lib/pet.js";
@@ -40,6 +40,10 @@ const MOOD_LINE = {
   sleepy: "is dozing off.",
   bored: "is looking for something to do.",
   missing: "missed you.",
+  reunion: "is so glad you are back!",
+  determined: "is ready for today's deadline.",
+  hyped: "is riding your streak.",
+  weekend: "is lounging into the weekend.",
 };
 
 export default function DayGreeting({
@@ -134,19 +138,23 @@ export default function DayGreeting({
     // deterministic (so it stays a pure function of state) but still different
     // on the next tap.
     const used = careUsedToday(pet, now);
+    // Back after days away: the first tap gets the big leap, not the usual wiggle.
+    const reunion = hoursSince(pet, now) >= REUNION_HOURS;
     petActions.care(action, now);
     const options = CARE_LINES[action];
     setPetMessage({
       key: displayPet.key,
       // Over-cap taps still animate and still get a line — the pet should never
       // feel unresponsive — but they say so rather than implying more XP.
-      text: wasFree
+      text: reunion
+        ? "leaps into your arms!"
+        : wasFree
         ? options[used % options.length]
         : "has had plenty of attention today.",
     });
-    setPetReaction(action);
+    setPetReaction(reunion ? "leap" : action);
     window.clearTimeout(reactionTimer.current);
-    reactionTimer.current = window.setTimeout(() => setPetReaction(""), displayPet?.key === "luna" ? 1920 : 1150);
+    reactionTimer.current = window.setTimeout(() => setPetReaction(""), displayPet?.key === "luna" ? 1920 : reunion ? 1400 : 1150);
   };
 
   if (!greeting) return null;

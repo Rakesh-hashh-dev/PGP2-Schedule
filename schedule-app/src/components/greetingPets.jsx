@@ -1556,6 +1556,499 @@ function Lion() {
   );
 }
 
+// The level 14-20 companions — the four unlocks past the old cap of 12. Drawn
+// to the premium brief (Spark, Leafy, Nova, Cinder): gradients, a full-body
+// pose, and a staged flourish in named classes (styles.css §Frost, Tide, Sol &
+// Eclipse) instead of a `.dg-pet-sig`. Each one escalates on the last, and
+// Eclipse, the level 20 finale, is the loudest thing in the roster on purpose.
+//
+// Flourishes never sit on a part that already moves (ear, tail, wing, face,
+// eyes): an element runs one animation, so they get their own element — a
+// glint inside an ear group rides the ear's droop without replacing it.
+
+// A four-point glint, drawn at the origin so a translate places it.
+const GLINT = "M0-1.5.36-.36 1.5 0 .36.36 0 1.5-.36.36-1.5 0-.36-.36z";
+
+// An ice wolf. The husky mask — slate cap, white face — is what says "wolf"
+// at 40px; the crystal ear tips, ice-blue eyes and the frost on its breath
+// say which one.
+function Frost() {
+  const id = "fr" + useId().replace(/\W/g, "");
+  const ink = "#1b2f47";
+  const fur = `url(#${id}-fur)`;
+  const cap = `url(#${id}-cap)`;
+  const ice = `url(#${id}-ice)`;
+  const flake = "M0-1.35v2.7M-1.17-.68l2.34 1.36M-1.17.68l2.34-1.36";
+  return (
+    <svg viewBox="0 0 32 32" aria-hidden="true">
+      <defs>
+        <radialGradient id={`${id}-fur`} cx="42%" cy="34%" r="74%">
+          <stop offset="0" stopColor="#ffffff" />
+          <stop offset=".6" stopColor="#e6f1fa" />
+          <stop offset="1" stopColor="#bcd6ec" />
+        </radialGradient>
+        <radialGradient id={`${id}-cap`} cx="38%" cy="26%" r="82%">
+          <stop offset="0" stopColor="#b9d2ea" />
+          <stop offset=".55" stopColor="#86a8cc" />
+          <stop offset="1" stopColor="#5d7ea8" />
+        </radialGradient>
+        <linearGradient id={`${id}-ice`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#f4fcff" />
+          <stop offset=".5" stopColor="#9ddcfb" />
+          <stop offset="1" stopColor="#4aa6e4" />
+        </linearGradient>
+      </defs>
+
+      {/* Snow drifts down past the ears on three unrelated clocks. */}
+      <g fill="none" stroke="#7fbfe8" strokeWidth=".5" strokeLinecap="round">
+        <g transform="translate(3 4.4)"><path className="dg-pet-snow" d={flake} /></g>
+        <g transform="translate(29.2 8.8)"><path className="dg-pet-snow dg-pet-snow-b" d={flake} /></g>
+        <g transform="translate(2.4 13.6) scale(.75)"><path className="dg-pet-snow dg-pet-snow-c" d={flake} /></g>
+      </g>
+
+      {/* A full brush curling up the right side, slate with a white tip. */}
+      <g className="dg-pet-tail">
+        <path d="M20.8 27.9c3.6.7 6.9-.5 8.3-3.5 1.4-2.9 1-6.3-.8-8.9-.3 1.5-1.1 2.5-2.2 2.9.5 2.7-.4 5.2-2.4 6.5-.9.6-1.9 1-2.9 1.1z" fill={cap} stroke={ink} strokeWidth="1" strokeLinejoin="round" />
+        <path d="M28.3 15.5c-.3 1.5-1.1 2.5-2.2 2.9.2.9.2 1.8 0 2.7 1.4-.3 2.7-1.1 3.2-2.3.3-1.1 0-2.3-1-3.3z" fill={fur} />
+        <path d="M23.6 25.6q2.6-1 3.4-3.6M25 26.6q2.4-.9 3.4-3" fill="none" stroke="#4d6d96" strokeWidth=".5" strokeLinecap="round" opacity=".7" />
+      </g>
+
+      {/* Seated chest with a jagged white ruff and two white forepaws. */}
+      <path d="M10.4 23c.6-3.4 10.6-3.4 11.2 0l.5 4.6c0 2.2-2.9 3.1-6.1 3.1s-6.1-.9-6.1-3.1z" fill={cap} stroke={ink} strokeWidth="1" strokeLinejoin="round" />
+      <path d="M12.1 22.8l1.3 1.5 1.3-1.2 1.3 1.6 1.3-1.6 1.3 1.2 1.3-1.5.4 3.2c-.4 2.2-1.9 3.6-4.3 3.6s-3.9-1.4-4.3-3.6z" fill={fur} />
+      <ellipse cx="12.6" cy="29.3" rx="2.5" ry="1.3" fill={fur} stroke={ink} strokeWidth=".85" />
+      <path d="M12 29.4v.8M13.2 29.4v.8" stroke={ink} strokeWidth=".45" strokeLinecap="round" opacity=".55" />
+      <ellipse cx="19.4" cy="29.3" rx="2.5" ry="1.3" fill={fur} stroke={ink} strokeWidth=".85" />
+      <path d="M18.8 29.4v.8M20 29.4v.8" stroke={ink} strokeWidth=".45" strokeLinecap="round" opacity=".55" />
+
+      {/* Tall ears, each ending in a faceted ice shard. The glint is its own
+          element inside the group: it rides the ear's droop, never replaces it. */}
+      <g className="dg-pet-ear dg-pet-ear-left">
+        <path d="M12.8 9.4 6.1 1.5 7.5 11.9z" fill={cap} stroke={ink} strokeWidth="1.05" strokeLinejoin="round" />
+        <path d="M11.2 9.7 7.4 5.4l.8 5.3z" fill="#eef5fb" />
+        <path d="M6.1 1.5 9.3 5.2 7.9 5.9 6.8 5.4z" fill={ice} stroke={ink} strokeWidth=".55" strokeLinejoin="round" />
+        <path d="M6.1 1.5 7.9 5.9" stroke="#fff" strokeWidth=".35" opacity=".85" />
+        <g transform="translate(6.7 2.6)"><path className="dg-pet-glint" d={GLINT} fill="#fff" /></g>
+      </g>
+      <g className="dg-pet-ear dg-pet-ear-right">
+        <path d="M19.2 9.4 25.9 1.5 24.5 11.9z" fill={cap} stroke={ink} strokeWidth="1.05" strokeLinejoin="round" />
+        <path d="M20.8 9.7 24.6 5.4l-.8 5.3z" fill="#eef5fb" />
+        <path d="M25.9 1.5 22.7 5.2 24.1 5.9 25.2 5.4z" fill={ice} stroke={ink} strokeWidth=".55" strokeLinejoin="round" />
+        <path d="M25.9 1.5 24.1 5.9" stroke="#fff" strokeWidth=".35" opacity=".85" />
+        <g transform="translate(25.3 2.6)"><path className="dg-pet-glint dg-pet-glint-b" d={GLINT} fill="#fff" /></g>
+      </g>
+
+      {/* Head: a slate cap with spiky cheek ruff cut into the outline. */}
+      <path
+        className="dg-pet-face"
+        d="M16 7c5.6 0 9.2 3.4 9.6 8.4l2.5 1.1-2 1 1.6 1.6-2.5.4c-1.2 3.6-4.6 6-9.2 6s-8-2.4-9.2-6l-2.5-.4 1.6-1.6-2-1 2.5-1.1C6.8 10.4 10.4 7 16 7z"
+        fill={cap}
+        stroke={ink}
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
+      {/* The husky mask: white face, widow's peak, and the cheek ruff. */}
+      <path d="M16 11.4l1.5 2.4c1.4-1.1 3.6-1.5 5.5-.6 1.6.8 2.6 2.3 3 3.9l-1.4.6c-1.1 3.4-4.4 5.8-8.6 5.8s-7.5-2.4-8.6-5.8l-1.4-.6c.4-1.6 1.4-3.1 3-3.9 1.9-.9 4.1-.5 5.5.6z" fill={fur} />
+      <ellipse cx="11.8" cy="10.4" rx="3" ry="1.6" fill="#fff" opacity=".28" transform="rotate(-22 11.8 10.4)" />
+      <g fill="#5d7ea8" opacity=".8"><ellipse cx="12.4" cy="12.7" rx=".9" ry=".55" /><ellipse cx="19.6" cy="12.7" rx=".9" ry=".55" /></g>
+
+      {/* Ice-blue husky eyes, ringed dark so they hold on the white mask. */}
+      <g className="dg-pet-eyes">
+        <ellipse cx="12.3" cy="16.4" rx="2.05" ry="2.25" fill={ink} />
+        <ellipse cx="19.7" cy="16.4" rx="2.05" ry="2.25" fill={ink} />
+        <ellipse cx="12.3" cy="16.7" rx="1.45" ry="1.6" fill="#6cc8f4" />
+        <ellipse cx="19.7" cy="16.7" rx="1.45" ry="1.6" fill="#6cc8f4" />
+        <ellipse cx="12.3" cy="16.8" rx=".75" ry="1" fill={ink} />
+        <ellipse cx="19.7" cy="16.8" rx=".75" ry="1" fill={ink} />
+        <circle cx="12.9" cy="15.6" r=".62" fill="#fff" />
+        <circle cx="20.3" cy="15.6" r=".62" fill="#fff" />
+        <circle cx="11.7" cy="17.6" r=".26" fill="#fff" opacity=".85" />
+        <circle cx="19.1" cy="17.6" r=".26" fill="#fff" opacity=".85" />
+      </g>
+      <g fill="#f2a3c0" opacity=".42"><ellipse cx="8.9" cy="19.2" rx="1.6" ry=".95" /><ellipse cx="23.1" cy="19.2" rx="1.6" ry=".95" /></g>
+
+      {/* Snout, nose and a small open smile. */}
+      <ellipse cx="16" cy="20.4" rx="3.4" ry="2.4" fill="#fff" stroke="#c4d8ea" strokeWidth=".4" />
+      <path d="M14.6 18.9q1.4-.7 2.8 0 0 1-1.4 1.6-1.4-.6-1.4-1.6z" fill={ink} />
+      <circle cx="15.5" cy="19" r=".28" fill="#fff" opacity=".7" />
+      <path className="dg-pet-mouth-base" d="M16 20.5v.6m0 0q-1.2 1.3-2.4.3m2.4-.3q1.2 1.3 2.4.3" fill="none" stroke={ink} strokeWidth=".8" strokeLinecap="round" />
+
+      {/* Frosted breath: a puff curls out of the mouth and dissolves. Authored
+          at opacity 0 so a still pet (reduced motion) is not left with two
+          clouds stuck to its cheeks; the keyframes own the opacity. */}
+      <g fill="#e4f3fd" stroke="#8cc6ec" strokeWidth=".35">
+        <g className="dg-pet-breath" opacity="0">
+          <circle cx="10.6" cy="22.2" r="1.05" /><circle cx="9.2" cy="21.5" r="1.25" /><circle cx="7.8" cy="22.3" r=".9" />
+        </g>
+        <g className="dg-pet-breath dg-pet-breath-b" opacity="0">
+          <circle cx="22.6" cy="22.4" r=".85" /><circle cx="23.7" cy="21.8" r=".95" />
+        </g>
+      </g>
+
+      {/* Midnight collar with a hanging ice crystal. */}
+      <g className="dg-pet-accessory">
+        <path d="M10.4 24.3c3.6 1.5 7.6 1.5 11.2 0l.35 1.5c-3.8 1.7-8.1 1.7-11.9 0z" fill="#2b4a78" stroke={ink} strokeWidth=".5" strokeLinejoin="round" />
+        <path d="M16 25.4l1.2 1.5L16 29.3l-1.2-2.4z" fill={ice} stroke={ink} strokeWidth=".45" strokeLinejoin="round" />
+        <path d="M16 25.4v3.9" stroke="#fff" strokeWidth=".3" opacity=".7" />
+        <g transform="translate(17.3 26)"><path className="dg-pet-glint dg-pet-glint-c" d={GLINT} fill="#fff" /></g>
+      </g>
+      <PetExpression left={12.3} right={19.7} y={16.4} mouthY={21} ink={ink} />
+    </svg>
+  );
+}
+
+// A sea dragon hatchling. Webbed fin-ears fan out like a crown, a dorsal crest
+// runs over the head, and the tail curls into a spiral. Bubbles rise off it
+// and a ripple spreads from where it sits, as if it just surfaced.
+function Tide() {
+  const id = "td" + useId().replace(/\W/g, "");
+  const ink = "#0c3340";
+  const scale = `url(#${id}-scale)`;
+  const fin = `url(#${id}-fin)`;
+  return (
+    <svg viewBox="0 0 32 32" aria-hidden="true">
+      <defs>
+        <radialGradient id={`${id}-scale`} cx="40%" cy="30%" r="78%">
+          <stop offset="0" stopColor="#a4f1e4" />
+          <stop offset=".52" stopColor="#47c0c3" />
+          <stop offset="1" stopColor="#1d7e97" />
+        </radialGradient>
+        <linearGradient id={`${id}-fin`} x1="1" y1="1" x2="0" y2="0">
+          <stop offset="0" stopColor="#6fdcd6" />
+          <stop offset="1" stopColor="#d4fff5" />
+        </linearGradient>
+        <linearGradient id={`${id}-belly`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#fff4d2" />
+          <stop offset="1" stopColor="#f0d595" />
+        </linearGradient>
+      </defs>
+
+      {/* Two ripples, half a cycle apart, spreading from the base. */}
+      <g fill="none" stroke="#3fb8c4" strokeWidth=".55">
+        <ellipse className="dg-pet-ripple" cx="16" cy="29.8" rx="8.4" ry="1.5" />
+        <ellipse className="dg-pet-ripple dg-pet-ripple-b" cx="16" cy="29.8" rx="8.4" ry="1.5" />
+      </g>
+
+      {/* Bubbles rise on both sides and pop out of sight. */}
+      <g fill="#dffbf6" fillOpacity=".45" stroke="#2fa6b8" strokeWidth=".4">
+        <g className="dg-pet-bubble"><circle cx="4.6" cy="23" r="1" /><circle cx="4.25" cy="22.65" r=".28" fill="#fff" fillOpacity="1" stroke="none" /></g>
+        <g className="dg-pet-bubble dg-pet-bubble-b"><circle cx="3" cy="18" r=".7" /></g>
+        <g className="dg-pet-bubble dg-pet-bubble-c"><circle cx="28" cy="12.6" r=".85" /><circle cx="27.7" cy="12.3" r=".24" fill="#fff" fillOpacity="1" stroke="none" /></g>
+      </g>
+
+      {/* Tail: a spiral curl tipped with a little fin. */}
+      <g className="dg-pet-tail">
+        <path d="M21.2 27.6c3.8 1.2 7.2.1 7.8-2.9.5-2.5-1.2-4.2-3.1-3.8-1.5.3-1.9 1.9-1 2.7" fill="none" stroke={ink} strokeWidth="3.3" strokeLinecap="round" />
+        <path d="M21.2 27.6c3.8 1.2 7.2.1 7.8-2.9.5-2.5-1.2-4.2-3.1-3.8-1.5.3-1.9 1.9-1 2.7" fill="none" stroke="#3db6bf" strokeWidth="1.9" strokeLinecap="round" />
+        <path d="M26.6 21.1l.6-2.1 1.3 1.4zM29.1 22.4l1.9-.9-.3 1.9z" fill={fin} stroke={ink} strokeWidth=".55" strokeLinejoin="round" />
+      </g>
+
+      {/* Chubby seated body with a plated cream belly. */}
+      <ellipse cx="16" cy="26.5" rx="7.3" ry="4.3" fill={scale} stroke={ink} strokeWidth="1.05" />
+      <path d="M12.6 24.2q3.4-1.4 6.8 0l-.4 4.4q-3 1.6-6 0z" fill={`url(#${id}-belly)`} stroke="#c9a65e" strokeWidth=".35" />
+      <path d="M12.9 25.7q3.1.8 6.2 0M13.1 27.2q2.9.8 5.8 0" fill="none" stroke="#c9a65e" strokeWidth=".4" strokeLinecap="round" />
+      <ellipse cx="11.7" cy="29.4" rx="2.4" ry="1.25" fill="#2b9aae" stroke={ink} strokeWidth=".8" />
+      <ellipse cx="20.3" cy="29.4" rx="2.4" ry="1.25" fill="#2b9aae" stroke={ink} strokeWidth=".8" />
+      <path d="M10.8 29.9l.3-.8.3.8zM12 29.9l.3-.8.3.8zM19.4 29.9l.3-.8.3.8zM20.6 29.9l.3-.8.3.8z" fill="#fff4d2" />
+
+      {/* Fin-ears: webbed fans on three spines, rooted at the jaw hinge. */}
+      <g className="dg-pet-ear dg-pet-ear-left">
+        <path d="M10.8 11.6 2 9.9Q4.5 8.3 3.7 5.1 6.6 5.6 7.7 3.2z" fill={fin} stroke={ink} strokeWidth=".95" strokeLinejoin="round" />
+        <path d="M10.4 11.3 2.8 9.8M10.4 11.3 4.2 5.9M10.4 11.3 7.6 4.1" fill="none" stroke="#1f8a9f" strokeWidth=".55" strokeLinecap="round" />
+      </g>
+      <g className="dg-pet-ear dg-pet-ear-right">
+        <path d="M21.2 11.6 30 9.9Q27.5 8.3 28.3 5.1 25.4 5.6 24.3 3.2z" fill={fin} stroke={ink} strokeWidth=".95" strokeLinejoin="round" />
+        <path d="M21.6 11.3 29.2 9.8M21.6 11.3 27.8 5.9M21.6 11.3 24.4 4.1" fill="none" stroke="#1f8a9f" strokeWidth=".55" strokeLinecap="round" />
+      </g>
+
+      {/* Dorsal crest, then the head over it. */}
+      <path d="M12.6 9.6l.8-2.9 1.7 1.8.9-3 .9 3 1.7-1.8.8 2.9z" fill={fin} stroke={ink} strokeWidth=".8" strokeLinejoin="round" />
+      <ellipse className="dg-pet-face" cx="16" cy="17" rx="9.8" ry="9.3" fill={scale} stroke={ink} strokeWidth="1.15" />
+      <ellipse cx="12" cy="11.4" rx="3.2" ry="1.8" fill="#fff" opacity=".24" transform="rotate(-20 12 11.4)" />
+      <path d="M13.2 10.4q.8.8 1.6 0t1.6 0 1.6 0M7.6 15.8q.7.7 1.4 0M23 15.8q.7.7 1.4 0M8.4 13.4q.7.7 1.4 0M22.2 13.4q.7.7 1.4 0" fill="none" stroke="#1f8a9f" strokeWidth=".5" strokeLinecap="round" opacity=".7" />
+
+      {/* Pale snout with nostrils. */}
+      <ellipse cx="16" cy="21" rx="4.4" ry="2.9" fill="#c8f5ea" />
+      <circle cx="15" cy="19.9" r=".34" fill={ink} opacity=".7" />
+      <circle cx="17" cy="19.9" r=".34" fill={ink} opacity=".7" />
+
+      <g className="dg-pet-eyes">
+        <ellipse cx="12" cy="16.1" rx="2.1" ry="2.4" fill={ink} />
+        <ellipse cx="20" cy="16.1" rx="2.1" ry="2.4" fill={ink} />
+        <ellipse cx="12" cy="17.1" rx="1.4" ry="1.05" fill="#2bb0c4" />
+        <ellipse cx="20" cy="17.1" rx="1.4" ry="1.05" fill="#2bb0c4" />
+        <circle cx="12.7" cy="15.2" r=".75" fill="#fff" />
+        <circle cx="20.7" cy="15.2" r=".75" fill="#fff" />
+        <circle cx="11.4" cy="17.3" r=".3" fill="#fff" opacity=".85" />
+        <circle cx="19.4" cy="17.3" r=".3" fill="#fff" opacity=".85" />
+      </g>
+      <g fill="#ff9886" opacity=".5"><ellipse cx="8.3" cy="19.3" rx="1.5" ry=".9" /><ellipse cx="23.7" cy="19.3" rx="1.5" ry=".9" /></g>
+
+      {/* A wide grin with one small fang. */}
+      <path className="dg-pet-mouth-base" d="M13.5 21.5q2.5 2.4 5 0" fill="none" stroke={ink} strokeWidth=".9" strokeLinecap="round" />
+      <path className="dg-pet-mouth-base" d="M17.1 22.15l.35.95.55-1.2z" fill="#fff" stroke={ink} strokeWidth=".25" strokeLinejoin="round" />
+
+      {/* A strand of pearls with a pink one at the centre. */}
+      <g className="dg-pet-accessory" fill="#f4f7ff" stroke={ink} strokeWidth=".35">
+        <circle cx="10.9" cy="24.4" r=".7" /><circle cx="12.5" cy="25.1" r=".7" /><circle cx="14.2" cy="25.5" r=".7" />
+        <circle cx="17.8" cy="25.5" r=".7" /><circle cx="19.5" cy="25.1" r=".7" /><circle cx="21.1" cy="24.4" r=".7" />
+        <circle cx="16" cy="26" r="1.05" fill="#ffd3e2" />
+        <circle cx="15.65" cy="25.65" r=".3" fill="#fff" stroke="none" />
+      </g>
+      <PetExpression left={12} right={20} y={16.1} mouthY={21.5} ink={ink} />
+    </svg>
+  );
+}
+
+// A sun phoenix. Raised flame wings (the shared wing classes, so every mood
+// still folds them), a three-tongue crest and a plume tail, inside a halo that
+// breathes and a ring of rays that turns.
+function Sol() {
+  const id = "sl" + useId().replace(/\W/g, "");
+  const ink = "#4a1c06";
+  const plume = `url(#${id}-plume)`;
+  const flame = `url(#${id}-flame)`;
+  const wingL = `url(#${id}-wingl)`;
+  const wingR = `url(#${id}-wingr)`;
+  return (
+    <svg viewBox="0 0 32 32" aria-hidden="true">
+      <defs>
+        <radialGradient id={`${id}-plume`} cx="40%" cy="32%" r="76%">
+          <stop offset="0" stopColor="#fff3a8" />
+          <stop offset=".45" stopColor="#ffcc42" />
+          <stop offset=".82" stopColor="#f78c28" />
+          <stop offset="1" stopColor="#dd561c" />
+        </radialGradient>
+        <linearGradient id={`${id}-flame`} x1="0" y1="1" x2="0" y2="0">
+          <stop offset="0" stopColor="#ef5a1e" />
+          <stop offset=".5" stopColor="#ffa22e" />
+          <stop offset="1" stopColor="#ffe46c" />
+        </linearGradient>
+        <linearGradient id={`${id}-wingl`} x1="1" y1="1" x2="0" y2="0">
+          <stop offset="0" stopColor="#ffd04a" />
+          <stop offset=".55" stopColor="#f88c27" />
+          <stop offset="1" stopColor="#e0441a" />
+        </linearGradient>
+        <linearGradient id={`${id}-wingr`} x1="0" y1="1" x2="1" y2="0">
+          <stop offset="0" stopColor="#ffd04a" />
+          <stop offset=".55" stopColor="#f88c27" />
+          <stop offset="1" stopColor="#e0441a" />
+        </linearGradient>
+        <radialGradient id={`${id}-halo`}>
+          <stop offset="0" stopColor="#ffe27a" stopOpacity=".9" />
+          <stop offset=".6" stopColor="#ffae3d" stopOpacity=".32" />
+          <stop offset="1" stopColor="#ffae3d" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+
+      {/* The sun behind it: a halo that swells, and a ring of rays that turns. */}
+      <circle className="dg-pet-sunhalo" cx="16" cy="16.6" r="13" fill={`url(#${id}-halo)`} />
+      <circle className="dg-pet-sunrays" cx="16" cy="16.6" r="13.6" fill="none" stroke="#ffbe3a" strokeWidth="1.1" strokeDasharray=".9 1.85" strokeLinecap="round" opacity=".75" />
+
+      {/* Plume tail: two flame feathers with sun-spot eyes. */}
+      <g className="dg-pet-tail">
+        <path d="M20.6 27.6c2.9-.4 5.8-2.4 7.4-5.4.4-.8 1-1.3 1.9-1.5-.2 1.2-.4 2.3-.2 3.3.2 1.3-.5 2.7-1.7 3.7-2.1 1.6-4.7 1.9-7.4.9z" fill={flame} stroke={ink} strokeWidth=".85" strokeLinejoin="round" />
+        <path d="M21 28.8c2.6.6 5.4.2 7.6-1.5.3 1-.1 2-.9 2.6-2 1.2-4.6 1-6.7-1.1z" fill="#f2702a" stroke={ink} strokeWidth=".75" strokeLinejoin="round" />
+        <circle cx="27.6" cy="24.4" r=".75" fill="#fff3a8" />
+      </g>
+
+      {/* Raised flame wings, rooted at the shoulder. */}
+      <g className="dg-pet-wing dg-pet-wing-left">
+        <path d="M10.4 22.6c-3 .4-6.2-.6-8.2-3 1 .1 1.8-.2 2.3-.8-1.3-1-2-2.4-2-3.8 1 .6 2 .8 2.8.6-.7-1.3-.8-2.8-.3-4.2 1.2 1.8 3 3 4.8 3.8 1.4.6 2.2 1.8 2.4 3.4z" fill={wingL} stroke={ink} strokeWidth=".95" strokeLinejoin="round" />
+        <path d="M9.8 21.2 4.6 19.5M9.6 19.2 4.4 15.8M9.6 17 6 12.8" fill="none" stroke="#ffe46c" strokeWidth=".6" strokeLinecap="round" opacity=".85" />
+      </g>
+      <g className="dg-pet-wing dg-pet-wing-right">
+        <path d="M21.6 22.6c3 .4 6.2-.6 8.2-3-1 .1-1.8-.2-2.3-.8 1.3-1 2-2.4 2-3.8-1 .6-2 .8-2.8.6.7-1.3.8-2.8.3-4.2-1.2 1.8-3 3-4.8 3.8-1.4.6-2.2 1.8-2.4 3.4z" fill={wingR} stroke={ink} strokeWidth=".95" strokeLinejoin="round" />
+        <path d="M22.2 21.2 27.4 19.5M22.4 19.2 27.6 15.8M22.4 17 26 12.8" fill="none" stroke="#ffe46c" strokeWidth=".6" strokeLinecap="round" opacity=".85" />
+      </g>
+
+      {/* Round body with a scalloped pale breast and small talons. */}
+      <ellipse cx="16" cy="26.4" rx="6.9" ry="4.4" fill={plume} stroke={ink} strokeWidth="1.05" />
+      <ellipse cx="16" cy="26.8" rx="3.9" ry="3.2" fill="#fff1b6" />
+      <path d="M13.3 25.6q.9.9 1.8 0 .9.9 1.8 0 .9.9 1.8 0M14.2 27.4q.9.9 1.8 0 .9.9 1.8 0" fill="none" stroke="#f3a43a" strokeWidth=".45" strokeLinecap="round" />
+      <path d="M11.4 30.6l1.2-1.4 1.2 1.4M12.6 29.2v1.5M18.2 30.6l1.2-1.4 1.2 1.4M19.4 29.2v1.5" fill="none" stroke="#c9461a" strokeWidth=".75" strokeLinecap="round" strokeLinejoin="round" />
+
+      {/* Flame-feather crest: three tongues that flicker on their own clock. */}
+      <g className="dg-pet-crest" fill={flame} stroke={ink} strokeWidth=".8" strokeLinejoin="round">
+        <path d="M13.5 9.7c-1.6-1-2.6-2.8-2.4-4.8.7.7 1.4 1 2.1 1 0-.9.3-1.7.8-2.3.6 1.8 1 3.8.6 6z" />
+        <path d="M18.5 9.7c1.6-1 2.6-2.8 2.4-4.8-.7.7-1.4 1-2.1 1 0-.9-.3-1.7-.8-2.3-.6 1.8-1 3.8-.6 6z" />
+        <path d="M14.6 9.5c-.9-2.4-.4-5.2 1.6-7.6.1 1.4.6 2.4 1.4 3 .3-.7.8-1.2 1.3-1.4.2 2.2-.4 4.4-1.7 6z" />
+        <path d="M15.6 8.6c-.3-1.4 0-2.8.8-4 .2 1 .6 1.6 1.1 2-.2.8-.6 1.5-1.2 2z" fill="#fff3a8" stroke="none" />
+      </g>
+
+      <circle className="dg-pet-face" cx="16" cy="16.8" r="9.4" fill={plume} stroke={ink} strokeWidth="1.15" />
+      <ellipse cx="12.2" cy="11.6" rx="3.2" ry="1.8" fill="#fff" opacity=".3" transform="rotate(-20 12.2 11.6)" />
+
+      <g className="dg-pet-eyes">
+        <ellipse cx="12.4" cy="16.2" rx="1.95" ry="2.25" fill={ink} />
+        <ellipse cx="19.6" cy="16.2" rx="1.95" ry="2.25" fill={ink} />
+        <circle cx="13" cy="15.3" r=".72" fill="#fff" />
+        <circle cx="20.2" cy="15.3" r=".72" fill="#fff" />
+        <circle cx="11.8" cy="17.3" r=".3" fill="#ffe46c" />
+        <circle cx="19" cy="17.3" r=".3" fill="#ffe46c" />
+      </g>
+      {/* Ember eyeliner flicks at the outer corners. */}
+      <path d="M10.5 15.1 8.7 14.1M21.5 15.1 23.3 14.1" fill="none" stroke="#c9341a" strokeWidth=".75" strokeLinecap="round" />
+      <g fill="#ff6b4a" opacity=".45"><ellipse cx="9.2" cy="19.2" rx="1.5" ry=".9" /><ellipse cx="22.8" cy="19.2" rx="1.5" ry=".9" /></g>
+
+      {/* Small hooked beak over a smile. */}
+      <path d="M14.7 18.8h2.6l-1.3 1.9z" fill="#ff9a2e" stroke={ink} strokeWidth=".6" strokeLinejoin="round" />
+      <path className="dg-pet-mouth-base" d="M14.6 21.4q1.4 1.1 2.8 0" fill="none" stroke={ink} strokeWidth=".75" strokeLinecap="round" />
+
+      {/* Embers lift off the wings and crest. */}
+      <g fill="#ffcf4a" stroke="#e8661e" strokeWidth=".3">
+        <path className="dg-pet-solspark" d="M5.4 10.6l.5-1.1.5 1.1-.5.9z" />
+        <path className="dg-pet-solspark dg-pet-solspark-b" d="M26.2 10.2l.5-1.1.5 1.1-.5.9z" />
+        <path className="dg-pet-solspark dg-pet-solspark-c" d="M22.4 7.4l.4-.9.4.9-.4.7z" />
+        <path className="dg-pet-solspark dg-pet-solspark-d" d="M28.6 18.6l.4-.9.4.9-.4.7z" />
+      </g>
+
+      {/* Crimson band with a little sun disc. */}
+      <g className="dg-pet-accessory">
+        <path d="M10.3 24.4c3.6 1.5 7.8 1.5 11.4 0l.35 1.5c-3.9 1.7-8.2 1.7-12.1 0z" fill="#a8301a" stroke={ink} strokeWidth=".5" strokeLinejoin="round" />
+        <circle cx="16" cy="26.7" r="1.15" fill="#ffd34a" stroke={ink} strokeWidth=".4" />
+        <path d="M16 24.9v.5M16 28v.5M14.2 26.7h.5M17.3 26.7h.5" stroke="#ffd34a" strokeWidth=".45" strokeLinecap="round" />
+      </g>
+      <PetExpression left={12.4} right={19.6} y={16.2} mouthY={21.2} ink={ink} />
+    </svg>
+  );
+}
+
+// The dark-sun corona behind Eclipse: fourteen swept flares, built once.
+const CORONA = (() => {
+  const cx = 16, cy = 16.6, n = 14, step = (Math.PI * 2) / n;
+  const pt = (r, a) => `${(cx + r * Math.cos(a)).toFixed(2)} ${(cy + r * Math.sin(a)).toFixed(2)}`;
+  let d = `M${pt(10.4, 0)}`;
+  for (let i = 0; i < n; i++) {
+    const a = i * step;
+    d += `Q${pt(12, a + step * .2)} ${pt(13.6, a + step * .62)}Q${pt(11.4, a + step * .7)} ${pt(10.4, a + step)}`;
+  }
+  return d + "z";
+})();
+
+// A celestial qilin, the level 20 finale. A starfield coat in front of an
+// eclipsed sun: the head is the dark disc, the corona burns around it and
+// turns. Crescent-moon horn, silver mane, gold hooves, two motes in orbit.
+// The violet rim on every outline is what keeps a near-black pet legible on
+// the dark theme; the corona does the rest.
+function Eclipse() {
+  const id = "ec" + useId().replace(/\W/g, "");
+  const ink = "#0e0826";
+  const rim = "#a898f6";
+  const coat = `url(#${id}-coat)`;
+  const silver = `url(#${id}-silver)`;
+  const moon = `url(#${id}-moon)`;
+  return (
+    <svg viewBox="0 0 32 32" aria-hidden="true">
+      <defs>
+        <radialGradient id={`${id}-coat`} cx="44%" cy="44%" r="70%">
+          <stop offset="0" stopColor="#7a5fd6" />
+          <stop offset=".55" stopColor="#4a3399" />
+          <stop offset="1" stopColor="#22175a" />
+        </radialGradient>
+        <linearGradient id={`${id}-silver`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#ffffff" />
+          <stop offset=".6" stopColor="#dfe1f4" />
+          <stop offset="1" stopColor="#a9add6" />
+        </linearGradient>
+        <linearGradient id={`${id}-moon`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#fff6d6" />
+          <stop offset="1" stopColor="#f0c159" />
+        </linearGradient>
+        <radialGradient id={`${id}-corona`} gradientUnits="userSpaceOnUse" cx="16" cy="16.6" r="13.8">
+          <stop offset=".7" stopColor="#fff2c2" />
+          <stop offset=".82" stopColor="#ffbe4f" />
+          <stop offset="1" stopColor="#e2702e" stopOpacity=".55" />
+        </radialGradient>
+        <radialGradient id={`${id}-glow`}>
+          <stop offset=".6" stopColor="#b896ff" stopOpacity=".5" />
+          <stop offset="1" stopColor="#8c6cf0" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+
+      {/* The eclipse: a violet glow that breathes, then the turning corona. */}
+      <circle className="dg-pet-umbra" cx="16" cy="16.6" r="14.6" fill={`url(#${id}-glow)`} />
+      <path className="dg-pet-corona" d={CORONA} fill={`url(#${id}-corona)`} />
+
+      {/* Lion tail ending in a silver flame tuft. */}
+      <g className="dg-pet-tail">
+        <path d="M21 27.4c4.4 1.4 6.8-1.2 6.6-4.8" fill="none" stroke={rim} strokeWidth="2.7" strokeLinecap="round" />
+        <path d="M21 27.4c4.4 1.4 6.8-1.2 6.6-4.8" fill="none" stroke="#3a2888" strokeWidth="1.4" strokeLinecap="round" />
+        <path d="M27.4 23.6c-2.2-.8-2.8-3.2-1.2-5.2.1 1 .6 1.6 1.3 1.8.1-1.2.7-2.1 1.7-2.6-.2 1.2.1 2.2.9 3 .6 1.6-.9 3.4-2.7 3z" fill={silver} stroke="#4b4a7e" strokeWidth=".6" strokeLinejoin="round" />
+      </g>
+
+      {/* Body, with gold scale arcs on the chest and gold-shod hooves. */}
+      <ellipse cx="16" cy="26.6" rx="7" ry="4.2" fill={coat} stroke={rim} strokeWidth=".9" />
+      <path d="M13.1 25.6q.95.95 1.9 0 .95.95 1.9 0 .95.95 1.9 0M14 27.2q1 .9 2 0 1 .9 2 0" fill="none" stroke="#f0c159" strokeWidth=".45" strokeLinecap="round" opacity=".85" />
+      <ellipse cx="12.2" cy="29.2" rx="2.3" ry="1.35" fill="#2c1f6a" stroke={rim} strokeWidth=".7" />
+      <ellipse cx="19.8" cy="29.2" rx="2.3" ry="1.35" fill="#2c1f6a" stroke={rim} strokeWidth=".7" />
+      <path d="M10.3 29.7q1.9 1.3 3.8 0M17.9 29.7q1.9 1.3 3.8 0" fill="none" stroke="#f0c159" strokeWidth=".8" strokeLinecap="round" />
+
+      {/* Silver mane: locks that sweep out below each cheek. */}
+      <path d="M11 9C7.4 9.8 5 12.8 5.2 16.6c-1 .8-2 1-3 .8.8 1.6 2.2 2.4 3.8 2.4-.4 1-1.2 1.8-2.2 2.2 2 .6 4.1.1 5.6-1.3z" fill={silver} stroke="#4b4a7e" strokeWidth=".7" strokeLinejoin="round" />
+      <path d="M21 9c3.6.8 6 3.8 5.8 7.6 1 .8 2 1 3 .8-.8 1.6-2.2 2.4-3.8 2.4.4 1 1.2 1.8 2.2 2.2-2 .6-4.1.1-5.6-1.3z" fill={silver} stroke="#4b4a7e" strokeWidth=".7" strokeLinejoin="round" />
+
+      {/* Deer-leaf ears over the mane. */}
+      <g className="dg-pet-ear dg-pet-ear-left">
+        <path d="M10.6 11.4C7.8 11.4 5 9.8 3.6 7.2c2.8-.6 5.6.2 7.6 2.2z" fill={coat} stroke={rim} strokeWidth=".75" strokeLinejoin="round" />
+        <path d="M9.6 10.4C7.8 10.2 6.2 9.4 5.2 8.1c1.8-.1 3.4.5 4.6 1.6z" fill="#9b82ec" opacity=".75" />
+      </g>
+      <g className="dg-pet-ear dg-pet-ear-right">
+        <path d="M21.4 11.4c2.8 0 5.6-1.6 7-4.2-2.8-.6-5.6.2-7.6 2.2z" fill={coat} stroke={rim} strokeWidth=".75" strokeLinejoin="round" />
+        <path d="M22.4 10.4c1.8-.2 3.4-1 4.4-2.3-1.8-.1-3.4.5-4.6 1.6z" fill="#9b82ec" opacity=".75" />
+      </g>
+
+      {/* The head is the dark disc of the eclipse, its edge the bright ring. */}
+      <circle className="dg-pet-face" cx="16" cy="16.6" r="9.3" fill={coat} stroke="#ffeab4" strokeWidth="1" />
+      <ellipse cx="12.4" cy="11.6" rx="3" ry="1.6" fill="#fff" opacity=".14" transform="rotate(-20 12.4 11.6)" />
+
+      {/* Starfield: the coat twinkles out of phase with itself. */}
+      <g fill="#e9e4ff">
+        <circle className="dg-pet-twinkle" cx="9.6" cy="14.2" r=".4" />
+        <circle className="dg-pet-twinkle dg-pet-twinkle-b" cx="22.6" cy="13.4" r=".36" />
+        <circle className="dg-pet-twinkle dg-pet-twinkle-c" cx="21.4" cy="22.2" r=".38" />
+        <circle className="dg-pet-twinkle dg-pet-twinkle-b" cx="10.4" cy="21.6" r=".32" />
+        <circle className="dg-pet-twinkle dg-pet-twinkle-c" cx="13.4" cy="27.6" r=".32" />
+        <circle className="dg-pet-twinkle" cx="19" cy="26" r=".3" />
+      </g>
+
+      {/* Silver forelock under a crescent-moon horn. */}
+      <path d="M13.4 10.2c1-.4 2 0 2.6.8.6-.8 1.6-1.2 2.6-.8-.2 1.3-1.2 2.2-2.6 2.4-1.4-.2-2.4-1.1-2.6-2.4z" fill={silver} stroke="#4b4a7e" strokeWidth=".5" strokeLinejoin="round" />
+      <path d="M16.4 9.6A3.6 3.6 0 1 1 19.6 3.4 4.2 4.2 0 0 0 16.4 9.6z" fill={moon} stroke="#8a5c12" strokeWidth=".5" strokeLinejoin="round" />
+      <g transform="translate(19.7 3.3)"><path className="dg-pet-glint" d={GLINT} fill="#fff" /></g>
+
+      {/* Eyes with a gold crescent catch along the bottom. */}
+      <g className="dg-pet-eyes">
+        <ellipse cx="12.4" cy="16.4" rx="2.05" ry="2.35" fill={ink} stroke="#d9d0ff" strokeWidth=".35" />
+        <ellipse cx="19.6" cy="16.4" rx="2.05" ry="2.35" fill={ink} stroke="#d9d0ff" strokeWidth=".35" />
+        <path d="M10.9 17.3q1.5 1.5 3 0M18.1 17.3q1.5 1.5 3 0" fill="none" stroke="#ffd27a" strokeWidth=".55" strokeLinecap="round" />
+        <circle cx="13.05" cy="15.5" r=".72" fill="#fff" />
+        <circle cx="20.25" cy="15.5" r=".72" fill="#fff" />
+        <circle cx="11.8" cy="16.6" r=".26" fill="#fff" opacity=".8" />
+        <circle cx="19" cy="16.6" r=".26" fill="#fff" opacity=".8" />
+      </g>
+
+      {/* Pale silver snout. */}
+      <ellipse cx="16" cy="20.8" rx="3.7" ry="2.5" fill="#d6d1f5" />
+      <circle cx="15.1" cy="19.9" r=".3" fill={ink} opacity=".75" />
+      <circle cx="16.9" cy="19.9" r=".3" fill={ink} opacity=".75" />
+      <path className="dg-pet-mouth-base" d="M14.2 21.2q1.8 1.7 3.6 0" fill="none" stroke={ink} strokeWidth=".8" strokeLinecap="round" />
+
+      {/* Two motes on opposite orbits: one silver, one gold. */}
+      <g className="dg-pet-mote"><circle cx="27.8" cy="9.8" r=".75" fill="#fff" /><circle cx="27.8" cy="9.8" r="1.4" fill="#fff" opacity=".22" /></g>
+      <g className="dg-pet-mote dg-pet-mote-b"><circle cx="4.4" cy="24.4" r=".65" fill="#ffd27a" /><circle cx="4.4" cy="24.4" r="1.2" fill="#ffd27a" opacity=".25" /></g>
+
+      {/* Midnight band with a tiny eclipse charm. */}
+      <g className="dg-pet-accessory">
+        <path d="M10.4 24.4c3.6 1.5 7.6 1.5 11.2 0l.35 1.5c-3.8 1.7-8.1 1.7-11.9 0z" fill="#2a1d6e" stroke="#f0c159" strokeWidth=".45" strokeLinejoin="round" />
+        <circle cx="16" cy="26.7" r="1.15" fill={ink} stroke="#ffd27a" strokeWidth=".55" />
+        <circle cx="16.45" cy="26.3" r=".45" fill="#2a1d6e" />
+      </g>
+      <PetExpression left={12.4} right={19.6} y={16.4} mouthY={21.2} ink={ink} />
+    </svg>
+  );
+}
+
 export const PETS = [
   { key: "cat", label: "Cat", Svg: Cat },
   { key: "fox", label: "Fox", Svg: Fox },
@@ -1578,6 +2071,10 @@ export const PETS = [
   { key: "pebble", label: "Pebble", Svg: Pebble },
   { key: "prickle", label: "Prickle", Svg: Prickle },
   { key: "luna", label: "Luna", Svg: Luna, art: "sprite" },
+  { key: "frost", label: "Frost", Svg: Frost },
+  { key: "tide", label: "Tide", Svg: Tide },
+  { key: "sol", label: "Sol", Svg: Sol },
+  { key: "eclipse", label: "Eclipse", Svg: Eclipse },
 ];
 
 // The rover shipped as a turtle originally and admin configs saved in prod may

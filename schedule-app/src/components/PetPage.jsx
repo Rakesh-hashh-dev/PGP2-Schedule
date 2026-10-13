@@ -5,10 +5,10 @@ import {
 } from "lucide-react";
 import { PETS, getPetByKey } from "./greetingPets.jsx";
 import {
-  CARE_ACTIONS, HATS, COATS, NECKWEAR, TITLES, MAX_DEVOTION, MAX_LEVEL,
+  CARE_ACTIONS, HATS, COATS, NECKWEAR, TITLES, MAX_DEVOTION, MAX_LEVEL, DEVOTION_BASE_LEVEL,
   STARTER_KEYS, UNLOCKS, DEVOTION_COMPANIONS, BUDDY_DEVOTION, STREAK_CAP,
   careLeft, devotionFor, hatRequirement, hatsFor, hoursSince, isAdopted,
-  levelProgress, moodExplainFor, unlockedFor, visibleHat, xpBySource, xpOf,
+  levelProgress, moodExplainFor, REUNION_HOURS, unlockedFor, visibleHat, xpBySource, xpOf,
   growthStageFor, nextGrowthStage,
   coatsFor, neckwearFor, coatRequirement, neckwearRequirement,
   visibleCoat, visibleNeckwear, titlesFor, visibleTitle, titleLabel,
@@ -42,6 +42,10 @@ const MOOD_COPY = {
   sleepy: "Curled up, dozing.",
   bored: "A bit bored — say hello?",
   missing: "Missed you while you were gone.",
+  reunion: "So glad you are back.",
+  determined: "Squared up — something is due today.",
+  hyped: "Riding a streak, buzzing with it.",
+  weekend: "Lounging. It is the weekend.",
 };
 
 const CARE_COPY = { pet: "Pet", play: "Play", treat: "Treat" };
@@ -164,8 +168,9 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
   }, [careFeedback]);
 
   const handleCare = action => {
+    const reunion = hoursSince(pet, now) >= REUNION_HOURS;
     petActions.care(action, now);
-    setCareFeedback(previous => ({ action, earned: left > 0, at: (previous?.at || 0) + 1 }));
+    setCareFeedback(previous => ({ action, earned: left > 0, reunion, at: (previous?.at || 0) + 1 }));
   };
 
   if (!adopted) {
@@ -277,7 +282,7 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
               data-accessory={accessoryOn ? "on" : "off"}
               data-coat={coat || undefined}
               data-neck={neck || undefined}
-              data-reaction={careFeedback?.action || undefined}
+              data-reaction={(careFeedback?.reunion ? "leap" : careFeedback?.action) || undefined}
               aria-hidden="true"
               {...gaze}
             >
@@ -504,7 +509,7 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
               <div><strong>{unlocked.size}/{PETS.length}</strong><span>Companions</span></div>
               <div><strong>{streak} days</strong><span>Care streak</span></div>
             </div>
-            {progress.maxed && (
+            {progress.level >= DEVOTION_BASE_LEVEL && (
               <div className="pet-devotion-panel">
                 <div className="pet-xp-heading">
                   <strong>Devotion {devotion.tier}{devotion.capped ? " · Max" : ""}</strong>
@@ -707,7 +712,7 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
         <p className="pet-care-note">
           {devotion.tier >= MAX_DEVOTION
             ? "Every wearable is yours."
-            : progress.maxed
+            : progress.level >= DEVOTION_BASE_LEVEL
               ? "Devotion keeps the wardrobe growing — every tier past level 12 opens something."
               : "More arrive as you level, and more still after level 12."}
         </p>

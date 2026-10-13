@@ -1,6 +1,6 @@
 import {
   BUDDY_DEVOTION, COATS, DEVOTION_STEP, DEVOTION_COMPANIONS, HATS,
-  MAX_LEVEL, NECKWEAR, STARTER_KEYS, UNLOCKS, XP_SOURCES, devotionFor, levelFor,
+  DEVOTION_BASE_XP, MAX_LEVEL, NECKWEAR, STARTER_KEYS, UNLOCKS, XP_SOURCES, devotionFor, levelFor,
   normalize, unlockStanding, unlockedFor, xpOf, xpToReach,
 } from "./pet.js";
 
@@ -45,7 +45,7 @@ export function unlockRoadmap(state, { wardrobe = true, hatsOff = [] } = {}) {
       ...gate,
       remainingXp: Math.max(0, (gate.by === "level"
         ? xpToReach(gate.at)
-        : xpToReach(MAX_LEVEL) + gate.at * DEVOTION_STEP) - xp),
+        : DEVOTION_BASE_XP + gate.at * DEVOTION_STEP) - xp),
     }));
 }
 
@@ -127,7 +127,8 @@ export function petMilestones(state) {
     { key: "collect8", label: "Growing circle", detail: "Unlock 8 companions", value: companions, target: 8, ready: level >= 4 },
     { key: "level8", label: "Steady progress", detail: "Reach level 8", value: level, target: 8, ready: level >= 4 },
     { key: "collectAll", label: "Full house", detail: "Unlock every companion", value: companions, target: totalCompanions, ready: companions >= 8 },
-    { key: "level12", label: "Fully grown", detail: "Reach level 12", value: level, target: MAX_LEVEL, ready: level >= 8 },
+    { key: "level12", label: "Fully grown", detail: "Reach level 12", value: level, target: 12, ready: level >= 8 },
+    { key: "level20", label: "Legend", detail: `Reach level ${MAX_LEVEL}`, value: level, target: MAX_LEVEL, ready: level >= 12 },
   ].map(item => ({
     ...item,
     status: item.value >= item.target ? "completed" : item.ready ? "in-progress" : "locked",

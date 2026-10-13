@@ -167,6 +167,30 @@ const HATS = {
       <circle cx="21" cy="7" r=".3" fill="#ffffff" />
     </g>
   ),
+  wizard: (
+    <g>
+      {/* Wide brim and bent star-spangled cone */}
+      <ellipse cx="16" cy="9.4" rx="10.4" ry="2.1" fill="#4a3a9c" stroke="#1c1648" strokeWidth=".8" />
+      <path d="M9.6 9.2C11 6.6 13.4 3.2 17.6 .8c-.4 2 .2 3.4 1.6 4.4.8.6 1.8 2.2 3.2 4z" fill="#5f49cf" stroke="#1c1648" strokeWidth=".85" strokeLinejoin="round" />
+      <path d="M10.2 8.4q5.8 1.4 12 0" fill="none" stroke="#f4c45e" strokeWidth=".9" strokeLinecap="round" />
+      <path d="m15 6 .6 1.3 1.4.1-1.1.9.4 1.4-1.3-.8-1.3.8.4-1.4-1.1-.9 1.4-.1z" fill="#f4c45e" />
+      <circle cx="19.4" cy="5" r=".5" fill="#f0ebff" />
+    </g>
+  ),
+  sunburst: (
+    <g>
+      {/* Radiating rays behind a thin gold band */}
+      <g stroke="#362208" strokeWidth=".5" strokeLinejoin="round" fill="#f9d45c">
+        <path d="M16 .6l1.3 6h-2.6z" />
+        <path d="M9.6 2.4l3.2 4.6-2.4 1.2z" />
+        <path d="M22.4 2.4l-3.2 4.6 2.4 1.2z" />
+        <path d="M4.8 6.4l5 2.6-1.4 1.8z" />
+        <path d="M27.2 6.4l-5 2.6 1.4 1.8z" />
+      </g>
+      <path d="M8.6 9.8q7.4-2.6 14.8 0v1.4q-7.4-2.6-14.8 0z" fill="#f4be38" stroke="#362208" strokeWidth=".7" strokeLinejoin="round" />
+      <circle cx="16" cy="9.4" r="1.1" fill="#ff8a3d" stroke="#362208" strokeWidth=".45" />
+    </g>
+  ),
   halo: (
     <g>
       {/* Floating celestial aura */}

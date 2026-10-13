@@ -291,14 +291,14 @@ New lazy view, following the Split/Wrapped precedent end to end:
 
 ### Phase 3 — mood & animation system ✅ BUILT (2026-09-04, unverified in browser)
 
-Six moods, **no new keyframes and no new artwork.** `.dg-pet` now declares five mood knobs —
+Six moods at the time (twenty-two now, after the reunion, determined, hyped and weekend additions), **no new keyframes and no new artwork.** `.dg-pet` now declares five mood knobs —
 `--pet-ear-droop`, `--pet-eye-open`, `--pet-lean`, `--pet-aura`, `--pet-sat` (plus `--pet-dot`
 for the presence dot) — and the *existing* keyframes read them. Each `[data-mood]` block just
-moves the knobs and retimes the existing part animations. Twelve pets, six moods, one stylesheet
+moves the knobs and retimes the existing part animations. Twelve pets, one stylesheet
 block; the knobs default to neutral so a pet with no mood renders exactly as before.
 
 **The reduced-motion problem and its fix.** With `animation: none` every part sits at its neutral
-pose, so all six moods would have looked identical. The knobs are therefore *also* applied as
+pose, so every mood would have looked identical. The knobs are therefore *also* applied as
 static transforms (`.dg-pet-eyes`, `.dg-pet-ear-left/right`) plus a lean and desaturation on the
 never-animated `<svg>`. A running animation overrides those, and the keyframes are built around
 the same variables — so motion and no-motion can never disagree about which way the ears point.

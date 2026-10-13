@@ -105,6 +105,7 @@ import { loadAttendance, saveAttendance, sessionKey, syncAttendanceFromCloud, pu
 import { recordFeatureUse } from "./lib/featureUsage.js";
 import { usePet } from "./hooks/usePet.js";
 import { EXAM_HORIZON_DAYS, isAdopted } from "./lib/pet.js";
+import { assignmentDueToday } from "./lib/insights.js";
 import { syncProfileFromCloud, pushProfile, stampProfileEmail } from "./lib/profile.js";
 import { syncMigrationMap } from "./lib/migrationMap.js";
 import { useMigration } from "./lib/useMigration.js";
@@ -1843,14 +1844,30 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     return visible.some(c => c.type === "exam" && c.date >= todayISO && c.date <= until);
   }, [visible, todayISO, now]);
 
+  // An assignment due today and not yet ticked off. Re-read when the day turns
+  // or the ledger gains a `due:` key (completing a task awards one), not per tick.
+  const deadlineDueToday = useMemo(
+    () => assignmentDueToday(todayISO, myPet?.awarded ?? {}),
+    [todayISO, myPet?.awarded],
+  );
+
+  // Dates with a scheduled class, so the pet's attendance streak skips weekends
+  // and holidays. Rebuilt only when the schedule changes.
+  const classDays = useMemo(
+    () => new Set(visible.filter(c => c.type === "class").map(c => c.date)),
+    [visible],
+  );
+
   const petContext = useMemo(() => ({
     inClass: Boolean(current),
     minsToClass: next?.s ? (next.s - now) / 60000 : null,
     classesToday: todayList.filter(c => c.type === "class" || c.type === "exam").length,
     examSoon,
+    deadlineDueToday,
+    classDays,
     moment: petMoment?.moment,
     momentUntil: petMoment?.momentUntil,
-  }), [current, next, now, todayList, examSoon, petMoment]);
+  }), [current, next, now, todayList, examSoon, deadlineDueToday, classDays, petMoment]);
 
   const syncedAgo = Math.max(0, Math.round((now - syncedAt) / 60000));
 

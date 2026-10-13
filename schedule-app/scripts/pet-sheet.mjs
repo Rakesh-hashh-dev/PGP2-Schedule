@@ -207,12 +207,16 @@ function posed(markup, boxes, knobs, gain) {
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
 
 async function main() {
-  const PETS = (await loadPets()).filter(p => !ONLY || p.key === ONLY);
+  const PETS = (await loadPets()).filter(p => !ONLY || ONLY.split(",").includes(p.key));
   const moods = moodKnobs();
   const gains = petGains();
   const origins = earOrigins();
-  const order = ["celebrating", "proud", "excited", "focused", "restless", "playful", "happy",
-    "curious", "rooting", "content", "relaxed", "cozy", "tired", "sleepy", "bored", "missing"]
+  // Every mood the stylesheet knows, in ladder order; `--moods a,b,c` narrows it.
+  const ALL = ["celebrating", "reunion", "proud", "birthday", "festive", "weekend", "excited", "focused",
+    "restless", "determined", "playful", "happy", "hyped", "curious", "rooting", "content",
+    "relaxed", "cozy", "tired", "sleepy", "bored", "missing"];
+  const picked = argOf("moods", null)?.split(",");
+  const order = (picked || ALL)
     .filter(m => moods.has(m));
 
   const LABEL = 74, HEAD = 22;
@@ -251,7 +255,7 @@ async function main() {
       const x = LABEL + col * CELL;
       parts.push(`<rect x="${x}" y="${y}" width="${CELL}" height="${CELL}" fill="${row % 2 ? "#efeae0" : "#f4f1ea"}"/>`);
       parts.push(`<svg class="pet-mood-${mood}" x="${x + 4}" y="${y + 4}" width="${CELL - 8}" height="${CELL - 8}" viewBox="0 0 32 32">${pet.art === "sprite"
-        ? posed(rasterFrames.get(({ happy: "wait", proud: "wait", playful: "wait", focused: "think", bored: "think", curious: "review", restless: "review", tired: "rest", sleepy: "rest", cozy: "rest", missing: "rest", excited: "jump", celebrating: "jump" })[mood] || "idle"), {}, { droop: 0, eye: 1, drop: 0, lean: 0 }, 1)
+        ? posed(rasterFrames.get(({ happy: "wait", proud: "wait", playful: "wait", focused: "think", bored: "think", curious: "review", restless: "review", tired: "rest", sleepy: "rest", cozy: "rest", missing: "rest", excited: "jump", celebrating: "jump", reunion: "jump", hyped: "jump", determined: "think", weekend: "rest", rooting: "wait", birthday: "jump", festive: "jump" })[mood] || "idle"), {}, { droop: 0, eye: 1, drop: 0, lean: 0 }, 1)
         : posed(markup, boxes, moods.get(mood), gain)}</svg>`);
     });
   }

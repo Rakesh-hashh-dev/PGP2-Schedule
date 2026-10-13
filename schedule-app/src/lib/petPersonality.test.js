@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PETS } from "../components/greetingPets.jsx";
 import { MOODS } from "./pet.js";
-import { PET_PERSONALITIES, PET_BEAT_MS, PET_GAP_MIN_MS, beatPoolFor, choosePetBeat, createPetBeatClock } from "./petPersonality.js";
+import { LUNA_MOODS, MOOD_ACTIONS, PET_PERSONALITIES, PET_BEAT_MS, PET_GAP_MIN_MS, beatPoolFor, choosePetBeat, createPetBeatClock } from "./petPersonality.js";
 
 afterEach(() => vi.useRealTimers());
 describe("companion personalities", () => {
-  it("gives all 21 companions at least three signature actions", () => {
-    expect(PETS).toHaveLength(21);
+  it("gives all 25 companions at least three signature actions", () => {
+    expect(PETS).toHaveLength(25);
     for (const pet of PETS) expect(new Set(PET_PERSONALITIES[pet.key]).size, pet.key).toBeGreaterThanOrEqual(3);
   });
   it("does not repeat the previous action in any pet/mood combination", () => {
@@ -50,5 +50,23 @@ describe("idle clock", () => {
     expect(onBeat).toHaveBeenLastCalledWith("");
     clock.stop();
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+describe("mood coverage", () => {
+  it("MOOD_ACTIONS and LUNA_MOODS cover every mood", () => {
+    for (const mood of MOODS) {
+      expect(MOOD_ACTIONS[mood], `MOOD_ACTIONS.${mood}`).toBeTruthy();
+      expect(LUNA_MOODS[mood], `LUNA_MOODS.${mood}`).toBeTruthy();
+    }
+  });
+  it("gives new beats to pets, keeps twirl out of quiet moods, allows quiet-safe ones", () => {
+    for (const beat of ["downdog", "twirl", "glance", "shimmy"]) {
+      expect(Object.values(PET_PERSONALITIES).some(list => list.includes(beat)), beat).toBe(true);
+    }
+    for (const { key } of PETS) for (const mood of ["sleepy", "tired", "cozy", "focused", "weekend"]) {
+      expect(beatPoolFor(key, mood)).not.toContain("twirl");
+      expect(beatPoolFor(key, mood)).not.toContain("shimmy");
+    }
+    expect(beatPoolFor("cat", "weekend")).toContain("downdog");
   });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { adopt, award, care, emptyPet, xpOf } from "./pet.js";
+import { SERVER_LEVEL_CAP, adopt, award, care, emptyPet, levelFor, xpOf } from "./pet.js";
 import { PET_KEY, clearPetLocal, dismissRecount, isRecountDismissed, fromRow, loadPet, savePetLocal, toRow } from "./petStorage.js";
 
 // The node test env has no localStorage. A minimal in-memory stand-in is enough
@@ -78,6 +78,13 @@ describe("row ⇄ state mapping", () => {
     expect(toRow("user_A", s).level).toBe(3);
     // ...and never writes an xp column: XP is derived from the ledger + granted_xp.
     expect(toRow("user_A", s)).not.toHaveProperty("xp");
+  });
+
+  it("never writes a level above what the cloud check constraint accepts", () => {
+    // pet_state.level is `between 1 and 20` in prod.
+    const s = award(adopt(emptyPet(), "cat", "Mochi"), "big", 90000);
+    expect(toRow("user_A", s).level).toBe(Math.min(SERVER_LEVEL_CAP, levelFor(xpOf(s))));
+    expect(toRow("user_A", s).level).toBeLessThanOrEqual(SERVER_LEVEL_CAP);
   });
 
   it("falls back to the inflated total as the unlock floor until legacy_xp exists", () => {

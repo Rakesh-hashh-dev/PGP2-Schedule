@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { adopt, award, care, levelProgress, rename, scaleXp, setCosmetic, switchTo, xpOf, MOMENT_MS, XP, keyFor } from "../lib/pet.js";
+import { adopt, award, care, hoursSince, isAdopted, levelProgress, rename, scaleXp, setCosmetic, switchTo, xpOf, MOMENT_MS, REUNION_HOURS, XP, keyFor } from "../lib/pet.js";
 import { loadPet, savePet, syncPetFromCloud } from "../lib/petStorage.js";
 
 /**
@@ -27,6 +27,10 @@ export function usePet(userId, { xpRate = 1 } = {}) {
   // Last (level, deadlines-cleared) this hook observed. `null` means "re-seed
   // without reacting" — see the cloud reconcile below.
   const seen = useRef(null);
+  // The latest pet, for `care` to read how long the student was away without
+  // putting `pet` in the dependency array of the memoised actions below.
+  const petRef = useRef(pet);
+  useEffect(() => { petRef.current = pet; }, [pet]);
 
   // Reconcile with the cloud row once per user. `mergePets` unions the award
   // ledgers, so a phone that earned XP offline keeps it when the laptop syncs.
@@ -83,7 +87,15 @@ export function usePet(userId, { xpRate = 1 } = {}) {
   // those effects fire on every tick of the app's live clock.
   const actions = useMemo(() => ({
     adopt: (petKey, name, now) => apply(s => adopt(s, petKey, name, now)),
-    care: (action, now) => apply(s => care(s, action, now, xpRate)),
+    care: (action, now) => {
+      // Coming back after three days and saying hello is a reunion: a moment,
+      // like a level-up, and session-only for the same reason.
+      const before = petRef.current;
+      if (isAdopted(before) && hoursSince(before, now) >= REUNION_HOURS) {
+        setMoment({ moment: "reunion", momentUntil: Date.now() + MOMENT_MS });
+      }
+      apply(s => care(s, action, now, xpRate));
+    },
     rename: name => apply(s => rename(s, name)),
     switchTo: petKey => apply(s => switchTo(s, petKey)),
     setCosmetic: (key, on) => apply(s => setCosmetic(s, key, on)),

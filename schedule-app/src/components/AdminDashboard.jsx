@@ -40,7 +40,7 @@ import { stageConfigSnapshot } from "../lib/configHistory.js";
 import { WhatsNewPill, WhatsNewModal } from "./WhatsNew.jsx";
 import { PETS, getPetByKey } from "./greetingPets.jsx";
 import PetHat from "./PetHat.jsx";
-import { HATS, COATS, NECKWEAR, hatRequirement } from "../lib/pet.js";
+import { HATS, COATS, NECKWEAR, SERVER_LEVEL_CAP, hatRequirement } from "../lib/pet.js";
 import { buildBroadcastAudience, feedbackState, previewScheduleChange, previewStagedScheduleChanges } from "../lib/adminWorkflow.js";
 import { AdoptionTrends, AttendanceRisk, BroadcastAudienceBuilder, ChangeTimeline, IncidentCenter, ScheduleImpactWeek, SupportQueue, DataQualityMonitor, ScheduleChangePreview, FeedbackTriage, HandoffNotes } from "./AdminWorkflowPanels.jsx";
 
@@ -5349,7 +5349,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                       <Shirt size={15} color="var(--violet)" /> Wardrobe
                     </label>
                     <p className="admin-subtext" style={{ margin: "6px 0 10px" }}>
-                      {HATS.length} hats, {COATS.length} coats and {NECKWEAR.length} collars. Hats and collars are mostly earned by level; the coats and the last of the hats come from devotion, past level 12. Off hides the whole section — every hat, collar and coat on every pet.
+                      {HATS.length} hats, {COATS.length} coats and {NECKWEAR.length} collars. Hats and collars are mostly earned by level; the coats and the last of the hats come from devotion, which starts at level 12 and runs alongside levels 13-20. Off hides the whole section — every hat, collar and coat on every pet.
                     </p>
 
                     {greetingPets.wardrobe !== false && (() => {
@@ -5463,7 +5463,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     disabled={petBulkBusy}
                     onChange={e => setPetBulkLevelDraft(Number(e.target.value))}
                   >
-                    {Array.from({ length: 12 }, (_, index) => index + 1).map(level => <option key={level} value={level}>Level {level}</option>)}
+                    {/* SERVER_LEVEL_CAP: the highest level the grant RPCs and pet_state check accept. */}
+                    {Array.from({ length: SERVER_LEVEL_CAP }, (_, index) => index + 1).map(level => <option key={level} value={level}>Level {level}</option>)}
                   </select>
                 </label>
                 <button
@@ -6465,7 +6466,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     disabled={petLevelBusy}
                     onChange={e => setPetLevelDraft(Number(e.target.value))}
                   >
-                    {Array.from({ length: 12 }, (_, index) => index + 1).map(level => <option key={level} value={level}>Level {level}</option>)}
+                    {/* SERVER_LEVEL_CAP: the highest level the grant RPCs and pet_state check accept. */}
+                    {Array.from({ length: SERVER_LEVEL_CAP }, (_, index) => index + 1).map(level => <option key={level} value={level}>Level {level}</option>)}
                   </select>
                 </label>
                 <button

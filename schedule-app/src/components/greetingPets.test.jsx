@@ -67,7 +67,7 @@ describe("signature micro-motion", () => {
   // The four premium companions are excluded on purpose: their staged
   // sequences are what reaching level 11-12, or devotion 4 and 8, buys, and a
   // signature on everything would flatten that back out.
-  const PREMIUM = ["spark", "leafy", "nova", "cinder"];
+  const PREMIUM = ["spark", "leafy", "nova", "cinder", "frost", "tide", "sol", "eclipse"];
 
   it("gives every non-premium pet one", () => {
     for (const pet of PETS) {

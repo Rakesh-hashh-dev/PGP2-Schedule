@@ -14,13 +14,13 @@
 .dg-pet .dg-pet-expression-yawn { display: var(--pet-mouth-yawn); }
 .dg-pet .dg-pet-expression-oh { display: var(--pet-mouth-oh); }
 .dg-pet .dg-pet-expression-heart { display: none; }
-.dg-pet:where([data-mood="happy"], [data-mood="playful"], [data-mood="excited"], [data-mood="celebrating"], [data-mood="proud"], [data-mood="birthday"], [data-mood="festive"]) {
+.dg-pet:where([data-mood="happy"], [data-mood="playful"], [data-mood="excited"], [data-mood="celebrating"], [data-mood="proud"], [data-mood="birthday"], [data-mood="festive"], [data-mood="reunion"], [data-mood="hyped"]) {
   --pet-face-base: none; --pet-face-joy: inline; --pet-mouth-base: none; --pet-mouth-smile: inline;
 }
 .dg-pet:where([data-mood="sleepy"], [data-mood="tired"], [data-mood="cozy"]) {
   --pet-face-base: none; --pet-face-rest: inline;
 }
-.dg-pet:where([data-mood="curious"], [data-mood="focused"], [data-mood="restless"]) { --pet-face-brows: inline; }
+.dg-pet:where([data-mood="curious"], [data-mood="focused"], [data-mood="restless"], [data-mood="determined"]) { --pet-face-brows: inline; }
 .dg-pet:where([data-beat="slowblink"], [data-beat="dreamyblink"], [data-beat="tuck"], [data-beat="yawn"]) {
   --pet-face-base: none; --pet-face-joy: none; --pet-face-rest: inline; --pet-face-brows: none;
 }
@@ -29,6 +29,8 @@
   --pet-face-base: none; --pet-face-joy: none; --pet-face-rest: none; --pet-face-surprise: inline;
   --pet-mouth-base: none; --pet-mouth-smile: none; --pet-mouth-oh: inline;
 }
+/* Lounging: eyes stay open, but the mouth is a content little smile. */
+.dg-pet:where([data-mood="weekend"]) { --pet-mouth-base: none; --pet-mouth-smile: inline; }
 /* Care wins over idle expressions and quiet moods. */
 .dg-pet:where([data-reaction]) {
   --pet-face-base: none; --pet-face-rest: none; --pet-face-surprise: none; --pet-face-brows: none;
