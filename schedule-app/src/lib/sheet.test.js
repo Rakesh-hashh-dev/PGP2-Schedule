@@ -51,11 +51,11 @@ describe("bundled snapshot", () => {
   });
 });
 
-describe("single-section courses with stray B rows", () => {
-  // CRM and SCA are single-section, but the sheet emits the odd row tagged "B".
-  // Every student is allocated "Single", so an un-normalised B row is invisible
+describe("single-section courses with stray section rows", () => {
+  // CRM, SCA and AOA are combined, but the sheet emits some stray A/B rows.
+  // Every student is allocated "Single", so an un-normalised A/B row is invisible
   // to the entire cohort.
-  for (const code of ["CRM", "SCA"]) {
+  for (const code of ["CRM", "SCA", "AOA"]) {
     it(`normalises every ${code} row to a section students can see`, () => {
       const rows = snap.CLASSES.filter(c => c.type === "class" && c.code === code);
       expect(rows.length).toBeGreaterThan(0);
@@ -121,5 +121,31 @@ describe("cleanRoom", () => {
   it("leaves no guest-name rooms in the shipped snapshot", () => {
     const rooms = [...new Set(snap.CLASSES.map(c => c.room).filter(Boolean))];
     expect(rooms.filter(r => /^(mr|mrs|ms|dr|prof)\.?\s/i.test(r))).toEqual([]);
+  });
+});
+
+describe("roster-confirmed section repair", () => {
+  const row = { type: "class", date: "2026-10-13", code: "SCA", name: "Supply Chain Analytics", session: "MID TERM", start: "14:30", end: "16:00", room: "AC-201" };
+  const payload = students => ({ LEGEND: { SCA: { name: row.name } }, STUDENTS: students, CLASSES: [{ ...row, section: "A" }, { ...row, section: "Single" }, { ...row, section: "B", start: "17:00", end: "18:30" }] });
+  it("repairs cached combined rows, removes an exact duplicate, and keeps a distinct session", () => {
+    vi.stubGlobal("localStorage", { getItem: () => JSON.stringify({ data: payload({ student: { SCA: "Single" } }) }) });
+    const result = getSnapshot();
+    expect(result.CLASSES.map(c => [c.section, c.start])).toEqual([["Single", "14:30"], ["Single", "17:00"]]);
+  });
+  it("keeps sectioned rows when the current roster has A/B allocations", async () => {
+    vi.stubGlobal("localStorage", { getItem: () => null, setItem: vi.fn() });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => payload({ first: { SCA: "A" }, second: { SCA: "B" } }) }));
+    const result = await fetchSchedule(true);
+    expect(result._meta.status).toBe("success");
+    expect(result.CLASSES.map(c => c.section)).toEqual(["A", "Single", "B"]);
+  });
+  it("applies the same repair to fresh feed rows without changing the source payload", async () => {
+    const data = payload({ student: { SCA: "Single" } });
+    vi.stubGlobal("localStorage", { getItem: () => null, setItem: vi.fn() });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => data }));
+    const result = await fetchSchedule(true);
+    expect(result._meta.status).toBe("success");
+    expect(result.CLASSES.map(c => c.section)).toEqual(["Single", "Single"]);
+    expect(data.CLASSES.map(c => c.section)).toEqual(["A", "Single", "B"]);
   });
 });

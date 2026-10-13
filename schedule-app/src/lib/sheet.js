@@ -18,16 +18,12 @@ export async function sha256hex(str) {
 
 const CACHE_KEY = "pgp2-feed-cache";
 
-// Courses that have only one combined section but whose feed occasionally emits
-// a stray "B" row — renamed to "Single". Term-specific; repopulate on rollover
-// whenever a course shows a lone "B" alongside "Single" rows and no "A" at all.
-//
-// Term V: CRM (1 stray row, 27 Oct session 13) and SCA (2 stray rows, 31 Oct
-// sessions 19-20). Both courses are single-section, and every enrolled student
-// is allocated "Single" in the sheet, so without this the `visible` filter in
-// App.jsx hid those three classes from everyone.
-const SINGLE_SECTION_B = new Set(["CRM", "SCA"]);
-function normalizeSingleSection(c) {
+// Term V courses whose source feed sometimes emits stray A/B rows. Repair
+// them only while the current roster allocates every enrolled student Single.
+// Recheck this term-specific list on rollover. Exact combined duplicates are
+// removed after normalization; distinct sessions and A/B courses stay separate.
+const SINGLE_SECTION_CODES = new Set(["CRM", "SCA", "AOA"]);
+function normalizeSingleSection(c, combinedCodes) {
   if (c.type !== "class") return c;
   // Repair guest cells the feed regex failed on: a line break in the sheet cell
   // ("DVB-9\n(Guest Session)") makes the whole cell land in `code` with an
@@ -38,7 +34,7 @@ function normalizeSingleSection(c) {
     const m = c.code.replace(/\s+/g, " ").match(/^([A-Za-z]+)[\s-]*(.*)$/);
     if (m) c = { ...c, code: m[1], session: m[2].trim(), name: m[0] };
   }
-  if (SINGLE_SECTION_B.has(c.code) && c.section === "B") {
+  if (combinedCodes.has(c.code) && (c.section === "A" || c.section === "B")) {
     return { ...c, section: "Single" };
   }
   return c;
@@ -87,14 +83,28 @@ function withAreas(data) {
   }
   const rawClasses = data.CLASSES || [];
   const legendMap = data.LEGEND || {};
+  // Normalize only courses whose current roster confirms one combined section.
+  const allocations = Object.values(data.STUDENTS || STUDENTS);
+  const combinedCodes = new Set([...SINGLE_SECTION_CODES].filter(code => {
+    const sections = allocations.map(student => student[code]).filter(Boolean);
+    return sections.length > 0 && sections.every(section => section === "Single");
+  }));
+  const seenCombined = new Set();
   const classes = [];
   for (let i = 0; i < rawClasses.length; i++) {
     let c = rawClasses[i];
     if (!c) continue;
-    c = normalizeSingleSection(normalizeScheduleBreak(c));
+    c = normalizeSingleSection(normalizeScheduleBreak(c), combinedCodes);
     if (!c) continue;
     c = reclassifyUnknown(c, legendMap);
     if (!c) continue;
+    // The feed can repeat a combined event once as A/B and once as Single.
+    // Compare every field after normalization so distinct sessions stay intact.
+    if (c.type === "class" && combinedCodes.has(c.code)) {
+      const key = JSON.stringify(Object.keys(c).sort().map(field => [field, c[field]]));
+      if (seenCombined.has(key)) continue;
+      seenCombined.add(key);
+    }
     classes.push({
       ...c,
       area: c.code ? (AREA[c.code] || "Other") : "",

@@ -1,9 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ from: vi.fn() }));
 vi.mock("./supabase.js", () => ({ supabase: { from: mocks.from } }));
 import { createMeetupSeries, fetchMyMeetups, validPlanInterval } from "./meetups.js";
 const occurrences = [{ startsAt: "2026-10-09T10:00:00Z", endsAt: "2026-10-09T11:00:00Z" }, { startsAt: "2026-10-16T10:00:00Z", endsAt: "2026-10-16T11:00:00Z" }];
 beforeEach(() => vi.clearAllMocks());
+afterEach(() => vi.useRealTimers());
 describe("Meetup persistence", () => {
   it("writes all weekly occurrences in one batch, then invites each unique participant", async () => {
     const insert = vi.fn(rows => ({ select: async () => ({ data: rows.map((row, index) => ({ id: `m${index}`, ...row })), error: null }) }));
@@ -34,6 +35,8 @@ describe("Meetup persistence", () => {
     expect(await fetchMyMeetups("me")).toEqual({ meetups: [], rsvpsByMeetup: {} });
   });
   it("keeps long ongoing plans, excludes ended plans and preserves the legacy grace window", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-13T10:00:00Z"));
     const now = Date.now(); const iso = hours => new Date(now + hours * 3600000).toISOString();
     const rows = [
       { id: "ongoing", starts_at: iso(-2), ends_at: iso(1) },
@@ -49,7 +52,7 @@ describe("Meetup persistence", () => {
     const result = await fetchMyMeetups("me", { strict: true });
     expect(result.meetups.map(row => row.id)).toEqual(["ongoing", "recent-legacy", "upcoming"]);
     expect(inIds).toHaveBeenCalledWith("meetup_id", ["ongoing", "recent-legacy", "upcoming"]);
-    expect(new Date(gte.mock.calls[0][1]).getTime()).toBeLessThanOrEqual(now - 4 * 3600000);
+    expect(new Date(gte.mock.calls[0][1]).getTime()).toBe(now - 4 * 3600000);
   });
 
 });

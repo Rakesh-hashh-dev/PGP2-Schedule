@@ -225,3 +225,15 @@ Remaining verification limits: actual browser expense cycle, realtime delivery,
 receipt upload and external OCR downloads. SQL synthetic-role checks are not an
 OAuth exchange or browser-to-API save. Evidence: ignored
 `.local/split-release/final-verification.txt` and the linked logs/backups.
+
+
+### 2026-10-13 cancellation and notification release completion
+
+- Supabase API deployment verified ACTIVE: dispatch v5, send-push v12, dispatch-scheduled-pushes v5, class-reminders v15. Existing verify_jwt=false retained; handler authentication confirmed with four unauthenticated POST requests returning 401 Unauthorized. No notification broadcasts sent.
+- Cancelled rows now show a diagonal cancellation band and faded native-disabled class actions in Timeline, Week Agenda and Full Schedule. Admin Room/Edit controls disable until Restore; recovery and visibility controls remain usable.
+- Actual component preview exposed an existing Full Schedule list grouping bug that discarded cancelled rows. Fixed grouping, including cancellation-only days; excluded cancelled rows from Up next. Two render regression tests pass.
+- Live feed roster confirmed CRM/SCA/AOA Single allocations despite stray A/B rows; normalization now uses current roster confirmation and removes exact duplicates only. Cached/live regression coverage preserves genuinely sectioned courses and distinct sessions.
+- Meetup time assertion uses a fixed Date clock. Calendar benchmarks run separately through npm run test:perf, with warmup and median microbenchmark sampling; all original budgets retained.
+- Validation: 59 unit test files / 559 tests passed; all four isolated performance tests passed. Changed-source lint has no errors (one pre-existing FullSchedulePage hook warning). Production Vite/PWA build passed; final build rerun after grouping fix. Version bumped to 7.3.1.
+- Browser: authenticated dev Admin Schedule showed cancellation selectors and Config is up to date. Date navigation only; no config changes deployed. September SOM overrides have no matching current feed rows, so stripe/actions verified in isolated actual-component preview using sample data at default desktop and 390x844 phone viewport. Disabled properties=true and opacity=.45 confirmed. Temporary viewport reset.
+- Physical installed Android PWA notification delivery, lock-screen appearance and tap routing remain unverified: user has no Android phone. Preview and worker tests do not substitute for device validation.

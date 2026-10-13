@@ -38,6 +38,17 @@ function generateMockClasses(count) {
   return classes;
 }
 
+
+// Warm the JIT and use a median so one scheduler interruption cannot decide the result.
+// The original latency budgets remain unchanged in the dedicated benchmark run.
+function medianDuration(work) {
+  work();
+  const samples = Array.from({ length: 5 }, () => {
+    const start = performance.now(); work(); return performance.now() - start;
+  });
+  return samples.sort((a, b) => a - b)[2];
+}
+
 const enrolledMock = {
   SAPM: "A",
   DPM: "Single",
@@ -133,13 +144,13 @@ describe("Calendar Export Engine Performance Benchmarks", () => {
   });
 
   it("Micro-benchmark: formatICSDateTime and escapeICSText execute >100,000 ops/sec", () => {
-    const start = performance.now();
     const ops = 50000;
+    const duration = medianDuration(() => {
     for (let i = 0; i < ops; i++) {
       formatICSDateTime("2026-06-15", "14:30");
       escapeICSText("Case Study, Chapter 4; Section: Marketing & Strategy, Notes\\Comments\nNew Line");
     }
-    const duration = performance.now() - start;
+    });
     const opsPerSec = (ops / (duration / 1000)).toFixed(0);
 
     console.log(`[PERF BENCHMARK] 50,000 micro-ops time: ${duration.toFixed(3)} ms (${opsPerSec} ops/sec)`);

@@ -1,0 +1,33 @@
+/* A visible cancellation band; metadata fades, recovery controls remain usable. */
+.cancellation-stripe {
+  display: flex; align-items: center; gap: 6px; min-height: 28px; padding: 5px 10px;
+  border-radius: 7px; color: var(--danger); font-size: 11px; font-weight: 750;
+  letter-spacing: .04em; text-transform: uppercase;
+  background: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--danger) 12%, var(--card)), color-mix(in srgb, var(--danger) 12%, var(--card)) 7px, color-mix(in srgb, var(--danger) 5%, var(--card)) 7px, color-mix(in srgb, var(--danger) 5%, var(--card)) 14px);
+  border: 1px solid color-mix(in srgb, var(--danger) 25%, var(--border));
+}
+.cancellation-stripe.is-compact { display: inline-flex; min-height: 22px; padding: 3px 6px; font-size: 10px; letter-spacing: 0; }
+.cancelled-class-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+.cancelled-class-actions button, .sched-class-btn:disabled {
+  opacity: .45; cursor: not-allowed; transform: none !important; box-shadow: none !important;
+}
+.cancelled-class-actions button {
+  min-height: 32px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 7px;
+  background: var(--surface); color: var(--muted); font: inherit; font-size: 11px; font-weight: 600;
+}
+.row.row-cancelled { opacity: 1 !important; }
+.row-cancelled .cancellation-stripe { margin-bottom: 10px; }
+.row-cancelled :is(.row-time, .row-course, .row-meta), .fs-card-cancelled :is(.fs-card-top, .fs-card-meta), .scc-class-card.is-cancelled .sched-class-info { opacity: .62; }
+.row-cancelled .row-body, .fs-card.fs-card-cancelled { border-color: color-mix(in srgb, var(--danger) 30%, var(--border)); background: var(--card); }
+.fs-card-cancelled .cancellation-stripe { margin-bottom: 10px; }
+.scc-class-card > .cancellation-stripe { border-radius: 0; border: 0; border-bottom: 1px solid color-mix(in srgb, var(--danger) 20%, var(--border)); }
+.scc-class-card.is-cancelled .sched-class-handle { opacity: .3; cursor: default; }
+.ag.ag-cancelled, .sm-item.sm-cancelled { opacity: 1 !important; }
+.ag-cancelled :is(.ag-t, .ag-r), .sm-cancelled :is(.sm-time, .sm-room) { opacity: .55; }
+.cancelled-class-name { opacity: .62; text-decoration: line-through; }
+.ag-cancelled .cancellation-stripe, .sm-cancelled .cancellation-stripe { margin-inline: 5px; vertical-align: middle; }
+
+.ag-cancelled .prep-open:disabled, .fs-card-cancelled .fs-course-btn:disabled { opacity: .45; cursor: not-allowed; }
+.cal-h-event-cancelled { cursor: default; }
+.cal-h-event-cancelled :is(.cal-ev-code, .cal-ev-time) { opacity: .62; }
+.cal-h-event-cancelled .cancellation-stripe { max-width: 100%; overflow: hidden; }

@@ -5,6 +5,7 @@ import { sessionKey, isExamSession } from "../lib/attendance.js";
 import { subjectClass, cleanSessionLabel } from "../lib/subjectColors.js";
 import { haptic } from "../lib/haptics.js";
 import IndiaFlagIcon from "./IndiaFlagIcon.jsx";
+import { CancellationStripe, CancelledClassActions } from "./CancelledClassNotice.jsx";
 import { isNationalHoliday } from "../lib/nationalHolidays.js";
 import { fmtTime12 } from "../lib/datetime.js";
 import { isScheduleBreak, timelineActivitySummary } from "../lib/scheduleBreaks.js";
@@ -323,6 +324,7 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
         {list.map((c, i) => {
           const gapMinutes = i > 0 ? toMin(c.start) - toMin(list[i - 1].end) : 0;
           const isBreak = isScheduleBreak(c);
+          const isCancelled = c.type === "cancelled";
           const isCur = !isBreak && current && current.date === c.date && current.start === c.start && current.name === c.name;
           // For non-class items (breaks/holidays), use start time as "done" since they aren't attended
           const prevDone = i === 0 || (() => {
@@ -361,7 +363,7 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
                 </li>
               )}
               <li
-                className={`row${isBreak ? " row-break" : ""}${!showNowLine && c.type === "class" && c.code ? ` ${subjectClass(c.code)}` : ""}${isCur ? " cur" : ""}${c.type !== "class" ? " soft" : ""}${c.type === "event" ? " row-event-celebration" : ""}${c.type === "placement" ? " row-placement" : ""}${isPast ? " past" : ""}${isNext ? " next-up" : ""}${isFirst ? " first-up" : ""}${showNowLine && i === nextVisibleIdx ? " timeline-up-next" : ""}${changedRows.has(`${c.date}|${c.code || c.name}|${c.session || c.type}|${c.start}`) ? " tf-row-updated" : ""}`}
+                className={`row${isCancelled ? " row-cancelled" : ""}${isBreak ? " row-break" : ""}${!showNowLine && c.type === "class" && c.code ? ` ${subjectClass(c.code)}` : ""}${isCur ? " cur" : ""}${c.type !== "class" ? " soft" : ""}${c.type === "event" ? " row-event-celebration" : ""}${c.type === "placement" ? " row-placement" : ""}${isPast ? " past" : ""}${isNext ? " next-up" : ""}${isFirst ? " first-up" : ""}${showNowLine && i === nextVisibleIdx ? " timeline-up-next" : ""}${changedRows.has(`${c.date}|${c.code || c.name}|${c.session || c.type}|${c.start}`) ? " tf-row-updated" : ""}`}
                 aria-current={isCur ? "true" : undefined}
               >
                 <div className="row-time">
@@ -372,6 +374,7 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
                 </div>
                 <span className="timeline-marker" aria-hidden="true"><span /></span>
                 <div className={`row-body${c.type === "class" && c.code ? ` subj-edge ${subjectClass(c.code)}` : ""}`} style={{ position: "relative" }}>
+                  {isCancelled && <CancellationStripe />}
                   <div className="row-head">
                     <div className="row-course">
                       {isNationalHoliday(c) && <IndiaFlagIcon size={19} className="row-flag-icon" />}
@@ -392,12 +395,12 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
                     {!canMark && detailsBtn}
                   </div>
                   <div className="row-meta">
-                    {c.type === "class"
+                    {(c.type === "class" || isCancelled)
                       ? <>
                           <span className="row-loc"><MapPin size={13} /> {c.room || "TBA"}</span>
                           {c.section === "Single" && <span className="row-sec">All sections</span>}
                           {c.faculty && <span className="row-faculty" title={c.faculty}>{c.faculty}</span>}
-                          {!canMark && !isPast && attKey && !attStatus && <SkipHint info={skipInfo?.[c.code]} name={c.name} />}
+                          {!isCancelled && !canMark && !isPast && attKey && !attStatus && <SkipHint info={skipInfo?.[c.code]} name={c.name} />}
                         </>
                       : <>
                           <TypeBadge type={c.type} name={c.name} />
@@ -405,6 +408,7 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
                           {(c.type === "event" || c.type === "placement") && c.section && c.section !== "Single" && c.section !== "All" && <span className="single-tag">Sec {c.section}</span>}
                         </>}
                   </div>
+                  {isCancelled && <CancelledClassActions actions={[...(markAttendance && !isExamSession(c) ? ["Attended", "Skipped"] : []), ...(onOpenSession ? ["Details"] : [])]} />}
                   {canMark && (
                     <div className="row-foot">
                       <div className="row-att" role="group" aria-label={`Attendance for ${c.name}`}>

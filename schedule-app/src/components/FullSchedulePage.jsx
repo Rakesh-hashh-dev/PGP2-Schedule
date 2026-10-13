@@ -1,3 +1,4 @@
+import { CancellationStripe, CancelledClassActions } from "./CancelledClassNotice.jsx";
 import React, { useMemo, useState, useEffect } from "react";
 import "../styles/fullschedule.css";
 import { ArrowLeft, Clock, MapPin, User, SlidersHorizontal, X, ArrowUp, Calendar, ChevronLeft, ChevronRight, List, CalendarDays, GraduationCap, CalendarClock, BookOpen, ArrowRight } from "lucide-react";
@@ -186,7 +187,6 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
     if (filtered.length === 0) return [];
     const classMap = new Map();
     for (const c of filtered) {
-      if (c.type === "cancelled") continue;
       if (!classMap.has(c.date)) classMap.set(c.date, []);
       classMap.get(c.date).push(c);
     }
@@ -243,6 +243,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
 
   const nextUpcomingCls = useMemo(() => {
     for (const c of filtered) {
+      if (c.type === "cancelled") continue;
       if (c.date < TODAY) continue;
       if (c.date === TODAY && toMin(c.start) <= nowMin) continue;
       return c;
@@ -668,10 +669,12 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                       }
                       
                       if (c.type === "cancelled") {
-                        return <div key={i} data-class-key={`${c.date}-${c.code}-${c.start}`} className="fs-card" style={{ borderColor: "var(--danger)" }}>
+                        return <div key={i} data-class-key={`${c.date}-${c.code}-${c.start}`} className="fs-card fs-card-cancelled">
                           <div className="fs-card-body">
-                            <div className="fs-card-top"><span className="fs-card-name" style={{ textDecoration: "line-through" }}>{c.name}</span><span style={{ color: "var(--danger)", fontWeight: 700 }}>Cancelled</span></div>
-                            <div className="fs-card-meta"><span>{fmtTime12(c.start)} – {fmtTime12(c.end)}{c.code ? ` · ${c.code}` : ""}{showSection ? ` · Sec ${c.section}` : ""}</span></div>
+                            <CancellationStripe />
+                            <div className="fs-card-top"><span className="fs-card-name" style={{ textDecoration: "line-through" }}>{c.name}</span></div>
+                            <div className="fs-card-meta"><span>{fmtTime12(c.start)} – {fmtTime12(c.end)}{c.code ? ` · ${c.code}` : ""}{showSection ? ` · Sec ${c.section}` : ""}{c.room ? ` · ${c.room}` : ""}</span></div>
+                            {onOpenCourse && c.code && <CancelledClassActions actions={["Course hub"]} />}
                           </div>
                         </div>;
                       }
@@ -991,9 +994,9 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                       const top = cls.laneIdx * LANE_H + 5;
                       const height = LANE_H - 10;
                       if (cls.type === "cancelled") {
-                        return <div key={i} className="cal-h-event" style={{ left, width, top, height, borderColor: "var(--danger)", background: "color-mix(in srgb, var(--danger) 8%, var(--card))" }} onMouseEnter={e => showTooltip(e, cls)} onMouseLeave={() => setTooltip(null)}>
+                        return <div key={i} className="cal-h-event cal-h-event-cancelled" style={{ left, width, top, height, borderColor: "var(--danger)", background: "color-mix(in srgb, var(--danger) 8%, var(--card))" }} onMouseEnter={e => showTooltip(e, cls)} onMouseLeave={() => setTooltip(null)}>
                           <span className="cal-ev-code" style={{ textDecoration: "line-through" }}>{cls.code || cls.name}</span>
-                          <span className="cal-ev-name" style={{ color: "var(--danger)" }}>Cancelled</span>
+                          <CancellationStripe compact />
                           {width > 54 && <span className="cal-ev-time">{fmtTime12(cls.start)}–{fmtTime12(cls.end)}</span>}
                         </div>;
                       }
@@ -1155,13 +1158,13 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                   const subjCls = subjectClass(c.code);
                   const showSection = c.section && c.section !== "Single";
                   return (
-                    <div key={i} className="fs-card">
+                    <div key={i} className={`fs-card ${c.type === "cancelled" ? "fs-card-cancelled" : ""}`}>
                       <div className={`fs-card-accent ${subjCls}`} />
                       <div className="fs-card-body">
                         <div className="fs-card-top">
                           <span className="fs-card-name" title={c.name} style={c.type === "cancelled" ? { textDecoration: "line-through" } : undefined}>{c.name}</span>
                           <div className="fs-card-badges">
-                            {c.type === "cancelled" && <span style={{ color: "var(--danger)", fontWeight: 700 }}>Cancelled</span>}
+                            {c.type === "cancelled" && <CancellationStripe compact />}
                             {showSection && (
                               <span className="fs-sec-badge">
                                 Sec {c.section}
@@ -1181,6 +1184,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                               <button
                                 type="button"
                                 className="fs-course-btn"
+                                disabled={c.type === "cancelled"}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   onOpenCourse(c.code);

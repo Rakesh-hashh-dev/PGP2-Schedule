@@ -19,6 +19,7 @@ import { MESS_MENU_FEED_URL } from "../lib/messFeed.js";
 import { classIdent, makeOverrideKey, classOverrideKey, classMatchesKey, lookupOverride, parseOverrideKey, buildOverrideAdds, cancellationVisibility, cancelOverride, restoreCancelledOverride } from "../lib/overrides.js";
 import { scheduleEntryKind } from "../lib/adminSchedule.js";
 import CancellationVisibilitySelect from "./CancellationVisibilitySelect.jsx";
+import { CancellationStripe } from "./CancelledClassNotice.jsx";
 import { ymd } from "../lib/datetime.js";
 
 // Key an edit-modal change lands on. Editing a class in its own section targets
@@ -2803,6 +2804,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                           logAdminAction(admin_id, "swap_time_slots", { date: liveEditorDate, src: srcKey, dst: dstKey });
                         }}
                         >
+                        {isCancelled && <CancellationStripe />}
                         {/* Card main row */}
                         <div className="sched-class-row">
                           {/* Drag handle */}
@@ -2811,7 +2813,6 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                           <div className="sched-class-info">
                             <div className="sched-class-title" style={{ textDecoration: isCancelled ? "line-through" : "none" }}>
                               {c.code ? `${c.code} — ` : ""}{c.name || LEGEND[c.code]?.name || "Class"}
-                              {isCancelled && <span style={{ fontSize: 10, fontWeight: 800, background: "var(--danger)", color: "#fff", padding: "1px 7px", borderRadius: 4 }}>CANCELLED</span>}
                               {isCancelled && <span className="scc-cancellation-status">{cancellationVisibility(override) === "hide" ? "Hidden from schedule" : "Shown as cancelled"}</span>}
                               {isEvent && (
                                 <span style={{
@@ -2879,19 +2880,19 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                                 <XCircle size={12} /> Cancel
                               </button>
                             )}
-                            <button title="Quick room change" onClick={() => {
+                            <button disabled={isCancelled} title={isCancelled ? "Restore the class to change its room" : "Quick room change"} onClick={() => {
                               setCmdQuickRoom(isQuickRoomOpen ? null : { date: liveEditorDate, classKey: sessionKey });
                               setCmdQuickRoomValue(displayRoom || "");
                             }} className="sched-class-btn" style={{ borderColor: isQuickRoomOpen ? "var(--blue)" : "var(--border)", background: isQuickRoomOpen ? "rgba(59,130,246,0.10)" : "var(--bg)", color: isQuickRoomOpen ? "var(--blue)" : "var(--muted)" }}>
                               📍 Room
                             </button>
-                            <button title="Full edit (timing, name, section, exam)" onClick={() => openLiveEditorModal(c)} className="sched-class-btn">
+                            <button disabled={isCancelled} title={isCancelled ? "Restore the class to edit it" : "Full edit (timing, name, section, exam)"} onClick={() => openLiveEditorModal(c)} className="sched-class-btn">
                               <Pencil size={12} /> Edit
                             </button>
                           </div>
                         </div>
                         {/* Quick room inline input */}
-                        {isQuickRoomOpen && (
+                        {isQuickRoomOpen && !isCancelled && (
                           <div className="sched-quickroom">
                             <input autoFocus type="text" placeholder="New room (e.g. C-104)" className="admin-input"
                               value={cmdQuickRoomValue} onChange={e => setCmdQuickRoomValue(e.target.value)}

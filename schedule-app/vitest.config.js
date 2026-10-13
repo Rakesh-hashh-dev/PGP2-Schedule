@@ -1,4 +1,4 @@
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 // Unit tests target the pure logic in src/lib (money splitting, override keying,
 // insights) plus a couple of server-rendered components. No DOM needed, so run
@@ -14,6 +14,8 @@ export default defineConfig({
     environment: "node",
     setupFiles: ["src/test/setup.js"],
     include: ["src/**/*.test.{js,jsx}"],
+    // Hardware-dependent latency budgets run separately from behavioral tests.
+    exclude: [...configDefaults.exclude, "**/*.perf.test.js"],
     env: {
       VITE_SUPABASE_URL: "http://localhost:54321",
       VITE_SUPABASE_ANON_KEY: "test-anon-key",
