@@ -12,8 +12,9 @@ import {
   growthStageFor, nextGrowthStage,
   coatsFor, neckwearFor, coatRequirement, neckwearRequirement,
   visibleCoat, visibleNeckwear, titlesFor, visibleTitle, titleLabel,
-  buddyFor, careStreak, devotionMultiplier,
+  buddyFor, careStreak, devotionMultiplier, hasXpRecount,
 } from "../lib/pet.js";
+import { dismissRecount, isRecountDismissed } from "../lib/petStorage.js";
 import { petMilestones, petWeek, recentPetMoments, unlockRoadmap } from "../lib/petInsights.js";
 import PetSleepCue from "./PetSleepCue.jsx";
 import PetHat from "./PetHat.jsx";
@@ -108,6 +109,7 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
   const [activeSection, setActiveSection] = useState("overview");
   const [wardrobeSection, setWardrobeSection] = useState("hats");
   const [careFeedback, setCareFeedback] = useState(null);
+  const [recountSeen, setRecountSeen] = useState(isRecountDismissed);
 
   const adopted = isAdopted(pet);
   const xp = xpOf(pet);
@@ -316,6 +318,18 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
 
         <div className="pet-tools">
           <section className="pet-card pet-progress-panel" aria-label="Level progress">
+            {hasXpRecount(pet) && !recountSeen && (
+              <div className="pet-recount-note" role="status">
+                <p>
+                  <strong>XP recount.</strong> A sync bug double-counted some XP, so we
+                  recounted it from your real activity. Everything you had unlocked is
+                  still yours. You are Level {progress.level} now.
+                </p>
+                <button type="button" className="admin-btn outline" onClick={() => { dismissRecount(); setRecountSeen(true); }}>
+                  Got it
+                </button>
+              </div>
+            )}
             <div className="pet-xp-heading">
               <strong>Level {progress.level}{progress.maxed ? " · Max" : ""}</strong>
               <span>{xp} XP total</span>

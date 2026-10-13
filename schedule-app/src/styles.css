@@ -20989,3 +20989,13 @@ html[data-theme="dark"] .row.row-placement .row-body { --row-accent: #60A5FA; }
 .mobile-ui-v2 .timeline-today .row.soft:is(.row-event-celebration, .row-placement) .row-body {
   border: 1px solid color-mix(in srgb, var(--row-accent) 28%, var(--border)) !important;
 }
+
+/* One-time XP recount notice on the pet page. */
+.pet-recount-note {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin-bottom: 12px; padding: 10px 12px; border-radius: 12px;
+  background: color-mix(in srgb, var(--violet, #8b5cf6) 10%, var(--bg, #fff));
+  border: 1px solid color-mix(in srgb, var(--violet, #8b5cf6) 28%, transparent);
+  font-size: 13px; line-height: 1.4;
+}
+.pet-recount-note p { margin: 0; flex: 1 1 220px; }

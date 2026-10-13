@@ -1,7 +1,7 @@
 import {
   BUDDY_DEVOTION, COATS, DEVOTION_STEP, DEVOTION_COMPANIONS, HATS,
   MAX_LEVEL, NECKWEAR, STARTER_KEYS, UNLOCKS, XP_SOURCES, devotionFor, levelFor,
-  normalize, unlockedFor, xpOf, xpToReach,
+  normalize, unlockStanding, unlockedFor, xpOf, xpToReach,
 } from "./pet.js";
 
 const dayKey = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -11,8 +11,8 @@ const labelFor = key => key.charAt(0).toUpperCase() + key.slice(1);
 /** Upcoming reward gates, grouped so three rows show three distinct steps. */
 export function unlockRoadmap(state, { wardrobe = true, hatsOff = [] } = {}) {
   const xp = xpOf(state);
-  const level = levelFor(xp);
-  const tier = devotionFor(xp).tier;
+  // Ownership (not the XP shown): a gate the legacy floor already covers is not "upcoming".
+  const { level, tier } = unlockStanding(state);
   const unlocked = new Set(unlockedFor(state));
   const gates = new Map();
   const add = (by, at, kind, label) => {
@@ -85,7 +85,7 @@ export function recentPetMoments(state, limit = 5, now = new Date()) {
   }
 
   const moments = [];
-  let cumulativeXp = s.baseXp + s.grantedXp + olderXp;
+  let cumulativeXp = s.grantedXp + olderXp;
   for (const day of [...days.keys()].sort()) {
     const group = days.get(day);
     const beforeLevel = levelFor(cumulativeXp);

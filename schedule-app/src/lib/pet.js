@@ -7,7 +7,7 @@
 //
 // Two things are deliberately DERIVED rather than stored:
 //
-//   • XP    — the sum of the award ledger (+ `baseXp` for pruned history).
+//   • XP    — the sum of the award ledger plus the signed admin `grantedXp`.
 //   • mood  — a function of recency, today's care and the clock.
 //
 // Storing either would let a cached copy disagree with the cloud row after an
@@ -68,8 +68,8 @@ const LEVEL_BASE = 100;
 const LEVEL_STEP = 50;
 export const MAX_LEVEL = 12;
 
-/** Ledger retention. An event older than this can no longer newly arrive from
- *  a sync, so keeping its key only costs bytes in every row read. */
+/** How far back the streak walk looks. The ledger itself is never pruned (pruning
+ *  into baseXp double-counted XP across syncs), so this only bounds the walk. */
 export const LEDGER_DAYS = 30;
 
 // The three pets offered at adoption. The rest unlock by level — see UNLOCKS.
@@ -221,9 +221,7 @@ const TITLE_KEYS = new Set(TITLES.map(t => t.key));
  */
 export function nextUnlockFor(state) {
   const s = normalize(state);
-  const xp = xpOf(s);
-  const level = levelFor(xp);
-  const { tier } = devotionFor(xp);
+  const { level, tier } = unlockStanding(s); // owned items are never "next"
 
   const byLevel = [];
   const byDevotion = [];
@@ -316,7 +314,8 @@ export function emptyPet() {
     petKey: null,      // null ⇒ not adopted yet
     name: "",
     adoptedAt: null,
-    baseXp: 0,         // XP from ledger entries since pruned
+    baseXp: 0,         // RETIRED: always 0, kept so old rows/caches still parse (see xpOf)
+    legacyXp: 0,       // pre-repair inflated total; server-owned, an unlock floor only (unlockStanding)
     grantedXp: 0,      // signed admin adjustment; server-owned, never written here
     companionEnabled: true, // per-student kill switch; server-owned too
     awarded: {},       // { eventKey: [ymd, xp] }
@@ -341,7 +340,8 @@ function isNormalized(raw) {
   if (raw.v !== 1) return false;
   if (raw.petKey !== null && typeof raw.petKey !== "string") return false;
   if (typeof raw.name !== "string" || raw.name.length > 24) return false;
-  if (!Number.isFinite(raw.baseXp) || raw.baseXp < 0) return false;
+  if (raw.baseXp !== 0) return false;
+  if (!Number.isFinite(raw.legacyXp) || raw.legacyXp < 0) return false;
   if (!Number.isFinite(raw.grantedXp)) return false;
   if (typeof raw.companionEnabled !== "boolean") return false;
   if (!Number.isFinite(raw.lastSeen) || raw.lastSeen < 0) return false;
@@ -389,7 +389,10 @@ export function normalize(raw) {
     v: 1,
     petKey: typeof raw.petKey === "string" ? raw.petKey : null,
     name: typeof raw.name === "string" ? raw.name.slice(0, 24) : "",
-    baseXp: Number.isFinite(raw.baseXp) && raw.baseXp > 0 ? raw.baseXp : 0,
+    // Retired: a stale cache's baseXp was double-counted by the old prune/merge
+    // loop, so it is read and discarded rather than added to XP.
+    baseXp: 0,
+    legacyXp: Number.isFinite(raw.legacyXp) && raw.legacyXp > 0 ? raw.legacyXp : 0,
     grantedXp: Number.isFinite(raw.grantedXp) ? raw.grantedXp : 0,
     // Defaults ON: a row written before this column existed, or a cache from
     // an older build, must not read as "switched off".
@@ -473,7 +476,7 @@ export function setCosmetic(state, key, value) {
     const earned = key === "coat" ? coatsFor(s)
       : key === "neck" ? neckwearFor(s)
       : key === "title" ? titlesFor(s)
-      : devotionFor(xpOf(s)).tier >= BUDDY_DEVOTION ? unlockedFor(s).filter(k => k !== s.petKey) : [];
+      : unlockStanding(s).tier >= BUDDY_DEVOTION ? unlockedFor(s).filter(k => k !== s.petKey) : [];
     const next = value && earned.includes(value) ? value : null;
     if (s.cosmetics[key] === next) return s;
     return { ...s, cosmetics: { ...s.cosmetics, [key]: next } };
@@ -493,10 +496,11 @@ export function setCosmetic(state, key, value) {
 
 // ── XP & levels ─────────────────────────────────────────────────
 
-/** Total XP: pruned history plus every entry still in the ledger. */
+/** Total XP: the signed admin adjustment plus every ledger entry. `baseXp` is
+ *  deliberately ignored, see `unlockStanding` and the repair migration. */
 export function xpOf(state) {
   const s = normalize(state);
-  let total = s.baseXp + s.grantedXp;
+  let total = s.grantedXp;
   for (const [, xp] of Object.values(s.awarded)) total += xp;
   return Math.max(0, total);
 }
@@ -551,6 +555,40 @@ export function devotionFor(xp) {
   };
 }
 
+/** The level cap while the inflation bug existed: the most a legacy total could ever unlock by level. */
+const LEGACY_FLOOR_LEVEL = 12;
+
+/**
+ * What the pet OWNS, as `{ level, tier }`: the real level/devotion tier, raised
+ * by the legacy floor.
+ *
+ * A sync bug double-counted XP, so some students were shown (and unlocked
+ * things at) a total far above what they earned. The repair recounts XP, but
+ * everything they could already unlock under the old rules stays theirs:
+ * level-gated items up to level 12, and devotion-gated items up to the tier the
+ * legacy total reached (the devotion maths is unchanged).
+ *
+ * This is for OWNERSHIP only (pets, hats, collars, coats, titles, buddy slot,
+ * "what's next"). The level, XP bar, devotion bar and care multiplier all keep
+ * using real XP.
+ */
+export function unlockStanding(state) {
+  const s = normalize(state);
+  const xp = xpOf(s);
+  const real = { level: levelFor(xp), tier: devotionFor(xp).tier };
+  if (!(s.legacyXp > xp)) return real;
+  return {
+    level: Math.max(real.level, Math.min(LEGACY_FLOOR_LEVEL, levelFor(s.legacyXp))),
+    tier: Math.max(real.tier, devotionFor(s.legacyXp).tier),
+  };
+}
+
+/** True when the repair lowered this student's XP: drives the one-time notice. */
+export function hasXpRecount(state) {
+  const s = normalize(state);
+  return isAdopted(s) && s.legacyXp > xpOf(s);
+}
+
 /**
  * Hat keys this pet can wear right now, in registry order.
  *
@@ -560,9 +598,7 @@ export function devotionFor(xp) {
  */
 export function hatsFor(state, { wardrobe = true, hatsOff = [] } = {}) {
   if (wardrobe === false) return [];
-  const xp = xpOf(state);
-  const level = levelFor(xp);
-  const { tier } = devotionFor(xp);
+  const { level, tier } = unlockStanding(state);
   return HATS
     .filter(h => !hatsOff.includes(h.key))
     .filter(h => (h.devotion ? tier >= h.devotion : level >= h.level))
@@ -598,9 +634,7 @@ export function hatRequirement(key) {
  */
 function earnedFrom(list, state, { wardrobe = true, off = [] } = {}) {
   if (wardrobe === false) return [];
-  const xp = xpOf(state);
-  const level = levelFor(xp);
-  const { tier } = devotionFor(xp);
+  const { level, tier } = unlockStanding(state);
   return list
     .filter(item => !off.includes(item.key))
     .filter(item => (item.devotion ? tier >= item.devotion : level >= item.level))
@@ -659,10 +693,10 @@ export function daysAdopted(state, now = new Date()) {
 export function titlesFor(state, now = new Date()) {
   const s = normalize(state);
   if (!isAdopted(s)) return [];
-  const xp = xpOf(s);
+  const { level, tier } = unlockStanding(s);
   const facts = {
-    level: levelFor(xp),
-    tier: devotionFor(xp).tier,
+    level,
+    tier,
     unlocked: unlockedFor(s).length,
     days: daysAdopted(s, now),
   };
@@ -691,7 +725,7 @@ export function buddyFor(state) {
   const s = normalize(state);
   const key = s.cosmetics.buddy;
   if (!key || key === s.petKey) return null;
-  if (devotionFor(xpOf(s)).tier < BUDDY_DEVOTION) return null;
+  if (unlockStanding(s).tier < BUDDY_DEVOTION) return null;
   return unlockedFor(s).includes(key) ? key : null;
 }
 
@@ -777,7 +811,7 @@ export function care(state, action, now = new Date(), rate = 1) {
  * counter would have to survive the same offline merge every other field does,
  * and the ledger already knows.
  *
- * Bounded by `LEDGER_DAYS`, because entries older than that are pruned; a
+ * Bounded by `LEDGER_DAYS`, so a
  * hundred-day streak reads as thirty, which is well past where the multiplier
  * caps out anyway.
  */
@@ -1000,8 +1034,7 @@ export const XP_SOURCES = [
  * XP grouped by where it came from, for the pet page's "how it earned this"
  * panel. Optionally limited to entries on or after `sinceDay` (a `ymd` string).
  *
- * Pruned history has no surviving source, so it is reported as "Earlier" rather
- * than being silently dropped — the parts must always sum to the total.
+ * The ledger is never pruned, so the parts sum to the total (plus any grant).
  */
 export function xpBySource(state, sinceDay = null) {
   const s = normalize(state);
@@ -1014,7 +1047,6 @@ export function xpBySource(state, sinceDay = null) {
   const out = XP_SOURCES
     .filter(([prefix]) => totals[prefix])
     .map(([prefix, label]) => ({ prefix, label, xp: totals[prefix] }));
-  if (!sinceDay && s.baseXp > 0) out.push({ prefix: "base", label: "Earlier", xp: s.baseXp });
   if (!sinceDay && s.grantedXp !== 0) {
     out.push({
       prefix: "grant",
@@ -1040,12 +1072,11 @@ export function unlockedAtLevel(level) {
  *  record already carries (so a manual grant or a future gift can't be lost). */
 export function unlockedFor(state) {
   const s = normalize(state);
-  const xp = xpOf(s);
-  const { tier } = devotionFor(xp);
+  const { level, tier } = unlockStanding(s);
   const devoted = DEVOTION_COMPANIONS
     .filter(([t]) => Number(t) <= tier)
     .map(([, key]) => key);
-  return Array.from(new Set([...unlockedAtLevel(levelFor(xp)), ...devoted, ...s.unlocked]));
+  return Array.from(new Set([...unlockedAtLevel(level), ...devoted, ...s.unlocked]));
 }
 
 /** Companion key earned at a devotion tier, or null. */
@@ -1063,24 +1094,6 @@ export function newlyUnlocked(prevLevel, level) {
 // ── Maintenance & merge ─────────────────────────────────────────
 
 /**
- * Drop ledger entries older than LEDGER_DAYS, folding their XP into `baseXp`
- * so pruning never costs progress. Pure: returns a new state.
- */
-export function prune(state, now = new Date()) {
-  const s = normalize(state);
-  const cutoff = new Date(now.getTime() - LEDGER_DAYS * 86_400_000);
-  const cutoffDay = ymd(cutoff);
-  const kept = {};
-  let folded = 0;
-  for (const [k, v] of Object.entries(s.awarded)) {
-    if (v[0] < cutoffDay) folded += v[1];
-    else kept[k] = v;
-  }
-  if (!folded) return s;
-  return { ...s, baseXp: s.baseXp + folded, awarded: kept };
-}
-
-/**
  * Merge two copies of the same pet — the local cache and the cloud row, or two
  * devices that both earned XP offline.
  *
@@ -1088,10 +1101,9 @@ export function prune(state, now = new Date()) {
  * integer would silently discard a day's earnings from whichever device wrote
  * first, and neither copy would know it happened.
  *
- * `baseXp` takes the max: it only grows through pruning, both sides observe the
- * same events, so the larger value is the one that has pruned further. Two
- * devices that pruned disjoint sets while >30 days apart could under-count —
- * accepted, since a sync gap that long means one device is effectively dead.
+ * There is no `baseXp` any more: folding old entries into it and then unioning
+ * them back in from the server double-counted XP on every sync. The ledger is
+ * kept whole instead (it is a few hundred small entries a term).
  */
 export function mergePets(a, b) {
   const left = normalize(a);
@@ -1105,7 +1117,8 @@ export function mergePets(a, b) {
     : recent.care;
   return {
     ...recent,
-    baseXp: Math.max(left.baseXp, right.baseXp),
+    // Server-owned and monotonic; the row overrides it in syncPetFromCloud anyway.
+    legacyXp: Math.max(left.legacyXp, right.legacyXp),
     // Server-owned and now signed, so `max` would quietly undo a penalty
     // (max(-200, 0) === 0). The more recently touched copy wins here, and
     // syncPetFromCloud overrides it from the remote row anyway.

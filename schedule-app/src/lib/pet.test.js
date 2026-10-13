@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { PETS } from "../components/greetingPets.jsx";
+import { fromRow } from "./petStorage.js";
 import {
-  XP, CARE_DAILY_CAP, MAX_LEVEL, LEDGER_DAYS, STARTER_KEYS, UNLOCKS,
+  XP, CARE_DAILY_CAP, MAX_LEVEL, STARTER_KEYS, UNLOCKS,
   clampRate, scaleXp, XP_RATE_MIN, XP_RATE_MAX,
   emptyPet, normalize, isAdopted, adopt, rename, switchTo,
   xpOf, xpToReach, levelFor, levelProgress, award, keyFor,
@@ -12,7 +13,7 @@ import {
   DEVOTION_STEP, MAX_DEVOTION, MAX_LEVEL as MAXLVL,
   GROWTH_STAGES, growthStageFor, nextGrowthStage,
   unlockedAtLevel, unlockedFor, newlyUnlocked,
-  prune, mergePets, publicSummary, xpBySource,
+  mergePets, unlockStanding, hasXpRecount, publicSummary, xpBySource,
   HATS, COATS, NECKWEAR, TITLES, DEVOTION_UNLOCKS, DEVOTION_COMPANIONS, BUDDY_DEVOTION, STREAK_CAP,
   coatsFor, neckwearFor, coatRequirement, neckwearRequirement,
   visibleCoat, visibleNeckwear, titlesFor, visibleTitle, titleLabel,
@@ -338,12 +339,11 @@ describe("xpBySource", () => {
     expect(summed).toBe(xpOf(s));
   });
 
-  it("still sums to the total after pruning folds history into baseXp", () => {
-    const s = prune(built(), at("2026-11-01T10:00:00"));
-    expect(s.baseXp).toBeGreaterThan(0);
-    const summed = xpBySource(s).reduce((n, r) => n + r.xp, 0);
-    expect(summed).toBe(xpOf(s));
-    expect(xpBySource(s).some(r => r.prefix === "base")).toBe(true);
+  it("ignores a stale baseXp instead of reporting an Earlier row", () => {
+    const s = normalize({ ...built(), baseXp: 5000 });
+    expect(s.baseXp).toBe(0);
+    expect(xpOf(s)).toBe(xpOf(built()));
+    expect(xpBySource(s).some(r => r.prefix === "base")).toBe(false);
   });
 
   it("can be limited to a date window", () => {
@@ -407,30 +407,91 @@ describe("unlocks", () => {
   });
 });
 
-describe("prune", () => {
-  it("folds aged-out entries into baseXp without losing XP", () => {
-    const old = at("2026-07-01T12:00:00");
-    const now = at("2026-09-04T12:00:00");
-    let s = adopted(old);
-    s = award(s, "att:old-1", 10, old);
-    s = award(s, "att:old-2", 10, old);
-    s = award(s, "att:new-1", 10, now);
-    expect(xpOf(s)).toBe(30);
-    const pruned = prune(s, now);
-    expect(xpOf(pruned)).toBe(30);
-    expect(pruned.baseXp).toBe(20);
-    expect(Object.keys(pruned.awarded)).toEqual(["att:new-1"]);
+// Regression: the XP-inflation loop. `prune` folded entries older than 30 days
+// into baseXp, the server then took the greater base_xp AND unioned the ledger
+// (so the folded entries survived there), and the next sync's merge restored
+// them, pruned them again, and grew baseXp by the same amount, every sync.
+describe("sync does not inflate XP", () => {
+  const OLD_DAY = "2026-07-01";
+  const ledger = () => ({ "att:a": [OLD_DAY, 40], "att:b": [OLD_DAY, 40], "att:c": ["2026-09-30", 40] });
+  const sum = (awarded) => Object.values(awarded).reduce((n, [, xp]) => n + xp, 0);
+
+  it("reproduces the bug with the old prune/merge logic", () => {
+    // Plain-object model of the retired behaviour.
+    let server = { base: 0, awarded: ledger() };
+    let local = { base: 0, awarded: ledger() };
+    const totals = [];
+    for (let i = 0; i < 10; i++) {
+      const awarded = { ...server.awarded, ...local.awarded };   // mergePets: union
+      let base = Math.max(local.base, server.base);               // mergePets: max base
+      const kept = {};
+      for (const [k, v] of Object.entries(awarded)) {             // prune: fold old entries
+        if (v[0] < "2026-09-01") base += v[1]; else kept[k] = v;
+      }
+      local = { base, awarded: kept };
+      server = {                                                  // pet_state_merge RPC
+        base: Math.max(server.base, base),
+        awarded: { ...server.awarded, ...kept },                  // server ledger keeps the folded keys
+      };
+      totals.push(local.base + sum(local.awarded));
+    }
+    expect(totals[9]).toBeGreaterThan(totals[0]);
   });
-  it("keeps entries inside the retention window", () => {
-    const now = at("2026-09-04T12:00:00");
-    const recent = new Date(now.getTime() - (LEDGER_DAYS - 2) * 86_400_000);
-    const s = award(adopted(recent), "att:recent", 10, recent);
-    expect(prune(s, now).awarded["att:recent"]).toBeDefined();
+
+  it("is stable over 10 sync cycles with the new logic", () => {
+    let server = { awarded: ledger(), granted: 0 };
+    let local = normalize({ ...adopted(at("2026-06-01T10:00:00")), awarded: ledger() });
+    const totals = [];
+    for (let i = 0; i < 10; i++) {
+      const remote = fromRow({ user_id: "u", pet_key: "cat", name: "M", awarded: server.awarded, granted_xp: server.granted, base_xp: 0 });
+      local = { ...mergePets(local, remote), grantedXp: remote.grantedXp, legacyXp: remote.legacyXp };
+      server = { ...server, awarded: { ...server.awarded, ...local.awarded } };
+      totals.push(xpOf(local));
+    }
+    expect(new Set(totals).size).toBe(1);
+    expect(totals[0]).toBe(120);
   });
-  it("is a no-op when nothing has aged out", () => {
-    const now = at("2026-09-04T12:00:00");
-    const s = award(adopted(now), "att:x", 10, now);
-    expect(prune(s, now)).toBe(s);
+
+  it("discards an inflated baseXp from a stale cache", () => {
+    const stale = { ...adopted(), baseXp: 52_000, awarded: { "att:a": ["2026-09-04", 32] } };
+    expect(xpOf(stale)).toBe(32);
+    expect(mergePets(stale, adopted()).baseXp).toBe(0);
+  });
+});
+
+// The repair recounts XP, but whatever an inflated student could unlock under
+// the old rules stays theirs. Level, XP and the devotion bar stay REAL.
+describe("legacy unlock floor", () => {
+  const inflated = (legacyXp = 52_000) => ({ ...award(adopted(), "att:x", 100), legacyXp });
+
+  it("keeps every level <= 12 and devotion item", () => {
+    const s = inflated();
+    expect(hatsFor(s)).toEqual(expect.arrayContaining(["crown", "party", "stars", "halo"]));
+    expect(coatsFor(s)).toContain("gold");
+    expect(neckwearFor(s)).toEqual(expect.arrayContaining(["bell", "chain"]));
+    expect(titlesFor(s)).toEqual(expect.arrayContaining(["grown", "inseparable"]));
+    expect(unlockedFor(s)).toEqual(expect.arrayContaining(["spark", "leafy", "nova", "cinder", "luna", "prickle"]));
+    expect(buddyFor(setCosmetic(s, "buddy", "fox"))).toBe("fox");
+    expect(visibleHat(setCosmetic(s, "hat", "crown"))).toBe("crown");
+  });
+
+  it("leaves level, XP and devotion progress on the real number", () => {
+    const s = inflated();
+    expect(xpOf(s)).toBe(100);
+    expect(levelFor(xpOf(s))).toBe(2);
+    expect(devotionFor(xpOf(s)).tier).toBe(0);
+    expect(unlockStanding(s)).toEqual({ level: 12, tier: 10 });
+    expect(unlockStanding({ ...s, legacyXp: 0 })).toEqual({ level: 2, tier: 0 });
+  });
+
+});
+
+describe("xp recount notice", () => {
+  it("shows only when the recount lowered XP", () => {
+    expect(hasXpRecount({ ...award(adopted(), "att:x", 100), legacyXp: 5000 })).toBe(true);
+    expect(hasXpRecount({ ...award(adopted(), "att:x", 100), legacyXp: 100 })).toBe(false);
+    expect(hasXpRecount({ ...award(adopted(), "att:x", 100), legacyXp: 0 })).toBe(false);
+    expect(hasXpRecount({ ...emptyPet(), legacyXp: 5000 })).toBe(false);
   });
 });
 
@@ -505,6 +566,7 @@ describe("normalize", () => {
   it("clamps a tampered care counter and negative baseXp", () => {
     expect(normalize({ care: { day: "2026-09-04", used: 999 } }).care.used).toBe(CARE_DAILY_CAP);
     expect(normalize({ baseXp: -100 }).baseXp).toBe(0);
+    expect(normalize({ legacyXp: -100 }).legacyXp).toBe(0);
   });
 });
 
@@ -604,7 +666,7 @@ describe("publicSummary", () => {
   });
   it("leaks no XP, ledger, streak or timestamps", () => {
     const json = JSON.stringify(publicSummary(award(adopted(), "att:1", 50)));
-    for (const leak of ["awarded", "baseXp", "lastSeen", "adoptedAt", "care"]) {
+    for (const leak of ["awarded", "baseXp", "legacyXp", "lastSeen", "adoptedAt", "care"]) {
       expect(json).not.toContain(leak);
     }
   });
@@ -935,7 +997,7 @@ describe("devotion wardrobe", () => {
   it("stops showing neckwear if the level that earned it is taken away", () => {
     const worn = setCosmetic(atDevotion(1), "neck", "scarf");
     expect(visibleNeckwear(worn)).toBe("scarf");
-    expect(visibleNeckwear({ ...worn, awarded: {}, baseXp: 0, grantedXp: 0 })).toBe(null);
+    expect(visibleNeckwear({ ...worn, awarded: {}, grantedXp: 0 })).toBe(null);
   });
 });
 
@@ -978,7 +1040,7 @@ describe("titles", () => {
   it("drops a title that is no longer true", () => {
     const worn = setCosmetic(atDevotion(6), "title", "inseparable");
     expect(visibleTitle(worn)).toBe("inseparable");
-    expect(visibleTitle({ ...worn, awarded: {}, baseXp: 0, grantedXp: 0 })).toBe(null);
+    expect(visibleTitle({ ...worn, awarded: {}, grantedXp: 0 })).toBe(null);
     expect(titleLabel("inseparable")).toBe("Inseparable");
   });
 
