@@ -22,6 +22,7 @@ function fmtMinutes(minutes) {
 }
 
 function TypeBadge({ type, name }) {
+  if (type === "cancelled") return <span className="tb" style={{ color: "var(--danger)" }}><XCircle size={12} />Cancelled</span>;
   if (type === "holiday") {
     const isNational = isNationalHoliday({ type, name });
     return (
@@ -374,7 +375,7 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
                   <div className="row-head">
                     <div className="row-course">
                       {isNationalHoliday(c) && <IndiaFlagIcon size={19} className="row-flag-icon" />}
-                      {c.name} {c.session && (
+                      <span style={c.type === "cancelled" ? { textDecoration: "line-through" } : undefined}>{c.name}</span> {c.session && (
                         <span className={`ses ${subjectClass(c.code)}`}>
                           {c.code} {cleanSessionLabel(c.session)}
                         </span>

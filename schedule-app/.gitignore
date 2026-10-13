@@ -41,3 +41,4 @@ backup_*.sql
 
 .vercel
 .local/
+.tmp-v2-navigation-build/

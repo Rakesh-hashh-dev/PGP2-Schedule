@@ -1,4 +1,4 @@
-import { classIdent, classMatchesKey, parseOverrideKey } from "./overrides.js";
+import { classIdent, classMatchesKey, parseOverrideKey, cancellationVisibility } from "./overrides.js";
 
 const DAY_MS = 86400000;
 const VALID_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -154,7 +154,7 @@ export function previewScheduleChange({ classes, users, date, code, section = "A
   };
   const existingConflicts = new Set(findConflicts(before));
   const conflicts = findConflicts(after).filter(conflict => !existingConflicts.has(conflict));
-  return { before, after, affected, conflicts, section, date, code };
+  return { before, after, affected, conflicts, section, date, code, cancellationVisibility: proposed?.type === "cancelled" ? cancellationVisibility(proposed) : null };
 }
 
 export function previewStagedScheduleChanges(classes, overrides, users, originalOverrides = {}) {

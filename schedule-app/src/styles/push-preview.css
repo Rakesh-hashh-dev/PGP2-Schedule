@@ -1,0 +1,12 @@
+.android-push-preview{margin:18px 0;padding:16px;border:1px solid var(--border,#393344);border-radius:16px;background:var(--surface,#181821)}
+.android-push-preview-heading{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:14px}
+.android-push-preview-heading strong{font-size:13px}.android-push-preview-heading small,.android-push-state-label,.android-push-preview-caption{font-size:11px;color:var(--muted,#9994a9)}
+.android-push-preview-states{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.android-push-state-label{display:block;margin:0 0 7px 4px}
+.android-push-card{background:#f2edf8;color:#241d2e;border-radius:20px;padding:14px;overflow:hidden;box-shadow:0 4px 12px #00000012}
+.android-push-brand{display:flex;gap:8px;align-items:center;font-size:11px;margin-bottom:9px}.android-push-brand img{border-radius:8px;flex-shrink:0}.android-push-brand small{margin-left:auto;color:#736780;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px}
+.android-push-title{display:block;font-size:14px;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.is-expanded .android-push-title{white-space:normal;overflow-wrap:anywhere}
+.android-push-body{margin:4px 0 0;font-size:12px;line-height:1.5;white-space:pre-line;color:#574c63;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}.is-expanded .android-push-body{-webkit-line-clamp:unset;display:block}
+.android-push-image{display:block;width:100%;max-height:170px;object-fit:cover;border-radius:12px;margin-top:12px}.android-push-image[hidden]{display:none}
+.android-push-actions{display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid #d9cfe5;margin-top:12px;padding-top:6px}.android-push-actions button{appearance:none;background:none;border:0;padding:8px 4px;color:#6c36aa;font:inherit;font-size:12px;font-weight:650;cursor:pointer;min-height:36px}.android-push-actions button:focus-visible{outline:2px solid #6c36aa;outline-offset:2px;border-radius:4px}
+.android-push-preview-caption{margin:10px 0 0;overflow-wrap:anywhere}.android-push-preview-caption strong{font-weight:500}
+@media(max-width:600px){.android-push-preview-states{grid-template-columns:1fr}.android-push-preview-heading{align-items:start;flex-direction:column;gap:4px}}

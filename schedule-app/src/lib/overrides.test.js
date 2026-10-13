@@ -1,5 +1,53 @@
 import { describe, it, expect } from "vitest";
-import { classIdent, makeOverrideKey, classOverrideKey, classMatchesKey, lookupOverride, parseOverrideKey, buildOverrideAdds } from "./overrides.js";
+import { classIdent, makeOverrideKey, classOverrideKey, classMatchesKey, lookupOverride, parseOverrideKey, buildOverrideAdds, cancellationVisibility, cancelOverride, restoreCancelledOverride, applyClassOverrides } from "./overrides.js";
+
+describe("cancellation display choices", () => {
+  const early = { date: "2026-10-12", code: "BMD", name: "Business Models", section: "A", start: "17:00", end: "18:30", type: "class" };
+  const late = { ...early, start: "18:30", end: "20:00" };
+
+  it("shows older cancellations by default with the original title", () => {
+    const overrides = { [early.date]: { [classOverrideKey(early)]: { type: "cancelled", name: "Cancelled: BMD" } } };
+    expect(cancellationVisibility(overrides[early.date][classOverrideKey(early)])).toBe("show");
+    expect(applyClassOverrides([early, late], overrides)).toEqual([{ ...early, type: "cancelled" }, late]);
+  });
+
+  it("hides only the selected session and leaves the stored cancellation restorable", () => {
+    const cancellation = cancelOverride({}, "hide");
+    const overrides = { [early.date]: { [classOverrideKey(early)]: cancellation } };
+    expect(applyClassOverrides([early, late], overrides)).toEqual([late]);
+    expect(overrides[early.date][classOverrideKey(early)]).toEqual(cancellation);
+    overrides[early.date][classOverrideKey(early)].cancellationVisibility = "show";
+    expect(applyClassOverrides([early, late], overrides)).toEqual([{ ...early, ...cancellation, cancellationVisibility: "show" }, late]);
+  });
+
+  it("keeps room, time and exam overrides when cancelling and restoring", () => {
+    const existing = { room: "A04", start: "19:00", type: "exam" };
+    const cancellation = cancelOverride(existing, "hide");
+    expect(restoreCancelledOverride(cancellation)).toEqual(existing);
+    const overrides = { [early.date]: { [classOverrideKey(late)]: cancellation } };
+    expect(applyClassOverrides([early, late], overrides)).toEqual([early]);
+    overrides[early.date][classOverrideKey(late)] = restoreCancelledOverride(cancellation);
+    expect(applyClassOverrides([early, late], overrides)).toEqual([early, { ...late, ...existing }]);
+  });
+
+  it("keeps cancelled custom classes manageable while hiding them from students", () => {
+    const original = { name: "Guest talk", start: "10:00", end: "11:00", type: "event", room: "A02" };
+    const cancellation = cancelOverride(original, "hide");
+    const overrides = { "2026-10-14": { Guest: cancellation } };
+    expect(applyClassOverrides([], overrides)).toEqual([]);
+    expect(buildOverrideAdds(overrides, [], { includeHidden: true })).toEqual([{
+      date: "2026-10-14", code: "Guest", section: "All", name: "Guest talk", room: "A02", start: "10:00", end: "11:00", type: "cancelled", cancellationVisibility: "hide", cancelledType: "event", _ovrKey: "Guest",
+    }]);
+    overrides["2026-10-14"].Guest.cancellationVisibility = "show";
+    expect(applyClassOverrides([], overrides)[0]).toMatchObject({ name: "Guest talk", type: "cancelled" });
+    expect(restoreCancelledOverride(cancellation)).toEqual(original);
+  });
+
+  it("clears cancellation metadata without creating a synthetic class", () => {
+    expect(restoreCancelledOverride({ ...cancelOverride({}, "show"), modifiedAt: "now", modifiedBy: "admin" })).toBeNull();
+    expect(buildOverrideAdds({ [early.date]: { Missing: { type: "cancelled", name: "Cancelled: Missing" } } }, [])).toEqual([]);
+  });
+});
 
 describe("classIdent", () => {
   it("uses the course code when present", () => {

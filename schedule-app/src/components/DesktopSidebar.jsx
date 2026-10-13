@@ -5,7 +5,7 @@
 // `renderSbAvatarWrap`/`renderSbUtilStrip` stay as render-prop functions from
 // App.jsx since they close over a large amount of profile/sync/admin state
 // that isn't worth prop-drilling separately.
-import { Fragment, useState } from "react";
+import { Fragment, useState, useLayoutEffect, useRef } from "react";
 import {
   Search, ChevronDown, ExternalLink, Shield, ChevronsRight, ChevronsLeft, CloudOff, Pin, SlidersHorizontal,
   Check, X, ArrowUp, ArrowDown,
@@ -33,7 +33,49 @@ export default function DesktopSidebar({
   showSbTools, wrappedActive, companionEnabled, setSbToolsOpen,
   setMessMenuOpen, activeQuickLinks, showAdminUI, renderSbUtilStrip,
   renderSbAvatarWrap, syncing, syncedAgo, toggleSidebar, isTablet,
+  tabletControls = false, tabletSidebarOpen = false, onCloseTabletSidebar,
 }) {
+  const sidebarRef = useRef(null);
+  const tabletToggleRef = useRef(null);
+  useLayoutEffect(() => {
+    if (!tabletSidebarOpen) return;
+    const sidebar = sidebarRef.current;
+    const opener = tabletToggleRef.current;
+    const siblings = [...sidebar.parentElement.children].filter(el => el !== sidebar && !el.classList.contains("mobile-v2-sidebar-backdrop"));
+    const inertBefore = siblings.map(el => el.inert);
+    siblings.forEach(el => { el.inert = true; });
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    opener?.focus();
+    const focusable = () => [...sidebar.querySelectorAll('button, a[href], input, select, textarea, [tabindex="0"]')].filter(el => !el.disabled && !el.closest('[inert]') && el.getClientRects().length > 0);
+    const handleKey = event => {
+      if (event.key === "Escape") {
+        event.preventDefault(); onCloseTabletSidebar?.();
+      } else if (event.key === "Tab") {
+        const targets = focusable();
+        const first = targets[0], last = targets.at(-1);
+        if (event.shiftKey && (document.activeElement === first || !sidebar.contains(document.activeElement))) {
+          event.preventDefault(); last?.focus();
+        } else if (!event.shiftKey && (document.activeElement === last || !sidebar.contains(document.activeElement))) {
+          event.preventDefault(); first?.focus();
+        }
+      }
+    };
+    const containFocus = event => { if (!sidebar.contains(event.target)) opener?.focus(); };
+    document.addEventListener("keydown", handleKey);
+    document.addEventListener("focusin", containFocus);
+    return () => {
+      document.removeEventListener("keydown", handleKey);
+      document.removeEventListener("focusin", containFocus);
+      siblings.forEach((el, index) => { el.inert = inertBefore[index]; });
+      document.body.style.overflow = previousOverflow;
+      // Restore after the collapsed DOM settles; do not steal focus from a newly opened dialog.
+      requestAnimationFrame(() => {
+        if (opener?.isConnected && opener.getClientRects().length &&
+          (sidebar.contains(document.activeElement) || document.activeElement === document.body)) opener.focus();
+      });
+    };
+  }, [tabletSidebarOpen, onCloseTabletSidebar]);
   const [pins, setPins] = useState(() => {
     try { return normalizeSidebarPins(JSON.parse(localStorage.getItem(SIDEBAR_PINS_KEY))); } catch { return []; }
   });
@@ -73,6 +115,7 @@ export default function DesktopSidebar({
   const actions = { openMessMenu: () => setMessMenuOpen(true) };
 
   const onSelect = (item) => {
+    if (tabletControls) onCloseTabletSidebar?.();
     if (item.badge) markBadgeSeen(item.badge.key);
     if (item.effect) effects[item.effect]?.();
     if (item.action) { actions[item.action]?.(); return; }
@@ -95,7 +138,23 @@ export default function DesktopSidebar({
   );
 
   return (
-    <aside aria-label="Desktop navigation" onKeyDown={e => { if (e.key === "Escape") hideSbTip(); }} className={`sidebar${sbCollapsed ? " collapsed" : ""}${sbStyle === "aurora" ? " sb-aurora" : ""}${compact ? " sb-compact" : ""}`}>
+    <>
+    {tabletSidebarOpen && <>
+      <div className={"mobile-v2-sidebar-space" + (sbStyle === "aurora" ? " is-aurora" : "")} aria-hidden="true" />
+      <div className="mobile-v2-sidebar-backdrop" aria-hidden="true" onClick={onCloseTabletSidebar} />
+    </>}
+    <aside ref={sidebarRef} id="termflow-sidebar" aria-label={tabletControls ? "Tablet navigation" : "Desktop navigation"}
+      role={tabletSidebarOpen ? "dialog" : undefined} aria-modal={tabletSidebarOpen || undefined}
+      onClickCapture={event => {
+        // Close before launching app dialogs from search, profile or utility controls.
+        if (tabletSidebarOpen && event.target.closest(".sb-search-btn, .sb-util-btn, .sb-avatar-btn")) onCloseTabletSidebar?.();
+      }}
+      onKeyDown={e => { if (e.key === "Escape") hideSbTip(); }}
+      className={"sidebar" + (sbCollapsed ? " collapsed" : "") + (sbStyle === "aurora" ? " sb-aurora" : "") + (compact ? " sb-compact" : "") + (tabletSidebarOpen ? " mobile-v2-sidebar-open" : "")}>
+      {tabletControls && <button type="button" ref={tabletToggleRef} className="mobile-v2-sidebar-toggle" onClick={toggleSidebar}
+        aria-label={sbCollapsed ? "Expand sidebar" : "Collapse sidebar"} aria-expanded={!sbCollapsed} aria-controls="termflow-sidebar">
+        {sbCollapsed ? <ChevronsRight size={18} aria-hidden="true" /> : <><ChevronsLeft size={18} aria-hidden="true" /><span>Collapse sidebar</span></>}
+      </button>}
       {sbStyle === "aurora" && (
         <div className="sb-fx" aria-hidden="true"><i /><i /><span className="sb-grain" /></div>
       )}
@@ -374,5 +433,6 @@ export default function DesktopSidebar({
         {sbCollapsed ? <ChevronsRight size={12} /> : <ChevronsLeft size={12} />}
       </button>}
     </aside>
+    </>
   );
 }

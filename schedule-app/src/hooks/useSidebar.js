@@ -3,10 +3,25 @@
 // overflow-menu accordion sections) with no coupling to schedule/enrollment/
 // notification data. The bottom-dock lens lives in components/BnavLens.jsx so
 // taps and view changes don't re-render App.
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { readTabletSidebar, saveTabletSidebar, effectiveSidebarCollapsed } from "../lib/tabletSidebar.js";
 import { setSbFloatTip } from "../lib/sbFloatTip.js";
 
-export function useSidebar({ isTablet }) {
+export function useSidebar({ isTablet, v2Active = false }) {
+  const tabletControls = isTablet && v2Active;
+  const [tabletExpanded, setTabletExpanded] = useState(() => tabletControls && readTabletSidebar());
+  const tabletSidebarOpen = tabletControls && tabletExpanded;
+  const closeTabletSidebar = useCallback(() => {
+    if (!tabletControls) return;
+    setTabletExpanded(false);
+    saveTabletSidebar(false);
+    setSbFloatTip(null);
+  }, [tabletControls]);
+  useEffect(() => {
+    // A rotation closes the overlay without changing the saved reload preference.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- viewport exit resets transient overlay state
+    if (!tabletControls) setTabletExpanded(false);
+  }, [tabletControls]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
       const stored = localStorage.getItem("pgp2.sidebar");
@@ -17,10 +32,16 @@ export function useSidebar({ isTablet }) {
       return Boolean(isTablet);
     }
   });
-  // Tablet content needs the icon rail even when desktop expansion is saved.
-  // Keep the preference intact so rotating/resizing back restores desktop.
-  const sbCollapsed = isTablet || sidebarCollapsed;
+  // V2 tablet expansion is independent of the desktop preference.
+  const sbCollapsed = effectiveSidebarCollapsed({ isTablet, v2Active, tabletExpanded, sidebarCollapsed });
   function toggleSidebar() {
+    if (tabletControls) {
+      const next = !tabletExpanded;
+      setTabletExpanded(next);
+      saveTabletSidebar(next);
+      setSbFloatTip(null);
+      return;
+    }
     setSidebarCollapsed(prev => {
       const next = !prev;
       try { localStorage.setItem("pgp2.sidebar", next ? "collapsed" : "expanded"); } catch { }
@@ -155,7 +176,7 @@ export function useSidebar({ isTablet }) {
   const [showLeftScroll, setShowLeftScroll] = useState(false);
 
   return {
-    sidebarCollapsed, setSidebarCollapsed, sbCollapsed, toggleSidebar,
+    sidebarCollapsed, setSidebarCollapsed, sbCollapsed, toggleSidebar, tabletSidebarOpen, closeTabletSidebar,
     sbStyle, setSbStyle, setSidebarStyle,
     theme, setTheme, pickTheme,
     showSbTip, hideSbTip,

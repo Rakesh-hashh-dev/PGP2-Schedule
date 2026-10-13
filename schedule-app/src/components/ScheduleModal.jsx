@@ -134,6 +134,7 @@ export default function ScheduleModal({ visible, now, offset, setOffset, todayIS
                         <span className="sm-name">
                           {isNationalHoliday(c) && <IndiaFlagIcon size={13} className="row-flag-icon" />}
                           {c.name}
+                          {c.type === "cancelled" && <span style={{ color: "var(--danger)", marginLeft: 6 }}>Cancelled</span>}
                           {c.session && <span className={`ses ${subjectClass(c.code)}`}>{c.code} {cleanSessionLabel(c.session)}</span>}
                         </span>
                         {c.type === "class" && c.room && <span className="sm-room">{c.room}</span>}

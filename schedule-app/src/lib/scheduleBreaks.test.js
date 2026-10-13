@@ -21,4 +21,9 @@ describe("meal break schedule semantics", () => {
     const event = { type: "event", name: "Club meetup", start: "17:00", end: "18:00" };
     expect(timelineActivitySummary([lunch, event], 12 * 60)).toMatchObject({ activities: [event], classCount: 0, nextIndex: 1, firstStart: "17:00", lastEnd: "18:00" });
   });
+  it("keeps cancelled classes out of activity counts and upcoming status", () => {
+    const cancelled = { ...morning, type: "cancelled", start: "17:00", end: "18:30" };
+    expect(timelineActivitySummary([morning, cancelled], 11 * 60)).toMatchObject({ activities: [morning], classCount: 1, nextIndex: -1, firstStart: "09:00", lastEnd: "10:30", allDone: true });
+    expect(timelineActivitySummary([cancelled], 8 * 60)).toMatchObject({ activities: [], classCount: 0, nextIndex: -1 });
+  });
 });

@@ -466,7 +466,7 @@ export function scheduleInsights(myCourses, theirCourses) {
 export function friendVisibleClasses(allClasses, friendCourses) {
   if (!friendCourses) return [];
   return allClasses.filter(c => {
-    if (c.type === "class" || c.type === "exam") {
+    if (c.type === "class" || c.type === "exam" || c.type === "cancelled") {
       if (!c.code) return c.type === "exam"; // general exams or events with no code
       const sec = friendCourses[c.code];
       return sec !== undefined && (c.section === "Single" || c.section === sec);

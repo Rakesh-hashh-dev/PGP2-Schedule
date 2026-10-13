@@ -16,7 +16,9 @@ import { taughtSectionsByCode } from "../lib/sections.js";
 import snapshotMeta from "../data/snapshot-meta.json";
 import { getSnapshot } from "../lib/sheet.js";
 import { MESS_MENU_FEED_URL } from "../lib/messFeed.js";
-import { classIdent, makeOverrideKey, classOverrideKey, classMatchesKey, lookupOverride, parseOverrideKey } from "../lib/overrides.js";
+import { classIdent, makeOverrideKey, classOverrideKey, classMatchesKey, lookupOverride, parseOverrideKey, buildOverrideAdds, cancellationVisibility, cancelOverride, restoreCancelledOverride } from "../lib/overrides.js";
+import { scheduleEntryKind } from "../lib/adminSchedule.js";
+import CancellationVisibilitySelect from "./CancellationVisibilitySelect.jsx";
 import { ymd } from "../lib/datetime.js";
 
 // Key an edit-modal change lands on. Editing a class in its own section targets
@@ -110,29 +112,8 @@ const DATABASE_TABLES = [
   { id: "share_codes", label: "Share codes", description: "Schedule sharing codes" },
 ];
 
-// Approximate native lock-screen preview. The OS decides final layout/truncation.
-function PushPreview({ title, body, url, when }) {
-  const t = title?.trim();
-  const b = body?.trim();
-  const destination = url?.trim() || "/";
-  return (
-    <div className="push-preview" aria-label="Push notification preview">
-      <div className="push-preview-label"><span>Recipient preview</span><small>Native layout varies by device</small></div>
-      <div className="push-preview-note">
-        <div className="push-preview-content">
-          <div className="push-preview-head">
-            <img className="push-preview-icon" src="/icon-192.png" alt="" />
-            <span className="push-preview-app">TermFlow</span>
-            <span className="push-preview-time">{when || "now"}</span>
-          </div>
-          <div className={`push-preview-title ${t ? "" : "is-placeholder"}`}>{t || "Notification title"}</div>
-          <div className={`push-preview-text ${b ? "" : "is-placeholder"}`}>{b || "Your message shows here as you type it."}</div>
-        </div>
-      </div>
-      <div className="push-preview-destination">Tap opens: <strong>{destination === "/" ? "TermFlow home" : destination}</strong></div>
-    </div>
-  );
-}
+import PushPreview from "./PushPreview.jsx";
+import { pushImage } from "../../supabase/functions/_shared/pushPresentation.ts";
 
 
 function Avatar({ name, email }) {
@@ -480,6 +461,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [pushTitle, setPushTitle] = useState("");
   const [pushBody, setPushBody] = useState("");
   const [pushUrl, setPushUrl] = useState("");
+  const [pushPoster, setPushPoster] = useState("");
   const [pushSending, setPushSending] = useState(false);
   const [pushResult, setPushResult] = useState("");
   const [pushFailureAt, setPushFailureAt] = useState(null);
@@ -696,6 +678,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
   // Live Editor Modal — controlled input state (replaces document.getElementById anti-pattern)
   const [modalSection, setModalSection] = useState("All");
+  const [cancelVisibility, setCancelVisibility] = useState("show");
+  const [modalCancelVisibility, setModalCancelVisibility] = useState("show");
   const [modalRoom, setModalRoom] = useState("");
   const [modalStart, setModalStart] = useState("");
   const [modalEnd, setModalEnd] = useState("");
@@ -1280,6 +1264,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           title: pushTitle.trim(),
           body: pushBody.trim(),
           url: pushUrl.trim() || "/",
+          image: pushImage(pushPoster),
           ...(targetUserId ? { target_user_id: targetUserId } : {}),
         }),
       });
@@ -1293,7 +1278,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       } else {
         const n = data.sent ?? data.queued ?? 0;
         setPushResult(`Sent to ${n} device${n !== 1 ? "s" : ""}${data.failed ? `, ${data.failed} failed` : ""}${data.pruned ? `, ${data.pruned} stale pruned` : ""}.`);
-        setPushTitle(""); setPushBody(""); setPushUrl("");
+        setPushTitle(""); setPushBody(""); setPushUrl(""); setPushPoster("");
         await logAdminAction(admin_id, "push_broadcast", { title: pushTitle.trim() });
       }
     } catch (e) {
@@ -1304,6 +1289,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   }
 
   async function sendPushBroadcast() {
+    if (pushPoster.trim() && !pushImage(pushPoster)) return alert("Use an HTTPS image URL or a path starting with /.");
     if (!pushTitle.trim() || !pushBody.trim()) return alert("Fill in title and message.");
     const dup = recentDuplicatePush(pushTitle);
     if (dup && !confirm(`⚠️ A push titled "${dup.title}" was already sent ${Math.round((nowMs() - new Date(dup.sent_at).getTime()) / 60000)} min ago to ${dup.total} device(s).\n\nSend this one anyway?`)) return;
@@ -1313,6 +1299,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   }
 
   async function sendTestPushToMe() {
+    if (pushPoster.trim() && !pushImage(pushPoster)) return alert("Use an HTTPS image URL or a path starting with /.");
     if (!pushTitle.trim() || !pushBody.trim()) return alert("Fill in title and message.");
     await postPush({ targetUserId: admin_id });
   }
@@ -1345,7 +1332,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     const next = { ...flags.classOverrides };
     affected.forEach(c => {
       const key = classOverrideKey(c);
-      next[c.date] = { ...(next[c.date] || {}), [key]: { type: "cancelled", modifiedAt: new Date().toISOString(), modifiedBy: admin_id } };
+      next[c.date] = { ...(next[c.date] || {}), [key]: { ...cancelOverride(lookupOverride(next[c.date], c) || {}, cancelVisibility), modifiedAt: new Date().toISOString(), modifiedBy: admin_id } };
     });
     setFlags({ ...flags, classOverrides: next });
     logAdminAction(admin_id, "holiday_cancel", { start: holidayStart, end: holidayEnd, count: affected.length });
@@ -1794,7 +1781,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   }
 
   // ── Push to an explicit set of user IDs (bulk "Push Selected" + re-engagement) ──
-  async function pushToUserIds(ids, { title, body, url = "/?view=today", confirmMsg } = {}) {
+  async function pushToUserIds(ids, { title, body, url = "/?view=today", image, confirmMsg } = {}) {
     if (!ids || ids.length === 0) return alert("No users to push to.");
     const sessionToken = await window.Clerk?.session?.getToken();
     if (!sessionToken) return { ok: false, data: { error: "Your admin session is unavailable. Refresh and sign in again." } };
@@ -1802,7 +1789,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-push`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${sessionToken}` },
-      body: JSON.stringify({ title, body, url, target_user_ids: ids }),
+      body: JSON.stringify({ title, body, url, image, target_user_ids: ids }),
     });
     const data = await resp.json().catch(() => ({}));
     return { ok: resp.ok, data };
@@ -2121,7 +2108,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const cancelClass = (date, code, section, start) => {
     const key = makeOverrideKey(code, section, start);
     const nextOverrides = { ...(flags.classOverrides || {}) };
-    nextOverrides[date] = { ...(nextOverrides[date] || {}), [key]: { type: "cancelled", name: `Cancelled: ${key}`, modifiedAt: new Date().toISOString(), modifiedBy: admin_id } };
+    const existing = lookupOverride(nextOverrides[date], { code, section, start }) || {};
+    nextOverrides[date] = { ...(nextOverrides[date] || {}), [key]: { ...cancelOverride(existing, cancelVisibility), modifiedAt: new Date().toISOString(), modifiedBy: admin_id } };
     setFlags({ ...flags, classOverrides: nextOverrides });
     logAdminAction(admin_id, "cancel_class", { date, class: key });
   };
@@ -2133,12 +2121,21 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     const keys = [code, `${code}_${section}`];
     if (start) keys.push(`${code}@${start}`, `${code}_${section}@${start}`);
     keys.forEach(key => {
-      if (forDate[key]?.type === "cancelled") delete forDate[key];
+      if (forDate[key]?.type === "cancelled") {
+        const restored = restoreCancelledOverride(forDate[key]);
+        if (restored) forDate[key] = restored; else delete forDate[key];
+      }
     });
     if (Object.keys(forDate).length === 0) delete nextOverrides[date];
     else nextOverrides[date] = forDate;
     setFlags({ ...flags, classOverrides: nextOverrides });
     logAdminAction(admin_id, "restore_class", { date, class: code, section });
+  };
+
+  const updateCancellationVisibility = (date, key, override, visibility) => {
+    const next = { ...(flags.classOverrides || {}) };
+    next[date] = { ...(next[date] || {}), [key]: { ...override, cancellationVisibility: visibility, modifiedAt: new Date().toISOString(), modifiedBy: admin_id } };
+    setFlags({ ...flags, classOverrides: next });
   };
 
   const handleAddOverride = () => {
@@ -2342,6 +2339,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     setModalCode(c.code || "");
     setModalName(c.name || "");
     setModalSection(c.section === "Single" ? "All" : (c.section || "All"));
+    const override = lookupOverride(flags.classOverrides?.[c.date], c);
+    setModalCancelVisibility(override?.type === "cancelled" ? cancellationVisibility(override) : cancelVisibility);
     setModalRoom(c.room || "");
     setModalStart(c.start || "");
     setModalEnd(c.end || "");
@@ -2623,6 +2622,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 <p>Review a day, adjust individual classes, and prepare changes for deployment.</p>
               </div>
               <div className="scc-head-actions">
+                <CancellationVisibilitySelect value={cancelVisibility} onChange={setCancelVisibility} label="New cancellations" />
                 <button className="admin-btn primary scc-head-btn"
                   onClick={() => openLiveEditorModal({ date: liveEditorDate, code: "", name: "", type: "class", section: "All" }, true)}>
                   <CalendarDays size={15} /> Add class
@@ -2634,8 +2634,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     if (!window.confirm(`Mark all ${dayClasses.length} classes on ${liveEditorDate} as Holiday?`)) return;
                     const prev = flags.classOverrides;
                     const next = { ...flags.classOverrides };
-                    if (!next[liveEditorDate]) next[liveEditorDate] = {};
-                    dayClasses.forEach(c => { const k = classOverrideKey(c); next[liveEditorDate][k] = { type: "cancelled", modifiedAt: new Date().toISOString(), modifiedBy: admin_id }; });
+                    next[liveEditorDate] = { ...(next[liveEditorDate] || {}) };
+                    dayClasses.forEach(c => { const k = classOverrideKey(c); next[liveEditorDate][k] = { ...cancelOverride(lookupOverride(next[liveEditorDate], c) || {}, cancelVisibility), modifiedAt: new Date().toISOString(), modifiedBy: admin_id }; });
                     setFlags({ ...flags, classOverrides: next });
                     setCmdUndoStack(s => [{ label: `Holiday: all classes on ${liveEditorDate} cancelled`, prevOverrides: prev }, ...s.slice(0, 9)]);
                   }}>
@@ -2722,18 +2722,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             {(() => {
               const overridesForDate = flags.classOverrides?.[liveEditorDate] || {};
               const baseClasses = liveSchedule.filter(c => c.date === liveEditorDate && c.type !== "break");
-              const newClasses = [];
-              Object.keys(overridesForDate).forEach(key => {
-                const parsed = parseOverrideKey(key);
-                const { ident: code, section } = parsed;
-                const exists = baseClasses.some(c => classMatchesKey(c, parsed));
-                if (!exists) {
-                  const ovr = overridesForDate[key];
-                  // _ovrKey: an override-created row is written back under its own key,
-                  // not one derived from its (overridden) start time.
-                  if (ovr.type !== "cancelled") newClasses.push({ date: liveEditorDate, code, section, name: ovr.name || "Custom Class", room: ovr.room || "", start: ovr.start || "", end: ovr.end || "", type: ovr.type || "class", _ovrKey: key });
-                }
-              });
+              const newClasses = buildOverrideAdds({ [liveEditorDate]: overridesForDate }, baseClasses, { includeHidden: true });
               let displayClasses = [...baseClasses, ...newClasses]
                 .sort((a, b) => (a.start || "").localeCompare(b.start || "") || (a.code || "").localeCompare(b.code || ""));
               if (cmdSection !== "All") displayClasses = displayClasses.filter(c => c.section === cmdSection || c.section === "Single" || c.section === "All");
@@ -2769,12 +2758,13 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                   {displayClasses.map((c, idx) => {
                     const override = lookupOverride(overridesForDate, c);
                     const isCancelled = override?.type === "cancelled";
-                    const isExam = override?.type === "exam";
-                    const isEvent = override?.type === "event" || (!override?.type && c.type === "event");
-                    const isPlacement = override?.type === "placement" || (!override?.type && c.type === "placement");
+                    const displayType = scheduleEntryKind(c, override);
+                    const isExam = displayType === "exam";
+                    const isEvent = displayType === "event";
+                    const isPlacement = displayType === "placement";
                     const hasRoomChange = !!override?.room;
                     const hasTimeChange = !!override?.start || !!override?.end;
-                    const isModified = hasRoomChange || hasTimeChange || isExam || isEvent || isPlacement;
+                    const isModified = hasRoomChange || hasTimeChange || (override?.type && override.type !== "cancelled");
                     const isGuest = (c.session || "").toLowerCase().includes("guest");
                     const displayRoom = override?.room || c.room;
                     const displayStart = override?.start || c.start;
@@ -2785,7 +2775,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     const isQuickRoomOpen = cmdQuickRoom?.date === liveEditorDate && cmdQuickRoom?.classKey === sessionKey;
 
                     return (
-                      <div key={idx} className={`scc-class-card${isCancelled ? " is-cancelled" : ""}${isEvent ? " is-event" : ""}${isExam ? " is-exam" : ""}${isModified ? " is-modified" : ""}${isGuest ? " is-guest" : ""}${isBeingDragged ? " is-dragging" : ""}`}
+                      <div key={idx} className={`scc-class-card${isCancelled ? " is-cancelled" : ""}${isEvent ? " is-event" : ""}${isExam ? " is-exam" : ""}${isPlacement ? " is-placement" : ""}${isModified ? " is-modified" : ""}${isGuest ? " is-guest" : ""}${isBeingDragged ? " is-dragging" : ""}`}
                         draggable
                         onDragStart={() => setDraggedIdx(idx)}
                         onDragEnd={() => setDraggedIdx(null)}
@@ -2822,7 +2812,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                             <div className="sched-class-title" style={{ textDecoration: isCancelled ? "line-through" : "none" }}>
                               {c.code ? `${c.code} — ` : ""}{c.name || LEGEND[c.code]?.name || "Class"}
                               {isCancelled && <span style={{ fontSize: 10, fontWeight: 800, background: "var(--danger)", color: "#fff", padding: "1px 7px", borderRadius: 4 }}>CANCELLED</span>}
-                              {isEvent && !isCancelled && (
+                              {isCancelled && <span className="scc-cancellation-status">{cancellationVisibility(override) === "hide" ? "Hidden from schedule" : "Shown as cancelled"}</span>}
+                              {isEvent && (
                                 <span style={{
                                   fontSize: 10,
                                   fontWeight: 800,
@@ -2838,7 +2829,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                                   <PartyPopper size={11} /> CELEBRATION
                                 </span>
                               )}
-                              {isPlacement && !isCancelled && (
+                              {isPlacement && (
                                 <span style={{
                                   fontSize: 10,
                                   fontWeight: 800,
@@ -2854,7 +2845,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                                   <PlacementIcon size={12} /> PLACEMENT
                                 </span>
                               )}
-                              {isExam && !isCancelled && !isEvent && !isPlacement && <span style={{ fontSize: 10, fontWeight: 800, background: "var(--violet)", color: "#fff", padding: "1px 7px", borderRadius: 4 }}>EXAM</span>}
+                              {isExam && !isEvent && !isPlacement && <span style={{ fontSize: 10, fontWeight: 800, background: "var(--violet)", color: "#fff", padding: "1px 7px", borderRadius: 4 }}>EXAM</span>}
                               {isModified && !isCancelled && !isExam && !isEvent && !isPlacement && <span style={{ fontSize: 10, fontWeight: 800, background: "var(--amber)", color: "#000", padding: "1px 7px", borderRadius: 4 }}>OVERRIDDEN</span>}
                               {isGuest && <span style={{ fontSize: 10, fontWeight: 800, background: "var(--violet)", color: "#fff", padding: "1px 7px", borderRadius: 4 }}>GUEST</span>}
                             </div>
@@ -2864,6 +2855,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                           </div>
                           {/* Action buttons */}
                           <div className="sched-class-actions">
+                            {isCancelled && <CancellationVisibilitySelect value={cancellationVisibility(override)} onChange={value => updateCancellationVisibility(liveEditorDate, sessionKey, override, value)} />}
                             {isCancelled ? (
                               <button title="Restore class" onClick={() => {
                                 const prev = flags.classOverrides;
@@ -2879,7 +2871,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                                 if (c._ovrKey) {
                                   // Override-created row: cancel it under its own key.
                                   const next = { ...flags.classOverrides, [liveEditorDate]: { ...flags.classOverrides[liveEditorDate] } };
-                                  next[liveEditorDate][c._ovrKey] = { ...next[liveEditorDate][c._ovrKey], type: "cancelled", modifiedAt: new Date().toISOString(), modifiedBy: admin_id };
+                                  next[liveEditorDate][c._ovrKey] = { ...cancelOverride(next[liveEditorDate][c._ovrKey], cancelVisibility), modifiedAt: new Date().toISOString(), modifiedBy: admin_id };
                                   setFlags({ ...flags, classOverrides: next });
                                 } else cancelClass(liveEditorDate, ident, c.section, c.start);
                                 setCmdUndoStack(s => [{ label: `Cancelled: ${c.code} on ${liveEditorDate}`, prevOverrides: prev }, ...s.slice(0, 9)]);
@@ -2952,6 +2944,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                   <CancelClassIcon size={16} /> Cancel Class
                 </button>
               </div>
+              <CancellationVisibilitySelect value={cancelVisibility} onChange={setCancelVisibility} />
             </details>
           </section>
           <DataQualityMonitor classes={liveSchedule} overrides={flags.classOverrides} onOpenSchedule={date => { if (date) setLiveEditorDate(date); setActiveTab("schedule"); document.querySelector(".scc-shell")?.scrollIntoView({ behavior: "smooth", block: "start" }); }} onOpenSystem={() => setActiveTab("system")} />
@@ -2974,6 +2967,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           <section className="admin-card admin-span-all admin-g-schedule schedule-action-card schedule-action-card--holiday" style={{ gridColumn: "1 / -1" }}>
             <h2><XCircle size={20} color="var(--danger)" /> Holiday / Day-off</h2>
             <p className="admin-subtext">Cancel every class across a date range in one action (e.g. a festival break). Stages overrides — Review &amp; Deploy Config to apply.</p>
+            <CancellationVisibilitySelect value={cancelVisibility} onChange={setCancelVisibility} />
             <div className="admin-field-row sched-range-row">
               <div className="admin-field"><label>From</label><input type="date" className="admin-input" value={holidayStart} onChange={e => setHolidayStart(e.target.value)} /></div>
               <div className="admin-field"><label>To</label><input type="date" className="admin-input" value={holidayEnd} onChange={e => setHolidayEnd(e.target.value)} /></div>
@@ -3110,6 +3104,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
              <div>
                 <h2><FileText size={20} color="var(--blue)" /> Bulk CSV Importer</h2>
                 <p className="admin-subtext">Format: Date,Code,Section,Room,Start,End,Cancel(true/false)</p>
+                <CancellationVisibilitySelect value={cancelVisibility} onChange={setCancelVisibility} />
                 <textarea className="admin-textarea sched-csv-input" value={bulkCsv} onChange={e => setBulkCsv(e.target.value)} placeholder="2026-07-20,BM,A,C-104,10:00,11:30,false&#10;2026-07-21,QM,B,,,,true" rows={4} aria-label="Bulk override CSV"></textarea>
                 <div className="sched-bulk-actions">
                 <button className="admin-btn outline" onClick={() => {
@@ -3121,11 +3116,11 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                       for (const line of lines) {
                          const [date, code, section, room, start, end, cancelStr] = line.split(",").map(s => s?.trim());
                          if (!date || !code || !section) continue;
-                         if (!next[date]) next[date] = {};
+                         next[date] = { ...(next[date] || {}) };
                          const sectionKey = section === "All" || section === "Single" ? code : `${code}_${section}`;
                          
                          if (cancelStr?.toLowerCase() === "true") {
-                            next[date][sectionKey] = { type: "cancelled", modifiedAt: new Date().toISOString(), modifiedBy: admin_id };
+                            next[date][sectionKey] = { ...cancelOverride(next[date][sectionKey] || {}, cancelVisibility), modifiedAt: new Date().toISOString(), modifiedBy: admin_id };
                          } else {
                             next[date][sectionKey] = {
                                type: "class",
@@ -3276,12 +3271,14 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                           </div>
                           {/* Actions */}
                           <div className="aco-actions">
+                            {isCancelled && <CancellationVisibilitySelect value={cancellationVisibility(override)} onChange={value => updateCancellationVisibility(date, code, override, value)} />}
                             {isCancelled && (
                               <button title="Restore class" onClick={() => {
                                 const prev = flags.classOverrides;
                                 const next = { ...flags.classOverrides };
                                 const forDate = { ...next[date] };
-                                delete forDate[code];
+                                const restored = restoreCancelledOverride(forDate[code]);
+                                if (restored) forDate[code] = restored; else delete forDate[code];
                                 if (Object.keys(forDate).length === 0) delete next[date]; else next[date] = forDate;
                                 setFlags({ ...flags, classOverrides: next });
                                 removeWithUndo(`Override removed — ${displayCode}`, () => setFlags(f => ({ ...f, classOverrides: prev })));
@@ -3771,13 +3768,14 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
                     {(flags.pushTemplates || []).map(t => (
                       <span key={t.id} className="admin-tag">
-                        <button type="button" className="admin-tag-label" onClick={() => { setPushTitle(t.title || ""); setPushBody(t.body || ""); setPushUrl(t.url || ""); }} title="Apply this template">{t.title || "(untitled)"}</button>
+                        <button type="button" className="admin-tag-label" onClick={() => { setPushTitle(t.title || ""); setPushBody(t.body || ""); setPushUrl(t.url || ""); setPushPoster(t.image || ""); }} title="Apply this template">{t.title || "(untitled)"}</button>
                         <button type="button" className="admin-tag-del" onClick={() => { if (!confirm(`Delete template "${t.title || "(untitled)"}"?`)) return; setFlags({ ...flags, pushTemplates: (flags.pushTemplates || []).filter(x => x.id !== t.id) }); }} aria-label="Delete template"><X size={12} /></button>
                       </span>
                     ))}
                     <button type="button" className="admin-btn outline" style={{ fontSize: 11, padding: "4px 10px" }} onClick={() => {
                       if (!pushTitle.trim() || !pushBody.trim()) return alert("Fill title and message first, then save as template.");
-                      setFlags({ ...flags, pushTemplates: [...(flags.pushTemplates || []), { id: Date.now().toString(), title: pushTitle.trim(), body: pushBody.trim(), url: pushUrl.trim() }] });
+                      if (pushPoster.trim() && !pushImage(pushPoster)) return alert("Use an HTTPS image URL or a path starting with /.");
+                      setFlags({ ...flags, pushTemplates: [...(flags.pushTemplates || []), { id: Date.now().toString(), title: pushTitle.trim(), body: pushBody.trim(), url: pushUrl.trim(), image: pushImage(pushPoster) }] });
                     }}>+ Save current as template</button>
                   </div>
 
@@ -3796,6 +3794,11 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     <textarea className="admin-textarea" value={pushBody} onChange={e => setPushBody(e.target.value)} placeholder="e.g. Today's 11:30 FIN-201 class moved to Room C-104." rows={2} maxLength={200}></textarea>
                   </div>
                   <div className="broadcast-step-heading"><span>2</span><div><strong>Choose delivery</strong><small>Send immediately or stage a time for the next config save.</small></div></div>
+                  <div className="admin-field">
+                    <label htmlFor="push-event-poster">Event poster URL <span className="admin-optional">(optional)</span></label>
+                    <input id="push-event-poster" className="admin-input" value={pushPoster} onChange={e => setPushPoster(e.target.value)} placeholder="https://… or /event-poster.png" aria-invalid={!!pushPoster.trim() && !pushImage(pushPoster)} />
+                    <small>{pushPoster.trim() && !pushImage(pushPoster) ? "Use an HTTPS image URL or a path starting with /." : "Appears when expanded on supported devices. Keep essential details in the message."}</small>
+                  </div>
                   <div className="broadcast-mode-picker" role="group" aria-label="Push delivery mode">
                     <button type="button" className={pushMode === "now" ? "is-selected" : ""} aria-pressed={pushMode === "now"} onClick={() => { setPushMode("now"); setPushScheduleDate(""); setPushScheduleTime(""); }}><BellRing size={15} /><strong>Send now</strong><small>Confirm and queue immediately</small></button>
                     <button type="button" className={pushMode === "schedule" ? "is-selected" : ""} aria-pressed={pushMode === "schedule"} onClick={() => { setPushMode("schedule"); setPushTarget("all"); }}><Clock size={15} /><strong>Schedule</strong><small>Everyone · requires config save</small></button>
@@ -3850,18 +3853,19 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     <div><span>Action</span><strong>{pushMode === "schedule" ? "Stage scheduled push" : "Send live push"}</strong><small>{pushMode === "schedule" ? "Save configuration to activate" : "Affects real recipients"}</small></div>
                   </div>
 
-                  <PushPreview title={pushTitle} body={pushBody} url={pushUrl} when={pushMode === "schedule" && pushScheduleDate && pushScheduleTime ? `${pushScheduleDate} · ${pushScheduleTime}` : "now"} />
+                  <PushPreview title={pushTitle} body={pushBody} url={pushUrl} image={pushPoster} when={pushMode === "schedule" && pushScheduleDate && pushScheduleTime ? `${pushScheduleDate} · ${pushScheduleTime}` : "now"} />
 
                   <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                     <button className="admin-btn primary" onClick={() => {
+                      if (pushPoster.trim() && !pushImage(pushPoster)) return alert("Use an HTTPS image URL or a path starting with /.");
                       if (pushMode === "schedule") {
                         if (!pushScheduleDate || !pushScheduleTime) return alert("Choose both a date and time for the scheduled push.");
                         if (pushTarget !== "all") return alert("Scheduled pushes currently go to everyone. For a targeted push, clear the schedule and send now.");
                         if (!pushTitle.trim() || !pushBody.trim()) return alert("Fill in title and message.");
                         if (new Date(`${pushScheduleDate}T${pushScheduleTime}:00`).getTime() <= Date.now()) return alert("Choose a future date and time for a scheduled push.");
-                        const newItem = { id: Date.now().toString(), title: pushTitle.trim(), body: pushBody.trim(), url: pushUrl.trim(), date: pushScheduleDate, time: pushScheduleTime };
+                        const newItem = { id: Date.now().toString(), title: pushTitle.trim(), body: pushBody.trim(), url: pushUrl.trim(), image: pushImage(pushPoster), date: pushScheduleDate, time: pushScheduleTime };
                         setFlags({...flags, scheduledPushes: [...(flags.scheduledPushes || []), newItem]});
-                        setPushTitle(""); setPushBody(""); setPushUrl(""); setPushScheduleDate(""); setPushScheduleTime("");
+                        setPushTitle(""); setPushBody(""); setPushUrl(""); setPushPoster(""); setPushScheduleDate(""); setPushScheduleTime("");
                         setPushResult("Push scheduled successfully (Requires deploy).");
                       } else if (pushTarget !== "all") {
                         const ids = audienceIds(pushTarget);
@@ -3871,8 +3875,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                         if (dup && !confirm(`⚠️ A push titled "${dup.title}" was already sent ${Math.round((nowMs() - new Date(dup.sent_at).getTime()) / 60000)} min ago. Send this one anyway?`)) return;
                         (async () => {
                           setPushSending(true); setPushResult("");
-                          const res = await pushToUserIds(ids, { title: pushTitle.trim(), body: pushBody.trim(), url: pushUrl.trim() || "/", confirmMsg: `Send this push to ${ids.length} user(s) in "${pushTarget}"?` });
-                          if (res?.ok) { setPushResult(`Sent to ${res.data.queued ?? ids.length} user(s).`); setPushTitle(""); setPushBody(""); setPushUrl(""); await logAdminAction(admin_id, "push_targeted", { target: pushTarget, count: ids.length }); }
+                          const res = await pushToUserIds(ids, { title: pushTitle.trim(), body: pushBody.trim(), url: pushUrl.trim() || "/", image: pushImage(pushPoster), confirmMsg: `Send this push to ${ids.length} user(s) in "${pushTarget}"?` });
+                          if (res?.ok) { setPushResult(`Sent to ${res.data.queued ?? ids.length} user(s).`); setPushTitle(""); setPushBody(""); setPushUrl(""); setPushPoster(""); await logAdminAction(admin_id, "push_targeted", { target: pushTarget, count: ids.length }); }
                           else if (res) { setPushFailureAt(Date.now()); setPushResult(`Failed: ${res.data?.error || "error"}`); }
                           setPushSending(false);
                         })();
@@ -6727,6 +6731,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             const userSec = courseSectionMap[c.code];
             return !c.section || c.section === "All" || c.section === "Single" || !userSec || userSec === "All" || c.section === userSec;
           })
+          .filter(c => {
+            const override = lookupOverride(overridesForDate, c);
+            return override?.type !== "cancelled" || cancellationVisibility(override) !== "hide";
+          })
           .map(c => {
             const ov = lookupOverride(overridesForDate, c);
             return { ...c, cancelled: ov?.type === "cancelled", room: ov?.room || c.room, start: ov?.start || c.start, end: ov?.end || c.end };
@@ -7043,6 +7051,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               </div>
 
               {/* Cancel button */}
+              <CancellationVisibilitySelect value={modalCancelVisibility} onChange={setModalCancelVisibility} />
               <button type="button" onClick={() => {
                 const ident = classIdent(liveEditorModal);
                 const overrideKey = editOverrideKey(liveEditorModal, modalSection, ident);
@@ -7054,12 +7063,13 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                   delete nextOverrides[liveEditorModal.date][`${ident}_A`];
                   delete nextOverrides[liveEditorModal.date][`${ident}_B`];
                 }
-                nextOverrides[liveEditorModal.date][overrideKey] = { type: "cancelled", name: `Cancelled: ${liveEditorModal.name || ident}`, modifiedAt: new Date().toISOString(), modifiedBy: admin_id };
+                const existing = lookupOverride(flags.classOverrides?.[liveEditorModal.date], liveEditorModal) || {};
+                nextOverrides[liveEditorModal.date][overrideKey] = { ...cancelOverride(existing, modalCancelVisibility), modifiedAt: new Date().toISOString(), modifiedBy: admin_id };
                 setFlags({ ...flags, classOverrides: nextOverrides });
                 logAdminAction(admin_id, "cancel_class", { date: liveEditorModal.date, class: overrideKey });
                 setLiveEditorModal(null);
               }} className="admin-btn outline" style={{ color: "var(--danger)", borderColor: "var(--danger)" }}>
-                <CancelClassIcon size={17} /> Cancel Class
+                <CancelClassIcon size={17} /> {modalCancelVisibility === "hide" ? "Cancel & Hide Class" : "Cancel & Show Class"}
               </button>
 
               {/* Mark as Exam toggle */}

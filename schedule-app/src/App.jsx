@@ -19,6 +19,7 @@ import TodayDashboard from "./components/TodayDashboard.jsx";
 import { DashboardCustomize, ScheduleStatus } from "./components/DashboardExtras.jsx";
 import { DEFAULT_DASHBOARD, dashboardCardVisible, readDashboardPrefs, saveDashboardPrefs } from "./lib/dashboardPrefs.js";
 import ScheduleModal from "./components/ScheduleModal.jsx";
+import { pushSessionFromParams } from "./lib/pushDeepLink.js";
 import WeekGlance from "./components/WeekGlance.jsx";
 import SubjectFilter from "./components/SubjectFilter.jsx";
 import Login from "./components/Login.jsx";
@@ -38,7 +39,7 @@ import { fetchMessMenu } from "./lib/messFeed.js";
 import { getSnapshot, fetchSchedule, sha256hex } from "./lib/sheet.js";
 import { taughtSectionsByCode, provisionalSectionCodes, applyRosterAllocation, manualSectionCodes, unscheduledCodes } from "./lib/sections.js";
 import { feedbackFlashAudience } from "./lib/feedbackFlash.js";
-import { lookupOverride, buildOverrideAdds } from "./lib/overrides.js";
+import { applyClassOverrides } from "./lib/overrides.js";
 import { safeUrl } from "./lib/safeUrl.js";
 import { toMin, fmtTime12, ymd, clsDate, prettyDate, timeAgo, getSpecialDay } from "./lib/datetime.js";
 import { fetchConsensusWeather } from "./lib/weather.js";
@@ -124,6 +125,7 @@ import MobileUiVersionMenu from "./components/mobile/MobileUiVersionMenu.jsx";
 import MobileV2TabBar from "./components/mobile/MobileV2TabBar.jsx";
 import MobileV2Switcher from "./components/mobile/MobileV2Switcher.jsx";
 import MobileV2MorePage from "./components/mobile/MobileV2MorePage.jsx";
+import MobileV2Breadcrumbs from "./components/mobile/MobileV2Breadcrumbs.jsx";
 import "./styles/mobile-v2.css";
 import "./styles/tablet-layout.css";
 import "./styles/tomorrow-timeline.css";
@@ -628,7 +630,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     if (isTablet || !v2Active) setMobileV2MoreOpen(false);
   }, [isTablet, v2Active]);
   const {
-    sidebarCollapsed, sbCollapsed, toggleSidebar,
+    sidebarCollapsed, sbCollapsed, toggleSidebar, tabletSidebarOpen, closeTabletSidebar,
     sbStyle, setSidebarStyle,
     theme, pickTheme,
     showSbTip, hideSbTip,
@@ -643,7 +645,13 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     adminSecOpen, setAdminSecOpen,
     showRightScroll, setShowRightScroll,
     showLeftScroll, setShowLeftScroll,
-  } = useSidebar({ isTablet });
+  } = useSidebar({ isTablet, v2Active });
+
+  const previousSidebarView = useRef(view);
+  useEffect(() => {
+    if (previousSidebarView.current !== view) closeTabletSidebar();
+    previousSidebarView.current = view;
+  }, [view, closeTabletSidebar]);
 
   const tabsRef = useRef(null);
   const [termMenuOpen, setTermMenuOpen] = useState(false);
@@ -735,7 +743,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   useEffect(() => {
     const DEEP_LINK_VIEWS = new Set([
       "today", "tomorrow", "week", "attendance", "exams", "assignments", "pet",
-      "notifications", "friends", "leave", "glance", "board", "split", "planner", "courseHub",
+      "notifications", "friends", "leave", "glance", "board", "split", "planner", "courseHub", "fullSchedule",
     ]);
     const captureFromUrl = () => {
       const params = new URLSearchParams(window.location.search);
@@ -754,6 +762,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         setView("friends");
       }
       if (wanted && DEEP_LINK_VIEWS.has(wanted)) setView(wanted);
+      const session = pushSessionFromParams(params);
+      if (session) setJumpToSession(session);
       if (wanted === "split") {
         const g = params.get("g");
         if (g) setSplitDeepLink(g);
@@ -768,6 +778,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       rest.delete("view");
       rest.delete("g");
       rest.delete("join");
+      if (wanted === "fullSchedule") {
+        rest.delete("date"); rest.delete("code"); rest.delete("start");
+      }
       const qs = rest.toString();
       window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
     };
@@ -1504,18 +1517,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     if (sysConfig?.flags) {
 
       if (sysConfig.flags.classOverrides) {
-        const overrides = sysConfig.flags.classOverrides;
-        data.CLASSES = data.CLASSES.map(c => {
-          const classOverride = lookupOverride(overrides[c.date], c);
-          return classOverride ? { ...c, ...classOverride } : c;
-        });
-
-        // Match adds against the ORIGINAL feed rows: session keys carry the feed
-        // start time, which a time override has already replaced in data.CLASSES.
-        const newClasses = buildOverrideAdds(overrides, scheduleData.CLASSES);
-        if (newClasses.length > 0) {
-          data.CLASSES = [...data.CLASSES, ...newClasses];
-        }
+        data.CLASSES = applyClassOverrides(scheduleData.CLASSES, sysConfig.flags.classOverrides);
       }
     }
     return data;
@@ -1619,11 +1621,15 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         // unknown, and far better than the course vanishing.
         return sec !== undefined && (c.section === sec || c.section === "Single" || c.section === "All" || provisionalSections.has(c.code)) && mine.has(c.code);
       }
+      if (c.type === "cancelled" && c.code) {
+        const sec = enrolled[c.code];
+        return sec !== undefined && mine.has(c.code) && (c.section === sec || c.section === "Single" || c.section === "All" || provisionalSections.has(c.code));
+      }
       // Exams: the feed leaves `code` blank; try to infer the course code from
       // the entry name (e.g. "SAPM MID Term Exam" → "SAPM") and gate on enrollment.
       // If the name doesn't start with a recognisable enrolled code, show the
       // event to everyone (Term Registration, holidays, breaks, etc.).
-      if (c.type === "exam") {
+      if (c.type === "exam" || (c.type === "cancelled" && !c.code)) {
         const key = c.date + c.slot + c.name;
         if (seen.has(key)) return false;
         const code = c.code || (c.name || "").match(/^([A-Za-z]{2,8})\b/)?.[1]?.toUpperCase();
@@ -2327,6 +2333,16 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                           : view === "admin" ? "Admin tools"
                             : "TermFlow";
 
+  const openMobileV2More = () => {
+    setMobileV2MoreOpen(true);
+    setOverflowOpen(false);
+    setNotifOpen(false);
+    setCompareTarget(null);
+    window.scrollTo({ top: 0, behavior: "instant" });
+  };
+  const v2Navigation = v2Active && !mobileV2MoreOpen && !compareTarget
+    ? { isTablet, onOpenMore: openMobileV2More } : undefined;
+
   const navigateMobileV2 = (nextView) => {
     setMobileV2MoreOpen(false);
     setOverflowOpen(false);
@@ -2787,6 +2803,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         setMessMenuOpen={setMessMenuOpen} activeQuickLinks={activeQuickLinks} showAdminUI={showAdminUI}
         renderSbUtilStrip={renderSbUtilStrip} renderSbAvatarWrap={renderSbAvatarWrap} syncing={syncing}
         syncedAgo={syncedAgo} isTablet={isTablet} sidebarCollapsed={sidebarCollapsed} toggleSidebar={toggleSidebar}
+        tabletControls={v2Active && isTablet} tabletSidebarOpen={tabletSidebarOpen} onCloseTabletSidebar={closeTabletSidebar}
       />
 
       <SbFloatTip />
@@ -3145,6 +3162,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             {v2Active && !mobileV2MoreOpen && (
               <MobileV2Switcher view={view} examsEnabled={enableExams} onNavigate={navigateMobileV2} />
             )}
+            {v2Navigation && view !== "courseHub" && view !== "split" && (
+              <MobileV2Breadcrumbs view={view} {...v2Navigation} />
+            )}
             {showTopTabs && (
             <div className="tabs-wrapper">
               <nav className={`tabs${showLeftScroll ? " tabs-scrolled" : ""}${showRightScroll ? " tabs-overflow-right" : ""}`} ref={tabsRef} onScroll={handleTabsScroll}>
@@ -3464,6 +3484,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                     />
                     : view === "courseHub"
                       ? <CourseHub
+                          v2Navigation={v2Navigation}
                           key={userId || "guest"}
                           allClasses={activeClasses}
                           enrolled={activeEnrolled}
@@ -3594,6 +3615,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                   />
                               : view === "split"
                                 ? <SplitPage
+                                    v2Navigation={v2Navigation}
                                     userId={userId}
                                     userName={user?.firstName || user?.username || "Student"}
                                     friends={friends}
@@ -3887,11 +3909,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             attendanceEnabled={enableAttendance}
             unreadCount={unreadTotal}
             onNavigate={navigateMobileV2}
-            onOpenMore={() => {
-              setMobileV2MoreOpen(true);
-              setOverflowOpen(false);
-              setNotifOpen(false);
-            }}
+            onOpenMore={openMobileV2More}
           />
         )}
       </div>

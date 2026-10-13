@@ -4754,9 +4754,21 @@
 .scc-class-card { overflow: hidden; border: 1px solid var(--border); border-left: 3px solid var(--blue); border-radius: 13px; background: var(--bg); transition: border-color .16s ease, box-shadow .16s ease; }
 .scc-class-card:hover { border-color: color-mix(in srgb, var(--blue) 48%, var(--border)); box-shadow: 0 5px 18px color-mix(in srgb, var(--text) 7%, transparent); }
 .scc-class-card.is-cancelled { border-left-color: var(--danger); background: color-mix(in srgb, var(--danger) 5%, var(--bg)); }
-.scc-class-card.is-event { border-left-color: var(--live); }
-.scc-class-card.is-exam, .scc-class-card.is-guest { border-left-color: var(--violet); }
 .scc-class-card.is-modified { border-left-color: var(--amber); }
+.scc-class-card.is-guest { border-left-color: var(--violet); }
+.scc-class-card.is-exam { border-left-color: var(--violet); background: color-mix(in srgb, var(--violet) 8%, var(--bg)); }
+.scc-class-card.is-event { border-left-color: var(--live); background: color-mix(in srgb, var(--live) 8%, var(--bg)); }
+.scc-class-card.is-placement { border-left-color: var(--blue); background: color-mix(in srgb, var(--blue) 8%, var(--bg)); }
+.scc-class-card.is-cancelled { border-left-color: var(--danger); background: color-mix(in srgb, var(--danger) 5%, var(--bg)); }
+.scc-cancellation-status { font-size: 11px; color: var(--muted); font-weight: 500; }
+.cancellation-visibility-select { display: flex; flex-direction: column; gap: 5px; }
+.cancellation-visibility-select > span { font-size: 12px; font-weight: 600; color: var(--muted); }
+.cancellation-visibility-select select { width: 100%; min-width: 0; }
+.scc-head-actions > .cancellation-visibility-select { flex-basis: 100%; grid-column: 1 / -1; }
+.scc-class-card .sched-class-actions { flex-wrap: wrap; max-width: 380px; }
+.sched-class-actions > .cancellation-visibility-select { flex-basis: 100%; grid-column: 1 / -1; margin: 0; }
+.aco-actions { flex-wrap: wrap; }
+.aco-actions > .cancellation-visibility-select { margin: 0; }
 .scc-class-card.is-dragging { box-shadow: 0 8px 24px color-mix(in srgb, var(--text) 14%, transparent); }
 .scc-class-card .sched-class-row { padding: 14px 15px; }
 .scc-class-card .sched-class-handle { display: grid; place-items: center; width: 25px; height: 33px; border-radius: 6px; background: color-mix(in srgb, var(--text) 5%, var(--bg)); font-size: 16px; }

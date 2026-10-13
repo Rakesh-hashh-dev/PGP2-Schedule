@@ -135,7 +135,7 @@ export function ScheduleChangePreview({ preview, title = "Change preview" }) {
   if (!preview) return null;
   const before = preview.before;
   const after = preview.after;
-  const detail = item => item ? `${item.name || item.code || "Class"} · ${item.start || "?"}–${item.end || "?"} · ${item.room || "Room TBD"}` : "Cancelled";
+  const detail = item => item ? `${item.name || item.code || "Class"} · ${item.start || "?"}–${item.end || "?"} · ${item.room || "Room TBD"}` : `Cancelled${preview.cancellationVisibility === "hide" ? " · Hidden from schedule" : preview.cancellationVisibility === "show" ? " · Shown as cancelled" : ""}`;
   return <section className="aw-preview" aria-label={title}>
     <div className="aw-preview-title"><ClipboardList size={16} /><strong>{title}</strong><span>Preview only</span></div>
     <div className="aw-before-after"><div><small>Before</small><span>{before ? detail(before) : "No existing class"}</span></div><ArrowRight size={16} aria-hidden="true" /><div><small>After</small><span>{detail(after)}</span></div></div>

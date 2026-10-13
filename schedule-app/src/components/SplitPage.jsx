@@ -18,6 +18,7 @@ import {
 import { EmptyState } from "./ui.jsx";
 import ExpenseModal from "./split/ExpenseForm.jsx";
 import SplitWorkspace from "./split/SplitWorkspace.jsx";
+import MobileV2Breadcrumbs from "./mobile/MobileV2Breadcrumbs.jsx";
 import { CirclePanel, ExpenseDetails, SecureInvite } from "./split/Collaboration.jsx";
 import ImportExpenses from "./split/ImportExpenses.jsx";
 import { useReceipt } from "../lib/useSplitReceipt.js";
@@ -322,7 +323,7 @@ function InviteModal({ group, onClose }) {
 // ═══════════════════════════════════════════════════════════════
 //  Group ledger (detail screen)
 // ═══════════════════════════════════════════════════════════════
-function GroupLedger({ userId, userName, friends, advanced, group, onBack, onGroupChanged, onGroupDeleted }) {
+function GroupLedger({ userId, userName, friends, advanced, group, onBack, onGroupChanged, onGroupDeleted, v2Navigation }) {
   const [ledger, setLedger] = useState(null);
   const [detail, setDetail] = useState(null);
   const [importOpen, setImportOpen] = useState(false);
@@ -405,8 +406,9 @@ function GroupLedger({ userId, userName, friends, advanced, group, onBack, onGro
 
   return (
     <div className="sp-ledger sc-ledger">
+      {v2Navigation && <MobileV2Breadcrumbs view="split" {...v2Navigation} detail={group.name || "Group"} onBack={onBack} />}
       <div className="sp-ledger-head">
-        <button className="sp-back" onClick={onBack} aria-label="Back"><ArrowLeft size={18} /></button>
+        {!v2Navigation && <button className="sp-back" onClick={onBack} aria-label="Back"><ArrowLeft size={18} /></button>}
         <div className="sp-ledger-title">
           <span className="sp-kicker">GROUP LEDGER</span>
           <h2>{group.name}</h2>

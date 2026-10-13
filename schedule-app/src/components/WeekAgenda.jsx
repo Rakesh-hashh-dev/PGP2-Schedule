@@ -55,6 +55,7 @@ export default function WeekAgenda({ visible, now, offset, setOffset, todayISO, 
                         <span className="ag-c">
                           {isNationalHoliday(c) && <IndiaFlagIcon size={13} className="row-flag-icon" />}
                           {c.name}
+                          {c.type === "cancelled" && <span style={{ color: "var(--danger)", marginLeft: 6 }}>Cancelled</span>}
                           {c.session && (
                             <span className={`ses ${subjectClass(c.code)}`}>
                               {c.code} {c.session}

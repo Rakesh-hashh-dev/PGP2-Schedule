@@ -40,7 +40,7 @@ export const PENDING_INVITE_KEY = "pgp2.pending-invite";
 export const USER_SCOPED_KEYS = [
   "pgp2.friends", "pgp2.groups", "pgp2.my_share_code",
   "pgp2.setup", "pgp2-notif-seen", "pgp2.read-ping-ids", "pgp2.read-change-keys",
-  "pgp2.seen-recv-groups", "pgp2.recv-groups-count", "pgp2.sidebar", "pgp2.sidebar-pins", "pgp2.sidebar-compact", VIEW_KEY,
+  "pgp2.seen-recv-groups", "pgp2.recv-groups-count", "pgp2.sidebar", "pgp2.v2-tablet-sidebar", "pgp2.sidebar-pins", "pgp2.sidebar-compact", VIEW_KEY,
   "pgp2.attendance", "pgp2.assignments", "pgp2.planner-misses", "pgp2.planner-effort", "pgp2.course-hub-items",
   "pgp2.today-goals",
   "pgp2.dashboard-layout",

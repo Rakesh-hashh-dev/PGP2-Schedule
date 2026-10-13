@@ -1,4 +1,5 @@
 import { supabase } from "./supabase.js";
+import { buildPushPayload } from "../../supabase/functions/_shared/pushPresentation.ts";
 
 // Web Push subscription management. Subscriptions are stored in the
 // `push_subscriptions` table (endpoint is the primary key) and consumed by
@@ -42,12 +43,14 @@ export function pushBlockReason() {
 // device. Doesn't exercise the server push path (that's the Admin test send).
 export async function showTestNotification() {
   const reg = await navigator.serviceWorker.ready;
+  const preview = buildPushPayload({ type: "admin_broadcast", title: "Notifications are ready", url: "/?view=notifications" });
   await reg.showNotification("Notifications are ready", {
-    body: "TermFlow can send updates to this device.",
-    icon: "/icon-192.png",
-    badge: "/badge-72.png",
+    body: "TermFlow can send updates to this device.\nExpand a notification for details and quick actions.",
+    icon: "/icon-notification.png",
+    badge: "/badge-notification.png",
     tag: "termflow-test",
-    data: { url: "/?view=notifications" },
+    data: { url: preview.url, actionUrls: { open: preview.url } },
+    actions: preview.actions.slice(0, typeof Notification.maxActions === "number" ? Notification.maxActions : 2).map(({ action, title }) => ({ action, title })),
   });
 }
 

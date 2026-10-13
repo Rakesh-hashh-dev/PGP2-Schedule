@@ -261,11 +261,10 @@ async function runReminders(supabase: ReturnType<typeof createClient>) {
         body: ["Your timetable is clear this " + weekday + ".", ...extras].join("\n"),
       });
     } else {
-      const first = mine[0];
-      const lines = [
-        `First: ${first.code} at ${fmtTime12(first.start)}${first.room ? ` · Room ${first.room}` : ""}`,
-      ];
-      if (mine.length > 1) lines.push(`Then ${mine.length - 1} more class${mine.length > 2 ? "es" : ""}. Open your schedule for details.`);
+      // The first line survives collapsed truncation; expansion reveals each slot.
+      const lines = mine.map((cls, index) =>
+        `${index === 0 ? "First: " : ""}${cls.code} at ${fmtTime12(cls.start)}${cls.end ? `–${fmtTime12(cls.end)}` : ""}${cls.room ? ` · Room ${cls.room}` : ""}`
+      );
       lines.push(...extras);
       summaryJobs.push({
         userId: profile.user_id,
