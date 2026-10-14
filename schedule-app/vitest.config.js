@@ -8,8 +8,8 @@ import { configDefaults, defineConfig } from "vitest/config";
 // touch the client.
 export default defineConfig({
   // Vite's react plugin isn't loaded here, so JSX needs the automatic runtime
-  // spelled out — otherwise esbuild emits bare React.createElement calls.
-  esbuild: { jsx: "automatic" },
+  // spelled out — otherwise the transformer emits bare React.createElement calls.
+  oxc: { jsx: { runtime: "automatic" } },
   test: {
     environment: "node",
     setupFiles: ["src/test/setup.js"],
