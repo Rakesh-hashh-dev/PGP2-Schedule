@@ -158,10 +158,22 @@ export async function fetchSchedule(force = false) {
       window.__schedulePromise = null; // Clear it so subsequent fetches hit the network
       if (data == null) throw new Error("Preloaded feed request failed");
     } else {
-      const res = await fetch(url, { redirect: "follow" });
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      step = "Read feed JSON";
-      data = await res.json();
+      const getFeed = async (u) => {
+        const res = await fetch(u, { redirect: "follow" });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        step = "Read feed JSON";
+        return res.json();
+      };
+      try {
+        data = await getFeed(url);
+      } catch (err) {
+        // A forced rebuild runs the whole sheet parse server-side and is the
+        // request most likely to drop on a flaky connection — fall back once
+        // to the server's cached payload rather than failing the refresh.
+        if (!force) throw err;
+        step = "Request schedule feed";
+        data = await getFeed(FEED_URL);
+      }
     }
     
     step = "Check feed response";
@@ -199,6 +211,10 @@ export async function fetchSchedule(force = false) {
   } catch (err) {
     console.warn("[sheet] live feed failed, using snapshot:", err.message);
     const source = step === "Read browser cache" ? "Browser cache" : step === "Process schedule in app" || step === "Process cached schedule" ? "App schedule processing" : "Google Apps Script schedule feed";
-    return { ...STATIC_SNAPSHOT, _meta: { status: "error", source, step, message: err.message, ts: new Date().toISOString() } };
+    // Network-level failures surface as raw browser/service-worker text
+    // ("Failed to fetch", "no-response :: [...]") — show students something readable.
+    const offlineish = err instanceof TypeError || /no-response|failed to fetch|network/i.test(err.message);
+    const message = offlineish ? "Couldn't reach the schedule server. Check your connection and tap Retry." : err.message;
+    return { ...STATIC_SNAPSHOT, _meta: { status: "error", source, step, message, detail: err.message, ts: new Date().toISOString() } };
   }
 }

@@ -16,8 +16,22 @@ describe("schedule sync error details", () => {
       status: "error",
       source: "Google Apps Script schedule feed",
       step: "Request schedule feed",
-      message: "Failed to fetch",
+      message: "Couldn't reach the schedule server. Check your connection and tap Retry.",
+      detail: "Failed to fetch",
     });
+  });
+
+  it("falls back to the cached feed when a forced refresh fails", async () => {
+    vi.stubGlobal("localStorage", { getItem: () => null, setItem: vi.fn() });
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ CLASSES: snap.CLASSES, TERM: snap.TERM, LEGEND: snap.LEGEND }) });
+    vi.stubGlobal("fetch", fetchMock);
+    const data = await fetchSchedule(true);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toContain("force=");
+    expect(fetchMock.mock.calls[1][0]).not.toContain("force=");
+    expect(data._meta.status).toBe("success");
   });
 
   it("identifies an error returned by the feed", async () => {

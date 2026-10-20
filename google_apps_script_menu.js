@@ -20,7 +20,7 @@
  *   6. (Optional) Run installTrigger() once so the cache stays warm.
  */
 
-const SHEET_ID = '1kNxgbR0SmtWNMHWP3aWaew7QpCeoQTZTwO9yX2Ajf-U';
+const SHEET_ID = '1ZqJCFYScuZwK15SFVelng8VVlABeffhbHi69jQ4MOo4';
 const GID = 0; // tab to read (gid=0 in the sheet URL)
 const CACHE_MINUTES = 10;
 

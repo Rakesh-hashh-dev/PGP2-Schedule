@@ -1,5 +1,5 @@
 // Mess menu — updated 2026-10-01 from the institute's live mess sheet
-// (Google Sheet id 1kNxgbR0SmtWNMHWP3aWaew7QpCeoQTZTwO9yX2Ajf-U), the same
+// (Google Sheet id 1ZqJCFYScuZwK15SFVelng8VVlABeffhbHi69jQ4MOo4), the same
 // sheet the live feed (lib/messFeed.js) reads. This is the OFFLINE FALLBACK:
 // online, the app overlays the live feed on top of this. Keep it in sync when
 // the institute publishes a new cycle so first-paint / offline shows the
