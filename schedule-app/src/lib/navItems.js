@@ -12,7 +12,7 @@
 // can be migrated onto it later, but nothing here touches mobile today.
 import {
   Clock, Sunrise, CalendarRange, ClipboardCheck, GraduationCap, NotebookPen,
-  Megaphone, Users, LayoutGrid, UtensilsCrossed, ReceiptText, PawPrint, CalendarMinus2,
+  Megaphone, Users, LayoutGrid, UtensilsCrossed, ReceiptText, PawPrint,
   Sparkles, CalendarCheck2, BookOpen,
 } from "lucide-react";
 
@@ -59,7 +59,6 @@ export const NAV_ITEMS = [
   { id: "messMenu", group: "campus", label: "Mess menu", icon: UtensilsCrossed, action: "openMessMenu" },
 
   { id: "split", group: "more", label: "Split", tip: "Split expenses", icon: ReceiptText, view: "split", badge: { key: "split", label: "New" } },
-  { id: "leave", group: "more", label: "Leave planner", icon: CalendarMinus2, view: "leave" },
   { id: "pet", group: "more", label: "Companion", icon: PawPrint, view: "pet", gate: "companionEnabled", badge: { key: "pet", label: "New" } },
   { id: "wrapped", group: "more", label: "Term Wrapped", icon: Sparkles, view: "wrapped", gate: "wrappedActive" },
 ];

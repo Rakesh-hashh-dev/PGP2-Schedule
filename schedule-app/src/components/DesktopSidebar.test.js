@@ -70,7 +70,7 @@ describe("DesktopSidebar nav", () => {
       "Today", "Tomorrow", "Full timetable", "Courses", "Planner",
       "Attendance", "Exams", "Assignments",
       "Announcements", "Social", "Campus Board", "Mess menu",
-      "Split", "Leave planner", "Companion", "Term Wrapped",
+      "Split", "Companion", "Term Wrapped",
     ]);
   });
 
@@ -86,7 +86,7 @@ describe("DesktopSidebar nav", () => {
     expect(labels(html)).toEqual([
       "Today", "Tomorrow", "Full timetable", "Courses", "Planner", "Assignments",
       "Announcements", "Campus Board", "Mess menu",
-      "Split", "Leave planner",
+      "Split",
     ]);
   });
 
@@ -130,8 +130,8 @@ describe("aurora entrance cascade", () => {
       if (depth === 0) depth0.push({ tag, attrs });
       if (!attrs.endsWith("/") && !["img", "br", "input"].includes(tag)) depth++;
     }
-    // Search pill, 4 group headings, 16 rows — and nothing else.
-    expect(depth0).toHaveLength(21);
+    // Search pill, 4 group headings, 15 rows — and nothing else.
+    expect(depth0).toHaveLength(20);
     for (const el of depth0) {
       expect(["button", "div"]).toContain(el.tag);
     }

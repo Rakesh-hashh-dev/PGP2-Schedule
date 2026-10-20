@@ -21,9 +21,10 @@ describe("MobileV2MorePage", () => {
     const html = renderToStaticMarkup(<MobileV2MorePage {...requiredProps} />);
     for (const label of [
       "Announcements", "Campus Board", "Mess menu", "Full timetable",
-      "Split expenses", "Leave planner", "Add to calendar", "Filter subjects",
+      "Split expenses", "Add to calendar", "Filter subjects",
       "Edit setup", "Submit feedback", "Sign out",
     ]) expect(html).toContain(label);
+    expect(html).not.toContain("Leave planner");
     expect(html.indexOf("Social")).toBeLessThan(html.indexOf("Planner"));
     expect(html.indexOf("Planner")).toBeLessThan(html.indexOf("Campus Board"));
   });

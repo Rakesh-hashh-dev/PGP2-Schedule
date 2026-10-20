@@ -1,5 +1,5 @@
 import {
-  Bell, BookOpen, CalendarDays, CalendarOff, CheckSquare2, ChevronRight,
+  Bell, BookOpen, CalendarDays, CheckSquare2, ChevronRight,
   CircleHelp, Download, LogOut, MessageSquare, Package,
   PawPrint, Settings2, Shield, SlidersHorizontal, Sparkles, Users, UtensilsCrossed,
   Wallet, LayoutDashboard,
@@ -58,7 +58,7 @@ export default function MobileV2MorePage({
       <MoreSection title="Campus">
         <MoreRow Icon={Bell} label="Announcements" detail="Updates and alerts" badge={unreadCount} onClick={() => onNavigate("notifications")} />
         {enableFriends && <MoreRow Icon={Users} label="Social" detail="Friends, groups and free slots" onClick={() => onNavigate("friends")} />}
-        <MoreRow Icon={LayoutDashboard} label="Planner" detail="Brief, forecasts and workload" onClick={() => onNavigate("planner")} />
+        <MoreRow Icon={LayoutDashboard} label="Planner" detail="Schedule, workload and leave plans" onClick={() => onNavigate("planner")} />
         <MoreRow Icon={Package} label="Campus Board" detail="Community posts" onClick={() => onNavigate("board")} />
         <MoreRow Icon={UtensilsCrossed} label="Mess menu" detail="Today's meals" onClick={onOpenMess} />
       </MoreSection>
@@ -68,7 +68,6 @@ export default function MobileV2MorePage({
         <MoreRow Icon={BookOpen} label="Courses" detail="Classes, work and materials by subject" onClick={() => onNavigate("courseHub")} />
         <MoreRow Icon={CalendarDays} label="Full timetable" detail="Browse the complete term" onClick={() => onNavigate("fullSchedule")} />
         <MoreRow Icon={Wallet} label="Split expenses" detail="Settle group spending" onClick={() => onNavigate("split")} />
-        <MoreRow Icon={CalendarOff} label="Leave planner" detail="Plan absence safely" onClick={() => onNavigate("leave")} />
         <MoreRow Icon={Download} label="Add to calendar" detail="Export classes and exams" onClick={onOpenCalendar} />
       </MoreSection>
 
