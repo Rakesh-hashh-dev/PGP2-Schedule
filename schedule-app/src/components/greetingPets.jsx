@@ -20,6 +20,7 @@ import { useId } from "react";
 import PetExpression, { PetGesture } from "./PetExpression.jsx";
 import { Hoot, Byte, Pebble, Prickle } from "./petExtras.jsx";
 import Luna from "./Luna.jsx";
+import { Maple, Ember, Mochi, Nimbus, Sable, Inky } from "./petNewCollection.jsx";
 
 const EYE = "#22242e";
 
@@ -2075,6 +2076,12 @@ export const PETS = [
   { key: "tide", label: "Tide", Svg: Tide },
   { key: "sol", label: "Sol", Svg: Sol },
   { key: "eclipse", label: "Eclipse", Svg: Eclipse },
+  { key: "maple", label: "Maple", Svg: Maple },
+  { key: "ember", label: "Ember", Svg: Ember },
+  { key: "mochi", label: "Mochi", Svg: Mochi },
+  { key: "nimbus", label: "Nimbus", Svg: Nimbus },
+  { key: "sable", label: "Sable", Svg: Sable },
+  { key: "inky", label: "Inky", Svg: Inky },
 ];
 
 // The rover shipped as a turtle originally and admin configs saved in prod may
@@ -2092,3 +2099,4 @@ export function getPetByKey(key) {
 export function dayKey(d) {
   return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
 }
+

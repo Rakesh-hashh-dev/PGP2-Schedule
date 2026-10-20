@@ -45,6 +45,15 @@
 .dg-pet[data-pet="pebble"] { --pet-hat-x: 7.75px; --pet-hat-y: 3px; --pet-hat-scale: .65; --pet-neck-x: 7.75px; --pet-neck-y: .5px; --pet-neck-scale: .65; }
 .dg-pet[data-pet="prickle"] { --pet-hat-x: 3.75px; --pet-hat-y: 1.6px; --pet-hat-scale: .82; --pet-neck-x: 3.75px; --pet-neck-y: 2.2px; --pet-neck-scale: .8; }
 
+/* New collection, against the canonical 32-unit face and collar anchors.
+   No x shifts: eyewear uses the same centred eye positions as the registry. */
+.dg-pet[data-pet="maple"] { --pet-hat-y: -.6px; --pet-neck-y: 1.7px; --pet-neck-scale: .94; }
+.dg-pet[data-pet="ember"] { --pet-hat-y: -1.2px; --pet-neck-y: 1.8px; --pet-neck-scale: .9; }
+.dg-pet[data-pet="mochi"] { --pet-hat-y: 0px; --pet-neck-y: 3px; --pet-neck-scale: .96; }
+.dg-pet[data-pet="nimbus"] { --pet-hat-y: -1.6px; --pet-neck-y: 1.7px; --pet-neck-scale: .9; }
+.dg-pet[data-pet="sable"] { --pet-hat-y: -.7px; --pet-neck-y: 1.7px; --pet-neck-scale: .94; }
+.dg-pet[data-pet="inky"] { --pet-hat-y: -.6px; --pet-neck-y: 2px; --pet-neck-scale: .86; }
+
 /* Body choreography. A sequence is short, with its last frame back at rest. */
 .dg-pet[data-beat] { animation-duration: 1.6s; animation-iteration-count: 1; animation-fill-mode: both; }
 .dg-pet:where([data-beat="waddle"], [data-beat="shuffle"], [data-beat="chassis"]) { animation-name: dgPetStep; }
@@ -119,3 +128,4 @@
 @media (prefers-reduced-motion: reduce) {
   .dg-pet[data-beat], .dg-pet[data-reaction], .dg-pet *, .dg-pet[data-beat] *, .dg-pet[data-reaction] * { animation: none; transition: none; }
 }
+

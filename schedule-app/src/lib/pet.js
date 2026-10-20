@@ -225,6 +225,9 @@ export const BONUS_DEVOTION_UNLOCKS = { 1: "hoot", 2: "pebble", 3: "byte", 4: "p
 export const DEVOTION_COMPANIONS = [
   ...Object.entries(DEVOTION_UNLOCKS), ...Object.entries(BONUS_DEVOTION_UNLOCKS),
   ["3", "luna"],
+  // New collection shares reachable tiers; old unlocks and XP pacing stay put.
+  ["1", "maple"], ["1", "mochi"], ["2", "inky"],
+  ["3", "nimbus"], ["4", "sable"], ["4", "ember"],
 ].sort(([a], [b]) => Number(a) - Number(b));
 
 /**
@@ -1263,3 +1266,4 @@ export function publicSummary(state) {
     title: visibleTitle(s),
   };
 }
+

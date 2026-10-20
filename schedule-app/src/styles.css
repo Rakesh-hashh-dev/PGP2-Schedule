@@ -2154,6 +2154,13 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
   animation-timing-function: ease-in-out;
 }
 
+/* New collection: single-class signatures remain below the motion guards. */
+.dg-pet-sig-new-nose { animation-name: dgPetSigSniff; animation-duration: 5.8s; }
+.dg-pet-sig-new-flame { animation-name: dgPetSigNewFlame; animation-duration: 3.8s; }
+.dg-pet-sig-new-cloud { animation-name: dgPetSigNewCloud; animation-duration: 5.6s; }
+@keyframes dgPetSigNewFlame { 0%, 100% { transform: scale(1) rotate(0); } 50% { transform: scale(.94, 1.08) rotate(5deg); } }
+@keyframes dgPetSigNewCloud { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-.3px); } }
+
 /* Cat — whiskers. The path is symmetric about the muzzle, so a fraction of a
    degree lifts one side and drops the other: a twitch, not a wobble. */
 .dg-pet-sig-cat { animation-name: dgPetSigWhisker; animation-duration: 4.6s; }
@@ -21219,3 +21226,4 @@ html[data-theme="dark"] .row.row-placement .row-body { --row-accent: #60A5FA; }
   font-size: 13px; line-height: 1.4;
 }
 .pet-recount-note p { margin: 0; flex: 1 1 220px; }
+

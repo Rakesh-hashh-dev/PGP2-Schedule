@@ -27,6 +27,12 @@ export const PET_PERSONALITIES = {
   tide: ["float", "paddle", "wiggle", "twirl"],
   sol: ["flutter", "stretch", "proudpose", "shimmy"],
   eclipse: ["stargaze", "dreamyblink", "slowblink", "glance"],
+  maple: ["tailcurl", "pawrub", "earlisten", "glance"],
+  ember: ["flutter", "proudpose", "headtilt", "yawn"],
+  mochi: ["slowstretch", "nosetwitch", "tuck", "glance"],
+  nimbus: ["float", "wave", "dreamyblink", "sway"],
+  sable: ["tailflick", "groom", "earlisten", "downdog"],
+  inky: ["wave", "paddle", "wiggle", "float"],
   luna: ["luna-wave", "luna-run-right", "luna-run-left", "luna-think", "luna-jump", "luna-review"],
 };
 export const MOOD_ACTIONS = {
@@ -89,3 +95,4 @@ export function createPetBeatClock({ petKey, mood, onBeat, random = Math.random,
     stop() { running = false; clearTimer(timer); onBeat(""); },
   };
 }
+
