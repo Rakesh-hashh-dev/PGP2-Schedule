@@ -2,6 +2,7 @@
   "width": 192,
   "height": 210,
   "sourceSha256": "f35720b660377ab8aa3a43c96a7c78764b3a78f81340ed404dedd812342fcd36",
+  "preparationVersion": 2,
   "states": {
     "idle": {
       "frames": 12,

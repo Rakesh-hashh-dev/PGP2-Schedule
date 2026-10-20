@@ -1,9 +1,8 @@
 -- ============================================================
 -- Pet level cap 12 -> 20.
 --
--- NOT applied yet. REQUIRES 20261013110000_pet_xp_repair.sql to be applied FIRST.
--- The client keeps writing level <= SERVER_LEVEL_CAP (12,
--- lib/pet.js) until this is live; flip that constant to 20 afterwards.
+-- APPLIED to prod 2026-10-13, after 20261013110000_pet_xp_repair.sql (which it
+-- requires). SERVER_LEVEL_CAP in lib/pet.js was raised to 20 alongside it.
 --
 -- Everything below is the LATEST definition of each function with only the cap
 -- changed (12 -> 20), starting from the post-REPAIR versions: base_xp is retired

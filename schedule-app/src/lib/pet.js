@@ -34,9 +34,9 @@ import { ymd } from "./datetime.js";
  * Modelled over this term's real schedule (107 days, ~125 classes for the
  * median student), see `npm run xp-model`:
  *
- *   engaged (marks ~85%, opens daily)   Lv 12 ~58%   Nova (Dv 2) ~66%
+ *   engaged (marks ~85%, opens daily)   Lv 12 ~58%   Dv 2 ~66%
  *                                       Lv 18 ~78%   Cinder (Dv 4) ~79%
- *                                       Lv 20 (Eclipse) ~81%
+ *                                       Lv 20 (Dragon) ~81%
  *   perfect (marks every class)         Lv 20 at ~66% of the term
  *   casual  (marks half, opens most)    ends the term around level 11
  *
@@ -168,8 +168,8 @@ const HAT_KEYS = new Set(HATS.map(h => h.key));
  * Coats — the same companion in a different palette.
  *
  * Recoloured in CSS (a filter on `.dg-pet svg`, see styles.css) rather than by
- * shipping a second copy of every SVG: fourteen pets x six coats would be
- * eighty-four drawings to keep in sync, and the first divergence would be a bug
+ * shipping a second copy of every SVG: twenty-odd pets x nine coats would be
+ * two hundred drawings to keep in sync, and the first divergence would be a bug
  * nobody could see. The cost of the filter approach is that a coat shifts the
  * whole animal, accessories included — which is why they are tuned as gentle
  * shifts and not costume changes.
@@ -208,23 +208,28 @@ const NECK_KEYS = new Set(NECKWEAR.map(n => n.key));
 /**
  * Companions earned past the level cap.
  *
- * Levels 1-12 hand out all fourteen pets, so devotion — the only progression
- * left after that — had nothing but hats. These two are the carrot at the top
- * of the curve, and they are gated on tier rather than level so they can never
- * arrive before the roster is complete.
+ * Levels 1-12 once handed out the whole original roster, so devotion had
+ * nothing but hats. These companions are the carrot alongside the late levels,
+ * and they are gated on tier rather than level so they can never arrive before
+ * the level-12 roster is complete.
  *
  * Tiers 2 and 4 rather than 4 and 8: the pets have to be reachable inside a
  * term (the last one lands at ~80% of it — see XP), while the tiers above them
  * carry cosmetics, which are allowed to outlast the term.
  */
 // Additional companions fill the gaps without moving existing unlocks.
-export const DEVOTION_UNLOCKS = { 2: "nova", 4: "cinder" };
+// Nova (tier 2) was retired on 2026-10-20; its owners map to Inky (RENAMED_PETS).
+export const DEVOTION_UNLOCKS = { 4: "cinder" };
 export const BONUS_DEVOTION_UNLOCKS = { 1: "hoot", 2: "pebble", 3: "byte", 4: "prickle" };
 // Multiple companions can share a tier. Keep the original singular lookup
 // for callers, and use this combined list for collection and reward displays.
 export const DEVOTION_COMPANIONS = [
   ...Object.entries(DEVOTION_UNLOCKS), ...Object.entries(BONUS_DEVOTION_UNLOCKS),
   ["3", "luna"],
+  // The PR #22 collection shares the reachable tiers; old unlocks and XP
+  // pacing stay put (petEconomy.test.js still holds).
+  ["1", "maple"], ["1", "mochi"], ["2", "inky"],
+  ["3", "nimbus"], ["4", "ember"],
 ].sort(([a], [b]) => Number(a) - Number(b));
 
 /**
@@ -333,16 +338,33 @@ export function nextGrowthStage(level) {
   return i >= 0 && i < GROWTH_STAGES.length - 1 ? GROWTH_STAGES[i + 1] : null;
 }
 
-/** level → pet key unlocked on reaching it. The last four are premium pets,
- *  one every other level, so 13/15/17/19 pay out wearables and titles instead. */
+/** level → pet key unlocked on reaching it. Past 12: the cosy three on the odd
+ *  levels (13/15/17, alongside their wearables and titles), the premium four on
+ *  14/16/18/20, and 19 is the one level that pays out only a wearable. */
 export const UNLOCKS = {
   2: "fox", 3: "penguin", 4: "panda", 5: "chick", 6: "koala",
   7: "otter", 8: "rover", 9: "raccoon", 10: "axolotl",
   // 11 and 12 previously unlocked nothing — the roster ran out before the
   // curve did, so the last two level-ups gave no new companion.
   11: "spark", 12: "leafy",
-  14: "frost", 16: "tide", 18: "sol", 20: "eclipse",
+  13: "hamster", 14: "frost", 15: "sloth", 16: "sable", 17: "capy", 18: "unicorn", 20: "dragon",
 };
+
+/**
+ * Retired pet keys → the companion now in their slot. Tide, Sol and Eclipse
+ * (levels 16/18/20) were replaced on 2026-10-20 by Sable, the Unicorn and the
+ * Dragon; Nova (Devotion 2) went to Inky, which unlocks on the same tier, and
+ * the Griffin (Lv 16 for an afternoon, never in prod) to Sable. A student who
+ * had one keeps the same slot under its new key.
+ *
+ * Applied by `normalize`, so a stale cache, an old row or a friend's summary
+ * all read as the new key, and the next save writes it back. The SQL migrations
+ * 20261020130000_pet_rename_premium.sql and 20261020140000_pet_retire_nova.sql
+ * rewrite the rows themselves.
+ */
+export const RENAMED_PETS = { tide: "sable", sol: "unicorn", eclipse: "dragon", griffin: "sable", nova: "inky" };
+const isRenamed = key => typeof key === "string" && Object.hasOwn(RENAMED_PETS, key);
+const renamed = key => (isRenamed(key) ? RENAMED_PETS[key] : key);
 
 // ── State ───────────────────────────────────────────────────────
 
@@ -380,10 +402,24 @@ export function emptyPet() {
  * every re-sync, and returning a fresh object each time would defeat React's
  * bail-out and re-render the greeting on a live clock tick.
  */
+// Objects already proven normalized. Every helper normalizes its input, and the
+// pet page calls a dozen of them per render on a live clock, so re-walking the
+// whole ledger each time added up. State is never mutated in place (every
+// transform here spreads), so a verified object stays verified.
+const VERIFIED = new WeakSet();
+
 function isNormalized(raw) {
+  if (raw && typeof raw === "object" && VERIFIED.has(raw)) return true;
+  if (!checkNormalized(raw)) return false;
+  VERIFIED.add(raw);
+  return true;
+}
+
+function checkNormalized(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return false;
   if (raw.v !== 1) return false;
   if (raw.petKey !== null && typeof raw.petKey !== "string") return false;
+  if (isRenamed(raw.petKey) || isRenamed(raw.cosmetics?.buddy)) return false;
   if (typeof raw.name !== "string" || raw.name.length > 24) return false;
   if (raw.baseXp !== 0) return false;
   if (!Number.isFinite(raw.legacyXp) || raw.legacyXp < 0) return false;
@@ -399,7 +435,7 @@ function isNormalized(raw) {
   if (!care || typeof care !== "object") return false;
   if (care.day !== null && typeof care.day !== "string") return false;
   if (!Number.isInteger(care.used) || care.used < 0 || care.used > CARE_DAILY_CAP) return false;
-  if (!Array.isArray(raw.unlocked) || raw.unlocked.some(k => typeof k !== "string")) return false;
+  if (!Array.isArray(raw.unlocked) || raw.unlocked.some(k => typeof k !== "string" || isRenamed(k))) return false;
   if (!raw.cosmetics || typeof raw.cosmetics.accessory !== "boolean") return false;
   if (raw.cosmetics.hat !== null && !HAT_KEYS.has(raw.cosmetics.hat)) return false;
   if (raw.cosmetics.coat !== null && !COAT_KEYS.has(raw.cosmetics.coat)) return false;
@@ -432,7 +468,7 @@ export function normalize(raw) {
     ...base,
     ...raw,
     v: 1,
-    petKey: typeof raw.petKey === "string" ? raw.petKey : null,
+    petKey: typeof raw.petKey === "string" ? renamed(raw.petKey) : null,
     name: typeof raw.name === "string" ? raw.name.slice(0, 24) : "",
     // Retired: a stale cache's baseXp was double-counted by the old prune/merge
     // loop, so it is read and discarded rather than added to XP.
@@ -448,7 +484,9 @@ export function normalize(raw) {
       used: Number.isFinite(raw.care?.used) ? Math.max(0, Math.min(CARE_DAILY_CAP, raw.care.used)) : 0,
     },
     lastSeen: Number.isFinite(raw.lastSeen) && raw.lastSeen > 0 ? raw.lastSeen : 0,
-    unlocked: Array.isArray(raw.unlocked) ? raw.unlocked.filter(k => typeof k === "string") : [],
+    unlocked: Array.isArray(raw.unlocked)
+      ? Array.from(new Set(raw.unlocked.filter(k => typeof k === "string").map(renamed)))
+      : [],
     cosmetics: {
       accessory: raw.cosmetics?.accessory !== false,
       // An unknown key means a hat this build no longer ships (or a hand-edited
@@ -460,7 +498,7 @@ export function normalize(raw) {
       coat: COAT_KEYS.has(raw.cosmetics?.coat) ? raw.cosmetics.coat : null,
       neck: NECK_KEYS.has(raw.cosmetics?.neck) ? raw.cosmetics.neck : null,
       title: TITLE_KEYS.has(raw.cosmetics?.title) ? raw.cosmetics.title : null,
-      buddy: typeof raw.cosmetics?.buddy === "string" ? raw.cosmetics.buddy : null,
+      buddy: typeof raw.cosmetics?.buddy === "string" ? renamed(raw.cosmetics.buddy) : null,
     },
   };
 }
@@ -883,7 +921,8 @@ export function attendanceStreak(state, now = new Date(), classDays = null) {
   const s = normalize(state);
   const attended = new Set();
   for (const key of Object.keys(s.awarded)) {
-    if (key.startsWith("att:")) attended.add(key.split(":")[1]);
+    const day = attendanceDayOf(key);
+    if (day) attended.add(day);
   }
   if (attended.size === 0) return 0;
   const today = ymd(now);
@@ -898,6 +937,20 @@ export function attendanceStreak(state, now = new Date(), classDays = null) {
     if (!offDay) break;
   }
   return streak;
+}
+
+/**
+ * The class date an `att:` key belongs to, or null.
+ *
+ * Read with a pattern rather than `split(":")`: a real key embeds the session
+ * key, `att:2026-10-16_09:00_SCM_A`, and the colon inside the start time cut
+ * the date to "2026-10-16_09", so no attended day ever matched and "hyped"
+ * could not fire.
+ */
+const ATT_DAY = /^att:(\d{4}-\d{2}-\d{2})/;
+export function attendanceDayOf(key) {
+  const m = ATT_DAY.exec(key);
+  return m ? m[1] : null;
 }
 
 function ledgerStreak(state, now, prefix) {
@@ -1184,9 +1237,23 @@ export function unlockedFor(state) {
   return Array.from(new Set([...unlockedAtLevel(level), ...devoted, ...s.unlocked]));
 }
 
-/** Companion key earned at a devotion tier, or null. */
+/** A companion key earned at a devotion tier (the headline one), or null.
+ *  Several can share a tier — `DEVOTION_COMPANIONS` has the full list. */
 export function unlockedAtDevotion(tier) {
-  return DEVOTION_UNLOCKS[tier] || null;
+  return DEVOTION_UNLOCKS[tier]
+    || DEVOTION_COMPANIONS.find(([t]) => Number(t) === Number(tier))?.[1]
+    || null;
+}
+
+/**
+ * Companions `next` owns that `prev` did not, in roster-unlock order — drives
+ * the "new companion" toast. Covers level AND devotion unlocks (and the legacy
+ * floor), because it diffs `unlockedFor` rather than walking one table.
+ */
+export function companionsGained(prev, next) {
+  if (!isAdopted(prev) || !isAdopted(next)) return [];
+  const had = new Set(unlockedFor(prev));
+  return unlockedFor(next).filter(k => !had.has(k));
 }
 
 /** Pets gained crossing from `prevLevel` to `level` — drives the unlock toast. */
@@ -1238,6 +1305,30 @@ export function mergePets(a, b) {
 }
 
 /**
+ * A friend's cosmetics, kept only where the friend's standing earns them.
+ *
+ * Friends never see the ledger, so they cannot run `visibleHat` and friends.
+ * `get_friend_pets` instead returns the owner's server-computed unlock standing
+ * (`{ level, tier }`, legacy floor included) and this re-applies the registry
+ * gates to it, so a hand-edited row cannot show a friend a crown. Titles gated
+ * on facts the projection does not carry (companions owned, days adopted) are
+ * let through; they are cosmetic and the level/tier ones cover the big claims.
+ */
+export function friendCosmetics({ hat = null, neck = null, coat = null, title = null } = {}, { level = 1, tier = 0 } = {}) {
+  const ok = (list, key) => {
+    const item = list.find(i => i.key === key);
+    if (!item) return null;
+    return (item.devotion ? tier >= item.devotion : level >= item.level) ? key : null;
+  };
+  let shownTitle = null;
+  if (TITLE_KEYS.has(title)) {
+    const t = TITLES.find(x => x.key === title);
+    shownTitle = t.test({ level, tier, unlocked: Infinity, days: Infinity }) ? title : null;
+  }
+  return { hat: ok(HATS, hat), neck: ok(NECKWEAR, neck), coat: ok(COATS, coat), title: shownTitle };
+}
+
+/**
  * The compact public projection — the ONLY shape that may reach another
  * student's screen. No XP, no ledger, no timestamps, no streak.
  */
@@ -1245,10 +1336,9 @@ export function publicSummary(state) {
   const s = normalize(state);
   if (!isAdopted(s)) return null;
   // Cosmetics ride along now that `get_friend_pets` projects them (migration
-  // 20260906120000_pet_public_cosmetics.sql). They are validated the same way
-  // the wearer's own view validates them — `visibleHat` and friends refuse a
-  // cosmetic that is no longer earned — so a hand-edited row cannot show a
-  // friend a crown the owner never reached.
+  // 20260906120000_pet_public_cosmetics.sql). This summary is validated the
+  // way the wearer's own view is. The RPC itself reads the raw cosmetics
+  // column, so the receiving side re-checks them with `friendCosmetics`.
   //
   // Titles are deliberately included and the buddy is deliberately not: a
   // title is a fact about the pet, the buddy is a second animal to draw, and

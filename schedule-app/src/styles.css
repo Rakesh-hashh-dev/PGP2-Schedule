@@ -1639,27 +1639,6 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
    `animation: none` still wins for anyone who asked for stillness. Moods retime
    them through their own `[data-mood] .part` rules. */
 
-/* Nova. Three stars on separate orbits, a coat that twinkles out of phase with
-   itself, and a comet tail that drifts rather than wags. */
-.dg-pet-orbit { transform-box: view-box; transform-origin: 16px 17.4px; animation: dgPetOrbit calc(14s * var(--pet-tempo)) linear infinite; }
-.dg-pet-orbit-b { animation-duration: calc(19s * var(--pet-tempo)); animation-direction: reverse; }
-.dg-pet-orbit-c { animation-duration: calc(11s * var(--pet-tempo)); animation-delay: -4s; }
-@keyframes dgPetOrbit { to { transform: rotate(360deg); } }
-
-.dg-pet-twinkle { transform-box: fill-box; transform-origin: center; animation: dgPetTwinkle calc(3.1s * var(--pet-tempo)) ease-in-out infinite; }
-.dg-pet-twinkle-b { animation-duration: calc(4.3s * var(--pet-tempo)); animation-delay: -1.4s; }
-.dg-pet-twinkle-c { animation-duration: calc(2.6s * var(--pet-tempo)); animation-delay: -.7s; }
-@keyframes dgPetTwinkle {
-  0%, 100% { opacity: .35; transform: scale(.8); }
-  45% { opacity: 1; transform: scale(1.25); }
-}
-
-.dg-pet-comet { transform-box: fill-box; transform-origin: 0 50%; animation: dgPetComet calc(5.4s * var(--pet-tempo)) ease-in-out infinite; }
-@keyframes dgPetComet {
-  0%, 100% { transform: rotate(-3deg) translateX(0); }
-  50% { transform: rotate(4deg) translateX(.5px); }
-}
-
 /* Cinder. The flame never repeats: the tongues run on three coprime clocks, so
    the shape they add up to takes most of a minute to come round again. */
 .dg-pet-flame { transform-box: fill-box; transform-origin: 10% 90%; animation: dgPetFlame calc(2.3s * var(--pet-tempo)) ease-in-out infinite; }
@@ -1750,56 +1729,35 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
   52%, 100% { opacity: 0; transform: translate(2.6px, -1.2px) scale(1.25); }
 }
 
-/* Tide. Two ripples spread from the base half a cycle apart, and bubbles rise
-   on clocks that never line up with them or each other. */
-.dg-pet-ripple { transform-box: fill-box; transform-origin: center; animation: dgPetRipple calc(3.6s * var(--pet-tempo)) ease-out infinite; }
-.dg-pet-ripple-b { animation-delay: 1.8s; }
-@keyframes dgPetRipple {
-  0% { opacity: 0; transform: scale(.6); }
-  15% { opacity: .9; }
-  100% { opacity: 0; transform: scale(1.25); }
-}
-.dg-pet-bubble { transform-box: fill-box; transform-origin: center; animation: dgPetBubble calc(3.2s * var(--pet-tempo)) ease-in infinite; }
-.dg-pet-bubble-b { animation-duration: calc(2.7s * var(--pet-tempo)); animation-delay: -1s; }
-.dg-pet-bubble-c { animation-duration: calc(3.8s * var(--pet-tempo)); animation-delay: -2.2s; }
-@keyframes dgPetBubble {
-  0%, 8% { opacity: 0; transform: translate(0, 2px) scale(.6); }
-  25% { opacity: 1; }
-  55% { transform: translate(.6px, -2.6px) scale(.9); }
-  85% { opacity: .9; transform: translate(-.4px, -5.6px) scale(1.05); }
-  100% { opacity: 0; transform: translate(0, -6.6px) scale(1.25); }
+/* Unicorn. The rainbow behind it brightens and settles on a slow breath while
+   stars rise off the coat; the horn catches a glint. */
+.dg-pet-rainbow { transform-box: fill-box; transform-origin: 50% 100%; animation: dgPetRainbow calc(4.6s * var(--pet-tempo)) ease-in-out infinite; }
+@keyframes dgPetRainbow { 0%, 100% { opacity: .35; transform: scale(.97); } 50% { opacity: .75; transform: scale(1.02); } }
+.dg-pet-sparkle { transform-box: fill-box; transform-origin: center; animation: dgPetSparkle calc(3.4s * var(--pet-tempo)) ease-out infinite; }
+.dg-pet-sparkle-b { animation-duration: calc(4.1s * var(--pet-tempo)); animation-delay: -1.3s; }
+.dg-pet-sparkle-c { animation-duration: calc(2.9s * var(--pet-tempo)); animation-delay: -2.2s; }
+@keyframes dgPetSparkle {
+  0%, 10% { opacity: 0; transform: translateY(1.5px) scale(.5); }
+  35% { opacity: 1; transform: translateY(0) scale(1.1); }
+  100% { opacity: 0; transform: translateY(-5px) scale(.7) rotate(45deg); }
 }
 
-/* Sol. The halo swells on a slow breath while the ray ring turns behind it;
-   the crest flickers on its own short clock and embers lift off the wings. */
-.dg-pet-sunhalo { transform-box: fill-box; transform-origin: center; animation: dgPetSunHalo calc(3.2s * var(--pet-tempo)) ease-in-out infinite; }
-@keyframes dgPetSunHalo { 0%, 100% { opacity: .55; transform: scale(.94); } 50% { opacity: 1; transform: scale(1.06); } }
-.dg-pet-sunrays { transform-box: view-box; transform-origin: 16px 16.6px; animation: dgPetSpin calc(24s * var(--pet-tempo)) linear infinite; }
+/* Dragon, the finale. An aura that breathes, a ring of gold runes turning once
+   every 30s, embers lifting off on four clocks, smoke from the nostrils
+   (Frost's breath classes) and a coin in the hoard that catches the light. */
 @keyframes dgPetSpin { to { transform: rotate(360deg); } }
-.dg-pet-crest { transform-box: fill-box; transform-origin: 50% 100%; animation: dgPetCrest calc(1.4s * var(--pet-tempo)) ease-in-out infinite; }
-@keyframes dgPetCrest {
-  0%, 100% { transform: scale(1) rotate(0); }
-  30% { transform: scale(.96, 1.08) rotate(-2deg); }
-  65% { transform: scale(1.03, .95) rotate(2deg); }
-}
-.dg-pet-solspark { transform-box: fill-box; transform-origin: center; animation: dgPetSolSpark calc(2.8s * var(--pet-tempo)) ease-out infinite; }
-.dg-pet-solspark-b { animation-duration: calc(3.4s * var(--pet-tempo)); animation-delay: .9s; }
-.dg-pet-solspark-c { animation-duration: calc(2.4s * var(--pet-tempo)); animation-delay: 1.6s; }
-.dg-pet-solspark-d { animation-duration: calc(3s * var(--pet-tempo)); animation-delay: 2.2s; }
-@keyframes dgPetSolSpark {
+.dg-pet-dragonaura { transform-box: fill-box; transform-origin: center; animation: dgPetDragonAura calc(4.4s * var(--pet-tempo)) ease-in-out infinite; }
+@keyframes dgPetDragonAura { 0%, 100% { opacity: .6; transform: scale(.95); } 50% { opacity: 1; transform: scale(1.05); } }
+.dg-pet-runes { transform-box: view-box; transform-origin: 16px 16.6px; animation: dgPetSpin calc(30s * var(--pet-tempo)) linear infinite; }
+.dg-pet-ember { transform-box: fill-box; transform-origin: center; animation: dgPetEmber calc(2.8s * var(--pet-tempo)) ease-out infinite; }
+.dg-pet-ember-b { animation-duration: calc(3.4s * var(--pet-tempo)); animation-delay: .9s; }
+.dg-pet-ember-c { animation-duration: calc(2.4s * var(--pet-tempo)); animation-delay: 1.6s; }
+.dg-pet-ember-d { animation-duration: calc(3s * var(--pet-tempo)); animation-delay: 2.2s; }
+@keyframes dgPetEmber {
   0%, 10% { opacity: 0; transform: translateY(1.5px) scale(.6) rotate(0); }
   30% { opacity: 1; }
   100% { opacity: 0; transform: translate(.8px, -6px) scale(1.1) rotate(45deg); }
 }
-
-/* Eclipse, the finale. The corona turns once every 40s behind a glow that
-   breathes, two motes orbit in opposite directions at unrelated speeds, the
-   coat twinkles (Nova's starfield classes), and a glint catches the horn. */
-.dg-pet-umbra { transform-box: fill-box; transform-origin: center; animation: dgPetUmbra calc(5s * var(--pet-tempo)) ease-in-out infinite; }
-@keyframes dgPetUmbra { 0%, 100% { opacity: .6; transform: scale(.96); } 50% { opacity: 1; transform: scale(1.04); } }
-.dg-pet-corona { transform-box: view-box; transform-origin: 16px 16.6px; animation: dgPetSpin calc(40s * var(--pet-tempo)) linear infinite; }
-.dg-pet-mote { transform-box: view-box; transform-origin: 16px 16.6px; animation: dgPetSpin calc(9s * var(--pet-tempo)) linear infinite; }
-.dg-pet-mote-b { animation-duration: calc(13s * var(--pet-tempo)); animation-direction: reverse; }
 @keyframes dgPetAura { 0%, 100% { transform: scale(.94); opacity: calc(.72 * var(--pet-aura)); } 52% { transform: scale(1.06); opacity: var(--pet-aura); } }
 @keyframes dgPetHappy { 0%, 100% { transform: translateY(0) rotate(0) scale(1); } 25% { transform: translateY(-5px) rotate(-8deg) scale(1.04); } 52% { transform: translateY(-1px) rotate(7deg) scale(1.02); } 76% { transform: translateY(-3px) rotate(-4deg) scale(1.03); } }
 @keyframes dgPetPlay { 0%, 100% { transform: translateX(0) translateY(0) rotate(0); } 20% { transform: translateX(-4px) translateY(-3px) rotate(-10deg); } 47% { transform: translateX(4px) translateY(-6px) rotate(11deg); } 73% { transform: translateX(-2px) translateY(-2px) rotate(-5deg); } }
@@ -2029,12 +1987,9 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 .dg-pet[data-pet="axolotl"] { --pet-neck-y: .9px; }
 .dg-pet[data-pet="spark"] { --pet-neck-y: 1.4px; }
 .dg-pet[data-pet="leafy"] { --pet-neck-y: 2.4px; --pet-neck-scale: .94; }
-.dg-pet[data-pet="nova"] { --pet-neck-y: 1.3px; }
 .dg-pet[data-pet="cinder"] { --pet-neck-y: 1.8px; }
 .dg-pet[data-pet="frost"] { --pet-neck-y: 1.1px; }
-.dg-pet[data-pet="tide"] { --pet-neck-y: 1.1px; }
-.dg-pet[data-pet="sol"] { --pet-neck-y: 1.1px; }
-.dg-pet[data-pet="eclipse"] { --pet-neck-y: 1.1px; }
+.dg-pet[data-pet="unicorn"], .dg-pet[data-pet="dragon"] { --pet-neck-y: 1.1px; }
 
 /* ── Coats ──────────────────────────────────────────────────────
    The same companion in a different palette, done as a filter over the whole
@@ -2260,6 +2215,18 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 .dg-pet-sig-byte { animation-name: dgPetSigSniff; animation-duration: 3.4s; }
 .dg-pet-sig-pebble { animation-name: dgPetSigTwitch; animation-duration: 6.4s; }
 .dg-pet-sig-prickle { animation-name: dgPetSigSniff; animation-duration: 4.1s; }
+/* The cosy three (levels 13/15/17): cheeks that fill, a leaf that barely
+   sways, and a yuzu that rocks while the capybara does nothing at all. */
+.dg-pet-sig-hamster { animation-name: dgPetSigPuff; animation-duration: 3.6s; }
+.dg-pet-sig-sloth { animation-name: dgPetSigFluff; animation-duration: 7.4s; }
+.dg-pet-sig-capy { animation-name: dgPetSigShuffle; animation-duration: 5.2s; }
+/* The PR #22 devotion collection: a sniffing nose, a flickering tail flame
+   and a drifting cloud wisp / blush. */
+.dg-pet-sig-new-nose { animation-name: dgPetSigSniff; animation-duration: 5.8s; }
+.dg-pet-sig-new-flame { animation-name: dgPetSigNewFlame; animation-duration: 3.8s; }
+.dg-pet-sig-new-cloud { animation-name: dgPetSigNewCloud; animation-duration: 5.6s; }
+@keyframes dgPetSigNewFlame { 0%, 100% { transform: scale(1) rotate(0); } 50% { transform: scale(.94, 1.08) rotate(5deg); } }
+@keyframes dgPetSigNewCloud { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-.3px); } }
 
 @media (prefers-reduced-motion: reduce) {
   .dg-pet, .dg-pet::before, .dg-pet *, .dg-pet-eyes, .dg-pet-tray { animation: none; }
@@ -2601,12 +2568,13 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 .dg-pet[data-pet="panda"], .dg-pet[data-pet="raccoon"] { --pet-turn: -1.7deg; --pet-accent: #8993a7; }
 .dg-pet[data-pet="spark"] { --pet-turn: 2.4deg; --pet-accent: #f7c631; }
 .dg-pet[data-pet="leafy"] { --pet-turn: -1.6deg; --pet-accent: #5ec46c; }
-.dg-pet[data-pet="nova"] { --pet-turn: -2deg; --pet-accent: #7c6cf0; }
 .dg-pet[data-pet="cinder"] { --pet-turn: 2.2deg; --pet-accent: #f59e0b; }
 .dg-pet[data-pet="frost"] { --pet-turn: -1.4deg; --pet-accent: #7fbfe8; }
-.dg-pet[data-pet="tide"] { --pet-turn: 1.8deg; --pet-accent: #3fb8c4; }
-.dg-pet[data-pet="sol"] { --pet-turn: 2deg; --pet-accent: #f7902a; }
-.dg-pet[data-pet="eclipse"] { --pet-turn: -2.2deg; --pet-accent: #9b82ec; }
+.dg-pet[data-pet="unicorn"] { --pet-turn: -1.8deg; --pet-accent: #b996ff; }
+.dg-pet[data-pet="dragon"] { --pet-turn: 2.2deg; --pet-accent: #38bf83; }
+.dg-pet[data-pet="hamster"] { --pet-turn: 1.6deg; --pet-accent: #f2ad5c; }
+.dg-pet[data-pet="sloth"] { --pet-turn: -1deg; --pet-accent: #b09a80; }
+.dg-pet[data-pet="capy"] { --pet-turn: -1.2deg; --pet-accent: #b98252; }
 /* Temperament. `--pet-mood-gain` scales how far a mood is allowed to move the
    ears and the body lean, so the same twelve mood rules land differently on
    twelve animals: the penguin barely registers an emotion, the chick has no
@@ -2618,11 +2586,11 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 .dg-pet[data-pet="chick"] { --pet-hat-y: -1px; }
 
 .dg-pet[data-pet="spark"] { --pet-hat-y: -.6px; }
-.dg-pet[data-pet="nova"], .dg-pet[data-pet="cinder"] { --pet-hat-y: -.5px; }
+.dg-pet[data-pet="cinder"] { --pet-hat-y: -.5px; }
 .dg-pet[data-pet="frost"] { --pet-hat-y: -1px; }
-.dg-pet[data-pet="tide"] { --pet-hat-y: -.4px; }
-.dg-pet[data-pet="sol"] { --pet-hat-y: -.6px; }
-.dg-pet[data-pet="eclipse"] { --pet-hat-y: -.7px; }
+.dg-pet[data-pet="unicorn"] { --pet-hat-y: -.2px; }
+.dg-pet[data-pet="dragon"], .dg-pet[data-pet="hamster"] { --pet-hat-y: -.1px; }
+.dg-pet[data-pet="sloth"] { --pet-hat-y: .2px; }
 .dg-pet[data-pet="koala"], .dg-pet[data-pet="otter"] { --pet-hat-y: -.2px; }
 .dg-pet[data-pet="axolotl"] { --pet-hat-y: .4px; }
 .dg-pet[data-pet="penguin"] { --pet-hat-y: 1.5px; }
@@ -2634,11 +2602,13 @@ html[data-theme="dark"] .dg-pet::before { background: radial-gradient(ellipse at
 .dg-pet[data-pet="otter"] { --pet-mood-gain: 1.2; }
 .dg-pet[data-pet="fox"] { --pet-mood-gain: 1.15; }
 .dg-pet[data-pet="cinder"] { --pet-mood-gain: 1.1; }
-.dg-pet[data-pet="sol"] { --pet-mood-gain: 1.2; }
+.dg-pet[data-pet="hamster"] { --pet-mood-gain: 1.2; }
 .dg-pet[data-pet="frost"] { --pet-mood-gain: 1.05; }
-.dg-pet[data-pet="tide"] { --pet-mood-gain: .95; }
-.dg-pet[data-pet="eclipse"] { --pet-mood-gain: .9; }
-.dg-pet[data-pet="nova"] { --pet-mood-gain: .95; }
+.dg-pet[data-pet="unicorn"] { --pet-mood-gain: 1; }
+.dg-pet[data-pet="dragon"] { --pet-mood-gain: .95; }
+/* The two calmest animals on the roster barely move for anything. */
+.dg-pet[data-pet="sloth"] { --pet-mood-gain: .75; }
+.dg-pet[data-pet="capy"] { --pet-mood-gain: .7; }
 .dg-pet[data-pet="dog"] { --pet-mood-gain: 1.1; }
 .dg-pet[data-pet="bunny"] { --pet-mood-gain: 1.05; }
 .dg-pet[data-pet="axolotl"] { --pet-mood-gain: .9; }

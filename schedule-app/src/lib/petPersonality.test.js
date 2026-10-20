@@ -5,8 +5,8 @@ import { LUNA_MOODS, MOOD_ACTIONS, PET_PERSONALITIES, PET_BEAT_MS, PET_GAP_MIN_M
 
 afterEach(() => vi.useRealTimers());
 describe("companion personalities", () => {
-  it("gives all 25 companions at least three signature actions", () => {
-    expect(PETS).toHaveLength(25);
+  it("gives all 32 companions at least three signature actions", () => {
+    expect(PETS).toHaveLength(32);
     for (const pet of PETS) expect(new Set(PET_PERSONALITIES[pet.key]).size, pet.key).toBeGreaterThanOrEqual(3);
   });
   it("does not repeat the previous action in any pet/mood combination", () => {

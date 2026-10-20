@@ -43,6 +43,13 @@
 .dg-pet[data-pet="hoot"] { --pet-hat-y: -1px; --pet-neck-y: .1px; --pet-neck-scale: .88; }
 .dg-pet[data-pet="byte"] { --pet-hat-y: -1px; --pet-neck-y: -1.8px; --pet-neck-scale: .8; }
 .dg-pet[data-pet="pebble"] { --pet-hat-x: 7.75px; --pet-hat-y: 3px; --pet-hat-scale: .65; --pet-neck-x: 7.75px; --pet-neck-y: .5px; --pet-neck-scale: .65; }
+/* PR #22 collection, against the canonical 32-unit face and collar anchors. */
+.dg-pet[data-pet="maple"] { --pet-hat-y: -.6px; --pet-neck-y: 1.7px; --pet-neck-scale: .94; }
+.dg-pet[data-pet="ember"] { --pet-hat-y: -1.2px; --pet-neck-y: 1.8px; --pet-neck-scale: .9; }
+.dg-pet[data-pet="mochi"] { --pet-hat-y: 0px; --pet-neck-y: 3px; --pet-neck-scale: .96; }
+.dg-pet[data-pet="nimbus"] { --pet-hat-y: -1.6px; --pet-neck-y: 1.7px; --pet-neck-scale: .9; }
+.dg-pet[data-pet="sable"] { --pet-hat-y: -.7px; --pet-neck-y: 1.7px; --pet-neck-scale: .94; }
+.dg-pet[data-pet="inky"] { --pet-hat-y: -.6px; --pet-neck-y: 2px; --pet-neck-scale: .86; }
 .dg-pet[data-pet="prickle"] { --pet-hat-x: 3.75px; --pet-hat-y: 1.6px; --pet-hat-scale: .82; --pet-neck-x: 3.75px; --pet-neck-y: 2.2px; --pet-neck-scale: .8; }
 
 /* Body choreography. A sequence is short, with its last frame back at rest. */

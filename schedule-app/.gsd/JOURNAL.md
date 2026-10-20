@@ -237,3 +237,19 @@ OAuth exchange or browser-to-API save. Evidence: ignored
 - Validation: 59 unit test files / 559 tests passed; all four isolated performance tests passed. Changed-source lint has no errors (one pre-existing FullSchedulePage hook warning). Production Vite/PWA build passed; final build rerun after grouping fix. Version bumped to 7.3.1.
 - Browser: authenticated dev Admin Schedule showed cancellation selectors and Config is up to date. Date navigation only; no config changes deployed. September SOM overrides have no matching current feed rows, so stripe/actions verified in isolated actual-component preview using sample data at default desktop and 390x844 phone viewport. Disabled properties=true and opacity=.45 confirmed. Temporary viewport reset.
 - Physical installed Android PWA notification delivery, lock-screen appearance and tap routing remain unverified: user has no Android phone. Preview and worker tests do not substitute for device validation.
+
+## Companion artwork completion - 14/10/2026, 22:21:25
+
+
+- Vitest: Test Files 60 passed (60); Tests 589 passed (589).
+- Targeted companion/app/Node preview ESLint: PASS.
+- Vite production build: built in 15.13s; PWA 122 precache entries; isolated .local/companion-polish-build output.
+- Browser QA: all 15 cases PASS, including 4 full-roster sweeps of 4,025 state/size combinations each; 25 application-page heroes per sweep. Both themes, 390px phone, reduced-motion, keyboard calm pose, care priority, wardrobe sync, hidden/offscreen pausing, unique/resolved defs, zero out-of-canvas geometry at sampled poses.
+- All 550 mood renders captured and visually inspected on each theme.
+- git diff --check: PASS.
+
+Review: .local/companion-preview.html. Details and regeneration: docs/companion-artwork-review.md. Reports: .local/pet-browser-report.json and .local/luna-visual-report.json.
+
+Boundaries: isolated offline SSR/component/CSS verification, no saved data/authenticated app operations. Preview application-page buttons are static; preview controls only mutate preview DOM. Geometry sampled at 550ms, not every in-between frame. Existing build warnings are documented.
+
+Preserved unrelated sheet.js, sheet.test.js, vite.config.js and docs/pet-codex-lessons-plan.md changes. Original paused checkpoint remains under session/20261014_183848 as history.

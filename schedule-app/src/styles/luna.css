@@ -1,7 +1,7 @@
 /* Luna uses supplied full-body frames. Avoid a second bob, lean or eye blink. */
 .dg-pet[data-pet="luna"] { animation: none; --pet-lean: 0deg; --pet-drop: 0px;
   --luna-idle: inline; --luna-run-right: none; --luna-run-left: none; --luna-wave: none; --luna-jump: none; --luna-rest: none; --luna-wait: none; --luna-think: none; --luna-review: none;
-  --pet-hat-x: 0px; --pet-hat-y: -7.5px; --pet-hat-scale: 0.68; --pet-neck-x: 0px; --pet-neck-y: -7.5px; --pet-neck-scale: 0.68;
+  --pet-hat-x: 0px; --pet-hat-y: -1px; --pet-hat-scale: 1; --pet-neck-x: 0px; --pet-neck-y: 1.1px; --pet-neck-scale: 1;
 }
 .dg-pet[data-pet="luna"][data-reaction] { animation: none; }
 .dg-pet .luna-viewport { overflow: hidden; filter: none; transform: none; position: static; }
@@ -37,7 +37,7 @@
 }
 .dg-pet[data-pet="luna"]:where([data-mood="excited"], [data-mood="celebrating"], [data-mood="festive"], [data-mood="birthday"]) {
   --luna-idle: none; --luna-run-right: none; --luna-run-left: none; --luna-wave: none; --luna-jump: inline; --luna-rest: none; --luna-wait: none; --luna-think: none; --luna-review: none;
-  --pet-hat-x: 0px; --pet-hat-y: -7.5px; --pet-hat-scale: 0.68; --pet-neck-x: 0px; --pet-neck-y: -7.5px; --pet-neck-scale: 0.68;
+  --pet-hat-x: 0px; --pet-hat-y: -1px; --pet-hat-scale: 1; --pet-neck-x: 0px; --pet-neck-y: 1.1px; --pet-neck-scale: 1;
 }
 .dg-pet[data-pet="luna"]:where([data-beat="luna-run-right"]) {
   --luna-idle: none; --luna-run-right: inline; --luna-run-left: none; --luna-wave: none; --luna-jump: none; --luna-rest: none; --luna-wait: none; --luna-think: none; --luna-review: none;
@@ -49,11 +49,11 @@
 }
 .dg-pet[data-pet="luna"]:where([data-beat="luna-wave"]) {
   --luna-idle: none; --luna-run-right: none; --luna-run-left: none; --luna-wave: inline; --luna-jump: none; --luna-rest: none; --luna-wait: none; --luna-think: none; --luna-review: none;
-  --pet-hat-x: 0px; --pet-hat-y: -7.5px; --pet-hat-scale: 0.68; --pet-neck-x: 0px; --pet-neck-y: -7.5px; --pet-neck-scale: 0.68;
+  --pet-hat-x: 0px; --pet-hat-y: -1px; --pet-hat-scale: 1; --pet-neck-x: 0px; --pet-neck-y: 1.1px; --pet-neck-scale: 1;
 }
 .dg-pet[data-pet="luna"]:where([data-beat="luna-jump"]) {
   --luna-idle: none; --luna-run-right: none; --luna-run-left: none; --luna-wave: none; --luna-jump: inline; --luna-rest: none; --luna-wait: none; --luna-think: none; --luna-review: none;
-  --pet-hat-x: 0px; --pet-hat-y: -7.5px; --pet-hat-scale: 0.68; --pet-neck-x: 0px; --pet-neck-y: -7.5px; --pet-neck-scale: 0.68;
+  --pet-hat-x: 0px; --pet-hat-y: -1px; --pet-hat-scale: 1; --pet-neck-x: 0px; --pet-neck-y: 1.1px; --pet-neck-scale: 1;
 }
 .dg-pet[data-pet="luna"]:where([data-beat="luna-rest"]) {
   --luna-idle: none; --luna-run-right: none; --luna-run-left: none; --luna-wave: none; --luna-jump: none; --luna-rest: inline; --luna-wait: none; --luna-think: none; --luna-review: none;
@@ -73,11 +73,11 @@
 }
 .dg-pet[data-pet="luna"]:where([data-reaction="pet"]) {
   --luna-idle: none; --luna-run-right: none; --luna-run-left: none; --luna-wave: inline; --luna-jump: none; --luna-rest: none; --luna-wait: none; --luna-think: none; --luna-review: none;
-  --pet-hat-x: 0px; --pet-hat-y: -7.5px; --pet-hat-scale: 0.68; --pet-neck-x: 0px; --pet-neck-y: -7.5px; --pet-neck-scale: 0.68;
+  --pet-hat-x: 0px; --pet-hat-y: -1px; --pet-hat-scale: 1; --pet-neck-x: 0px; --pet-neck-y: 1.1px; --pet-neck-scale: 1;
 }
 .dg-pet[data-pet="luna"]:where([data-reaction="play"]) {
   --luna-idle: none; --luna-run-right: none; --luna-run-left: none; --luna-wave: none; --luna-jump: inline; --luna-rest: none; --luna-wait: none; --luna-think: none; --luna-review: none;
-  --pet-hat-x: 0px; --pet-hat-y: -7.5px; --pet-hat-scale: 0.68; --pet-neck-x: 0px; --pet-neck-y: -7.5px; --pet-neck-scale: 0.68;
+  --pet-hat-x: 0px; --pet-hat-y: -1px; --pet-hat-scale: 1; --pet-neck-x: 0px; --pet-neck-y: 1.1px; --pet-neck-scale: 1;
 }
 .dg-pet[data-pet="luna"]:where([data-reaction="treat"]) {
   --luna-idle: none; --luna-run-right: none; --luna-run-left: none; --luna-wave: none; --luna-jump: none; --luna-rest: none; --luna-wait: inline; --luna-think: none; --luna-review: none;
@@ -92,11 +92,11 @@
 .dg-pet:where([data-motion="off"], [data-sig="off"]) .luna-state { display: none; }
 .dg-pet[data-pet="luna"]:where([data-motion="off"], [data-sig="off"]) .luna-still { display: inline; }
 .dg-pet[data-pet="luna"]:where([data-motion="off"], [data-sig="off"]) { --luna-idle: inline; --luna-run-right: none; --luna-run-left: none; --luna-wave: none; --luna-jump: none; --luna-rest: none; --luna-wait: none; --luna-think: none; --luna-review: none;
-  --pet-hat-x: 0px; --pet-hat-y: -7.5px; --pet-hat-scale: 0.68; --pet-neck-x: 0px; --pet-neck-y: -7.5px; --pet-neck-scale: 0.68; }
+  --pet-hat-x: 0px; --pet-hat-y: -1px; --pet-hat-scale: 1; --pet-neck-x: 0px; --pet-neck-y: 1.1px; --pet-neck-scale: 1; }
 @media (prefers-reduced-motion: reduce) {
   .dg-pet .luna-strip { animation: none; }
   .dg-pet .luna-state { display: none; }
   .dg-pet[data-pet="luna"] .luna-still { display: inline; }
   .dg-pet[data-pet="luna"] { --luna-idle: inline; --luna-run-right: none; --luna-run-left: none; --luna-wave: none; --luna-jump: none; --luna-rest: none; --luna-wait: none; --luna-think: none; --luna-review: none;
-  --pet-hat-x: 0px; --pet-hat-y: -7.5px; --pet-hat-scale: 0.68; --pet-neck-x: 0px; --pet-neck-y: -7.5px; --pet-neck-scale: 0.68; }
+  --pet-hat-x: 0px; --pet-hat-y: -1px; --pet-hat-scale: 1; --pet-neck-x: 0px; --pet-neck-y: 1.1px; --pet-neck-scale: 1; }
 }

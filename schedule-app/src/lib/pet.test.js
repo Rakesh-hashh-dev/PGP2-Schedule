@@ -19,6 +19,7 @@ import {
   visibleCoat, visibleNeckwear, titlesFor, visibleTitle, titleLabel,
   buddyFor, daysAdopted, seasonFor, careStreak, attendanceStreak, REUNION_HOURS, devotionMultiplier, unlockedAtDevotion,
   nextUnlockFor, DEVOTION_BASE_XP, DEVOTION_BASE_LEVEL, SERVER_LEVEL_CAP,
+  attendanceDayOf, companionsGained, friendCosmetics,
 } from "./pet.js";
 
 const at = (iso) => new Date(iso);
@@ -386,21 +387,22 @@ describe("unlocks", () => {
   });
 
   it("gives every level from 2 to MAX_LEVEL something new", () => {
-    // Even levels past 12 hand out a premium companion; odd ones a wearable or
-    // title, so "something new" is checked across every registry.
+    // Even levels past 12 hand out a premium companion, 13/15/17 a cosy one
+    // (plus a wearable or title), and 19 a wearable alone.
     const wearable = level => [...HATS, ...NECKWEAR].some(w => w.level === level)
       || TITLES.some(t => t.test({ level, unlocked: 0, tier: 0, days: 0 }) && !t.test({ level: level - 1, unlocked: 0, tier: 0, days: 0 }));
     for (let level = 2; level <= MAX_LEVEL; level++) {
       const pets = newlyUnlocked(level - 1, level);
-      if (level <= 12 || level % 2 === 0) expect(pets, `level ${level} unlocks no companion`).toHaveLength(1);
+      if (level !== 19) expect(pets, `level ${level} unlocks no companion`).toHaveLength(1);
       expect(pets.length > 0 || wearable(level), `level ${level} unlocks nothing`).toBe(true);
     }
   });
-  it("ends the curve on the four premium companions", () => {
+  it("ends the curve on the premium four, with the cosy three between", () => {
     expect(MAX_LEVEL).toBe(20);
     expect(xpToReach(20)).toBe(5250);
-    expect(UNLOCKS).toMatchObject({ 14: "frost", 16: "tide", 18: "sol", 20: "eclipse" });
-    expect(unlockedAtLevel(MAX_LEVEL)).toContain("eclipse");
+    expect(UNLOCKS).toMatchObject({ 14: "frost", 16: "sable", 18: "unicorn", 20: "dragon" });
+    expect(UNLOCKS).toMatchObject({ 13: "hamster", 15: "sloth", 17: "capy" });
+    expect(unlockedAtLevel(MAX_LEVEL)).toContain("dragon");
     expect(unlockedAtLevel(12)).not.toContain("frost");
   });
   it("reports what a level-up just earned", () => {
@@ -483,14 +485,14 @@ describe("legacy unlock floor", () => {
     expect(coatsFor(s)).toContain("gold");
     expect(neckwearFor(s)).toEqual(expect.arrayContaining(["bell", "chain"]));
     expect(titlesFor(s)).toEqual(expect.arrayContaining(["grown", "inseparable"]));
-    expect(unlockedFor(s)).toEqual(expect.arrayContaining(["spark", "leafy", "nova", "cinder", "luna", "prickle"]));
+    expect(unlockedFor(s)).toEqual(expect.arrayContaining(["spark", "leafy", "inky", "cinder", "luna", "prickle"]));
     expect(buddyFor(setCosmetic(s, "buddy", "fox"))).toBe("fox");
     expect(visibleHat(setCosmetic(s, "hat", "crown"))).toBe("crown");
   });
 
   it("excludes everything new in levels 13-20", () => {
     const s = inflated();
-    for (const key of ["frost", "tide", "sol", "eclipse"]) expect(unlockedFor(s)).not.toContain(key);
+    for (const key of ["hamster", "frost", "sloth", "sable", "capy", "unicorn", "dragon"]) expect(unlockedFor(s)).not.toContain(key);
     expect(hatsFor(s)).not.toContain("wizard");
     expect(hatsFor(s)).not.toContain("sunburst");
     expect(neckwearFor(s)).not.toContain("medal");
@@ -1362,5 +1364,103 @@ describe("phase C moods", () => {
     for (const mood of ["reunion", "determined", "hyped", "weekend"]) expect(css).toContain(`.dg-pet[data-mood="${mood}"] {`);
     expect(css).toContain('.dg-pet[data-reaction="leap"]');
     for (const beat of ["downdog", "twirl", "glance", "shimmy"]) expect(css).toContain(`[data-beat="${beat}"]`);
+  });
+});
+
+// Real attendance keys embed the session key, whose start time has a colon:
+// `att:2026-10-16_09:00_SCM_A`. The streak walk once split on ":" and lost the
+// date, so "hyped" never fired in prod. These use the production shape.
+describe("attendance streak with real session keys", () => {
+  const sess = day => keyFor.attendance(`${day}_09:00_SCM_A`);
+  const days = ["2026-10-12", "2026-10-13", "2026-10-14", "2026-10-15", "2026-10-16"];
+  const marked = () => days.reduce((s, d) => award(s, sess(d), XP.attendance, at(`${d}T10:00:00`)), adopted(at("2026-10-12T08:00:00")));
+
+  it("reads the class date out of the key", () => {
+    expect(attendanceDayOf(sess("2026-10-16"))).toBe("2026-10-16");
+    expect(attendanceDayOf("att:2026-10-16:SCM_A")).toBe("2026-10-16");
+    expect(attendanceDayOf("due:2026-10-16")).toBe(null);
+    expect(attendanceDayOf("att:garbage")).toBe(null);
+  });
+  it("counts five class-days running", () => {
+    expect(attendanceStreak(marked(), at("2026-10-16T18:00:00"))).toBe(5);
+  });
+  it("turns the pet hyped", () => {
+    const s = { ...marked(), lastSeen: at("2026-10-16T17:00:00").getTime() };
+    expect(moodFor(s, at("2026-10-16T17:30:00"), { classesToday: 2 })).toBe("hyped");
+  });
+});
+
+describe("companionsGained", () => {
+  it("names a level unlock", () => {
+    const before = award(adopted(), "att:a", xpToReach(2) - 1);
+    const after = award(before, "att:b", 1);
+    expect(companionsGained(before, after)).toEqual(["fox"]);
+  });
+  it("names devotion unlocks too", () => {
+    const before = award(adopted(), "att:a", DEVOTION_BASE_XP);
+    const after = award(before, "att:b", DEVOTION_STEP);
+    const gained = companionsGained(before, after);
+    expect(gained).toContain("hoot");
+    expect(gained.length).toBeGreaterThan(0);
+  });
+  it("is empty when nothing changed or nobody is adopted", () => {
+    const s = adopted();
+    expect(companionsGained(s, s)).toEqual([]);
+    expect(companionsGained(emptyPet(), s)).toEqual([]);
+  });
+});
+
+describe("unlockedAtDevotion", () => {
+  it("falls back to the bonus companions on tiers without a headline one", () => {
+    expect(unlockedAtDevotion(1)).toBe("hoot");
+    expect(unlockedAtDevotion(3)).toBe("byte"); // shares tier 3 with luna
+    expect(unlockedAtDevotion(2)).toBe("pebble"); // Nova retired; first companion on the tier
+    expect(unlockedAtDevotion(9)).toBe(null);
+  });
+});
+
+describe("friendCosmetics", () => {
+  it("keeps what the standing earns", () => {
+    expect(friendCosmetics({ hat: "bow", neck: "scarf", coat: "frost", title: "partner" }, { level: 4, tier: 0 }))
+      .toEqual({ hat: "bow", neck: "scarf", coat: "frost", title: "partner" });
+  });
+  it("drops what it does not", () => {
+    expect(friendCosmetics({ hat: "crown", neck: "chain", coat: "gold", title: "legend" }, { level: 3, tier: 0 }))
+      .toEqual({ hat: null, neck: null, coat: null, title: null });
+  });
+  it("checks devotion gates against the tier", () => {
+    expect(friendCosmetics({ hat: "halo" }, { level: 12, tier: 3 }).hat).toBe("halo");
+    expect(friendCosmetics({ hat: "halo" }, { level: 12, tier: 2 }).hat).toBe(null);
+  });
+  it("drops unknown keys", () => {
+    expect(friendCosmetics({ hat: "tiara", title: "god" }, { level: 20, tier: 10 })).toMatchObject({ hat: null, title: null });
+  });
+});
+
+// Tide, Sol and Eclipse were replaced on 2026-10-20; whoever had one keeps the
+// slot under the new key, wherever the old key turns up.
+describe("renamed premium pets", () => {
+  it("maps the active pet, the buddy and the unlock list", () => {
+    const old = { ...adopted(), petKey: "tide", unlocked: ["cat", "sol", "eclipse"], cosmetics: { accessory: true, buddy: "eclipse" } };
+    const s = normalize(old);
+    expect(s.petKey).toBe("sable");
+    expect(s.unlocked).toEqual(["cat", "unicorn", "dragon"]);
+    expect(s.cosmetics.buddy).toBe("dragon");
+  });
+  it("does not treat an old-key record as already normalized", () => {
+    const s = normalize({ ...adopted(), petKey: "sol" });
+    expect(s.petKey).toBe("unicorn");
+    expect(normalize(s)).toBe(s);
+  });
+  it("maps the retired Nova and Griffin too", () => {
+    expect(normalize({ ...adopted(), petKey: "nova" }).petKey).toBe("inky");
+    expect(normalize({ ...adopted(), petKey: "griffin" }).petKey).toBe("sable");
+  });
+  it("leaves every other key alone", () => {
+    expect(normalize({ ...adopted(), petKey: "constructor" }).petKey).toBe("constructor");
+    expect(normalize({ ...adopted(), petKey: "frost" }).petKey).toBe("frost");
+  });
+  it("draws every unlockable companion", () => {
+    for (const key of Object.values(UNLOCKS)) expect(PETS.map(p => p.key), key).toContain(key);
   });
 });

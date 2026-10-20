@@ -140,7 +140,7 @@ export default function PetNeckwear({ neck }) {
   if (!art) return null;
   return (
     <svg className="dg-pet-neck" viewBox="0 0 32 32" aria-hidden="true" data-neck={neck}>
-      {art}
+      <g className="dg-pet-wearable-canvas"><g className="dg-pet-wearable-body">{art}</g></g>
     </svg>
   );
 }

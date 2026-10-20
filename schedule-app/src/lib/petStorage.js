@@ -14,7 +14,7 @@
 // See docs/pet-companion-plan.md §3.
 
 import { supabase } from "./supabase.js";
-import { SERVER_LEVEL_CAP, levelFor, mergePets, normalize, xpOf } from "./pet.js";
+import { SERVER_LEVEL_CAP, friendCosmetics, levelFor, mergePets, normalize, xpOf } from "./pet.js";
 
 export const PET_KEY = "pgp2.pet";
 
@@ -314,14 +314,19 @@ export async function fetchFriendPets(cloudIds) {
         // (20260906120000_pet_public_cosmetics). Reading them with `?? null`
         // means a client that ships ahead of the migration simply sees bare
         // pets instead of failing — the RPC just returns fewer columns.
+        const level = row.level || 1;
+        const worn = { hat: row.hat ?? null, neck: row.neck ?? null, coat: row.coat ?? null, title: row.title ?? null };
         map[row.user_id] = {
           key: row.pet_key,
           name: row.name || "",
-          level: row.level || 1,
-          hat: row.hat ?? null,
-          neck: row.neck ?? null,
-          coat: row.coat ?? null,
-          title: row.title ?? null,
+          level,
+          // The raw column is whatever the owner wrote, so re-apply the gates
+          // to the standing the server computed (20261020120000_pet_ledger_guard).
+          // Before that migration there is no standing to check against, and
+          // the cosmetics pass through as they always have.
+          ...(Number.isFinite(row.unlock_level)
+            ? friendCosmetics(worn, { level: row.unlock_level, tier: row.unlock_tier || 0 })
+            : worn),
         };
       }
     }

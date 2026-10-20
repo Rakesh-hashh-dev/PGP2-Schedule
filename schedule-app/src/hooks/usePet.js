@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { adopt, award, care, hoursSince, isAdopted, levelProgress, rename, scaleXp, setCosmetic, switchTo, xpOf, MOMENT_MS, REUNION_HOURS, XP, keyFor } from "../lib/pet.js";
+import { adopt, award, care, companionsGained, hoursSince, isAdopted, levelProgress, rename, scaleXp, setCosmetic, switchTo, xpOf, MOMENT_MS, REUNION_HOURS, XP, keyFor } from "../lib/pet.js";
 import { loadPet, savePet, syncPetFromCloud } from "../lib/petStorage.js";
 
 /**
@@ -24,9 +24,16 @@ export function usePet(userId, { xpRate = 1 } = {}) {
   // later. `moodFor` compares `momentUntil` against the app clock, so this
   // needs no timer of its own to expire.
   const [moment, setMoment] = useState(null);
-  // Last (level, deadlines-cleared) this hook observed. `null` means "re-seed
-  // without reacting" — see the cloud reconcile below.
+  // Last (level, deadlines-cleared, pet) this hook observed. `null` means
+  // "re-seed without reacting" — see the cloud reconcile below.
   const seen = useRef(null);
+  // Companions earned while the student was watching, oldest first. Same
+  // session-only rule as `moment`: a merge from another device re-seeds instead.
+  const [gained, setGained] = useState([]);
+  // Event keys awarded this session but possibly not rendered yet. `awardXp`
+  // answers "was this new?" from here and `petRef`, so two taps inside one
+  // render cannot both report a first-time award.
+  const paid = useRef(new Set());
   // The latest pet, for `care` to read how long the student was away without
   // putting `pet` in the dependency array of the memoised actions below.
   const petRef = useRef(pet);
@@ -35,6 +42,7 @@ export function usePet(userId, { xpRate = 1 } = {}) {
   // Reconcile with the cloud row once per user. `mergePets` unions the award
   // ledgers, so a phone that earned XP offline keeps it when the laptop syncs.
   useEffect(() => {
+    paid.current = new Set();
     if (!userId) return undefined;
     let alive = true;
     syncPetFromCloud(userId).then(merged => {
@@ -66,8 +74,10 @@ export function usePet(userId, { xpRate = 1 } = {}) {
     let deadlines = 0;
     for (const key in pet.awarded) if (key.startsWith("due:")) deadlines++;
     const prev = seen.current;
-    seen.current = { level, deadlines };
+    seen.current = { level, deadlines, pet };
     if (!prev) return;                                  // first look, or a re-seed
+    const fresh = companionsGained(prev.pet, pet);
+    if (fresh.length) setGained(q => [...q, ...fresh.filter(k => !q.includes(k))]);
     if (level > prev.level) setMoment({ moment: "celebrating", momentUntil: Date.now() + MOMENT_MS });
     else if (deadlines > prev.deadlines) setMoment({ moment: "proud", momentUntil: Date.now() + MOMENT_MS });
   }, [pet]);
@@ -102,10 +112,19 @@ export function usePet(userId, { xpRate = 1 } = {}) {
     /**
      * Award against a stable event key. Safe to call unconditionally and
      * repeatedly — `award` ignores a key it has already paid out, so callers
-     * never have to remember what they've already reported.
+     * never have to remember what they've already reported. Returns true the
+     * first time a key is awarded, so callers can toast without peeking at a
+     * possibly stale copy of the ledger.
      */
-    awardXp: (key, amount, now) => apply(s => award(s, key, scaleXp(amount, xpRate), now)),
+    awardXp: (key, amount, now) => {
+      const isNew = !(key in petRef.current.awarded) && !paid.current.has(key);
+      if (isNew) paid.current.add(key);
+      apply(s => award(s, key, scaleXp(amount, xpRate), now));
+      return isNew;
+    },
+    /** Drop the oldest companion from `gained` once its toast has shown. */
+    dismissGained: () => setGained(q => q.slice(1)),
   }), [apply, xpRate]);
 
-  return { pet, actions, moment, XP, keyFor };
+  return { pet, actions, moment, gained, XP, keyFor };
 }

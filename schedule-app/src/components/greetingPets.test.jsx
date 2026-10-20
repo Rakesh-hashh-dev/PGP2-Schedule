@@ -44,7 +44,7 @@ describe("getPetByKey", () => {
   });
 
   it("falls back to the first pet for unknown or missing keys", () => {
-    expect(getPetByKey("griffin")).toBe(PETS[0]);
+    expect(getPetByKey("no-such-pet")).toBe(PETS[0]);
     expect(getPetByKey(undefined)).toBe(PETS[0]);
   });
 });
@@ -67,7 +67,7 @@ describe("signature micro-motion", () => {
   // The four premium companions are excluded on purpose: their staged
   // sequences are what reaching level 11-12, or devotion 4 and 8, buys, and a
   // signature on everything would flatten that back out.
-  const PREMIUM = ["spark", "leafy", "nova", "cinder", "frost", "tide", "sol", "eclipse"];
+  const PREMIUM = ["spark", "leafy", "cinder", "frost", "unicorn", "dragon"];
 
   it("gives every non-premium pet one", () => {
     for (const pet of PETS) {

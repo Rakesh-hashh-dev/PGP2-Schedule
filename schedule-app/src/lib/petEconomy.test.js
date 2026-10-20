@@ -17,10 +17,10 @@ import { describe, it, expect } from "vitest";
 import { model, milestones, reachedAt, termShape, PROFILES } from "../../scripts/xp-model.mjs";
 import { DEVOTION_BASE_XP, DEVOTION_COMPANIONS, UNLOCKS, xpToReach } from "./pet.js";
 
-// The cap rose from 12 to 20, so the last companion is now Eclipse (Lv 20,
+// The cap rose from 12 to 20, so the last companion is now Dragon (Lv 20,
 // 5,250 XP) rather than Leafy/Cinder, and devotion is measured from the old
 // level-12 mark (DEVOTION_BASE_XP) in parallel with levels 13-20. The
-// milestone bands below are re-aimed at Eclipse accordingly.
+// milestone bands below are re-aimed at Dragon accordingly.
 
 const runs = Object.fromEntries(
   Object.entries(PROFILES).map(([name, profile]) => [name, model(profile)])
@@ -44,16 +44,16 @@ describe("the term can actually deliver the roster", () => {
     }
   });
 
-  // The stated target: the last companion (Eclipse, Lv 20) lands 80-90% of the
+  // The stated target: the last companion (Dragon, Lv 20) lands 80-90% of the
   // way through, so there is something left to earn for most of the term and
   // time left to enjoy it.
-  it("lands the last companion (Eclipse, Lv 20) at 80-90% of the term", () => {
+  it("lands the last companion (Dragon, Lv 20) at 80-90% of the term", () => {
     const last = companionGates(runs.engaged).slice(-1)[0];
     const pct = reachedAt(last[2], runs.engaged);
     // Checked before the range, so an unreachable companion reads as
     // "never arrives" rather than a type error about null.
     expect(pct, `${last[0]} never arrives for an engaged student`).not.toBeNull();
-    expect(last[0]).toBe("Eclipse");
+    expect(last[0]).toBe("Dragon");
     expect(pct, `last companion lands at ${pct}%`).toBeGreaterThanOrEqual(80);
     expect(pct, `last companion lands at ${pct}%`).toBeLessThanOrEqual(90);
   });

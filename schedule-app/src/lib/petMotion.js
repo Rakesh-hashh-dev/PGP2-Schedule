@@ -11,8 +11,13 @@
 let started = false;
 
 export function startPetMotionWatcher() {
-  if (started || typeof window === "undefined" || !("IntersectionObserver" in window)) return;
+  if (started || typeof window === "undefined") return;
   started = true;
+
+  const syncVisibility = () => document.documentElement.toggleAttribute("data-pets-paused", document.hidden);
+  document.addEventListener("visibilitychange", syncVisibility);
+  syncVisibility();
+  if (!("IntersectionObserver" in window)) return;
 
   const watched = new WeakSet();
   const io = new IntersectionObserver((entries) => {
@@ -42,6 +47,15 @@ export function startPetMotionWatcher() {
     if (window.requestIdleCallback) window.requestIdleCallback(scan, { timeout: 500 });
     else setTimeout(scan, 200);
   };
-  new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true });
+  new MutationObserver(records => {
+    // Release detached subtrees as well as pets that leave the viewport.
+    for (const record of records) for (const node of record.removedNodes) {
+      if (node.nodeType !== 1 || node.isConnected) continue;
+      const pets = [...node.querySelectorAll(".dg-pet")];
+      if (node.matches(".dg-pet")) pets.push(node);
+      for (const pet of pets) { io.unobserve(pet); watched.delete(pet); }
+    }
+    schedule();
+  }).observe(document.body, { childList: true, subtree: true });
   scan();
 }

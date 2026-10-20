@@ -21,9 +21,10 @@
 // boxes (CSS `transform-box: fill-box`), so each moving part is rasterized on
 // its own once per pet and measured from its alpha channel.
 //
-// esbuild comes in as a Vite dependency; it is only needed to load the JSX.
+// Uses the installed Vite 8 bundler to load JSX without an extra dependency.
 
 import { createRequire } from "module";
+import { bundlePets } from "./pet-bundle.mjs";
 import { readFileSync, mkdirSync, rmSync } from "fs";
 import { dirname, resolve } from "path";
 import { fileURLToPath } from "url";
@@ -66,13 +67,8 @@ const CELL = Number(argOf("cell", 64));
 
 // ── Load the pets ───────────────────────────────────────────────
 async function loadPets() {
-  const { build } = await import("esbuild");
   const tmp = resolve(root, ".pet-sheet.cjs");
-  await build({
-    entryPoints: [resolve(root, "src/components/greetingPets.jsx")],
-    bundle: true, format: "cjs", jsx: "automatic",
-    external: ["react", "react-dom"], outfile: tmp, logLevel: "silent",
-  });
+  await bundlePets(root, tmp, "export { PETS } from '../src/components/greetingPets.jsx';");
   const { PETS } = createRequire(import.meta.url)(tmp);
   rmSync(tmp, { force: true });
   return PETS;

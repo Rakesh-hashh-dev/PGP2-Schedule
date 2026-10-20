@@ -91,7 +91,7 @@ const viewPreloaders = {
   friends: () => import("./components/FriendsPanel.jsx"),
   board: () => import("./components/BoardPage.jsx"),
   split: () => import("./components/SplitPage.jsx"),
-  leave: () => import("./components/LeavePlanner.jsx"),
+  leave: () => import("./components/StudentPlanner.jsx"),
   wrapped: () => import("./components/WrappedView.jsx"),
   admin: () => import("./components/AdminDashboard.jsx"),
   pet: () => import("./components/PetPage.jsx"),
@@ -139,13 +139,12 @@ const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(na
 // sidebar moved to lib/navItems.js and regrouped — Full timetable is a Schedule
 // view there — so these two deliberately keep the older mobile grouping until
 // the sheet is migrated onto the same config.
-const TOOLS_VIEWS = ["fullSchedule", "courseHub", "planner", "split", "leave", "wrapped", "pet"];
+const TOOLS_VIEWS = ["fullSchedule", "courseHub", "planner", "split", "wrapped", "pet"];
 const TOOLS_VIEW_META = {
   courseHub:    { icon: BookOpenCheck, label: "Courses" },
   planner:      { icon: LayoutDashboard, label: "Personal planner" },
   fullSchedule: { icon: CalendarRange, label: "Full timetable" },
   split:        { icon: Wallet,        label: "Split" },
-  leave:        { icon: CalendarOff,   label: "Leave planner" },
   wrapped:      { icon: Sparkles,      label: "Term Wrapped" },
   pet:          { icon: PawPrint,      label: "Companion" },
 };
@@ -382,10 +381,19 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       if (v === "courses") v = "exams"; // retired view → its new home
       if (v === "insights") v = "today"; // retired view
       if (v === "glance") v = "today"; // peek surface, never sticky
+      if (v === "leave") v = "planner"; // leave planning now lives inside Planner
     } catch { }
     setNavView(v);
     return v;
   });
+  const [plannerSection, setPlannerSection] = useState(() => {
+    try {
+      return localStorage.getItem(VIEW_KEY) === "leave" || localStorage.getItem("pgp2.planner-section") === "leave" ? "leave" : "schedule";
+    } catch { return "schedule"; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("pgp2.planner-section", plannerSection); } catch { /* optional UI preference */ }
+  }, [plannerSection]);
   const [courseHubCode, setCourseHubCode] = useState(null);
   const [assignmentOpenTarget, setAssignmentOpenTarget] = useState(null);
   useEffect(() => { if (view !== "courseHub") setCourseHubCode(null); }, [view]);
@@ -398,9 +406,11 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const navInFlightRef = useRef(false);
   useEffect(() => { startPetMotionWatcher(); }, []);
   const setView = useCallback((nextView) => {
-    const target = typeof nextView === "function"
+    const requested = typeof nextView === "function"
       ? nextView(currentViewRef.current)
       : nextView;
+    const target = requested === "leave" ? "planner" : requested;
+    if (requested === "leave") setPlannerSection("leave");
     const previous = currentViewRef.current;
     if (!target || target === previous) return;
 
@@ -538,7 +548,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [attendance, setAttendance] = useState(() => loadAttendance());
   // Pet companion. Local copy paints immediately; the hook reconciles with the
   // `pet_state` row and merges anything earned offline. See lib/pet.js.
-  const { pet: myPet, actions: petActions, moment: petMoment, XP: petXP, keyFor: petKeyFor } = usePet(userId, { xpRate: sysConfig?.flags?.greetingPets?.xpRate });
+  const { pet: myPet, actions: petActions, moment: petMoment, gained: petGained, XP: petXP, keyFor: petKeyFor } = usePet(userId, { xpRate: sysConfig?.flags?.greetingPets?.xpRate });
   const [syncing, setSyncing] = useState(false);
   const [overflowOpen, setOverflowOpen] = useState(false);
   const { mobileUiVersion, setMobileUiVersion, supportsV2: compactViewport, v2Active } = useMobileUiVersion();
@@ -591,6 +601,17 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       setXpToastQueue(q => [...q, { id: Date.now(), xp, label, firstOfDay }]);
     };
   }
+  // A companion unlocked while the student was here (level OR devotion) joins
+  // the same queue, so it waits its turn behind the XP pill that earned it.
+  useEffect(() => {
+    if (!petGained.length) return;
+    const key = petGained[0];
+    petActions.dismissGained();
+    // Same switches as enableCompanion (declared further down this component).
+    const pets = sysConfig?.flags?.greetingPets;
+    if (pets?.enabled === false || pets?.companion === false || !greetingPetsEnabled || myPet?.companionEnabled === false) return;
+    setXpToastQueue(q => [...q, { id: `unlock:${key}`, unlock: key }]);
+  }, [petGained, petActions, sysConfig?.flags?.greetingPets, greetingPetsEnabled, myPet?.companionEnabled]);
   const [pendingInvite, setPendingInvite] = useState(null);
   const [pendingGroupInvite, setPendingGroupInvite] = useState(null);
   const [jumpToDate, setJumpToDate] = useState(null);
@@ -2100,8 +2121,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     // replaying the same rows) can never pay out twice.
     if (status !== null) {
       const attKey = petKeyFor.attendance(key);
-      const isNew = !(attKey in (myPet?.awarded ?? {}));
-      petActions.awardXp(attKey, petXP.attendance, now);
+      const isNew = petActions.awardXp(attKey, petXP.attendance, now);
       if (isNew && enableCompanion && isAdopted(myPet)) {
         // Detect first earn of the day by checking if there are any attendance
         // entries for today already in the ledger (excluding the one we just added).
@@ -2743,6 +2763,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           xp={xpToastQueue[0].xp}
           label={xpToastQueue[0].label}
           firstOfDay={xpToastQueue[0].firstOfDay}
+          unlock={xpToastQueue[0].unlock}
           onDone={() => setXpToastQueue(q => q.slice(1))}
         />
       )}
@@ -3037,9 +3058,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                         </button>
                         <button onClick={() => { setView("split"); setCompareTarget(null); setOverflowOpen(false); }}>
                           <Wallet size={14} /> Split
-                        </button>
-                        <button onClick={() => { setView("leave"); setCompareTarget(null); setOverflowOpen(false); }}>
-                          <CalendarOff size={14} /> Leave planner
                         </button>
                         {enableCompanion && (
                           <button onClick={() => { setView("pet"); setCompareTarget(null); setOverflowOpen(false); }}>
@@ -3520,6 +3538,21 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                         />
                     : view === "planner"
                       ? <StudentPlanner
+                          section={plannerSection}
+                          onSectionChange={setPlannerSection}
+                          leavePlanner={<LeavePlanner
+                            allClasses={CLASSES}
+                            enrolled={enrolled}
+                            legend={enrolledLegend}
+                            attendance={attendance}
+                            now={now}
+                            termStart={TERM?.start}
+                            termEnd={TERM?.end}
+                            onOpenAttendance={enableAttendance ? () => { setView("attendance"); setCompareTarget(null); } : undefined}
+                            userId={userId}
+                            awayEnabled={enableAwayShare}
+                            onAwayChange={setMyAway}
+                          />}
                           visible={activeVisible}
                           today={activeVisible.filter(c => c.date === todayISO).sort((a, b) => toMin(a.start) - toMin(b.start))}
                           tomorrow={activeVisible.filter(c => c.date === tomorrowISO).sort((a, b) => toMin(a.start) - toMin(b.start))}
@@ -3583,21 +3616,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                             ? <AdminDashboard user={user} startImpersonation={startImpersonation} syncLogs={syncLogs} timeOverride={timeOverride} setTimeOverride={setTimeOverride} allChanges={CHANGES} onConfigSaved={flags => setSysConfig(current => ({ ...(current || {}), flags }))} />
                             : view === "fullSchedule"
                               ? <FullSchedulePage allClasses={activeClasses} enrolled={activeEnrolled} legend={activeEnrolledLegend} termLabel={termLabel} onBack={() => setView("today")} jumpToDate={jumpToDate} setJumpToDate={setJumpToDate} jumpToSession={jumpToSession} setJumpToSession={setJumpToSession} onOpenCalendarExport={isArchivedView ? undefined : openCalendarExport} onOpenCourse={(code) => { setCourseHubCode(code); setView("courseHub"); }} />
-                              : view === "leave"
-                                ? <LeavePlanner
-                                    allClasses={CLASSES}
-                                    enrolled={enrolled}
-                                    legend={enrolledLegend}
-                                    attendance={attendance}
-                                    now={now}
-                                    termStart={TERM?.start}
-                                    termEnd={TERM?.end}
-                                    onBack={() => { setView("today"); setCompareTarget(null); }}
-                                    onOpenAttendance={enableAttendance ? () => { setView("attendance"); setCompareTarget(null); } : undefined}
-                                    userId={userId}
-                                    awayEnabled={enableAwayShare}
-                                    onAwayChange={setMyAway}
-                                  />
                               : view === "assignments"
                                 ? <AssignmentsPanel
                                     enrolled={enrolled}
@@ -3608,8 +3626,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                     onOpenCourse={(code) => { setCourseHubCode(code); setView("courseHub"); }}
                                     onTaskCompleted={taskId => {
                                       const dueKey = petKeyFor.deadline(taskId);
-                                      const isNew = !(dueKey in (myPet?.awarded ?? {}));
-                                      petActions.awardXp(dueKey, petXP.deadline);
+                                      const isNew = petActions.awardXp(dueKey, petXP.deadline);
                                       if (isNew && enableCompanion && isAdopted(myPet)) {
                                         setXpToastQueue(q => [...q, { id: dueKey, xp: petXP.deadline, label: "assignment", firstOfDay: false }]);
                                       }

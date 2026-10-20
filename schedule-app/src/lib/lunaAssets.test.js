@@ -31,12 +31,14 @@ describe("Luna supplied animation assets", () => {
     expect(still.height).toBe(assets.height);
     expect(still.hasAlpha).toBe(true);
   });
-  it("registers Luna as sprite art and renders the still fallback", () => {
+  // Luna was redrawn as vector art on 2026-10-20; the strips above stay on
+  // disk for the sprite tooling but the pet no longer loads them.
+  it("registers Luna as vector art that loads no raster frames", () => {
     const luna = PETS.find(pet => pet.key === "luna");
-    expect(luna.art).toBe("sprite");
+    expect(luna.art).toBeUndefined();
     const html = renderToStaticMarkup(createElement(luna.Svg));
-    expect(html).toContain('class="luna-still"');
-    expect(html).toContain("/pets/luna/still.webp");
-    for (const state of Object.values(assets.states)) expect(html).toContain(state.file);
+    expect(html).toContain('class="pet-art"');
+    expect(html).not.toContain("<image");
+    expect(html).not.toContain("/pets/luna/");
   });
 });
