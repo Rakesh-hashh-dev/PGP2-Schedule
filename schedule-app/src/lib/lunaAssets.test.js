@@ -37,7 +37,8 @@ describe("Luna supplied animation assets", () => {
     const luna = PETS.find(pet => pet.key === "luna");
     expect(luna.art).toBeUndefined();
     const html = renderToStaticMarkup(createElement(luna.Svg));
-    expect(html).toContain('class="pet-art"');
+    expect(html).toMatch(/^<svg\b[^>]*\bclass="[^"]*\bpet-art\b[^"]*"/);
+    expect(html).toContain('pet-rig');
     expect(html).not.toContain("<image");
     expect(html).not.toContain("/pets/luna/");
   });
