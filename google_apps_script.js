@@ -47,6 +47,9 @@ const SECTION_MAP = {
 // (Add entries like { MBP: 'MPB' } only if a rollover surfaces a sheet typo.)
 const CODE_ALIASES = {};
 const MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+// Typo corrections for month abbreviations seen in admin-entered sheet data.
+// Maps the mistyped token (lowercase) to the correct 3-letter key in MONTHS.
+const MONTH_ALIASES = { ot: 'oct', jn: 'jan', fb: 'feb', mr: 'mar', jl: 'jul', ag: 'aug', nv: 'nov', dc: 'dec' };
 
 const FORCE_TOKEN = "admin_force_123";
 
@@ -541,9 +544,11 @@ function parseDate(rawVal, dispVal) {
     const iso = y + '-' + pad(rawVal.getMonth() + 1) + '-' + pad(rawVal.getDate());
     return { iso, day: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][rawVal.getDay()] };
   }
-  const m = String(dispVal || '').trim().match(/^(\d{1,2})[\s\-\/]([A-Za-z]{3})/);
+  // Accept 2–4 alpha chars so typos like "Ot" (missing 'c') are caught by MONTH_ALIASES.
+  const m = String(dispVal || '').trim().match(/^(\d{1,2})[\s\-\/]([A-Za-z]{2,4})/);
   if (m) {
-    const mm = MONTHS[m[2].toLowerCase()];
+    const raw = m[2].toLowerCase();
+    const mm = MONTHS[raw] || MONTHS[MONTH_ALIASES[raw]];
     if (mm) return { iso: TERM_YEAR + '-' + pad(mm) + '-' + pad(+m[1]), day: '' };
   }
   return null;

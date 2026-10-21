@@ -146,6 +146,18 @@
 /* =══════════════════════════════════════════════
    CONTROLS BAR
    ═══════════════════════════════════════════════ */
+.fs-date-jump-form { display: flex; flex-direction: column; gap: 14px; padding: 20px; }
+.fs-date-jump-form input {
+  width: 100%; box-sizing: border-box; min-height: 44px; padding: 10px 14px;
+  border: 1px solid var(--border); border-radius: 10px;
+  background: var(--bg); color: var(--text); font: 15px var(--body);
+}
+.fs-date-jump-form button {
+  min-height: 42px; border: 0; border-radius: 10px;
+  background: var(--violet); color: #fff; font: 700 13px var(--body); cursor: pointer;
+}
+.fs-date-jump-form button:disabled { opacity: .5; cursor: default; }
+.fs-day, .fs-free-day, .fs-gap-row { scroll-margin-top: 100px; }
 .cal-controls {
   display: flex;
   align-items: center;

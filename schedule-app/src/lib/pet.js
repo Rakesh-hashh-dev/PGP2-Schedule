@@ -7,7 +7,7 @@
 //
 // Two things are deliberately DERIVED rather than stored:
 //
-//   • XP    — the sum of the award ledger (+ `baseXp` for pruned history).
+//   • XP    — the sum of the award ledger plus the signed admin `grantedXp`.
 //   • mood  — a function of recency, today's care and the clock.
 //
 // Storing either would let a cached copy disagree with the cloud row after an
@@ -17,38 +17,40 @@
 // See docs/pet-companion-plan.md §4.
 
 import { ymd } from "./datetime.js";
+import { normalizeHabitat, validHabitat } from "./petHabitat.js";
 
 // ── Tuning ──────────────────────────────────────────────────────
 // One block, on purpose: balancing this feature means editing numbers here and
 // nothing else. Rates assume ~3-4 classes on a teaching day, so a normal
-// student earns roughly 40-50 XP/day and reaches MAX_LEVEL near the end of term.
+// student earns roughly 40-50 XP/day.
 /**
  * Earn rates, tuned against the actual term rather than picked by feel.
  *
- * The original numbers were set before the roster ran to level 12, and they
- * were badly short: modelled over this term's real schedule (107 days, 90
- * teaching days, ~115 classes for the median student), a student who marked
- * EVERY class, opened the app every day and cleared fourteen deadlines finished
- * the term on 2607 XP — level 9. Spark, Leafy, Nova and Cinder sat behind
- * levels 11 and 12 and devotion tiers nobody could reach. Four companions and
- * the whole devotion wardrobe were unreachable content.
+ * The original numbers were set before the roster ran to level 12 and were badly
+ * short (a perfect student finished the term at level 9); they were re-tuned
+ * once and have NOT changed since. Raising the cap to 20 did not touch them:
+ * devotion pacing depends on them, so levels 13-20 got a gentler cost instead
+ * (LATE_STEP_* above).
  *
- * Re-tuned so an ENGAGED student — marks ~85% of classes, opens the app daily,
- * two or three care taps, eight deadlines over the term — earns the last
- * companion at about 80% of the way through:
+ * Modelled over this term's real schedule (107 days, ~125 classes for the
+ * median student), see `npm run xp-model`:
  *
- *   Spark  (Lv 11)  ~48%      Nova   (Dv 2)  ~68%
- *   Leafy  (Lv 12)  ~58%      Cinder (Dv 4)  ~80%
+ *   engaged (marks ~85%, opens daily)   Lv 12 ~58%   Dv 2 ~66%
+ *                                       Lv 18 ~78%   Cinder (Dv 4) ~79%
+ *                                       Lv 20 (Dragon) ~81%
+ *   perfect (marks every class)         Lv 20 at ~66% of the term
+ *   casual  (marks half, opens most)    ends the term around level 11
  *
- * A student who marks everything gets there around 64% and can finish the whole
- * devotion wardrobe by ~94%; a casual one (marks half, opens most days) ends the
- * term around level 10 with twelve of the sixteen — the premium four stay worth
- * something. Attendance is deliberately 56% of a typical total: the pet levels
- * because you showed up, not because you tapped it (docs §2).
+ * Attendance is deliberately 56% of a typical total: the pet levels because you
+ * showed up, not because you tapped it (docs §2).
  *
- * The LEVEL CURVE is deliberately untouched. Rates only affect XP awarded from
- * here on — the ledger stores what each event actually paid — whereas moving
- * the curve would re-map every existing pet's level overnight.
+ * DEVOTION runs in parallel with levels 13-20 (it counts from 3,850 XP, the old
+ * level-12 mark) and DEVOTION_STEP is pinned at 270 so nobody's tier moved when
+ * the cap rose.
+ *
+ * The LEVEL CURVE for 1-12 is deliberately untouched. Rates only affect XP
+ * awarded from here on — the ledger stores what each event actually paid —
+ * whereas moving the curve would re-map every existing pet's level overnight.
  *
  * Re-run the model with scripts/xp-model.mjs if the term shape changes.
  */
@@ -66,10 +68,40 @@ export const CARE_ACTIONS = ["pet", "play", "treat"];
 /** XP to climb one level: 100, 150, 200, … */
 const LEVEL_BASE = 100;
 const LEVEL_STEP = 50;
-export const MAX_LEVEL = 12;
+export const MAX_LEVEL = 20;
 
-/** Ledger retention. An event older than this can no longer newly arrive from
- *  a sync, so keeping its key only costs bytes in every row read. */
+/**
+ * Levels 13-20 use a gentler, separate cost than the 100 + 50n curve above
+ * (which would put Lv20 at 10,450 XP, out of reach inside a term). Climbing from
+ * level L to L+1 (L >= 12) costs LATE_STEP_BASE + LATE_STEP_RISE * (L - 12):
+ * 140, 150, ... 210, so Lv20 = 3,850 + 1,400 = 5,250 XP. Nobody was ever above
+ * 12, so this range is free design space. KEEP IN SYNC with pet_level_for in
+ * 20261013120000_pet_level_cap_20.sql (table in pet.test.js).
+ */
+const LATE_FROM_LEVEL = 12;
+const LATE_STEP_BASE = 140;
+const LATE_STEP_RISE = 10;
+
+/**
+ * The level at which devotion starts counting. This was MAX_LEVEL back when the
+ * cap was 12, and it is PINNED here: devotion is measured from 3,850 XP, so
+ * raising the cap did not demote anybody's tier, coat, hat or companion. Levels
+ * 13-20 and devotion now progress in parallel off the same XP.
+ */
+export const DEVOTION_BASE_LEVEL = 12;
+export const DEVOTION_BASE_XP = xpToReach(DEVOTION_BASE_LEVEL);
+
+/**
+ * Highest level the cloud schema accepts: pet_state.level is
+ * `check (level between 1 and 20)` in prod since
+ * 20261013120000_pet_level_cap_20.sql (applied 2026-10-13). Level is derived
+ * from XP on the client, so clamping what is WRITTEN costs nothing on screen.
+ * Raise MAX_LEVEL again only together with a migration that widens the check.
+ */
+export const SERVER_LEVEL_CAP = 20;
+
+/** How far back the streak walk looks. The ledger itself is never pruned (pruning
+ *  into baseXp double-counted XP across syncs), so this only bounds the walk. */
 export const LEDGER_DAYS = 30;
 
 // The three pets offered at adoption. The rest unlock by level — see UNLOCKS.
@@ -110,7 +142,11 @@ export const HATS = [
   { key: "shades", label: "Shades", level: 9 },
   { key: "grad", label: "Grad cap", level: 10 },
   { key: "party", label: "Party hat", level: 11 },
-  { key: "crown", label: "Crown", level: MAX_LEVEL },
+  // Pinned at 12 (not MAX_LEVEL): students already earned it there.
+  { key: "crown", label: "Crown", level: 12 },
+  // Levels 13-20: the odd ones hand out wearables, the even ones a companion.
+  { key: "wizard", label: "Wizard hat", level: 13 },
+  { key: "sunburst", label: "Sunburst", level: 19 },
   // Devotion wearables. Ten tiers shipped and only two of them unlocked
   // anything, so eight of the ten level-ups past MAX_LEVEL were silent — the
   // exact stretch that needed a reason to keep going. One per tier now.
@@ -133,8 +169,8 @@ const HAT_KEYS = new Set(HATS.map(h => h.key));
  * Coats — the same companion in a different palette.
  *
  * Recoloured in CSS (a filter on `.dg-pet svg`, see styles.css) rather than by
- * shipping a second copy of every SVG: fourteen pets x six coats would be
- * eighty-four drawings to keep in sync, and the first divergence would be a bug
+ * shipping a second copy of every SVG: twenty-odd pets x nine coats would be
+ * two hundred drawings to keep in sync, and the first divergence would be a bug
  * nobody could see. The cost of the filter approach is that a coat shifts the
  * whole animal, accessories included — which is why they are tuned as gentle
  * shifts and not costume changes.
@@ -165,6 +201,7 @@ export const NECKWEAR = [
   { key: "bandana", label: "Bandana", level: 5 },
   { key: "bowtie", label: "Bow tie", level: 7 },
   { key: "bell", label: "Bell collar", level: 9 },
+  { key: "medal", label: "Gold medal", level: 15 },
   { key: "chain", label: "Charm chain", devotion: 5 },
 ];
 const NECK_KEYS = new Set(NECKWEAR.map(n => n.key));
@@ -172,16 +209,29 @@ const NECK_KEYS = new Set(NECKWEAR.map(n => n.key));
 /**
  * Companions earned past the level cap.
  *
- * Levels 1-12 hand out all fourteen pets, so devotion — the only progression
- * left after that — had nothing but hats. These two are the carrot at the top
- * of the curve, and they are gated on tier rather than level so they can never
- * arrive before the roster is complete.
+ * Levels 1-12 once handed out the whole original roster, so devotion had
+ * nothing but hats. These companions are the carrot alongside the late levels,
+ * and they are gated on tier rather than level so they can never arrive before
+ * the level-12 roster is complete.
  *
  * Tiers 2 and 4 rather than 4 and 8: the pets have to be reachable inside a
  * term (the last one lands at ~80% of it — see XP), while the tiers above them
  * carry cosmetics, which are allowed to outlast the term.
  */
-export const DEVOTION_UNLOCKS = { 2: "nova", 4: "cinder" };
+// Additional companions fill the gaps without moving existing unlocks.
+// Nova (tier 2) was retired on 2026-10-20; its owners map to Inky (RENAMED_PETS).
+export const DEVOTION_UNLOCKS = { 4: "cinder" };
+export const BONUS_DEVOTION_UNLOCKS = { 1: "hoot", 2: "pebble", 3: "byte", 4: "prickle" };
+// Multiple companions can share a tier. Keep the original singular lookup
+// for callers, and use this combined list for collection and reward displays.
+export const DEVOTION_COMPANIONS = [
+  ...Object.entries(DEVOTION_UNLOCKS), ...Object.entries(BONUS_DEVOTION_UNLOCKS),
+  ["3", "luna"],
+  // The PR #22 collection shares the reachable tiers; old unlocks and XP
+  // pacing stay put (petEconomy.test.js still holds).
+  ["1", "maple"], ["1", "mochi"], ["2", "inky"],
+  ["3", "nimbus"], ["4", "ember"],
+].sort(([a], [b]) => Number(a) - Number(b));
 
 /**
  * Titles. Cosmetic, never a rank against anybody else (docs §2), and every one
@@ -193,7 +243,9 @@ export const TITLES = [
   { key: "partner", label: "Study partner", test: ({ level }) => level >= 4 },
   { key: "collector", label: "Collector", test: ({ unlocked }) => unlocked >= 8 },
   { key: "constant", label: "Constant companion", test: ({ level }) => level >= 8 },
-  { key: "grown", label: "Fully grown", test: ({ level }) => level >= MAX_LEVEL },
+  { key: "grown", label: "Fully grown", test: ({ level }) => level >= 12 }, // pinned: earned at 12 before the cap rose
+  { key: "sage", label: "Sage", test: ({ level }) => level >= 17 },
+  { key: "legend", label: "Legend", test: ({ level }) => level >= MAX_LEVEL },
   { key: "devoted", label: "Devoted", test: ({ tier }) => tier >= 3 },
   { key: "veteran", label: "Term veteran", test: ({ days }) => days >= 60 },
   { key: "inseparable", label: "Inseparable", test: ({ tier }) => tier >= 6 },
@@ -208,21 +260,20 @@ const TITLE_KEYS = new Set(TITLES.map(t => t.key));
  * the same registries the wardrobe reads, so a new hat or coat shows up in this
  * line without anyone remembering to update it.
  *
- * Levels are compared before devotion tiers because that is the order they
- * arrive in, and `null` means there is genuinely nothing left.
+ * Levels and devotion tiers now progress in parallel off the same XP (levels
+ * 13-20 vs. devotion from 3,850), so each candidate is ranked by the XP it
+ * costs and the cheapest one wins. `null` means there is genuinely nothing left.
  */
 export function nextUnlockFor(state) {
   const s = normalize(state);
-  const xp = xpOf(s);
-  const level = levelFor(xp);
-  const { tier } = devotionFor(xp);
+  const { level, tier } = unlockStanding(s); // owned items are never "next"
 
   const byLevel = [];
   const byDevotion = [];
   for (const [lvl, key] of Object.entries(UNLOCKS)) {
     byLevel.push({ kind: "companion", key, label: key, at: Number(lvl) });
   }
-  for (const [t, key] of Object.entries(DEVOTION_UNLOCKS)) {
+  for (const [t, key] of DEVOTION_COMPANIONS) {
     byDevotion.push({ kind: "companion", key, label: key, at: Number(t) });
   }
   for (const [list, kind] of [[HATS, "hat"], [COATS, "coat"], [NECKWEAR, "collar"]]) {
@@ -237,9 +288,12 @@ export function nextUnlockFor(state) {
   }
 
   const nextLevel = byLevel.filter(r => r.at > level).sort((a, b) => a.at - b.at)[0];
-  if (nextLevel) return { ...nextLevel, by: "level" };
   const nextTier = byDevotion.filter(r => r.at > tier).sort((a, b) => a.at - b.at)[0];
-  return nextTier ? { ...nextTier, by: "devotion" } : null;
+  if (!nextLevel) return nextTier ? { ...nextTier, by: "devotion" } : null;
+  if (!nextTier) return { ...nextLevel, by: "level" };
+  return DEVOTION_BASE_XP + nextTier.at * DEVOTION_STEP < xpToReach(nextLevel.at)
+    ? { ...nextTier, by: "devotion" }
+    : { ...nextLevel, by: "level" };
 }
 
 /** Devotion tier that opens the second (display-only) companion slot. */
@@ -263,7 +317,8 @@ export const GROWTH_STAGES = [
   { key: "hatchling", label: "Hatchling", from: 1 },
   { key: "young", label: "Young", from: 4 },
   { key: "grown", label: "Grown", from: 8 },
-  { key: "elder", label: "Elder", from: MAX_LEVEL },
+  { key: "elder", label: "Elder", from: 12 }, // pinned: reached at 12 before the cap rose
+  { key: "ascended", label: "Ascended", from: MAX_LEVEL },
 ];
 
 /** The stage a level sits in. Clamps, so an out-of-range level is never null. */
@@ -284,14 +339,33 @@ export function nextGrowthStage(level) {
   return i >= 0 && i < GROWTH_STAGES.length - 1 ? GROWTH_STAGES[i + 1] : null;
 }
 
-/** level → pet key unlocked on reaching it. All 12 are earned by level 10. */
+/** level → pet key unlocked on reaching it. Past 12: the cosy three on the odd
+ *  levels (13/15/17, alongside their wearables and titles), the premium four on
+ *  14/16/18/20, and 19 is the one level that pays out only a wearable. */
 export const UNLOCKS = {
   2: "fox", 3: "penguin", 4: "panda", 5: "chick", 6: "koala",
   7: "otter", 8: "rover", 9: "raccoon", 10: "axolotl",
   // 11 and 12 previously unlocked nothing — the roster ran out before the
   // curve did, so the last two level-ups gave no new companion.
   11: "spark", 12: "leafy",
+  13: "hamster", 14: "frost", 15: "sloth", 16: "sable", 17: "capy", 18: "unicorn", 20: "dragon",
 };
+
+/**
+ * Retired pet keys → the companion now in their slot. Tide, Sol and Eclipse
+ * (levels 16/18/20) were replaced on 2026-10-20 by Sable, the Unicorn and the
+ * Dragon; Nova (Devotion 2) went to Inky, which unlocks on the same tier, and
+ * the Griffin (Lv 16 for an afternoon, never in prod) to Sable. A student who
+ * had one keeps the same slot under its new key.
+ *
+ * Applied by `normalize`, so a stale cache, an old row or a friend's summary
+ * all read as the new key, and the next save writes it back. The SQL migrations
+ * 20261020130000_pet_rename_premium.sql and 20261020140000_pet_retire_nova.sql
+ * rewrite the rows themselves.
+ */
+export const RENAMED_PETS = { tide: "sable", sol: "unicorn", eclipse: "dragon", griffin: "sable", nova: "inky" };
+const isRenamed = key => typeof key === "string" && Object.hasOwn(RENAMED_PETS, key);
+const renamed = key => (isRenamed(key) ? RENAMED_PETS[key] : key);
 
 // ── State ───────────────────────────────────────────────────────
 
@@ -308,14 +382,15 @@ export function emptyPet() {
     petKey: null,      // null ⇒ not adopted yet
     name: "",
     adoptedAt: null,
-    baseXp: 0,         // XP from ledger entries since pruned
+    baseXp: 0,         // RETIRED: always 0, kept so old rows/caches still parse (see xpOf)
+    legacyXp: 0,       // pre-repair inflated total; server-owned, an unlock floor only (unlockStanding)
     grantedXp: 0,      // signed admin adjustment; server-owned, never written here
     companionEnabled: true, // per-student kill switch; server-owned too
     awarded: {},       // { eventKey: [ymd, xp] }
     care: { day: null, used: 0 },
     lastSeen: 0,
     unlocked: [],
-    cosmetics: { accessory: true, hat: null, coat: null, neck: null, title: null, buddy: null },
+    cosmetics: { accessory: true, hat: null, coat: null, neck: null, title: null, buddy: null, habitat: normalizeHabitat() },
   };
 }
 
@@ -328,12 +403,27 @@ export function emptyPet() {
  * every re-sync, and returning a fresh object each time would defeat React's
  * bail-out and re-render the greeting on a live clock tick.
  */
+// Objects already proven normalized. Every helper normalizes its input, and the
+// pet page calls a dozen of them per render on a live clock, so re-walking the
+// whole ledger each time added up. State is never mutated in place (every
+// transform here spreads), so a verified object stays verified.
+const VERIFIED = new WeakSet();
+
 function isNormalized(raw) {
+  if (raw && typeof raw === "object" && VERIFIED.has(raw)) return true;
+  if (!checkNormalized(raw)) return false;
+  VERIFIED.add(raw);
+  return true;
+}
+
+function checkNormalized(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return false;
   if (raw.v !== 1) return false;
   if (raw.petKey !== null && typeof raw.petKey !== "string") return false;
+  if (isRenamed(raw.petKey) || isRenamed(raw.cosmetics?.buddy)) return false;
   if (typeof raw.name !== "string" || raw.name.length > 24) return false;
-  if (!Number.isFinite(raw.baseXp) || raw.baseXp < 0) return false;
+  if (raw.baseXp !== 0) return false;
+  if (!Number.isFinite(raw.legacyXp) || raw.legacyXp < 0) return false;
   if (!Number.isFinite(raw.grantedXp)) return false;
   if (typeof raw.companionEnabled !== "boolean") return false;
   if (!Number.isFinite(raw.lastSeen) || raw.lastSeen < 0) return false;
@@ -346,13 +436,14 @@ function isNormalized(raw) {
   if (!care || typeof care !== "object") return false;
   if (care.day !== null && typeof care.day !== "string") return false;
   if (!Number.isInteger(care.used) || care.used < 0 || care.used > CARE_DAILY_CAP) return false;
-  if (!Array.isArray(raw.unlocked) || raw.unlocked.some(k => typeof k !== "string")) return false;
+  if (!Array.isArray(raw.unlocked) || raw.unlocked.some(k => typeof k !== "string" || isRenamed(k))) return false;
   if (!raw.cosmetics || typeof raw.cosmetics.accessory !== "boolean") return false;
   if (raw.cosmetics.hat !== null && !HAT_KEYS.has(raw.cosmetics.hat)) return false;
   if (raw.cosmetics.coat !== null && !COAT_KEYS.has(raw.cosmetics.coat)) return false;
   if (raw.cosmetics.neck !== null && !NECK_KEYS.has(raw.cosmetics.neck)) return false;
   if (raw.cosmetics.title !== null && !TITLE_KEYS.has(raw.cosmetics.title)) return false;
   if (raw.cosmetics.buddy !== null && typeof raw.cosmetics.buddy !== "string") return false;
+  if (!validHabitat(raw.cosmetics.habitat)) return false;
   return true;
 }
 
@@ -379,9 +470,12 @@ export function normalize(raw) {
     ...base,
     ...raw,
     v: 1,
-    petKey: typeof raw.petKey === "string" ? raw.petKey : null,
+    petKey: typeof raw.petKey === "string" ? renamed(raw.petKey) : null,
     name: typeof raw.name === "string" ? raw.name.slice(0, 24) : "",
-    baseXp: Number.isFinite(raw.baseXp) && raw.baseXp > 0 ? raw.baseXp : 0,
+    // Retired: a stale cache's baseXp was double-counted by the old prune/merge
+    // loop, so it is read and discarded rather than added to XP.
+    baseXp: 0,
+    legacyXp: Number.isFinite(raw.legacyXp) && raw.legacyXp > 0 ? raw.legacyXp : 0,
     grantedXp: Number.isFinite(raw.grantedXp) ? raw.grantedXp : 0,
     // Defaults ON: a row written before this column existed, or a cache from
     // an older build, must not read as "switched off".
@@ -392,7 +486,9 @@ export function normalize(raw) {
       used: Number.isFinite(raw.care?.used) ? Math.max(0, Math.min(CARE_DAILY_CAP, raw.care.used)) : 0,
     },
     lastSeen: Number.isFinite(raw.lastSeen) && raw.lastSeen > 0 ? raw.lastSeen : 0,
-    unlocked: Array.isArray(raw.unlocked) ? raw.unlocked.filter(k => typeof k === "string") : [],
+    unlocked: Array.isArray(raw.unlocked)
+      ? Array.from(new Set(raw.unlocked.filter(k => typeof k === "string").map(renamed)))
+      : [],
     cosmetics: {
       accessory: raw.cosmetics?.accessory !== false,
       // An unknown key means a hat this build no longer ships (or a hand-edited
@@ -404,7 +500,8 @@ export function normalize(raw) {
       coat: COAT_KEYS.has(raw.cosmetics?.coat) ? raw.cosmetics.coat : null,
       neck: NECK_KEYS.has(raw.cosmetics?.neck) ? raw.cosmetics.neck : null,
       title: TITLE_KEYS.has(raw.cosmetics?.title) ? raw.cosmetics.title : null,
-      buddy: typeof raw.cosmetics?.buddy === "string" ? raw.cosmetics.buddy : null,
+      buddy: typeof raw.cosmetics?.buddy === "string" ? renamed(raw.cosmetics.buddy) : null,
+      habitat: normalizeHabitat(raw.cosmetics?.habitat),
     },
   };
 }
@@ -459,13 +556,18 @@ export function switchTo(state, petKey) {
  */
 export function setCosmetic(state, key, value) {
   const s = normalize(state);
+  if (key === "habitat") {
+    const habitat = normalizeHabitat(value);
+    if (JSON.stringify(s.cosmetics.habitat) === JSON.stringify(habitat)) return s;
+    return { ...s, cosmetics: { ...s.cosmetics, habitat } };
+  }
   // Each wearable validates against what was EARNED (never against cohort
   // policy) for the reason spelled out under the hat below.
   if (key === "coat" || key === "neck" || key === "title" || key === "buddy") {
     const earned = key === "coat" ? coatsFor(s)
       : key === "neck" ? neckwearFor(s)
       : key === "title" ? titlesFor(s)
-      : devotionFor(xpOf(s)).tier >= BUDDY_DEVOTION ? unlockedFor(s).filter(k => k !== s.petKey) : [];
+      : unlockStanding(s).tier >= BUDDY_DEVOTION ? unlockedFor(s).filter(k => k !== s.petKey) : [];
     const next = value && earned.includes(value) ? value : null;
     if (s.cosmetics[key] === next) return s;
     return { ...s, cosmetics: { ...s.cosmetics, [key]: next } };
@@ -485,18 +587,22 @@ export function setCosmetic(state, key, value) {
 
 // ── XP & levels ─────────────────────────────────────────────────
 
-/** Total XP: pruned history plus every entry still in the ledger. */
+/** Total XP: the signed admin adjustment plus every ledger entry. `baseXp` is
+ *  deliberately ignored — see `unlockStanding` and the repair migration. */
 export function xpOf(state) {
   const s = normalize(state);
-  let total = s.baseXp + s.grantedXp;
+  let total = s.grantedXp;
   for (const [, xp] of Object.values(s.awarded)) total += xp;
   return Math.max(0, total);
 }
 
 /** Cumulative XP needed to *reach* `level` (level 1 costs nothing). */
 export function xpToReach(level) {
-  const n = Math.max(1, Math.min(MAX_LEVEL, Math.floor(level))) - 1;
-  return n * LEVEL_BASE + LEVEL_STEP * (n * (n - 1)) / 2;
+  const lvl = Math.max(1, Math.min(MAX_LEVEL, Math.floor(level)));
+  const n = Math.min(lvl, LATE_FROM_LEVEL) - 1;
+  const early = n * LEVEL_BASE + LEVEL_STEP * (n * (n - 1)) / 2;
+  const k = lvl - LATE_FROM_LEVEL; // steps taken past level 12
+  return k > 0 ? early + k * LATE_STEP_BASE + LATE_STEP_RISE * (k * (k - 1)) / 2 : early;
 }
 
 export function levelFor(xp) {
@@ -521,7 +627,7 @@ export function levelProgress(xp) {
 }
 
 /**
- * Progress past MAX_LEVEL, as a "devotion" tier.
+ * Progress past DEVOTION_BASE_LEVEL (12), as a "devotion" tier.
  *
  * Deliberately not a second level bar: it unlocks nothing but cosmetics, it is
  * never shown as a rank against anybody else, and it tops out too. A student
@@ -529,8 +635,7 @@ export function levelProgress(xp) {
  * the pet they earned.
  */
 export function devotionFor(xp) {
-  const cap = xpToReach(MAX_LEVEL);
-  const over = Math.max(0, (xp || 0) - cap);
+  const over = Math.max(0, (xp || 0) - DEVOTION_BASE_XP);
   const raw = Math.floor(over / DEVOTION_STEP);
   const tier = Math.min(MAX_DEVOTION, raw);
   if (tier >= MAX_DEVOTION) return { tier, into: 0, need: 0, pct: 100, capped: true };
@@ -543,6 +648,43 @@ export function devotionFor(xp) {
   };
 }
 
+/** The level cap while the inflation bug existed: the most a legacy total could ever unlock by level. */
+const LEGACY_FLOOR_LEVEL = 12;
+
+/**
+ * What the pet OWNS, as `{ level, tier }`: the real level/devotion tier, raised
+ * by the legacy floor.
+ *
+ * A sync bug double-counted XP, so some students were shown (and unlocked
+ * things at) a total far above what they earned. The repair recounts XP, but
+ * everything they could already unlock under the old rules stays theirs:
+ *
+ *   • level-gated items: floor of min(12, level at legacyXp) — nothing from the
+ *     new Lv 13-20 content (those need real XP);
+ *   • devotion-gated items: floor of the devotion tier at legacyXp (the devotion
+ *     maths is unchanged: base 3,850, step 270).
+ *
+ * This is for OWNERSHIP only (pets, hats, collars, coats, titles, buddy slot,
+ * "what's next"). The level, XP bar, devotion bar and care multiplier all keep
+ * using real XP.
+ */
+export function unlockStanding(state) {
+  const s = normalize(state);
+  const xp = xpOf(s);
+  const real = { level: levelFor(xp), tier: devotionFor(xp).tier };
+  if (!(s.legacyXp > xp)) return real;
+  return {
+    level: Math.max(real.level, Math.min(LEGACY_FLOOR_LEVEL, levelFor(s.legacyXp))),
+    tier: Math.max(real.tier, devotionFor(s.legacyXp).tier),
+  };
+}
+
+/** True when the repair lowered this student's XP: drives the one-time notice. */
+export function hasXpRecount(state) {
+  const s = normalize(state);
+  return isAdopted(s) && s.legacyXp > xpOf(s);
+}
+
 /**
  * Hat keys this pet can wear right now, in registry order.
  *
@@ -552,9 +694,7 @@ export function devotionFor(xp) {
  */
 export function hatsFor(state, { wardrobe = true, hatsOff = [] } = {}) {
   if (wardrobe === false) return [];
-  const xp = xpOf(state);
-  const level = levelFor(xp);
-  const { tier } = devotionFor(xp);
+  const { level, tier } = unlockStanding(state);
   return HATS
     .filter(h => !hatsOff.includes(h.key))
     .filter(h => (h.devotion ? tier >= h.devotion : level >= h.level))
@@ -590,9 +730,7 @@ export function hatRequirement(key) {
  */
 function earnedFrom(list, state, { wardrobe = true, off = [] } = {}) {
   if (wardrobe === false) return [];
-  const xp = xpOf(state);
-  const level = levelFor(xp);
-  const { tier } = devotionFor(xp);
+  const { level, tier } = unlockStanding(state);
   return list
     .filter(item => !off.includes(item.key))
     .filter(item => (item.devotion ? tier >= item.devotion : level >= item.level))
@@ -651,10 +789,10 @@ export function daysAdopted(state, now = new Date()) {
 export function titlesFor(state, now = new Date()) {
   const s = normalize(state);
   if (!isAdopted(s)) return [];
-  const xp = xpOf(s);
+  const { level, tier } = unlockStanding(s);
   const facts = {
-    level: levelFor(xp),
-    tier: devotionFor(xp).tier,
+    level,
+    tier,
     unlocked: unlockedFor(s).length,
     days: daysAdopted(s, now),
   };
@@ -683,7 +821,7 @@ export function buddyFor(state) {
   const s = normalize(state);
   const key = s.cosmetics.buddy;
   if (!key || key === s.petKey) return null;
-  if (devotionFor(xpOf(s)).tier < BUDDY_DEVOTION) return null;
+  if (unlockStanding(s).tier < BUDDY_DEVOTION) return null;
   return unlockedFor(s).includes(key) ? key : null;
 }
 
@@ -769,15 +907,65 @@ export function care(state, action, now = new Date(), rate = 1) {
  * counter would have to survive the same offline merge every other field does,
  * and the ledger already knows.
  *
- * Bounded by `LEDGER_DAYS`, because entries older than that are pruned; a
+ * Bounded by `LEDGER_DAYS`, so a
  * hundred-day streak reads as thirty, which is well past where the multiplier
  * caps out anyway.
  */
 export function careStreak(state, now = new Date()) {
+  return ledgerStreak(state, now, "care:");
+}
+
+/**
+ * Consecutive class-days with at least one `att:` award, counted back from today.
+ * What "hyped" reads.
+ *
+ * `classDays` is the set of ISO dates that have a scheduled class (the pet
+ * context supplies it). Days outside it - weekends, holidays - never break the
+ * run. Today does not break it either: its classes may not have happened yet,
+ * so counting starts from the last class-day that has finished. Without
+ * `classDays`, weekends are skipped and any other unmarked day breaks it.
+ */
+export function attendanceStreak(state, now = new Date(), classDays = null) {
+  const s = normalize(state);
+  const attended = new Set();
+  for (const key of Object.keys(s.awarded)) {
+    const day = attendanceDayOf(key);
+    if (day) attended.add(day);
+  }
+  if (attended.size === 0) return 0;
+  const today = ymd(now);
+  const cursor = new Date(now);
+  let streak = 0;
+  for (let i = 0; i <= LEDGER_DAYS; i++, cursor.setDate(cursor.getDate() - 1)) {
+    const day = ymd(cursor);
+    if (attended.has(day)) { streak++; continue; }
+    if (day === today) continue;
+    const dow = cursor.getDay();
+    const offDay = classDays ? !classDays.has(day) : dow === 0 || dow === 6;
+    if (!offDay) break;
+  }
+  return streak;
+}
+
+/**
+ * The class date an `att:` key belongs to, or null.
+ *
+ * Read with a pattern rather than `split(":")`: a real key embeds the session
+ * key, `att:2026-10-16_09:00_SCM_A`, and the colon inside the start time cut
+ * the date to "2026-10-16_09", so no attended day ever matched and "hyped"
+ * could not fire.
+ */
+const ATT_DAY = /^att:(\d{4}-\d{2}-\d{2})/;
+export function attendanceDayOf(key) {
+  const m = ATT_DAY.exec(key);
+  return m ? m[1] : null;
+}
+
+function ledgerStreak(state, now, prefix) {
   const s = normalize(state);
   const days = new Set();
   for (const key of Object.keys(s.awarded)) {
-    if (key.startsWith("care:")) days.add(key.split(":")[1]);
+    if (key.startsWith(prefix)) days.add(key.split(":")[1]);
   }
   if (days.size === 0) return 0;
   const cursor = new Date(now);
@@ -798,11 +986,12 @@ export const STREAK_CAP = 10;
 /**
  * How much a care tap is worth once the pet is maxed out.
  *
- * At MAX_LEVEL the only progression left is devotion, and it is a flat 400 XP a
- * tier off care taps worth 2 — so the last stretch of the curve was also the
- * slowest, which is exactly backwards. A streak scales that up to 1.5x.
+ * From DEVOTION_BASE_LEVEL (12) on, devotion runs alongside the last levels,
+ * and it is a flat 270 XP a tier off care taps worth a few — so the late stretch
+ * of the curve was also the slowest, which is exactly backwards. A streak scales
+ * that up to 1.5x.
  *
- * Below the cap this returns 1: the level curve is already paced, and speeding
+ * Below level 12 this returns 1: the level curve is already paced, and speeding
  * it up would just bring people to the same dead end sooner. The multiplier is
  * applied when the XP is *awarded* and then written to the ledger, so replaying
  * an event key still pays out what it originally paid — `award` stays
@@ -810,7 +999,7 @@ export const STREAK_CAP = 10;
  */
 export function devotionMultiplier(state, now = new Date()) {
   const s = normalize(state);
-  if (levelFor(xpOf(s)) < MAX_LEVEL) return 1;
+  if (levelFor(xpOf(s)) < DEVOTION_BASE_LEVEL) return 1;
   const streak = Math.min(STREAK_CAP, careStreak(s, now));
   return 1 + (streak / STREAK_CAP) * 0.5;
 }
@@ -821,7 +1010,7 @@ export function devotionMultiplier(state, now = new Date()) {
  * Every mood, brightest first. Three groups, and the order below is also the
  * order `moodFor` tries them in:
  *
- *   moments   celebrating, proud — short latches fired by something that just
+ *   moments   celebrating, reunion, proud — short latches fired by something that just
  *             happened. Session-only (see `usePet`), never persisted.
  *   context   focused, restless, relaxed — what the *timetable* is doing. The
  *             pet lives inside a schedule app; before this it was the only
@@ -829,10 +1018,16 @@ export function devotionMultiplier(state, now = new Date()) {
  *   baseline  the original clock-and-attention ladder.
  */
 export const MOODS = [
-  "celebrating", "proud", "birthday", "festive", "excited", "focused", "restless",
-  "playful", "happy", "curious", "rooting", "content", "relaxed", "cozy",
-  "tired", "sleepy", "bored", "missing",
+  "celebrating", "reunion", "proud", "birthday", "festive", "weekend", "excited", "focused",
+  "restless", "determined", "playful", "happy", "hyped", "curious", "rooting", "content",
+  "relaxed", "cozy", "tired", "sleepy", "bored", "missing",
 ];
+
+/** Attendance streak, in class-days, at which the pet turns "hyped". */
+export const HYPED_STREAK = 5;
+
+/** Hours away after which coming back and caring for the pet is a "reunion". */
+export const REUNION_HOURS = 72;
 
 /**
  * Moods that only exist on a handful of days a year.
@@ -892,7 +1087,9 @@ export const EXAM_HORIZON_DAYS = 5;
  * @property {number|null} [classesToday] Today's class count; null ⇒ unknown.
  * @property {boolean} [examSoon]    An exam falls within the next few days.
  * @property {number} [momentUntil]   Epoch ms a `moment` mood holds until.
- * @property {string} [moment]        Which one: "celebrating" or "proud".
+ * @property {Set<string>} [classDays] ISO dates with a scheduled class.
+ * @property {boolean} [deadlineDueToday] An assignment is due today and not cleared.
+ * @property {string} [moment]        Which one: "celebrating", "reunion" or "proud".
  */
 
 export function moodFor(state, now = new Date(), ctx = {}) {
@@ -925,7 +1122,9 @@ export function moodExplainFor(state, now = new Date(), ctx = {}) {
   if (ctx.moment && ctx.momentUntil > now.getTime()) {
     return of(ctx.moment, ctx.moment === "celebrating"
       ? "They just levelled up."
-      : "You just cleared something off the list.");
+      : ctx.moment === "reunion"
+        ? "You came back after a few days away."
+        : "You just cleared something off the list.");
   }
   // In class beats bedtime too — a 20:00 exam should read alert, not dozing.
   if (ctx.inClass) return of("focused", "You are in class right now.");
@@ -938,6 +1137,9 @@ export function moodExplainFor(state, now = new Date(), ctx = {}) {
     const mins = Math.max(0, Math.round(ctx.minsToClass));
     return of("restless", mins <= 1 ? "Class is about to start." : `Class starts in ${mins} minutes.`);
   }
+  // A deadline today. Resolve, not pressure: forward-leaning and sharp-eyed,
+  // and it clears the moment the task is ticked off (the proud moment follows).
+  if (ctx.deadlineDueToday) return of("determined", "Something is due today.");
   // The evening winds down before bedtime does. Same rule as night — the clock
   // outranks attention — so the pet flags the end of a long day back at you
   // instead of staying breezy until it abruptly falls asleep at 22:00.
@@ -954,12 +1156,18 @@ export function moodExplainFor(state, now = new Date(), ctx = {}) {
   // payoff, while the hard cap keeps this expressive rather than grindy.
   if (cared >= 2 && hrs < 2) return of("playful", "You have looked after them twice today.");
   if (cared >= 1 && hrs < 6) return of("happy", "You looked after them today.");
+  if (hrs < 24 && attendanceStreak(s, now, ctx.classDays) >= HYPED_STREAK) return of("hyped", "You have made it to class five days running.");
   // Exam week. The app already knows the calendar, so the pet may as well: it
   // sits up and stays close. Pointedly NOT anxious or nagging — the one thing
   // this feature must never do is add pressure to the week that has the most
   // of it already (§2). It simply outranks the quieter baselines.
   if (hrs < 24 && ctx.examSoon) return of("rooting", "There is an exam inside the week.");
   if (season === "festive" && hrs < 24) return of("festive", "It is the end of the year.");
+  // Saturday or Sunday with nothing scheduled. Ahead of curious/relaxed/cozy so
+  // a weekend never reads as an ordinary free weekday.
+  if (hrs < 24 && ctx.classesToday === 0 && (now.getDay() === 0 || now.getDay() === 6)) {
+    return of("weekend", "It is the weekend, with nothing scheduled.");
+  }
   // A new day with classes ahead gives the companion a small anticipatory
   // personality beat. It is deliberately after the imminent-class check so
   // "restless" still communicates that a class is about to begin.
@@ -992,8 +1200,7 @@ export const XP_SOURCES = [
  * XP grouped by where it came from, for the pet page's "how it earned this"
  * panel. Optionally limited to entries on or after `sinceDay` (a `ymd` string).
  *
- * Pruned history has no surviving source, so it is reported as "Earlier" rather
- * than being silently dropped — the parts must always sum to the total.
+ * The ledger is never pruned, so the parts sum to the total (plus any grant).
  */
 export function xpBySource(state, sinceDay = null) {
   const s = normalize(state);
@@ -1006,7 +1213,6 @@ export function xpBySource(state, sinceDay = null) {
   const out = XP_SOURCES
     .filter(([prefix]) => totals[prefix])
     .map(([prefix, label]) => ({ prefix, label, xp: totals[prefix] }));
-  if (!sinceDay && s.baseXp > 0) out.push({ prefix: "base", label: "Earlier", xp: s.baseXp });
   if (!sinceDay && s.grantedXp !== 0) {
     out.push({
       prefix: "grant",
@@ -1032,17 +1238,30 @@ export function unlockedAtLevel(level) {
  *  record already carries (so a manual grant or a future gift can't be lost). */
 export function unlockedFor(state) {
   const s = normalize(state);
-  const xp = xpOf(s);
-  const { tier } = devotionFor(xp);
-  const devoted = Object.entries(DEVOTION_UNLOCKS)
+  const { level, tier } = unlockStanding(s);
+  const devoted = DEVOTION_COMPANIONS
     .filter(([t]) => Number(t) <= tier)
     .map(([, key]) => key);
-  return Array.from(new Set([...unlockedAtLevel(levelFor(xp)), ...devoted, ...s.unlocked]));
+  return Array.from(new Set([...unlockedAtLevel(level), ...devoted, ...s.unlocked]));
 }
 
-/** Companion key earned at a devotion tier, or null. */
+/** A companion key earned at a devotion tier (the headline one), or null.
+ *  Several can share a tier — `DEVOTION_COMPANIONS` has the full list. */
 export function unlockedAtDevotion(tier) {
-  return DEVOTION_UNLOCKS[tier] || null;
+  return DEVOTION_UNLOCKS[tier]
+    || DEVOTION_COMPANIONS.find(([t]) => Number(t) === Number(tier))?.[1]
+    || null;
+}
+
+/**
+ * Companions `next` owns that `prev` did not, in roster-unlock order — drives
+ * the "new companion" toast. Covers level AND devotion unlocks (and the legacy
+ * floor), because it diffs `unlockedFor` rather than walking one table.
+ */
+export function companionsGained(prev, next) {
+  if (!isAdopted(prev) || !isAdopted(next)) return [];
+  const had = new Set(unlockedFor(prev));
+  return unlockedFor(next).filter(k => !had.has(k));
 }
 
 /** Pets gained crossing from `prevLevel` to `level` — drives the unlock toast. */
@@ -1055,24 +1274,6 @@ export function newlyUnlocked(prevLevel, level) {
 // ── Maintenance & merge ─────────────────────────────────────────
 
 /**
- * Drop ledger entries older than LEDGER_DAYS, folding their XP into `baseXp`
- * so pruning never costs progress. Pure: returns a new state.
- */
-export function prune(state, now = new Date()) {
-  const s = normalize(state);
-  const cutoff = new Date(now.getTime() - LEDGER_DAYS * 86_400_000);
-  const cutoffDay = ymd(cutoff);
-  const kept = {};
-  let folded = 0;
-  for (const [k, v] of Object.entries(s.awarded)) {
-    if (v[0] < cutoffDay) folded += v[1];
-    else kept[k] = v;
-  }
-  if (!folded) return s;
-  return { ...s, baseXp: s.baseXp + folded, awarded: kept };
-}
-
-/**
  * Merge two copies of the same pet — the local cache and the cloud row, or two
  * devices that both earned XP offline.
  *
@@ -1080,10 +1281,9 @@ export function prune(state, now = new Date()) {
  * integer would silently discard a day's earnings from whichever device wrote
  * first, and neither copy would know it happened.
  *
- * `baseXp` takes the max: it only grows through pruning, both sides observe the
- * same events, so the larger value is the one that has pruned further. Two
- * devices that pruned disjoint sets while >30 days apart could under-count —
- * accepted, since a sync gap that long means one device is effectively dead.
+ * There is no `baseXp` any more: folding old entries into it and then unioning
+ * them back in from the server double-counted XP on every sync. The ledger is
+ * kept whole instead (it is a few hundred small entries a term).
  */
 export function mergePets(a, b) {
   const left = normalize(a);
@@ -1097,7 +1297,8 @@ export function mergePets(a, b) {
     : recent.care;
   return {
     ...recent,
-    baseXp: Math.max(left.baseXp, right.baseXp),
+    // Server-owned and monotonic; the row overrides it in syncPetFromCloud anyway.
+    legacyXp: Math.max(left.legacyXp, right.legacyXp),
     // Server-owned and now signed, so `max` would quietly undo a penalty
     // (max(-200, 0) === 0). The more recently touched copy wins here, and
     // syncPetFromCloud overrides it from the remote row anyway.
@@ -1112,6 +1313,30 @@ export function mergePets(a, b) {
 }
 
 /**
+ * A friend's cosmetics, kept only where the friend's standing earns them.
+ *
+ * Friends never see the ledger, so they cannot run `visibleHat` and friends.
+ * `get_friend_pets` instead returns the owner's server-computed unlock standing
+ * (`{ level, tier }`, legacy floor included) and this re-applies the registry
+ * gates to it, so a hand-edited row cannot show a friend a crown. Titles gated
+ * on facts the projection does not carry (companions owned, days adopted) are
+ * let through; they are cosmetic and the level/tier ones cover the big claims.
+ */
+export function friendCosmetics({ hat = null, neck = null, coat = null, title = null } = {}, { level = 1, tier = 0 } = {}) {
+  const ok = (list, key) => {
+    const item = list.find(i => i.key === key);
+    if (!item) return null;
+    return (item.devotion ? tier >= item.devotion : level >= item.level) ? key : null;
+  };
+  let shownTitle = null;
+  if (TITLE_KEYS.has(title)) {
+    const t = TITLES.find(x => x.key === title);
+    shownTitle = t.test({ level, tier, unlocked: Infinity, days: Infinity }) ? title : null;
+  }
+  return { hat: ok(HATS, hat), neck: ok(NECKWEAR, neck), coat: ok(COATS, coat), title: shownTitle };
+}
+
+/**
  * The compact public projection — the ONLY shape that may reach another
  * student's screen. No XP, no ledger, no timestamps, no streak.
  */
@@ -1119,10 +1344,9 @@ export function publicSummary(state) {
   const s = normalize(state);
   if (!isAdopted(s)) return null;
   // Cosmetics ride along now that `get_friend_pets` projects them (migration
-  // 20260906120000_pet_public_cosmetics.sql). They are validated the same way
-  // the wearer's own view validates them — `visibleHat` and friends refuse a
-  // cosmetic that is no longer earned — so a hand-edited row cannot show a
-  // friend a crown the owner never reached.
+  // 20260906120000_pet_public_cosmetics.sql). This summary is validated the
+  // way the wearer's own view is. The RPC itself reads the raw cosmetics
+  // column, so the receiving side re-checks them with `friendCosmetics`.
   //
   // Titles are deliberately included and the buddy is deliberately not: a
   // title is a fact about the pet, the buddy is a second animal to draw, and

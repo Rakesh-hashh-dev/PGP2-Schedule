@@ -1,3 +1,4 @@
+import PetWearableFinish from './PetWearableFinish.jsx';
 // Neckwear — the second wearable slot, drawn once for the whole roster.
 //
 // Same overlay trick as `PetHat`: one SVG on top of the pet rather than a
@@ -92,6 +93,15 @@ const NECKWEAR = {
       <circle cx="14.5" cy="27.6" r=".25" fill="#ffffff" opacity=".7" />
     </g>
   ),
+  medal: (
+    <g>
+      {/* Ribbon V and a gold medallion */}
+      <path d="M11 23.4 15 28.2l1.6-1.2-3.2-4.6z" fill="#3b6ea8" stroke="#142138" strokeWidth=".6" strokeLinejoin="round" />
+      <path d="M21 23.4 17 28.2l-1.6-1.2 3.2-4.6z" fill="#e2568f" stroke="#2a1218" strokeWidth=".6" strokeLinejoin="round" />
+      <circle cx="16" cy="29.2" r="2.4" fill="#f4be38" stroke="#362208" strokeWidth=".75" />
+      <path d="m16 27.6.5 1.1 1.2.1-.9.8.3 1.2-1.1-.6-1.1.6.3-1.2-.9-.8 1.2-.1z" fill="#d99a18" />
+    </g>
+  ),
   chain: (
     <g>
       {/* Heavy gold Cuban curb chain */}
@@ -131,7 +141,7 @@ export default function PetNeckwear({ neck }) {
   if (!art) return null;
   return (
     <svg className="dg-pet-neck" viewBox="0 0 32 32" aria-hidden="true" data-neck={neck}>
-      {art}
+      <g className="dg-pet-wearable-canvas"><g className="dg-pet-wearable-body pet-rig-frame"><PetWearableFinish>{art}</PetWearableFinish></g></g>
     </svg>
   );
 }

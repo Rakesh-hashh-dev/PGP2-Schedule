@@ -202,6 +202,7 @@ export default function MessCard({ now, userId, friends = [] }) {
             <button type="button" className="mess-viewfull" onClick={() => setFullMenuOpen(true)}>
               <CalendarDays size={14} /> View full menu
             </button>
+            <p className="mess-card-disclaimer"><em>Please note that the menu is subject to minor changes or substitutions depending on the availability and procurement of certain food items. In such cases, suitable alternatives may be provided. -IMC</em></p>
           </div>
         </div>
       </div>

@@ -22,7 +22,7 @@
 import { readFileSync } from "fs";
 import { dirname, resolve } from "path";
 import { fileURLToPath } from "url";
-import { XP, CARE_DAILY_CAP, MAX_LEVEL, MAX_DEVOTION, DEVOTION_STEP, DEVOTION_UNLOCKS, xpToReach } from "../src/lib/pet.js";
+import { XP, CARE_DAILY_CAP, MAX_LEVEL, MAX_DEVOTION, DEVOTION_STEP, DEVOTION_COMPANIONS, DEVOTION_BASE_XP, UNLOCKS, xpToReach } from "../src/lib/pet.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -77,7 +77,8 @@ export const PROFILES = {
 export function model(profile, rates = {}) {
   const R = { att: XP.attendance, due: XP.deadline, stk: XP.streak, care: XP.care, dev: DEVOTION_STEP, ...rates };
   const { start, days, median } = termShape();
-  const cap = xpToReach(MAX_LEVEL);
+  const cap = xpToReach(MAX_LEVEL);        // Lv 20: the last premium companion
+  const devBase = DEVOTION_BASE_XP;        // devotion runs from Lv 12, in parallel with 13-20
   const dueOn = new Set();
   for (let i = 1; i <= profile.deadlines; i++) dueOn.add(Math.round((days * i) / (profile.deadlines + 1)));
 
@@ -89,14 +90,14 @@ export function model(profile, rates = {}) {
     // Evenly spread rather than random, so the model is reproducible.
     if (profile.opens === 1 || day % Math.round(1 / profile.opens) === 0) {
       xp += R.stk;
-      // Past the level cap a care tap is worth more (see `devotionMultiplier`);
-      // 1.25x is the middle of that range, which is what a real streak looks like.
-      xp += R.care * Math.min(CARE_DAILY_CAP, profile.cares) * (xp >= cap ? 1.25 : 1);
+      // From Lv 12 a care tap is worth more (see `devotionMultiplier`); 1.25x is
+      // the middle of that 1-1.5x range, which is what a real streak looks like.
+      xp += R.care * Math.min(CARE_DAILY_CAP, profile.cares) * (xp >= devBase ? 1.25 : 1);
     }
     if (dueOn.has(day + 1)) xp += R.due;
     timeline.push(Math.round(xp));
   }
-  return { timeline, days, cap, rates: R };
+  return { timeline, days, cap, devBase, rates: R };
 }
 
 /** Percentage of the term at which `need` XP is reached, or null. */
@@ -107,14 +108,15 @@ export function reachedAt(need, run) {
 
 /** Every companion behind a gate, with the XP it costs. */
 export function milestones(run) {
-  const rows = [
-    ["Spark", "Lv 11", xpToReach(11)],
-    ["Leafy", `Lv ${MAX_LEVEL}`, run.cap],
-  ];
-  for (const [tier, key] of Object.entries(DEVOTION_UNLOCKS)) {
-    rows.push([key[0].toUpperCase() + key.slice(1), `Dv ${tier}`, run.cap + Number(tier) * run.rates.dev]);
+  const rows = [];
+  // Spark (11), Leafy (12), then the premium four at 14/16/18/20.
+  for (const [lvl, key] of Object.entries(UNLOCKS)) {
+    if (Number(lvl) >= 11) rows.push([key[0].toUpperCase() + key.slice(1), `Lv ${lvl}`, xpToReach(Number(lvl))]);
   }
-  rows.push(["wardrobe done", `Dv ${MAX_DEVOTION}`, run.cap + MAX_DEVOTION * run.rates.dev]);
+  for (const [tier, key] of DEVOTION_COMPANIONS) {
+    rows.push([key[0].toUpperCase() + key.slice(1), `Dv ${tier}`, run.devBase + Number(tier) * run.rates.dev]);
+  }
+  rows.push(["wardrobe done", `Dv ${MAX_DEVOTION}`, run.devBase + MAX_DEVOTION * run.rates.dev]);
   return rows.sort((a, b) => a[2] - b[2]);
 }
 

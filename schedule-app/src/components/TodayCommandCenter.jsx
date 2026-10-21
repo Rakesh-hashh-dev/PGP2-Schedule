@@ -26,7 +26,7 @@ function ActionCard({ id, icon: Icon, eyebrow, title, children, onDismiss }) {
 export default function TodayCommandCenter({
   todayList = [], tomorrowList = [], attendance = {}, now, todayISO, termNumber,
   changeCount = 0, onNavigate, onOpenSession, onOpenCourse, onMarkAttendance,
-  onFocusModeChange, onRemove,
+  focusMode: controlledFocusMode, onFocusModeChange, onRemove,
 }) {
   const [assignments] = useState(loadAssignments);
   const [courseItems, setCourseItems] = useState(loadCourseHubItems);
@@ -34,9 +34,10 @@ export default function TodayCommandCenter({
   const [goalDraft, setGoalDraft] = useState("");
   const [goalsOpen, setGoalsOpen] = useState(false);
   const [dismissed, setDismissed] = useState(() => new Set());
-  const [focusMode, setFocusMode] = useState(() => {
+  const [localFocusMode, setFocusMode] = useState(() => {
     try { return localStorage.getItem(TODAY_FOCUS_KEY) === "1"; } catch { return false; }
   });
+  const focusMode = controlledFocusMode ?? localFocusMode;
   const [capture, setCapture] = useState({ takeaway: "", doubt: "", review: false });
   const [savedNote, setSavedNote] = useState(false);
   const state = useMemo(() => buildTodayCommandState({ todayList, tomorrowList, attendance, assignments, courseItems, now }), [todayList, tomorrowList, attendance, assignments, courseItems, now]);
@@ -47,7 +48,7 @@ export default function TodayCommandCenter({
   const lastCourseNote = state.next ? courseItems.filter(item => !item.deleted && item.kind === "note" && item.code === state.next.code).sort((a, b) => b.updatedAt - a.updatedAt)[0] : null;
   const completedGoals = goals.filter(goal => goal.done).length;
 
-  useEffect(() => { onFocusModeChange?.(focusMode); }, [focusMode, onFocusModeChange]);
+  useEffect(() => { if (controlledFocusMode === undefined) onFocusModeChange?.(focusMode); }, [focusMode, controlledFocusMode, onFocusModeChange]);
   const updateGoals = next => { setGoals(next); writeTodayGoals(todayISO, next); };
   const addGoal = event => {
     event.preventDefault();
@@ -57,7 +58,8 @@ export default function TodayCommandCenter({
   };
   const toggleFocus = () => {
     const next = !focusMode;
-    setFocusMode(next);
+    if (controlledFocusMode === undefined) setFocusMode(next);
+    else onFocusModeChange?.(next);
     try { localStorage.setItem(TODAY_FOCUS_KEY, next ? "1" : "0"); } catch { /* optional preference */ }
   };
   const dismiss = id => setDismissed(current => new Set([...current, id]));

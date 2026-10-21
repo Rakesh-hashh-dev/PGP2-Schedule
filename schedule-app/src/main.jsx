@@ -1,9 +1,14 @@
 import React, { Suspense, lazy } from "react";
 import ReactDOM from "react-dom/client";
 import "./styles.css";
+import "./styles/pet-personality.css";
+import "./styles/luna.css";
+import "./styles/pet-art.css";
+import "./styles/pet-rig.css";
 import "./styles/freeday.css";
 import "./styles/motion-details.css";
 import "./styles/premium-polish.css";
+import "./styles/modal-layout.css";
 import { registerSW } from "virtual:pwa-register";
 import StartupGreeting from "./components/StartupGreeting.jsx";
 import { initSentry } from "./lib/sentry.js";

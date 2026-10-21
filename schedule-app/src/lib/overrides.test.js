@@ -1,5 +1,53 @@
 import { describe, it, expect } from "vitest";
-import { classIdent, makeOverrideKey, lookupOverride, parseOverrideKey, buildOverrideAdds } from "./overrides.js";
+import { classIdent, makeOverrideKey, classOverrideKey, classMatchesKey, lookupOverride, parseOverrideKey, buildOverrideAdds, cancellationVisibility, cancelOverride, restoreCancelledOverride, applyClassOverrides } from "./overrides.js";
+
+describe("cancellation display choices", () => {
+  const early = { date: "2026-10-12", code: "BMD", name: "Business Models", section: "A", start: "17:00", end: "18:30", type: "class" };
+  const late = { ...early, start: "18:30", end: "20:00" };
+
+  it("shows older cancellations by default with the original title", () => {
+    const overrides = { [early.date]: { [classOverrideKey(early)]: { type: "cancelled", name: "Cancelled: BMD" } } };
+    expect(cancellationVisibility(overrides[early.date][classOverrideKey(early)])).toBe("show");
+    expect(applyClassOverrides([early, late], overrides)).toEqual([{ ...early, type: "cancelled" }, late]);
+  });
+
+  it("hides only the selected session and leaves the stored cancellation restorable", () => {
+    const cancellation = cancelOverride({}, "hide");
+    const overrides = { [early.date]: { [classOverrideKey(early)]: cancellation } };
+    expect(applyClassOverrides([early, late], overrides)).toEqual([late]);
+    expect(overrides[early.date][classOverrideKey(early)]).toEqual(cancellation);
+    overrides[early.date][classOverrideKey(early)].cancellationVisibility = "show";
+    expect(applyClassOverrides([early, late], overrides)).toEqual([{ ...early, ...cancellation, cancellationVisibility: "show" }, late]);
+  });
+
+  it("keeps room, time and exam overrides when cancelling and restoring", () => {
+    const existing = { room: "A04", start: "19:00", type: "exam" };
+    const cancellation = cancelOverride(existing, "hide");
+    expect(restoreCancelledOverride(cancellation)).toEqual(existing);
+    const overrides = { [early.date]: { [classOverrideKey(late)]: cancellation } };
+    expect(applyClassOverrides([early, late], overrides)).toEqual([early]);
+    overrides[early.date][classOverrideKey(late)] = restoreCancelledOverride(cancellation);
+    expect(applyClassOverrides([early, late], overrides)).toEqual([early, { ...late, ...existing }]);
+  });
+
+  it("keeps cancelled custom classes manageable while hiding them from students", () => {
+    const original = { name: "Guest talk", start: "10:00", end: "11:00", type: "event", room: "A02" };
+    const cancellation = cancelOverride(original, "hide");
+    const overrides = { "2026-10-14": { Guest: cancellation } };
+    expect(applyClassOverrides([], overrides)).toEqual([]);
+    expect(buildOverrideAdds(overrides, [], { includeHidden: true })).toEqual([{
+      date: "2026-10-14", code: "Guest", section: "All", name: "Guest talk", room: "A02", start: "10:00", end: "11:00", type: "cancelled", cancellationVisibility: "hide", cancelledType: "event", _ovrKey: "Guest",
+    }]);
+    overrides["2026-10-14"].Guest.cancellationVisibility = "show";
+    expect(applyClassOverrides([], overrides)[0]).toMatchObject({ name: "Guest talk", type: "cancelled" });
+    expect(restoreCancelledOverride(cancellation)).toEqual(original);
+  });
+
+  it("clears cancellation metadata without creating a synthetic class", () => {
+    expect(restoreCancelledOverride({ ...cancelOverride({}, "show"), modifiedAt: "now", modifiedBy: "admin" })).toBeNull();
+    expect(buildOverrideAdds({ [early.date]: { Missing: { type: "cancelled", name: "Cancelled: Missing" } } }, [])).toEqual([]);
+  });
+});
 
 describe("classIdent", () => {
   it("uses the course code when present", () => {
@@ -111,5 +159,48 @@ describe("buildOverrideAdds", () => {
     expect(buildOverrideAdds(overrides, [])).toEqual([
       { date: "2026-09-04", code: "BBM", section: "All", name: "Business to Business Marketing", room: "", start: "", end: "", type: "exam" },
     ]);
+  });
+});
+
+// Regression: a course meeting twice a day in the same section (BMD Sec A at
+// 17:00 and 18:30) shared one `BMD_A` key, so editing one session edited both.
+describe("same-day double sessions", () => {
+  const early = { date: "2026-10-12", code: "BMD", section: "A", start: "17:00", end: "18:30", type: "class" };
+  const late = { date: "2026-10-12", code: "BMD", section: "A", start: "18:30", end: "20:00", type: "class" };
+
+  it("gives each session its own key", () => {
+    expect(classOverrideKey(early)).toBe("BMD_A@17:00");
+    expect(classOverrideKey(late)).toBe("BMD_A@18:30");
+    expect(classOverrideKey({ code: "SCA", section: "Single", start: "08:00" })).toBe("SCA@08:00");
+  });
+
+  it("an edit to one session does not touch the other", () => {
+    const forDate = { [classOverrideKey(early)]: { room: "A04" } };
+    expect(lookupOverride(forDate, early)).toEqual({ room: "A04" });
+    expect(lookupOverride(forDate, late)).toBeNull();
+  });
+
+  it("layers a session edit over a legacy whole-day override", () => {
+    const forDate = { BMD_A: { room: "A02" }, "BMD_A@18:30": { start: "19:00" } };
+    expect(lookupOverride(forDate, early)).toEqual({ room: "A02" });
+    expect(lookupOverride(forDate, late)).toEqual({ room: "A02", start: "19:00" });
+  });
+
+  it("parses session keys and round-trips", () => {
+    expect(parseOverrideKey("BMD_A@18:30")).toEqual({ ident: "BMD", section: "A", start: "18:30" });
+    expect(parseOverrideKey("SCA@08:00")).toEqual({ ident: "SCA", section: "All", start: "08:00" });
+    expect(parseOverrideKey(makeOverrideKey("PMA End Term", "B", "10:00"))).toEqual({ ident: "PMA End Term", section: "B", start: "10:00" });
+  });
+
+  it("matches a session key only to its own session", () => {
+    const parsed = parseOverrideKey("BMD_A@18:30");
+    expect(classMatchesKey(early, parsed)).toBe(false);
+    expect(classMatchesKey(late, parsed)).toBe(true);
+    expect(classMatchesKey(late, parseOverrideKey("BMD_A"))).toBe(true);
+  });
+
+  it("does not treat a moved session's own override as an added class", () => {
+    const overrides = { "2026-10-12": { "BMD_A@18:30": { name: "Business Models", start: "19:00" } } };
+    expect(buildOverrideAdds(overrides, [early, late])).toEqual([]);
   });
 });

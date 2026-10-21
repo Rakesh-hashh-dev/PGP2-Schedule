@@ -94,7 +94,7 @@ describe("nav structure decisions", () => {
   });
 
   it("leaves only occasional-use views behind the disclosure", () => {
-    expect(MORE_VIEWS).toEqual(["split", "leave", "pet", "wrapped"]);
+    expect(MORE_VIEWS).toEqual(["split", "pet", "wrapped"]);
   });
 
   it("declares exactly one collapsible group", () => {

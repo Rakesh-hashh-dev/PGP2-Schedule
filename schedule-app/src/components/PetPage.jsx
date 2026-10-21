@@ -5,20 +5,28 @@ import {
 } from "lucide-react";
 import { PETS, getPetByKey } from "./greetingPets.jsx";
 import {
-  CARE_ACTIONS, HATS, COATS, NECKWEAR, TITLES, MAX_DEVOTION, MAX_LEVEL,
-  STARTER_KEYS, UNLOCKS, DEVOTION_UNLOCKS, BUDDY_DEVOTION, STREAK_CAP,
-  careLeft, devotionFor, hatRequirement, hatsFor, hoursSince, isAdopted,
-  levelProgress, moodExplainFor, unlockedFor, visibleHat, xpBySource, xpOf,
+  CARE_ACTIONS, TITLES, MAX_LEVEL, DEVOTION_BASE_LEVEL,
+  STARTER_KEYS, UNLOCKS, DEVOTION_COMPANIONS, BUDDY_DEVOTION, STREAK_CAP,
+  careLeft, devotionFor, hatsFor, hoursSince, isAdopted,
+  levelProgress, moodExplainFor, REUNION_HOURS, unlockedFor, visibleHat, xpBySource, xpOf,
   growthStageFor, nextGrowthStage,
-  coatsFor, neckwearFor, coatRequirement, neckwearRequirement,
+  coatsFor, neckwearFor,
   visibleCoat, visibleNeckwear, titlesFor, visibleTitle, titleLabel,
-  buddyFor, careStreak, devotionMultiplier,
+  buddyFor, careStreak, devotionMultiplier, hasXpRecount,
 } from "../lib/pet.js";
+import { dismissRecount, isRecountDismissed } from "../lib/petStorage.js";
 import { petMilestones, petWeek, recentPetMoments, unlockRoadmap } from "../lib/petInsights.js";
+import PetHabitat, { PetHabitatControls } from "./PetHabitat.jsx";
 import PetSleepCue from "./PetSleepCue.jsx";
 import PetHat from "./PetHat.jsx";
 import PetNeckwear from "./PetNeckwear.jsx";
-import { usePetBeat } from "../hooks/usePetBeat.js";
+import PetWardrobe from "./PetWardrobe.jsx";
+import { routineFor } from "../lib/petRoutine.js";
+import { useCompanionStory } from "../hooks/useCompanionStory.js";
+import PetMemoryPanel from "./PetMemoryPanel.jsx";
+import { useHabitatInteraction } from "../hooks/useHabitatInteraction.js";
+import { useBuddyInteraction } from "../hooks/useBuddyInteraction.js";
+import { usePetPerformance } from "../hooks/usePetPerformance.js";
 import { usePetGaze } from "../hooks/usePetGaze.js";
 import "../styles/pet.css";
 
@@ -41,6 +49,10 @@ const MOOD_COPY = {
   sleepy: "Curled up, dozing.",
   bored: "A bit bored — say hello?",
   missing: "Missed you while you were gone.",
+  reunion: "So glad you are back.",
+  determined: "Squared up — something is due today.",
+  hyped: "Riding a streak, buzzing with it.",
+  weekend: "Lounging. It is the weekend.",
 };
 
 const CARE_COPY = { pet: "Pet", play: "Play", treat: "Treat" };
@@ -52,14 +64,9 @@ const PET_SECTIONS = [
   { id: "overview", label: "Overview", Icon: Home },
   { id: "journey", label: "Journey", Icon: Trophy },
   { id: "companions", label: "Companions", Icon: PawPrint },
+  { id: "habitat", label: "Habitat", Icon: Home },
   { id: "wardrobe", label: "Wardrobe", Icon: Shirt },
   { id: "profile", label: "Profile", Icon: UserRound },
-];
-
-const WARDROBE_SECTIONS = [
-  { id: "hats", label: "Hats" },
-  { id: "collars", label: "Collars" },
-  { id: "coats", label: "Coats" },
 ];
 
 function moveTabFocus(event, index, tabs, onChange) {
@@ -96,18 +103,23 @@ function unlockLevel(key) {
  * what the roster rendered the moment the first devotion pet was registered.
  */
 function unlockRequirement(key) {
-  const tier = Object.entries(DEVOTION_UNLOCKS).find(([, k]) => k === key);
+  const tier = DEVOTION_COMPANIONS.find(([, k]) => k === key);
   if (tier) return `Dv ${tier[0]}`;
   const level = unlockLevel(key);
   return level ? `Lv ${level}` : null;
 }
 
-export default function PetPage({ pet, petActions, petContext, petSettings, now, onBack }) {
+function BuddyArt({ buddy, mood, motionEnabled, signaturesOn, coat, cue, habitatCue }) {
+  const { bind: petRef, action, source, replay, activity } = usePetPerformance(mood, motionEnabled, buddy.key, null, signaturesOn, 0, cue, true, habitatCue);
+  return <span ref={petRef} data-habitat-target={activity?.target} data-habitat-behavior={activity?.behavior} data-partner-side="left" className="dg-pet pet-identity-buddy" data-pet={buddy.key} data-motion={motionEnabled ? 'on' : 'off'} data-mood={mood} data-coat={coat || undefined} data-sig={signaturesOn ? undefined : 'off'} data-action={action} data-action-source={source} data-action-replay={replay} aria-hidden="true"><buddy.Svg /></span>;
+}
+
+export default function PetPage({ pet, petActions, petContext, petSettings, now, onBack, companionMemory }) {
   const [nameDraft, setNameDraft] = useState(null);
   const [adoptChoice, setAdoptChoice] = useState(null);
   const [activeSection, setActiveSection] = useState("overview");
-  const [wardrobeSection, setWardrobeSection] = useState("hats");
   const [careFeedback, setCareFeedback] = useState(null);
+  const [recountSeen, setRecountSeen] = useState(isRecountDismissed);
 
   const adopted = isAdopted(pet);
   const xp = xpOf(pet);
@@ -115,8 +127,15 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
   const { mood, because } = adopted
     ? moodExplainFor(pet, now, petContext)
     : { mood: "content", because: "" };
-  const beat = usePetBeat(mood, adopted);
-  const gaze = usePetGaze(true);
+  const motionEnabled = petSettings?.motion !== false;
+  const buddyKey = buddyFor(pet);
+  const story = useCompanionStory({memory:companionMemory,petKey:pet?.petKey,petName:pet?.name || getPetByKey(pet?.petKey)?.label,buddyKey,buddyName:buddyKey ? getPetByKey(buddyKey)?.label:'',scene:pet?.cosmetics?.habitat?.scene || 'garden',inClass:petContext?.inClass,now});
+  const routine = useMemo(() => routineFor({now,inClass:petContext?.inClass,minsToClass:petContext?.minsToClass,classesToday:petContext?.classesToday,habitat:pet?.cosmetics?.habitat,favorite:story.favorite?.key,mood}),[now,petContext?.inClass,petContext?.minsToClass,petContext?.classesToday,pet?.cosmetics?.habitat,story.favorite?.key,mood]);
+  const performanceMood = routine?.mood || mood;
+  const habitatInteraction = useHabitatInteraction({primary:pet?.petKey,buddy:buddyKey,habitat:pet?.cosmetics?.habitat,mood:performanceMood,enabled:adopted && motionEnabled,autonomous:petSettings?.signatures !== false,reaction:careFeedback?.action,reactionId:careFeedback?.at,favorite:story.favorite?.key,routine,familiarity:story.familiarity.days});
+  const social = useBuddyInteraction(performanceMood, adopted && motionEnabled, pet?.petKey, buddyKey, careFeedback?.reunion ? "leap" : careFeedback?.action, careFeedback?.at, petSettings?.signatures !== false && !routine, story.familiarity.days);
+  const { bind: petRef, beat, action, source, replay, touch, greet, activity } = usePetPerformance(performanceMood, adopted && motionEnabled, pet?.petKey, careFeedback?.reunion ? "leap" : careFeedback?.action, petSettings?.signatures !== false, careFeedback?.at, social.primary, Boolean(buddyKey), habitatInteraction.primary, story.accepted, story.welcome);
+  const gaze = usePetGaze(motionEnabled);
   const left = careLeft(pet, now);
   const unlocked = useMemo(() => new Set(unlockedFor(pet)), [pet]);
   const sources = useMemo(() => xpBySource(pet), [pet]);
@@ -141,7 +160,6 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
   const earnedNeck = useMemo(() => new Set(neckwearFor(pet, { wardrobe: wardrobeOn })), [pet, wardrobeOn]);
   const earnedTitles = useMemo(() => new Set(titlesFor(pet, now)), [pet, now]);
   const title = visibleTitle(pet, now);
-  const buddyKey = buddyFor(pet);
   const buddy = buddyKey ? getPetByKey(buddyKey) : null;
   const streak = careStreak(pet, now);
   const multiplier = devotionMultiplier(pet, now);
@@ -161,8 +179,10 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
   }, [careFeedback]);
 
   const handleCare = action => {
+    habitatInteraction.takeOver();
+    const reunion = hoursSince(pet, now) >= REUNION_HOURS;
     petActions.care(action, now);
-    setCareFeedback(previous => ({ action, earned: left > 0, at: (previous?.at || 0) + 1 }));
+    setCareFeedback(previous => ({ action, earned: left > 0, reunion, at: (previous?.at || 0) + 1 }));
   };
 
   if (!adopted) {
@@ -188,7 +208,7 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
               <span
                 className="dg-pet pet-hero"
                 data-pet={adoptChoice}
-                data-motion="on"
+                data-motion={motionEnabled ? "on" : "off"}
                 data-mood="excited"
                 aria-hidden="true"
                 {...gaze}
@@ -209,7 +229,7 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
                   aria-pressed={adoptChoice === key}
                   onClick={() => setAdoptChoice(key)}
                 >
-                  <span className="dg-pet pet-slot-art" data-pet={key} data-motion="on" aria-hidden="true">
+                  <span className="dg-pet pet-slot-art" data-pet={key} data-motion={motionEnabled ? "on" : "off"} aria-hidden="true">
                     <option.Svg />
                   </span>
                   <span className="pet-slot-name">{option.label}</span>
@@ -261,41 +281,39 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
 
       <div className="pet-summary-grid">
         <section className="pet-card pet-identity-card" aria-label="Your companion">
-          <div className="pet-identity-art" data-care={careFeedback?.action || undefined}>
-            <span
-              key={careFeedback?.at || "idle"}
+          <PetHabitat value={pet.cosmetics?.habitat} now={now} motionEnabled={motionEnabled} care={careFeedback?.action} onInteract={habitatInteraction.interact} interactive={habitatInteraction.available} routine={routine?.key} activity={activity} discovery={activity ? story.moment?.discovery:null}>
+            <button
+              type="button"
+              ref={petRef}
+              data-action-routine={activity?.routine}
+              data-habitat-target={activity?.target}
+              data-habitat-behavior={activity?.behavior}
+              data-partner-side="right"
               className="dg-pet pet-identity-pet"
               data-pet={current.key}
-              data-motion="on"
+              data-motion={motionEnabled ? "on" : "off"}
               data-stage={stage.key}
-              data-mood={mood}
-              data-beat={beat || undefined}
+              data-mood={performanceMood}
+              data-beat={!careFeedback ? beat || undefined : undefined}
+              data-action={action}
+              data-action-source={source} data-action-replay={replay}
               data-sig={signaturesOn ? undefined : "off"}
               data-accessory={accessoryOn ? "on" : "off"}
               data-coat={coat || undefined}
               data-neck={neck || undefined}
-              data-reaction={careFeedback?.action || undefined}
-              aria-hidden="true"
+              data-reaction={(careFeedback?.reunion ? "leap" : careFeedback?.action) || undefined}
+              aria-label={`Say hello to ${pet.name || current.label}`}
               {...gaze}
+              onPointerDown={event => { gaze.onPointerDown?.(event); habitatInteraction.takeOver(); touch(event); }}
+              onClick={event => { if (event.detail === 0) { habitatInteraction.takeOver(); greet(); } }}
             >
               <current.Svg />
               <PetHat hat={hat} />
               <PetNeckwear neck={neck} />
               <PetSleepCue />
-            </span>
-            {buddy && (
-              <span
-                className="dg-pet pet-identity-buddy"
-                data-pet={buddy.key}
-                data-motion="on"
-                data-mood={mood}
-                data-coat={coat || undefined}
-                aria-hidden="true"
-              >
-                <buddy.Svg />
-              </span>
-            )}
-          </div>
+            </button>
+            {buddy && <BuddyArt buddy={buddy} mood={performanceMood} motionEnabled={motionEnabled} signaturesOn={signaturesOn} coat={coat} cue={social.buddy} habitatCue={habitatInteraction.buddy} />}
+          </PetHabitat>
 
           <div className="pet-identity-copy">
             <p className="pet-eyebrow">Your study companion</p>
@@ -306,6 +324,11 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
             {title && <p className="pet-title-line">{titleLabel(title)}</p>}
             <p className="pet-mood">{MOOD_COPY[mood]}</p>
             {because && <p className="pet-because">{because}</p>}
+          {buddy && <button type="button" className="pet-social-greet" onClick={() => { habitatInteraction.takeOver(); social.greet(); story.rememberBuddy(); }} disabled={!motionEnabled}>Say hello together</button>}
+            {routine && <section className="pet-routine-status" aria-label="Daily routine"><div><strong>{routine.label}</strong><span>{!motionEnabled || !signaturesOn ? "Automatic movement is paused." : habitatInteraction.pausedUntil ? "Your choice for now. Resume whenever you like." : routine.description}</span></div><button type="button" disabled={!motionEnabled || !signaturesOn} onClick={habitatInteraction.pausedUntil ? habitatInteraction.resume : habitatInteraction.pause}>{habitatInteraction.pausedUntil ? "Resume routine" : "Pause 10 min"}</button></section>}
+            {story.welcome && <p className="pet-memory-welcome" role="status">{story.welcome.caption}</p>}
+            <p className="pet-habitat-activity" role="status">{activity ? `${pet.name || current.label} ${activity.label}` : "Tap a decoration to explore their little home."}</p>
+            {story.moment && <button type="button" className="pet-social-greet" disabled={story.saved} onClick={story.save}>{story.saved ? "Moment saved" : "Save moment"}</button>}
             <div className="pet-meta-row">
               <span>{nextStage ? `${nextStage.label} at Lv ${nextStage.from}` : "Fully grown"}</span>
               {seen && <span>Last together {seen}</span>}
@@ -315,6 +338,18 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
 
         <div className="pet-tools">
           <section className="pet-card pet-progress-panel" aria-label="Level progress">
+            {hasXpRecount(pet) && !recountSeen && (
+              <div className="pet-recount-note" role="status">
+                <p>
+                  <strong>XP recount.</strong> A sync bug double-counted some XP, so we
+                  recounted it from your real activity. Everything you had unlocked is
+                  still yours. You are Level {progress.level} now.
+                </p>
+                <button type="button" className="admin-btn outline" onClick={() => { dismissRecount(); setRecountSeen(true); }}>
+                  Got it
+                </button>
+              </div>
+            )}
             <div className="pet-xp-heading">
               <strong>Level {progress.level}{progress.maxed ? " · Max" : ""}</strong>
               <span>{xp} XP total</span>
@@ -441,6 +476,7 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
 
       {activeSection === "journey" && (
         <div className="pet-tab-panel pet-journey-grid" id="pet-panel-journey" role="tabpanel" aria-labelledby="pet-tab-journey">
+          <PetMemoryPanel memory={companionMemory} favorite={story.favorite} familiarity={story.familiarity} petKey={pet.petKey} buddyKey={buddyKey} petName={pet.name} />
           <section className="pet-card pet-roadmap-card">
             <div className="pet-card-heading">
               <div><p className="pet-eyebrow">Coming up</p><h3 className="pet-h3">Unlock roadmap</h3></div>
@@ -489,7 +525,7 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
               <div><strong>{unlocked.size}/{PETS.length}</strong><span>Companions</span></div>
               <div><strong>{streak} days</strong><span>Care streak</span></div>
             </div>
-            {progress.maxed && (
+            {progress.level >= DEVOTION_BASE_LEVEL && (
               <div className="pet-devotion-panel">
                 <div className="pet-xp-heading">
                   <strong>Devotion {devotion.tier}{devotion.capped ? " · Max" : ""}</strong>
@@ -561,7 +597,7 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
                 <span
                   className="dg-pet pet-slot-art"
                   data-pet={option.key}
-                  data-motion={isCurrent ? "on" : "off"}
+                  data-motion={isCurrent && motionEnabled ? "on" : "off"}
                   aria-hidden="true"
                 >
                   <option.Svg />
@@ -614,8 +650,8 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
           Switching is free — XP belongs to you, not the animal.
           {progress.level < MAX_LEVEL
             ? " Keep levelling to meet the rest."
-            : devotion.tier < Math.max(...Object.keys(DEVOTION_UNLOCKS).map(Number))
-              && " Two more are out there, earned by devotion rather than levels."}
+            : devotion.tier < Math.max(...DEVOTION_COMPANIONS.map(([tier]) => Number(tier)))
+              && " More companions are out there, earned by devotion rather than levels."}
         </p>
       </section>
       )}
@@ -627,168 +663,7 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
         role="tabpanel"
         aria-labelledby="pet-tab-wardrobe"
       >
-        <div className="pet-card-heading">
-          <div>
-            <p className="pet-eyebrow">Make it theirs</p>
-            <h3 className="pet-h3">Wardrobe</h3>
-          </div>
-          <span className="pet-total-pill">{earnedHats.size + earnedNeck.size + earnedCoats.size} earned</span>
-        </div>
-        <div className="pet-subtabs" role="tablist" aria-label="Wardrobe categories">
-          {WARDROBE_SECTIONS.map((section, index) => (
-            <button
-              key={section.id}
-              type="button"
-              id={`pet-wardrobe-tab-${section.id}`}
-              role="tab"
-              aria-selected={wardrobeSection === section.id}
-              aria-controls={`pet-wardrobe-panel-${section.id}`}
-              className={wardrobeSection === section.id ? "is-active" : ""}
-              tabIndex={wardrobeSection === section.id ? 0 : -1}
-              onClick={() => setWardrobeSection(section.id)}
-              onKeyDown={event => moveTabFocus(event, index, WARDROBE_SECTIONS, setWardrobeSection)}
-            >
-              {section.label}
-            </button>
-          ))}
-        </div>
-
-        {wardrobeSection === "hats" && (
-        <div className="pet-wardrobe-pane" id="pet-wardrobe-panel-hats" role="tabpanel" aria-labelledby="pet-wardrobe-tab-hats">
-        <p className="pet-collection-note">{earnedHats.size} of {HATS.filter(h => !hatsOff.includes(h.key)).length} hats unlocked</p>
-        <div className="pet-wardrobe">
-          <button
-            type="button"
-            className={`pet-hat-slot${hat === null ? " on" : ""}`}
-            aria-pressed={hat === null}
-            onClick={() => petActions.setCosmetic("hat", null)}
-          >
-            <span className="pet-hat-art" aria-hidden="true" />
-            <span className="pet-slot-name">None</span>
-          </button>
-          {HATS.filter(option => !hatsOff.includes(option.key)).map(option => {
-            const isEarned = earnedHats.has(option.key);
-            const isOn = hat === option.key;
-            return (
-              <button
-                key={option.key}
-                type="button"
-                className={`pet-hat-slot${isOn ? " on" : ""}${isEarned ? "" : " locked"}`}
-                disabled={!isEarned}
-                aria-pressed={isOn}
-                aria-label={isEarned ? `Wear the ${option.label}` : `${option.label}, needs ${hatRequirement(option.key)}`}
-                onClick={() => isEarned && petActions.setCosmetic("hat", isOn ? null : option.key)}
-              >
-                <span className="pet-hat-art" aria-hidden="true">
-                  <PetHat hat={option.key} />
-                </span>
-                <span className="pet-slot-name">{option.label}</span>
-                {isOn && <span className="pet-slot-badge"><Check size={11} strokeWidth={3} /></span>}
-                {!isEarned && <span className="pet-slot-lock"><Lock size={10} /> {hatRequirement(option.key)}</span>}
-              </button>
-            );
-          })}
-        </div>
-        <p className="pet-care-note">
-          {devotion.tier >= MAX_DEVOTION
-            ? "Every wearable is yours."
-            : progress.maxed
-              ? "Devotion keeps the wardrobe growing — every tier past level 12 opens something."
-              : "More arrive as you level, and more still after level 12."}
-        </p>
-        </div>
-        )}
-
-        {/* A second slot, independent of the hat. Two slots multiply: the
-            wardrobe grows faster than the art does. */}
-        {wardrobeSection === "collars" && (
-        <div className="pet-wardrobe-pane" id="pet-wardrobe-panel-collars" role="tabpanel" aria-labelledby="pet-wardrobe-tab-collars">
-        <p className="pet-collection-note">{earnedNeck.size} of {NECKWEAR.length} collars unlocked</p>
-        <div className="pet-wardrobe">
-          <button
-            type="button"
-            className={`pet-hat-slot${neck === null ? " on" : ""}`}
-            aria-pressed={neck === null}
-            onClick={() => petActions.setCosmetic("neck", null)}
-          >
-            <span className="pet-hat-art" aria-hidden="true" />
-            <span className="pet-slot-name">Their own</span>
-          </button>
-          {NECKWEAR.map(option => {
-            const isEarned = earnedNeck.has(option.key);
-            const isOn = neck === option.key;
-            return (
-              <button
-                key={option.key}
-                type="button"
-                className={`pet-hat-slot${isOn ? " on" : ""}${isEarned ? "" : " locked"}`}
-                disabled={!isEarned}
-                aria-pressed={isOn}
-                aria-label={isEarned ? `Wear the ${option.label}` : `${option.label}, needs ${neckwearRequirement(option.key)}`}
-                onClick={() => isEarned && petActions.setCosmetic("neck", isOn ? null : option.key)}
-              >
-                <span className="pet-hat-art" aria-hidden="true">
-                  <PetNeckwear neck={option.key} />
-                </span>
-                <span className="pet-slot-name">{option.label}</span>
-                {isOn && <span className="pet-slot-badge"><Check size={11} strokeWidth={3} /></span>}
-                {!isEarned && <span className="pet-slot-lock"><Lock size={10} /> {neckwearRequirement(option.key)}</span>}
-              </button>
-            );
-          })}
-        </div>
-        </div>
-        )}
-
-        {/* Coats recolour the animal you already have, which is why they are
-            devotion-only: they are for the stretch where there is nothing new
-            left to unlock. */}
-        {wardrobeSection === "coats" && (
-        <div className="pet-wardrobe-pane" id="pet-wardrobe-panel-coats" role="tabpanel" aria-labelledby="pet-wardrobe-tab-coats">
-        <p className="pet-collection-note">{earnedCoats.size} of {COATS.length} coats unlocked</p>
-        <div className="pet-wardrobe">
-          <button
-            type="button"
-            className={`pet-coat-slot${coat === null ? " on" : ""}`}
-            aria-pressed={coat === null}
-            onClick={() => petActions.setCosmetic("coat", null)}
-          >
-            <span className="dg-pet pet-coat-art" data-pet={current.key} data-motion="off" aria-hidden="true">
-              <current.Svg />
-            </span>
-            <span className="pet-slot-name">Their own</span>
-          </button>
-          {COATS.map(option => {
-            const isEarned = earnedCoats.has(option.key);
-            const isOn = coat === option.key;
-            return (
-              <button
-                key={option.key}
-                type="button"
-                className={`pet-coat-slot${isOn ? " on" : ""}${isEarned ? "" : " locked"}`}
-                disabled={!isEarned}
-                aria-pressed={isOn}
-                aria-label={isEarned ? `${option.label} coat` : `${option.label} coat, needs ${coatRequirement(option.key)}`}
-                onClick={() => isEarned && petActions.setCosmetic("coat", isOn ? null : option.key)}
-              >
-                <span
-                  className="dg-pet pet-coat-art"
-                  data-pet={current.key}
-                  data-coat={option.key}
-                  data-motion="off"
-                  aria-hidden="true"
-                >
-                  <current.Svg />
-                </span>
-                <span className="pet-slot-name">{option.label}</span>
-                {isOn && <span className="pet-slot-badge"><Check size={11} strokeWidth={3} /></span>}
-                {!isEarned && <span className="pet-slot-lock"><Lock size={10} /> {coatRequirement(option.key)}</span>}
-              </button>
-            );
-          })}
-        </div>
-        </div>
-        )}
+        <PetWardrobe current={current} petName={pet.name} hat={hat} neck={neck} coat={coat} stage={stage} accessoryOn={accessoryOn} earnedHats={earnedHats} earnedNeck={earnedNeck} earnedCoats={earnedCoats} hatsOff={hatsOff} onChange={petActions.setCosmetic}/>
       </section>
       ) : (
         <section
@@ -802,6 +677,14 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
           <p>Your cohort has wardrobe customisation turned off.</p>
         </section>
       ))}
+
+      {activeSection === "habitat" && (
+        <section className="pet-card pet-tab-panel" id="pet-panel-habitat" role="tabpanel" aria-labelledby="pet-tab-habitat">
+          <p className="pet-eyebrow">Make room for them</p>
+          <h3 className="pet-h3">Their little habitat</h3>
+          <PetHabitatControls value={pet.cosmetics?.habitat} onChange={value => petActions.setCosmetic("habitat", value)} />
+        </section>
+      )}
 
       {activeSection === "profile" && (
       <div

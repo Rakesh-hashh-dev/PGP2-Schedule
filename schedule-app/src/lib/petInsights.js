@@ -1,7 +1,7 @@
 import {
-  BUDDY_DEVOTION, COATS, DEVOTION_STEP, DEVOTION_UNLOCKS, HATS,
-  MAX_LEVEL, NECKWEAR, STARTER_KEYS, UNLOCKS, XP_SOURCES, devotionFor, levelFor,
-  normalize, unlockedFor, xpOf, xpToReach,
+  BUDDY_DEVOTION, COATS, DEVOTION_STEP, DEVOTION_COMPANIONS, HATS,
+  DEVOTION_BASE_XP, MAX_LEVEL, NECKWEAR, STARTER_KEYS, UNLOCKS, XP_SOURCES, devotionFor, levelFor,
+  normalize, unlockStanding, unlockedFor, xpOf, xpToReach,
 } from "./pet.js";
 
 const dayKey = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -11,8 +11,8 @@ const labelFor = key => key.charAt(0).toUpperCase() + key.slice(1);
 /** Upcoming reward gates, grouped so three rows show three distinct steps. */
 export function unlockRoadmap(state, { wardrobe = true, hatsOff = [] } = {}) {
   const xp = xpOf(state);
-  const level = levelFor(xp);
-  const tier = devotionFor(xp).tier;
+  // Ownership (not the XP shown): a gate the legacy floor already covers is not "upcoming".
+  const { level, tier } = unlockStanding(state);
   const unlocked = new Set(unlockedFor(state));
   const gates = new Map();
   const add = (by, at, kind, label) => {
@@ -25,7 +25,7 @@ export function unlockRoadmap(state, { wardrobe = true, hatsOff = [] } = {}) {
   for (const [at, key] of Object.entries(UNLOCKS)) {
     if (!unlocked.has(key)) add("level", Number(at), "companion", labelFor(key));
   }
-  for (const [at, key] of Object.entries(DEVOTION_UNLOCKS)) {
+  for (const [at, key] of DEVOTION_COMPANIONS) {
     if (!unlocked.has(key)) add("devotion", Number(at), "companion", labelFor(key));
   }
   if (wardrobe) {
@@ -45,7 +45,7 @@ export function unlockRoadmap(state, { wardrobe = true, hatsOff = [] } = {}) {
       ...gate,
       remainingXp: Math.max(0, (gate.by === "level"
         ? xpToReach(gate.at)
-        : xpToReach(MAX_LEVEL) + gate.at * DEVOTION_STEP) - xp),
+        : DEVOTION_BASE_XP + gate.at * DEVOTION_STEP) - xp),
     }));
 }
 
@@ -85,7 +85,7 @@ export function recentPetMoments(state, limit = 5, now = new Date()) {
   }
 
   const moments = [];
-  let cumulativeXp = s.baseXp + s.grantedXp + olderXp;
+  let cumulativeXp = s.grantedXp + olderXp;
   for (const day of [...days.keys()].sort()) {
     const group = days.get(day);
     const beforeLevel = levelFor(cumulativeXp);
@@ -104,7 +104,9 @@ export function recentPetMoments(state, limit = 5, now = new Date()) {
       if (UNLOCKS[level]) moments.push({ day, kind: "unlock", label: `${labelFor(UNLOCKS[level])} unlocked`, count: 1, xp: 0 });
     }
     for (let tier = beforeTier + 1; tier <= afterTier; tier++) {
-      if (DEVOTION_UNLOCKS[tier]) moments.push({ day, kind: "unlock", label: `${labelFor(DEVOTION_UNLOCKS[tier])} unlocked`, count: 1, xp: 0 });
+      for (const [at, key] of DEVOTION_COMPANIONS) {
+        if (Number(at) === tier) moments.push({ day, kind: "unlock", label: `${labelFor(key)} unlocked`, count: 1, xp: 0 });
+      }
     }
   }
   if (s.adoptedAt && s.adoptedAt >= cutoff && s.adoptedAt <= through) {
@@ -118,14 +120,15 @@ export function petMilestones(state) {
   const xp = xpOf(state);
   const level = levelFor(xp);
   const companions = unlockedFor(state).length;
-  const totalCompanions = STARTER_KEYS.length + Object.keys(UNLOCKS).length + Object.keys(DEVOTION_UNLOCKS).length;
+  const totalCompanions = STARTER_KEYS.length + Object.keys(UNLOCKS).length + DEVOTION_COMPANIONS.length;
   return [
     { key: "friend", label: "First friend", detail: "Adopt a companion", value: normalize(state).adoptedAt ? 1 : 0, target: 1, ready: true },
     { key: "level4", label: "Study partner", detail: "Reach level 4", value: level, target: 4, ready: true },
     { key: "collect8", label: "Growing circle", detail: "Unlock 8 companions", value: companions, target: 8, ready: level >= 4 },
     { key: "level8", label: "Steady progress", detail: "Reach level 8", value: level, target: 8, ready: level >= 4 },
     { key: "collectAll", label: "Full house", detail: "Unlock every companion", value: companions, target: totalCompanions, ready: companions >= 8 },
-    { key: "level12", label: "Fully grown", detail: "Reach level 12", value: level, target: MAX_LEVEL, ready: level >= 8 },
+    { key: "level12", label: "Fully grown", detail: "Reach level 12", value: level, target: 12, ready: level >= 8 },
+    { key: "level20", label: "Legend", detail: `Reach level ${MAX_LEVEL}`, value: level, target: MAX_LEVEL, ready: level >= 12 },
   ].map(item => ({
     ...item,
     status: item.value >= item.target ? "completed" : item.ready ? "in-progress" : "locked",

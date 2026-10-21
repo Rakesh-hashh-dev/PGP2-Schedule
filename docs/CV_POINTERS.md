@@ -1,140 +1,269 @@
 # CV Pointers — TermFlow / PGP2 Schedule
 
-> Ready-to-use bullet points. Pick the role section that fits, trim to 4–6 bullets, and tailor metrics to your own estimates.
+Reviewed on **4 October 2026** against the current local application, a fresh test run, project records, and the signed-in production app at https://pgp2.termflow.tech/.
 
----
+> Choose 3–5 role-relevant bullets. Use verified figures with their period and definition. Estimates below are explicitly hypothetical. The previous draft is preserved in `archive/CV_Pointers.before-review-2026-10-04.md`; its unsupported claims should not be reused.
 
-## 🧑‍💻 Full-Stack / Product Engineer
+## Verified quantitative evidence
 
-- **Built TermFlow**, a full-stack PWA for 200+ MBA students at IIM Sambalpur — covering timetable, attendance, social planning, assignments, and push notifications — from greenfield to production.
-- **Designed a real-time data pipeline**: timetable lives in Google Sheets → exposed via Apps Script → SHA-256 diff-detected at runtime → incremental updates pushed to users via Web Push (VAPID) and Supabase Edge Functions.
-- **Architected a offline-first boot strategy**: build-time schedule snapshot baked into the React bundle via a custom `generate-snapshot.mjs` script, reducing cold-start perceived latency to near-zero.
-- **Implemented row-level security (RLS) on Supabase Postgres**, routing all writes through stored RPCs to prevent direct table access; attendance, friend graphs, and group state are all user-scoped.
-- **Shipped 10 Supabase Edge Functions** covering push dispatch, schedule diffing, class reminders, scheduled config application, health monitoring, and Clerk→Supabase user migration.
-- **Integrated Clerk authentication** restricted by email domain (`@iimsambalpur.ac.in`), with a custom SSO callback and multi-phase migration from the Clerk dev environment to production (completed July 2026).
-- **Led a zero-downtime auth migration** from Clerk development to production using a batch migration script (`migrate-batch.mjs`) and a `_migration_map` table, preserving all existing user attendance and social data.
-- **Maintained a passing test suite of 58 Vitest tests** across 5 test files covering calendar export, attendance workspace, notification state, section logic, and Supabase store behaviour.
+### Live application — 4 October 2026, approximately 11:20 AM IST
 
----
+| Metric | Value | Definition / limitation |
+|---|---:|---|
+| Eligible PGP2 cohort | **304 students** | Owner-confirmed in this review. |
+| Registered production profiles | **206** | Admin Tools → Users. Source filters development IDs, but the directory includes the owner/admin profile despite the summary tooltip saying admins are excluded. Not 206 verified non-admin students. |
+| Indicative registration reach | **67.8%** | 206 / 304 × 100 = 67.76%. Approximate profile-to-cohort ratio; reconcile admin/test/duplicate accounts before claiming exact student adoption. |
+| Profiles with saved course setup | **206/206** | Current setup completion among registered profiles. Not 100% cohort adoption or behavioural activation. |
+| Active profiles, 30 calendar days | **134** | Durable presence, **5 September–4 October 2026**; current day incomplete. **65.0%** of registered profiles; **44.1%** relative to the 304-student cohort, subject to identity reconciliation. |
+| Active profiles, 7 calendar days | **86** | Durable Weekly Presence, **28 September–4 October**; current day incomplete. **41.7%** of registered profiles. |
+| User-days, same 7-day period | **449** | 64 + 64 + 74 + 66 + 59 + 67 + 55 daily unique-profile counts. These are not sessions or distinct users. At the earlier 11:15 AM observation the total was 281. |
+| Mean active days per weekly active profile | **5.2** | 449 / 86 = 5.22 days in the observed period; repeat-day usage, not retention. |
+| Highest daily activity that week | **74** | **30 September**, not an all-time peak. |
+| Active today, partial day | **29** | Since midnight IST on 4 October, measured around 11:20 AM. Not a completed-day or rolling-24-hour DAU. |
+| Previous week's unique active profiles | **96** | Adoption Trends, **21–27 September**. Current partial-week count does not establish growth. |
+| Attendance-action usage | **107 student-days** | Daily unique users performing attendance marks, summed across **28 September–4 October**. Not 107 distinct users or total marks. Tracking introduced in late September; previous-week zero is not a growth baseline. |
+| Announcement-view signal | **19 student-days** | Same week. Tracker fires on entering the notifications view; not proof of reading particular announcements. |
+| Calendar-export usage | **0 recorded student-days** | Same week. Recent instrumentation cannot establish lifetime usage. |
+| Active push devices | **12** | Header device count; Users separately reports push reach 0. Reconcile identities/subscriptions before calculating unique-user opt-in. |
+| Active share codes / pending friend pings | **106 / 200** | Record inventories, not unique social users, accepted referrals, or completed interactions. |
+| Live timetable feed | **698 class records** | Successful schedule-sync log; feed scope can change. Not 698 classes per student. |
+| Scheduled jobs / self-test checks | **5 / 7** | Production Insights interface. Cron success alone does not prove end-to-end delivery. Self-test was not run in this review. |
+| Recorded feedback | **7 items; all marked resolved** | Read in Users → Feedback triage → All; actual selected statuses checked. **6 owner-submitted reports and 1 other-student report**, not seven independent customer responses. |
+| Feedback reply tracking | **7 closed with no recorded reply** | The response-tracking panel; absence of recorded timestamps does not establish whether older replies were sent. No response-time or satisfaction result can be calculated. |
 
-## 🎨 Frontend / React Engineer
+**Metric discrepancies:** Users reports **67 profiles active within a rolling 7 × 24-hour window**; durable Insights reports **65 over seven IST calendar dates**. Use one definition consistently. The UI's “18% stickiness” used a partial-day numerator, so it is not a headline CV claim. Current source and UI label some calendar-date metrics as rolling windows.
 
-- **Built a React 19 + Vite 8 PWA** with Workbox caching, home-screen install, app shortcuts (Today / Attendance), and an in-app update prompt that polls `dist/meta.json` on each deploy.
-- **Designed and shipped 60+ React components** including a timeline view, week agenda, attendance panel, full-schedule browser, friends & group panel with undo-delete, drag-and-drop sortable lists (dnd-kit), and a pet companion system.
-- **Extracted a `DesktopSidebar`** component and a `useSidebar` hook to unify navigation state across viewports, with sidebar preference persistence backed by localStorage.
-- **Built a calendar export feature** (ICS + SVG formats) with a dedicated modal, a pure-JS export library, and a performance regression test suite (`calendarExport.perf.test.js`).
-- **Developed a real-time friends panel** using Supabase Realtime channels — live schedule-comparison, pings, group membership, and social flash toasts — all reconciled without full re-fetches.
-- **Implemented a gamified pet companion** (PetPage) with XP economy, mood state machine, neckwear/hat cosmetics, and an animated greeting layer — demonstrating product-thinking beyond functional requirements.
-- **Created a Semester Wrapped** feature (`WrappedView`) with shareable SVG cards generated client-side, giving students a personalized end-of-term attendance and social summary.
-- **Instrumented the app with Sentry** (source-map uploads via `@sentry/vite-plugin`) and Vercel Analytics + Speed Insights for production observability.
+### Current local implementation and tests
 
----
+| Metric | Verified value | Scope |
+|---|---:|---|
+| Test suite | **437 passing tests / 42 files** | Fresh `npm test`, 4 October 2026; includes existing uncommitted local additions. Does not prove CI enforcement on every release. |
+| React component source files | **87 JSX files** | Recursive `src/components` count excluding tests; file count, not unique features or remotely deployed components. |
+| Edge Function implementations | **10** | Local directories with `index.ts`; not a fresh remote deployment inventory. |
+| SQL migration/setup files | **44** | Local `supabase/migrations/*.sql`; not 44 independently deployed feature migrations. |
+| Current version | **6.3.9** | Package and live app. Version numbers do not prove a count of major releases. |
+| Earliest recorded Git commit | **15 June 2026** | Repository history; not definitive first-development or launch date. |
+| Calendar export benchmark | **1.883 ms / 6.793 ms** | Timed `buildICS` on filtered synthetic datasets starting with 100 / 1,000 classes; excludes filtering and browser download time. |
 
-## ☁️ Backend / Infrastructure Engineer
+### Historical evidence
 
-- **Deployed and maintained 10 Supabase Edge Functions** (Deno runtime) for push notification dispatch, schedule change diffing, class reminders, health monitoring, and user migration.
-- **Designed VAPID-based Web Push infrastructure**: subscription management in Supabase, fan-out dispatch via `send-push` edge function, and a dedicated `public/push-sw.js` service worker handling notification clicks and badge updates.
-- **Authored Google Apps Script** (2,400+ lines) to serve the timetable as a structured JSON feed from Google Sheets, including a menu extension for admin overrides.
-- **Managed multi-environment Supabase configuration** (`config.toml`, branch previews) with schema migrations and SQL snippets versioned in the repository.
-- **Built a load-test configuration** (`loadtest.yml`) and a `get-metrics` edge function for monitoring API throughput under real usage.
-- **Deployed on Vercel** with a custom `vercel.json` routing config, Sentry release tracking, and a `stats.html` bundle visualizer (rollup-plugin-visualizer) to keep bundle size in check.
-- **Automated database backups** at key milestones (4 SQL dumps in repository), with a documented cutover runbook (`CUTOVER.md`) and a `HEALER.md` incident-response guide.
+- **12 July 2026 cutover:** `CUTOVER.md` records **100 development accounts** exported into the bridge and a pre-cutover backup containing **1,805 attendance rows**. Initial batch remapped **9 profile friend-reference entries with 0 reported failures**; remaining users self-migrated on first production login. This does not prove 200+ migrated accounts, zero downtime, or zero data loss.
+- **Aftercare:** `HEALER.md` lists **41 numbered batch runs through 12 August 2026**, each with **0 reported failures**. Approximate migrated totals and narrative wording vary; no final reconciled migration count is asserted.
+- **12 July local signed-out performance:** desktop Lighthouse **94/100**, FCP **0.5 s**, LCP **1.5 s**, CLS **0**; simulated mobile **65/100**, LCP **5.9 s**. Historical sign-in-screen tests, not current signed-in production measurements.
+- **Historical Sentry chunk reduction:** **51.37 → 27.88 kB gzip = 45.7% reduction**, as documented in `docs/performance_report.md`. Confirm personal contribution before using this achievement. Not a 45.7% whole-app bundle reduction.
+- Omit the report's “16.45 ms average response” load-test claim: total concurrent batch duration divided by request count is not measured per-request latency.
 
----
+## Product Management / Product Strategy
 
-## 🛠️ Platform / DevOps / Tooling Engineer
+- **Built and operated TermFlow**, an academic productivity PWA at IIM Sambalpur with **206 registered production profiles against a 304-student cohort**—approximately **68% registration reach**.
+- **Integrated timetable, attendance, course workspaces, deadlines, and social coordination**, supporting **138 active profiles over 30 calendar days** as of 4 October 2026.
+- **Built a presence analytics dashboard** recording **86 weekly active profiles and 449 user-days**, equivalent to **5.2 active days per weekly active profile**, over 28 September–4 October.
+- **Instrumented three feature-action signals**—attendance marking, calendar exports, and announcement-view visits—alongside setup completion and durable daily presence.
+- **Designed a personal academic planner with seven sections** spanning priorities, attendance forecasts, workload, calendar, changes, sync, and insights.
 
-- **Built a prebuild pipeline**: `npm run build` automatically invokes `generate-snapshot.mjs` to refresh schedule data before every Vite production build, making the CI/CD output self-contained.
-- **Established a lint + test baseline** with ESLint (react-hooks plugin) and Vitest, enabling fast feedback loops with `vitest run` for CI and `vitest` (watch) for local iteration.
-- **Implemented Sentry source-map upload** as part of the Vite build, correlating production stack traces back to original JSX source.
-- **Managed Vercel Analytics and IndexNow** integration (`.indexnow-key`) for SEO signalling on each deploy.
-- **Wrote `CODEX_MEMORY.md`** — a structured onboarding document keeping architecture, commands, worktree state, and auth migration context up-to-date for future AI coding sessions and new collaborators.
+Use “sole owner” or “built independently” only after confirming ownership and assistance. Feature availability does not itself establish feedback-led prioritisation.
 
----
+## Data Analytics / BI / Data-Driven PM
 
-## 📱 Mobile / PWA Specialist
+- **Built an in-app analytics dashboard** spanning active usage, feature actions, self-mark attendance coverage, notification diagnostics, and operational health for a **206-profile production application**.
+- **Implemented durable IST daily presence**, with per-user daily records and hourly heartbeat counts; admin reporting supports **1–90-day query windows**.
+- **Instrumented three feature actions**, recording **134 attendance-action student-days** and **28 announcement-view student-days** over 28 September–4 October.
+- **Built course-and-section coverage reports**, distinguishing enrolled profiles, saved marks, and watch signals among profiles with at least **three marks**.
+- **Implemented dispatch diagnostics for the latest 25 admin push broadcasts**, separating provider success, missing subscriptions, preferences, quiet hours, expiry, endpoint rejection, provider errors, and unknown outcomes.
 
-- **Shipped a production PWA** installable on iOS and Android; offline capable via Workbox runtime caching with stale-while-revalidate for the schedule feed and network-first for dynamic user data.
-- **Implemented app shortcuts** in the PWA manifest, enabling one-tap access to Today view and Attendance panel from the home screen.
-- **Built a `DayGreeting` component** with time-of-day context, weather (Open-Meteo API), and animated greeting pets — replacing the generic loading screen with a personalised experience.
-- **Developed haptic feedback utilities** (`haptics.js`) for attendance marking interactions on mobile.
-- **Optimised for mobile-first navigation**: custom bottom-nav routing (`mobileNav.js`, `navItems.js`) with icon-only and labelled variants, persisted active-tab state, and smooth transitions between views.
+## Management Consulting / Business Analysis
 
----
+- **Translated fragmented academic coordination into a deployed digital product**, combining timetable, attendance, deadlines, and social planning with **206 registered production profiles**.
+- **Structured a Google Sheets-to-app workflow** serving **698 timetable records**, with schedule-change detection and targeted notification infrastructure.
+- **Developed a metrics framework** separating registration, setup completion, active usage, feature actions, and notification devices.
+- **Planned an auth cutover around a 100-account development limit**, using a data bridge, backup, verification steps, and on-login migration aftercare.
 
-## 📊 Product / Growth (for non-technical CVs / business roles)
+## General Management / Strategy
 
-- **Founded and shipped TermFlow**, a student productivity app adopted by the full PGP2 MBA cohort at IIM Sambalpur within one academic term.
-- **Identified and solved a real campus pain point** — fragmented timetable communication — by building a centralised platform that integrates schedule, attendance, social coordination, assignments, and exams.
-- **Drove engagement through social features**: friend scheduling, group planning, shared timetable comparison, and in-app pings — increasing daily active return rate beyond a utility app baseline.
-- **Executed a live migration** of 200+ user accounts with zero data loss and no service downtime, coordinating auth provider switchover and database state reconciliation.
-- **Iterated rapidly across 5+ major versions** (v1 → v5.12), adding features like calendar export, semester Wrapped, a pet companion, mess menu integration, and an admin dashboard based on real user feedback.
+- **Owned product and technical implementation for TermFlow**, spanning student workflows, analytics, backend integration, and operational controls for **206 production profiles**; confirm ownership wording.
+- **Combined student planning with administrative workflows** for audience targeting, feedback triage, attendance coverage, incident handoffs, and audit history.
+- **Built a managed-service architecture** with **10 locally implemented Edge Functions** and production visibility into **five scheduled jobs**.
+- **Operated with owner-reported negligible running cost**, using managed infrastructure; exact ₹/month and cost per active user remain unverified.
 
----
+## Entrepreneurship / Product Startups
 
-## 📈 Data Analytics / Business Intelligence / Data-Driven PM
+- **Created TermFlow**, a student productivity platform reaching **206 registered production profiles** with **134 active profiles across the observed 30-day period**.
+- **Expanded beyond timetable viewing** into course workspaces, personal planning, social coordination, expense splitting, and a gamified companion.
+- **Built usage instrumentation and operations tooling** to support feature analysis, inactive-profile targeting, feedback follow-up, and notification diagnostics.
 
-> These bullets are grounded in specific features built inside the TermFlow admin dashboard and `insights.js` library.
+Acquisition channels and paid spend are unverified. Registration alone does not establish organic growth, product-market fit, network effects, or a moat.
 
-- **Designed and built a full analytics dashboard** from scratch inside the TermFlow admin panel — covering user engagement, attendance trends, push notification reach, feature adoption, and infrastructure health — entirely without a third-party BI tool.
-- **Implemented DAU / WAU / MAU active-user tiers** by querying `last_seen_at` heartbeats from Supabase Postgres, computing rolling 1/7/30-day windows client-side, and surfacing a **DAU/MAU stickiness ratio** as the primary retention metric.
-- **Built a 7-day bar chart of daily active users** rendered as pure React/CSS (no chart library) — bucketing `last_seen_at` timestamps by IST date using `Intl.DateTimeFormat` with timezone-aware formatting, and overlaying a peak-hour signal derived from hourly heartbeat aggregates.
-- **Shipped a durable 30-day presence history** via a SECURITY DEFINER RPC (`admin_get_presence_history`) that stores per-user hourly heartbeat bitmaps — enabling day-level and hour-level drilldown even after raw timestamps age out, with CSV export for offline analysis.
-- **Built an onboarding funnel** tracking four lifecycle stages (Signed up → Picked a section → Enabled push → Active this week), computing step-to-step drop-off percentages to pinpoint activation bottlenecks.
-- **Created an attendance watchlist panel** surfacing the top N most-skipped courses cohort-wide, backed by a `get_admin_stats` SECURITY DEFINER RPC that aggregates absence records across all user rows (bypassing individual RLS) and ranked by absolute absence count with proportional bar visualisation.
-- **Implemented a push delivery analytics view** using a `get_push_broadcast_stats` RPC — matching each broadcast notification to its delivery outcome and surfacing per-campaign reach statistics directly in the dashboard.
-- **Built a cron / edge-function health monitor** using a `get_cron_health` RPC — displaying last-run time, schedule expression, status, and a staleness alert (>20 min since last heartbeat) for each background job, with a colour-coded health summary badge.
-- **Designed an enrolment distribution panel** ranking the top 5 most popular courses by enrolment count, computed from the `courses` JSONB field across all user profiles — useful for understanding resource demand by subject area.
-- **Wrote a re-engagement analytics and targeting flow**: identified inactive user cohorts by configurable inactivity threshold (e.g. 14+ days since `last_seen_at`), surfaced the count and list in the dashboard, and wired a one-click push broadcast to that specific audience via the existing VAPID push pipeline.
-- **Built a client-side analytics library** (`insights.js`) computing per-course stats (sessions done/remaining, next class, skip rate), weekly recaps (busiest day, subject-area distribution, hours in class, attendance %), and 7-day upcoming deadline merges — all without network calls, from already-loaded schedule and attendance state.
-- **Implemented a feature-adoption panel** tracking live on/off status for 7 feature flags (social graph, attendance, exams, meetups, push dispatch) alongside real-time share code count and friend ping count — enabling quick read on which features the cohort is actively using.
-- **Built a system self-test diagnostic**: a one-click runner that pings 5 critical service checks (Supabase DB, Insights RPCs, cron jobs, push gateway, schedule feed) in parallel and reports pass/fail with timestamps — equivalent to a synthetic monitor for the production stack.
-- **Maintained an admin audit log** (`admin_audit_logs` table) capturing every config change, push broadcast, and user action with admin identity, action type, and payload — enabling compliance-style traceability with searchable, filterable, and CSV-exportable log views.
+## Marketing / Growth / CRM / Retention
 
----
+- **Built activity segmentation and re-engagement tooling** for a **206-profile application**, with configurable inactivity thresholds and targeted push audiences.
+- **Tracked 86 weekly active profiles and 449 user-days** in the observed week, providing a baseline for future engagement experiments.
+- **Measured three feature-action signals**, distinguishing daily unique users from repeat-day activity and device subscriptions.
 
-## 🏢 Management Consulting (McKinsey / BCG / Bain / Big-4)
+Do not claim campaign lift, notification opens, referral conversion, or improved retention without observed results and a valid baseline/control.
 
-- **Identified and structured an unmet institutional need** — fragmented timetable and attendance data across a 200+ student MBA cohort — and delivered a full-stack product solution end-to-end, from problem diagnosis to deployment.
-- **Drove a zero-downtime platform migration** for 200+ users, managing stakeholder risk, sequencing the cutover in phases, and writing a formal incident-response runbook (`CUTOVER.md`, `HEALER.md`) to ensure operational continuity.
-- **Designed a data pipeline** that converts an unstructured Google Sheets source into structured, diff-tracked, real-time schedule intelligence — applying structured problem-solving to a messy data environment with no existing tooling.
-- **Built and shipped a multi-feature product across 5+ major releases** (v1 → v5.12), prioritising the backlog based on cohort feedback, balancing quick wins (attendance tracking) with longer-horizon features (calendar export, Semester Wrapped).
-- **Quantified adoption impact**: app served as the single source of timetable truth for the PGP2 batch, replacing ad-hoc WhatsApp broadcasts and reducing schedule-related confusion during a high-stakes academic term.
-- **Authored structured documentation** (architecture docs, migration runbooks, AI onboarding memory) demonstrating the ability to synthesise complex technical contexts into clear, transferable artefacts for diverse audiences.
+## EdTech / Education Technology
 
----
+- **Built an academic coordination PWA** spanning timetable, attendance, coursework, deadlines, and exams for a **304-student cohort**, with **206 production profiles** registered at review.
+- **Delivered course-specific planning**, surfacing upcoming classes, pending tasks, skip buffers, and recovery estimates from student-saved data.
+- **Built self-mark attendance coverage and watch reports**, using an **80% early-watch signal** among profiles with at least **three marks**, distinct from official attendance and course penalty rules.
+- **Added offline resilience** through bundled schedule snapshots and caching; fresh cloud data and authenticated writes still require connectivity.
 
-## 🏗️ General Management / Strategy (Leadership Development Programmes)
+## Program / Operations Management
 
-- **Conceptualised, built, and operated a zero-budget student platform** from scratch — demonstrating ownership, self-direction, and the ability to deliver results without organisational resources or a pre-existing team.
-- **Managed end-to-end product lifecycle**: ideation → architecture → iterative development → production deployment → live incident response → version updates, across a 12+ month horizon.
-- **Scaled a platform across two dimensions simultaneously** — feature depth (attendance, social, assignments, exams, push notifications) and operational reliability (Sentry monitoring, health checks, automated backups) — without sacrificing either.
-- **Negotiated constraints creatively**: used free-tier infrastructure (Supabase, Vercel, Google Sheets) to build production-grade reliability, demonstrating resourcefulness and cost-conscious engineering judgement.
-- **Led a complex stakeholder transition** (auth provider migration) with a documented plan, phased execution, rollback provisions, and zero user data loss — analogous to a live system cutover in an enterprise context.
-- **Demonstrated cross-functional execution**: sole owner of product strategy, UI/UX, backend infrastructure, database design, DevOps, and user communication — building capability across all functions a GM role requires.
+- **Documented and executed a phased auth cutover**, including a **100-account development export**, backup, verification, and on-login migration.
+- **Maintained aftercare records across 41 numbered batch runs**, with **0 reported batch failures** through 12 August 2026.
+- **Built visibility into five scheduled jobs** and a diagnostic interface exposing **seven checks**.
+- **Implemented feedback ownership, status/severity triage, response-target tracking, and incident handoffs**, with a **48-hour default response target**; configuration is not measured SLA attainment.
 
----
+## Full-Stack / Product Engineering
 
-## 💻 Technology Management / IT Strategy (CTO Office / Digital Transformation)
+- **Built a React 19 / Vite 8 PWA** integrating Clerk, Supabase, Google Sheets schedule ingestion, push notifications, and student planning for **206 production profiles**.
+- **Implemented 10 Supabase Edge Functions** for dispatch, schedule diffs, class reminders, scheduled configuration, health, metrics, and migration.
+- **Validated 437 automated tests across 42 files** in the current local checkout, covering scheduling, attendance, exports, notifications, social workflows, companions, and administration.
+- **Automated prebuild snapshot generation**, providing a bundled schedule fallback when live requests fail.
 
-- **Architected a modern SaaS-grade technology stack** (React 19, Vite 8, Supabase, Clerk, Vercel) for a real institutional use case, making deliberate trade-offs between build vs. buy, open-source vs. managed services.
-- **Implemented enterprise-grade security controls** on a student budget: OAuth-restricted to institutional email domain, Postgres row-level security, RPC-only write access, VAPID-authenticated Web Push, and environment-segregated secrets management.
-- **Evaluated and selected best-fit vendors** across auth (Clerk), database/realtime (Supabase), hosting (Vercel), error monitoring (Sentry), and push infrastructure (VAPID/Web Push) — demonstrating technology assessment and vendor management skills.
-- **Designed for operational resilience**: automated database backups, a health-monitor edge function, Sentry alerting, a formal incident-response document, and a load-test configuration for throughput validation.
-- **Built a custom CI/CD pipeline** integrating prebuild snapshot generation, ESLint quality gates, Vitest test suite (58 tests), Sentry source-map upload, and Vercel deployment — reducing manual release risk.
-- **Translated a real-world business need into a technical architecture**, maintaining alignment between product goals (student experience, reliability) and infrastructure decisions (offline-first, realtime sync, push alerts) throughout development.
+## Frontend / React Engineering
 
----
+- **Developed 87 React component source files** in the current checkout across scheduling, course workspaces, planning, social tools, companions, and administration.
+- **Implemented shared navigation and phone/tablet V2 views**, with a **1,200 px boundary** and retained desktop navigation.
+- **Built client-side ICS/SVG export**, measuring the local ICS generation step at **1.883 ms / 6.793 ms** for filtered synthetic datasets starting with 100 / 1,000 classes.
+- **Integrated error monitoring and lazy-loaded views**, with historical evidence of a **45.7% Sentry gzip-chunk reduction**, subject to confirmation of personal contribution.
 
-## 🚀 Entrepreneurship / Venture Capital / Product Startups
+## Backend / Infrastructure Engineering
 
-- **Founded and shipped TermFlow** — a vertically integrated student OS (timetable + attendance + social + assignments + exams + notifications) — achieving full cohort adoption within the PGP2 MBA batch at IIM Sambalpur.
-- **Built a defensible moat through depth**: the combination of real-time schedule diffing, peer social graph, gamified engagement (pet system, XP economy, Semester Wrapped), and offline-first reliability creates switching costs a simple timetable app cannot replicate.
-- **Demonstrated product-market fit through organic adoption**: the app became the de-facto scheduling tool for the batch without any marketing spend, validating both the problem hypothesis and the execution quality.
-- **Executed with startup discipline**: used free-tier cloud infrastructure, automated testing to move fast without breaking things, and shipped features iteratively (v1 → v5.12 across one academic year) in response to real user behaviour.
-- **Showed growth-product thinking**: added social hooks (friends, groups, pings), engagement loops (pet companion, XP rewards, Semester Wrapped), and notification nudges — applying retention and activation mechanics typical of consumer growth playbooks.
-- **Built a technical moat independently**: end-to-end ownership of product, backend, mobile, and DevOps — the kind of founder-mode technical depth that reduces early-stage dependency on external hires and accelerates iteration speed.
+- **Implemented 10 Deno-based Supabase Edge Functions** for notifications, schedule processing, scheduled actions, health, metrics, and migration.
+- **Designed user-scoped daily presence and feature-use stores**, with **three instrumented feature actions** and admin reporting.
+- **Built push dispatch diagnostics for the latest 25 admin broadcasts**, retaining failure/skip categories and unknown legacy states.
+- **Versioned 44 SQL migration/setup files**, alongside cutover and aftercare documentation.
 
----
+## Platform / DevOps / Technology Management
 
-> **Tip**: For resume bullets, lead with the strongest impact metric you can honestly claim (e.g. "used by 200+ students", "reduced cold-start to <200 ms", "58 tests, 100% green"). Replace placeholders with real numbers wherever you have them.
+- **Automated schedule snapshot and sitemap generation**, plus optional Sentry source-map upload within the Vite build.
+- **Established a runnable regression suite with 437 currently passing tests**, lint tooling, and bundle visualisation.
+- **Built production operations visibility for five scheduled jobs**, diagnostic checks, and timestamped session sync logs.
+- **Designed a staged auth transition** with environment configuration, a user-ID bridge, backup procedures, and aftercare.
+
+Tests and lint scripts do not establish enforced CI/CD quality gates. Historical backup files do not establish scheduled automatic backups.
+
+## Mobile / PWA
+
+- **Implemented an installable PWA** with shortcuts, update prompts, bundled snapshots, and Workbox caching.
+- **Built V2 navigation for phone/tablet viewports up to 1,200 px**, retaining desktop/V1 above that boundary.
+- **Added personalised greeting/weather views and mobile interaction utilities** alongside academic workflows.
+
+Authentication is network-only; cached information can be stale. This review did not validate every page/device or current mobile performance.
+
+## Security / AppSec
+
+- **Implemented RLS and scoped RPCs** for user and admin workflows, including self-scoped presence recording and admin-only analytics.
+- **Verified authentication identities in migration services** before remapping user data.
+- **Built admin audit history and role-aware operational controls** for configuration, account, and support workflows.
+
+Do not claim 100% RPC-only writes: feature-use instrumentation and other modules make direct table writes. The cutover runbook says institutional domain restriction was enforced in app code with the Clerk allowlist off. RLS, SECURITY DEFINER, and VAPID do not alone guarantee security or compliance. No current security audit or Git-history secret review was performed.
+
+## QA / Test Engineering
+
+- **Validated 437 tests across 42 files** in the current local checkout, covering transactional/date logic, exports, student workflows, admin utilities, and navigation logic.
+- **Built synthetic calendar-export performance benchmarks**, isolating ICS generation from filtering/download behaviour.
+- **Added regression coverage across attendance, notifications, scheduling, companion state, and admin workflows**.
+
+Passing tests do not establish code coverage, zero regressions, device correctness, or uptime.
+
+## User feedback analysis — recorded outcomes
+
+The live app contains **seven feedback records, all marked resolved**. **Six were submitted by the project owner**, and only **one by another student**. Therefore this is an issue-tracking sample, not a seven-customer validation study.
+
+| Theme | Items | What the records show |
+|---|---:|---|
+| Timetable accuracy / freshness | **2** | Wrong-day/stale schedule and a missing section-specific guest session. This supports prioritising feed freshness, day mapping, and section coverage. |
+| Navigation / interaction | **3** | Bottom-navigation animation, transparent navigation, and notification swipe interaction. |
+| Push reliability | **1** | A report that push notifications were not working. |
+| Admin usability | **1** | A request to fix Admin Tools. |
+| Total marked resolved | **7/7** | Status verified in the UI; no independent reporter confirmation, resolution timestamps, or before/after outcome established. |
+
+**Defensible wording:** “Tracked seven issue reports across timetable accuracy, navigation, push reliability, and admin usability; all seven were marked resolved at review.”
+
+For an MBA CV, the seven-record figure is weaker than adoption/active usage because most reports were self-submitted. Do not describe this as seven student interviews, 100% satisfaction, a 100% verified fix rate, or proven reduction in missed classes.
+
+The response panel shows **seven closed items without a recorded reply timestamp**. Historical replies may predate tracking. Neither average response time nor SLA adherence can be calculated. No CSAT, NPS, or satisfaction survey result was found.
+
+## Time-saving analysis — hypothetical workflow estimates
+
+**These figures are a planning model, not measured user outcomes or CV-ready achievements.** Source/UI review shows that TermFlow consolidates steps; it does not reveal how long students previously took in WhatsApp/Sheets or how frequently they use each workflow.
+
+| Task | Assumed manual baseline | Assumed app time | Illustrative saving | Workflow basis |
+|---|---:|---:|---:|---|
+| Find next class, room, and time | 60–120 seconds | 15–30 seconds | **30–105 seconds per lookup** | Today/Courses present the relevant class; manual baseline assumes finding a message or spreadsheet and filtering section/course. |
+| Calculate attendance standing or recovery | 2–5 minutes | 10–30 seconds | **1.5–4.8 minutes per check** | Attendance/Planner compute percentages, skip buffers, and recovery scenarios from saved marks. |
+| Find shared availability | 2–5 minutes | 15–45 seconds | **1.25–4.75 minutes per comparison** | Social timetable comparison reduces manual cross-checking; actual coordination may still need messages. |
+
+The assumed times are judgement ranges, **not observations made in this review**. Attendance data-entry time and correctness, stale-feed risk, login friction, and personal commitments can reduce or eliminate savings.
+
+**Illustrative aggregate model:** assuming **65 weekly active profiles**, **five timetable lookups each per week**, and **30–90 seconds saved per lookup**, estimated lookup savings would be:
+- Low: `65 × 5 × 30 / 3,600 = 2.7 hours/week`.
+- High: `65 × 5 × 90 / 3,600 = 8.1 hours/week`.
+
+Lookup frequency and seconds saved are assumed. Presence heartbeats/user-days do not prove task completion. Do not extrapolate this scenario to all 304 students or claim it as realised savings.
+
+**Measure before adding to the CV:** ask 10–15 students to complete matched timetable/attendance tasks with their usual workflow and TermFlow; counterbalance task order, record completion times and errors, and report paired median savings, sample size, dates, and task scope. Use observed task frequency separately for aggregate estimates.
+
+**Until measured:** “Centralised timetable lookup and automated attendance calculations, reducing manual searching and arithmetic.” This describes workflow simplification without inventing a percentage.
+
+## Suggested compact MBA / Product CV version
+
+**TermFlow — Academic Productivity Platform | Product Development Project**
+
+- Built and operated a PWA with **206 registered production profiles across a 304-student cohort**, representing approximately **68% registration reach**, integrating timetable, attendance, deadlines, and social coordination.
+- Supported **138 active profiles over 30 calendar days** and developed presence analytics showing **86 weekly active profiles averaging 5.2 active days** in the observed week.
+- Instrumented **three feature-action signals** and built setup, attendance coverage, targeted communication, and feedback workflows to support product decisions.
+- Implemented **10 backend Edge Functions** and validated **437 automated tests across 42 files** in the current local application.
+
+Usage period ends **4 October 2026**, with the final day incomplete. Counts include the owner/admin profile and require final account reconciliation for exact student-only adoption.
+
+## Interview explanations — evidence-bounded
+
+**Product impact:** “At review the app had 206 production profiles against a 304-student cohort. Durable activity showed 105 active profiles across 30 calendar dates. Weekly usage averaged 4.3 active days among 65 weekly active profiles. I have not yet measured time saved or demonstrated feature-caused retention improvements.”
+
+**Feedback:** “The recorded queue contains seven resolved-status issues, six self-reported and one from another student. Their themes are timetable accuracy, navigation, push, and admin usability. That is evidence of issue tracking, not a broad customer-satisfaction study.”
+
+**Analytics:** “I distinguish profiles, devices, daily unique feature users, and user-days. A latest-heartbeat timestamp cannot reconstruct historical activity, so daily presence is persisted. Weekly feature totals sum daily uniques rather than deduplicating users across the week.”
+
+**Migration:** “The documented cutover began with a 100-account development export and a backup containing 1,805 attendance rows. Users migrated on first production login, with batches remapping stale references. Recorded batches reported no failures; final reconciliation and availability logs would be needed for zero-loss or zero-downtime claims.”
+
+**Performance:** “The current local benchmark measured ICS generation at about 1.9 and 6.8 ms for filtered synthetic datasets starting with 100 and 1,000 classes. This is not full browser export latency. Historical signed-out Lighthouse was 94 desktop and 65 simulated mobile.”
+
+**Cost:** “Running cost is negligible according to my current estimate; I would reconcile hosting, auth, database, monitoring, and domain expenses before claiming an exact rupee figure or zero cost.”
+
+**Launch date:** Pending clarification. The owner supplied August 2027, which is after this review and conflicts with existing June/July 2026 usage/cutover records. Do not state a launch year or time-to-MVP until clarified.
+
+## Remaining inputs / measurements
+
+| Needed | Why |
+|---|---|
+| Correct first-launch date and distinction between pilot and broader rollout | August 2027 is future-dated; repo and feedback show activity in June/July 2026. |
+| Student-only account reconciliation | Exact adoption requires excluding admins, tests, and duplicates and applying the 304-student eligibility scope. |
+| Actual cost breakdown | “Almost negligible” does not establish ₹0, cost per MAU, or avoided spend. |
+| Ownership/contribution confirmation | Code and records do not establish sole authorship or attribution of every optimisation. |
+| Timed user task study | Required for measured time-saving claims. |
+| Feedback resolution dates / reporter validation | Required for turnaround times, independently confirmed fix rates, or satisfaction claims. |
+| Cohort-based retention and campaign comparison | Repeat usage and instrumentation do not establish week-4 retention or campaign lift. |
+| Final migration record checks and uptime logs | Required for zero-loss/downtime claims. |
+
+## Evidence and corrections to the previous draft
+
+**Production review:** Admin Tools → Insights, Users → Feedback triage, Moderation audit summary; student Courses and Personal Planner. No messages, broadcasts, account actions, configuration saves, student-detail exports, or deployments were performed. Only aggregate findings and anonymised feedback themes are retained.
+
+**Local sources:** package.json; AdminDashboard.jsx; AdminWorkflowPanels.jsx; adminWorkflow.js; featureUsage.js; navItems.js; App.jsx; CalendarExportModal.jsx; calendarExport.perf.test.js; vite.config.js; Edge Function directories; presence/feature-use/attendance-coverage/feedback-response/push-diagnostic migrations; CUTOVER.md; HEALER.md; performance_report.md; Git history; fresh test output.
+
+- Replaced **200+ users / full-cohort adoption / 100% activation** with dated profile counts, activity, and setup definitions.
+- Replaced **58 tests / 5 files** with **437 passing tests / 42 files**; replaced **60+ components** with **87 scoped JSX component files**.
+- Retained **10 Edge Functions** as local implementation evidence.
+- Removed **2,400+ Apps Script lines**: the root schedule script has **570 lines**, with a separate **135-line menu script**. Alternate copies should not be summed as unique work; line count is weak impact evidence.
+- Removed **5+ major releases / 12+ months / one academic year**; version 6.3.9 and history since June do not substantiate these claims.
+- Removed speculative migration/incident stories. HEALER.md documents migration aftercare, not a generic incident-response programme or evidence of a two-hour cold-start incident resolution.
+- Removed unsupported near-zero latency, fully offline operation, automated milestone backups, guaranteed uptime, campaign lift, and compliance-grade claims.
+- Removed unverified Vercel Speed Insights and automated IndexNow claims; current review supports Vercel Analytics, Sentry, and sitemap generation.
+- Local code implements VAPID Web Push; production UI labels devices “FCM” and shows inconsistent user-level reach. Reconcile deployed implementation before claiming an FCM migration or unique-user opt-in.
+- Changed the onboarding story to setup/activity/device signals: the current snapshot is not a timestamped sequential conversion funnel.
+
+For every final metric retain: **scope → period → source → formula → personal contribution → limitation**. Refresh usage figures when submitting the CV; migration/performance results remain explicitly historical.

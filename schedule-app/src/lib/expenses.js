@@ -27,14 +27,25 @@ export const CATEGORIES = [
 
 // ── Receipt images ──────────────────────────────────────────────
 
-/** Public URL for a receipt storage path. */
+// Private receipt URLs are signed and cached briefly. React consumers subscribe to completion.
+const receiptCache = new Map();
+const receiptPending = new Map();
 export function receiptImageUrl(imagePath) {
   if (!imagePath) return null;
-  return supabase.storage.from("split-receipts").getPublicUrl(imagePath).data?.publicUrl || null;
+  const cached = receiptCache.get(imagePath);
+  if (cached?.expires > Date.now()) return cached.url;
+  if (!receiptPending.has(imagePath)) {
+    const request = supabase.storage.from("split-receipts").createSignedUrl(imagePath, 900).then(({ data, error }) => {
+      receiptCache.set(imagePath, { url: !error ? data?.signedUrl || null : null, expires: Date.now() + (!error && data?.signedUrl ? 840000 : 30000) });
+      window.dispatchEvent(new CustomEvent("split-receipt-ready", { detail: imagePath }));
+    }).catch(() => { receiptCache.set(imagePath, { url: null, expires: Date.now() + 30000 }); }).finally(() => receiptPending.delete(imagePath));
+    receiptPending.set(imagePath, request);
+  }
+  return null;
 }
 
 /** Resize + upload a receipt to the caller's folder. Returns the path or null. */
-async function uploadReceipt(userId, imageFile) {
+export async function resizeReceipt(userId, imageFile) {
   if (!imageFile) return null;
   try {
     const blob = imageFile.type === "image/webp" ? imageFile : await resizeImage(imageFile);
@@ -269,9 +280,9 @@ export async function fetchMyGroups(userId) {
       .select("*")
       .contains("member_ids", [userId])
       .order("created_at", { ascending: false });
-    if (error) { console.error("[fetchMyGroups]", error.message); return []; }
+    if (error) throw new Error(error.message);
     return data || [];
-  } catch { return []; }
+  } catch (e) { throw new Error(e.message || "Unable to load your groups.", { cause: e }); }
 }
 
 /**
@@ -353,18 +364,18 @@ export async function fetchGroupLedger(groupId) {
       supabase.from("split_expenses").select("*").eq("group_id", groupId).order("created_at", { ascending: false }),
       supabase.from("settlements").select("*").eq("group_id", groupId).order("created_at", { ascending: false }),
     ]);
-    if (eErr) console.error("[fetchGroupLedger expenses]", eErr.message);
-    if (sErr) console.error("[fetchGroupLedger settlements]", sErr.message);
+    if (eErr) throw new Error(eErr.message);
+    if (sErr) throw new Error(sErr.message);
     const exp = expenses || [];
     let sharesByExpense = {};
     if (exp.length) {
       const { data: shares, error: shErr } = await supabase
         .from("split_shares").select("*").in("expense_id", exp.map(e => e.id));
-      if (shErr) console.error("[fetchGroupLedger shares]", shErr.message);
+      if (shErr) throw new Error(shErr.message);
       for (const s of shares || []) (sharesByExpense[s.expense_id] ||= []).push(s);
     }
     return { expenses: exp, sharesByExpense, settlements: settlements || [] };
-  } catch (e) { console.error("[fetchGroupLedger]", e); return empty; }
+  } catch (e) { throw new Error(e.message || "Unable to load this group ledger.", { cause: e }); }
 }
 
 /**
@@ -375,7 +386,7 @@ export async function fetchGroupLedger(groupId) {
 export async function addExpense({ userId, userName, group, description, amountPaise, paidBy, splitType, category, notes, shares, imageFile }) {
   if (!userId || !group?.id || !description?.trim() || !amountPaise || !paidBy) return null;
   try {
-    const imagePath = await uploadReceipt(userId, imageFile);
+    const imagePath = await resizeReceipt(userId, imageFile);
     const { data: expense, error } = await supabase
       .from("split_expenses")
       .insert({
@@ -435,7 +446,7 @@ export async function updateExpense({ userId, expenseId, description, amountPais
       notes: (notes || "").trim().slice(0, 300) || null,
     };
     if (imageFile) {
-      const imagePath = await uploadReceipt(userId, imageFile);
+      const imagePath = await resizeReceipt(userId, imageFile);
       if (imagePath) patch.image_path = imagePath;
     }
     const { data: expense, error } = await supabase
@@ -562,35 +573,46 @@ function readQueue() {
   catch { return []; }
 }
 function writeQueue(q) {
-  try { localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); } catch { /* quota */ }
+  try { localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); return true; } catch { return false; }
 }
 
 /** Stash a failed add. payload mirrors addExpense args minus imageFile. */
 export function enqueueOfflineExpense(payload) {
   const q = readQueue();
-  q.push({ ...payload, _queuedAt: Date.now() });
-  writeQueue(q);
+  q.push({ ...payload, requestKey: payload.requestKey || crypto.randomUUID(), _queueId: crypto.randomUUID(), _queuedAt: Date.now() });
+  if (!writeQueue(q)) throw new Error("Unable to store this offline draft. Keep the form open and reconnect.");
 }
 
-export function queuedCount(groupId) {
-  return readQueue().filter(p => !groupId || p.group?.id === groupId).length;
+export function queuedCount(groupId, userId) {
+  return readQueue().filter(p => (!groupId || p.group?.id === groupId) && (!userId || p.userId === userId)).length;
 }
 
 /**
  * Try to flush queued adds. Returns the number successfully sent. Silently keeps
  * anything that still fails (e.g. still offline) for the next attempt.
  */
-export async function flushQueue() {
-  const q = readQueue();
-  if (!q.length) return 0;
-  const remaining = [];
-  let sent = 0;
-  for (const p of q) {
-    const row = await addExpense(p);
-    if (row) sent++; else remaining.push(p);
-  }
-  writeQueue(remaining);
-  return sent;
+let flushing = null;
+export function flushQueue(userId) {
+  if (flushing) return flushing;
+  if (!userId || typeof navigator !== "undefined" && navigator.onLine === false) return Promise.resolve(0);
+  flushing = (async () => {
+    const all = readQueue().map(p => ({ ...p, requestKey: p.requestKey || crypto.randomUUID(), _queueId: p._queueId || crypto.randomUUID() }));
+    writeQueue(all);
+    const q = all.filter(p => p.userId === userId);
+    if (!q.length) return 0;
+    const sentIds = new Set(); let sent = 0;
+    const { saveCircleExpense, splitFeatures } = await import("./splitCloud.js");
+    const advanced = await splitFeatures();
+    for (const p of q) {
+      try {
+        const row = await saveCircleExpense({ ...p, requestKey: p.requestKey || crypto.randomUUID() }, advanced);
+        if (row) { sent++; sentIds.add(p._queueId || p._queuedAt); }
+      } catch { /* Retain the user's draft for the next retry. */ }
+    }
+    writeQueue(readQueue().filter(p => !sentIds.has(p._queueId || p._queuedAt)));
+    return sent;
+  })().finally(() => { flushing = null; });
+  return flushing;
 }
 
 // ── Notifications ───────────────────────────────────────────────
@@ -646,7 +668,7 @@ async function notifySplit(targetUserId, type, group, fromId, fromName, extra = 
 export function subscribeGroupLedger(groupId, onChange) {
   if (!groupId) return () => {};
   const channel = supabase
-    .channel(`split-ledger-${groupId}`)
+    .channel(`split-ledger-${groupId}-${crypto.randomUUID()}`)
     .on("postgres_changes", { event: "*", schema: "public", table: "split_expenses", filter: `group_id=eq.${groupId}` }, () => onChange?.())
     .on("postgres_changes", { event: "*", schema: "public", table: "settlements", filter: `group_id=eq.${groupId}` }, () => onChange?.())
     .on("postgres_changes", { event: "*", schema: "public", table: "split_shares" }, () => onChange?.())
@@ -658,8 +680,13 @@ export function subscribeGroupLedger(groupId, onChange) {
 export function subscribeMyGroups(userId, onChange) {
   if (!userId) return () => {};
   const channel = supabase
-    .channel(`split-groups-${userId}`)
+    .channel(`split-groups-${userId}-${crypto.randomUUID()}`)
     .on("postgres_changes", { event: "*", schema: "public", table: "split_groups" }, () => onChange?.())
     .subscribe();
   return () => { supabase.removeChannel(channel); };
+}
+
+export async function notifyExpenseAdded(payload, expense) {
+  const targets = Object.entries(payload.shares).filter(([id, amount]) => id !== payload.userId && amount > 0).map(([id]) => id);
+  await Promise.all(targets.map(id => notifySplit(id, "split_added", payload.group, payload.userId, payload.userName || "Someone", { description: expense.description, amountPaise: payload.amountPaise })));
 }

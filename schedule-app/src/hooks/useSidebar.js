@@ -1,12 +1,27 @@
 // Sidebar/theme/mobile-nav UI state, extracted from App.jsx. Pure UI-shell
 // concerns (collapse state, visual style, appearance, bottom-dock lens,
 // overflow-menu accordion sections) with no coupling to schedule/enrollment/
-// notification data. `view` and `sysConfig` are threaded in as args since the
-// bottom-dock lens re-measures when either changes.
-import { useState, useEffect, useLayoutEffect, useCallback, useRef } from "react";
-import { haptic } from "../lib/haptics.js";
+// notification data. The bottom-dock lens lives in components/BnavLens.jsx so
+// taps and view changes don't re-render App.
+import { useState, useEffect, useRef, useCallback } from "react";
+import { readTabletSidebar, saveTabletSidebar, effectiveSidebarCollapsed } from "../lib/tabletSidebar.js";
+import { setSbFloatTip } from "../lib/sbFloatTip.js";
 
-export function useSidebar({ isTablet, view, sysConfig }) {
+export function useSidebar({ isTablet, v2Active = false }) {
+  const tabletControls = isTablet && v2Active;
+  const [tabletExpanded, setTabletExpanded] = useState(() => tabletControls && readTabletSidebar());
+  const tabletSidebarOpen = tabletControls && tabletExpanded;
+  const closeTabletSidebar = useCallback(() => {
+    if (!tabletControls) return;
+    setTabletExpanded(false);
+    saveTabletSidebar(false);
+    setSbFloatTip(null);
+  }, [tabletControls]);
+  useEffect(() => {
+    // A rotation closes the overlay without changing the saved reload preference.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- viewport exit resets transient overlay state
+    if (!tabletControls) setTabletExpanded(false);
+  }, [tabletControls]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
       const stored = localStorage.getItem("pgp2.sidebar");
@@ -17,19 +32,28 @@ export function useSidebar({ isTablet, view, sysConfig }) {
       return Boolean(isTablet);
     }
   });
-  const sbCollapsed = sidebarCollapsed;
+  // V2 tablet expansion is independent of the desktop preference.
+  const sbCollapsed = effectiveSidebarCollapsed({ isTablet, v2Active, tabletExpanded, sidebarCollapsed });
   function toggleSidebar() {
+    if (tabletControls) {
+      const next = !tabletExpanded;
+      setTabletExpanded(next);
+      saveTabletSidebar(next);
+      setSbFloatTip(null);
+      return;
+    }
     setSidebarCollapsed(prev => {
       const next = !prev;
       try { localStorage.setItem("pgp2.sidebar", next ? "collapsed" : "expanded"); } catch { }
       return next;
     });
-    setSbTip(null);
+    setSbFloatTip(null);
   }
 
   useEffect(() => {
     try {
       if (!localStorage.getItem("pgp2.sidebar") && isTablet) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time tablet default when no saved preference
         setSidebarCollapsed(true);
       }
     } catch { }
@@ -70,13 +94,13 @@ export function useSidebar({ isTablet, view, sysConfig }) {
     return () => mq.removeEventListener("change", apply);
   }, [theme]);
 
-  const [sbTip, setSbTip] = useState(null);
+  // Tooltip state lives in SbFloatTip's store, not here — see that file.
   function showSbTip(e, label, always = false) {
     if (!sbCollapsed && !always) return;
     const r = e.currentTarget.getBoundingClientRect();
-    setSbTip({ label, top: r.top + r.height / 2, left: r.right + 10 });
+    setSbFloatTip({ label, top: r.top + r.height / 2, left: r.right + 10 });
   }
-  function hideSbTip() { setSbTip(null); }
+  function hideSbTip() { setSbFloatTip(null); }
 
   // Mobile navigation preference: "bottom" (dock only), "top" (tab strip only), or "both"
   const [mobileNavMode, setMobileNavMode] = useState(() => {
@@ -94,10 +118,10 @@ export function useSidebar({ isTablet, view, sysConfig }) {
   const showBottomNav = mobileNavMode !== "top";
   const showTopTabs = mobileNavMode !== "bottom";
 
-  // ── Liquid-glass dock: sliding lens indicator + scroll recede ──
+  // ── Liquid-glass dock: scroll recede ──
+  // The compact class is toggled on the element directly — as React state it
+  // re-rendered the entire App mid-scroll every time the dock flipped.
   const bnavRef = useRef(null);
-  const [bnavLens, setBnavLens] = useState(null); // { x, w } px, or null until measured
-  const [bnavCompact, setBnavCompact] = useState(false);
   useEffect(() => {
     if (!showBottomNav) return;
     let lastY = window.scrollY;
@@ -105,7 +129,11 @@ export function useSidebar({ isTablet, view, sysConfig }) {
     let compact = false;
     let raf = 0;
     let idleTimer = 0;
-    const apply = (v) => { if (compact !== v) { compact = v; setBnavCompact(v); } };
+    const apply = (v) => {
+      if (compact === v) return;
+      compact = v;
+      bnavRef.current?.classList.toggle("bnav-compact", v);
+    };
     const onScroll = () => {
       if (raf) return;
       raf = requestAnimationFrame(() => {
@@ -132,47 +160,6 @@ export function useSidebar({ isTablet, view, sysConfig }) {
       clearTimeout(idleTimer);
     };
   }, [showBottomNav]);
-  // Re-position the lens under the active button (used after view changes,
-  // resizes, and to snap back from a cancelled press)
-  const bnavMeasure = useCallback(() => {
-    const nav = bnavRef.current;
-    if (!nav) return;
-    const btn = nav.querySelector(".bnav-btn.on");
-    if (btn) setBnavLens({ x: btn.offsetLeft, w: btn.offsetWidth });
-    else setBnavLens(null);
-  }, []);
-  useLayoutEffect(() => {
-    if (!showBottomNav) return;
-    bnavMeasure();
-    const handleRealign = () => {
-      bnavMeasure();
-      // On orientation change, viewport dimensions settle a few frames later
-      setTimeout(bnavMeasure, 60);
-      setTimeout(bnavMeasure, 240);
-    };
-    window.addEventListener("resize", handleRealign, { passive: true });
-    window.addEventListener("orientationchange", handleRealign, { passive: true });
-    return () => {
-      window.removeEventListener("resize", handleRealign);
-      window.removeEventListener("orientationchange", handleRealign);
-    };
-  }, [showBottomNav, view, sysConfig, bnavMeasure]);
-  // Instagram-dock feel: start the lens glide on touch-down, before the tap's
-  // click renders the (possibly heavy) new view — the transform transition
-  // runs on the compositor, so it stays smooth even while React is busy
-  const onBnavPointerDown = (e) => {
-    const btn = e.target.closest?.(".bnav-btn");
-    if (btn) {
-      setBnavLens({ x: btn.offsetLeft, w: btn.offsetWidth });
-      haptic(10);
-    }
-  };
-  // If the press never becomes a click (finger slid off), snap the lens back.
-  // click dispatches synchronously after pointerup, so by the time this
-  // timeout runs the view has either changed (measure is a no-op visually)
-  // or it hasn't (lens returns to the active button).
-  const onBnavPointerUp = () => { setTimeout(bnavMeasure, 0); };
-
   const [navMenuOpen, setNavMenuOpen] = useState(false);
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   // Overflow-menu collapsible sections (mobile ⋯ menu)
@@ -189,13 +176,12 @@ export function useSidebar({ isTablet, view, sysConfig }) {
   const [showLeftScroll, setShowLeftScroll] = useState(false);
 
   return {
-    sidebarCollapsed, setSidebarCollapsed, sbCollapsed, toggleSidebar,
+    sidebarCollapsed, setSidebarCollapsed, sbCollapsed, toggleSidebar, tabletSidebarOpen, closeTabletSidebar,
     sbStyle, setSbStyle, setSidebarStyle,
     theme, setTheme, pickTheme,
-    sbTip, setSbTip, showSbTip, hideSbTip,
+    showSbTip, hideSbTip,
     mobileNavMode, setMobileNavMode, pickNavMode, showBottomNav, showTopTabs,
-    bnavRef, bnavLens, setBnavLens, bnavCompact, setBnavCompact, bnavMeasure,
-    onBnavPointerDown, onBnavPointerUp,
+    bnavRef,
     navMenuOpen, setNavMenuOpen,
     themeMenuOpen, setThemeMenuOpen,
     toolsSecOpen, setToolsSecOpen,

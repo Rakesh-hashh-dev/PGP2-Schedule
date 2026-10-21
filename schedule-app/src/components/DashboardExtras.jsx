@@ -1,18 +1,111 @@
-import { useState } from "react";
-import { CloudOff, RefreshCw, Settings2 } from "lucide-react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { ArrowDown, ArrowUp, CalendarDays, CalendarClock, ChartNoAxesCombined, Check, CloudOff, CloudSun, Focus, LayoutDashboard, RefreshCw, RotateCcw, Settings2, UtensilsCrossed, X } from "lucide-react";
+import { DASHBOARD_CARDS, dashboardCardVisible, moveDashboardCard, normalizeDashboardPrefs } from "../lib/dashboardPrefs.js";
 import "../styles/premium-workflow.css";
 
-export function DashboardCustomize({ prefs, onChange }) {
+export function DashboardCustomize({ prefs, onChange, compact = false }) {
   const [open, setOpen] = useState(false);
+  const sheetMode = compact;
+  const [announcement, setAnnouncement] = useState("");
+  const rootRef = useRef(null);
+  const toggleRef = useRef(null);
+  const panelRef = useRef(null);
+  const panelId = useId();
+  const layout = normalizeDashboardPrefs(prefs);
   const update = (patch) => onChange({ ...prefs, ...patch });
-  return <div className="dashboard-customize">
-    <button type="button" className="dashboard-customize-toggle" aria-expanded={open} onClick={() => setOpen((value) => !value)}><Settings2 size={14} /> Customize</button>
-    {open && <div className="dashboard-customize-panel"><div className="dashboard-customize-head"><strong>Today layout</strong><button type="button" onClick={() => setOpen(false)} aria-label="Close dashboard settings">×</button></div>
-      <label className="dashboard-density">Density <select value={prefs.density} onChange={(event) => update({ density: event.target.value })}><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select></label>
-      <div className="dashboard-customize-row"><label><input type="checkbox" checked={prefs.visible.summary} onChange={(event) => update({ visible: { ...prefs.visible, summary: event.target.checked } })} />Semester summary</label></div>
-      <div className="dashboard-customize-row"><label><input type="checkbox" checked={prefs.visible.todayCommand !== false} onChange={(event) => update({ visible: { ...prefs.visible, todayCommand: event.target.checked } })} />Today Command</label></div>
-      <label className="dashboard-week-toggle"><input type="checkbox" checked={prefs.weekPanel} onChange={(event) => update({ weekPanel: event.target.checked })} />Show week panel on laptop</label>
-    </div>}
+  const moveCard = (id, direction) => {
+    const next = moveDashboardCard(layout, id, direction);
+    onChange(next);
+    setAnnouncement(`${DASHBOARD_CARDS.find((card) => card.id === id).label} moved to position ${next.order.indexOf(id) + 1}.`);
+  };
+  const settings = [
+    { id: "upcoming", label: "Class overview", description: "Current class, next class and today's status.", Icon: CalendarDays },
+    { id: "summary", label: "Semester summary", description: "Attendance, credits and sessions.", Icon: ChartNoAxesCombined },
+    { id: "mess", label: "Mess menu", description: "Today's meals and serving times.", Icon: UtensilsCrossed },
+    { id: "todayCommand", label: "Today Command", description: "Your tasks and upcoming deadlines.", Icon: LayoutDashboard },
+    { id: "deadlines", label: "Upcoming deadlines", description: "Exams and assignments in the next 7 days.", Icon: CalendarClock },
+    { id: "weather", label: "Weather & clock", description: "The chip beside Customize on Today.", Icon: CloudSun },
+  ];
+  const close = useCallback(() => {
+    panelRef.current?.close?.();
+    setOpen(false);
+    toggleRef.current?.focus();
+  }, []);
+  const toggle = () => {
+    setOpen((value) => !value);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    if (sheetMode) {
+      panelRef.current.showModal();
+      document.body.style.overflow = "hidden";
+    }
+    const dismissOutside = (event) => {
+      if (!sheetMode && !rootRef.current?.contains(event.target)) setOpen(false);
+    };
+    const dismissEscape = (event) => {
+      if (!sheetMode && event.key === "Escape") close();
+    };
+    document.addEventListener("pointerdown", dismissOutside);
+    document.addEventListener("keydown", dismissEscape);
+    return () => {
+      if (sheetMode) document.body.style.overflow = previousOverflow;
+      document.removeEventListener("pointerdown", dismissOutside);
+      document.removeEventListener("keydown", dismissEscape);
+    };
+  }, [open, sheetMode, close]);
+
+  const Panel = sheetMode ? "dialog" : "div";
+  return <div className="dashboard-customize" ref={rootRef}>
+    <button ref={toggleRef} type="button" className="dashboard-customize-toggle vdh-filter-btn" aria-label="Customize today layout" aria-haspopup="dialog" aria-controls={open ? panelId : undefined} aria-expanded={open} onClick={toggle}><Settings2 size={14} /><span className="dashboard-cust-label"> Customize</span></button>
+    {open && <Panel ref={panelRef} id={panelId} className="dashboard-customize-panel" role="dialog" aria-labelledby={`${panelId}-title`} onCancel={(event) => { event.preventDefault(); close(); }} onClick={(event) => {
+      if (!sheetMode || event.target !== event.currentTarget) return;
+      const bounds = event.currentTarget.getBoundingClientRect();
+      if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) close();
+    }}>
+      <div className="dashboard-customize-head">
+        <span className="dashboard-customize-icon"><LayoutDashboard size={16} /></span>
+        <div><h2 id={`${panelId}-title`}>Make Today yours</h2><p>Choose what shows on Today.</p></div>
+        <button type="button" onClick={close} aria-label="Close dashboard settings"><X size={16} /></button>
+      </div>
+      {/* Compact segmented rows: label left, two-option pill switch right. The
+          option descriptions moved into title tooltips to keep each row one line. */}
+      <fieldset className="dashboard-density"><legend>Layout</legend>
+        <div className="dashboard-density-options">
+          {[false, true].map((focusMode) => <label key={String(focusMode)} title={focusMode ? "Only classes & deadlines" : "Your saved choices"} className={`dashboard-density-option${layout.focusMode === focusMode ? " is-selected" : ""}`}>
+            <input type="radio" name={`${panelId}-preset`} checked={layout.focusMode === focusMode} onChange={() => update({ focusMode })} />
+            <strong>{focusMode ? "Focus" : "My layout"}</strong>
+          </label>)}
+        </div>
+      </fieldset>
+      {layout.focusMode && <p className="dashboard-customize-hint"><Focus size={13} />Exit Focus to edit visibility. Your saved choices will return.</p>}
+      <fieldset className="dashboard-density"><legend>Spacing</legend>
+        <div className="dashboard-density-options">
+          {["comfortable", "compact"].map((density) => <label key={density} title={density === "comfortable" ? "More breathing room" : "Cards closer together"} className={`dashboard-density-option${prefs.density === density ? " is-selected" : ""}`}>
+            <input type="radio" name={`${panelId}-density`} value={density} checked={prefs.density === density} onChange={() => update({ density })} />
+            <strong>{density === "comfortable" ? "Comfortable" : "Compact"}</strong>
+          </label>)}
+        </div>
+      </fieldset>
+      <fieldset className="dashboard-visibility" disabled={layout.focusMode}><legend className="dashboard-customize-section">Visible on Today</legend>
+        {settings.map(({ id, label, description, Icon }) => <label key={id} className="dashboard-setting" title={description}><Icon size={16} /><span><strong>{label}</strong></span><input type="checkbox" role="switch" aria-label={label} checked={dashboardCardVisible(layout, id)} onChange={(event) => update({ visible: { ...layout.visible, [id]: event.target.checked } })} /><span className="dashboard-setting-switch" aria-hidden="true" /></label>)}
+      </fieldset>
+      <details className="dashboard-card-order"><summary>Card order</summary><p className="dashboard-customize-hint">Classes stay visible. Hidden cards keep their position.</p>
+        <ol>{layout.order.map((id, index) => {
+          const label = DASHBOARD_CARDS.find((card) => card.id === id).label;
+          return <li key={id}><span className="dashboard-order-number">{index + 1}</span><span className="dashboard-order-label">{label}{!dashboardCardVisible(layout, id) && <small>Hidden</small>}</span><button type="button" aria-label={`Move ${label} up`} disabled={index === 0} onClick={() => moveCard(id, -1)}><ArrowUp size={14} /></button><button type="button" aria-label={`Move ${label} down`} disabled={index === layout.order.length - 1} onClick={() => moveCard(id, 1)}><ArrowDown size={14} /></button></li>;
+        })}</ol>
+      </details>
+      <div className="dashboard-customize-section">Wide-screen layout</div>
+      <label className="dashboard-setting" title="Show the week beside Today on wider screens."><CalendarDays size={16} /><span><strong>Week panel</strong></span><input type="checkbox" role="switch" aria-label="Week panel" checked={!layout.focusMode && layout.weekPanel} disabled={layout.focusMode} onChange={(event) => update({ weekPanel: event.target.checked })} /><span className="dashboard-setting-switch" aria-hidden="true" /></label>
+      <span className="dashboard-announcement" role="status">{announcement}</span>
+      <div className="dashboard-customize-foot">
+        <span><Check size={13} /> Saves automatically</span>
+        <button type="button" className="dashboard-reset" onClick={() => { onChange(normalizeDashboardPrefs(null)); setAnnouncement("Default layout restored."); }}><RotateCcw size={13} />Reset</button>
+      </div>
+    </Panel>}
   </div>;
 }
 

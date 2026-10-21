@@ -1,0 +1,2 @@
+/* Shared vector rig anchors apply in every mood, including howl and rest. */
+.dg-pet[data-pet="luna"] { --pet-hat-x: 0px; --pet-hat-y: -.5px; --pet-hat-scale: 1; --pet-neck-x: 0px; --pet-neck-y: .4px; --pet-neck-scale: 1; }

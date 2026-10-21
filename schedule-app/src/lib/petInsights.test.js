@@ -7,7 +7,7 @@ const pet = () => adopt(emptyPet(), "cat", "Mochi", date("2026-09-20"));
 
 describe("companion insights", () => {
   it("groups upcoming rewards by gate and respects the wardrobe policy", () => {
-    const state = { ...pet(), baseXp: xpToReach(9) - 50 };
+    const state = { ...pet(), grantedXp: xpToReach(9) - 50 };
     const gates = unlockRoadmap(state);
     expect(gates.map(gate => gate.at)).toEqual([9, 10, 11]);
     expect(gates[0].remainingXp).toBe(50);
@@ -30,7 +30,7 @@ describe("companion insights", () => {
   });
 
   it("shows dated care and companion unlocks without inventing older events", () => {
-    let state = { ...pet(), baseXp: xpToReach(2) - 5 };
+    let state = { ...pet(), grantedXp: xpToReach(2) - 5 };
     state = award(state, "att:class", 10, date("2026-09-22"));
     state = award(state, "care:2026-09-23:1", 3, date("2026-09-23"));
     const rows = recentPetMoments(state, 5, date("2026-09-27"));
@@ -38,11 +38,11 @@ describe("companion insights", () => {
       expect.objectContaining({ day: "2026-09-22", kind: "unlock" }),
       expect.objectContaining({ day: "2026-09-23", kind: "care", xp: 3 }),
     ]));
-    expect(recentPetMoments({ ...pet(), baseXp: 900 }, 5, date("2026-09-27")).some(row => row.kind === "unlock")).toBe(false);
+    expect(recentPetMoments({ ...pet(), grantedXp: 900 }, 5, date("2026-09-27")).some(row => row.kind === "unlock")).toBe(false);
   });
 
   it("reports collected, active, and locked milestones from lasting progress", () => {
-    const rows = petMilestones({ ...pet(), baseXp: xpToReach(4) });
+    const rows = petMilestones({ ...pet(), grantedXp: xpToReach(4) });
     expect(rows.find(row => row.key === "friend").status).toBe("completed");
     expect(rows.find(row => row.key === "level4").status).toBe("completed");
     expect(rows.find(row => row.key === "level8").status).toBe("in-progress");

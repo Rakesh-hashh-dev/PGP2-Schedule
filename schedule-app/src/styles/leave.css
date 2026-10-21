@@ -394,12 +394,11 @@
 }
 
 /* ── Applied Results Styling ── */
+/* The summary keeps the Week view's dark .wglance surface: its text, bars and
+   chips are all drawn for that background, so a white card here hides them. */
 .lp-page .wglance {
   margin: 0;
   border-radius: 20px;
-  border: 1px solid var(--line, #e5e7eb);
-  background: var(--card, #ffffff);
-  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.03);
 }
 
 .lp-section {

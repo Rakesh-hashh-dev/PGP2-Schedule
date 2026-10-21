@@ -1,16 +1,21 @@
 import React, { useState, useRef, useEffect } from "react";
-import { MapPin, CheckCircle2, XCircle, AlertTriangle, TrendingDown } from "lucide-react";
+import { MapPin, CheckCircle2, XCircle, AlertTriangle, TrendingDown, ChevronRight, Timer } from "lucide-react";
+import { ExamIcon, CelebrationIcon, PlacementIcon } from "./PremiumIcons.jsx";
 import { sessionKey, isExamSession } from "../lib/attendance.js";
 import { subjectClass, cleanSessionLabel } from "../lib/subjectColors.js";
 import { haptic } from "../lib/haptics.js";
 import IndiaFlagIcon from "./IndiaFlagIcon.jsx";
+import { CancellationStripe, CancelledClassActions } from "./CancelledClassNotice.jsx";
 import { isNationalHoliday } from "../lib/nationalHolidays.js";
 import { fmtTime12 } from "../lib/datetime.js";
+import { isScheduleBreak, timelineActivitySummary } from "../lib/scheduleBreaks.js";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function fmtClock(d) { return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }); }
 function fmtDuration(start, end) {
-  const minutes = Math.max(0, toMin(end) - toMin(start));
+  return fmtMinutes(Math.max(0, toMin(end) - toMin(start)));
+}
+function fmtMinutes(minutes) {
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;
   if (!hours) return `${mins}m`;
@@ -18,15 +23,16 @@ function fmtDuration(start, end) {
 }
 
 function TypeBadge({ type, name }) {
+  if (type === "cancelled") return <span className="tb" style={{ color: "var(--danger)" }}><XCircle size={12} />Cancelled</span>;
   if (type === "holiday") {
     const isNational = isNationalHoliday({ type, name });
     return (
       <span className={`tb holiday${isNational ? " tb-tricolor" : ""}`}>Holiday</span>
     );
   }
-  if (type === "exam") return <span className="tb exam">Exam / Admin</span>;
-  if (type === "event") return <span className="tb event celebration">🎉 Event</span>;
-  if (type === "placement") return <span className="tb placement">💼 Placement</span>;
+  if (type === "exam") return <span className="tb exam"><ExamIcon size={12} />Exam / Admin</span>;
+  if (type === "event") return <span className="tb event celebration"><CelebrationIcon size={12} />Event</span>;
+  if (type === "placement") return <span className="tb placement"><PlacementIcon size={12} />Placement</span>;
   if (type === "break") return <span className="tb break">Break</span>;
   return null;
 }
@@ -75,7 +81,7 @@ function SkipHint({ info, name }) {
           if (e.key === "Escape") setOpen(false);
         }}
       >
-        {bad ? "skip → grade penalty" : <>skip → {info.pctIfSkip}% · {info.skipsRemaining} left</>}
+        {bad ? "Skip → grade penalty" : <>Skip → {info.pctIfSkip}% · {info.skipsRemaining} left</>}
       </span>
       {open && (
         <div className="skip-tip" role="tooltip">
@@ -255,25 +261,23 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
     );
 
   const nowMin = now.getHours() * 60 + now.getMinutes();
-  const allDone = showNowLine && list.every(c => nowMin >= toMin(c.end));
+  const summary = timelineActivitySummary(list, nowMin);
+  const allDone = showNowLine && summary.allDone;
   // Find the first upcoming class (not break/holiday) for the "next" badge
   // If we're not showing the now line (e.g. Tomorrow view), just highlight the very first class
   const nextUpIdx = showNowLine 
-    ? list.findIndex(c => c.type === "class" && toMin(c.start) > nowMin) 
-    : list.findIndex(c => c.type === "class");
-  const nextVisibleIdx = showNowLine ? list.findIndex(c => toMin(c.start) > nowMin) : -1;
-  const classCount = list.filter((c) => c.type === "class").length;
-  const firstStart = list.reduce((min, c) => toMin(c.start) < toMin(min) ? c.start : min, list[0].start);
-  const lastEnd = list.reduce((max, c) => toMin(c.end) > toMin(max) ? c.end : max, list[0].end);
-  const completedClasses = showNowLine
-    ? list.filter((c) => c.type === "class" && nowMin >= toMin(c.end)).length
-    : 0;
+    ? list.findIndex(c => c.type === "class" && !isScheduleBreak(c) && toMin(c.start) > nowMin)
+    : list.findIndex(c => c.type === "class" && !isScheduleBreak(c));
+  const nextVisibleIdx = showNowLine ? summary.nextIndex : -1;
+  const { classCount, firstStart, lastEnd } = summary;
+  const activityCount = summary.activities.length;
+  const completedClasses = showNowLine ? summary.completedClasses : 0;
   const nextVisible = nextVisibleIdx >= 0 ? list[nextVisibleIdx] : null;
-  const dayStatus = current
-    ? { tone: "live", label: "Happening now", detail: current.name }
+  const dayStatus = current && !isScheduleBreak(current)
+    ? { tone: "live", label: "Happening now", detail: current.name, code: current.code }
     : nextVisible
       ? { tone: "next", label: "Up next", detail: `${nextVisible.name} · ${fmtTime12(nextVisible.start)}` }
-      : { tone: "done", label: "Day complete", detail: "Nothing else scheduled" };
+      : { tone: "done", label: activityCount ? "Day complete" : "No activities today", detail: activityCount ? "Nothing else scheduled" : "Breaks only" };
 
   return (
     <section className={`panel timeline-panel${showNowLine ? " timeline-today" : " timeline-tomorrow"}${focusMode ? " is-focus-mode" : ""}`}>
@@ -293,23 +297,25 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
           {dateLabel && <span className="panel-date">{dateLabel}</span>}
         </div>
         {showNowLine ? (
-          <div className="timeline-overview" aria-label={classCount ? `${classCount} classes, ${completedClasses} completed` : `${list.length} schedule items`}>
+          <div className="timeline-overview" aria-label={classCount ? `${classCount} classes, ${completedClasses} completed` : `${activityCount} activities`}>
             <div className={`timeline-status timeline-status-${dayStatus.tone}`}>
               <span className="timeline-status-dot" aria-hidden="true" />
               <span className="timeline-status-copy">
-                <strong>{dayStatus.label}</strong>
+                <strong className="timeline-status-label">{dayStatus.label}</strong>
+                {/* Phones swap the label for the live subject's code. */}
+                {dayStatus.code && <strong className="timeline-status-code">{dayStatus.code}</strong>}
                 <span>{dayStatus.detail}</span>
               </span>
             </div>
             <div className="timeline-progress-copy">
-              <strong>{classCount ? `${completedClasses}/${classCount}` : list.length}</strong>
-              <span className="desk-only">{classCount ? "classes complete" : "schedule items"}</span>
-              <span className="timeline-progress-mob-label">{classCount ? "done" : "items"}</span>
+              <strong>{classCount ? `${completedClasses}/${classCount}` : activityCount}</strong>
+              <span className="desk-only">{classCount ? "classes complete" : "activities"}</span>
+              <span className="timeline-progress-mob-label">{classCount ? "done" : "activities"}</span>
             </div>
           </div>
         ) : (
-          <div className="tomorrow-timeline-overview" aria-label={`${classCount} ${classCount === 1 ? "class" : "classes"}, ${fmtTime12(firstStart)} to ${fmtTime12(lastEnd)}`}>
-            <span className="tomorrow-timeline-range">{fmtTime12(firstStart)} <span aria-hidden="true">→</span> {fmtTime12(lastEnd)}</span>
+          <div className="tomorrow-timeline-overview" aria-label={`${classCount} ${classCount === 1 ? "class" : "classes"}${firstStart ? `, ${fmtTime12(firstStart)} to ${fmtTime12(lastEnd)}` : ""}`}>
+            <span className="tomorrow-timeline-range">{firstStart ? <>{fmtTime12(firstStart)} <span aria-hidden="true">→</span> {fmtTime12(lastEnd)}</> : "Breaks only"}</span>
             <span className="tomorrow-timeline-count">{classCount} {classCount === 1 ? "class" : "classes"}</span>
           </div>
         )}
@@ -317,31 +323,33 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
       <ol className="rail">
         {list.map((c, i) => {
           const gapMinutes = i > 0 ? toMin(c.start) - toMin(list[i - 1].end) : 0;
-          const isCur = current && current.date === c.date && current.start === c.start && current.name === c.name;
+          const isBreak = isScheduleBreak(c);
+          const isCancelled = c.type === "cancelled";
+          const isCur = !isBreak && current && current.date === c.date && current.start === c.start && current.name === c.name;
           // For non-class items (breaks/holidays), use start time as "done" since they aren't attended
           const prevDone = i === 0 || (() => {
             const prev = list[i - 1];
             const threshold = prev.type !== "class" ? toMin(prev.start) : toMin(prev.end);
             return nowMin >= threshold;
           })();
-          const showNow = showNowLine && !isCur && nowMin < toMin(c.start) && prevDone;
+          const showNow = showNowLine && !isBreak && !isCur && nowMin < toMin(c.start) && prevDone;
           const isPast = showNowLine && !isCur && nowMin >= (c.type !== "class" ? toMin(c.start) : toMin(c.end));
           const isNext = showNowLine && i === nextUpIdx;
           const isFirst = !showNowLine && i === nextUpIdx;
-          const canMark = c.type === "class" && !isExamSession(c) && !!markAttendance && clsStart(c) <= now;
-          const attKey = c.type === "class" && !isExamSession(c) ? sessionKey(c) : null;
+          const canMark = !isBreak && c.type === "class" && !isExamSession(c) && !!markAttendance && clsStart(c) <= now;
+          const attKey = !isBreak && c.type === "class" && !isExamSession(c) ? sessionKey(c) : null;
           const attStatus = attKey ? attendance[attKey] : null;
-
-          let progress = 0;
-          if (isCur) {
-            const startMin = toMin(c.start);
-            const endMin = c.type !== "class" ? toMin(c.start) + 15 : toMin(c.end); // fallback for breaks
-            progress = Math.max(0, Math.min(100, ((nowMin - startMin) / (endMin - startMin)) * 100));
-          }
+          const minsLeft = isCur ? Math.max(0, toMin(c.end) - nowMin) : 0;
+          const detailsBtn = c.type === "class" && onOpenSession && (
+            <button type="button" className="prep-open" onClick={() => onOpenSession(c)} aria-label={`Open class details for ${c.name}`}>
+              {!canMark && <span className="prep-open-label">Details</span>}
+              <ChevronRight size={15} strokeWidth={2.4} className="prep-open-chev" />
+            </button>
+          );
 
           return (
             <React.Fragment key={i}>
-              {!showNowLine && gapMinutes >= 15 && (
+              {!showNowLine && !isBreak && gapMinutes >= 15 && (
                 <li className="tomorrow-timeline-gap" aria-label={`${fmtDuration(list[i - 1].end, c.start)} free before ${c.name}`}>
                   <span className="tomorrow-timeline-gap-line" aria-hidden="true" />
                   <span>Free for {fmtDuration(list[i - 1].end, c.start)}</span>
@@ -355,7 +363,7 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
                 </li>
               )}
               <li
-                className={`row${!showNowLine && c.type === "class" && c.code ? ` ${subjectClass(c.code)}` : ""}${isCur ? " cur" : ""}${c.type !== "class" ? " soft" : ""}${c.type === "event" ? " row-event-celebration" : ""}${c.type === "placement" ? " row-placement" : ""}${isPast ? " past" : ""}${isNext ? " next-up" : ""}${isFirst ? " first-up" : ""}${showNowLine && i === nextVisibleIdx ? " timeline-up-next" : ""}${changedRows.has(`${c.date}|${c.code || c.name}|${c.session || c.type}|${c.start}`) ? " tf-row-updated" : ""}`}
+                className={`row${isCancelled ? " row-cancelled" : ""}${isBreak ? " row-break" : ""}${!showNowLine && c.type === "class" && c.code ? ` ${subjectClass(c.code)}` : ""}${isCur ? " cur" : ""}${c.type !== "class" ? " soft" : ""}${c.type === "event" ? " row-event-celebration" : ""}${c.type === "placement" ? " row-placement" : ""}${isPast ? " past" : ""}${isNext ? " next-up" : ""}${isFirst ? " first-up" : ""}${showNowLine && i === nextVisibleIdx ? " timeline-up-next" : ""}${changedRows.has(`${c.date}|${c.code || c.name}|${c.session || c.type}|${c.start}`) ? " tf-row-updated" : ""}`}
                 aria-current={isCur ? "true" : undefined}
               >
                 <div className="row-time">
@@ -366,32 +374,33 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
                 </div>
                 <span className="timeline-marker" aria-hidden="true"><span /></span>
                 <div className={`row-body${c.type === "class" && c.code ? ` subj-edge ${subjectClass(c.code)}` : ""}`} style={{ position: "relative" }}>
-                  {isCur && (
-                    <div className="cur-progress-track">
-                      <div className="cur-progress-fill" style={{ width: `${progress}%` }} />
-                    </div>
-                  )}
+                  {isCancelled && <CancellationStripe />}
                   <div className="row-head">
                     <div className="row-course">
                       {isNationalHoliday(c) && <IndiaFlagIcon size={19} className="row-flag-icon" />}
-                      {c.name} {c.session && (
+                      <span style={c.type === "cancelled" ? { textDecoration: "line-through" } : undefined}>{c.name}</span> {c.session && (
                         <span className={`ses ${subjectClass(c.code)}`}>
                           {c.code} {cleanSessionLabel(c.session)}
                         </span>
                       )}
                     </div>
-                    {isCur && <span className="row-flag">now</span>}
+                    {isCur && (
+                      <span className={`row-left${minsLeft <= 10 ? " row-left-soon" : ""}`} role="timer">
+                        <Timer size={13} strokeWidth={2.2} aria-hidden="true" />
+                        {minsLeft <= 10 ? `Ends in ${minsLeft} min` : `${fmtMinutes(minsLeft)} left`}
+                      </span>
+                    )}
                     {isNext && !isCur && <span className="row-flag row-flag-next">next</span>}
                     {isFirst && !isCur && <span className="row-flag row-flag-first">1st class</span>}
-                    {c.type === "class" && onOpenSession && <button type="button" className="prep-open" onClick={() => onOpenSession(c)} aria-label={`Open class details for ${c.name}`}>Details</button>}
+                    {!canMark && detailsBtn}
                   </div>
                   <div className="row-meta">
-                    {c.type === "class"
+                    {(c.type === "class" || isCancelled)
                       ? <>
                           <span className="row-loc"><MapPin size={13} /> {c.room || "TBA"}</span>
-                          {c.section === "Single" && <span className="single-tag">all</span>}
-                          {c.faculty && <span className="row-faculty">{c.faculty}</span>}
-                          {!isPast && attKey && !attStatus && <SkipHint info={skipInfo?.[c.code]} name={c.name} />}
+                          {c.section === "Single" && <span className="row-sec">All sections</span>}
+                          {c.faculty && <span className="row-faculty" title={c.faculty}>{c.faculty}</span>}
+                          {!isCancelled && !canMark && !isPast && attKey && !attStatus && <SkipHint info={skipInfo?.[c.code]} name={c.name} />}
                         </>
                       : <>
                           <TypeBadge type={c.type} name={c.name} />
@@ -399,25 +408,32 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
                           {(c.type === "event" || c.type === "placement") && c.section && c.section !== "Single" && c.section !== "All" && <span className="single-tag">Sec {c.section}</span>}
                         </>}
                   </div>
+                  {isCancelled && <CancelledClassActions actions={[...(markAttendance && !isExamSession(c) ? ["Attended", "Skipped"] : []), ...(onOpenSession ? ["Details"] : [])]} />}
+                  {canMark && (
+                    <div className="row-foot">
+                      <div className="row-att" role="group" aria-label={`Attendance for ${c.name}`}>
+                        <button
+                          type="button"
+                          className={`row-att-btn row-att-p${attStatus === "present" ? " on" : ""}`}
+                          onClick={() => markAttendance(c, attStatus === "present" ? null : "present")}
+                          aria-pressed={attStatus === "present"}
+                        >
+                          <CheckCircle2 size={13} strokeWidth={2.2} /> Attended
+                        </button>
+                        <button
+                          type="button"
+                          className={`row-att-btn row-att-a${attStatus === "absent" ? " on" : ""}`}
+                          onClick={() => markAttendance(c, attStatus === "absent" ? null : "absent")}
+                          aria-pressed={attStatus === "absent"}
+                        >
+                          <XCircle size={13} strokeWidth={2.2} /> Skipped
+                        </button>
+                      </div>
+                      {!isPast && !attStatus && <SkipHint info={skipInfo?.[c.code]} name={c.name} />}
+                      {detailsBtn}
+                    </div>
+                  )}
                 </div>
-                {canMark && (
-                  <div className="att-tog">
-                    <button
-                      className={`att-btn att-p${attStatus === "present" ? " on" : ""}`}
-                      onClick={() => markAttendance(c, attStatus === "present" ? null : "present")}
-                      title="Mark present"
-                    >
-                      <CheckCircle2 size={14} />
-                    </button>
-                    <button
-                      className={`att-btn att-a${attStatus === "absent" ? " on" : ""}`}
-                      onClick={() => markAttendance(c, attStatus === "absent" ? null : "absent")}
-                      title="Mark absent"
-                    >
-                      <XCircle size={14} />
-                    </button>
-                  </div>
-                )}
               </li>
             </React.Fragment>
           );

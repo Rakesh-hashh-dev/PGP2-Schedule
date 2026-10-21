@@ -140,13 +140,17 @@ export function buildDailyBrief({ today = [], tomorrow = [], assignments = {}, c
     .filter((task) => !task.completed && task.days != null && task.days <= 3)
     .sort((a, b) => a.days - b.days)
     .slice(0, 4);
-  const nextClass = today.find((item) => item.start && clsDate(item, "end") > now) || null;
+  const isClass = (item) => item.type === "class" && !isExamSession(item);
+  const upcomingClasses = today
+    .filter((item) => isClass(item) && item.start && clsDate(item, "start") > now)
+    .sort((a, b) => a.start.localeCompare(b.start));
+  const nextClass = upcomingClasses[0] || null;
   const risks = attendanceForecast.filter((item) => item.risk === "risk" || item.risk === "watch").slice(0, 3);
   const relevantChanges = changes.filter((item) => !item.date || item.date >= ymd(now)).slice(0, 4);
   return {
     nextClass,
-    classesLeft: today.filter((item) => item.start && clsDate(item, "end") > now).length,
-    tomorrowCount: tomorrow.filter((item) => item.type === "class" || item.type === "exam").length,
+    classesLeft: upcomingClasses.length,
+    tomorrowCount: tomorrow.filter(isClass).length,
     tasks,
     risks,
     changes: relevantChanges,

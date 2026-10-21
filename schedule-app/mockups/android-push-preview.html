@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>TermFlow · Android notifications</title>
+  <style>
+    :root{font:15px/1.5 system-ui,sans-serif;color:#f2edf9;background:#100e17;color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top left,#302047,transparent 65%);min-height:100vh}main{max-width:1100px;margin:auto;padding:48px 26px}.eyebrow{font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:#c6a5ff}h1{font-size:clamp(30px,5vw,48px);letter-spacing:-.045em;line-height:1.1;margin:12px 0}header p{color:#b7adca;max-width:650px}nav{display:flex;flex-wrap:wrap;gap:9px;margin:28px 0}button{font:inherit;cursor:pointer}nav button{background:#211b2d;border:1px solid #40334f;border-radius:24px;color:#c9bddc;padding:9px 17px;font-size:13px}nav button[aria-pressed=true]{background:#7341b0;border-color:#b991ef;color:#fff}button:focus-visible,[role=button]:focus-visible{outline:2px solid #c69eff;outline-offset:4px}.states{display:grid;grid-template-columns:1fr 1fr;gap:24px}.state{padding:24px;background:linear-gradient(145deg,#292337,#151d29);border:1px solid #453a56;border-radius:28px;min-height:315px}.state h2{margin:0 0 24px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#bba6d6}.card{background:#f1ebf7;color:#241b30;border-radius:22px;padding:17px;box-shadow:0 16px 28px #0004}.brand{display:flex;align-items:center;gap:9px;font-size:12px;margin-bottom:12px}.brand img{width:32px;height:32px;border-radius:9px}.brand small{margin-left:auto;color:#776983}.toggle{border:0;background:none;color:#766582;padding:4px 7px}.title{font-size:16px;font-weight:700;line-height:1.35}.body{font-size:13px;color:#594c65;white-space:pre-line;margin:6px 0 0;overflow-wrap:anywhere}.collapsed .title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.collapsed .body{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.actions{display:flex;gap:14px;border-top:1px solid #d7cbe3;margin-top:14px;padding-top:8px}.actions button{border:0;background:none;color:#6d359f;font-size:12px;font-weight:650;padding:8px 0;min-height:36px}.collapsed .actions{display:none}.hint{font-size:12px;color:#ada2bd;margin-top:16px}.feedback{margin-top:24px;background:#231b30;border:1px solid #48365c;padding:16px 20px;border-radius:16px;font-size:13px;color:#d5c3ef}.foot{color:#9d91af;font-size:12px;max-width:760px;margin-top:22px}.card[role=button]{cursor:pointer}@media(max-width:650px){main{padding:28px 16px}.states{grid-template-columns:1fr}.state{min-height:220px;padding:20px}}
+  </style>
+  <style>
+    body.android-push-showcase{font:15px/1.5 system-ui,sans-serif;color:#f2edf9;background:radial-gradient(ellipse at top left,#302047,transparent 65%),#100e17}
+    .states{grid-template-columns:repeat(2,minmax(0,1fr))}.state{min-width:0}.collapsed .body{white-space:pre-line;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical}
+    @media(max-width:650px){.states{grid-template-columns:1fr}}
+  </style>
+</head>
+<body class="android-push-showcase"><main>
+  <header><span class="eyebrow">TermFlow · Android push</span><h1>A quick glance.<br>A useful next step.</h1><p>The same notification, in two states. Essential information comes first; expand for the details and contextual actions.</p></header>
+  <nav aria-label="Choose notification example">
+    <button data-key="reminder" aria-pressed="true">Class reminder</button><button data-key="cancel" aria-pressed="false">Cancellation</button><button data-key="summary" aria-pressed="false">Daily overview</button><button data-key="broadcast" aria-pressed="false">Announcement</button><button data-key="event" aria-pressed="false">Placement event</button>
+  </nav>
+  <div class="states">
+    <section class="state"><h2>Collapsed · at a glance</h2><div class="card collapsed" role="button" tabindex="0" aria-label="Preview tapping notification"><div class="brand"><img src="/icon-notification.png" alt="TermFlow logo"><span>TermFlow</span><small>now</small><span aria-hidden="true">⌄</span></div><div class="title"></div><p class="body"></p></div><p class="hint">Tap the card to preview its destination.</p></section>
+    <section class="state"><h2>Expanded · details and actions</h2><div class="card" id="expanded"><div class="brand"><img src="/icon-notification.png" alt="TermFlow logo"><span>TermFlow</span><small>now</small><button class="toggle" aria-label="Collapse expanded preview" aria-expanded="true">⌃</button></div><div class="title"></div><p class="body"></p><div class="actions"></div></div><p class="hint">Try an action, or toggle the expanded state.</p></section>
+  </div>
+  <p class="feedback" role="status" id="feedback">Illustrative examples. These controls do not send notifications.</p>
+  <p class="foot">Android and the browser control the final layout, icon placement, truncation and available actions. The preview colours are illustrative. Event posters are optional; notification text and tapping still work without images or buttons.</p>
+</main>
+<script type="module">
+  import { buildPushPayload } from '/supabase/functions/_shared/pushPresentation.ts';
+  const examples = {
+    reminder:{type:'class_reminder',title:'SCA starts in 10 min',body:'02:30PM–04:00PM · Room C-104\nSection A · Supply Chain Analytics',data:{code:'SCA',date:'2026-10-13',start:'14:30'}},
+    cancel:{type:'class_cancelled',title:'SCA cancelled today',body:'02:30PM · Section A · Room C-104\nYour timetable has been updated.'},
+    summary:{type:'daily_summary',title:'Today: 3 classes',body:'First: FIN-201 at 10:30AM · Room C-104\nNext: MKT at 12:00PM · Room C-102\nThen: SCA at 02:30PM · Room C-104'},
+    broadcast:{type:'admin_broadcast',title:'Room change: FIN-201 today',body:'The 10:30AM class is now in Room C-104.\nCheck your updated schedule before leaving.',url:'/?view=today'},
+    event:{type:'admin_broadcast',title:'Placement briefing tomorrow',body:'05:00PM · Auditorium\nBring your student ID. Read the announcement for registration details.'}
+  };
+  let payload;
+  const feedback = document.querySelector('#feedback');
+  function show(key) {
+    payload=buildPushPayload(examples[key]);
+    document.querySelectorAll('.title').forEach(el=>el.textContent=payload.title);
+    document.querySelectorAll('.body').forEach(el=>el.textContent=payload.body);
+    document.querySelectorAll('nav button').forEach(el=>el.setAttribute('aria-pressed',String(el.dataset.key===key)));
+    const actions=document.querySelector('.actions');actions.replaceChildren();
+    payload.actions.forEach(action=>{const button=document.createElement('button');button.textContent=action.title;button.addEventListener('click',()=>{feedback.textContent=action.action==='dismiss'?'Dismiss closes this notification without opening TermFlow.':`${action.title} → ${action.url}`});actions.append(button)});
+    feedback.textContent='Illustrative examples. These controls do not send notifications.';
+  }
+  document.querySelectorAll('nav button').forEach(button=>button.addEventListener('click',()=>show(button.dataset.key)));
+  const card=document.querySelector('[role=button]');
+  const tap=()=>{feedback.textContent=`Tap opens ${payload.url}`};card.addEventListener('click',tap);card.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();tap()}});
+  document.querySelector('.toggle').addEventListener('click',event=>{const collapsed=document.querySelector('#expanded').classList.toggle('collapsed');event.currentTarget.setAttribute('aria-expanded',String(!collapsed));event.currentTarget.setAttribute('aria-label',collapsed?'Expand preview':'Collapse expanded preview');event.currentTarget.textContent=collapsed?'⌄':'⌃'});
+  show('reminder');
+</script></body></html>

@@ -1,10 +1,12 @@
+import { CancellationStripe, CancelledClassActions } from "./CancelledClassNotice.jsx";
 import React, { useMemo, useState, useEffect } from "react";
 import "../styles/fullschedule.css";
-import { ArrowLeft, Clock, MapPin, User, SlidersHorizontal, X, ArrowUp, Calendar, ChevronLeft, ChevronRight, List, CalendarDays, GraduationCap, CalendarClock, PartyPopper, Briefcase, BookOpen, ArrowRight } from "lucide-react";
+import { ArrowLeft, Clock, MapPin, User, SlidersHorizontal, X, ArrowUp, Calendar, ChevronLeft, ChevronRight, List, CalendarDays, GraduationCap, CalendarClock, BookOpen, ArrowRight } from "lucide-react";
 import { subjectClass, cleanSessionLabel } from "../lib/subjectColors.js";
 import { isExamSession } from "../lib/attendance.js";
 import { fmtTime12 } from "../lib/datetime.js";
 import { CalendarEventBadgeSVG } from "./CalendarSVGs.jsx";
+import { PlacementIcon, CelebrationIcon } from "./PremiumIcons.jsx";
 
 function examCategory(name, session) {
   const n = (name || "").toLowerCase();
@@ -62,6 +64,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
   const [showAllClasses, setShowAllClasses] = useState(false);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [dateModalOpen, setDateModalOpen] = useState(false);
+  const [dateToJump, setDateToJump] = useState(TODAY);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [viewMode, setViewMode] = useState("list");
   const [calWeek, setCalWeek] = useState(() => getWeekStart(TODAY));
@@ -95,6 +98,10 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
   // then pulse-highlight the matching card so it's obvious which session changed.
   useEffect(() => {
     if (jumpToSession) {
+      if (!allClasses.length) return;
+      setViewMode("list");
+      setFilterCodes([]);
+      setHasScrolledToToday(true);
       const { date, code, start } = jumpToSession;
       const t = setTimeout(() => {
         const dayEl = date && document.getElementById(`day-${date}`);
@@ -113,7 +120,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
       }, 100);
       return () => clearTimeout(t);
     }
-  }, [jumpToSession, setJumpToSession]);
+  }, [jumpToSession, setJumpToSession, allClasses]);
 
   useEffect(() => {
     const handleScroll = () => setShowScrollTop(window.scrollY > 300);
@@ -152,9 +159,17 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
           return enrolledCodes.includes(c.code);
         });
 
-    const combined = [...classes, ...filteredExams, ...eventRows];
+    const cancelledRows = allClasses.filter(c => {
+      if (c.type !== "cancelled") return false;
+      if (showAllClasses) return true;
+      const code = c.code || (c.name || "").match(/^([A-Za-z]{2,8})\b/)?.[1]?.toUpperCase();
+      if (!c.code) return !code || !legend[code] || enrolledCodes.includes(code);
+      const sec = enrolled?.[code];
+      return sec !== undefined && (c.section === sec || c.section === "Single" || c.section === "All");
+    });
+    const combined = [...classes, ...filteredExams, ...eventRows, ...cancelledRows];
     return combined.sort((a, b) => a.date.localeCompare(b.date) || toMin(a.start) - toMin(b.start));
-  }, [allClasses, enrolled, showAllClasses]);
+  }, [allClasses, enrolled, showAllClasses, legend]);
 
   const subjectCodes = useMemo(() => {
     const codes = [...new Set(baseClasses.map(c => c.code).filter(Boolean))];
@@ -228,6 +243,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
 
   const nextUpcomingCls = useMemo(() => {
     for (const c of filtered) {
+      if (c.type === "cancelled") continue;
       if (c.date < TODAY) continue;
       if (c.date === TODAY && toMin(c.start) <= nowMin) continue;
       return c;
@@ -305,7 +321,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
     setSelectedDate(null);
   }
 
-  const totalSessions = filtered.length;
+  const totalSessions = filtered.filter(c => c.type !== "cancelled").length;
 
   const nextUpcomingLabel = useMemo(() => {
     if (!nextUpcomingCls) return null;
@@ -431,7 +447,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
             </button>
           )}
 
-          <button className="cal-ctrl-btn" onClick={() => setDateModalOpen(true)}>
+          <button className="cal-ctrl-btn" onClick={() => { setDateToJump(TODAY); setDateModalOpen(true); }}>
             <Calendar size={14} /> Select Date
           </button>
         </div>
@@ -445,44 +461,38 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
               <h3>Jump to Date</h3>
               <button onClick={() => setDateModalOpen(false)}><X size={18} /></button>
             </div>
-            <div className="filter-modal-scroll" style={{ padding: "20px" }}>
+            <form className="filter-modal-scroll fs-date-jump-form" onSubmit={(e) => {
+              e.preventDefault();
+              if (!dateToJump) return;
+              if (viewMode === "list") {
+                const classDates = grouped.filter(g => g.type === "day").map(g => g.date);
+                const targetDate = classDates.find(d => d >= dateToJump);
+                if (!targetDate) {
+                  alert("There are no upcoming classes from the selected date.");
+                  return;
+                }
+                setDateModalOpen(false);
+                requestAnimationFrame(() => {
+                  document.getElementById(`day-${targetDate}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+                });
+              } else {
+                if (viewMode === "calendar") setCalWeek(getWeekStart(dateToJump));
+                if (viewMode === "month") {
+                  const [Y, M] = dateToJump.split("-").map(Number);
+                  setCalMonth({ year: Y, month: M - 1 });
+                  setSelectedDate(dateToJump);
+                }
+                setDateModalOpen(false);
+              }
+            }}>
               <input
                 type="date"
-                autoFocus
-                onChange={(e) => {
-                  const targetDate = e.target.value;
-                  if (!targetDate) return;
-
-                  if (viewMode === "list") {
-                    let el = document.getElementById(`day-${targetDate}`);
-                    if (!el) {
-                      const classDates = grouped.filter(g => g.type === "day").map(g => g.date);
-                      const nextDate = classDates.find(d => d >= targetDate);
-                      if (nextDate) el = document.getElementById(`day-${nextDate}`);
-                    }
-                    if (el) {
-                      const offsetPosition = el.getBoundingClientRect().top + window.pageYOffset - 100;
-                      window.scrollTo({ top: offsetPosition, behavior: "smooth" });
-                    } else {
-                      alert("There are no upcoming classes from the selected date.");
-                    }
-                  } else if (viewMode === "calendar") {
-                    setCalWeek(getWeekStart(targetDate));
-                  } else if (viewMode === "month") {
-                    const [Y, M] = targetDate.split("-").map(Number);
-                    setCalMonth({ year: Y, month: M - 1 });
-                    setSelectedDate(targetDate);
-                  }
-
-                  setDateModalOpen(false);
-                }}
-                style={{
-                  width: "100%", padding: "12px 14px", fontSize: "15px",
-                  borderRadius: "10px", border: "1px solid var(--border)",
-                  background: "var(--bg)", color: "var(--text)", fontFamily: "var(--body)"
-                }}
+                aria-label="Date to jump to"
+                value={dateToJump}
+                onChange={(e) => setDateToJump(e.target.value)}
               />
-            </div>
+              <button type="submit" disabled={!dateToJump}>Go to date</button>
+            </form>
           </div>
         </div>
       )}
@@ -529,7 +539,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                   const section = enrolled ? enrolled[code] : null;
                   const showSection = section && section !== "Single";
                   const isOn = filterCodes.includes(code);
-                  const sessionCount = baseClasses.filter(c => c.code === code).length;
+                      const sessionCount = baseClasses.filter(c => c.code === code && c.type !== "cancelled").length;
                   return (
                     <button
                       key={code}
@@ -636,7 +646,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                       {fmtDate(date)}
                       {isToday && <span className="fs-day-today-badge">Today</span>}
                     </span>
-                    <span className="fs-day-count">{items.length} session{items.length > 1 ? "s" : ""}</span>
+                    <span className="fs-day-count">{items.filter(c => c.type !== "cancelled").length} sessions{items.some(c => c.type === "cancelled") ? ` · ${items.filter(c => c.type === "cancelled").length} cancelled` : ""}</span>
                   </div>
                   <div className="fs-day-items">
                     {items.map((c, i) => {
@@ -658,6 +668,16 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                         }
                       }
                       
+                      if (c.type === "cancelled") {
+                        return <div key={i} data-class-key={`${c.date}-${c.code}-${c.start}`} className="fs-card fs-card-cancelled">
+                          <div className="fs-card-body">
+                            <CancellationStripe />
+                            <div className="fs-card-top"><span className="fs-card-name" style={{ textDecoration: "line-through" }}>{c.name}</span></div>
+                            <div className="fs-card-meta"><span>{fmtTime12(c.start)} – {fmtTime12(c.end)}{c.code ? ` · ${c.code}` : ""}{showSection ? ` · Sec ${c.section}` : ""}{c.room ? ` · ${c.room}` : ""}</span></div>
+                            {onOpenCourse && c.code && <CancelledClassActions actions={["Course hub"]} />}
+                          </div>
+                        </div>;
+                      }
                       if (c.isExam) {
                         const cat = examCategory(c.name, c.session);
                         return (
@@ -738,11 +758,11 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                             <div className="fs-card-body">
                               <div className="fs-card-top">
                                 <span className="fs-card-name" style={{ color: "#2563EB", display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700 }}>
-                                  <Briefcase size={14} />
+                                  <PlacementIcon size={15} />
                                   {c.name || (c.code ? `${c.code} Placement` : "Placement Activity")}
                                 </span>
                                 <div style={{ display: "flex", alignItems: "center", gap: "6px", marginLeft: "auto" }}>
-                                  <span style={{ fontSize: 10, fontWeight: 800, background: "linear-gradient(135deg, #2563EB, #1D4ED8)", color: "#fff", padding: "1px 7px", borderRadius: 4 }}>💼 PLACEMENT</span>
+                                  <span className="tf-placement-chip"><PlacementIcon size={11} />PLACEMENT</span>
                                   {c.code && <span className={`ses ${subjectClass(c.code)} fs-exam-code`}>{c.code}</span>}
                                 </div>
                               </div>
@@ -776,11 +796,11 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                             <div className="fs-card-body">
                               <div className="fs-card-top">
                                 <span className="fs-card-name" style={{ color: "var(--live, #10B981)", display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700 }}>
-                                  <PartyPopper size={14} />
+                                  <CelebrationIcon size={15} />
                                   {c.name || (c.code ? `${c.code} Event` : "Celebration Event")}
                                 </span>
                                 <div style={{ display: "flex", alignItems: "center", gap: "6px", marginLeft: "auto" }}>
-                                  <span style={{ fontSize: 10, fontWeight: 800, background: "linear-gradient(135deg, #10B981, #059669)", color: "#fff", padding: "1px 7px", borderRadius: 4 }}>🎉 CELEBRATION</span>
+                                  <span className="tf-celebration-chip"><CelebrationIcon size={11} />CELEBRATION</span>
                                   {c.code && <span className={`ses ${subjectClass(c.code)} fs-exam-code`}>{c.code}</span>}
                                 </div>
                               </div>
@@ -973,6 +993,13 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                       const width = Math.max((toMin(cls.end) - toMin(cls.start)) / 60 * HOUR_W - 6, 40);
                       const top = cls.laneIdx * LANE_H + 5;
                       const height = LANE_H - 10;
+                      if (cls.type === "cancelled") {
+                        return <div key={i} className="cal-h-event cal-h-event-cancelled" style={{ left, width, top, height, borderColor: "var(--danger)", background: "color-mix(in srgb, var(--danger) 8%, var(--card))" }} onMouseEnter={e => showTooltip(e, cls)} onMouseLeave={() => setTooltip(null)}>
+                          <span className="cal-ev-code" style={{ textDecoration: "line-through" }}>{cls.code || cls.name}</span>
+                          <CancellationStripe compact />
+                          {width > 54 && <span className="cal-ev-time">{fmtTime12(cls.start)}–{fmtTime12(cls.end)}</span>}
+                        </div>;
+                      }
                       if (cls.isExam) {
                         return (
                           <div
@@ -1018,7 +1045,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                     {/* Break / free-slot highlights between consecutive classes */}
                     {(() => {
                       // Only use lane-0 events, sorted by start time, to find gaps
-                      const lane0 = (lanes[0] || []).slice().sort((a, b) => toMin(a.start) - toMin(b.start));
+                      const lane0 = (lanes[0] || []).filter(c => c.type !== "cancelled").sort((a, b) => toMin(a.start) - toMin(b.start));
                       const gaps = [];
                       for (let gi = 0; gi < lane0.length - 1; gi++) {
                         const gapStart = toMin(lane0[gi].end);
@@ -1131,12 +1158,13 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                   const subjCls = subjectClass(c.code);
                   const showSection = c.section && c.section !== "Single";
                   return (
-                    <div key={i} className="fs-card">
+                    <div key={i} className={`fs-card ${c.type === "cancelled" ? "fs-card-cancelled" : ""}`}>
                       <div className={`fs-card-accent ${subjCls}`} />
                       <div className="fs-card-body">
                         <div className="fs-card-top">
-                          <span className="fs-card-name" title={c.name}>{c.name}</span>
+                          <span className="fs-card-name" title={c.name} style={c.type === "cancelled" ? { textDecoration: "line-through" } : undefined}>{c.name}</span>
                           <div className="fs-card-badges">
+                            {c.type === "cancelled" && <CancellationStripe compact />}
                             {showSection && (
                               <span className="fs-sec-badge">
                                 Sec {c.section}
@@ -1156,6 +1184,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                               <button
                                 type="button"
                                 className="fs-course-btn"
+                                disabled={c.type === "cancelled"}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   onOpenCourse(c.code);
@@ -1191,6 +1220,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
         >
           <div className="ev-tip-code">{tooltip.cls.code} · Session {tooltip.cls.session}</div>
           <div className="ev-tip-name">{tooltip.cls.name}</div>
+          {tooltip.cls.type === "cancelled" && <div style={{ color: "var(--danger)", fontWeight: 700 }}>Cancelled</div>}
           <div className="ev-tip-divider" />
           <div className="ev-tip-row"><Clock size={12} />{fmtTime12(tooltip.cls.start)} – {fmtTime12(tooltip.cls.end)}</div>
           {tooltip.cls.room && <div className="ev-tip-row"><MapPin size={12} />{tooltip.cls.room}</div>}

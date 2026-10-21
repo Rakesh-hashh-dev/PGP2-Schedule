@@ -260,6 +260,7 @@ export default function MessMenuModal({ now, onClose, favourites, onToggleFav, r
             );
           })}
           </div>
+          <p className="mess-menu-disclaimer">Please note that the menu is subject to minor changes or substitutions depending on the availability and procurement of certain food items. In such cases, suitable alternatives may be provided. -IMC</p>
         </div>
       </div>
     </div>,

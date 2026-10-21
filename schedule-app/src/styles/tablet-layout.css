@@ -1,0 +1,140 @@
+/* Shared tablet layout for V1 and V2. Match navigation to orientation and
+   reserve the week rail only where the content has room for it. */
+@media (min-width: 768px) and (max-width: 1200px) {
+  .app-shell .main-col {
+    min-width: 0;
+  }
+
+  .app-shell .desk-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Academic/social tools need the entire content area. Week remains reachable
+     through Schedule; keep the contextual rail on Today/Tomorrow and compare. */
+  .app-shell .desk-layout:not([data-view="today"]):not([data-view="tomorrow"]):not([data-view="week"]):not([data-view="compare"]) > .side-col {
+    display: none;
+  }
+
+  .app-shell .main-col > :not(.tabs-wrapper):not(.mobile-v2-more-page) {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .app-shell .exam-aura {
+    inset-inline: 0;
+  }
+
+  .app-shell :is(.planner-head, .exam-head, .atx-heading, .board-head, .sp-head, .ch-detail-head) {
+    flex-wrap: wrap;
+  }
+
+  .app-shell :is(.planner-head, .exam-head, .atx-heading, .board-head, .sp-head, .ch-detail-head) > div {
+    min-width: 0;
+  }
+
+  .app-shell :is(.exam-stats, .assign-stats-grid, .atx-summary-grid) > * {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .app-shell .atx-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-shell .atx-history-row {
+    grid-template-columns: 8px minmax(0, 1fr) auto auto;
+  }
+
+  /* Keep fixed page dialogs anchored to the viewport: sizing containment on
+     main-col would change their containing block. */
+  @media (max-width: 960px) {
+    .app-shell :is(.planner-grid-brief, .planner-grid-workload, .ch-detail-grid, .sp-ledger-sections, .sp-overview-balance, .cv-body-grid) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .app-shell .sp-ledger-aside {
+      grid-column: 1;
+      grid-row: auto;
+    }
+
+    .app-shell :is(.exam-stats, .assign-stats-grid, .planner-metrics-grid) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .app-shell .planner-forecast-row {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .app-shell .planner-stepper {
+      grid-column: 1 / -1;
+      width: max-content;
+    }
+
+    .app-shell .board-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 820px) and (orientation: landscape) {
+    .app-shell :is(.atx-course-grid, .exam-cc-grid, .board-grid, .ch-course-grid, .exam-cr-grid-new) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .app-shell .exam-focus {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .app-shell .atx-pending-card {
+      flex-wrap: wrap;
+    }
+
+    .app-shell .atx-pending-card .atx-mark-actions {
+      width: 100%;
+    }
+
+    .app-shell :is(.view-date-header, .timeline-panel-head, .timeline-title-row, .timeline-overview, .exam-section-head, .lp-section-head) {
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .app-shell :is(.ecc-detail-meta, .ecc-upcoming) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1200px) and (orientation: landscape) {
+  .app-shell .app {
+    width: auto;
+    flex: 1 1 0;
+  }
+
+  .app-shell .desk-layout:is([data-view="today"], [data-view="tomorrow"], [data-view="compare"]):has(> .side-col:not([style*="display: none"])):not(.today-focus-mode) {
+    grid-template-columns: minmax(0, 1fr) 260px;
+  }
+
+  .app-shell .desk-layout[data-view="week"] .pane-today {
+    display: none;
+  }
+
+  .app-shell .desk-layout[data-view="week"] > .side-col {
+    position: static;
+    max-height: none;
+  }
+
+  .app-shell .desk-layout[data-view="week"] .wa-days-scroll {
+    max-height: none;
+  }
+}
+
+/* Narrow landscape tablets cannot accommodate two useful content columns. */
+@media (min-width: 768px) and (max-width: 1100px) and (orientation: landscape) {
+  .app-shell .desk-layout:is([data-view="today"], [data-view="tomorrow"], [data-view="compare"]):has(> .side-col:not([style*="display: none"])):not(.today-focus-mode) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-shell .desk-layout > .side-col {
+    position: static;
+    max-height: none;
+  }
+}

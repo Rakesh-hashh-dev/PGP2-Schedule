@@ -4,6 +4,7 @@ import WeekGlance from "./WeekGlance.jsx";
 import { subjectClass, cleanSessionLabel } from "../lib/subjectColors.js";
 import { isNationalHoliday } from "../lib/nationalHolidays.js";
 import IndiaFlagIcon from "./IndiaFlagIcon.jsx";
+import { CancellationStripe } from "./CancelledClassNotice.jsx";
 import { fmtTime12 } from "../lib/datetime.js";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
@@ -129,11 +130,12 @@ export default function ScheduleModal({ visible, now, offset, setOffset, todayIS
                     <span className="sm-free">No classes</span>
                   ) : (
                     items.map((c, i) => (
-                      <span key={i} className={`sm-item${c.type !== "class" ? " soft" : ""}`}>
+                      <span key={i} className={`sm-item${c.type === "cancelled" ? " sm-cancelled" : ""}${c.type !== "class" ? " soft" : ""}${c.type === "break" ? " sm-break" : ""}`}>
                         <span className="sm-time">{fmtTime12(c.start)}</span>
                         <span className="sm-name">
                           {isNationalHoliday(c) && <IndiaFlagIcon size={13} className="row-flag-icon" />}
-                          {c.name}
+                          <span className={c.type === "cancelled" ? "cancelled-class-name" : undefined}>{c.name}</span>
+                          {c.type === "cancelled" && <CancellationStripe compact />}
                           {c.session && <span className={`ses ${subjectClass(c.code)}`}>{c.code} {cleanSessionLabel(c.session)}</span>}
                         </span>
                         {c.type === "class" && c.room && <span className="sm-room">{c.room}</span>}

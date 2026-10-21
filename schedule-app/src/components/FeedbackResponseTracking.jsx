@@ -9,7 +9,7 @@ export default function FeedbackResponseTracking({ feedback = [], users = [], tr
     .sort((a, b) => Number(b.response.overdue) - Number(a.response.overdue) || (a.response.dueAt?.getTime() ?? Infinity) - (b.response.dueAt?.getTime() ?? Infinity));
   const displayed = showAll ? visible : visible.slice(0, 6);
   const names = new Map(users.map(user => [user.user_id, user.name || "Student"]));
-  return <section className="admin-card admin-g-users frt-panel" aria-label="Feedback response tracking">
+  return <section className="admin-card admin-span-all admin-g-users frt-panel" aria-label="Feedback response tracking">
     <div className="frt-heading"><div><span className="frt-eyebrow">Feedback operations</span><h2>Response tracking</h2><p>Time since submission to the first admin reply queued for push. A queued push does not confirm delivery or reading.</p></div></div>
     {unavailable && <p className="frt-warning" role="alert">Response records are unavailable. Apply the feedback response tracking migration to save targets and reply queue times.</p>}
     <div className="frt-metrics"><div><strong>{openAwaiting}</strong><span>Awaiting a recorded reply</span></div><div className={overdue ? "frt-overdue" : ""}><strong>{overdue}</strong><span>Past response target</span></div><div><strong>{queued}</strong><span>First replies queued</span></div><div><strong>{closedWithoutRecordedReply}</strong><span>Closed, no reply recorded</span></div></div>

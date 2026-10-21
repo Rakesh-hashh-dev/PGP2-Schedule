@@ -312,7 +312,7 @@
 
 .pet-section-nav {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 5px;
   padding: 5px;
   border: 1px solid var(--border);
@@ -705,3 +705,10 @@ html[data-theme="dark"] .xp-toast-streak-badge {
   }
 }
 
+
+/* Cohort motion policy also applies while a care reaction is active. */
+.pet-identity-pet[data-motion="off"] { animation: none; transition: none; }
+
+@media (max-width: 480px) {
+  .pet-section-nav { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}

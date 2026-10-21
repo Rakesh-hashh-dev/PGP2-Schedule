@@ -2,14 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getGreetingBucket, getTimeGreeting } from "../lib/datetime.js";
 import { dayKey, getPetByKey } from "./greetingPets.jsx";
 import {
-  CARE_ACTIONS, careLeft, careUsedToday, growthStageFor, isAdopted, levelProgress, moodExplainFor,
+  CARE_ACTIONS, REUNION_HOURS, careLeft, careUsedToday, growthStageFor, hoursSince, isAdopted, levelProgress, moodExplainFor,
   visibleCoat, visibleNeckwear,
   visibleHat, xpOf,
 } from "../lib/pet.js";
 import PetSleepCue from "./PetSleepCue.jsx";
 import PetHat from "./PetHat.jsx";
 import PetNeckwear from "./PetNeckwear.jsx";
-import { usePetBeat } from "../hooks/usePetBeat.js";
+import { usePetPerformance } from "../hooks/usePetPerformance.js";
 import { usePetGaze } from "../hooks/usePetGaze.js";
 import { recordMood } from "../lib/petStats.js";
 
@@ -40,6 +40,10 @@ const MOOD_LINE = {
   sleepy: "is dozing off.",
   bored: "is looking for something to do.",
   missing: "missed you.",
+  reunion: "is so glad you are back!",
+  determined: "is ready for today's deadline.",
+  hyped: "is riding your streak.",
+  weekend: "is lounging into the weekend.",
 };
 
 export default function DayGreeting({
@@ -51,6 +55,7 @@ export default function DayGreeting({
   const [greetingStamp, setGreetingStamp] = useState(null);
   const [isPetTrayOpen, setIsPetTrayOpen] = useState(false);
   const [petReaction, setPetReaction] = useState("");
+  const [reactionId, setReactionId] = useState(0);
   // Tagged with the pet it was written about, so a message can't outlive its pet.
   const [petMessage, setPetMessage] = useState(null);
   const reactionTimer = useRef(null);
@@ -85,7 +90,7 @@ export default function DayGreeting({
   const mood = adopted ? moodExplainFor(pet, now, petContext).mood : "content";
   // Cohort policy, defaulting ON — same rule as the pet page.
   const wardrobeOn = petSettings?.wardrobe !== false;
-  const beat = usePetBeat(mood, adopted && motionEnabled);
+  const { bind: petRef, beat, action, source, replay, touch } = usePetPerformance(mood, adopted && motionEnabled, displayPet?.key, petReaction, petSettings?.signatures !== false, reactionId);
   const gaze = usePetGaze(adopted && motionEnabled);
   const progress = adopted ? levelProgress(xpOf(pet)) : null;
   const left = adopted ? careLeft(pet, now) : 0;
@@ -134,19 +139,24 @@ export default function DayGreeting({
     // deterministic (so it stays a pure function of state) but still different
     // on the next tap.
     const used = careUsedToday(pet, now);
+    // Back after days away: the first tap gets the big leap, not the usual wiggle.
+    const reunion = hoursSince(pet, now) >= REUNION_HOURS;
     petActions.care(action, now);
     const options = CARE_LINES[action];
     setPetMessage({
       key: displayPet.key,
       // Over-cap taps still animate and still get a line — the pet should never
       // feel unresponsive — but they say so rather than implying more XP.
-      text: wasFree
+      text: reunion
+        ? "leaps into your arms!"
+        : wasFree
         ? options[used % options.length]
         : "has had plenty of attention today.",
     });
-    setPetReaction(action);
+    setReactionId(id => id + 1);
+    setPetReaction(reunion ? "leap" : action);
     window.clearTimeout(reactionTimer.current);
-    reactionTimer.current = window.setTimeout(() => setPetReaction(""), 1150);
+    reactionTimer.current = window.setTimeout(() => setPetReaction(""), displayPet?.key === "luna" ? 1920 : reunion ? 1400 : 1150);
   };
 
   if (!greeting) return null;
@@ -157,6 +167,7 @@ export default function DayGreeting({
         <span className="dg-pet-shell" ref={shellRef}>
           <button
             type="button"
+            ref={petRef}
             className="dg-pet"
             data-pet={displayPet.key}
             data-motion={motionEnabled ? "on" : "off"}
@@ -167,8 +178,11 @@ export default function DayGreeting({
             data-neck={(adopted && visibleNeckwear(pet, { wardrobe: wardrobeOn })) || undefined}
             data-reaction={petReaction || undefined}
             data-beat={petReaction ? undefined : beat || undefined}
+            data-action={action}
+            data-action-source={source} data-action-replay={replay}
             data-sig={petSettings?.signatures === false ? "off" : undefined}
             {...gaze}
+            onPointerDown={event => { gaze.onPointerDown?.(event); touch(event); }}
             onClick={() => (isPetTrayOpen ? closeTray() : setIsPetTrayOpen(true))}
             aria-expanded={isPetTrayOpen}
             aria-controls="daily-pet-actions"

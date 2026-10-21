@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChevronLeft, ChevronRight, Calendar, BarChart3, ChevronDown } from "lucide-react";
 import WeekGlance from "./WeekGlance.jsx";
+import { CancellationStripe } from "./CancelledClassNotice.jsx";
 import { subjectClass } from "../lib/subjectColors.js";
 import { isNationalHoliday } from "../lib/nationalHolidays.js";
 import IndiaFlagIcon from "./IndiaFlagIcon.jsx";
@@ -50,11 +51,12 @@ export default function WeekAgenda({ visible, now, offset, setOffset, todayISO, 
                 {items.length === 0
                   ? <span className="agday-free">–</span>
                   : items.map((c, i) => (
-                      <div key={i} className={`ag ${c.type !== "class" ? "soft" : ""}`}>
+                      <div key={i} className={`ag${c.type === "cancelled" ? " ag-cancelled" : ""} ${c.type !== "class" ? "soft" : ""}${c.type === "break" ? " ag-break" : ""}`}>
                         <span className="ag-t">{fmtTime12(c.start)}</span>
                         <span className="ag-c">
                           {isNationalHoliday(c) && <IndiaFlagIcon size={13} className="row-flag-icon" />}
-                          {c.name}
+                          <span className={c.type === "cancelled" ? "cancelled-class-name" : undefined}>{c.name}</span>
+                          {c.type === "cancelled" && <CancellationStripe compact />}
                           {c.session && (
                             <span className={`ses ${subjectClass(c.code)}`}>
                               {c.code} {c.session}
@@ -62,7 +64,7 @@ export default function WeekAgenda({ visible, now, offset, setOffset, todayISO, 
                           )}
                         </span>
                         {(c.type === "class" || c.type === "placement") && c.room && <span className="ag-r">{c.room}</span>}
-                        {c.type === "class" && onOpenSession && <button type="button" className="prep-open" onClick={() => onOpenSession(c)} aria-label={`Open class details for ${c.name}`}>Open</button>}
+                        {(c.type === "class" || c.type === "cancelled") && onOpenSession && <button type="button" disabled={c.type === "cancelled"} className="prep-open" onClick={() => onOpenSession(c)} aria-label={`Open class details for ${c.name}`}>Open</button>}
                       </div>
                     ))}
               </div>

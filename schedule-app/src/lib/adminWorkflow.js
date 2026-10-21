@@ -1,4 +1,4 @@
-import { classIdent, parseOverrideKey } from "./overrides.js";
+import { classIdent, classMatchesKey, parseOverrideKey, cancellationVisibility } from "./overrides.js";
 
 const DAY_MS = 86400000;
 const VALID_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -154,7 +154,7 @@ export function previewScheduleChange({ classes, users, date, code, section = "A
   };
   const existingConflicts = new Set(findConflicts(before));
   const conflicts = findConflicts(after).filter(conflict => !existingConflicts.has(conflict));
-  return { before, after, affected, conflicts, section, date, code };
+  return { before, after, affected, conflicts, section, date, code, cancellationVisibility: proposed?.type === "cancelled" ? cancellationVisibility(proposed) : null };
 }
 
 export function previewStagedScheduleChanges(classes, overrides, users, originalOverrides = {}) {
@@ -165,8 +165,11 @@ export function previewStagedScheduleChanges(classes, overrides, users, original
   const entries = [...dates].flatMap(date => [...new Set([...Object.keys(overrides?.[date] || {}), ...Object.keys(originalOverrides?.[date] || {})])].map(key => ({ date, key, value: overrides?.[date]?.[key] })));
   for (const { date, key, value } of entries) {
     if (JSON.stringify(originalOverrides?.[date]?.[key]) === JSON.stringify(value)) continue;
-    const { ident, section } = parseOverrideKey(key);
-    const original = classes.find(item => item.date === date && classIdent(item) === ident && sectionsOverlap(item.section, section));
+    const parsed = parseOverrideKey(key);
+    const { ident, section } = parsed;
+    // Session-scoped keys carry the feed start, so this picks the right one of
+    // a course's same-day sessions rather than always the first.
+    const original = classes.find(item => item.date === date && classMatchesKey(item, parsed));
     const preview = previewScheduleChange({ classes, users, date, code: ident, section, original, proposed: value });
     users.filter(user => appliesToStudent(user, ident, section)).forEach(user => affectedIds.add(user.user_id));
     conflicts += preview.conflicts.length;

@@ -1,3 +1,5 @@
+import { useNavView } from "../lib/navView.js";
+
 // One sidebar nav row, rendered from a NAV_ITEMS entry (see lib/navItems.js).
 //
 // This replaces 17 hand-written blocks that each repeated the same tooltip
@@ -8,8 +10,14 @@
 // Must stay a DIRECT child of `.sb-nav`: the aurora entrance cascade selects
 // `.sidebar.sb-aurora .sb-nav > *:nth-child(n)`, so any wrapper element here
 // would silently kill the stagger.
-export default function SbLink({ item, active, badge, count, onSelect, onIntent, showSbTip, hideSbTip }) {
+//
+// Active state comes from the nav store (lib/navView.js), so a click
+// re-renders only the two links whose state flips, not the whole sidebar.
+// `view` is the fallback for renders outside the app (tests).
+export default function SbLink({ item, view, badge, count, onSelect, onIntent, showSbTip, hideSbTip }) {
   const Icon = item.icon;
+  const navView = useNavView() ?? view;
+  const active = Boolean(item.view) && navView === item.view;
   return (
     <button
       className={`sb-link${active ? " on" : ""}`}

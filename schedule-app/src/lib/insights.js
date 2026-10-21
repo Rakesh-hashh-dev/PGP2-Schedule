@@ -134,6 +134,18 @@ export function weeklyRecap(visible, now, attendance, weekOffset = 0) {
   };
 }
 
+// Whether any not-yet-completed assignment is due on `todayISO`. Reads the same
+// local store as `upcomingDeadlines`, and also counts a task as cleared once its
+// `due:` XP key is in the pet ledger, in case the store write lags; the pet's "determined" mood uses it.
+export function assignmentDueToday(todayISO, awarded = {}) {
+  const store = loadAssignments();
+  for (const [code, tasks] of Object.entries(store || {})) {
+    if (code.startsWith("_") || !Array.isArray(tasks)) continue;
+    if (tasks.some(t => !t.completed && t.dueDate === todayISO && !(`due:${t.id}` in awarded))) return true;
+  }
+  return false;
+}
+
 // Merged, date-sorted exams + assignments due within `days` days from now.
 export function upcomingDeadlines(visible, legend, now, days = 7) {
   const todayISO = ymd(now);

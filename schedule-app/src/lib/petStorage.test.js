@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { adopt, award, care, emptyPet, xpOf } from "./pet.js";
-import { PET_KEY, clearPetLocal, fromRow, loadPet, savePetLocal, toRow } from "./petStorage.js";
+import { SERVER_LEVEL_CAP, adopt, award, care, emptyPet, levelFor, xpOf } from "./pet.js";
+import { PET_KEY, clearPetLocal, dismissRecount, isRecountDismissed, fromRow, loadPet, savePetLocal, toRow } from "./petStorage.js";
 
 // The node test env has no localStorage. A minimal in-memory stand-in is enough
 // for the cache half of this module; the network half is exercised against the
@@ -67,7 +67,7 @@ describe("row ⇄ state mapping", () => {
     // Guards against silent drift: renaming a column in the SQL without
     // updating toRow would break persistence with no error anywhere.
     expect(Object.keys(toRow("user_A", sample())).sort()).toEqual([
-      "adopted_at", "awarded", "base_xp", "care", "cosmetics",
+      "adopted_at", "awarded", "care", "cosmetics",
       "last_seen", "level", "name", "pet_key", "unlocked", "user_id",
     ]);
   });
@@ -76,8 +76,33 @@ describe("row ⇄ state mapping", () => {
     let s = adopt(emptyPet(), "cat", "Mochi");
     s = award(s, "big", 250);
     expect(toRow("user_A", s).level).toBe(3);
-    // ...and never writes an xp column: XP is derived from base_xp + awarded.
+    // ...and never writes an xp column: XP is derived from the ledger + granted_xp.
     expect(toRow("user_A", s)).not.toHaveProperty("xp");
+  });
+
+  it("never writes a level above what the cloud check constraint accepts", () => {
+    // pet_state.level is `between 1 and 20` in prod.
+    const s = award(adopt(emptyPet(), "cat", "Mochi"), "big", 90000);
+    expect(toRow("user_A", s).level).toBe(Math.min(SERVER_LEVEL_CAP, levelFor(xpOf(s))));
+    expect(toRow("user_A", s).level).toBeLessThanOrEqual(SERVER_LEVEL_CAP);
+  });
+
+  it("falls back to the inflated total as the unlock floor until legacy_xp exists", () => {
+    const row = { user_id: "u1", pet_key: "cat", base_xp: 500, granted_xp: 0, awarded: { "att:a": ["2026-09-01", 32] } };
+    expect(fromRow(row).legacyXp).toBe(532);
+    expect(fromRow({ ...row, legacy_xp: 900 }).legacyXp).toBe(900);
+    expect(fromRow({ ...row, base_xp: 0 }).legacyXp).toBe(0);
+    expect(toRow("u1", fromRow(row))).not.toHaveProperty("legacy_xp");
+    expect(toRow("u1", fromRow(row))).not.toHaveProperty("base_xp");
+  });
+
+  it("remembers a dismissed recount notice, and survives broken storage", () => {
+    stubStorage();
+    expect(isRecountDismissed()).toBe(false);
+    dismissRecount();
+    expect(isRecountDismissed()).toBe(true);
+    stubStorage({ throwOnWrite: true });
+    expect(() => dismissRecount()).not.toThrow();
   });
 
   it("sends a null name rather than an empty string", () => {
@@ -96,7 +121,7 @@ describe("row ⇄ state mapping", () => {
     expect(xpOf(s)).toBe(0);
     // Every cosmetic slot defaults to "not wearing one", so a row written
     // before a slot existed reads as bare rather than as invalid.
-    expect(s.cosmetics).toEqual({ accessory: true, hat: null, coat: null, neck: null, title: null, buddy: null });
+    expect(s.cosmetics).toEqual({ accessory: true, hat: null, coat: null, neck: null, title: null, buddy: null, habitat: { scene: "garden", light: "auto", decor: ["plant", "cushion"] } });
   });
 
   it("coerces a bigint last_seen arriving as a string", () => {
@@ -110,7 +135,9 @@ describe("granted_xp column mapping", () => {
   it("reads granted_xp from the cloud row", () => {
     const state = fromRow({ user_id: "u1", pet_key: "cat", name: "Mochi", base_xp: 10, granted_xp: 700 });
     expect(state.grantedXp).toBe(700);
-    expect(xpOf(state)).toBe(710);
+    // base_xp is retired: it no longer counts toward XP (it only seeds legacyXp).
+    expect(xpOf(state)).toBe(700);
+    expect(state.legacyXp).toBe(710);
   });
 
   it("defaults to 0 when the column is absent", () => {

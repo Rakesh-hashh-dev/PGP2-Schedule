@@ -12,7 +12,7 @@
 //   PUSH_ADMIN_SECRET
 // SB_URL / SB_SERVICE_ROLE_KEY fall back to the platform-injected SUPABASE_* vars.
 //
-// Body: { title, body, url?, icon?, tag?, mode?, target_user_id? }
+// Body: { title, body, url?, icon?, image?, tag?, mode?, target_user_id? }
 //   mode: "digest" fills in a default morning-digest title/body when omitted.
 //   target_user_id: when set, fan out to just that one user (admin test push).
 //   target_user_ids: when set, fan out to just this list of users (re-engagement).
@@ -23,6 +23,7 @@
 // 400 and a fast 2xx, so both are preserved.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { pushImage } from "../_shared/pushPresentation.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -72,8 +73,8 @@ Deno.serve(async (req) => {
     return json(400, { error: "Invalid JSON body" });
   }
 
-  let { title, body: message, url, icon, mode, target_user_id, target_user_ids } = body as {
-    title?: string; body?: string; url?: string; icon?: string; mode?: string;
+  let { title, body: message, url, icon, image, mode, target_user_id, target_user_ids } = body as {
+    title?: string; body?: string; url?: string; icon?: string; image?: string; mode?: string;
     target_user_id?: string; target_user_ids?: string[];
   };
   if (mode === "digest") {
@@ -82,6 +83,7 @@ Deno.serve(async (req) => {
     url = url || "/?view=today";
   }
   if (!title || !message) return json(400, { error: "title and body are required" });
+  if (image && !pushImage(image)) return json(400, { error: "image must be an HTTPS URL or a local absolute path" });
 
   const supabase = createClient(
     Deno.env.get("SB_URL") ?? Deno.env.get("SUPABASE_URL")!,
@@ -105,12 +107,12 @@ Deno.serve(async (req) => {
   const dedupKey = "broadcast:" + crypto.randomUUID();
   const rows = users.map((u) => ({
     user_id: u.user_id,
-    type: "admin_broadcast",
+    type: mode === "digest" ? "daily_summary" : "admin_broadcast",
     title,
     body: message,
     url: url || "/",
     icon: icon || null,
-    data: { urgency: "normal", ttl: 12 * 3600 },
+    data: { urgency: "normal", ttl: 12 * 3600, image: pushImage(image) },
     dedup_key: dedupKey,
   }));
 

@@ -146,6 +146,9 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(BUILD_VERSION),
   },
+  server: {
+    port: 3000,
+  },
   plugins: [
     react(),
     generateMeta(outDir),
@@ -179,17 +182,10 @@ export default defineConfig({
               expiration: { maxEntries: 20, maxAgeSeconds: 30 * 24 * 60 * 60 },
             },
           },
-          {
-            // Google Sheets feed — network-first, 1h cache, 5s timeout before stale
-            urlPattern: /^https:\/\/script\.google\.com\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'schedule-feed',
-              networkTimeoutSeconds: 5,
-              expiration: { maxEntries: 2, maxAgeSeconds: 60 * 60 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
+          // Google Apps Script feeds (schedule + mess menu) are deliberately NOT
+          // routed through the SW: the app already keeps the last good payload in
+          // localStorage, the ?since=/?force= URLs never hit a SW cache entry, and
+          // Workbox turned plain network drops into cryptic "no-response" errors.
           {
             // Clerk auth / API calls — network-only (never cache auth)
             // Covers both dev (*.clerk.accounts.dev) and prod (*.clerk.com)

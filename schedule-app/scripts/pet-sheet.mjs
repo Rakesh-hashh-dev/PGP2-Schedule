@@ -21,9 +21,10 @@
 // boxes (CSS `transform-box: fill-box`), so each moving part is rasterized on
 // its own once per pet and measured from its alpha channel.
 //
-// esbuild comes in as a Vite dependency; it is only needed to load the JSX.
+// Uses the installed Vite 8 bundler to load JSX without an extra dependency.
 
 import { createRequire } from "module";
+import { bundlePets } from "./pet-bundle.mjs";
 import { readFileSync, mkdirSync, rmSync } from "fs";
 import { dirname, resolve } from "path";
 import { fileURLToPath } from "url";
@@ -33,6 +34,27 @@ import sharp from "sharp";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CSS = readFileSync(resolve(root, "src/styles.css"), "utf8");
+const PERSONALITY_CSS = readFileSync(resolve(root, "src/styles/pet-personality.css"), "utf8");
+
+// librsvg does not resolve CSS custom properties. Resolve only the display
+// channels here, from the same mood rules the browser uses, for the still sheet.
+function faceStyles(moods) {
+  const channels = {
+    "pet-face-base": ".dg-pet-eyes,.e", "pet-mouth-base": ".dg-pet-mouth-base",
+    "pet-face-joy": ".dg-pet-expression-joy", "pet-face-rest": ".dg-pet-expression-rest",
+    "pet-face-surprise": ".dg-pet-expression-surprise", "pet-face-brows": ".dg-pet-expression-brows",
+    "pet-mouth-smile": ".dg-pet-expression-smile", "pet-mouth-yawn": ".dg-pet-expression-yawn",
+    "pet-mouth-oh": ".dg-pet-expression-oh",
+  };
+  const values = block => Object.fromEntries([...block.matchAll(/--(pet-(?:face|mouth)-[a-z]+):\s*(inline|none)/g)].map(([, key, val]) => [key, val]));
+  const defaults = values(PERSONALITY_CSS.match(/\.dg-pet \{([^}]+)\}/)?.[1] || "");
+  const rules = [...PERSONALITY_CSS.matchAll(/\.dg-pet:where\(([^)]+)\)\s*\{([^}]+)\}/g)];
+  return ".dg-pet-gesture,.dg-pet-expression-heart{display:none}" + moods.map(mood => {
+    const state = { ...defaults };
+    for (const [, selector, block] of rules) if (selector.includes(`[data-mood="${mood}"]`)) Object.assign(state, values(block));
+    return Object.entries(channels).map(([key, selector]) => selector.split(",").map(cls => `.pet-mood-${mood} ${cls}`).join(",") + `{display:${state[key] || "none"}}`).join("");
+  }).join("");
+}
 
 const args = process.argv.slice(2);
 const argOf = (name, fallback) => {
@@ -45,13 +67,8 @@ const CELL = Number(argOf("cell", 64));
 
 // ── Load the pets ───────────────────────────────────────────────
 async function loadPets() {
-  const { build } = await import("esbuild");
   const tmp = resolve(root, ".pet-sheet.cjs");
-  await build({
-    entryPoints: [resolve(root, "src/components/greetingPets.jsx")],
-    bundle: true, format: "cjs", jsx: "automatic",
-    external: ["react", "react-dom"], outfile: tmp, logLevel: "silent",
-  });
+  await bundlePets(root, tmp, "export { PETS } from '../src/components/greetingPets.jsx';");
   const { PETS } = createRequire(import.meta.url)(tmp);
   rmSync(tmp, { force: true });
   return PETS;
@@ -186,12 +203,16 @@ function posed(markup, boxes, knobs, gain) {
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
 
 async function main() {
-  const PETS = (await loadPets()).filter(p => !ONLY || p.key === ONLY);
+  const PETS = (await loadPets()).filter(p => !ONLY || ONLY.split(",").includes(p.key));
   const moods = moodKnobs();
   const gains = petGains();
   const origins = earOrigins();
-  const order = ["celebrating", "proud", "excited", "focused", "restless", "playful", "happy",
-    "curious", "rooting", "content", "relaxed", "cozy", "tired", "sleepy", "bored", "missing"]
+  // Every mood the stylesheet knows, in ladder order; `--moods a,b,c` narrows it.
+  const ALL = ["celebrating", "reunion", "proud", "birthday", "festive", "weekend", "excited", "focused",
+    "restless", "determined", "playful", "happy", "hyped", "curious", "rooting", "content",
+    "relaxed", "cozy", "tired", "sleepy", "bored", "missing"];
+  const picked = argOf("moods", null)?.split(",");
+  const order = (picked || ALL)
     .filter(m => moods.has(m));
 
   const LABEL = 74, HEAD = 22;
@@ -199,14 +220,23 @@ async function main() {
   const height = HEAD + PETS.length * CELL;
   const parts = [`<svg xmlns="http://www.w3.org/2000/svg" width="${width * 2}" height="${height * 2}" viewBox="0 0 ${width} ${height}">`,
     `<rect width="${width}" height="${height}" fill="#f4f1ea"/>`,
-    `<style>text{font-family:system-ui,sans-serif;font-size:7px;fill:#3a332c}</style>`];
+    `<style>text{font-family:system-ui,sans-serif;font-size:7px;fill:#3a332c}${faceStyles(order)}</style>`];
 
   order.forEach((m, i) => {
     parts.push(`<text x="${LABEL + i * CELL + CELL / 2}" y="${HEAD - 8}" text-anchor="middle">${esc(m)}</text>`);
   });
 
   for (const [row, pet] of PETS.entries()) {
-    const markup = renderToStaticMarkup(React.createElement(pet.Svg));
+    const rasterFrames = new Map();
+    if (pet.art === "sprite") {
+      const assets = JSON.parse(readFileSync(resolve(root, "src/lib/lunaAssets.json"), "utf8"));
+      for (const [key, state] of Object.entries(assets.states)) {
+        const frame = await sharp(resolve(root, "public" + state.file))
+          .extract({ left: 0, top: 0, width: assets.width, height: assets.height }).png().toBuffer();
+        rasterFrames.set(key, `<svg viewBox="0 0 32 32"><image href="data:image/png;base64,${frame.toString("base64")}" width="32" height="32" preserveAspectRatio="xMidYMid meet" /></svg>`);
+      }
+    }
+    const markup = pet.art === "sprite" ? rasterFrames.get("idle") : renderToStaticMarkup(React.createElement(pet.Svg));
     const boxes = { origins: {} };
     for (const part of ["ear-left", "ear-right", "wing-left", "wing-right"]) {
       boxes[part] = await bboxOf(markup, `dg-pet-${part.startsWith("ear") ? "ear " : "wing "}dg-pet-${part}`);
@@ -220,7 +250,9 @@ async function main() {
     order.forEach((mood, col) => {
       const x = LABEL + col * CELL;
       parts.push(`<rect x="${x}" y="${y}" width="${CELL}" height="${CELL}" fill="${row % 2 ? "#efeae0" : "#f4f1ea"}"/>`);
-      parts.push(`<svg x="${x + 4}" y="${y + 4}" width="${CELL - 8}" height="${CELL - 8}" viewBox="0 0 32 32">${posed(markup, boxes, moods.get(mood), gain)}</svg>`);
+      parts.push(`<svg class="pet-mood-${mood}" x="${x + 4}" y="${y + 4}" width="${CELL - 8}" height="${CELL - 8}" viewBox="0 0 32 32">${pet.art === "sprite"
+        ? posed(rasterFrames.get(({ happy: "wait", proud: "wait", playful: "wait", focused: "think", bored: "think", curious: "review", restless: "review", tired: "rest", sleepy: "rest", cozy: "rest", missing: "rest", excited: "jump", celebrating: "jump", reunion: "jump", hyped: "jump", determined: "think", weekend: "rest", rooting: "wait", birthday: "jump", festive: "jump" })[mood] || "idle"), {}, { droop: 0, eye: 1, drop: 0, lean: 0 }, 1)
+        : posed(markup, boxes, moods.get(mood), gain)}</svg>`);
     });
   }
   parts.push("</svg>");

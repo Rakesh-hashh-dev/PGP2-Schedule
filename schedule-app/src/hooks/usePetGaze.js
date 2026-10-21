@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
  * Eyes that follow the pointer.
@@ -18,8 +18,12 @@ export function usePetGaze(enabled = true) {
   const [look, setLook] = useState(null);
   const frame = useRef(0);
 
+  useEffect(() => () => {
+    if (frame.current) cancelAnimationFrame(frame.current);
+  }, []);
+
   const track = useCallback(event => {
-    if (!enabled) return;
+    if (!enabled || window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return;
     // Pointer events fire far faster than paint; coalesce to one per frame.
     if (frame.current) return;
     const { clientX, clientY, currentTarget } = event;

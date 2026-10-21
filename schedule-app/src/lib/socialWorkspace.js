@@ -12,7 +12,8 @@ export function filterSocialFriends(friends, { query = "", filter = "all", getSt
     if (filter === "favourites") return Boolean(friend.isFavourite);
 
     const state = getStatus(friend)?.state;
-    if (filter === "free") return state === "free";
+    if (filter === "free") return state === "free" || (state === "available" && getStatus(friend)?.scheduleKnown);
+    if (filter === "available") return state === "available";
     if (filter === "busy") return state === "busy";
     return true;
   });

@@ -7,8 +7,9 @@
 // sequentially with a short gap so the student feels the earn without spam.
 
 import { useEffect, useState, useId } from "react";
-import { Zap } from "lucide-react";
+import { Sparkles, Zap } from "lucide-react";
 import PetCameo from "./PetCameo.jsx";
+import { getPetByKey } from "./greetingPets.jsx";
 import "../styles/pet.css";
 
 /**
@@ -19,6 +20,7 @@ import "../styles/pet.css";
  * @param {number}   props.xp           — XP amount earned (e.g. 32 or 60)
  * @param {string}   props.label        — short source label ("attendance" | "assignment")
  * @param {boolean}  props.firstOfDay   — true on the very first earn of the day
+ * @param {string}   [props.unlock]     — a companion key: shows "new companion" instead of XP
  * @param {function} props.onDone       — called when the toast is finished showing
  */
 function PremiumSparkleSvg({ size = 14, className = "" }) {
@@ -73,7 +75,7 @@ function PremiumSparkleSvg({ size = 14, className = "" }) {
   );
 }
 
-export default function XpToast({ pet, petContext, petSettings, xp, label, firstOfDay, onDone }) {
+export default function XpToast({ pet, petContext, petSettings, xp, label, firstOfDay, unlock, onDone }) {
   const [phase, setPhase] = useState("enter"); // "enter" | "visible" | "exit"
 
   useEffect(() => {
@@ -88,6 +90,7 @@ export default function XpToast({ pet, petContext, petSettings, xp, label, first
   }, []);
 
   const adopted = pet?.petKey != null;
+  if (unlock) return <UnlockToast pet={pet} petContext={petContext} petKey={unlock} phase={phase} />;
   const displayLabel = label === "attendance" ? "Attendance" : label === "assignment" ? "Assignment" : label;
 
   return (
@@ -127,6 +130,35 @@ export default function XpToast({ pet, petContext, petSettings, xp, label, first
             First today
           </span>
         )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The same pill, announcing a companion that just unlocked. Drawn bare (no
+ * hat or coat) because the wardrobe belongs to the pet the student is wearing
+ * it on, not to the one they have only just met.
+ */
+function UnlockToast({ pet, petContext, petKey, phase }) {
+  const label = getPetByKey(petKey)?.label || petKey;
+  const preview = { ...pet, petKey, cosmetics: { accessory: true } };
+  return (
+    <div
+      className={`xp-toast xp-toast--unlock xp-toast--${phase}`}
+      role="status"
+      aria-live="polite"
+      aria-label={`New companion unlocked: ${label}`}
+    >
+      <span className="xp-toast-pet-disc" aria-hidden="true">
+        <PetCameo pet={preview} now={new Date()} petContext={petContext} size={34} motion={false} />
+      </span>
+      <span className="xp-toast-pill">
+        <Sparkles size={11} className="xp-toast-pill-icon" strokeWidth={2.6} aria-hidden="true" />
+        <span className="xp-toast-unit">New</span>
+      </span>
+      <div className="xp-toast-info">
+        <span className="xp-toast-source">{label} unlocked</span>
       </div>
     </div>
   );

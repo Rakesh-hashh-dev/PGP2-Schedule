@@ -1,6 +1,12 @@
+import { rememberSplitInvite, pendingSplitInvite, clearSplitInvite } from "./lib/splitInvite.js";
 import { MORE_VIEWS } from "./lib/navItems.js";
-import { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from "react";
-import { createPortal, flushSync } from "react-dom";
+import { memoryEvent } from "./lib/companionMemory.js";
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Suspense, lazy, startTransition } from "react";
+import { createPortal } from "react-dom";
+import { setNavView, useNavView } from "./lib/navView.js";
+import BnavLens from "./components/BnavLens.jsx";
+import SbFloatTip from "./components/SbFloatTip.jsx";
+import { startPetMotionWatcher } from "./lib/petMotion.js";
 import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, ClipboardList, GraduationCap, MoreHorizontal, Users, Megaphone, Shield, ShieldAlert, User, CloudOff, MessageSquare, X, SlidersHorizontal, BookOpenCheck, Sparkles, Wand2, BellRing, CalendarDays, ExternalLink, Download, Share, WifiOff, Zap, PanelBottom, PanelTop, PanelsTopLeft, Check, ChevronDown, Sun, Moon, Monitor, CalendarOff, CalendarRange, UtensilsCrossed, Package, Camera, Loader2, Wallet, Radio, History, PawPrint, LayoutDashboard } from "lucide-react";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
@@ -10,9 +16,11 @@ import Timeline from "./components/Timeline.jsx";
 import WeekAgenda from "./components/WeekAgenda.jsx";
 import ClassPrepSheet from "./components/ClassPrepSheet.jsx";
 import TodayCommandCenter from "./components/TodayCommandCenter.jsx";
+import TodayDashboard from "./components/TodayDashboard.jsx";
 import { DashboardCustomize, ScheduleStatus } from "./components/DashboardExtras.jsx";
-import { DEFAULT_DASHBOARD, readDashboardPrefs, saveDashboardPrefs } from "./lib/dashboardPrefs.js";
+import { DEFAULT_DASHBOARD, dashboardCardVisible, readDashboardPrefs, saveDashboardPrefs } from "./lib/dashboardPrefs.js";
 import ScheduleModal from "./components/ScheduleModal.jsx";
+import { pushSessionFromParams } from "./lib/pushDeepLink.js";
 import WeekGlance from "./components/WeekGlance.jsx";
 import SubjectFilter from "./components/SubjectFilter.jsx";
 import Login from "./components/Login.jsx";
@@ -32,20 +40,21 @@ import { fetchMessMenu } from "./lib/messFeed.js";
 import { getSnapshot, fetchSchedule, sha256hex } from "./lib/sheet.js";
 import { taughtSectionsByCode, provisionalSectionCodes, applyRosterAllocation, manualSectionCodes, unscheduledCodes } from "./lib/sections.js";
 import { feedbackFlashAudience } from "./lib/feedbackFlash.js";
-import { lookupOverride, buildOverrideAdds } from "./lib/overrides.js";
+import { applyClassOverrides } from "./lib/overrides.js";
 import { safeUrl } from "./lib/safeUrl.js";
 import { toMin, fmtTime12, ymd, clsDate, prettyDate, timeAgo, getSpecialDay } from "./lib/datetime.js";
 import { fetchConsensusWeather } from "./lib/weather.js";
 import {
   swUpdateIsStale, clearSwSeen,
   LAST_USER_KEY, VIEW_KEY, PENDING_INVITE_KEY, USER_SCOPED_KEYS,
-  readSetup, saveSetup,
+  readSetup, saveSetup, SETUP_KEY,
   NOTIF_KEY, loadLastSeen, READ_PINGS_KEY,
   READ_CHANGES_KEY, loadClearedGroups,
 } from "./lib/appStorage.js";
 import TermFlowLoader from "./components/TermFlowLoader.jsx";
 import IndiaFlagIcon from "./components/IndiaFlagIcon.jsx";
 import DesktopSidebar from "./components/DesktopSidebar.jsx";
+import NavIcon from "./components/mobile/NavIcon.jsx";
 import { ARCHIVED_TERMS } from "./data/archive/index.js";
 
 const AttendancePanel = lazy(() => import("./components/AttendancePanel.jsx"));
@@ -83,7 +92,7 @@ const viewPreloaders = {
   friends: () => import("./components/FriendsPanel.jsx"),
   board: () => import("./components/BoardPage.jsx"),
   split: () => import("./components/SplitPage.jsx"),
-  leave: () => import("./components/LeavePlanner.jsx"),
+  leave: () => import("./components/StudentPlanner.jsx"),
   wrapped: () => import("./components/WrappedView.jsx"),
   admin: () => import("./components/AdminDashboard.jsx"),
   pet: () => import("./components/PetPage.jsx"),
@@ -97,6 +106,7 @@ import { loadAttendance, saveAttendance, sessionKey, syncAttendanceFromCloud, pu
 import { recordFeatureUse } from "./lib/featureUsage.js";
 import { usePet } from "./hooks/usePet.js";
 import { EXAM_HORIZON_DAYS, isAdopted } from "./lib/pet.js";
+import { assignmentDueToday } from "./lib/insights.js";
 import { syncProfileFromCloud, pushProfile, stampProfileEmail } from "./lib/profile.js";
 import { syncMigrationMap } from "./lib/migrationMap.js";
 import { useMigration } from "./lib/useMigration.js";
@@ -117,18 +127,12 @@ import MobileUiVersionMenu from "./components/mobile/MobileUiVersionMenu.jsx";
 import MobileV2TabBar from "./components/mobile/MobileV2TabBar.jsx";
 import MobileV2Switcher from "./components/mobile/MobileV2Switcher.jsx";
 import MobileV2MorePage from "./components/mobile/MobileV2MorePage.jsx";
+import MobileV2Breadcrumbs from "./components/mobile/MobileV2Breadcrumbs.jsx";
 import "./styles/mobile-v2.css";
+import "./styles/tablet-layout.css";
 import "./styles/tomorrow-timeline.css";
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent || "");
-
-// The ordering is only used to give adjacent schedule views a spatial sense
-// of direction. Everything else receives the same calm forward transition.
-const VIEW_MOTION_ORDER = [
-  "today", "tomorrow", "week", "fullSchedule", "courseHub", "planner", "attendance",
-  "exams", "assignments", "notifications", "friends", "board", "split",
-  "leave", "pet", "wrapped", "glance", "admin",
-];
 
 // Views that live behind the sidebar's collapsed Tools accordion / the
 // mobile overflow menu's Tools section — candidates for the "Recent" row.
@@ -136,13 +140,12 @@ const VIEW_MOTION_ORDER = [
 // sidebar moved to lib/navItems.js and regrouped — Full timetable is a Schedule
 // view there — so these two deliberately keep the older mobile grouping until
 // the sheet is migrated onto the same config.
-const TOOLS_VIEWS = ["fullSchedule", "courseHub", "planner", "split", "leave", "wrapped", "pet"];
+const TOOLS_VIEWS = ["fullSchedule", "courseHub", "planner", "split", "wrapped", "pet"];
 const TOOLS_VIEW_META = {
   courseHub:    { icon: BookOpenCheck, label: "Courses" },
   planner:      { icon: LayoutDashboard, label: "Personal planner" },
   fullSchedule: { icon: CalendarRange, label: "Full timetable" },
   split:        { icon: Wallet,        label: "Split" },
-  leave:        { icon: CalendarOff,   label: "Leave planner" },
   wrapped:      { icon: Sparkles,      label: "Term Wrapped" },
   pet:          { icon: PawPrint,      label: "Companion" },
 };
@@ -189,6 +192,17 @@ const ADMIN_EMAILS = [
   "test@iimsambalpur.ac.in"
 ];
 
+// Mobile tab / dock button. Reads the nav store rather than App's `view`, so
+// it highlights on the tap itself while the page renders in a transition.
+function NavButton({ nav, className, children, ...rest }) {
+  const on = useNavView() === nav;
+  return (
+    <button className={`${className}${on ? " on" : ""}`} aria-current={on ? "page" : undefined} {...rest}>
+      {children}
+    </button>
+  );
+}
+
 function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const userEmail = user?.primaryEmailAddress?.emailAddress?.toLowerCase();
   const isAdmin = userEmail && ADMIN_EMAILS.includes(userEmail);
@@ -203,7 +217,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const identityResolved = isLoaded && (!isSignedIn || user !== undefined);
   const [dashboardPrefs, setDashboardPrefs] = useState(readDashboardPrefs);
   const [classPrepSession, setClassPrepSession] = useState(null);
-  const [todayFocusMode, setTodayFocusMode] = useState(false);
+  const todayFocusMode = dashboardPrefs.focusMode;
+  const setTodayFocusMode = useCallback((focusMode) => setDashboardPrefs((prefs) => ({ ...prefs, focusMode })), []);
   const closePrepSheet = useCallback(() => setClassPrepSession(null), []);
   useEffect(() => { saveDashboardPrefs(dashboardPrefs); }, [dashboardPrefs]);
 
@@ -361,43 +376,55 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // fresh Date and churned all the useMemo/useEffect hooks that depend on it.
   const now = useMemo(() => (timeOverride ? new Date(timeOverride) : realNow), [timeOverride, realNow]);
   const [view, setViewState] = useState(() => {
+    let v = "today";
     try {
-      const v = localStorage.getItem(VIEW_KEY) || "today";
-      if (v === "courses") return "exams"; // retired view → its new home
-      if (v === "insights") return "today"; // retired view
-      if (v === "glance") return "today"; // peek surface, never sticky
-      return v;
-    } catch { return "today"; }
+      v = localStorage.getItem(VIEW_KEY) || "today";
+      if (v === "courses") v = "exams"; // retired view → its new home
+      if (v === "insights") v = "today"; // retired view
+      if (v === "glance") v = "today"; // peek surface, never sticky
+      if (v === "leave") v = "planner"; // leave planning now lives inside Planner
+    } catch { }
+    setNavView(v);
+    return v;
   });
+  const [plannerSection, setPlannerSection] = useState(() => {
+    try {
+      return localStorage.getItem(VIEW_KEY) === "leave" || localStorage.getItem("pgp2.planner-section") === "leave" ? "leave" : "schedule";
+    } catch { return "schedule"; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("pgp2.planner-section", plannerSection); } catch { /* optional UI preference */ }
+  }, [plannerSection]);
   const [courseHubCode, setCourseHubCode] = useState(null);
   const [assignmentOpenTarget, setAssignmentOpenTarget] = useState(null);
   useEffect(() => { if (view !== "courseHub") setCourseHubCode(null); }, [view]);
   useEffect(() => { if (view !== "assignments") setAssignmentOpenTarget(null); }, [view]);
   const currentViewRef = useRef(view);
+  // True for the rest of the event that called setView: nav handlers follow
+  // setView(x) with setCompareTarget(null), and that clear has to land in the
+  // same transition — urgently, it would first commit the OLD page without
+  // compare (a flash of e.g. the full Social page) before the new view.
+  const navInFlightRef = useRef(false);
+  useEffect(() => { startPetMotionWatcher(); }, []);
   const setView = useCallback((nextView) => {
-    const target = typeof nextView === "function"
+    const requested = typeof nextView === "function"
       ? nextView(currentViewRef.current)
       : nextView;
+    const target = requested === "leave" ? "planner" : requested;
+    if (requested === "leave") setPlannerSection("leave");
     const previous = currentViewRef.current;
     if (!target || target === previous) return;
 
     currentViewRef.current = target;
-    const previousIndex = VIEW_MOTION_ORDER.indexOf(previous);
-    const targetIndex = VIEW_MOTION_ORDER.indexOf(target);
-    const direction = previousIndex >= 0 && targetIndex >= 0 && targetIndex < previousIndex
-      ? "backward"
-      : "forward";
-    const commit = () => setViewState(target);
-    const reduceMotion = typeof window !== "undefined"
-      && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-
-    if (typeof document === "undefined" || reduceMotion || !document.startViewTransition) {
-      commit();
-      return;
-    }
-
-    document.documentElement.dataset.viewDirection = direction;
-    document.startViewTransition(() => flushSync(commit));
+    // The highlight moves now; the page renders as an interruptible
+    // transition. (This used to be startViewTransition + flushSync, which
+    // froze the screen for the whole render — 100ms+ on Today, far more on
+    // Full timetable — before the crossfade could even start.) The keyed
+    // .tf-page-stage plays the enter animation once the new page commits.
+    setNavView(target);
+    startTransition(() => setViewState(target));
+    navInFlightRef.current = true;
+    queueMicrotask(() => { navInFlightRef.current = false; });
   }, []);
   // Glance is a shortcut peek, not a destination — don't make it the view the
   // app re-opens on next launch.
@@ -466,6 +493,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // Onboarding show "Term rolled over" copy instead of the generic first-time
   // setup screen.
   const [reonboardFromTerm, setReonboardFromTerm] = useState(null);
+  const [cloudEnrolledTerm, setCloudEnrolledTerm] = useState(null);
   const [allocationApplied, setAllocationApplied] = useState(false);
   const [prefillPicked, setPrefillPicked] = useState(null);
   const [showSetupEdit, setShowSetupEdit] = useState(false);
@@ -521,10 +549,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [attendance, setAttendance] = useState(() => loadAttendance());
   // Pet companion. Local copy paints immediately; the hook reconciles with the
   // `pet_state` row and merges anything earned offline. See lib/pet.js.
-  const { pet: myPet, actions: petActions, moment: petMoment, XP: petXP, keyFor: petKeyFor } = usePet(userId, { xpRate: sysConfig?.flags?.greetingPets?.xpRate });
+  const { pet: myPet, actions: petActions, moment: petMoment, gained: petGained, memory: companionMemory, XP: petXP, keyFor: petKeyFor } = usePet(userId, { xpRate: sysConfig?.flags?.greetingPets?.xpRate });
   const [syncing, setSyncing] = useState(false);
   const [overflowOpen, setOverflowOpen] = useState(false);
-  const { mobileUiVersion, setMobileUiVersion, v2Active } = useMobileUiVersion();
+  const { mobileUiVersion, setMobileUiVersion, supportsV2: compactViewport, v2Active } = useMobileUiVersion();
   const [mobileV2MoreOpen, setMobileV2MoreOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [greetingPetsEnabled, setGreetingPetsEnabled] = useState(() => {
@@ -549,7 +577,11 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [clearedGroupIds, setClearedGroupIds] = useState(() => loadClearedGroups());
   const [friends, setFriends] = useState(() => loadFriends());
   const [groups, setGroups] = useState(() => loadGroups());
-  const [compareTarget, setCompareTarget] = useState(null); // { mode, friendData?, groupData? }
+  const [compareTarget, setCompareTargetState] = useState(null); // { mode, friendData?, groupData? }
+  const setCompareTarget = useCallback((next) => {
+    if (navInFlightRef.current) startTransition(() => setCompareTargetState(next));
+    else setCompareTargetState(next);
+  }, []);
   // A free slot picked in CompareView, waiting to prefill the meetup modal on
   // the Social page: { title?, date, start, memberCloudIds, groupId?, groupName? }
   // (Lives up here with the other hooks — declaring it below the login/
@@ -570,6 +602,17 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       setXpToastQueue(q => [...q, { id: Date.now(), xp, label, firstOfDay }]);
     };
   }
+  // A companion unlocked while the student was here (level OR devotion) joins
+  // the same queue, so it waits its turn behind the XP pill that earned it.
+  useEffect(() => {
+    if (!petGained.length) return;
+    const key = petGained[0];
+    petActions.dismissGained();
+    // Same switches as enableCompanion (declared further down this component).
+    const pets = sysConfig?.flags?.greetingPets;
+    if (pets?.enabled === false || pets?.companion === false || !greetingPetsEnabled || myPet?.companionEnabled === false) return;
+    setXpToastQueue(q => [...q, { id: `unlock:${key}`, unlock: key }]);
+  }, [petGained, petActions, sysConfig?.flags?.greetingPets, greetingPetsEnabled, myPet?.companionEnabled]);
   const [pendingInvite, setPendingInvite] = useState(null);
   const [pendingGroupInvite, setPendingGroupInvite] = useState(null);
   const [jumpToDate, setJumpToDate] = useState(null);
@@ -584,7 +627,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // Tablet landscape tier (768–1200px landscape): sidebar is forced to the collapsed icon
   // rail — there isn't room for the expanded 256px panel next to content and the week rail,
   // so the user's stored expand/collapse preference only applies on desktop displays (above 1200px).
-  // Portrait tablets (e.g. iPad portrait 768–1024px) get the single-column mobile view with header/tabs,
+  // Portrait tablets (768–1200px) get the single-column mobile view with header/tabs,
   // matching the orientation-aware breakpoints in styles.css.
   const checkIsTabletLandscape = () => {
     if (typeof window === "undefined") return false;
@@ -610,13 +653,12 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     if (isTablet || !v2Active) setMobileV2MoreOpen(false);
   }, [isTablet, v2Active]);
   const {
-    sidebarCollapsed, sbCollapsed, toggleSidebar,
+    sidebarCollapsed, sbCollapsed, toggleSidebar, tabletSidebarOpen, closeTabletSidebar,
     sbStyle, setSidebarStyle,
     theme, pickTheme,
-    sbTip, showSbTip, hideSbTip,
+    showSbTip, hideSbTip,
     mobileNavMode, pickNavMode, showBottomNav, showTopTabs,
-    bnavRef, bnavLens, bnavCompact,
-    onBnavPointerDown, onBnavPointerUp,
+    bnavRef,
     navMenuOpen, setNavMenuOpen,
     themeMenuOpen, setThemeMenuOpen,
     toolsSecOpen, setToolsSecOpen,
@@ -626,7 +668,13 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     adminSecOpen, setAdminSecOpen,
     showRightScroll, setShowRightScroll,
     showLeftScroll, setShowLeftScroll,
-  } = useSidebar({ isTablet, view, sysConfig });
+  } = useSidebar({ isTablet, v2Active });
+
+  const previousSidebarView = useRef(view);
+  useEffect(() => {
+    if (previousSidebarView.current !== view) closeTabletSidebar();
+    previousSidebarView.current = view;
+  }, [view, closeTabletSidebar]);
 
   const tabsRef = useRef(null);
   const [termMenuOpen, setTermMenuOpen] = useState(false);
@@ -718,7 +766,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   useEffect(() => {
     const DEEP_LINK_VIEWS = new Set([
       "today", "tomorrow", "week", "attendance", "exams", "assignments", "pet",
-      "notifications", "friends", "leave", "glance", "board", "split", "planner", "courseHub",
+      "notifications", "friends", "leave", "glance", "board", "split", "planner", "courseHub", "fullSchedule",
     ]);
     const captureFromUrl = () => {
       const params = new URLSearchParams(window.location.search);
@@ -737,11 +785,13 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         setView("friends");
       }
       if (wanted && DEEP_LINK_VIEWS.has(wanted)) setView(wanted);
+      const session = pushSessionFromParams(params);
+      if (session) setJumpToSession(session);
       if (wanted === "split") {
         const g = params.get("g");
         if (g) setSplitDeepLink(g);
         const join = params.get("join");
-        if (join) setSplitJoinLink(join);
+        if (join && rememberSplitInvite(join)) setSplitJoinLink(join);
       }
 
       // Strip the consumed params, preserving anything else on the URL.
@@ -751,6 +801,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       rest.delete("view");
       rest.delete("g");
       rest.delete("join");
+      if (wanted === "fullSchedule") {
+        rest.delete("date"); rest.delete("code"); rest.delete("start");
+      }
       const qs = rest.toString();
       window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
     };
@@ -761,6 +814,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       if (stashed) setPendingInvite(stashed);
       const groupStashed = localStorage.getItem("pgp2.pending-group-invite");
       if (groupStashed) { setPendingGroupInvite(groupStashed); setView("friends"); }
+      const splitStashed = pendingSplitInvite();
+      if (splitStashed) { setSplitJoinLink(splitStashed); setView("split"); }
     } catch { }
 
     captureFromUrl();
@@ -835,14 +890,14 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           setSysConfig(sysConfigRes.data);
         }
         if (p?.archivedCourses) setArchivedCourses(p.archivedCourses);
-        // A profile's courses are only valid for the term they were picked in
-        // (_enrolledTerm, stamped on every pushProfile). If the live term has
-        // rolled over since this student last touched their enrollment, those
-        // picks are stale — the old ones are already safely archived server-side
-        // (see profile.js pushProfile), so just force them back into onboarding
-        // for the new term instead of silently rendering last term's schedule.
-        const enrollmentStale = p?.enrolledTerm && p.enrolledTerm !== TERM?.number;
-        if (p?.courses && !enrollmentStale) {
+        // Which term these courses were picked in (stamped on every
+        // pushProfile). Whether that makes them stale is decided by the effect
+        // next to `TERM` below, NOT here: this sync is keyed on sign-in, so
+        // TERM in this closure is from the first render — undefined on any
+        // device without a cached feed — and comparing against it wiped every
+        // fresh login's current courses and forced a re-onboard.
+        setCloudEnrolledTerm(p?.enrolledTerm ?? null);
+        if (p?.courses) {
           setEnrolled(p.courses);
           setMine(new Set(Object.keys(p.courses)));
           setSetup(p);
@@ -880,14 +935,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               return merged;
             });
           }
-        } else if (enrollmentStale) {
-          // Local cache (readSetup()) may still hold last term's courses from
-          // before this load — clear the gate so Onboarding renders instead of
-          // last term's now-invalid schedule.
-          setSetup(null);
-          setEnrolled({});
-          setMine(new Set());
-          setReonboardFromTerm(p.enrolledTerm);
         }
         setAttendance(a);
         if (fg) {
@@ -1493,22 +1540,33 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     if (sysConfig?.flags) {
 
       if (sysConfig.flags.classOverrides) {
-        const overrides = sysConfig.flags.classOverrides;
-        data.CLASSES = data.CLASSES.map(c => {
-          const classOverride = lookupOverride(overrides[c.date], c);
-          return classOverride ? { ...c, ...classOverride } : c;
-        });
-
-        const newClasses = buildOverrideAdds(overrides, data.CLASSES);
-        if (newClasses.length > 0) {
-          data.CLASSES = [...data.CLASSES, ...newClasses];
-        }
+        data.CLASSES = applyClassOverrides(scheduleData.CLASSES, sysConfig.flags.classOverrides);
       }
     }
     return data;
   }, [scheduleData, sysConfig]);
 
   const { TERM, LEGEND, CLASSES, CHANGES } = sd || { TERM: null, LEGEND: {}, CLASSES: [], CHANGES: [] };
+
+  // Term rollover: a profile's courses are only valid for the term they were
+  // picked in. Once BOTH the live term and the cloud profile's term are known
+  // and differ, those picks are stale — already archived server-side (see
+  // profile.js pushProfile) — so send the student back to onboarding for the
+  // new term. Layout effect so last term's schedule never paints.
+  const staleEnrollmentHandled = useRef(false);
+  useLayoutEffect(() => {
+    if (staleEnrollmentHandled.current) return;
+    if (!TERM?.number || !cloudEnrolledTerm || cloudEnrolledTerm === TERM.number) return;
+    staleEnrollmentHandled.current = true;
+    // Drop the cached copy too: the sheet auto-fill skips anyone with a stored
+    // setup, which left re-onboarding students with zero subjects picked.
+    try { localStorage.removeItem(SETUP_KEY); } catch { }
+    setSetup(null);
+    setEnrolled({});
+    setMine(new Set());
+    setReonboardFromTerm(cloudEnrolledTerm);
+    setAllocationApplied(false); // re-arm the auto-fill for the new term's allocation
+  }, [TERM?.number, cloudEnrolledTerm]);
 
   // Term switcher: when browsing an archived term, shadow the live TERM/LEGEND/
   // CLASSES/CHANGES with the archived entry's data for everything render-facing.
@@ -1586,11 +1644,15 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         // unknown, and far better than the course vanishing.
         return sec !== undefined && (c.section === sec || c.section === "Single" || c.section === "All" || provisionalSections.has(c.code)) && mine.has(c.code);
       }
+      if (c.type === "cancelled" && c.code) {
+        const sec = enrolled[c.code];
+        return sec !== undefined && mine.has(c.code) && (c.section === sec || c.section === "Single" || c.section === "All" || provisionalSections.has(c.code));
+      }
       // Exams: the feed leaves `code` blank; try to infer the course code from
       // the entry name (e.g. "SAPM MID Term Exam" → "SAPM") and gate on enrollment.
       // If the name doesn't start with a recognisable enrolled code, show the
       // event to everyone (Term Registration, holidays, breaks, etc.).
-      if (c.type === "exam") {
+      if (c.type === "exam" || (c.type === "cancelled" && !c.code)) {
         const key = c.date + c.slot + c.name;
         if (seen.has(key)) return false;
         const code = c.code || (c.name || "").match(/^([A-Za-z]{2,8})\b/)?.[1]?.toUpperCase();
@@ -1804,14 +1866,39 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     return visible.some(c => c.type === "exam" && c.date >= todayISO && c.date <= until);
   }, [visible, todayISO, now]);
 
+  // An assignment due today and not yet ticked off. Re-read when the day turns
+  // or the ledger gains a `due:` key (completing a task awards one), not per tick.
+  const deadlineDueToday = useMemo(
+    () => assignmentDueToday(todayISO, myPet?.awarded ?? {}),
+    [todayISO, myPet?.awarded],
+  );
+
+  // Dates with a scheduled class, so the pet's attendance streak skips weekends
+  // and holidays. Rebuilt only when the schedule changes.
+  const classDays = useMemo(
+    () => new Set(visible.filter(c => c.type === "class").map(c => c.date)),
+    [visible],
+  );
+
   const petContext = useMemo(() => ({
     inClass: Boolean(current),
     minsToClass: next?.s ? (next.s - now) / 60000 : null,
     classesToday: todayList.filter(c => c.type === "class" || c.type === "exam").length,
     examSoon,
+    deadlineDueToday,
+    classDays,
     moment: petMoment?.moment,
     momentUntil: petMoment?.momentUntil,
-  }), [current, next, now, todayList, examSoon, petMoment]);
+  }), [current, next, now, todayList, examSoon, deadlineDueToday, classDays, petMoment]);
+
+  // Remember an observed class even when the companion page is not open.
+  const classMemoryPetKey = current && greetingPetsEnabled && myPet?.companionEnabled !== false
+    && sysConfig?.flags?.greetingPets?.enabled !== false && sysConfig?.flags?.greetingPets?.companion !== false ? myPet?.petKey : null;
+  const memoryReady = companionMemory.ready;
+  const recordCompanionVisit = companionMemory.record;
+  useEffect(() => {
+    if (memoryReady && classMemoryPetKey) recordCompanionVisit(memoryEvent("visit", { petKey: classMemoryPetKey, petName: myPet?.name, context: "class" }, new Date()));
+  }, [memoryReady, classMemoryPetKey, myPet?.name, recordCompanionVisit]);
 
   const syncedAgo = Math.max(0, Math.round((now - syncedAt) / 60000));
 
@@ -1861,6 +1948,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     setSetup(s);
     setShowSetupEdit(false);
     setReonboardFromTerm(null);
+    setCloudEnrolledTerm(TERM?.number ?? null);
   }
 
   const filteredChanges = useMemo(() => {
@@ -2043,8 +2131,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     // replaying the same rows) can never pay out twice.
     if (status !== null) {
       const attKey = petKeyFor.attendance(key);
-      const isNew = !(attKey in (myPet?.awarded ?? {}));
-      petActions.awardXp(attKey, petXP.attendance, now);
+      const isNew = petActions.awardXp(attKey, petXP.attendance, now);
       if (isNew && enableCompanion && isAdopted(myPet)) {
         // Detect first earn of the day by checking if there are any attendance
         // entries for today already in the ledger (excluding the one we just added).
@@ -2293,6 +2380,16 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                           : view === "admin" ? "Admin tools"
                             : "TermFlow";
 
+  const openMobileV2More = () => {
+    setMobileV2MoreOpen(true);
+    setOverflowOpen(false);
+    setNotifOpen(false);
+    setCompareTarget(null);
+    window.scrollTo({ top: 0, behavior: "instant" });
+  };
+  const v2Navigation = v2Active && !mobileV2MoreOpen && !compareTarget
+    ? { isTablet, onOpenMore: openMobileV2More } : undefined;
+
   const navigateMobileV2 = (nextView) => {
     setMobileV2MoreOpen(false);
     setOverflowOpen(false);
@@ -2475,7 +2572,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         <div className="sb-pop-meta">
           <span className="sb-pop-batch">PGP2 · 2025–27</span>
           {termLabel && <span className="sb-pop-term">{termLabel}</span>}
-          <span className="sb-pop-version">v{__APP_VERSION__.split("+")[0]}</span>
+          <span className="sb-pop-version">v{__APP_VERSION__.split("+")[0].replace(/\.0$/, "")}</span>
         </div>
         <div className="sb-pop-sep" />
         <div className="sb-pop-style">
@@ -2533,6 +2630,87 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       )}
     </div>
   );
+
+  // Optional Today cards share one renderer so visibility and ordering apply
+  // to the real content. Notices and attendance prompts stay above this stack.
+  const todayTimeline = (
+    todayList.length === 0 && tomorrowList.length === 0
+      ? premiumMode && syncing
+        ? (
+          <ul className="rail">
+            <li className="row premium-skeleton" style={{ height: "80px", marginBottom: "12px", border: "none" }} />
+            <li className="row premium-skeleton" style={{ height: "80px", marginBottom: "12px", border: "none", opacity: 0.7 }} />
+            <li className="row premium-skeleton" style={{ height: "80px", marginBottom: "12px", border: "none", opacity: 0.4 }} />
+          </ul>
+        )
+        : <div className="tmrw-summary-card tmrw-free-card theme-clear" style={{ margin: "0 12px 20px" }}>
+            <div className="tmrw-free-head">
+              <span className="tmrw-free-kicker-pill">
+                <span className="tmrw-free-kicker-dot" />
+                Today · Free Day
+              </span>
+              {weather?.today && dashboardCardVisible(dashboardPrefs, "weather") && (
+                <span className="tmrw-free-wx-pill">
+                  <span>{weather.today.min}°–{weather.today.max}°C</span>
+                </span>
+              )}
+            </div>
+            <div className="tmrw-free-scene" aria-hidden="true">
+              <FreeDayIllustration kind="clear" isNight={now.getHours() >= 19 || now.getHours() < 6} />
+            </div>
+            <div className="tmrw-free-text">
+              <div className="tmrw-free-title">No classes today!</div>
+              <div className="tmrw-free-sub">Enjoy your free time.</div>
+            </div>
+            {/* The companion has a mood for exactly this day — "relaxed"
+                before three, "cozy" after — and nowhere to show it until now. */}
+            {enableCompanion && (
+              <PetCameo
+                pet={myPet}
+                now={now}
+                petContext={petContext}
+                petSettings={sysConfig?.flags?.greetingPets}
+                size={52}
+                className="tmrw-free-pet"
+              />
+            )}
+          </div>
+      : <>
+            <Timeline list={todayList} current={current} now={now} dateLabel={prettyDate(todayISO)} attendance={attendance} markAttendance={markAttendance} skipInfo={skipInfo} syncStatus={<span className="live"><span className="pulse" /> {scheduleData?._source === "live" ? `Live · synced ${syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}` : "Saved schedule"}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} onOpenSession={setClassPrepSession} focusMode={todayFocusMode} />
+          </>
+  );
+  const todayCards = view === "today" && !compareTarget ? {
+    upcoming: <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} onMarkAttendance={markAttendance} attendance={attendance} sysConfig={sysConfig} onTap={() => setView("fullSchedule")} todayList={todayList} />,
+    summary: <div className={`dashboard-widgets dashboard-widgets-today${dashboardPrefs.density === "compact" ? " is-compact" : ""}`}><div className="dashboard-widget-summary"><SemSummary enrolled={enrolled} legend={LEGEND} attendance={attendance} visible={visible} todayISO={todayISO} now={now} classes={CLASSES} onAttendanceClick={enableAttendance ? () => setView("attendance") : undefined} onExamsClick={enableExams ? () => setView("exams") : undefined} onSessionsClick={() => setView("fullSchedule")} /></div></div>,
+    timeline: todayTimeline,
+    mess: <MessCard now={now} userId={userId} friends={enableStatus ? friends : []} />,
+    todayCommand: !isArchivedView ? (
+      <TodayCommandCenter
+        key={todayISO}
+        todayList={todayList}
+        tomorrowList={tomorrowList}
+        attendance={attendance}
+        now={now}
+        todayISO={todayISO}
+        termNumber={activeTerm?.number}
+        changeCount={todayChangeCount}
+        onNavigate={(target) => { setView(target); setCompareTarget(null); }}
+        onOpenSession={setClassPrepSession}
+        onOpenCourse={(code) => { setCourseHubCode(code); setView("courseHub"); setCompareTarget(null); }}
+        onMarkAttendance={markAttendance}
+        focusMode={todayFocusMode}
+        onFocusModeChange={setTodayFocusMode}
+        onRemove={() => {
+          setTodayFocusMode(false);
+          setDashboardPrefs(currentPrefs => ({
+            ...currentPrefs,
+            visible: { ...currentPrefs.visible, todayCommand: false },
+          }));
+        }}
+      />
+    ) : null,
+    deadlines: <DeadlineStrip visible={visible} legend={enrolledLegend} now={now} onOpenAssignments={() => { setView("assignments"); setCompareTarget(null); }} onOpenExams={enableExams ? () => { setView("exams"); setCompareTarget(null); } : undefined} />,
+  } : {};
 
   return (
     <div className={`app-shell${v2Active ? " mobile-ui-v2" : " mobile-ui-v1"}`}>
@@ -2595,6 +2773,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           xp={xpToastQueue[0].xp}
           label={xpToastQueue[0].label}
           firstOfDay={xpToastQueue[0].firstOfDay}
+          unlock={xpToastQueue[0].unlock}
           onDone={() => setXpToastQueue(q => q.slice(1))}
         />
       )}
@@ -2672,14 +2851,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         setMessMenuOpen={setMessMenuOpen} activeQuickLinks={activeQuickLinks} showAdminUI={showAdminUI}
         renderSbUtilStrip={renderSbUtilStrip} renderSbAvatarWrap={renderSbAvatarWrap} syncing={syncing}
         syncedAgo={syncedAgo} isTablet={isTablet} sidebarCollapsed={sidebarCollapsed} toggleSidebar={toggleSidebar}
+        tabletControls={v2Active && isTablet} tabletSidebarOpen={tabletSidebarOpen} onCloseTabletSidebar={closeTabletSidebar}
       />
 
-      {sbTip && createPortal(
-        <div className="sb-float-tip" style={{ top: sbTip.top, left: sbTip.left }}>
-          {sbTip.label}
-        </div>,
-        document.body
-      )}
+      <SbFloatTip />
 
       <div className="app">
         <header className="bar">
@@ -2778,7 +2953,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                     <button className="over-danger" onClick={() => { signOut(); setProfileOpen(false); }}>
                       <LogOut size={14} /> Sign out
                     </button>
-                    <div className="over-version">v{__APP_VERSION__.split("+")[0]}</div>
+                    <div className="over-version">v{__APP_VERSION__.split("+")[0].replace(/\.0$/, "")}</div>
                   </div>
                 </>
               )}
@@ -2893,9 +3068,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                         </button>
                         <button onClick={() => { setView("split"); setCompareTarget(null); setOverflowOpen(false); }}>
                           <Wallet size={14} /> Split
-                        </button>
-                        <button onClick={() => { setView("leave"); setCompareTarget(null); setOverflowOpen(false); }}>
-                          <CalendarOff size={14} /> Leave planner
                         </button>
                         {enableCompanion && (
                           <button onClick={() => { setView("pet"); setCompareTarget(null); setOverflowOpen(false); }}>
@@ -3030,45 +3202,48 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           </span>
         </div>
 
-        <div className={`desk-layout${view === "today" && todayFocusMode ? " today-focus-mode" : ""}`} style={view === "friends" || view === "admin" || view === "wrapped" || view === "planner" || view === "courseHub" || view === "fullSchedule" || (view === "today" && (!dashboardPrefs.weekPanel || todayFocusMode)) ? { gridTemplateColumns: "minmax(0, 1fr)" } : {}}>
+        <div data-view={compareTarget ? "compare" : view} className={`desk-layout${view === "today" && todayFocusMode ? " today-focus-mode" : ""}`} style={view === "friends" || view === "admin" || view === "wrapped" || view === "planner" || view === "courseHub" || view === "fullSchedule" || (view === "today" && (!dashboardPrefs.weekPanel || todayFocusMode)) ? { gridTemplateColumns: "minmax(0, 1fr)" } : {}}>
           <main className="main-col">
             {v2Active && !mobileV2MoreOpen && (
               <MobileV2Switcher view={view} examsEnabled={enableExams} onNavigate={navigateMobileV2} />
             )}
+            {v2Navigation && view !== "courseHub" && view !== "split" && (
+              <MobileV2Breadcrumbs view={view} {...v2Navigation} />
+            )}
             {showTopTabs && (
             <div className="tabs-wrapper">
               <nav className={`tabs${showLeftScroll ? " tabs-scrolled" : ""}${showRightScroll ? " tabs-overflow-right" : ""}`} ref={tabsRef} onScroll={handleTabsScroll}>
-                <button className={`tab ${view === "today" ? "on" : ""}`} aria-label="Today" onClick={() => { setView("today"); setCompareTarget(null); }}>
+                <NavButton nav="today" className="tab" aria-label="Today" onClick={() => { setView("today"); setCompareTarget(null); }}>
                   <Clock size={15} /> <span className="tab-label">Today</span>
-                </button>
-                <button className={`tab ${view === "tomorrow" ? "on" : ""}`} aria-label="Tomorrow" onClick={() => { setView("tomorrow"); setCompareTarget(null); }}>
+                </NavButton>
+                <NavButton nav="tomorrow" className="tab" aria-label="Tomorrow" onClick={() => { setView("tomorrow"); setCompareTarget(null); }}>
                   <Sunrise size={15} /> <span className="tab-label">Tomorrow</span>
-                </button>
-                <button className={`tab tab-week ${view === "week" ? "on" : ""}`} aria-label="Week" onClick={() => { setView("week"); setCompareTarget(null); }}>
+                </NavButton>
+                <NavButton nav="week" className="tab tab-week" aria-label="Week" onClick={() => { setView("week"); setCompareTarget(null); }}>
                   <Calendar size={15} /> <span className="tab-label">Week</span>
-                </button>
+                </NavButton>
                 {enableAttendance && (
-                  <button className={`tab ${view === "attendance" ? "on" : ""}`} aria-label="Attendance" onClick={() => { setView("attendance"); setCompareTarget(null); }}>
+                  <NavButton nav="attendance" className="tab" aria-label="Attendance" onClick={() => { setView("attendance"); setCompareTarget(null); }}>
                     <ClipboardList size={15} /> <span className="tab-label">Attendance</span>
-                  </button>
+                  </NavButton>
                 )}
                 {enableExams && (
-                  <button className={`tab ${view === "exams" ? "on" : ""}`} aria-label="Exams" onClick={() => { setView("exams"); setCompareTarget(null); }}>
+                  <NavButton nav="exams" className="tab" aria-label="Exams" onClick={() => { setView("exams"); setCompareTarget(null); }}>
                     <GraduationCap size={15} /> <span className="tab-label">Exams</span>
-                  </button>
+                  </NavButton>
                 )}
-                <button className={`tab ${view === "notifications" ? "on" : ""}`} aria-label="Announcements" onClick={() => { setView("notifications"); setCompareTarget(null); }}>
+                <NavButton nav="notifications" className="tab" aria-label="Announcements" onClick={() => { setView("notifications"); setCompareTarget(null); }}>
                   <Megaphone size={15} /> <span className="tab-label">Announcements</span>
                   {unreadChangeCount > 0 && <span className="nav-badge">{unreadChangeCount}</span>}
-                </button>
-                <button className={`tab ${view === "assignments" ? "on" : ""}`} aria-label="Assignments" onClick={() => { setView("assignments"); setCompareTarget(null); }}>
+                </NavButton>
+                <NavButton nav="assignments" className="tab" aria-label="Assignments" onClick={() => { setView("assignments"); setCompareTarget(null); }}>
                   <BookOpenCheck size={15} /> <span className="tab-label">Assignments</span>
-                </button>
+                </NavButton>
                 {enableFriends && (
-                  <button className={`tab ${view === "friends" ? "on" : ""}`} aria-label="Social" onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); markBadgeSeen("social"); }}>
+                  <NavButton nav="friends" className="tab" aria-label="Social" onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); markBadgeSeen("social"); }}>
                     <Users size={15} /> <span className="tab-label">Social</span> {showBadge("social") && <span className="beta-badge tab-label">Beta</span>}
                     {unreadFriendCount > 0 && <span className="nav-badge">{unreadFriendCount}</span>}
-                  </button>
+                  </NavButton>
                 )}
               </nav>
             </div>
@@ -3132,7 +3307,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                   </span>
                   <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
                       {/* Report Bug button moved to overflow menu */}
-                    {view === "today" && <DashboardCustomize prefs={dashboardPrefs} onChange={setDashboardPrefs} />}
+                    {view === "today" && <DashboardCustomize prefs={dashboardPrefs} onChange={setDashboardPrefs} compact={compactViewport} />}
                     <button className="desktop-only vdh-filter-btn" onClick={() => setFilterModalOpen(true)}>
                       <SlidersHorizontal size={14} /> Filter subjects
                     </button>
@@ -3145,7 +3320,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       {theme === "dark" ? <Moon size={14} /> : theme === "light" ? <Sun size={14} /> : <Monitor size={14} />}
                       {theme === "system" ? "Auto" : theme === "dark" ? "Dark" : "Light"}
                     </button>
-                    <WeatherWidget now={now} weather={weather} />
+                    {(view !== "today" || dashboardCardVisible(dashboardPrefs, "weather")) && <WeatherWidget now={now} weather={weather} />}
                   </div>
                 </div>
                 {(view === "today" || view === "tomorrow" || view === "week") && <ScheduleStatus
@@ -3158,7 +3333,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 />}
               </>
             )}
-            {view !== "split" && view !== "attendance" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && view !== "courseHub" && view !== "leave" && view !== "glance" && view !== "wrapped" && view !== "board" && view !== "admin" && view !== "planner" && !compareTarget && view !== "tomorrow" && (
+            {view !== "split" && view !== "attendance" && view !== "notifications" && view !== "exams" && view !== "friends" && view !== "fullSchedule" && view !== "assignments" && view !== "courseHub" && view !== "leave" && view !== "glance" && view !== "wrapped" && view !== "board" && view !== "admin" && view !== "planner" && view !== "pet" && !compareTarget && view !== "tomorrow" && view !== "today" && (
               view === "week"
                 ? <div className="hide-mobile"><Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} onMarkAttendance={markAttendance} attendance={attendance} sysConfig={sysConfig} onTap={() => setView("fullSchedule")} todayList={todayList} /></div>
                 : <Hero current={current} next={next} now={now} todayISO={todayISO} tomorrowISO={tomorrowISO} premiumMode={premiumMode} onMarkAttendance={markAttendance} attendance={attendance} sysConfig={sysConfig} onTap={() => setView("fullSchedule")} todayList={todayList} />
@@ -3210,7 +3385,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             {view === "today" && !compareTarget && (
               <MarkPrompt list={todayList} now={now} attendance={attendance} markAttendance={markAttendance} />
             )}
-            {(view === "week" || (view === "today" && dashboardPrefs.visible.summary && !todayFocusMode)) && !compareTarget && (
+            {view === "week" && !compareTarget && (
               <div className={`dashboard-widgets${view === "today" ? " dashboard-widgets-today" : ""}${dashboardPrefs.density === "compact" ? " is-compact" : ""}`}>
                 <div className="dashboard-widget-summary"><SemSummary enrolled={enrolled} legend={LEGEND} attendance={attendance} visible={visible} todayISO={todayISO} now={now} classes={CLASSES} onAttendanceClick={enableAttendance ? () => setView("attendance") : undefined} onExamsClick={enableExams ? () => setView("exams") : undefined} onSessionsClick={() => setView("fullSchedule")} /></div>
               </div>
@@ -3354,6 +3529,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                     />
                     : view === "courseHub"
                       ? <CourseHub
+                          v2Navigation={v2Navigation}
                           key={userId || "guest"}
                           allClasses={activeClasses}
                           enrolled={activeEnrolled}
@@ -3372,6 +3548,21 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                         />
                     : view === "planner"
                       ? <StudentPlanner
+                          section={plannerSection}
+                          onSectionChange={setPlannerSection}
+                          leavePlanner={<LeavePlanner
+                            allClasses={CLASSES}
+                            enrolled={enrolled}
+                            legend={enrolledLegend}
+                            attendance={attendance}
+                            now={now}
+                            termStart={TERM?.start}
+                            termEnd={TERM?.end}
+                            onOpenAttendance={enableAttendance ? () => { setView("attendance"); setCompareTarget(null); } : undefined}
+                            userId={userId}
+                            awayEnabled={enableAwayShare}
+                            onAwayChange={setMyAway}
+                          />}
                           visible={activeVisible}
                           today={activeVisible.filter(c => c.date === todayISO).sort((a, b) => toMin(a.start) - toMin(b.start))}
                           tomorrow={activeVisible.filter(c => c.date === tomorrowISO).sort((a, b) => toMin(a.start) - toMin(b.start))}
@@ -3435,21 +3626,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                             ? <AdminDashboard user={user} startImpersonation={startImpersonation} syncLogs={syncLogs} timeOverride={timeOverride} setTimeOverride={setTimeOverride} allChanges={CHANGES} onConfigSaved={flags => setSysConfig(current => ({ ...(current || {}), flags }))} />
                             : view === "fullSchedule"
                               ? <FullSchedulePage allClasses={activeClasses} enrolled={activeEnrolled} legend={activeEnrolledLegend} termLabel={termLabel} onBack={() => setView("today")} jumpToDate={jumpToDate} setJumpToDate={setJumpToDate} jumpToSession={jumpToSession} setJumpToSession={setJumpToSession} onOpenCalendarExport={isArchivedView ? undefined : openCalendarExport} onOpenCourse={(code) => { setCourseHubCode(code); setView("courseHub"); }} />
-                              : view === "leave"
-                                ? <LeavePlanner
-                                    allClasses={CLASSES}
-                                    enrolled={enrolled}
-                                    legend={enrolledLegend}
-                                    attendance={attendance}
-                                    now={now}
-                                    termStart={TERM?.start}
-                                    termEnd={TERM?.end}
-                                    onBack={() => { setView("today"); setCompareTarget(null); }}
-                                    onOpenAttendance={enableAttendance ? () => { setView("attendance"); setCompareTarget(null); } : undefined}
-                                    userId={userId}
-                                    awayEnabled={enableAwayShare}
-                                    onAwayChange={setMyAway}
-                                  />
                               : view === "assignments"
                                 ? <AssignmentsPanel
                                     enrolled={enrolled}
@@ -3460,8 +3636,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                     onOpenCourse={(code) => { setCourseHubCode(code); setView("courseHub"); }}
                                     onTaskCompleted={taskId => {
                                       const dueKey = petKeyFor.deadline(taskId);
-                                      const isNew = !(dueKey in (myPet?.awarded ?? {}));
-                                      petActions.awardXp(dueKey, petXP.deadline);
+                                      const isNew = petActions.awardXp(dueKey, petXP.deadline);
                                       if (isNew && enableCompanion && isAdopted(myPet)) {
                                         setXpToastQueue(q => [...q, { id: dueKey, xp: petXP.deadline, label: "assignment", firstOfDay: false }]);
                                       }
@@ -3470,6 +3645,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                               : view === "pet" && enableCompanion
                                 ? <PetPage
                                     pet={myPet}
+                                    companionMemory={companionMemory}
                                     petActions={petActions}
                                     petContext={petContext}
                                     petSettings={sysConfig?.flags?.greetingPets}
@@ -3484,12 +3660,13 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                   />
                               : view === "split"
                                 ? <SplitPage
+                                    v2Navigation={v2Navigation}
                                     userId={userId}
                                     userName={user?.firstName || user?.username || "Student"}
                                     friends={friends}
                                     initialGroupId={splitDeepLink}
                                     initialJoinId={splitJoinLink}
-                                    onConsumeDeepLink={() => { setSplitDeepLink(null); setSplitJoinLink(null); }}
+                                    onConsumeDeepLink={() => { setSplitDeepLink(null); setSplitJoinLink(null); clearSplitInvite(); }}
                                   />
                               : view === "wrapped"
                                 ? <WrappedView
@@ -3528,76 +3705,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                   : tomorrowList.length === 0
                                     ? null
                                     : <Timeline list={tomorrowList} current={null} now={now} showNowLine={false} label="Tomorrow" attendance={attendance} markAttendance={markAttendance} skipInfo={skipInfo} syncStatus={<span className="live"><span className="pulse" /> {scheduleData?._source === "live" ? `Live · synced ${syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}` : "Saved schedule"}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} onOpenSession={setClassPrepSession} />
-                              : todayList.length === 0 && tomorrowList.length === 0
-                                ? premiumMode && syncing
-                                  ? (
-                                    <ul className="rail">
-                                      <li className="row premium-skeleton" style={{ height: "80px", marginBottom: "12px", border: "none" }} />
-                                      <li className="row premium-skeleton" style={{ height: "80px", marginBottom: "12px", border: "none", opacity: 0.7 }} />
-                                      <li className="row premium-skeleton" style={{ height: "80px", marginBottom: "12px", border: "none", opacity: 0.4 }} />
-                                    </ul>
-                                  )
-                                  : <div className="tmrw-summary-card tmrw-free-card theme-clear" style={{ margin: "0 12px 20px" }}>
-                                      <div className="tmrw-free-head">
-                                        <span className="tmrw-free-kicker-pill">
-                                          <span className="tmrw-free-kicker-dot" />
-                                          Today · Free Day
-                                        </span>
-                                        {weather?.today && (
-                                          <span className="tmrw-free-wx-pill">
-                                            <span>{weather.today.min}°–{weather.today.max}°C</span>
-                                          </span>
-                                        )}
-                                      </div>
-                                      <div className="tmrw-free-scene" aria-hidden="true">
-                                        <FreeDayIllustration kind="clear" isNight={now.getHours() >= 19 || now.getHours() < 6} />
-                                      </div>
-                                      <div className="tmrw-free-text">
-                                        <div className="tmrw-free-title">No classes today!</div>
-                                        <div className="tmrw-free-sub">Enjoy your free time.</div>
-                                      </div>
-                                      {/* The companion has a mood for exactly this day — "relaxed"
-                                          before three, "cozy" after — and nowhere to show it until now. */}
-                                      {enableCompanion && (
-                                        <PetCameo
-                                          pet={myPet}
-                                          now={now}
-                                          petContext={petContext}
-                                          petSettings={sysConfig?.flags?.greetingPets}
-                                          size={52}
-                                          className="tmrw-free-pet"
-                                        />
-                                      )}
-                                    </div>
-                                : <>
-                                      <Timeline list={todayList} current={current} now={now} dateLabel={prettyDate(todayISO)} attendance={attendance} markAttendance={markAttendance} skipInfo={skipInfo} syncStatus={<span className="live"><span className="pulse" /> {scheduleData?._source === "live" ? `Live · synced ${syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}` : "Saved schedule"}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} onOpenSession={setClassPrepSession} focusMode={todayFocusMode} />
-                                    </>}
+                              : view === "today"
+                                ? <TodayDashboard prefs={dashboardPrefs} cards={todayCards} onExitFocus={() => setTodayFocusMode(false)} />
+                                : todayTimeline}
               </Suspense>
-              {view === "today" && !compareTarget && !todayFocusMode && <MessCard now={now} userId={userId} friends={enableStatus ? friends : []} />}
-              {view === "today" && !compareTarget && !isArchivedView && dashboardPrefs.visible.todayCommand !== false && (
-                <TodayCommandCenter
-                  key={todayISO}
-                  todayList={todayList}
-                  tomorrowList={tomorrowList}
-                  attendance={attendance}
-                  now={now}
-                  todayISO={todayISO}
-                  termNumber={activeTerm?.number}
-                  changeCount={todayChangeCount}
-                  onNavigate={(target) => { setView(target); setCompareTarget(null); }}
-                  onOpenSession={setClassPrepSession}
-                  onOpenCourse={(code) => { setCourseHubCode(code); setView("courseHub"); setCompareTarget(null); }}
-                  onMarkAttendance={markAttendance}
-                  onFocusModeChange={setTodayFocusMode}
-                  onRemove={() => {
-                    setTodayFocusMode(false);
-                    setDashboardPrefs(currentPrefs => ({
-                      ...currentPrefs,
-                      visible: { ...currentPrefs.visible, todayCommand: false },
-                    }));
-                  }}
-                />
-              )}
               {view === "tomorrow" && !compareTarget && (
                 <DeadlineStrip
                   visible={visible}
@@ -3800,58 +3911,40 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         {showBottomNav && (
           <nav
             ref={bnavRef}
-            className={`bnav${bnavCompact ? " bnav-compact" : ""}`}
+            className="bnav"
             aria-label="Main navigation"
-            onPointerDown={onBnavPointerDown}
-            onPointerUp={onBnavPointerUp}
-            onPointerCancel={onBnavPointerUp}
           >
-            {bnavLens && (
-              <span
-                className="bnav-lens"
-                aria-hidden="true"
-                style={{ transform: `translateX(${bnavLens.x}px)`, width: bnavLens.w }}
-              />
-            )}
-            <button className={`bnav-btn${view === "today" ? " on" : ""}`} aria-label="Today" aria-current={view === "today" ? "page" : undefined} onClick={() => { setView("today"); setCompareTarget(null); }}>
-              <span className="bnav-icon"><Clock size={19} /></span>
-            </button>
-            <button className={`bnav-btn${view === "tomorrow" ? " on" : ""}`} aria-label="Tomorrow" aria-current={view === "tomorrow" ? "page" : undefined} onClick={() => { setView("tomorrow"); setCompareTarget(null); }}>
-              <span className="bnav-icon"><Sunrise size={19} /></span>
-            </button>
-            <button className={`bnav-btn${view === "week" ? " on" : ""}`} aria-label="Week" aria-current={view === "week" ? "page" : undefined} onClick={() => { setView("week"); setCompareTarget(null); }}>
-              <span className="bnav-icon"><Calendar size={19} /></span>
-            </button>
+            <BnavLens />
+            <NavButton nav="today" className="bnav-btn" aria-label="Today" onClick={() => { setView("today"); setCompareTarget(null); }}>
+              <span className="bnav-icon"><NavIcon kind="today" /></span>
+            </NavButton>
+            <NavButton nav="tomorrow" className="bnav-btn" aria-label="Tomorrow" onClick={() => { setView("tomorrow"); setCompareTarget(null); }}>
+              <span className="bnav-icon"><NavIcon kind="tomorrow" /></span>
+            </NavButton>
+            <NavButton nav="week" className="bnav-btn" aria-label="Week" onClick={() => { setView("week"); setCompareTarget(null); }}>
+              <span className="bnav-icon"><NavIcon kind="schedule" /></span>
+            </NavButton>
             {enableAttendance && (
-              <button className={`bnav-btn${view === "attendance" ? " on" : ""}`} aria-label="Attendance" aria-current={view === "attendance" ? "page" : undefined} onClick={() => { setView("attendance"); setCompareTarget(null); }}>
-                <span className="bnav-icon"><ClipboardList size={19} /></span>
-              </button>
+              <NavButton nav="attendance" className="bnav-btn" aria-label="Attendance" onClick={() => { setView("attendance"); setCompareTarget(null); }}>
+                <span className="bnav-icon"><NavIcon kind="attendance" /></span>
+              </NavButton>
             )}
             {enableExams && (
-              <button className={`bnav-btn${view === "exams" ? " on" : ""}`} aria-label="Exams" aria-current={view === "exams" ? "page" : undefined} onClick={() => { setView("exams"); setCompareTarget(null); }}>
-                <span className="bnav-icon"><GraduationCap size={19} /></span>
-              </button>
+              <NavButton nav="exams" className="bnav-btn" aria-label="Exams" onClick={() => { setView("exams"); setCompareTarget(null); }}>
+                <span className="bnav-icon"><NavIcon kind="exams" /></span>
+              </NavButton>
             )}
-            <button className={`bnav-btn${view === "notifications" ? " on" : ""}`} aria-label="Announcements" aria-current={view === "notifications" ? "page" : undefined} onClick={() => { setView("notifications"); setCompareTarget(null); }}>
-              <span className="bnav-icon">
-                <Megaphone size={19} />
-                {unreadChangeCount > 0 && <span className="bnav-dot" />}
-              </span>
-            </button>
-            <button className={`bnav-btn${view === "assignments" ? " on" : ""}`} aria-label="Assignments" aria-current={view === "assignments" ? "page" : undefined} onClick={() => { setView("assignments"); setCompareTarget(null); }}>
-              <span className="bnav-icon"><BookOpenCheck size={19} /></span>
-            </button>
             {enableFriends && (
-              <button className={`bnav-btn${view === "friends" ? " on" : ""}`} aria-label="Social" aria-current={view === "friends" ? "page" : undefined} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); }}>
+              <NavButton nav="friends" className="bnav-btn" aria-label="Social" onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); }}>
                 <span className="bnav-icon">
-                  <Users size={19} />
+                  <NavIcon kind="social" />
                   {unreadFriendCount > 0 && <span className="bnav-dot" />}
                 </span>
-              </button>
+              </NavButton>
             )}
-            <button className={`bnav-btn${view === "planner" ? " on" : ""}`} aria-label="Planner" aria-current={view === "planner" ? "page" : undefined} onClick={() => { setView("planner"); setCompareTarget(null); }}>
-              <span className="bnav-icon"><LayoutDashboard size={19} /></span>
-            </button>
+            <NavButton nav="planner" className="bnav-btn" aria-label="Planner" onClick={() => { setView("planner"); setCompareTarget(null); }}>
+              <span className="bnav-icon"><NavIcon kind="planner" /></span>
+            </NavButton>
           </nav>
         )}
         {v2Active && (
@@ -3861,11 +3954,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             attendanceEnabled={enableAttendance}
             unreadCount={unreadTotal}
             onNavigate={navigateMobileV2}
-            onOpenMore={() => {
-              setMobileV2MoreOpen(true);
-              setOverflowOpen(false);
-              setNotifOpen(false);
-            }}
+            onOpenMore={openMobileV2More}
           />
         )}
       </div>

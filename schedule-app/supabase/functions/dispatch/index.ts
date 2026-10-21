@@ -23,6 +23,7 @@
 
 import webpush from "npm:web-push@3.6.7";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { buildPushPayload } from "../_shared/pushPresentation.ts";
 
 // Only scan rows created in this window — a push older than this is stale and
 // shouldn't fire even if it was never delivered (it lives on as an in-app record).
@@ -215,18 +216,7 @@ async function runDispatch(supabase: ReturnType<typeof createClient>) {
     const urgency = (d.urgency === "normal" || d.urgency === "low" || d.urgency === "high")
       ? d.urgency : "high";
 
-    const payload = JSON.stringify({
-      title: row.title,
-      body: row.body || "",
-      url: row.url || "/",
-      tag: row.dedup_key,     // on-device de-dup: a re-send replaces, never stacks
-      icon: row.icon || undefined,
-      cta: row.type === "class_reminder" || row.type === "daily_summary"
-        ? "View today's classes"
-        : row.type === "class_cancelled" ? "View updated schedule"
-        : row.type === "schedule_change" ? "View schedule changes"
-        : "Open TermFlow",
-    });
+    const payload = JSON.stringify(buildPushPayload(row));
 
     let delivered = false;
     let providerFailed = false;

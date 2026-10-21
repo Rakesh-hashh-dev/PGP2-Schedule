@@ -14,7 +14,7 @@
 // See docs/pet-companion-plan.md §3.
 
 import { supabase } from "./supabase.js";
-import { levelFor, mergePets, normalize, prune, xpOf } from "./pet.js";
+import { SERVER_LEVEL_CAP, friendCosmetics, levelFor, mergePets, normalize, xpOf } from "./pet.js";
 
 export const PET_KEY = "pgp2.pet";
 
@@ -38,6 +38,17 @@ function cacheKey(userId) {
 const FLUSH_MS = 6000;
 
 // ── Local ───────────────────────────────────────────────────────
+
+/** One-time "XP recount" notice: dismissal is a per-device convenience. */
+export const RECOUNT_SEEN_KEY = "pgp2.pet.recountSeen";
+
+export function isRecountDismissed() {
+  try { return localStorage.getItem(RECOUNT_SEEN_KEY) === "1"; } catch { return false; }
+}
+
+export function dismissRecount() {
+  try { localStorage.setItem(RECOUNT_SEEN_KEY, "1"); } catch { /* private mode: it just shows again */ }
+}
 
 export function loadPet(userId) {
   const key = cacheKey(userId);
@@ -74,8 +85,10 @@ export function toRow(userId, state) {
     user_id: userId,
     pet_key: s.petKey,
     name: s.name || null,
-    level: levelFor(xpOf(s)),
-    base_xp: s.baseXp,
+    // Clamped to what the prod check constraint accepts; see SERVER_LEVEL_CAP.
+    level: Math.min(SERVER_LEVEL_CAP, levelFor(xpOf(s))),
+    // base_xp / legacy_xp are intentionally absent: base_xp is retired (the server
+    // keeps it at 0) and legacy_xp is server-owned, like granted_xp.
     // granted_xp is intentionally absent: it is admin-owned and server-pinned.
     // Sending it would let an ordinary save clobber a grant made while this
     // tab was open. The pet_state_touch trigger enforces this server-side too.
@@ -88,6 +101,21 @@ export function toRow(userId, state) {
   };
 }
 
+/**
+ * The unlock floor for a row. `legacy_xp` comes from the XP-repair migration;
+ * until it is applied the column is absent, so fall back to the same number the
+ * backfill will compute (inflated base_xp + grant + ledger). That keeps a
+ * frontend that ships ahead of the migration from stripping anyone's unlocks.
+ */
+function legacyXpOf(row) {
+  if (Number.isFinite(row.legacy_xp)) return row.legacy_xp;
+  const base = Number(row.base_xp) || 0;
+  if (base <= 0) return 0;
+  let ledger = 0;
+  for (const v of Object.values(row.awarded ?? {})) if (Array.isArray(v) && v[1] > 0) ledger += v[1];
+  return base + (Number(row.granted_xp) || 0) + ledger;
+}
+
 export function fromRow(row) {
   if (!row) return null;
   return normalize({
@@ -95,8 +123,8 @@ export function fromRow(row) {
     petKey: row.pet_key ?? null,
     name: row.name ?? "",
     adoptedAt: row.adopted_at ?? null,
-    baseXp: row.base_xp ?? 0,
     grantedXp: row.granted_xp ?? 0,
+    legacyXp: legacyXpOf(row),
     companionEnabled: row.companion_enabled !== false,
     awarded: row.awarded ?? {},
     care: row.care ?? { day: null, used: 0 },
@@ -129,11 +157,10 @@ export async function syncPetFromCloud(userId) {
     // never writes. Take it verbatim from the row rather than through the
     // merge, so a stale cache can't resurrect a grant that was reduced or
     // reset while this device was away.
-    const merged = prune(
-      remote
-        ? { ...mergePets(local, remote), grantedXp: remote.grantedXp, companionEnabled: remote.companionEnabled }
-        : local,
-    );
+    // legacyXp is server-owned the same way (the unlock floor from the XP repair).
+    const merged = remote
+      ? { ...mergePets(local, remote), grantedXp: remote.grantedXp, legacyXp: remote.legacyXp, companionEnabled: remote.companionEnabled }
+      : local;
     savePetLocal(userId, merged);
     // Push back when the local side contributed something the row didn't have,
     // so an offline stretch lands the moment the app is online again.
@@ -170,7 +197,7 @@ export async function writePet(userId, state) {
       p_pet_key: s.petKey,
       p_name: s.name || null,
       p_adopted_at: s.adoptedAt,
-      p_base_xp: s.baseXp,
+      p_base_xp: 0, // retired; the parameter stays for the old/new RPC signature
       p_awarded: s.awarded,
       p_care: s.care,
       p_last_seen: s.lastSeen,
@@ -196,7 +223,7 @@ async function writePetFallback(userId, state) {
     // A failed read must not become a silent overwrite of the remote ledger.
     if (readError) { console.warn("[pet] pre-write read failed:", readError.message); return null; }
     const remote = fromRow(data);
-    if (remote) next = prune(mergePets(next, remote));
+    if (remote) next = mergePets(next, remote);
 
     const { error } = await supabase
       .from("pet_state").upsert(toRow(userId, next), { onConflict: "user_id" });
@@ -287,14 +314,19 @@ export async function fetchFriendPets(cloudIds) {
         // (20260906120000_pet_public_cosmetics). Reading them with `?? null`
         // means a client that ships ahead of the migration simply sees bare
         // pets instead of failing — the RPC just returns fewer columns.
+        const level = row.level || 1;
+        const worn = { hat: row.hat ?? null, neck: row.neck ?? null, coat: row.coat ?? null, title: row.title ?? null };
         map[row.user_id] = {
           key: row.pet_key,
           name: row.name || "",
-          level: row.level || 1,
-          hat: row.hat ?? null,
-          neck: row.neck ?? null,
-          coat: row.coat ?? null,
-          title: row.title ?? null,
+          level,
+          // The raw column is whatever the owner wrote, so re-apply the gates
+          // to the standing the server computed (20261020120000_pet_ledger_guard).
+          // Before that migration there is no standing to check against, and
+          // the cosmetics pass through as they always have.
+          ...(Number.isFinite(row.unlock_level)
+            ? friendCosmetics(worn, { level: row.unlock_level, tier: row.unlock_tier || 0 })
+            : worn),
         };
       }
     }

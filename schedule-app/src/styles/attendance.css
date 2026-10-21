@@ -1,4 +1,4 @@
-/* Attendance control centre — scoped to the atx namespace. */
+﻿/* Attendance control centre — scoped to the atx namespace. */
 .atx-page {
   --atx-green: #1fa971;
   --atx-green-rgb: 31, 169, 113;
@@ -285,17 +285,16 @@
 
 .atx-pending-card {
   --atx-subj: var(--subj, var(--accent, #7056b5));
-  display: grid;
-  grid-template-columns: 58px minmax(140px, 1fr) auto;
+  display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
   max-height: 90px;
   box-sizing: border-box;
-  padding: 8px 12px;
-  border: 1px solid color-mix(in srgb, var(--atx-subj) 20%, var(--border));
+  padding: 9px 12px;
+  border: 1px solid var(--border);
   border-radius: 13px;
-  background: color-mix(in srgb, var(--atx-subj) 6%, var(--card));
+  background: var(--card);
   transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
               opacity 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
               max-height 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
@@ -303,6 +302,11 @@
               padding 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
               border-color 0.2s ease,
               background-color 0.2s ease;
+}
+
+.atx-pending-card:hover {
+  border-color: color-mix(in srgb, var(--atx-subj) 28%, var(--border));
+  background: color-mix(in srgb, var(--atx-subj) 3%, var(--card));
 }
 
 .atx-pending-card.exiting-present {
@@ -328,72 +332,99 @@
   pointer-events: none;
   background: rgba(201, 75, 66, 0.14);
 }
-.atx-pending-code {
+
+/* Meta block: subject id + session label | name + time */
+.atx-pending-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 0;
+  min-width: 0;
+}
+.atx-pending-id {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  padding-right: 12px;
-  border-right: 2px solid var(--atx-subj);
-  min-height: 32px;
+  flex: 0 0 auto;
+  gap: 2px;
 }
-.atx-pending-code strong {
+.atx-pending-id strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   color: var(--ink);
   font-family: var(--mono);
   font-size: 11.5px;
   font-weight: 700;
-  line-height: 1.25;
+  line-height: 1.2;
   letter-spacing: -.01em;
 }
-.atx-pending-code span {
-  margin-top: 3px;
-  color: var(--muted);
-  font-family: var(--mono);
-  font-size: 9.5px;
-  font-weight: 600;
-  line-height: 1.2;
+.atx-pending-id strong::before {
+  content: "";
+  display: inline-block;
+  width: 6.5px;
+  height: 6.5px;
+  border-radius: 50%;
+  background: var(--atx-subj);
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--atx-subj) 25%, transparent);
 }
-.atx-pending-copy {
+.atx-pending-id span {
+  color: var(--atx-subj);
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  opacity: .85;
+  padding-left: 12.5px;
+}
+.atx-pending-info {
   display: flex;
   flex-direction: column;
-  justify-content: center;
   min-width: 0;
-  min-height: 32px;
+  gap: 2px;
 }
-.atx-pending-copy strong {
+.atx-pending-name {
   display: block;
   overflow: hidden;
   color: var(--ink);
   font-family: var(--body);
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
-  line-height: 1.25;
+  line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.atx-pending-copy span {
+.atx-pending-time {
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-top: 3px;
   color: var(--muted);
   font-family: var(--body);
-  font-size: 10.5px;
+  font-size: 10px;
   line-height: 1.2;
 }
 
 .atx-mark-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
+  flex: 0 0 auto;
 }
 
+/* Compact (pending cards): Present wide, Absent icon-only */
+.atx-mark-actions.compact .atx-mark-button.present { min-width: 78px; }
+.atx-mark-actions.compact .atx-mark-button.absent { padding-inline: 9px; }
+.atx-mark-actions.compact .atx-mark-button.absent span { display: none; }
+
+/* Base button */
 .atx-mark-button {
   display: inline-flex;
-  min-height: 29px;
+  min-height: 30px;
   align-items: center;
   justify-content: center;
   gap: 5px;
-  padding: 4px 11px;
+  padding: 4px 12px;
   font-family: var(--body);
   font-size: 11.5px;
   font-weight: 600;
@@ -401,87 +432,114 @@
   border-radius: 8px;
   cursor: pointer;
   box-sizing: border-box;
-  transition: all .15s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition:
+    background 0.17s cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-color 0.17s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.17s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.17s ease,
+    transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
+.atx-mark-button:active { transform: scale(0.95); }
 
-.atx-mark-button:active {
-  transform: scale(0.96);
-}
-
-/* Present action: soft emerald badge style */
+/* Present ghost */
 .atx-mark-button.present {
-  color: #127047;
+  color: #0f7a51;
   background: rgba(31, 169, 113, 0.08);
-  border: 1px solid rgba(31, 169, 113, 0.28);
+  border: 1px solid rgba(31, 169, 113, 0.3);
 }
-.atx-mark-button.present svg {
-  color: #1fa971;
-  transition: transform 0.15s ease;
-}
+.atx-mark-button.present svg { color: #1fa971; }
 .atx-mark-button.present:hover {
-  background: rgba(31, 169, 113, 0.16);
-  border-color: rgba(31, 169, 113, 0.45);
-  box-shadow: 0 2px 6px -1px rgba(31, 169, 113, 0.22);
-  transform: translateY(-1px);
+  background: rgba(31, 169, 113, 0.15);
+  border-color: rgba(31, 169, 113, 0.5);
+  box-shadow: 0 2px 8px -2px rgba(31, 169, 113, 0.25);
 }
-.atx-mark-button.present:hover svg {
-  transform: scale(1.15);
+/* Present ACTIVE — solid emerald */
+.atx-mark-button.present.active {
+  color: #fff;
+  background: #1a9e66;
+  border-color: #178a58;
+  box-shadow: 0 2px 10px -2px rgba(26, 158, 102, 0.45);
+}
+.atx-mark-button.present.active svg { color: #fff; }
+.atx-mark-button.present.active:hover {
+  background: #18935f;
+  box-shadow: 0 3px 14px -3px rgba(26, 158, 102, 0.55);
 }
 
-/* Absent action: soft coral badge style */
+/* Absent ghost */
 .atx-mark-button.absent {
-  color: #ba3830;
+  color: #b53e37;
   background: rgba(201, 75, 66, 0.07);
-  border: 1px solid rgba(201, 75, 66, 0.24);
+  border: 1px solid rgba(201, 75, 66, 0.26);
 }
-.atx-mark-button.absent svg {
-  color: #c94b42;
-  transition: transform 0.15s ease;
-}
+.atx-mark-button.absent svg { color: #c94b42; }
 .atx-mark-button.absent:hover {
   background: rgba(201, 75, 66, 0.14);
-  border-color: rgba(201, 75, 66, 0.42);
-  box-shadow: 0 2px 6px -1px rgba(201, 75, 66, 0.2);
-  transform: translateY(-1px);
+  border-color: rgba(201, 75, 66, 0.45);
+  box-shadow: 0 2px 8px -2px rgba(201, 75, 66, 0.22);
 }
-.atx-mark-button.absent:hover svg {
-  transform: scale(1.15);
+/* Absent ACTIVE — solid coral */
+.atx-mark-button.absent.active {
+  color: #fff;
+  background: #c0413a;
+  border-color: #a83830;
+  box-shadow: 0 2px 10px -2px rgba(192, 65, 58, 0.45);
+}
+.atx-mark-button.absent.active svg { color: #fff; }
+.atx-mark-button.absent.active:hover {
+  background: #b33c35;
+  box-shadow: 0 3px 14px -3px rgba(192, 65, 58, 0.55);
 }
 
-/* Dark mode overrides for high contrast and vibrance */
+/* Sibling fade when one is selected */
+.atx-mark-button.dimmed { opacity: 0.42; }
+.atx-mark-button.dimmed:hover { opacity: 0.75; }
+
+/* Dark mode */
 html[data-theme="dark"] .atx-mark-button.present {
   color: #34d399;
-  background: rgba(47, 198, 138, 0.12);
-  border-color: rgba(47, 198, 138, 0.3);
+  background: rgba(47, 198, 138, 0.1);
+  border-color: rgba(47, 198, 138, 0.28);
 }
-html[data-theme="dark"] .atx-mark-button.present svg {
-  color: #34d399;
-}
+html[data-theme="dark"] .atx-mark-button.present svg { color: #34d399; }
 html[data-theme="dark"] .atx-mark-button.present:hover {
-  background: rgba(47, 198, 138, 0.22);
+  background: rgba(47, 198, 138, 0.2);
   border-color: rgba(47, 198, 138, 0.5);
-  box-shadow: 0 2px 8px -1px rgba(47, 198, 138, 0.3);
+  box-shadow: 0 2px 10px -2px rgba(47, 198, 138, 0.3);
 }
+html[data-theme="dark"] .atx-mark-button.present.active {
+  color: #022c1e;
+  background: #34d399;
+  border-color: #2dc98d;
+  box-shadow: 0 2px 12px -2px rgba(52, 211, 153, 0.5);
+}
+html[data-theme="dark"] .atx-mark-button.present.active svg { color: #022c1e; }
 
 html[data-theme="dark"] .atx-mark-button.absent {
   color: #f87171;
-  background: rgba(248, 113, 113, 0.12);
-  border-color: rgba(248, 113, 113, 0.3);
+  background: rgba(248, 113, 113, 0.1);
+  border-color: rgba(248, 113, 113, 0.28);
 }
-html[data-theme="dark"] .atx-mark-button.absent svg {
-  color: #f87171;
-}
+html[data-theme="dark"] .atx-mark-button.absent svg { color: #f87171; }
 html[data-theme="dark"] .atx-mark-button.absent:hover {
-  background: rgba(248, 113, 113, 0.22);
+  background: rgba(248, 113, 113, 0.2);
   border-color: rgba(248, 113, 113, 0.5);
-  box-shadow: 0 2px 8px -1px rgba(248, 113, 113, 0.3);
+  box-shadow: 0 2px 10px -2px rgba(248, 113, 113, 0.3);
 }
+html[data-theme="dark"] .atx-mark-button.absent.active {
+  color: #2d0a0a;
+  background: #f87171;
+  border-color: #e05555;
+  box-shadow: 0 2px 12px -2px rgba(248, 113, 113, 0.5);
+}
+html[data-theme="dark"] .atx-mark-button.absent.active svg { color: #2d0a0a; }
 
 .atx-mark-button:focus-visible,
 .atx-filter-scroll button:focus-visible,
 .atx-mini-filters button:focus-visible,
 .atx-show-more:focus-visible,
-.atx-course-toggle:focus-visible { outline: 2px solid var(--accent, #7056b5); outline-offset: 2px; }
+.atx-course-toggle:focus-visible,
+.atx-course-hub-btn:focus-visible { outline: 2px solid var(--accent, #7056b5); outline-offset: 2px; }
 
 .atx-show-more {
   display: flex;
@@ -511,23 +569,52 @@ html[data-theme="dark"] .atx-mark-button.absent:hover {
 .atx-show-more svg { transition: transform .2s ease; }
 .atx-show-more svg.open { transform: rotate(180deg); }
 
-.atx-risk {
-  padding: 12px 14px;
+.atx-section.atx-risk {
+  margin-top: 10px;
+  padding: 9px 11px;
+  border-radius: 14px;
   background: linear-gradient(135deg, color-mix(in srgb, var(--card) 96%, #f0a63d), var(--card));
 }
+.atx-risk .atx-section-head { gap: 8px; }
+.atx-risk .atx-section-head > div { gap: 7px; }
+.atx-risk .atx-section-head h2 { font-size: 14px; }
+.atx-risk .atx-section-head p { display: none; }
+.atx-risk .atx-section-icon { width: 28px; height: 28px; flex-basis: 28px; border-radius: 8px; }
+.atx-risk-actions { flex: none; }
+
+.atx-risk-dismiss,
+.atx-risk-restore {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 36px;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  cursor: pointer;
+}
+
+.atx-risk-dismiss { flex: none; width: 36px; padding: 0; }
+.atx-page .atx-risk-restore { margin-bottom: 14px; padding: 6px 10px; font-size: 11px; font-weight: 700; }
+.atx-risk-dismiss:hover,
+.atx-risk-restore:hover { color: var(--ink); background: var(--card); }
+.atx-risk-dismiss:focus-visible,
+.atx-risk-restore:focus-visible { outline: 2px solid var(--accent, #7056b5); outline-offset: 2px; }
 .atx-risk-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 8px;
-  margin-top: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 6px;
+  margin-top: 5px;
 }
 .atx-risk-card {
   --risk: var(--atx-amber);
   position: relative;
   overflow: hidden;
-  padding: 9px 12px;
+  padding: 7px 9px;
   border: 1px solid color-mix(in srgb, var(--risk) 25%, var(--border));
-  border-radius: 12px;
+  border-radius: 9px;
   background: var(--card);
 }
 .atx-risk-card.state-critical,
@@ -536,14 +623,14 @@ html[data-theme="dark"] .atx-mark-button.absent:hover {
 .atx-risk-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .atx-risk-top strong { color: var(--risk); font-family: var(--mono); font-size: 9.5px; font-weight: 800; }
 .atx-risk-top span { color: var(--ink); font-family: var(--mono); font-size: 12.5px; font-weight: 800; }
-.atx-risk-card h3 { margin: 4px 0 2px; color: var(--ink); font-size: 11.5px; font-weight: 700; }
+.atx-risk-card h3 { margin: 2px 0; color: var(--ink); font-size: 11.5px; font-weight: 700; }
 .atx-risk-card p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.35; }
-.atx-risk-foot { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--border); color: var(--muted); font-size: 8.5px; }
+.atx-risk-foot { margin-top: 4px; padding-top: 0; color: var(--muted); font-size: 8.5px; }
 .atx-risk-foot span:first-child { color: var(--risk); font-weight: 700; }
 
 .atx-course-heading > svg { color: var(--muted); }
-.atx-course-filters { margin-bottom: 9px; }
-.atx-course-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.atx-course-filters { margin-bottom: 7px; }
+.atx-course-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 
 /* Course card base */
 .atx-course-card {
@@ -568,7 +655,7 @@ html[data-theme="dark"] .atx-mark-button.absent:hover {
   transform: none;
 }
 
-.atx-course-toggle { width: 100%; padding: 13px 14px 11px; color: inherit; border: 0; background: transparent; cursor: pointer; text-align: left; }
+.atx-course-toggle { width: 100%; padding: 10px 13px 8px; color: inherit; border: 0; background: transparent; cursor: pointer; text-align: left; }
 .atx-course-toggle:disabled { cursor: default; }
 
 /* Top line: code chip + state pill + chevron */
@@ -611,7 +698,7 @@ html[data-theme="dark"] .atx-mark-button.absent:hover {
 .atx-course-card.open .atx-course-chevron { transform: rotate(180deg); }
 
 /* Course name */
-.atx-course-toggle h3 { overflow: hidden; margin: 9px 0 11px; color: var(--ink); font-size: 13.5px; font-weight: 700; letter-spacing: -.015em; text-overflow: ellipsis; white-space: nowrap; }
+.atx-course-toggle h3 { overflow: hidden; margin: 7px 0 8px; color: var(--ink); font-size: 13.5px; font-weight: 700; letter-spacing: -.015em; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Percentage + counts */
 .atx-course-measure { display: flex; align-items: baseline; gap: 8px; color: var(--muted); font-size: 10px; }
@@ -622,7 +709,7 @@ html[data-theme="dark"] .atx-mark-button.absent:hover {
 .atx-progress {
   position: relative;
   height: 8px;
-  margin: 10px 0 8px;
+  margin: 8px 0 3px;
   overflow: visible;
   border-radius: 999px;
   background: color-mix(in srgb, var(--ink) 7%, transparent);
@@ -652,22 +739,113 @@ html[data-theme="dark"] .atx-mark-button.absent:hover {
 
 .atx-progress-target { position: absolute; top: -3px; width: 2px; height: 14px; border-radius: 2px; background: var(--ink); box-shadow: 0 0 0 2px var(--card); opacity: .5; transform: translateX(-1px); }
 
-/* Foot row with divider */
+/* Foot row with single merged footer: health stats on left, Course Hub on right */
 .atx-course-foot {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding-top: 8px;
-  margin-top: 2px;
-  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  padding: 7px 13px 8px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  background: color-mix(in srgb, var(--atx-subj) 2.5%, transparent);
   color: var(--muted);
-  font-size: 9.5px;
+  font-size: 10px;
   font-weight: 600;
+}
+
+.atx-foot-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 10px;
+}
+
+.atx-foot-dot {
+  opacity: .4;
+  font-weight: 400;
 }
 
 .atx-skip-tracker { color: var(--atx-green); font-weight: 700; }
 .atx-skip-tracker.low { color: var(--atx-amber); }
 .atx-skip-tracker.penalty { color: var(--atx-red); }
+
+/* Sleek Course Hub action button */
+.atx-course-hub-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--atx-subj) 25%, var(--border));
+  background: color-mix(in srgb, var(--atx-subj) 9%, var(--card));
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all .16s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .03);
+  user-select: none;
+}
+
+.atx-hub-icon {
+  flex-shrink: 0;
+  color: var(--atx-subj);
+  transition: color .16s ease;
+}
+
+.atx-hub-arrow {
+  flex-shrink: 0;
+  color: var(--muted);
+  transition: transform .16s cubic-bezier(0.16, 1, 0.3, 1), color .16s ease;
+}
+
+.atx-course-hub-btn:hover {
+  background: var(--atx-subj);
+  border-color: var(--atx-subj);
+  color: #ffffff;
+  box-shadow: 0 3px 10px -2px color-mix(in srgb, var(--atx-subj) 40%, transparent);
+  transform: translateY(-1px);
+}
+
+.atx-course-hub-btn:hover .atx-hub-icon,
+.atx-course-hub-btn:hover .atx-hub-arrow {
+  color: #ffffff;
+}
+
+.atx-course-hub-btn:hover .atx-hub-arrow {
+  transform: translateX(1.5px);
+}
+
+.atx-course-hub-btn:active {
+  transform: translateY(0) scale(0.97);
+  box-shadow: none;
+}
+
+/* Dark mode adjustments */
+html[data-theme="dark"] .atx-course-foot {
+  border-top-color: color-mix(in srgb, var(--border) 75%, transparent);
+  background: color-mix(in srgb, var(--atx-subj) 5%, transparent);
+}
+
+html[data-theme="dark"] .atx-course-hub-btn {
+  background: color-mix(in srgb, var(--atx-subj) 14%, var(--card));
+  border-color: color-mix(in srgb, var(--atx-subj) 34%, var(--border));
+  color: var(--text);
+}
+
+html[data-theme="dark"] .atx-course-hub-btn:hover {
+  background: var(--atx-subj);
+  color: #ffffff;
+}
 
 /* History Drawer Accordion */
 .atx-history-drawer {
@@ -734,18 +912,20 @@ html[data-theme="dark"] .atx-mark-button.absent:hover {
   .atx-filter-scroll { margin-top: 11px; }
   .atx-filter-scroll button { min-height: 34px; }
   .atx-date-group { margin-top: 11px; }
-  .atx-pending-card { grid-template-columns: 48px minmax(0, 1fr); gap: 9px; padding: 10px; max-height: 140px; }
+  .atx-pending-card { flex-wrap: wrap; gap: 8px; padding: 10px 12px; max-height: 140px; }
   .atx-pending-card.exiting-present,
   .atx-pending-card.exiting-absent { max-height: 0; padding-top: 0; padding-bottom: 0; margin-bottom: -8px; }
-  .atx-pending-card .atx-mark-actions { grid-column: 1 / -1; }
+  .atx-pending-card .atx-mark-actions { width: 100%; }
   .atx-mark-actions { display: grid; grid-template-columns: repeat(2, 1fr); width: 100%; }
   .atx-mark-button { min-height: 44px; }
   .atx-risk-grid,
   .atx-course-grid { grid-template-columns: 1fr; }
   .atx-course-card { border-radius: 14px; }
   .atx-course-card.open { grid-column: auto; }
-  .atx-course-toggle { padding: 13px; }
+  .atx-course-toggle { padding: 10px 12px 8px; }
   .atx-course-toggle h3 { white-space: normal; }
+  .atx-course-foot { padding: 7px 12px 8px; }
+  .atx-course-hub-btn { height: 23px; font-size: 10px; }
   .atx-state-pill { max-width: 150px; }
   .atx-history-head { align-items: flex-start; flex-direction: column; }
   .atx-mini-filters { width: 100%; padding-bottom: 2px; }
@@ -768,6 +948,7 @@ html[data-theme="dark"] .atx-mark-button.absent:hover {
   .atx-chart-bar,
   .atx-chart-value,
   .atx-pending-card,
-  .atx-progress-fill { transition: none !important; }
+  .atx-progress-fill,
+  .atx-course-hub-btn,
+  .atx-hub-arrow { transition: none !important; }
 }
-.atx-open-course { display: inline-flex; align-items: center; gap: 4px; margin: 0 16px 12px; padding: 6px 0; border: 0; background: transparent; color: var(--violet); font: 750 .72rem var(--body); cursor: pointer; }

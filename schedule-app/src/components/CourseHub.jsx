@@ -8,6 +8,7 @@ import { fmtTime12 } from "../lib/datetime.js";
 import { subjectClass } from "../lib/subjectColors.js";
 import { buildCourseHub, courseAttention, courseJourney, courseWeeklyLoad } from "../lib/courseHub.js";
 import CourseLearning from "./CourseLearning.jsx";
+import MobileV2Breadcrumbs from "./mobile/MobileV2Breadcrumbs.jsx";
 import { loadAssignments } from "../lib/assignments.js";
 import { courseHubId, courseHubStamp, loadCourseHubItems, saveCourseHubItems, syncCourseHubItems } from "../lib/courseHubStore.js";
 import { safeUrl } from "../lib/safeUrl.js";
@@ -95,7 +96,7 @@ function WorkloadRhythm({ course, now, estimates, onOpenTask }) {
   </section>;
 }
 
-export default function CourseHub({ allClasses = [], enrolled = {}, legend = {}, attendance = {}, now = new Date(), termNumber = "current", userId, isOffline, isArchived = false, selectedCode, onSelectCode, onOpenSchedule, onNavigate, onOpenTask }) {
+export default function CourseHub({ allClasses = [], enrolled = {}, legend = {}, attendance = {}, now = new Date(), termNumber = "current", userId, isOffline, isArchived = false, selectedCode, onSelectCode, onOpenSchedule, onNavigate, onOpenTask, v2Navigation }) {
   const [assignments, setAssignments] = useState(loadAssignments);
   const [items, setItems] = useState(loadCourseHubItems);
   const [synced, setSynced] = useState(false);
@@ -164,6 +165,7 @@ export default function CourseHub({ allClasses = [], enrolled = {}, legend = {},
   const openEvent = (event) => event.kind === "task" ? onOpenTask?.(course.code, event.item) : event.kind === "exam" ? onNavigate("exams") : onOpenSchedule?.(event.item);
 
   if (!course) return <div className="course-hub">
+    {v2Navigation && <MobileV2Breadcrumbs view="courseHub" {...v2Navigation} />}
     <header className="ch-overview-head"><span className="ch-eyebrow">YOUR TERM, BY COURSE</span><h1>Courses</h1><p>Classes, work and progress brought together for each subject.</p></header>
     <label className="ch-search"><Search size={17} /><input aria-label="Search courses" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Find a course" /></label>
     {courses.length ? visibleCourses.length ? <div className="ch-course-grid">{visibleCourses.map((item) => {
@@ -179,7 +181,9 @@ export default function CourseHub({ allClasses = [], enrolled = {}, legend = {},
   </div>;
 
   return <div className="course-hub ch-detail" key={course.code}>
-    <button className="ch-back" onClick={() => onSelectCode(null)}><ArrowLeft size={16} /> All courses</button>
+    {v2Navigation
+      ? <MobileV2Breadcrumbs view="courseHub" {...v2Navigation} detail={course.name || course.code} onBack={() => onSelectCode(null)} />
+      : <button className="ch-back" onClick={() => onSelectCode(null)}><ArrowLeft size={16} /> All courses</button>}
     <header className="ch-detail-head"><div><span className="ch-eyebrow">{course.code} · {course.area || "COURSE"}</span><h1>{course.name}</h1><p>Section {course.section || "Single"}{course.credits ? ` · ${course.credits} credits` : ""}</p></div><span className="ch-sync-status">{isArchived ? "Archived term" : !courseItems.length ? "Private course view" : isOffline ? <><WifiOff size={13} /> Saved on device</> : courseItems.some((item) => item.pending) || !synced ? "Sync pending" : "Synced"}</span></header>
     <section className="ch-next"><div><span className="ch-eyebrow">NEXT CLASS</span><strong>{course.nextClass ? dateLabel(course.nextClass.date, { weekday: "long", day: "numeric", month: "short" }) : "No upcoming class"}</strong><span>{course.nextClass ? `${fmtTime12(course.nextClass.start)}–${fmtTime12(course.nextClass.end)}${course.nextClass.room ? ` · ${course.nextClass.room}` : ""}` : "Your schedule is clear for this course."}</span></div>{course.nextClass && <button onClick={() => onOpenSchedule?.(course.nextClass)}>View in timetable <ArrowRight size={15} /></button>}</section>
     <div className="ch-snapshot" aria-label="Course snapshot"><div><span>Sessions left</span><strong>{course.sessions.filter((item) => item.date >= isoDate(now)).length}</strong></div><div><span>Open work</span><strong>{course.openTasks.length}</strong></div><div><span>Attendance</span><strong>{course.stats.pct == null ? "—" : `${course.stats.pct}%`}</strong></div><div><span>Next exam</span><strong>{course.nextExam ? dateLabel(course.nextExam.date, { day: "numeric", month: "short" }) : "—"}</strong></div></div>

@@ -9,6 +9,7 @@ import WeatherWidget from "./WeatherWidget.jsx";
 import "../styles/attendance.css";
 
 const PENDING_PREVIEW_SIZE = 4;
+const RISK_WATCH_DISMISSED_KEY = "pgp2.attendance-risk-watch-dismissed";
 
 function clsEnd(c) {
   const [year, month, day] = c.date.split("-").map(Number);
@@ -37,13 +38,17 @@ function Progress({ value, target, label }) {
 }
 
 function MarkButtons({ session, status, onMark, compact = false }) {
+  const isPresent = status === "present";
+  const isAbsent  = status === "absent";
+  const anyActive = isPresent || isAbsent;
+
   return (
     <div className={`atx-mark-actions${compact ? " compact" : ""}`}>
       <button
         type="button"
-        className={`atx-mark-button present${status === "present" ? " active" : ""}`}
-        onClick={() => onMark(session, status === "present" ? null : "present")}
-        aria-pressed={status === "present"}
+        className={`atx-mark-button present${isPresent ? " active" : ""}${anyActive && !isPresent ? " dimmed" : ""}`}
+        onClick={() => onMark(session, isPresent ? null : "present")}
+        aria-pressed={isPresent}
         title={`Mark ${session.name || session.code} as present`}
       >
         <Check size={13} strokeWidth={2.5} />
@@ -51,13 +56,13 @@ function MarkButtons({ session, status, onMark, compact = false }) {
       </button>
       <button
         type="button"
-        className={`atx-mark-button absent${status === "absent" ? " active" : ""}`}
-        onClick={() => onMark(session, status === "absent" ? null : "absent")}
-        aria-pressed={status === "absent"}
+        className={`atx-mark-button absent${isAbsent ? " active" : ""}${anyActive && !isAbsent ? " dimmed" : ""}`}
+        onClick={() => onMark(session, isAbsent ? null : "absent")}
+        aria-pressed={isAbsent}
         title={`Mark ${session.name || session.code} as absent`}
       >
         <X size={13} strokeWidth={2.5} />
-        <span>{compact ? "Absent" : "Mark absent"}</span>
+        <span>{compact ? "Out" : "Mark absent"}</span>
       </button>
     </div>
   );
@@ -81,13 +86,15 @@ function PendingCard({ session, onMark }) {
 
   return (
     <article className={`atx-pending-card ${subjectClass(session.code)}${exiting ? ` exiting-${exiting}` : ""}`}>
-      <div className="atx-pending-code">
-        <strong>{session.code}</strong>
-        {sessionLabel && <span>{sessionLabel}</span>}
-      </div>
-      <div className="atx-pending-copy">
-        <strong>{session.name}</strong>
-        <span><Clock size={12} /> {fmtTime12(session.start)}–{fmtTime12(session.end)}</span>
+      <div className="atx-pending-meta">
+        <div className="atx-pending-id">
+          <strong>{session.code}</strong>
+          {sessionLabel && <span>{sessionLabel}</span>}
+        </div>
+        <div className="atx-pending-info">
+          <span className="atx-pending-name">{session.name}</span>
+          <span className="atx-pending-time"><Clock size={11} />{fmtTime12(session.start)}–{fmtTime12(session.end)}</span>
+        </div>
       </div>
       <MarkButtons session={session} status={exiting} onMark={handleMark} compact />
     </article>
@@ -166,6 +173,9 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
   const [historyFilter, setHistoryFilter] = useState("all");
   const [showChart, setShowChart] = useState(false);
   const [showAllPending, setShowAllPending] = useState(false);
+  const [riskWatchDismissed, setRiskWatchDismissed] = useState(() => {
+    try { return localStorage.getItem(RISK_WATCH_DISMISSED_KEY) === "true"; } catch { return false; }
+  });
   const [liveMessage, setLiveMessage] = useState("");
   const codes = Object.keys(enrolled || {});
 
@@ -221,6 +231,12 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
     setLiveMessage(`${session.name || session.code} ${action}.`);
   }, [markAttendance]);
 
+  function setRiskWatchHidden(hidden) {
+    setRiskWatchDismissed(hidden);
+    try { localStorage.setItem(RISK_WATCH_DISMISSED_KEY, String(hidden)); } catch { /* optional device preference */ }
+    setLiveMessage(hidden ? "Risk watch dismissed. You can show it again below." : "Risk watch shown.");
+  }
+
   function toggleCourse(code) {
     setExpandedCode((current) => current === code ? null : code);
     setHistoryFilter("all");
@@ -247,7 +263,7 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
         <div className="atx-summary-grid">
           <div className="atx-summary-stat"><span>Coverage</span><strong>{overallCoverage}%</strong><small>{overall.marked}/{overall.total} recorded</small></div>
           <div className={`atx-summary-stat${pending.length ? " urgent" : ""}`}><span>To mark</span><strong>{pending.length}</strong><small>{pending.length ? "Newest first" : "All caught up"}</small></div>
-          <div className={`atx-summary-stat${attentionCourses.length ? " warn" : ""}`}><span>At risk</span><strong>{attentionCourses.length}</strong><small>{attentionCourses.length ? "Review below" : "No warnings"}</small></div>
+          <div className={`atx-summary-stat${attentionCourses.length ? " warn" : ""}`}><span>At risk</span><strong>{attentionCourses.length}</strong><small>{attentionCourses.length ? (riskWatchDismissed ? "Risk watch hidden" : "Review below") : "No warnings"}</small></div>
         </div>
 
         {overall.total > 0 && (
@@ -294,10 +310,14 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
         {filteredPending.length > PENDING_PREVIEW_SIZE && <button className="atx-show-more" onClick={() => setShowAllPending((value) => !value)}>{showAllPending ? "Show recent sessions only" : `Show ${filteredPending.length - PENDING_PREVIEW_SIZE} earlier sessions`}<ChevronDown size={15} className={showAllPending ? "open" : ""} /></button>}
       </section>}
 
-      {attentionCourses.length > 0 && <section className="atx-section atx-risk" aria-labelledby="risk-title">
-        <div className="atx-section-head"><div><span className="atx-section-icon"><ShieldAlert size={17} /></span><div><h2 id="risk-title">Risk watch</h2><p>Courses where the next attendance decision matters most.</p></div></div><span className="atx-count">{attentionCourses.length} course{attentionCourses.length === 1 ? "" : "s"}</span></div>
+      {attentionCourses.length > 0 && (riskWatchDismissed ? (
+        <button type="button" className="atx-risk-restore" onClick={() => setRiskWatchHidden(false)}>
+          <ShieldAlert size={15} aria-hidden="true" />Show Risk Watch<span className="atx-count">{attentionCourses.length}</span>
+        </button>
+      ) : <section className="atx-section atx-risk" aria-labelledby="risk-title">
+        <div className="atx-section-head"><div><span className="atx-section-icon"><ShieldAlert size={17} /></span><div><h2 id="risk-title">Risk watch</h2><p>Courses where the next attendance decision matters most.</p></div></div><div className="atx-risk-actions"><span className="atx-count">{attentionCourses.length} course{attentionCourses.length === 1 ? "" : "s"}</span><button type="button" className="atx-risk-dismiss" onClick={() => setRiskWatchHidden(true)} aria-label="Dismiss Risk Watch" title="Dismiss Risk Watch"><X size={16} aria-hidden="true" /></button></div></div>
         <div className="atx-risk-grid">{attentionCourses.map((course) => <article className={`atx-risk-card state-${course.state.id} ${subjectClass(course.code)}`} key={course.code}><div className="atx-risk-top"><strong>{course.code}</strong><span>{percentageLabel(course.pct)}</span></div><h3>{course.name}</h3><p>{course.state.detail}</p><div className="atx-risk-foot"><span>{course.state.label}</span><span>{course.state.coverage}% recorded</span></div></article>)}</div>
-      </section>}
+      </section>)}
 
       <section className="atx-section" aria-labelledby="courses-title">
         <div className="atx-section-head atx-course-heading"><div><span className="atx-section-icon"><CircleGauge size={17} /></span><div><h2 id="courses-title">Course overview</h2><p>Attendance, coverage and remaining flexibility.</p></div></div><ListFilter size={17} aria-hidden="true" /></div>
@@ -310,10 +330,33 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
               <div className="atx-course-topline"><span className="atx-course-code">{course.code}</span><span className={`atx-state-pill state-${course.state.id}`}>{course.state.label}</span>{canExpand && <ChevronDown size={16} className="atx-course-chevron" />}</div>
               <h3>{course.name}</h3><div className="atx-course-measure"><strong>{percentageLabel(course.pct)}</strong><span>{course.present}/{course.marked} attended</span><span>{course.requiredPct}% required</span></div>
               <Progress value={course.pct} target={course.requiredPct} label={`${course.name} attendance`} />
-              <div className="atx-course-foot"><span>{course.state.coverage}% records complete</span><span className={`atx-skip-tracker${course.penaltyHit ? " penalty" : course.skipsRemaining <= 1 ? " low" : ""}`}>{course.penaltyHit ? "Penalty threshold crossed" : `Skips: ${course.skipsRemaining}/${course.totalAllowedSkips} left`}</span></div>
             </button>
-            {onOpenCourse && <button className="atx-open-course" onClick={() => onOpenCourse(course.code)}>Open course hub <ArrowRight size={13} /></button>}
-            <div className={`atx-history-drawer${open ? " open" : ""}`} aria-hidden={!open} inert={!open ? "" : undefined}>
+            <div className="atx-course-foot">
+              <div className="atx-foot-meta">
+                <span>{course.state.coverage}% records</span>
+                <span className="atx-foot-dot" aria-hidden="true">·</span>
+                <span className={`atx-skip-tracker${course.penaltyHit ? " penalty" : course.skipsRemaining <= 1 ? " low" : ""}`}>
+                  {course.penaltyHit ? "Penalty crossed" : `Skips: ${course.skipsRemaining}/${course.totalAllowedSkips} left`}
+                </span>
+              </div>
+              {onOpenCourse && (
+                <button
+                  type="button"
+                  className="atx-course-hub-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenCourse(course.code);
+                  }}
+                  title={`Open course hub for ${course.code}`}
+                  aria-label={`Open course hub for ${course.code}`}
+                >
+                  <BookOpen size={11} className="atx-hub-icon" aria-hidden="true" />
+                  <span>Course hub</span>
+                  <ArrowRight size={11} className="atx-hub-arrow" aria-hidden="true" />
+                </button>
+              )}
+            </div>
+            <div className={`atx-history-drawer${open ? " open" : ""}`} aria-hidden={!open} inert={!open}>
               <div className="atx-history-drawer-inner">
                 {canExpand && (
                   <CourseHistory

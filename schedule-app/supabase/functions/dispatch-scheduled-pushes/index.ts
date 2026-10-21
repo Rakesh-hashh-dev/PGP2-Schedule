@@ -20,6 +20,7 @@
 // Secrets required: PUSH_ADMIN_SECRET
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { pushImage } from "../_shared/pushPresentation.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -58,7 +59,7 @@ Deno.serve(async (req) => {
   if (cfgErr || !cfg) return json(500, { error: cfgErr?.message ?? "No config" });
 
   const flags = cfg.flags ?? {};
-  const scheduled: Array<{ id: string; title: string; body: string; url?: string; icon?: string; date: string; time: string }> =
+  const scheduled: Array<{ id: string; title: string; body: string; url?: string; icon?: string; image?: string; date: string; time: string }> =
     flags.scheduledPushes ?? [];
   if (scheduled.length === 0) return json(200, { fired: 0, remaining: 0 });
 
@@ -90,7 +91,7 @@ Deno.serve(async (req) => {
         body: push.body,
         url: push.url || "/",
         icon: push.icon || null,
-        data: { urgency: "normal", ttl: 24 * 3600 },
+        data: { urgency: "normal", ttl: 24 * 3600, image: pushImage(push.image) },
         dedup_key: `broadcast:${push.id}`,
       }))
     );

@@ -44,7 +44,7 @@ describe("getPetByKey", () => {
   });
 
   it("falls back to the first pet for unknown or missing keys", () => {
-    expect(getPetByKey("griffin")).toBe(PETS[0]);
+    expect(getPetByKey("no-such-pet")).toBe(PETS[0]);
     expect(getPetByKey(undefined)).toBe(PETS[0]);
   });
 });
@@ -67,11 +67,11 @@ describe("signature micro-motion", () => {
   // The four premium companions are excluded on purpose: their staged
   // sequences are what reaching level 11-12, or devotion 4 and 8, buys, and a
   // signature on everything would flatten that back out.
-  const PREMIUM = ["spark", "leafy", "nova", "cinder"];
+  const PREMIUM = ["spark", "leafy", "cinder", "frost", "unicorn", "dragon"];
 
   it("gives every non-premium pet one", () => {
     for (const pet of PETS) {
-      if (PREMIUM.includes(pet.key)) continue;
+      if (PREMIUM.includes(pet.key) || pet.art === "sprite") continue;
       const html = renderToStaticMarkup(<pet.Svg />);
       expect(html, `${pet.key} has no dg-pet-sig element`).toContain("dg-pet-sig");
     }
@@ -118,6 +118,7 @@ describe("signature micro-motion", () => {
 describe("mood posture", () => {
   it("gives every pet a part that carries the droop", () => {
     for (const pet of PETS) {
+      if (pet.art === "sprite") continue; // authored frames carry the posture
       const html = renderToStaticMarkup(<pet.Svg />);
       const hasEars = html.includes("dg-pet-ear-left") && html.includes("dg-pet-ear-right");
       const hasWings = html.includes("dg-pet-wing-left") && html.includes("dg-pet-wing-right");

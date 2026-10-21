@@ -852,7 +852,7 @@ function MergedTimeline({ myClasses, targetClasses, targets, freeSlots, dayFilte
                 </div>
                 <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "8px", paddingBottom: "16px" }}>
                   {tg.events.map((e, ei) => (
-                    <div key={ei} className={`cva-card cva-${e.type}`} style={{ margin: 0 }}>
+                    <div key={ei} className={`cva-card cva-${e.type}${e.data.type === "break" ? " cva-break" : ""}`} style={{ margin: 0 }}>
                       <div className="cva-title">
                         {e.type !== "free" && isNationalHoliday(e.data) && <IndiaFlagIcon size={12} className="row-flag-icon" />}
                         {e.type === "free" ? "Matching Free Time" : e.data.name}
@@ -1046,14 +1046,15 @@ function SideBySide({ myClasses, targetClasses, targets, dayFilter, freeSlots = 
           {dateGroups.length === 0 && <div className="cv-empty cv-sbs-noclasses">No classes</div>}
 
           {dateGroups.map((dg) => {
-            const isFreeDay = isMultiDay && dg.rows.every(r => r.columns.every(c => c.length === 0));
+            const activityRows = dg.rows.filter(r => r.columns.some(col => col.some(c => c.type !== "break")) || r.freeSlots.length > 0);
+            const isFreeDay = isMultiDay && dg.rows.every(r => r.columns.every(col => col.every(c => c.type === "break")));
             const daySlots = dg.rows.flatMap(r => r.freeSlots);
             return (
               <div key={dg.date} className="cv-sbs-day" data-date={dg.date} ref={el => { dayRefs.current[dg.date] = el; }}>
                 {isMultiDay && (
                   <div className="cv-day-heading cv-sbs-day-heading">
                     <span>{new Date(dg.date).toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })}</span>
-                    <span className="cv-sbs-day-count">{dg.rows.length} time block{dg.rows.length !== 1 ? "s" : ""}</span>
+                    <span className="cv-sbs-day-count">{activityRows.length} time block{activityRows.length !== 1 ? "s" : ""}</span>
                   </div>
                 )}
 
@@ -1089,10 +1090,10 @@ function SideBySide({ myClasses, targetClasses, targets, dayFilter, freeSlots = 
                              ) : colItems.map((c, cii) => {
                                const isShared = c.type === "holiday" || c.type === "break";
                                return (
-                                 <div key={cii} className={`cva-card cv-sbs-card ${isShared ? "cva-shared" : columnsDef[ci].colorClass}`}>
+                                 <div key={cii} className={`cva-card cv-sbs-card ${isShared ? "cva-shared" : columnsDef[ci].colorClass}${c.type === "break" ? " cva-break" : ""}`}>
                                    <div className="cv-sbs-card-top">
                                      <div className="cva-time-sm">{fmtTime(c.start)} – {fmtTime(c.end)}</div>
-                                     {isShared && <span className="cv-sbs-shared-tag">Shared</span>}
+                                     {isShared && <span className="cv-sbs-shared-tag">{c.type === "break" ? "Break" : "Shared"}</span>}
                                    </div>
                                    <div className="cva-title">
                                      {isNationalHoliday(c) && <IndiaFlagIcon size={12} className="row-flag-icon" />}

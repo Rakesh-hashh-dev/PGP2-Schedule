@@ -15,6 +15,7 @@
 .aw-row > div:first-child, .aw-issue > div { display: grid; gap: 4px; min-width: 0; }
 .aw-row strong, .aw-issue strong, .aw-feedback strong, .aw-note strong { color: var(--text); font-size: 12px; }
 .aw-row span, .aw-issue span, .aw-note span { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.aw-issue .aw-incident-time { margin-top: 2px; font-size: 10px; line-height: 1.5; }
 .aw-tags, .aw-actions, .aw-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .aw-tags small { padding: 3px 7px; border-radius: 99px; background: var(--violet-dim); color: var(--violet); font-size: 10px; font-weight: 700; }
 .aw-tag-button { padding: 3px 7px; border: 1px solid var(--border); border-radius: 99px; background: var(--card); color: var(--muted); font: inherit; font-size: 10px; cursor: pointer; }

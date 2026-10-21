@@ -1,22 +1,30 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  Wallet, X, Users, ArrowLeft, Trash2, Check, Receipt,
-  ArrowRight, HandCoins, Pencil, ChevronRight, ImagePlus, Share2, Copy,
+  X, Users, ArrowLeft, Trash2, Check, Receipt,
+  ArrowRight, HandCoins, Pencil, ChevronRight, Share2, Copy,
   WifiOff, AlertTriangle,
   Utensils, Car, ShoppingCart, Home, ShoppingBag, Lightbulb, PartyPopper, Tag
 } from "lucide-react";
 import {
-  CATEGORIES, fmtMoney, toPaise, resolveSplit, computeBalances, simplifyDebts,
-  pairwiseDebts, groupInsights, receiptImageUrl,
-  fetchMyGroups, createGroup, updateGroup, deleteGroup,
-  fetchGroupLedger, addExpense, updateExpense, deleteExpense,
+  CATEGORIES, fmtMoney, toPaise, computeBalances, simplifyDebts,
+  pairwiseDebts, groupInsights,
+  createGroup, updateGroup, deleteGroup,
+  fetchGroupLedger, deleteExpense,
   settleUp, deleteSettlement, remindToSettle, settleAll, remindAll,
-  buildInviteUrl, joinGroup, enqueueOfflineExpense, flushQueue, queuedCount,
-  subscribeGroupLedger, subscribeMyGroups,
+  buildInviteUrl, flushQueue, queuedCount,
+  subscribeGroupLedger,
 } from "../lib/expenses.js";
 import { EmptyState } from "./ui.jsx";
+import ExpenseModal from "./split/ExpenseForm.jsx";
+import SplitWorkspace from "./split/SplitWorkspace.jsx";
+import MobileV2Breadcrumbs from "./mobile/MobileV2Breadcrumbs.jsx";
+import { CirclePanel, ExpenseDetails, SecureInvite } from "./split/Collaboration.jsx";
+import ImportExpenses from "./split/ImportExpenses.jsx";
+import { useReceipt } from "../lib/useSplitReceipt.js";
+import { exportCSV, downloadFile } from "../lib/splitCircle.js";
 import "../styles/split.css";
+import "../styles/split-circle.css";
 
 // TermFlow Split — Splitwise-style shared expenses. Two screens: a list of
 // groups (with your net position) and a group ledger (balances, simplified /
@@ -34,55 +42,6 @@ const CAT_ICONS = {
   entertainment: PartyPopper,
   other: Tag,
 };
-
-function CategoryDropdown({ value, onChange, disabled }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-
-  useEffect(() => {
-    function handleClickOutside(e) {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const selectedCat = CATEGORIES.find(c => c.id === value) || CATEGORIES[0];
-  const SelectedIcon = CAT_ICONS[selectedCat.id] || Tag;
-
-  return (
-    <div className={`sp-custom-select-wrap ${disabled ? "disabled" : ""}`} ref={ref}>
-      <button 
-        type="button" 
-        className="sp-input sp-select" 
-        onClick={() => !disabled && setOpen(!open)}
-        aria-label="Expense category"
-        aria-expanded={open}
-        style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", justifyContent: "space-between" }}
-      >
-        <span style={{ display: "flex", alignItems: "center", gap: "8px" }}><SelectedIcon size={15} /> {selectedCat.label}</span>
-        <ChevronRight size={15} style={{ transform: open ? "rotate(90deg)" : "rotate(0deg)", transition: "transform .2s" }} />
-      </button>
-      
-      {open && (
-        <div className="sp-custom-options">
-          {CATEGORIES.map(c => {
-            const Icon = CAT_ICONS[c.id] || Tag;
-            return (
-              <button
-                key={c.id} type="button"
-                className={`sp-custom-option ${value === c.id ? "on" : ""}`}
-                onClick={() => { onChange(c.id); setOpen(false); }}
-              >
-                <Icon size={15} /> {c.label}
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function timeAgo(iso) {
   const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
@@ -258,187 +217,6 @@ function GroupModal({ userId, userName, friends, existing, balances, onClose, on
 // ═══════════════════════════════════════════════════════════════
 //  Add / edit expense modal
 // ═══════════════════════════════════════════════════════════════
-function ExpenseModal({ userId, userName, group, members, existing, existingShares, onClose, onSaved }) {
-  const editing = !!existing;
-  const [description, setDescription] = useState(existing?.description || "");
-  const [amount, setAmount] = useState(existing ? String(existing.amount) : "");
-  const [paidBy, setPaidBy] = useState(existing?.paid_by || userId);
-  const [category, setCategory] = useState(existing?.category || "food");
-  const [splitType, setSplitType] = useState(existing?.split_type || "equal");
-  const [participants, setParticipants] = useState(() => {
-    if (existing && existingShares?.length) return new Set(existingShares.map(s => s.user_id));
-    return new Set(members.map(m => m.id));
-  });
-  const [weights, setWeights] = useState(() => {
-    if (!existing || !existingShares?.length) return {};
-    // Seed exact-mode weights from existing shares so edit starts consistent
-    if (existing.split_type === "exact") return Object.fromEntries(existingShares.map(s => [s.user_id, String(s.amount)]));
-    return {};
-  });
-  const [imageFile, setImageFile] = useState(null);
-  const [preview, setPreview] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const fileRef = useRef(null);
-
-  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
-
-  const amountPaise = toPaise(amount || 0);
-  const partIds = members.filter(m => participants.has(m.id)).map(m => m.id);
-
-  function toggleParticipant(id) {
-    setParticipants(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  }
-
-  async function pickImage(e) {
-    const f = e.target.files?.[0];
-    if (!f || !f.type.startsWith("image/")) return;
-    if (preview) URL.revokeObjectURL(preview);
-    setPreview(URL.createObjectURL(f));
-    setImageFile(f);
-  }
-
-  const partKey = partIds.join(",");
-  const weightKey = JSON.stringify(weights);
-  const previewShares = useMemo(() => {
-    if (!amountPaise || partIds.length === 0) return { shares: {}, error: "" };
-    const r = resolveSplit(splitType, amountPaise, partIds, weights);
-    return r.error ? { shares: {}, error: r.error } : { shares: r.shares, error: "" };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [amountPaise, splitType, partKey, weightKey]);
-
-  async function submit(e) {
-    e.preventDefault();
-    if (!description.trim() || !amountPaise || busy) return;
-    if (partIds.length === 0) { setError("Pick at least one person to split with."); return; }
-    const r = resolveSplit(splitType, amountPaise, partIds, weights);
-    if (r.error) { setError(r.error); return; }
-    setBusy(true); setError("");
-
-    const payload = { userId, userName, group, description, amountPaise, paidBy, splitType, category, shares: r.shares, imageFile };
-    let row;
-    if (editing) {
-      row = await updateExpense({ ...payload, expenseId: existing.id });
-    } else {
-      row = await addExpense(payload);
-      // Offline fallback: queue text-only adds so nothing is lost on hostel wifi
-      if (!row && typeof navigator !== "undefined" && navigator.onLine === false && !imageFile) {
-        enqueueOfflineExpense({ userId, userName, group, description, amountPaise, paidBy, splitType, category, shares: r.shares });
-        setBusy(false); onSaved({ queued: true }); return;
-      }
-    }
-    setBusy(false);
-    if (!row) { setError(editing ? "Couldn't save changes — try again." : imageFile ? "Couldn't save — a photo needs a connection." : "Couldn't save — try again."); return; }
-    onSaved(row);
-  }
-
-  const nameOf = (id) => (id === userId ? "You" : group.member_names?.[id] || members.find(m => m.id === id)?.name || "Member");
-  const existingReceipt = editing && !preview ? receiptImageUrl(existing.image_path) : null;
-
-  return createPortal(
-    <div className="sp-modal-backdrop" onClick={onClose}>
-      <form className="sp-modal sp-modal-lg" role="dialog" aria-modal="true" aria-label={editing ? "Edit expense" : "Add expense"} onClick={e => e.stopPropagation()} onKeyDown={e => { if (e.key === "Escape") onClose(); }} onSubmit={submit}>
-        <div className="sp-modal-head">
-          <h3><Receipt size={16} /> {editing ? "Edit expense" : "Add expense"}</h3>
-          <button type="button" className="sp-icon-btn" onClick={onClose} aria-label="Close"><X size={16} /></button>
-        </div>
-
-        <label className="sp-field-label" htmlFor="sp-expense-description">What was it for?</label>
-        <input id="sp-expense-description" className="sp-input" placeholder="Dinner, cab, groceries…" maxLength={100} value={description} onChange={e => setDescription(e.target.value)} autoFocus />
-
-        <div className="sp-row2">
-          <div className="sp-amount-field"><label className="sp-field-label" htmlFor="sp-expense-amount">Amount</label><div className="sp-amount-wrap">
-            <span className="sp-cur">{group.currency || "₹"}</span>
-            <input id="sp-expense-amount" className="sp-input sp-amount" type="number" inputMode="decimal" min="0" step="0.01" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} />
-          </div></div>
-          <div className="sp-category-field"><span className="sp-field-label">Category</span><CategoryDropdown value={category} onChange={setCategory} disabled={busy} /></div>
-        </div>
-
-        {/* Receipt photo */}
-        <div className="sp-receipt-row">
-          <input ref={fileRef} type="file" accept="image/*" hidden onChange={pickImage} />
-          <button type="button" className="sp-receipt-btn" onClick={() => fileRef.current?.click()}>
-            <ImagePlus size={14} /> {imageFile || existingReceipt ? "Change receipt" : "Add receipt"}
-          </button>
-          {(preview || existingReceipt) && (
-            <span className="sp-receipt-thumb">
-              <img src={preview || existingReceipt} alt="receipt" />
-              {preview && (
-                <button type="button" className="sp-icon-btn sp-thumb-x" aria-label="Remove" onClick={() => { URL.revokeObjectURL(preview); setPreview(null); setImageFile(null); if (fileRef.current) fileRef.current.value = ""; }}><X size={11} /></button>
-              )}
-            </span>
-          )}
-        </div>
-
-        <label className="sp-field-label">Paid by</label>
-        <div className="sp-paidby">
-          {members.map(m => (
-            <button type="button" key={m.id} className={`sp-payer${paidBy === m.id ? " on" : ""}`} onClick={() => setPaidBy(m.id)}>
-              {nameOf(m.id)}
-            </button>
-          ))}
-        </div>
-
-        <div className="sp-split-head">
-          <label className="sp-field-label">Split</label>
-          <div className="sp-split-tabs">
-            {["equal", "exact", "percent", "shares"].map(t => (
-              <button type="button" key={t} className={`sp-split-tab${splitType === t ? " on" : ""}`} onClick={() => setSplitType(t)}>{t}</button>
-            ))}
-          </div>
-        </div>
-
-        <div className="sp-split-list">
-          {members.map(m => {
-            const inSplit = participants.has(m.id);
-            const sharePaise = previewShares.shares[m.id] || 0;
-            return (
-              <div key={m.id} className={`sp-split-row${inSplit ? "" : " off"}`}>
-                <button type="button" className="sp-split-toggle" onClick={() => toggleParticipant(m.id)} aria-label={`${inSplit ? "Remove" : "Include"} ${nameOf(m.id)} ${inSplit ? "from" : "in"} split`}>
-                  <span className={`sp-check${inSplit ? " on" : ""}`}>{inSplit && <Check size={12} />}</span>
-                  <Ava name={nameOf(m.id)} size={24} />
-                  <span className="sp-split-name">{nameOf(m.id)}</span>
-                </button>
-                {inSplit && splitType === "equal" && (
-                  <span className="sp-split-amt">{fmtMoney(sharePaise, group.currency)}</span>
-                )}
-                {inSplit && splitType !== "equal" && (
-                  <span className="sp-split-input-wrap">
-                    <input
-                      className="sp-split-input"
-                      type="number" inputMode="decimal" min="0"
-                      placeholder={splitType === "exact" ? "0.00" : splitType === "percent" ? "0" : "1"}
-                      value={weights[m.id] ?? ""}
-                      onChange={e => setWeights(w => ({ ...w, [m.id]: e.target.value }))}
-                    />
-                    <span className="sp-split-unit">{splitType === "exact" ? (group.currency || "₹") : splitType === "percent" ? "%" : "×"}</span>
-                    {splitType === "shares" && <span className="sp-split-amt sp-muted">{fmtMoney(sharePaise, group.currency)}</span>}
-                  </span>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {previewShares.error && <div className="sp-error">{previewShares.error}</div>}
-        {error && !previewShares.error && <div className="sp-error">{error}</div>}
-
-        <button type="submit" className="sp-submit" disabled={!description.trim() || !amountPaise || busy}>
-          {busy ? "Saving…" : editing ? "Save changes" : `Add ${amountPaise ? fmtMoney(amountPaise, group.currency) : "expense"}`}
-        </button>
-      </form>
-    </div>,
-    document.body
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  Settle up modal
-// ═══════════════════════════════════════════════════════════════
 function SettleModal({ userId, userName, group, members, suggested, onClose, onSettled }) {
   const others = members.filter(m => m.id !== userId);
   const [toUser, setToUser] = useState(suggested?.toUser || others[0]?.id || "");
@@ -451,7 +229,7 @@ function SettleModal({ userId, userName, group, members, suggested, onClose, onS
 
   async function submit(e) {
     e.preventDefault();
-    if (!toUser || !amountPaise || busy) return;
+    if (!toUser || amountPaise <= 0 || !Number.isSafeInteger(amountPaise) || busy) return;
     setBusy(true); setError("");
     const row = await settleUp({ userId, userName, group, toUser, amountPaise, note: paymentMode });
     setBusy(false);
@@ -545,8 +323,13 @@ function InviteModal({ group, onClose }) {
 // ═══════════════════════════════════════════════════════════════
 //  Group ledger (detail screen)
 // ═══════════════════════════════════════════════════════════════
-function GroupLedger({ userId, userName, group, onBack, onGroupChanged, onGroupDeleted }) {
+function GroupLedger({ userId, userName, friends, advanced, group, onBack, onGroupChanged, onGroupDeleted, v2Navigation }) {
   const [ledger, setLedger] = useState(null);
+  const [detail, setDetail] = useState(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [loadError, setLoadError] = useState("");
   const [expenseOpen, setExpenseOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
   const [settleOpen, setSettleOpen] = useState(false);
@@ -564,12 +347,12 @@ function GroupLedger({ userId, userName, group, onBack, onGroupChanged, onGroupD
     [group, userId, userName]
   );
 
-  const reload = () => fetchGroupLedger(group.id).then(setLedger);
+  const reload = () => fetchGroupLedger(group.id).then(data => { setLedger(data); setLoadError(""); }).catch(e => { setLedger(null); setLoadError(e.message); });
   useEffect(() => {
     reload();
-    flushQueue().then(n => { if (n) reload(); });
+    flushQueue(userId).then(n => { if (n) reload(); });
     const unsub = subscribeGroupLedger(group.id, reload);
-    const onOnline = () => flushQueue().then(n => { if (n) reload(); });
+    const onOnline = () => flushQueue(userId).then(n => { if (n) reload(); });
     window.addEventListener("online", onOnline);
     return () => { unsub(); window.removeEventListener("online", onOnline); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -593,11 +376,16 @@ function GroupLedger({ userId, userName, group, onBack, onGroupChanged, onGroupD
   const iOwe = transfers.filter(t => t.from === userId);
   const owedToMe = transfers.filter(t => t.to === userId);
   const iOweTotal = iOwe.reduce((s, t) => s + t.amount, 0);
-  const queued = queuedCount(group.id);
+  const queued = queuedCount(group.id, userId);
 
   const nameOf = (id) => (id === userId ? "You" : group.member_names?.[id] || "Member");
   const isCreator = group.created_by === userId;
   const hasSettlements = (ledger?.settlements?.length || 0) > 0;
+  const activity = ledger ? mergeActivity(ledger).filter(item => item.kind !== "expense" || (
+    item.row.description.toLowerCase().includes(search.trim().toLowerCase()) &&
+    (categoryFilter === "all" || item.row.category === categoryFilter)
+  )) : [];
+  const activityFiltered = search.trim() || categoryFilter !== "all";
 
   async function handleReminder(fromId, amount) {
     setReminded(prev => new Set(prev).add(fromId));
@@ -617,9 +405,10 @@ function GroupLedger({ userId, userName, group, onBack, onGroupChanged, onGroupD
   }
 
   return (
-    <div className="sp-ledger">
+    <div className="sp-ledger sc-ledger">
+      {v2Navigation && <MobileV2Breadcrumbs view="split" {...v2Navigation} detail={group.name || "Group"} onBack={onBack} />}
       <div className="sp-ledger-head">
-        <button className="sp-back" onClick={onBack} aria-label="Back"><ArrowLeft size={18} /></button>
+        {!v2Navigation && <button className="sp-back" onClick={onBack} aria-label="Back"><ArrowLeft size={18} /></button>}
         <div className="sp-ledger-title">
           <span className="sp-kicker">GROUP LEDGER</span>
           <h2>{group.name}</h2>
@@ -638,16 +427,18 @@ function GroupLedger({ userId, userName, group, onBack, onGroupChanged, onGroupD
       <div className="sp-ledger-hero">
         <div className={`sp-net-card${myNet > 0 ? " pos" : myNet < 0 ? " neg" : ""}`}>
           <span className="sp-kicker">YOUR POSITION</span>
-          {myNet === 0
+          {!ledger ? <span className="sp-net-zero">{loadError ? "Position unavailable" : "Loading your position…"}</span> : myNet === 0
             ? <span className="sp-net-zero"><Check size={16} /> You&rsquo;re all settled up</span>
             : <><span className="sp-net-label">{myNet > 0 ? "You are owed" : "You owe"}</span><span className="sp-net-amt tf-motion-value" key={myNet}>{fmtMoney(Math.abs(myNet), group.currency)}</span></>}
         </div>
         <div className="sp-ledger-actions">
           <button className="sp-primary-btn" onClick={() => { setEditingExpense(null); setExpenseOpen(true); }}><Receipt size={16} /> Add expense</button>
-          <button className="sp-secondary-btn" onClick={() => { setSettleSuggest(iOwe[0] ? { toUser: iOwe[0].to, amountPaise: iOwe[0].amount } : null); setSettleOpen(true); }}><HandCoins size={16} /> Settle up</button>
+          <button className="sp-secondary-btn" disabled={!ledger} onClick={() => { setSettleSuggest(iOwe[0] ? { toUser: iOwe[0].to, amountPaise: iOwe[0].amount } : null); setSettleOpen(true); }}><HandCoins size={16} /> Settle up</button>
         </div>
       </div>
 
+      {loadError && <div className="sp-error" role="alert">{loadError}<button onClick={reload}>Retry</button></div>}
+      <div className="sc-actions sc-ledger-tools"><button className="sp-secondary-btn" disabled={!ledger?.expenses.length} onClick={() => downloadFile(exportCSV(ledger.expenses.map(e => ({ ...e, group, shares: ledger.sharesByExpense[e.id] || [] }))), "termflow-group-expenses.csv", "text/csv")}><Receipt size={14}/>Export CSV</button>{advanced && <button className="sp-secondary-btn" onClick={() => setImportOpen(true)}>Import CSV</button>}</div>
       <div className="sp-ledger-sections">
         <aside className="sp-ledger-aside">
       {transfers.length > 0 && (
@@ -755,20 +546,25 @@ function GroupLedger({ userId, userName, group, onBack, onGroupChanged, onGroupD
       )}
         </aside>
         <section className="sp-activity">
-      <div className="sp-activity-head"><div><span className="sp-kicker">TRANSACTION HISTORY</span><h3>Activity</h3></div><span>{ledger ? `${ledger.expenses.length + ledger.settlements.length} entries` : "Loading"}</span></div>
-      {ledger === null ? (
+      <div className="sp-activity-head"><div><span className="sp-kicker">TRANSACTION HISTORY</span><h3>Activity</h3></div><span>{ledger ? `${activity.length} ${activityFiltered ? "matching " : ""}${activity.length === 1 ? "entry" : "entries"}` : loadError ? "Unavailable" : "Loading"}</span></div>
+      {ledger && (ledger.expenses.length > 0 || ledger.settlements.length > 0) && <div className="sc-toolbar sc-activity-filters"><input className="sp-input" aria-label="Search group expenses" placeholder="Search expenses in this group" value={search} onChange={e => setSearch(e.target.value)}/><select className="sp-input" aria-label="Group category filter" value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}><option value="all">All categories</option>{CATEGORIES.map(c => <option value={c.id} key={c.id}>{c.label}</option>)}</select>{activityFiltered && <button className="sc-text-btn" onClick={() => { setSearch(""); setCategoryFilter("all"); }}>Clear filters</button>}{activityFiltered && hasSettlements && <p className="sp-hint">Filters apply to expenses. Recorded payments stay visible.</p>}</div>}
+      {loadError && !ledger ? (
+        <EmptyState compact icon={AlertTriangle} title="Activity unavailable" sub="Retry loading the ledger to see your expenses." />
+      ) : ledger === null ? (
         <div className="sp-feed">
           {[0, 1, 2].map(i => <div key={i} className="sp-feed-row sp-skeleton" style={{ opacity: 1 - i * 0.25 }} />)}
         </div>
       ) : (ledger.expenses.length === 0 && ledger.settlements.length === 0) ? (
         <EmptyState compact icon={Receipt} title="No expenses yet" sub="Add the first one to start splitting." />
+      ) : !activity.length ? (
+        <div className="sc-list-empty"><Receipt size={24}/><h4>No expenses match</h4><p>Try another search or category.</p><button className="sc-text-btn" onClick={() => { setSearch(""); setCategoryFilter("all"); }}>Clear filters</button></div>
       ) : (
         <div className="sp-feed">
-          {mergeActivity(ledger).map(item => item.kind === "expense"
+          {activity.map(item => item.kind === "expense"
             ? <ExpenseRow key={`e${item.row.id}`} e={item.row} shares={ledger.sharesByExpense[item.row.id] || []}
                 userId={userId} group={group} nameOf={nameOf}
                 confirmDel={confirmDelExp === item.row.id} warnDel={hasSettlements}
-                onEdit={() => { setEditingExpense(item.row); setExpenseOpen(true); }}
+                onDetails={() => setDetail(item.row)} onEdit={() => { setEditingExpense(item.row); setExpenseOpen(true); }}
                 onAskDel={() => setConfirmDelExp(item.row.id)}
                 onCancelDel={() => setConfirmDelExp(null)}
                 onDel={async () => { setConfirmDelExp(null); await deleteExpense(item.row.id, userId); reload(); }} />
@@ -781,7 +577,7 @@ function GroupLedger({ userId, userName, group, onBack, onGroupChanged, onGroupD
       </div>
 
       {expenseOpen && (
-        <ExpenseModal userId={userId} userName={userName} group={group} members={members}
+        <ExpenseModal advanced={advanced} onGroupChanged={onGroupChanged} userId={userId} userName={userName} group={group} members={members}
           existing={editingExpense}
           existingShares={editingExpense ? (ledger?.sharesByExpense[editingExpense.id] || []) : null}
           onClose={() => { setExpenseOpen(false); setEditingExpense(null); }}
@@ -792,11 +588,14 @@ function GroupLedger({ userId, userName, group, onBack, onGroupChanged, onGroupD
           onClose={() => setSettleOpen(false)} onSettled={() => { setSettleOpen(false); reload(); }} />
       )}
       {editOpen && (
-        <GroupModal userId={userId} userName={userName} friends={[]} existing={group} balances={balances}
+        <GroupModal userId={userId} userName={userName} friends={friends} existing={group} balances={balances}
           onClose={() => setEditOpen(false)} onSaved={(row) => { setEditOpen(false); onGroupChanged(row); }}
           onDeleted={() => { setEditOpen(false); onGroupDeleted?.(group.id); }} />
       )}
-      {inviteOpen && <InviteModal group={group} onClose={() => setInviteOpen(false)} />}
+      {advanced && ledger && <CirclePanel group={group} userId={userId} userName={userName} expenses={ledger.expenses} onChanged={reload}/>}
+      {detail && <ExpenseDetails expense={ledger?.expenses.find(e => e.id === detail.id) || detail} shares={ledger?.sharesByExpense[detail.id] || []} group={group} userId={userId} userName={userName} advanced={advanced} onClose={() => setDetail(null)}/>}
+      {importOpen && <ImportExpenses group={group} existing={ledger?.expenses || []} userId={userId} userName={userName} onClose={() => setImportOpen(false)} onImported={reload}/>}
+      {inviteOpen && (advanced ? <SecureInvite group={group} userId={userId} onClose={() => setInviteOpen(false)}/> : <InviteModal group={group} onClose={() => setInviteOpen(false)}/>)}
     </div>
   );
 }
@@ -810,12 +609,12 @@ function mergeActivity(ledger) {
   return items;
 }
 
-function ExpenseRow({ e, shares, userId, group, nameOf, confirmDel, warnDel, onEdit, onAskDel, onCancelDel, onDel }) {
+function ExpenseRow({ e, shares, userId, group, nameOf, confirmDel, warnDel, onEdit, onAskDel, onCancelDel, onDetails, onDel }) {
   const CategoryIcon = CAT_ICONS[e.category] || Tag;
   const myShare = shares.find(s => s.user_id === userId);
   const iPaid = e.paid_by === userId;
   const mine = e.created_by === userId;
-  const receipt = receiptImageUrl(e.image_path);
+  const receipt = useReceipt(e.image_path);
   let lent = 0;
   if (iPaid) lent = toPaise(e.amount) - toPaise(myShare?.amount || 0);
   else if (myShare) lent = -toPaise(myShare.amount);
@@ -832,7 +631,7 @@ function ExpenseRow({ e, shares, userId, group, nameOf, confirmDel, warnDel, onE
       )}
       <div className="sp-feed-main">
         <div className="sp-feed-top">
-          <span className="sp-feed-desc">{e.description}</span>
+          <button className="sc-text-btn sc-expense-title" onClick={onDetails}>{e.description}</button>
           <span className="sp-feed-total">{fmtMoney(toPaise(e.amount), group.currency)}</span>
         </div>
         <div className="sp-feed-sub">
@@ -898,190 +697,6 @@ function SettlementRow({ s, userId, group, nameOf, onDel }) {
 // ═══════════════════════════════════════════════════════════════
 //  Global Insights Hero
 // ═══════════════════════════════════════════════════════════════
-function GlobalInsights({ groups, userId }) {
-  const [summary, setSummary] = useState(null);
-
-  useEffect(() => {
-    // When there are no groups the component renders null (see below), so
-    // there is nothing to compute — bail without touching state.
-    if (!groups || groups.length === 0) return;
-    let alive = true;
-    async function fetchAll() {
-      let owed = 0;
-      let owe = 0;
-      const ledgers = await Promise.all(groups.map(g => fetchGroupLedger(g.id)));
-      if (!alive) return;
-      for (let i = 0; i < groups.length; i++) {
-        const g = groups[i];
-        const l = ledgers[i];
-        if (l) {
-          const bal = computeBalances(l.expenses, l.sharesByExpense, l.settlements, g.member_ids);
-          const net = bal[userId] || 0;
-          if (net > 0) owed += net;
-          else owe += Math.abs(net);
-        }
-      }
-      setSummary({ net: owed - owe, owed, owe });
-    }
-    fetchAll();
-    return () => { alive = false; };
-  }, [groups, userId]);
-
-  if (!groups || groups.length === 0) return null;
-  
-  if (summary === null) {
-    return <div className="sp-overview-balance sp-skeleton" aria-label="Loading balances" />;
-  }
-
-  const currency = groups[0]?.currency || "₹";
-
-  return (
-    <section className="sp-overview-balance" aria-label="Overall split balances">
-      <div className="sp-overview-main"><span className="sp-kicker">ACROSS {groups.length} GROUP{groups.length === 1 ? "" : "S"}</span><span className="sp-net-label">{summary.net > 0 ? "Overall, you are owed" : summary.net < 0 ? "Overall, you owe" : "All settled up"}</span><strong className="sp-net-amt tf-motion-value" key={summary.net}>{fmtMoney(Math.abs(summary.net), currency)}</strong><span className="sp-overview-caption">Your net balance across shared expenses</span></div>
-      <div className="sp-overview-breakdown"><div><span>Owed to you</span><strong className="pos">{fmtMoney(summary.owed, currency)}</strong></div><div><span>You owe</span><strong className="neg">{fmtMoney(summary.owe, currency)}</strong></div></div>
-    </section>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  Groups list (home screen)
-// ═══════════════════════════════════════════════════════════════
-export default function SplitPage({ userId, userName, friends, initialGroupId, initialJoinId, onConsumeDeepLink }) {
-  const [groups, setGroups] = useState(null);
-  const [active, setActive] = useState(null);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [joining, setJoining] = useState(false);
-
-  const reload = () => fetchMyGroups(userId).then(setGroups);
-  useEffect(() => {
-    if (!userId) return;
-    reload();
-    const unsub = subscribeMyGroups(userId, reload);
-    const t = setTimeout(() => setGroups(g => g ?? []), 4000);
-    return () => { unsub(); clearTimeout(t); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
-
-  // Join via invite link (?view=split&join=…)
-  useEffect(() => {
-    if (!initialJoinId || !userId || joining) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setJoining(true);
-    joinGroup(initialJoinId, userName).then(row => {
-      onConsumeDeepLink?.();
-      if (row) { reload(); setActive(row); }
-      setJoining(false);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialJoinId, userId]);
-
-  // Open a group from a notification deep-link once groups load
-  useEffect(() => {
-    if (initialGroupId && groups?.length) {
-      const g = groups.find(x => x.id === initialGroupId);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (g) { setActive(g); onConsumeDeepLink?.(); }
-    }
-  }, [initialGroupId, groups, onConsumeDeepLink]);
-
-  // Keep the active group's row fresh after edits
-  useEffect(() => {
-    if (active && groups) {
-      const fresh = groups.find(g => g.id === active.id);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (fresh && fresh !== active) setActive(fresh);
-    }
-  }, [groups]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  if (active) {
-    return (
-      <GroupLedger
-        userId={userId} userName={userName} group={active}
-        onBack={() => setActive(null)}
-        onGroupChanged={(row) => { setActive(row); reload(); }}
-        onGroupDeleted={(id) => {
-          setActive(null);
-          setGroups(prev => prev ? prev.filter(g => g.id !== id) : prev);
-          reload();
-        }}
-      />
-    );
-  }
-
-  return (
-    <div className="sp-pg">
-      <div className="sp-head">
-        <div className="sp-head-title"><span className="sp-kicker">SHARED EXPENSES</span><h2>Split</h2><p>See what you owe, what you are owed, and what changed.</p></div>
-        {groups?.length > 0 && <button className="sp-new-btn" onClick={() => setModalOpen(true)}><Users size={16} /> New group</button>}
-      </div>
-
-      {joining && <div className="sp-queued"><Check size={13} /> Joining group…</div>}
-
-      <GlobalInsights groups={groups} userId={userId} />
-
-      {groups !== null && groups.length > 0 && <div className="sp-section-head"><div><span className="sp-kicker">YOUR CIRCLES</span><h3>Groups <span>{groups.length}</span></h3></div><p>Open a group to add an expense or settle up.</p></div>}
-
-      {groups === null ? (
-        <div className="sp-grid">
-          {[0, 1].map(i => <div key={i} className="sp-group-card sp-skeleton" style={{ opacity: 1 - i * 0.3 }} />)}
-        </div>
-      ) : groups.length === 0 ? (
-        <EmptyState
-          icon={Wallet}
-          title="No split groups yet"
-          sub="Trip, flatmates, a group dinner — create a group and start splitting expenses."
-          action={<button className="sp-new-btn" onClick={() => setModalOpen(true)}>New group</button>}
-        />
-      ) : (
-        <div className="sp-grid">
-          {groups.map(g => <GroupCard key={g.id} g={g} userId={userId} onOpen={() => setActive(g)} />)}
-        </div>
-      )}
-
-      {modalOpen && (
-        <GroupModal userId={userId} userName={userName} friends={friends} existing={null} balances={{}}
-          onClose={() => setModalOpen(false)}
-          onSaved={(row) => { setModalOpen(false); setGroups(prev => [row, ...(prev || [])]); setActive(row); }} />
-      )}
-    </div>
-  );
-}
-
-function GroupCard({ g, userId, onOpen }) {
-  const [net, setNet] = useState(null);
-  useEffect(() => {
-    let alive = true;
-    fetchGroupLedger(g.id).then(l => {
-      if (!alive) return;
-      const bal = computeBalances(l.expenses, l.sharesByExpense, l.settlements, g.member_ids);
-      setNet(bal[userId] || 0);
-    });
-    return () => { alive = false; };
-  }, [g.id, g.member_ids, userId]);
-
-  const memberNames = (g.member_ids || []).map(id => (g.member_names?.[id] || "").split(" ")[0]).filter(Boolean);
-
-  return (
-    <button className="sp-group-card" onClick={onOpen}>
-      <div className="sp-group-top">
-        <span className="sp-group-symbol"><Users size={18} /></span>
-        <ChevronRight size={16} className="sp-group-chev" />
-      </div>
-      <span className="sp-group-name">{g.name}</span>
-      <div className="sp-group-members">
-        <div className="sp-ava-stack">
-          {(g.member_ids || []).slice(0, 4).map((id) => (
-            <Ava key={id} name={g.member_names?.[id] || "?"} size={24} />
-          ))}
-          {(g.member_ids?.length || 0) > 4 && <span className="sp-ava sp-ava-more" style={{ width: 24, height: 24 }}>+{g.member_ids.length - 4}</span>}
-        </div>
-        <span className="sp-group-mnames">{memberNames.slice(0, 3).join(", ")}{memberNames.length > 3 ? "…" : ""} · {g.member_ids?.length || 0} members</span>
-      </div>
-      <div className={`sp-group-net${net > 0 ? " pos" : net < 0 ? " neg" : ""}`}>
-        {net === null ? <span className="sp-group-net-load">···</span>
-          : net === 0 ? <><Check size={14} /><span>Settled up</span></>
-          : <><span className="sp-group-net-label">{net > 0 ? "You are owed" : "You owe"}</span> <b>{fmtMoney(Math.abs(net), g.currency)}</b></>}
-      </div>
-    </button>
-  );
+export default function SplitPage(props) {
+  return <SplitWorkspace key={props.userId} {...props} GroupLedger={GroupLedger} GroupModal={GroupModal}/>;
 }

@@ -20,7 +20,7 @@
  *   6. (Optional) Run installTrigger() once so the cache stays warm.
  */
 
-const SHEET_ID = '1ymPxm136OrP1B-OAgVKghXawblk19FxQR_37_5Fu2ms';
+const SHEET_ID = '1ZqJCFYScuZwK15SFVelng8VVlABeffhbHi69jQ4MOo4';
 const GID = 0; // tab to read (gid=0 in the sheet URL)
 const CACHE_MINUTES = 10;
 
@@ -42,7 +42,9 @@ function buildAndCache() { refresh(); }
 
 function refresh() {
   const menu = buildMenu();
-  const payload = { menu: menu, buildTs: Date.now() };
+  const now = new Date();
+  const weekOfMonth = Math.ceil(now.getDate() / 7); // 1 = days 1-7, 2 = 8-14, 3 = 15-21, 4 = 22-28, 5 = 29+
+  const payload = { menu: menu, weekOfMonth: weekOfMonth, buildTs: Date.now() };
   const json = JSON.stringify(payload);
   putCache(json);
   return json;

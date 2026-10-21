@@ -16,6 +16,32 @@ function readCache() {
   try { return JSON.parse(localStorage.getItem(CACHE_KEY) || "null"); } catch { return null; }
 }
 
+function formatDish(str) {
+  if (!str) return "";
+  return String(str)
+    .trim()
+    .toLowerCase()
+    .replace(/(^|[\s+/&(-])([a-z])/g, (_, b, l) => b + l.toUpperCase())
+    .replace(/\s*\+\s*/g, " + ")
+    .replace(/\s*\/\s*/g, " / ");
+}
+
+function normalizeMenu(rawMenu) {
+  if (!rawMenu || typeof rawMenu !== "object") return null;
+  const out = {};
+  for (const day in rawMenu) {
+    const meals = rawMenu[day];
+    if (!meals || typeof meals !== "object") continue;
+    out[day] = {};
+    for (const meal in meals) {
+      out[day][meal] = Array.isArray(meals[meal])
+        ? meals[meal].map(formatDish).filter(Boolean)
+        : meals[meal];
+    }
+  }
+  return out;
+}
+
 // Returns the live overrides object, or null if the feed is unreachable
 // (caller keeps the bundled menu). Serves cached data instantly when unchanged.
 export async function fetchMessMenu() {
@@ -28,8 +54,9 @@ export async function fetchMessMenu() {
     const data = await res.json();
     if (data?.error) throw new Error(data.error);
 
-    const menu = data?.menu;
-    if (!menu || !Object.keys(menu).length) throw new Error("empty menu");
+    const rawMenu = data?.menu;
+    if (!rawMenu || !Object.keys(rawMenu).length) throw new Error("empty menu");
+    const menu = normalizeMenu(rawMenu);
 
     // Change-detection: skip storing/re-render when nothing actually changed.
     if (cached?.buildTs === data.buildTs && cached?.menu) return cached.menu;

@@ -89,9 +89,11 @@ describe("TomorrowSummary", () => {
     expect(classDay).toContain("tmrw-summary-card");
     expect(classDay).not.toContain("theme-rain");
     expect(classDay).not.toContain("fdi-rain");
+    expect(classDay).not.toContain("tmrw-atmosphere");
     expect(freeDay).toContain("theme-rain");
     expect(freeDay).toContain("fdi-rain");
     expect(freeDay).toContain("tmrw-weather-layer is-rain");
+    expect(freeDay).toContain('class="tmrw-atmosphere is-rain" aria-hidden="true"');
   });
 
   it("uses cloudy motion for a partly cloudy forecast even at night", () => {
