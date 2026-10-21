@@ -210,3 +210,21 @@ There is no additional cloud schema, XP change, care penalty or streak.
 Validation: 17 companion suites / 389 tests, production Vite/PWA build, ESLint,
 and actual-page browser checks for study, evening, bedtime, paired settling,
 manual override, pause/resume, persistent opt-out and 390px mobile layout.
+
+
+### Luna and the dressing room
+
+Luna is a midnight moon wolf with a silver mask/ruff, teal eyes, moon marking
+and a curled silver-tipped tail. The persisted luna key and all shared movement,
+expression, growth and wardrobe anchors remain. Legacy sprite mood offsets are
+removed so hats retain their fit while she rests or howls.
+
+The wardrobe now has a responsive outfit preview and full-pet item cards for
+all 23 headwear pieces, six neckwear pieces and nine coat finishes. Hover/focus
+is a temporary visual preview; intentional selection equips an owned item.
+Independent slots, existing unlock gates and cohort restrictions remain. The
+catalogue includes keyboard category navigation, visible wearing states and an
+Unlocked only filter. All wearable artwork gains local, uniquely identified
+paint servers for shaded surfaces; outlines, highlights and geometry remain
+crisp. Coat tinting uses a common tonal base for consistent colour families
+across differently coloured species. No schema, XP or stored item-key changes.

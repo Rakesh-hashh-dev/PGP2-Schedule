@@ -21,7 +21,7 @@ export const PET_PROFILES = {
   byte: profile('Scans the room, waves an arm, and tilts its antenna.', ['scan','paw-wave','peek','breathe'], 7.8, 'circuit'),
   pebble: profile('Peeks out, stretches its neck, and rests inside its shell.', ['peek','stretch','breathe','doze'], 7.3, 'scale'),
   prickle: profile('A careful sniff, a cosy curl, and a slow sleepy breath.', ['curl','sniff','breathe','doze'], 5.9),
-  luna: profile('A warm grey wolf with alert ears, a brush tail, and a little howl.', ['howl','tail-swish','listen','breathe'], 4.8),
+  luna: profile('A midnight moon wolf with silver markings, teal eyes, and a soft little howl.', ['howl','tail-swish','listen','breathe'], 4.8),
   frost: profile('An icy husky who howls, listens, and swishes its snowy tail.', ['howl','tail-swish','listen','breathe'], 5.6, 'spark'),
   unicorn: profile('A soft prance, a proud pose, and a flowing tail swish.', ['hop','proud','tail-swish','breathe'], 5.5, 'spark'),
   dragon: profile('A powerful wing stretch, a proud stance, and a gentle hover.', ['wing-stretch','proud','hover','breathe'], 5, 'scale'),

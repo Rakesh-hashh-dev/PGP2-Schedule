@@ -5,12 +5,12 @@ import {
 } from "lucide-react";
 import { PETS, getPetByKey } from "./greetingPets.jsx";
 import {
-  CARE_ACTIONS, HATS, COATS, NECKWEAR, TITLES, MAX_DEVOTION, MAX_LEVEL, DEVOTION_BASE_LEVEL,
+  CARE_ACTIONS, TITLES, MAX_LEVEL, DEVOTION_BASE_LEVEL,
   STARTER_KEYS, UNLOCKS, DEVOTION_COMPANIONS, BUDDY_DEVOTION, STREAK_CAP,
-  careLeft, devotionFor, hatRequirement, hatsFor, hoursSince, isAdopted,
+  careLeft, devotionFor, hatsFor, hoursSince, isAdopted,
   levelProgress, moodExplainFor, REUNION_HOURS, unlockedFor, visibleHat, xpBySource, xpOf,
   growthStageFor, nextGrowthStage,
-  coatsFor, neckwearFor, coatRequirement, neckwearRequirement,
+  coatsFor, neckwearFor,
   visibleCoat, visibleNeckwear, titlesFor, visibleTitle, titleLabel,
   buddyFor, careStreak, devotionMultiplier, hasXpRecount,
 } from "../lib/pet.js";
@@ -20,6 +20,7 @@ import PetHabitat, { PetHabitatControls } from "./PetHabitat.jsx";
 import PetSleepCue from "./PetSleepCue.jsx";
 import PetHat from "./PetHat.jsx";
 import PetNeckwear from "./PetNeckwear.jsx";
+import PetWardrobe from "./PetWardrobe.jsx";
 import { routineFor } from "../lib/petRoutine.js";
 import { useCompanionStory } from "../hooks/useCompanionStory.js";
 import PetMemoryPanel from "./PetMemoryPanel.jsx";
@@ -66,12 +67,6 @@ const PET_SECTIONS = [
   { id: "habitat", label: "Habitat", Icon: Home },
   { id: "wardrobe", label: "Wardrobe", Icon: Shirt },
   { id: "profile", label: "Profile", Icon: UserRound },
-];
-
-const WARDROBE_SECTIONS = [
-  { id: "hats", label: "Hats" },
-  { id: "collars", label: "Collars" },
-  { id: "coats", label: "Coats" },
 ];
 
 function moveTabFocus(event, index, tabs, onChange) {
@@ -123,7 +118,6 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
   const [nameDraft, setNameDraft] = useState(null);
   const [adoptChoice, setAdoptChoice] = useState(null);
   const [activeSection, setActiveSection] = useState("overview");
-  const [wardrobeSection, setWardrobeSection] = useState("hats");
   const [careFeedback, setCareFeedback] = useState(null);
   const [recountSeen, setRecountSeen] = useState(isRecountDismissed);
 
@@ -669,168 +663,7 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
         role="tabpanel"
         aria-labelledby="pet-tab-wardrobe"
       >
-        <div className="pet-card-heading">
-          <div>
-            <p className="pet-eyebrow">Make it theirs</p>
-            <h3 className="pet-h3">Wardrobe</h3>
-          </div>
-          <span className="pet-total-pill">{earnedHats.size + earnedNeck.size + earnedCoats.size} earned</span>
-        </div>
-        <div className="pet-subtabs" role="tablist" aria-label="Wardrobe categories">
-          {WARDROBE_SECTIONS.map((section, index) => (
-            <button
-              key={section.id}
-              type="button"
-              id={`pet-wardrobe-tab-${section.id}`}
-              role="tab"
-              aria-selected={wardrobeSection === section.id}
-              aria-controls={`pet-wardrobe-panel-${section.id}`}
-              className={wardrobeSection === section.id ? "is-active" : ""}
-              tabIndex={wardrobeSection === section.id ? 0 : -1}
-              onClick={() => setWardrobeSection(section.id)}
-              onKeyDown={event => moveTabFocus(event, index, WARDROBE_SECTIONS, setWardrobeSection)}
-            >
-              {section.label}
-            </button>
-          ))}
-        </div>
-
-        {wardrobeSection === "hats" && (
-        <div className="pet-wardrobe-pane" id="pet-wardrobe-panel-hats" role="tabpanel" aria-labelledby="pet-wardrobe-tab-hats">
-        <p className="pet-collection-note">{earnedHats.size} of {HATS.filter(h => !hatsOff.includes(h.key)).length} hats unlocked</p>
-        <div className="pet-wardrobe">
-          <button
-            type="button"
-            className={`pet-hat-slot${hat === null ? " on" : ""}`}
-            aria-pressed={hat === null}
-            onClick={() => petActions.setCosmetic("hat", null)}
-          >
-            <span className="pet-hat-art" aria-hidden="true" />
-            <span className="pet-slot-name">None</span>
-          </button>
-          {HATS.filter(option => !hatsOff.includes(option.key)).map(option => {
-            const isEarned = earnedHats.has(option.key);
-            const isOn = hat === option.key;
-            return (
-              <button
-                key={option.key}
-                type="button"
-                className={`pet-hat-slot${isOn ? " on" : ""}${isEarned ? "" : " locked"}`}
-                disabled={!isEarned}
-                aria-pressed={isOn}
-                aria-label={isEarned ? `Wear the ${option.label}` : `${option.label}, needs ${hatRequirement(option.key)}`}
-                onClick={() => isEarned && petActions.setCosmetic("hat", isOn ? null : option.key)}
-              >
-                <span className="pet-hat-art" aria-hidden="true">
-                  <PetHat hat={option.key} />
-                </span>
-                <span className="pet-slot-name">{option.label}</span>
-                {isOn && <span className="pet-slot-badge"><Check size={11} strokeWidth={3} /></span>}
-                {!isEarned && <span className="pet-slot-lock"><Lock size={10} /> {hatRequirement(option.key)}</span>}
-              </button>
-            );
-          })}
-        </div>
-        <p className="pet-care-note">
-          {devotion.tier >= MAX_DEVOTION
-            ? "Every wearable is yours."
-            : progress.level >= DEVOTION_BASE_LEVEL
-              ? "Devotion keeps the wardrobe growing — every tier past level 12 opens something."
-              : "More arrive as you level, and more still after level 12."}
-        </p>
-        </div>
-        )}
-
-        {/* A second slot, independent of the hat. Two slots multiply: the
-            wardrobe grows faster than the art does. */}
-        {wardrobeSection === "collars" && (
-        <div className="pet-wardrobe-pane" id="pet-wardrobe-panel-collars" role="tabpanel" aria-labelledby="pet-wardrobe-tab-collars">
-        <p className="pet-collection-note">{earnedNeck.size} of {NECKWEAR.length} collars unlocked</p>
-        <div className="pet-wardrobe">
-          <button
-            type="button"
-            className={`pet-hat-slot${neck === null ? " on" : ""}`}
-            aria-pressed={neck === null}
-            onClick={() => petActions.setCosmetic("neck", null)}
-          >
-            <span className="pet-hat-art" aria-hidden="true" />
-            <span className="pet-slot-name">Their own</span>
-          </button>
-          {NECKWEAR.map(option => {
-            const isEarned = earnedNeck.has(option.key);
-            const isOn = neck === option.key;
-            return (
-              <button
-                key={option.key}
-                type="button"
-                className={`pet-hat-slot${isOn ? " on" : ""}${isEarned ? "" : " locked"}`}
-                disabled={!isEarned}
-                aria-pressed={isOn}
-                aria-label={isEarned ? `Wear the ${option.label}` : `${option.label}, needs ${neckwearRequirement(option.key)}`}
-                onClick={() => isEarned && petActions.setCosmetic("neck", isOn ? null : option.key)}
-              >
-                <span className="pet-hat-art" aria-hidden="true">
-                  <PetNeckwear neck={option.key} />
-                </span>
-                <span className="pet-slot-name">{option.label}</span>
-                {isOn && <span className="pet-slot-badge"><Check size={11} strokeWidth={3} /></span>}
-                {!isEarned && <span className="pet-slot-lock"><Lock size={10} /> {neckwearRequirement(option.key)}</span>}
-              </button>
-            );
-          })}
-        </div>
-        </div>
-        )}
-
-        {/* Coats recolour the animal you already have, which is why they are
-            devotion-only: they are for the stretch where there is nothing new
-            left to unlock. */}
-        {wardrobeSection === "coats" && (
-        <div className="pet-wardrobe-pane" id="pet-wardrobe-panel-coats" role="tabpanel" aria-labelledby="pet-wardrobe-tab-coats">
-        <p className="pet-collection-note">{earnedCoats.size} of {COATS.length} coats unlocked</p>
-        <div className="pet-wardrobe">
-          <button
-            type="button"
-            className={`pet-coat-slot${coat === null ? " on" : ""}`}
-            aria-pressed={coat === null}
-            onClick={() => petActions.setCosmetic("coat", null)}
-          >
-            <span className="dg-pet pet-coat-art" data-pet={current.key} data-motion="off" aria-hidden="true">
-              <current.Svg />
-            </span>
-            <span className="pet-slot-name">Their own</span>
-          </button>
-          {COATS.map(option => {
-            const isEarned = earnedCoats.has(option.key);
-            const isOn = coat === option.key;
-            return (
-              <button
-                key={option.key}
-                type="button"
-                className={`pet-coat-slot${isOn ? " on" : ""}${isEarned ? "" : " locked"}`}
-                disabled={!isEarned}
-                aria-pressed={isOn}
-                aria-label={isEarned ? `${option.label} coat` : `${option.label} coat, needs ${coatRequirement(option.key)}`}
-                onClick={() => isEarned && petActions.setCosmetic("coat", isOn ? null : option.key)}
-              >
-                <span
-                  className="dg-pet pet-coat-art"
-                  data-pet={current.key}
-                  data-coat={option.key}
-                  data-motion="off"
-                  aria-hidden="true"
-                >
-                  <current.Svg />
-                </span>
-                <span className="pet-slot-name">{option.label}</span>
-                {isOn && <span className="pet-slot-badge"><Check size={11} strokeWidth={3} /></span>}
-                {!isEarned && <span className="pet-slot-lock"><Lock size={10} /> {coatRequirement(option.key)}</span>}
-              </button>
-            );
-          })}
-        </div>
-        </div>
-        )}
+        <PetWardrobe current={current} petName={pet.name} hat={hat} neck={neck} coat={coat} stage={stage} accessoryOn={accessoryOn} earnedHats={earnedHats} earnedNeck={earnedNeck} earnedCoats={earnedCoats} hatsOff={hatsOff} onChange={petActions.setCosmetic}/>
       </section>
       ) : (
         <section
