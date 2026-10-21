@@ -20,6 +20,7 @@ export function Hoot() {
 <path d="M16 12c-5-5-11-2-9 5 1 4 5 5 9 5 4 0 8-1 9-5 2-7-4-10-9-5z" fill="#f6e6c5" />
 <ellipse cx="16" cy="24.5" rx="6" ry="3.2" fill="#e3c79c" />
 <path d="m12 23 1 1m3-1 1 1m3-1 1 1m-7 1 1 1m3-1 1 1" stroke="#a87653" strokeWidth=".7" strokeLinecap="round" />
+<g className="pet-design-marking" data-design-marking="hoot"><path d="M11 25q1 1.7 2 0m2 1q1 1.7 2 0m2-1q1 1.7 2 0" fill="none" stroke="#f3dfb7" strokeWidth="1" strokeLinecap="round" /></g>
 <PetEyes left={11.3} right={20.7} y={15.2} rx={1.75} ry={1.75} ink="#252333" iris="#c9974c" />
 <PetExpression left={11.3} right={20.7} y={15.2} ink={INK} beak />
 <path className="dg-pet-beak" d="m16 18-1.6 1.2 1.6 2 1.6-2z" fill="#e8ad49" stroke={INK} strokeWidth=".65" />
@@ -58,6 +59,7 @@ export function Byte() {
 <rect className="dg-pet-face" x="5.8" y="7" width="20.4" height="14.7" rx="6" fill={`url(#${id}-coat)`} stroke={INK} strokeWidth="1.2" />
 <path d="M9 9h14" stroke="#e6fff3" strokeWidth="1.2" strokeLinecap="round" />
 <rect x="8.2" y="10.5" width="15.6" height="9" rx="3.5" fill="#253e49" />
+<g className="pet-design-marking" data-design-marking="byte"><path d="M9.4 9.5h4.2" stroke="#effff4" strokeWidth="1.1" strokeLinecap="round" /><g fill="#385d60"><circle cx="21.2" cy="20.3" r=".35" /><circle cx="22.5" cy="20.3" r=".35" /></g></g>
 <PetEyes left={12} right={20} y={14.7} rx={1.5} ry={1.85} ink="#253e49" iris="#92f0dc" digital square />
 <path className="dg-pet-mouth-base" d="M14.4 17.6q1.6 1.2 3.2 0" fill="none" stroke="#92f0dc" strokeWidth=".7" strokeLinecap="round" />
 <PetExpression y={14.7} mouthY={17.6} ink="#92f0dc" digital />
@@ -91,6 +93,7 @@ export function Pebble() {
 <g className="dg-pet-ear dg-pet-ear-left" data-part="ear-left"><ellipse cx="19.7" cy="14.2" rx="1.3" ry="1.7" fill="#a3bc87" /></g>
 <g className="dg-pet-ear dg-pet-ear-right" data-part="ear-right"><ellipse cx="28" cy="14.2" rx="1.3" ry="1.7" fill="#a3bc87" /></g>
 <path className="dg-pet-face" d="M17.5 18c0-5.2 3-7 6.4-7s6 2.8 6 7c0 4.8-2.9 7-6.2 7s-6.2-2.6-6.2-7z" fill={`url(#${id}-skin)`} stroke={INK} strokeWidth="1.1" />
+<g className="pet-design-marking" data-design-marking="pebble"><path d="m21.7 11.6 1.1-.9 1.1.9-1.1.7z" fill="#b5cf90" /></g>
 <PetEyes left={21} right={26.5} y={17.2} rx={1.3} ry={1.3} ink="#252333" iris="#719563" />
 <path className="dg-pet-mouth-base" d="M22 20.2q1.8 1.5 3.6 0" fill="none" stroke={INK} strokeWidth=".75" strokeLinecap="round" />
 <PetExpression left={21} right={26.5} y={17.2} mouthY={20.2} ink={INK} />
@@ -160,6 +163,7 @@ export function Prickle() {
       </g>
 <path className="dg-pet-face" d="M19 9.3c5.2 0 8.4 3.1 8.4 7.5 0 2.5-1.1 4.2-3.2 5.5L21 24.4q-2 1.2-4 0l-3.2-2.1c-2.1-1.3-3.2-3-3.2-5.5 0-4.4 3.2-7.5 8.4-7.5z" fill={cream} stroke={ink} strokeWidth="1.05" strokeLinejoin="round" />
 <path d="M15.2 11.1q2-1.1 3.4-.8" fill="none" stroke="#fff9ea" strokeWidth="1" strokeLinecap="round" />
+<g className="pet-design-marking" data-design-marking="prickle"><path d="M12.5 22.5q1.1 2.1 3.4 2.6l-.9-1.7m8.5-.9q-1.1 2.1-3.4 2.6l.9-1.7" fill="#f3ddbb" /></g>
 <PetEyes left={15.6} right={22.4} y={16.8} rx={1.7} ry={1.95} ink="#49372f" iris="#b27e55" />
 <g fill="#dc9a90" opacity=".55"><ellipse cx="12.9" cy="19.3" rx="1.6" ry=".8" /><ellipse cx="25.1" cy="19.3" rx="1.6" ry=".8" /></g>
 <path d="M15.2 21q3.8-4.2 7.6 0l-1.9 2.6q-1.9 1.7-3.8 0z" fill="#fff1d7" />
