@@ -19,6 +19,19 @@
   --pet-wing-right-x: 23px; --pet-wing-right-y: 19px;
 }
 .dg-pet .pet-art { filter: var(--pet-coat, none) saturate(var(--pet-sat, 1)); }
+/* Coat colour belongs to the companion; chosen accessories keep their palette. */
+.dg-pet :is(.dg-pet-hat,.dg-pet-neck) { filter: saturate(var(--pet-sat, 1)); }
+/* Establish a common tonal base before tinting: a lavender coat should not
+   become green just because the companion's original fur is midnight blue. */
+.dg-pet[data-coat="frost"] { --pet-coat: grayscale(1) sepia(1) saturate(.75) hue-rotate(150deg) brightness(1.12); }
+.dg-pet[data-coat="caramel"] { --pet-coat: grayscale(1) sepia(1) saturate(1.3) hue-rotate(-8deg) brightness(1.06); }
+.dg-pet[data-coat="lavender"] { --pet-coat: grayscale(1) sepia(1) saturate(1.2) hue-rotate(230deg) brightness(1.07); }
+.dg-pet[data-coat="dusk"] { --pet-coat: grayscale(1) sepia(1) saturate(.8) hue-rotate(190deg) brightness(.9); }
+.dg-pet[data-coat="sand"] { --pet-coat: grayscale(1) sepia(1) saturate(.55) hue-rotate(-8deg) brightness(1.12); }
+.dg-pet[data-coat="mint"] { --pet-coat: grayscale(1) sepia(1) saturate(.9) hue-rotate(120deg) brightness(1.09); }
+.dg-pet[data-coat="berry"] { --pet-coat: grayscale(1) sepia(1) saturate(1.5) hue-rotate(275deg); }
+.dg-pet[data-coat="ink"] { --pet-coat: grayscale(.9) brightness(.82) contrast(1.08); }
+.dg-pet[data-coat="gold"] { --pet-coat: grayscale(1) sepia(1) saturate(2) hue-rotate(-8deg) brightness(1.08); }
 .dg-pet .pet-art .dg-pet-ground { pointer-events: none; }
 .dg-pet:has(> .pet-art) .dg-pet-wearable-canvas { transform: translate(1px, .35px) scale(.935); }
 .dg-pet:has(> .pet-art) .dg-pet-wearable-body { transform-box: view-box; transform-origin: 16px 30px; animation: petBodyBreath var(--pet-breath-cycle) ease-in-out infinite; }
