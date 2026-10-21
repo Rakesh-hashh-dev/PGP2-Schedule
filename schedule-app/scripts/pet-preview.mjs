@@ -19,7 +19,7 @@ const only = process.argv[process.argv.indexOf("--pet") + 1];
 const PETS = process.argv.includes("--pet") ? allPets.filter(p => p.key === only) : allPets;
 const { PET_PERSONALITIES } = await import("../src/lib/petPersonality.js");
 const { adopt, emptyPet, unlockedFor } = await import("../src/lib/pet.js");
-const css = ["src/styles.css", "src/styles/pet-personality.css", "src/styles/pet.css", "src/styles/luna.css", "src/styles/pet-art.css"]
+const css = ["src/styles.css", "src/styles/pet-personality.css", "src/styles/pet.css", "src/styles/luna.css", "src/styles/pet-art.css", "src/styles/pet-rig.css"]
   .map(path => readFileSync(resolve(root, path), "utf8")).join("\n");
 const el = React.createElement;
 let renderId = 0;

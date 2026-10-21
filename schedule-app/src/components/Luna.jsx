@@ -1,3 +1,4 @@
+import PetGrowthDetail from "./PetGrowthDetail.jsx";
 import { useId } from "react";
 import PetEyes from "./PetEyes.jsx";
 import PetExpression from "./PetExpression.jsx";
@@ -16,7 +17,7 @@ export default function Luna() {
   const fur = `url(#${id}-fur)`;
   const cream = `url(#${id}-cream)`;
   return (
-    <svg className="pet-art" viewBox="0 0 32 32" aria-hidden="true"><defs>
+    <svg className="pet-art pet-rig" viewBox="0 0 32 32" aria-hidden="true"><defs>
         <radialGradient id={`${id}-fur`} cx="40%" cy="30%" r="78%">
           <stop offset="0" stopColor="#d3d5dc" />
           <stop offset=".58" stopColor="#a3a7b2" />
@@ -29,10 +30,10 @@ export default function Luna() {
       </defs>
 <ellipse className="dg-pet-ground" cx="16" cy="30.25" rx="7.3" ry=".85" fill="#252333" opacity=".12" />
 <g className="dg-pet-canvas" transform="translate(1 .35) scale(.935)">
-<g className="dg-pet-body" data-part="body">
+<g className="dg-pet-body pet-rig-frame" data-part="body" data-pet-part="body">
 
       {/* A big brush curling up the right side, cream at the tip. */}
-      <g className="dg-pet-tail" data-part="tail">
+      <g className="dg-pet-tail pet-rig-tail" data-part="tail" data-pet-part="tail">
         <path d="M20.6 28c4.4.8 7.8-1.4 8.6-5 .6-2.8-.2-5.6-2-7.6-.4 1.8-1.4 3-2.8 3.6.8 2.8 0 5.4-2.2 6.8-.8.5-1.6.8-2.4.9z" fill={fur} stroke={ink} strokeWidth="1" strokeLinejoin="round" />
         <path d="M27.2 15.4c1.8 2 2.6 4.8 2 7.6-1.1-.1-2.1-.7-2.7-1.7.6-1.9.6-4-.1-5.9z" fill={cream} />
         <path d="M23.4 25.4q2.6-1.1 3.4-3.7M24.8 26.6q2.4-1 3.3-3.1" fill="none" stroke="#5f6472" strokeWidth=".5" strokeLinecap="round" opacity=".7" />
@@ -46,7 +47,8 @@ export default function Luna() {
       <ellipse cx="19.4" cy="29.3" rx="2.5" ry="1.3" fill={cream} stroke={ink} strokeWidth=".85" />
       <path d="M18.8 29.4v.8M20 29.4v.8" stroke={ink} strokeWidth=".45" strokeLinecap="round" opacity=".55" />
 
-      <g className="dg-pet-head" data-part="head" style={{ "--pet-head-x": "16px", "--pet-head-y": "24px" }}>
+      <g className="dg-pet-head pet-rig-head" data-part="head" style={{ "--pet-head-x": "16px", "--pet-head-y": "24px" }} data-pet-part="head">
+<PetGrowthDetail pet="luna" />
 <g className="dg-pet-ear dg-pet-ear-left" data-part="ear-left">
         <path d="M12.6 9.6 7 1.8 7.2 11.4z" fill={fur} stroke={ink} strokeWidth="1.05" strokeLinejoin="round" />
         <path d="M11.2 9.6 8 4.6l.2 5.4z" fill={cream} />

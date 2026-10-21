@@ -31,7 +31,7 @@ export const PET_PERSONALITIES = {
   maple: ["tailcurl", "pawrub", "earlisten", "glance"],
   ember: ["flutter", "proudpose", "headtilt", "yawn"],
   mochi: ["slowstretch", "nosetwitch", "tuck", "glance"],
-  nimbus: ["float", "wave", "dreamyblink", "sway"],
+  nimbus: ["float", "flutter", "dreamyblink", "sway"],
   sable: ["tailflick", "groom", "earlisten", "downdog"],
   inky: ["wave", "paddle", "wiggle", "float"],
   luna: ["luna-wave", "luna-run-right", "luna-run-left", "luna-think", "luna-jump", "luna-review"],

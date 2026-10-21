@@ -17,6 +17,7 @@
 // See docs/pet-companion-plan.md §4.
 
 import { ymd } from "./datetime.js";
+import { normalizeHabitat, validHabitat } from "./petHabitat.js";
 
 // ── Tuning ──────────────────────────────────────────────────────
 // One block, on purpose: balancing this feature means editing numbers here and
@@ -389,7 +390,7 @@ export function emptyPet() {
     care: { day: null, used: 0 },
     lastSeen: 0,
     unlocked: [],
-    cosmetics: { accessory: true, hat: null, coat: null, neck: null, title: null, buddy: null },
+    cosmetics: { accessory: true, hat: null, coat: null, neck: null, title: null, buddy: null, habitat: normalizeHabitat() },
   };
 }
 
@@ -442,6 +443,7 @@ function checkNormalized(raw) {
   if (raw.cosmetics.neck !== null && !NECK_KEYS.has(raw.cosmetics.neck)) return false;
   if (raw.cosmetics.title !== null && !TITLE_KEYS.has(raw.cosmetics.title)) return false;
   if (raw.cosmetics.buddy !== null && typeof raw.cosmetics.buddy !== "string") return false;
+  if (!validHabitat(raw.cosmetics.habitat)) return false;
   return true;
 }
 
@@ -499,6 +501,7 @@ export function normalize(raw) {
       neck: NECK_KEYS.has(raw.cosmetics?.neck) ? raw.cosmetics.neck : null,
       title: TITLE_KEYS.has(raw.cosmetics?.title) ? raw.cosmetics.title : null,
       buddy: typeof raw.cosmetics?.buddy === "string" ? renamed(raw.cosmetics.buddy) : null,
+      habitat: normalizeHabitat(raw.cosmetics?.habitat),
     },
   };
 }
@@ -553,6 +556,11 @@ export function switchTo(state, petKey) {
  */
 export function setCosmetic(state, key, value) {
   const s = normalize(state);
+  if (key === "habitat") {
+    const habitat = normalizeHabitat(value);
+    if (JSON.stringify(s.cosmetics.habitat) === JSON.stringify(habitat)) return s;
+    return { ...s, cosmetics: { ...s.cosmetics, habitat } };
+  }
   // Each wearable validates against what was EARNED (never against cohort
   // policy) for the reason spelled out under the hat below.
   if (key === "coat" || key === "neck" || key === "title" || key === "buddy") {

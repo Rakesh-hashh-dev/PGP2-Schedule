@@ -12,10 +12,11 @@
 // Decorative by contract: `aria-hidden`, no interaction, no layout of its own
 // beyond the size it is given. Anything that needs to be READ (a name, a level)
 // belongs in the caller's own markup, next to it.
-import { isAdopted, moodExplainFor, visibleCoat, visibleHat, visibleNeckwear } from "../lib/pet.js";
+import { isAdopted, moodExplainFor, growthStageFor, levelProgress, xpOf, visibleCoat, visibleHat, visibleNeckwear } from "../lib/pet.js";
 import { getPetByKey } from "./greetingPets.jsx";
 import PetHat from "./PetHat.jsx";
 import PetNeckwear from "./PetNeckwear.jsx";
+import { usePetPerformance } from "../hooks/usePetPerformance.js";
 import PetSleepCue from "./PetSleepCue.jsx";
 
 export default function PetCameo({
@@ -27,17 +28,17 @@ export default function PetCameo({
   motion = true,
   className = "",
 }) {
-  if (!isAdopted(pet) || pet?.companionEnabled === false) return null;
-  if (petSettings?.enabled === false) return null;
-  const art = getPetByKey(pet.petKey);
-  if (!art) return null;
-
-  const { mood } = moodExplainFor(pet, now, petContext || {});
+  const enabled = isAdopted(pet) && pet?.companionEnabled !== false && petSettings?.enabled !== false;
+  const art = getPetByKey(pet?.petKey);
+  const { mood } = enabled ? moodExplainFor(pet, now, petContext || {}) : { mood: 'content' };
+  const { bind: petRef, action, source, replay } = usePetPerformance(mood, enabled && motion && size > 32 && petSettings?.motion !== false, art?.key, null, petSettings?.signatures !== false);
+  if (!enabled || !art) return null;
   const wardrobe = petSettings?.wardrobe !== false;
   const hatsOff = petSettings?.hatsOff || [];
 
   return (
     <span
+      ref={petRef}
       className={`dg-pet pet-cameo ${className}`.trim()}
       // The px offsets the hat and collar are tuned against assume the 40px
       // greeting chip; scaling them here keeps a cameo at any size wearing its
@@ -46,6 +47,10 @@ export default function PetCameo({
       data-pet={art.key}
       data-motion={motion && petSettings?.motion !== false ? "on" : "off"}
       data-mood={mood}
+      data-stage={growthStageFor(levelProgress(xpOf(pet)).level).key}
+      data-action={action}
+      data-action-source={source}
+      data-action-replay={replay}
       data-coat={visibleCoat(pet, { wardrobe }) || undefined}
       data-neck={visibleNeckwear(pet, { wardrobe }) || undefined}
       data-accessory={pet?.cosmetics?.accessory === false ? "off" : undefined}

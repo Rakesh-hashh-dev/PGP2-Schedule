@@ -1,3 +1,4 @@
+import PetGrowthDetail from "./PetGrowthDetail.jsx";
 import { useId } from "react";
 import PetEyes from "./PetEyes.jsx";
 import PetDetail, { PetPaintDefs } from "./PetDetail.jsx";
@@ -7,13 +8,14 @@ const INK = "#292535";
 
 export function Hoot() {
   const id = "hoot" + useId().replace(/\W/g, "");
-  return <svg className="pet-art" viewBox="0 0 32 32" aria-hidden="true">
+  return <svg className="pet-art pet-rig" viewBox="0 0 32 32" aria-hidden="true">
 <defs><PetPaintDefs id={`${id}-coat`} light="#cda17a" coat="#a87653" shade="#80553f" /></defs>
 <ellipse className="dg-pet-ground" cx="16" cy="30.25" rx="7.3" ry=".85" fill="#252333" opacity=".12" />
 <g className="dg-pet-canvas" transform="translate(1 .35) scale(.935)">
-<g className="dg-pet-body" data-part="body">
+<g className="dg-pet-body pet-rig-frame" data-part="body" data-pet-part="body">
     <g fill="#d8a653" stroke={INK} strokeWidth=".85"><path d="M11 27v3m-2 0h4M21 27v3m-2 0h4" strokeLinecap="round" /></g>
-    <g className="dg-pet-head" data-part="head" style={{ "--pet-head-x": "16px", "--pet-head-y": "24px" }}>
+    <g className="dg-pet-head pet-rig-head" data-part="head" style={{ "--pet-head-x": "16px", "--pet-head-y": "24px" }} data-pet-part="head">
+<PetGrowthDetail pet="hoot" />
 <path className="dg-pet-face" d="M6 10 5 4l6 3c3-1.5 7-1.5 10 0l6-3-1 6c2 3 2.4 7 1.4 11C26 27 21 29 16 29S6 27 4.6 21C3.6 17 4 13 6 10z" fill={`url(#${id}-coat)`} stroke={INK} strokeWidth="1.15" strokeLinejoin="round" />
 <path d="M16 12c-5-5-11-2-9 5 1 4 5 5 9 5 4 0 8-1 9-5 2-7-4-10-9-5z" fill="#f6e6c5" />
 <ellipse cx="16" cy="24.5" rx="6" ry="3.2" fill="#e3c79c" />
@@ -27,8 +29,8 @@ export function Hoot() {
 <PetDetail pet="hoot" />
 </g>
 
-    <g className="dg-pet-wing dg-pet-wing-left" fill="#8d6048" stroke={INK} strokeWidth=".9" data-part="wing-left"><path d="M6 17c-3 1-3 8 1 9 2-3 2-6-1-9z" /></g>
-    <g className="dg-pet-wing dg-pet-wing-right" fill="#8d6048" stroke={INK} strokeWidth=".9" data-part="wing-right"><path d="M26 17c3 1 3 8-1 9-2-3-2-6 1-9z" /></g>
+    <g className="dg-pet-wing dg-pet-wing-left pet-rig-wing-left" fill="#8d6048" stroke={INK} strokeWidth=".9" data-part="wing-left" data-pet-part="wing"><path d="M6 17c-3 1-3 8 1 9 2-3 2-6-1-9z" /></g>
+    <g className="dg-pet-wing dg-pet-wing-right pet-rig-wing-right" fill="#8d6048" stroke={INK} strokeWidth=".9" data-part="wing-right" data-pet-part="wing"><path d="M26 17c3 1 3 8-1 9-2-3-2-6 1-9z" /></g>
 
     {/* Glasses are part of Hoot's identity, independent of wardrobe toggles. */}
 
@@ -40,17 +42,18 @@ export function Hoot() {
 
 export function Byte() {
   const id = "byte" + useId().replace(/\W/g, "");
-  return <svg className="pet-art" viewBox="0 0 32 32" aria-hidden="true">
+  return <svg className="pet-art pet-rig" viewBox="0 0 32 32" aria-hidden="true">
 <defs><PetPaintDefs id={`${id}-coat`} light="#d3eee4" coat="#a3d8cd" shade="#71aba3" /></defs>
 <ellipse className="dg-pet-ground" cx="16" cy="30.25" rx="7.3" ry=".85" fill="#252333" opacity=".12" />
 <g className="dg-pet-canvas" transform="translate(1 .35) scale(.935)">
-<g className="dg-pet-body" data-part="body">
+<g className="dg-pet-body pet-rig-frame" data-part="body" data-pet-part="body">
     <g className="dg-pet-foot" fill="#6caea9" stroke={INK} strokeWidth=".9"><rect x="10" y="26" width="4.5" height="4" rx="1.4" /><rect x="17.5" y="26" width="4.5" height="4" rx="1.4" /></g>
     <rect x="10" y="20" width="12" height="7.5" rx="3" fill="#b4e2d6" stroke={INK} strokeWidth="1" />
     <circle cx="16" cy="23.7" r="1.5" fill="#f4bd67" stroke={INK} strokeWidth=".6" />
-    <g className="dg-pet-wing dg-pet-wing-left dg-pet-arm" fill="#6caea9" stroke={INK} strokeWidth=".95" data-part="wing-left"><path d="M10 21 5 23" /><circle cx="4.8" cy="23" r="2" /></g>
-    <g className="dg-pet-wing dg-pet-wing-right dg-pet-arm" fill="#6caea9" stroke={INK} strokeWidth=".95" data-part="wing-right"><path d="m22 21 5 2" /><circle cx="27.2" cy="23" r="2" /></g>
-    <g className="dg-pet-head" data-part="head" style={{ "--pet-head-x": "16px", "--pet-head-y": "24px" }}>
+    <g className="dg-pet-wing dg-pet-wing-left dg-pet-arm pet-rig-wing-left" fill="#6caea9" stroke={INK} strokeWidth=".95" data-part="wing-left" data-pet-part="wing"><path d="M10 21 5 23" /><circle cx="4.8" cy="23" r="2" /></g>
+    <g className="dg-pet-wing dg-pet-wing-right dg-pet-arm pet-rig-wing-right" fill="#6caea9" stroke={INK} strokeWidth=".95" data-part="wing-right" data-pet-part="wing"><path d="m22 21 5 2" /><circle cx="27.2" cy="23" r="2" /></g>
+    <g className="dg-pet-head pet-rig-head" data-part="head" style={{ "--pet-head-x": "16px", "--pet-head-y": "24px" }} data-pet-part="head">
+<PetGrowthDetail pet="byte" />
     <g className="dg-pet-antenna dg-pet-sig dg-pet-sig-byte" stroke={INK} strokeWidth="1"><path d="M16 7V3" /><circle cx="16" cy="2.8" r="1.6" fill="#f4bd67" /></g>
 <rect className="dg-pet-face" x="5.8" y="7" width="20.4" height="14.7" rx="6" fill={`url(#${id}-coat)`} stroke={INK} strokeWidth="1.2" />
 <path d="M9 9h14" stroke="#e6fff3" strokeWidth="1.2" strokeLinecap="round" />
@@ -69,11 +72,11 @@ export function Byte() {
 
 export function Pebble() {
   const id = "pebble" + useId().replace(/\W/g, "");
-  return <svg className="pet-art" viewBox="0 0 32 32" aria-hidden="true">
+  return <svg className="pet-art pet-rig" viewBox="0 0 32 32" aria-hidden="true">
 <defs><PetPaintDefs id={`${id}-coat`} light="#b7cd9c" coat="#78966d" shade="#526f4c" /><PetPaintDefs id={`${id}-skin`} light="#e4eacb" coat="#c4d6a5" shade="#9db57c" /></defs>
 <ellipse className="dg-pet-ground" cx="16" cy="30.25" rx="7.3" ry=".85" fill="#252333" opacity=".12" />
 <g className="dg-pet-canvas" transform="translate(1 .35) scale(.935)">
-<g className="dg-pet-body" data-part="body">
+<g className="dg-pet-body pet-rig-frame" data-part="body" data-pet-part="body">
     <g className="dg-pet-shell" fill={`url(#${id}-coat)`} stroke={INK} strokeWidth="1.1">
       <path d="M3.2 25c-1-8 3-14 10.3-14s11 6 10 14z" />
       <path d="m13.5 14 4 3-1 5h-6l-1-5z" fill="#aec894" strokeWidth=".65" />
@@ -83,7 +86,8 @@ export function Pebble() {
     <g className="dg-pet-neck-stretch">
       <path d="M20 24h5v3h-5z" fill={`url(#${id}-skin)`} stroke={INK} strokeWidth=".85" />
 
-      <g className="dg-pet-head" data-part="head" style={{ "--pet-head-x": "23.7px", "--pet-head-y": "24px" }}>
+      <g className="dg-pet-head pet-rig-head" data-part="head" style={{ "--pet-head-x": "23.7px", "--pet-head-y": "24px" }} data-pet-part="head">
+<PetGrowthDetail pet="pebble" />
 <g className="dg-pet-ear dg-pet-ear-left" data-part="ear-left"><ellipse cx="19.7" cy="14.2" rx="1.3" ry="1.7" fill="#a3bc87" /></g>
 <g className="dg-pet-ear dg-pet-ear-right" data-part="ear-right"><ellipse cx="28" cy="14.2" rx="1.3" ry="1.7" fill="#a3bc87" /></g>
 <path className="dg-pet-face" d="M17.5 18c0-5.2 3-7 6.4-7s6 2.8 6 7c0 4.8-2.9 7-6.2 7s-6.2-2.6-6.2-7z" fill={`url(#${id}-skin)`} stroke={INK} strokeWidth="1.1" />
@@ -95,7 +99,7 @@ export function Pebble() {
 
       <g className="dg-pet-accessory" fill="#cc896b" stroke={INK} strokeWidth=".5"><path d="M19.3 23q4 2 8 0v1.6q-4 2-8 0z" /><path d="m25 24 1 4 2-1-1-3z" /></g>
     </g>
-    <path className="dg-pet-tail dg-pet-sig dg-pet-sig-pebble" d="m3 23-2 2 3 .4" fill={`url(#${id}-skin)`} stroke={INK} strokeWidth=".8" data-part="tail" />
+    <path className="dg-pet-tail dg-pet-sig dg-pet-sig-pebble pet-rig-tail" d="m3 23-2 2 3 .4" fill={`url(#${id}-skin)`} stroke={INK} strokeWidth=".8" data-part="tail"  data-pet-part="tail" />
 
 <PetDetail pet="pebble" layer="body" />
 </g></g></svg>;
@@ -108,7 +112,7 @@ export function Prickle() {
   const ink = "#49372f";
   const quills = `url(#${id}-quills)`;
   const cream = `url(#${id}-cream)`;
-  return <svg className="pet-art" viewBox="0 0 32 32" aria-hidden="true"><defs>
+  return <svg className="pet-art pet-rig" viewBox="0 0 32 32" aria-hidden="true"><defs>
       <radialGradient id={`${id}-quills`} cx="40%" cy="25%" r="80%">
         <stop offset="0" stopColor="#b99478" />
         <stop offset=".6" stopColor="#92715b" />
@@ -122,7 +126,7 @@ export function Prickle() {
     </defs>
 <ellipse className="dg-pet-ground" cx="16" cy="30.25" rx="7.3" ry=".85" fill="#252333" opacity=".12" />
 <g className="dg-pet-canvas" transform="translate(1 .35) scale(.935)">
-<g className="dg-pet-body" data-part="body">
+<g className="dg-pet-body pet-rig-frame" data-part="body" data-pet-part="body">
 
     {/* The quill tips follow a round back instead of a radial starburst. */}
     <g className="dg-pet-spines">
@@ -144,7 +148,8 @@ export function Prickle() {
       {/* Small round ears keep their shared mood posture hooks. */}
 
       {/* A pear-shaped face narrows into the nose, with soft cheek puffs. */}
-      <g className="dg-pet-head" data-part="head" style={{ "--pet-head-x": "19px", "--pet-head-y": "24px" }}>
+      <g className="dg-pet-head pet-rig-head" data-part="head" style={{ "--pet-head-x": "19px", "--pet-head-y": "24px" }} data-pet-part="head">
+<PetGrowthDetail pet="prickle" />
 <g className="dg-pet-ear dg-pet-ear-left" data-part="ear-left">
         <circle cx="12.1" cy="11.5" r="2.45" fill={cream} stroke={ink} strokeWidth=".85" />
         <circle cx="12.1" cy="11.7" r="1.25" fill="#dba399" />

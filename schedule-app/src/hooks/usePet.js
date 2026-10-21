@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { adopt, award, care, companionsGained, hoursSince, isAdopted, levelProgress, rename, scaleXp, setCosmetic, switchTo, xpOf, MOMENT_MS, REUNION_HOURS, XP, keyFor } from "../lib/pet.js";
+import { useCompanionMemory } from "./useCompanionMemory.js";
 import { loadPet, savePet, syncPetFromCloud } from "../lib/petStorage.js";
 
 /**
@@ -14,6 +15,7 @@ import { loadPet, savePet, syncPetFromCloud } from "../lib/petStorage.js";
 export function usePet(userId, { xpRate = 1 } = {}) {
   // Seeded from THIS user's namespaced cache, so a previous account signed in
   // on the same browser can never seed (and then donate) its ledger.
+  const memory = useCompanionMemory(userId);
   const [pet, setPet] = useState(() => loadPet(userId));
   // Set by a mutation, cleared by the save effect below. A ref rather than
   // state so marking dirty never causes a render of its own.
@@ -126,5 +128,5 @@ export function usePet(userId, { xpRate = 1 } = {}) {
     dismissGained: () => setGained(q => q.slice(1)),
   }), [apply, xpRate]);
 
-  return { pet, actions, moment, gained, XP, keyFor };
+  return { pet, actions, moment, gained, memory, XP, keyFor };
 }

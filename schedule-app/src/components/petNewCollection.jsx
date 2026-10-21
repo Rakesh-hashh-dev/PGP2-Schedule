@@ -1,3 +1,4 @@
+import PetGrowthDetail from "./PetGrowthDetail.jsx";
 // The six devotion companions from PR #22 (Maple, Ember, Mochi, Nimbus, Sable,
 // Inky), ported onto the `pet-art` structure every other vector pet uses:
 // ground, canvas, a breathing body, and a head group carrying the ears, face,
@@ -23,12 +24,12 @@ function Palette({ id, light, mid, dark }) {
 }
 
 /** The shared wrapper: ground shadow, canvas inset and the breathing body. */
-function Art({ defs, children }) {
-  return <svg className="pet-art" viewBox="0 0 32 32" aria-hidden="true">
+function Art({ defs, children, rig = true, moth = false }) {
+  return <svg className={`pet-art${rig ? " pet-rig" : ""}${moth ? " pet-rig-moth" : ""}`} viewBox="0 0 32 32" aria-hidden="true">
     {defs}
     <ellipse className="dg-pet-ground" cx="16" cy="30.25" rx="7.3" ry=".85" fill="#252333" opacity=".12" />
     <g className="dg-pet-canvas" transform="translate(1 .35) scale(.935)">
-      <g className="dg-pet-body" data-part="body">{children}</g>
+      <g className="dg-pet-body pet-rig-frame" data-part="body" data-pet-part="body">{children}</g>
     </g>
   </svg>;
 }
@@ -57,7 +58,7 @@ export function Maple() {
   const id = "maple" + useId().replace(/\W/g, "");
   const fur = `url(#${id})`;
   return <Art defs={<Palette id={id} light="#ffbc73" mid="#db763d" dark="#a24e31" />}>
-    <g className="dg-pet-tail" data-part="tail">
+    <g className="dg-pet-tail pet-rig-tail" data-part="tail" data-pet-part="tail">
       <path d="M20.6 29c7.4 2 11-3.8 9.6-10.3-.7-3.2-3.3-5.1-5.2-3.8-2.4 1.6.9 4.6-.9 8.4-1 2.1-2.5 2.6-4.3 2.8z" fill={fur} stroke={INK} strokeWidth="1" />
       <path d="m24.9 17 4.7 1.4m-4.3 2.1 5 .6m-6 2.8 5.3 1.3m-7.7 1.2 3.1 3.2" fill="none" stroke="#843b2b" strokeWidth="1.7" />
     </g>
@@ -65,7 +66,8 @@ export function Maple() {
     <ellipse cx="15.6" cy="25" rx="4.4" ry="3.5" fill={fur} />
     <ellipse cx="11.6" cy="29" rx="2.4" ry="1.5" fill="#673d38" stroke={INK} strokeWidth=".7" />
     <ellipse cx="19.8" cy="29" rx="2.4" ry="1.5" fill="#673d38" stroke={INK} strokeWidth=".7" />
-    <g className="dg-pet-head" data-part="head" style={HEAD}>
+    <g className="dg-pet-head pet-rig-head" data-part="head" style={HEAD} data-pet-part="head">
+<PetGrowthDetail pet="maple" />
       <g className="dg-pet-ear dg-pet-ear-left" data-part="ear-left"><path d="M7.8 12Q2.4 8 5.5 3.9q4.8-.5 7 5z" fill={fur} stroke={INK} strokeWidth="1" /><path d="M7.6 9.3 6.3 5.8q3 .5 4.2 3z" fill={CREAM} /></g>
       <g className="dg-pet-ear dg-pet-ear-right" data-part="ear-right"><path d="M24.2 12q5.4-4 2.3-8.1-4.8-.5-7 5z" fill={fur} stroke={INK} strokeWidth="1" /><path d="m24.4 9.3 1.3-3.5q-3 .5-4.2 3z" fill={CREAM} /></g>
       <path className="dg-pet-face" d="M16 7.5c6.2 0 10.1 3.7 10.1 9.1l1.5 1.4-2 1q-1.1 6-9.6 6-8.5 0-9.6-6l-2-1 1.5-1.4C5.9 11.2 9.8 7.5 16 7.5z" fill={fur} stroke={INK} strokeWidth="1.1" strokeLinejoin="round" />
@@ -83,24 +85,25 @@ export function Maple() {
 export function Ember() {
   const id = "ember" + useId().replace(/\W/g, "");
   const fur = `url(#${id})`;
-  return <Art defs={<Palette id={id} light="#91e7cf" mid="#3eaaab" dark="#28657c" />}>
-    <g className="dg-pet-tail" data-part="tail"><path d="M21 28q9.5 3 7.4-6" fill="none" stroke={INK} strokeWidth="3.6" strokeLinecap="round" /><path d="M21 28q9.5 3 7.4-6" fill="none" stroke="#429e9e" strokeWidth="2.2" strokeLinecap="round" /><path className="dg-pet-sig dg-pet-sig-new-flame" d="M28.5 23q-3.6-1.6-1.1-5.1.1 1.4 1.3 1.7l1.3-2q2.8 4-1.5 5.4z" fill="#ffba62" stroke="#a86644" strokeWidth=".6" /></g>
-    <g className="dg-pet-wing dg-pet-wing-left" data-part="wing-left"><path d="M10.5 22Q.8 25 2.6 12q5.8.6 9.5 6z" fill="#8973bb" stroke={INK} strokeWidth=".9" /><path d="m10 21-6-7 1 6 3-2" fill="none" stroke="#b8a3df" strokeWidth=".65" /></g>
-    <g className="dg-pet-wing dg-pet-wing-right" data-part="wing-right"><path d="M21.5 22q9.7 3 7.9-10-5.8.6-9.5 6z" fill="#8973bb" stroke={INK} strokeWidth=".9" /><path d="m22 21 6-7-1 6-3-2" fill="none" stroke="#b8a3df" strokeWidth=".65" /></g>
-    <ellipse cx="16" cy="25.6" rx="6.4" ry="4.6" fill={fur} stroke={INK} strokeWidth="1" /><ellipse cx="16" cy="26" rx="3.5" ry="3.7" fill={CREAM} />
+  return <Art rig defs={<Palette id={id} light="#91e7cf" mid="#3eaaab" dark="#28657c" />}>
+    <g className="dg-pet-tail pet-rig-tail" data-pet-part="tail" data-part="tail"><path d="M21 28q9.5 3 7.4-6" fill="none" stroke={INK} strokeWidth="3.6" strokeLinecap="round" /><path d="M21 28q9.5 3 7.4-6" fill="none" stroke="#429e9e" strokeWidth="2.2" strokeLinecap="round" /><path className="dg-pet-sig dg-pet-sig-new-flame" d="M28.5 23q-3.6-1.6-1.1-5.1.1 1.4 1.3 1.7l1.3-2q2.8 4-1.5 5.4z" fill="#ffba62" stroke="#a86644" strokeWidth=".6" /></g>
+    <g className="dg-pet-wing dg-pet-wing-left pet-rig-wing-left" data-pet-part="wing" data-part="wing-left"><path d="M10.5 22Q.8 25 2.6 12q5.8.6 9.5 6z" fill="#8973bb" stroke={INK} strokeWidth=".9" /><path d="m10 21-6-7 1 6 3-2" fill="none" stroke="#b8a3df" strokeWidth=".65" /></g>
+    <g className="dg-pet-wing dg-pet-wing-right pet-rig-wing-right" data-pet-part="wing" data-part="wing-right"><path d="M21.5 22q9.7 3 7.9-10-5.8.6-9.5 6z" fill="#8973bb" stroke={INK} strokeWidth=".9" /><path d="m22 21 6-7-1 6-3-2" fill="none" stroke="#b8a3df" strokeWidth=".65" /></g>
+    <g className="pet-rig-body" data-pet-part="body"><ellipse cx="16" cy="25.6" rx="6.4" ry="4.6" fill={fur} stroke={INK} strokeWidth="1" /><ellipse cx="16" cy="26" rx="3.5" ry="3.7" fill={CREAM} />
     <path d="M13 25.6q3 1 6 0m-5.5 2q2.5 1 5 0" fill="none" stroke="#d7be8c" strokeWidth=".55" />
-    <ellipse cx="11.3" cy="29.2" rx="2.5" ry="1.4" fill={fur} stroke={INK} strokeWidth=".7" /><ellipse cx="20.7" cy="29.2" rx="2.5" ry="1.4" fill={fur} stroke={INK} strokeWidth=".7" />
-    <g className="dg-pet-head" data-part="head" style={HEAD}>
+    </g><g className="pet-rig-feet" data-pet-part="body"><ellipse cx="11.3" cy="29.2" rx="2.5" ry="1.4" fill={fur} stroke={INK} strokeWidth=".7" /><ellipse cx="20.7" cy="29.2" rx="2.5" ry="1.4" fill={fur} stroke={INK} strokeWidth=".7" />
+    </g><g className="dg-pet-head pet-rig-head" data-part="head" data-pet-part="head" style={HEAD}>
+<PetGrowthDetail pet="ember" />
       <path d="M9.2 10.6q-4-2.4-2.7-6.8 1.5 2.9 4.9 3.6m9.4 3.2q4-2.4 2.7-6.8-1.5 2.9-4.9 3.6" fill={CREAM} stroke={INK} strokeWidth=".8" />
       <path className="dg-pet-face" d="M16 7q10 0 10 10c0 5.5-4.4 8.2-10 8.2S6 22.5 6 17Q6 7 16 7z" fill={fur} stroke={INK} strokeWidth="1.1" />
       <path d="m13.1 8.2 1.4-3 1.5 2.3 1.5-2.3 1.4 3" fill="#378991" stroke={INK} strokeWidth=".6" strokeLinejoin="round" />
       <ellipse cx="16" cy="21.2" rx="5.2" ry="3" fill={CREAM} /><Eyes iris="#f4c269" />
       <circle cx="14.4" cy="20.1" r=".4" fill={INK} /><circle cx="17.6" cy="20.1" r=".4" fill={INK} />
       <Smile y={22.1} nose={false} />
-      <PetExpression mouthY={22.1} ink={INK} />
+      <path className="pet-rig-mature" d="m11 12 1-1 1 1m6 0 1-1 1 1" fill="none" stroke="#b3efe0" strokeWidth=".6" /><PetExpression mouthY={22.1} ink={INK} />
     </g>
-    <g className="dg-pet-accessory"><path d="M11.1 24.6q4.9 1.4 9.8 0" fill="none" stroke="#8a65b8" strokeWidth="1.5" /><circle cx="16" cy="26" r=".8" fill="#f5c66c" /></g>
-    <PetGesture fur="#4bb3ac" ink={INK} />
+    <g className="pet-rig-neck"><g className="dg-pet-accessory"><path d="M11.1 24.6q4.9 1.4 9.8 0" fill="none" stroke="#8a65b8" strokeWidth="1.5" /><circle cx="16" cy="26" r=".8" fill="#f5c66c" /></g>
+    </g><PetGesture fur="#4bb3ac" ink={INK} />
   </Art>;
 }
 
@@ -108,11 +111,12 @@ export function Ember() {
 export function Mochi() {
   const id = "mochi" + useId().replace(/\W/g, "");
   const fur = `url(#${id})`;
-  return <Art defs={<Palette id={id} light="#eac894" mid="#c69465" dark="#996c4d" />}>
-    <ellipse cx="16" cy="25.5" rx="8.2" ry="5" fill={fur} stroke={INK} strokeWidth="1" />
+  return <Art rig defs={<Palette id={id} light="#eac894" mid="#c69465" dark="#996c4d" />}>
+    <g className="pet-rig-body" data-pet-part="body"><ellipse cx="16" cy="25.5" rx="8.2" ry="5" fill={fur} stroke={INK} strokeWidth="1" />
     <ellipse cx="16" cy="26.4" rx="4.4" ry="3.1" fill="#e2b788" />
-    <ellipse cx="11" cy="29.3" rx="2.9" ry="1.3" fill="#b48a6a" stroke={INK} strokeWidth=".7" /><ellipse cx="21" cy="29.3" rx="2.9" ry="1.3" fill="#b48a6a" stroke={INK} strokeWidth=".7" />
-    <g className="dg-pet-head" data-part="head" style={HEAD}>
+    </g><g className="pet-rig-feet" data-pet-part="body"><ellipse cx="11" cy="29.3" rx="2.9" ry="1.3" fill="#b48a6a" stroke={INK} strokeWidth=".7" /><ellipse cx="21" cy="29.3" rx="2.9" ry="1.3" fill="#b48a6a" stroke={INK} strokeWidth=".7" />
+    </g><g className="dg-pet-head pet-rig-head" data-part="head" data-pet-part="head" style={HEAD}>
+<PetGrowthDetail pet="mochi" />
       <g className="dg-pet-ear dg-pet-ear-left" data-part="ear-left"><ellipse cx="7.4" cy="9.5" rx="2.9" ry="3.3" fill={fur} stroke={INK} strokeWidth=".9" /><ellipse cx="7.4" cy="9.5" rx="1.45" ry="1.8" fill="#a26b54" /></g>
       <g className="dg-pet-ear dg-pet-ear-right" data-part="ear-right"><ellipse cx="24.6" cy="9.5" rx="2.9" ry="3.3" fill={fur} stroke={INK} strokeWidth=".9" /><ellipse cx="24.6" cy="9.5" rx="1.45" ry="1.8" fill="#a26b54" /></g>
       <path className="dg-pet-face" d="M16 8Q6 8 5.6 17.8C5.1 23.6 9.4 26 16 26s10.9-2.4 10.4-8.2Q26 8 16 8z" fill={fur} stroke={INK} strokeWidth="1.1" />
@@ -120,43 +124,56 @@ export function Mochi() {
       <Eyes iris="#bb804f" y={16} />
       <g className="dg-pet-sig dg-pet-sig-new-nose" fill={INK}><ellipse cx="14" cy="20" rx=".65" ry=".45" /><ellipse cx="18" cy="20" rx=".65" ry=".45" /></g>
       <path d="M16 20.7v1.2" fill="none" stroke="#88624f" strokeWidth=".55" /><Smile y={22.4} nose={false} />
-      <PetExpression mouthY={22.4} ink={INK} />
+      <path className="pet-rig-mature" d="m10 12 1-.4m10 .4 1 .4" stroke="#f5dfb5" strokeWidth=".7" /><PetExpression mouthY={22.4} ink={INK} />
       <g className="dg-pet-accessory"><path d="M15.8 9q-4.6-6.7 5.8-5.8Q21.2 9.5 15.8 9z" fill="#80a86b" stroke={INK} strokeWidth=".6" /><path d="m16 8.6 4-4" stroke="#d3df9b" strokeWidth=".5" /></g>
     </g>
     <PetGesture fur="#c69465" ink={INK} />
   </Art>;
 }
 
-// A cloud spirit with a crescent moon tucked in its puffs.
+// A moon moth: lavender wings, feathered antennae and a gold crescent.
 export function Nimbus() {
   const id = "nimbus" + useId().replace(/\W/g, "");
   const fur = `url(#${id})`;
-  return <Art defs={<Palette id={id} light="#fffdf4" mid="#eee2f5" dark="#b5a1d8" />}>
-    <g className="dg-pet-tail" data-part="tail"><path d="M21 27q8.5 3 8.8-3.1.2-3.4-2.5-3.9-3-.5-3 2.1 0 1.4 1.5 1.4" fill={fur} stroke={INK} strokeWidth=".85" strokeLinecap="round" /></g>
-    <path d="M9 23q-5 3-.7 5 1 4 5 .9 3 3 5.5 0 4 2.3 5.3-1.5 2-4-2-5z" fill={fur} stroke={INK} strokeWidth=".9" />
-    <g className="dg-pet-wing dg-pet-wing-left" data-part="wing-left"><path d="M8 22q-6 2-5-2.6-2-3.5 1.1-4.2 3.7-.8 5.8 5z" fill={fur} stroke={INK} strokeWidth=".8" /></g>
-    <g className="dg-pet-wing dg-pet-wing-right" data-part="wing-right"><path d="M24 22q6 2 5-2.6 2-3.5-1.1-4.2-3.7-.8-5.8 5z" fill={fur} stroke={INK} strokeWidth=".8" /></g>
-    <g className="dg-pet-head" data-part="head" style={HEAD}>
-      <path className="dg-pet-face" d="M9 10q-1-4.4 3.3-4.1 3.3-4.5 6.5-.7 5-1 5 4.5 4.8.8 2.5 5.2 3.1 4-.7 6.5-1.2 4.9-6.1 3.6-3.6 3.5-7.1.2-5.6 1.5-6.6-3.6-3.7-2.5-1-6.3Q3.5 10.6 9 10z" fill={fur} stroke={INK} strokeWidth="1" />
-      <path className="dg-pet-sig dg-pet-sig-new-cloud" d="M14 8.2q-2-2.9 1.1-3.4 3.2-.5 2.7 2-.4 1.5-1.7.7" fill="none" stroke="#c0a8d8" strokeWidth=".8" strokeLinecap="round" />
-      <Eyes iris="#a892eb" y={16.2} />
-      <ellipse cx="8.8" cy="19.4" rx="1.6" ry=".9" fill="#eaa9bb" opacity=".45" /><ellipse cx="23.2" cy="19.4" rx="1.6" ry=".9" fill="#eaa9bb" opacity=".45" />
-      <Smile y={22} />
-      <PetExpression y={16.2} mouthY={22} ink={INK} />
-      <path className="dg-pet-accessory" d="M17.5 9.3q-3.6-.2-2.1-3.4-4.1 1.2-1.5 4.1 2.5 1.9 3.6-.7z" fill="#f4cb75" stroke="#a77a40" strokeWidth=".4" />
+  return <Art rig moth defs={<Palette id={id} light="#eee6ff" mid="#b09bdc" dark="#7364a5" />}>
+    {[false, true].map(right => <g key={String(right)} transform={right ? "translate(32 0) scale(-1 1)" : undefined}>
+      <g className={right ? "pet-rig-wing-right" : "pet-rig-wing-left"} data-pet-part="wing">
+        <path className="dg-pet-wing" d="M14 14C10 9 2 6 1.4 11.8.7 16.8 4.3 20 8.8 20.2 3.4 21.5 3.4 27 7.4 27.3c3.1.2 5.5-3.5 7.2-6.2z" fill={fur} stroke={INK} strokeWidth=".85" />
+        <path d="M12.6 15.8Q7 10.5 3.5 11.6m9.4 7.6Q8.6 16.5 3 16m9.9 5.3-5.1 4" fill="none" stroke="#e8d6f7" strokeWidth=".65" />
+        <ellipse cx="6.9" cy="15.1" rx="2.2" ry="2.7" fill="#5f5289" transform="rotate(-25 6.9 15.1)" />
+        <ellipse cx="6.9" cy="15.1" rx="1.3" ry="1.7" fill="#e9c887" />
+        <circle cx="7.1" cy="14.8" r=".7" fill="#fff4cf" />
+        <path className="pet-rig-mature" d="m5.2 23 1 .2m2-1.6.9.5" stroke="#f6dca8" strokeWidth=".8" strokeLinecap="round" />
+      </g>
+    </g>)}
+    <g className="pet-rig-body" data-pet-part="body">
+      <path d="M11.3 21q4.7-2 9.4 0l-.8 5q-3.9 5-7.8 0z" fill="#c7b6df" stroke={INK} strokeWidth=".9" />
+      <path d="M13.4 25q2.6 1.5 5.2 0m-4.7 2q2.1 1.2 4.2 0" fill="none" stroke="#8b76aa" strokeWidth=".65" />
+    </g>
+    <g className="dg-pet-head pet-rig-head" data-part="head" data-pet-part="head" style={HEAD}>
+<PetGrowthDetail pet="nimbus" />
+      <g className="dg-pet-ear dg-pet-ear-left"><path d="M12 10Q8 6 9.3 2.6m-.1 2.1-2-1m2.2 2.8-2.2-.8m3.1 2.6-2.2-.4" fill="none" stroke="#65517d" strokeWidth=".8" strokeLinecap="round" /></g>
+      <g className="dg-pet-ear dg-pet-ear-right"><path d="M20 10q4-4 2.7-7.4m.1 2.1 2-1m-2.2 2.8 2.2-.8m-3.1 2.6 2.2-.4" fill="none" stroke="#65517d" strokeWidth=".8" strokeLinecap="round" /></g>
+      <path className="dg-pet-face" d="M16 8.2q8.1 0 8.4 7.7l1 1.4-1.6.8Q24 24 16 24t-7.8-5.9l-1.6-.8 1-1.4q.3-7.7 8.4-7.7z" fill="#f5edee" stroke={INK} strokeWidth="1" strokeLinejoin="round" />
+      <path d="M9.7 12.4q6.3 3.3 12.6 0" fill="none" stroke="#e1d2e8" strokeWidth="1.4" />
+      <Eyes iris="#9980c7" left={12.3} right={19.7} y={17} />
+      <ellipse cx="10" cy="20.2" rx="1.4" ry=".7" fill="#e6a9bf" opacity=".55" /><ellipse cx="22" cy="20.2" rx="1.4" ry=".7" fill="#e6a9bf" opacity=".55" />
+      <Smile y={21.7} nose={false} />
+      <path className="dg-pet-accessory dg-pet-sig" d="M17.8 10.2q-3 .3-2.2-2.4-3.1 1.6-.9 3.6 2.1 1.3 3.1-1.2z" fill="#e7bd6b" stroke="#9c7646" strokeWidth=".35" />
+      <PetExpression left={12.3} right={19.7} y={17} mouthY={21.7} ink={INK} />
     </g>
   </Art>;
 }
 
-// A snow leopard: rosettes, round ears, a lavender scarf.
 export function Sable() {
   const id = "sable" + useId().replace(/\W/g, "");
   const fur = `url(#${id})`;
   return <Art defs={<Palette id={id} light="#f9f5f2" mid="#c5c3ce" dark="#9294a9" />}>
-    <g className="dg-pet-tail" data-part="tail"><path d="M20.6 28.2c8.7 4.4 12.4-1.9 8.6-6.8-2-2.6-4.5-1.1-3.5 1.2q1.9 2.7-3 2.7" fill={fur} stroke={INK} strokeWidth=".95" /><path d="m25.5 28.8 1-2.4m2-2.6-2.1.2m.1-3.8-1.2 1.3" stroke="#6a687f" strokeWidth="1.2" /></g>
+    <g className="dg-pet-tail pet-rig-tail" data-part="tail" data-pet-part="tail"><path d="M20.6 28.2c8.7 4.4 12.4-1.9 8.6-6.8-2-2.6-4.5-1.1-3.5 1.2q1.9 2.7-3 2.7" fill={fur} stroke={INK} strokeWidth=".95" /><path d="m25.5 28.8 1-2.4m2-2.6-2.1.2m.1-3.8-1.2 1.3" stroke="#6a687f" strokeWidth="1.2" /></g>
     <ellipse cx="15.5" cy="26" rx="7.2" ry="4.5" fill={fur} stroke={INK} strokeWidth="1" /><ellipse cx="15.5" cy="26.2" rx="3.8" ry="3.6" fill="#f9f3ed" />
     <ellipse cx="11.4" cy="29.1" rx="2.5" ry="1.5" fill="#f9f3ed" stroke={INK} strokeWidth=".7" /><ellipse cx="19.8" cy="29.1" rx="2.5" ry="1.5" fill="#f9f3ed" stroke={INK} strokeWidth=".7" />
-    <g className="dg-pet-head" data-part="head" style={HEAD}>
+    <g className="dg-pet-head pet-rig-head" data-part="head" style={HEAD} data-pet-part="head">
+<PetGrowthDetail pet="sable" />
       <g className="dg-pet-ear dg-pet-ear-left" data-part="ear-left"><circle cx="7.6" cy="8.1" r="3.4" fill={fur} stroke={INK} strokeWidth="1" /><circle cx="7.6" cy="8.1" r="1.8" fill="#c59bad" /></g>
       <g className="dg-pet-ear dg-pet-ear-right" data-part="ear-right"><circle cx="24.4" cy="8.1" r="3.4" fill={fur} stroke={INK} strokeWidth="1" /><circle cx="24.4" cy="8.1" r="1.8" fill="#c59bad" /></g>
       <path className="dg-pet-face" d="M16 7.4Q26 7.4 26 17l1.2 1.2-1.7 1Q24 25 16 25T6.5 19.2l-1.7-1L6 17q0-9.6 10-9.6z" fill={fur} stroke={INK} strokeWidth="1.05" />
@@ -180,14 +197,15 @@ export function Inky() {
     <g className="dg-pet-new-arms" fill={fur} stroke={INK} strokeWidth=".8" strokeLinejoin="round">
       <path d="M10 22q-5-6-7-2-1 2 1.3 2.5.7-2.1 3.5 2z" />
       <path d="M22 22q5-6 7-2 1 2-1.3 2.5-.7-2.1-3.5 2z" />
-      <g className="dg-pet-wing dg-pet-wing-left" data-part="wing-left"><path d="M10 23Q2 16 1.5 23q-.3 4.5 4.4 3.4 2.2-.5 1.2-2.3-2.9.5-2.2-1.2Q6 22 10 26z" /><path d="M4.2 24.6q.7 1.2 2 .4" fill="none" stroke="#f3bfd9" strokeWidth="1.2" strokeLinecap="round" /></g>
-      <g className="dg-pet-wing dg-pet-wing-right" data-part="wing-right"><path d="M22 23q5-3.1 5.2-8.2-.2-2.3 2-1.4 3.2 2.1-.9 8.2-2.1 3.1-5.2 4.5z" /><path d="M29.1 16q-.1 2.8-2.7 5.9" fill="none" stroke="#f3bfd9" strokeWidth="1.5" strokeLinecap="round" /></g>
+      <g className="dg-pet-wing dg-pet-wing-left pet-rig-wing-left" data-part="wing-left" data-pet-part="wing"><path d="M10 23Q2 16 1.5 23q-.3 4.5 4.4 3.4 2.2-.5 1.2-2.3-2.9.5-2.2-1.2Q6 22 10 26z" /><path d="M4.2 24.6q.7 1.2 2 .4" fill="none" stroke="#f3bfd9" strokeWidth="1.2" strokeLinecap="round" /></g>
+      <g className="dg-pet-wing dg-pet-wing-right pet-rig-wing-right" data-part="wing-right" data-pet-part="wing"><path d="M22 23q5-3.1 5.2-8.2-.2-2.3 2-1.4 3.2 2.1-.9 8.2-2.1 3.1-5.2 4.5z" /><path d="M29.1 16q-.1 2.8-2.7 5.9" fill="none" stroke="#f3bfd9" strokeWidth="1.5" strokeLinecap="round" /></g>
       <path d="M12 24q-7 1-7 4 0 2.8 4 2 2-.5.9-1.8-2.2.6-1.6-.4l4.7-1z" />
       <path d="M20 24q7 1 7 4 0 2.8-4 2-2-.5-.9-1.8 2.2.6 1.6-.4l-4.7-1z" />
       <path d="M14 24q-4 1.1-3 5.1.6 2.4 3.6 1.3 2-1-.2-1.6-1 .6-1-1l2.6-3z" />
       <path d="M18 24q4 1.1 3 5.1-.6 2.4-3.6 1.3-2-1 .2-1.6 1 .6 1-1l-2.6-3z" />
     </g>
-    <g className="dg-pet-head" data-part="head" style={HEAD}>
+    <g className="dg-pet-head pet-rig-head" data-part="head" style={HEAD} data-pet-part="head">
+<PetGrowthDetail pet="inky" />
       <path className="dg-pet-face" d="M16 7.4q9.6 0 9.2 9.6-.3 8.6-9.2 8.6T6.8 17Q6.4 7.4 16 7.4z" fill={fur} stroke={INK} strokeWidth="1.05" />
       <ellipse cx="12.3" cy="10.6" rx="3" ry="1.3" fill="#fff" opacity=".25" transform="rotate(-20 12.3 10.6)" />
       <g fill="#63529e" opacity=".55"><circle cx="8.5" cy="14.1" r=".8" /><circle cx="9.1" cy="12.3" r=".65" /><circle cx="23.4" cy="14.2" r=".7" /><circle cx="21.9" cy="11.5" r=".55" /></g>
