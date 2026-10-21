@@ -1,3 +1,5 @@
+import PetDesignDetail from "./PetDesignDetail.jsx";
+
 // A few broad, species-specific marks read at 40px and remain clean at 160px.
 // Highlights are lit from the upper left; texture follows the existing anatomy.
 const DETAILS = {
@@ -31,11 +33,11 @@ const DETAILS = {
 
 export default function PetDetail({ pet, layer = "head" }) {
   const detail = DETAILS[pet];
-  if (!detail || (layer === "body" && !detail.neck)) return null;
-  return <g className={`dg-pet-detail dg-pet-detail-${layer}`} fill="none" strokeLinecap="round" strokeLinejoin="round" data-part={layer === "head" ? "surface-detail" : "contact-detail"}>
+  if (!detail) return null;
+  return <><PetDesignDetail pet={pet} layer={layer} /><g className={`dg-pet-detail dg-pet-detail-${layer}`} fill="none" strokeLinecap="round" strokeLinejoin="round" data-part={layer === "head" ? "surface-detail" : "contact-detail"}>
     <path d={layer === "body" ? detail.neck : detail.path} stroke={detail.ink} strokeWidth=".5" opacity=".65" />
     {layer === "head" && <path d={detail.shine} stroke="#fff6e6" strokeWidth=".55" opacity=".5" />}
-  </g>;
+  </g></>;
 }
 
 export function PetPaintDefs({ id, light, coat, shade }) {

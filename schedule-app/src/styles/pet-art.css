@@ -194,3 +194,8 @@ html[data-pets-paused] .dg-pet, html[data-pets-paused] .dg-pet::before, html[dat
   .dg-pet, .dg-pet::before, .dg-pet::after, .dg-pet * { animation: none !important; transition: none !important; }
   .dg-pet .pet-art *, .dg-pet .dg-pet-wearable-body, .dg-pet .dg-pet-wearable-head { translate: none !important; rotate: none !important; }
 }
+
+/* At badge size preserve silhouettes and broad markings; omit hairline texture. */
+@container pet-portrait (max-width: 36px) {
+  .pet-design-fine { display: none; }
+}
