@@ -102,3 +102,24 @@ leaving deliberate greetings available. Hidden pages, reduced motion, motion-off
 pet changes and unmount cancel both actors' delayed cues. No XP or state writes
 are introduced. Pure tests cover all 1024 pair combinations, priority and timer
 cancellation. The offline preview includes both partner selectors and care.
+
+## Habitat phase
+
+The companion page now includes a Habitat tab and a shared decorative stage for
+all 32 companions and their buddies. Quiet garden, Study nook and Star terrace
+are available immediately. Plant, books, lantern and cushion toggle independently.
+Lighting follows local device time (06:00–17:59 daylight) or can be fixed to day
+or night. The page's existing `now` clock resolves automatic lighting.
+
+`petHabitat.js` owns validation, defaults and time resolution. The structured
+`cosmetics.habitat` value is normalized alongside old cosmetic records and saved
+through the existing `setCosmetic` / local cache / JSONB RPC path. Old records
+receive garden + automatic light + plant/cushion. XP, unlocks and care are
+independent. No schema migration or external image asset is required.
+
+Scenery is native SVG without IDs, input handlers or animation loops. A palette
+transition respects both reduced motion and the companion motion setting.
+Actors keep the existing movement/transition/buddy hooks; no pet is remounted on
+scene changes. `scripts/habitat-preview.mjs` builds an offline fixture using the
+actual PetPage and cosmetic transforms. Its local fixture saves are separate
+from the app account; the preview never connects to production services.

@@ -16,6 +16,7 @@ import {
 } from "../lib/pet.js";
 import { dismissRecount, isRecountDismissed } from "../lib/petStorage.js";
 import { petMilestones, petWeek, recentPetMoments, unlockRoadmap } from "../lib/petInsights.js";
+import PetHabitat, { PetHabitatControls } from "./PetHabitat.jsx";
 import PetSleepCue from "./PetSleepCue.jsx";
 import PetHat from "./PetHat.jsx";
 import PetNeckwear from "./PetNeckwear.jsx";
@@ -58,6 +59,7 @@ const PET_SECTIONS = [
   { id: "overview", label: "Overview", Icon: Home },
   { id: "journey", label: "Journey", Icon: Trophy },
   { id: "companions", label: "Companions", Icon: PawPrint },
+  { id: "habitat", label: "Habitat", Icon: Home },
   { id: "wardrobe", label: "Wardrobe", Icon: Shirt },
   { id: "profile", label: "Profile", Icon: UserRound },
 ];
@@ -276,7 +278,7 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
 
       <div className="pet-summary-grid">
         <section className="pet-card pet-identity-card" aria-label="Your companion">
-          <div className="pet-identity-art" data-care={careFeedback?.action || undefined}>
+          <PetHabitat value={pet.cosmetics?.habitat} now={now} motionEnabled={motionEnabled} care={careFeedback?.action}>
             <button
               type="button"
               ref={petRef}
@@ -305,7 +307,7 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
               <PetSleepCue />
             </button>
             {buddy && <BuddyArt buddy={buddy} mood={mood} motionEnabled={motionEnabled} signaturesOn={signaturesOn} coat={coat} cue={social.buddy} />}
-          </div>
+          </PetHabitat>
 
           <div className="pet-identity-copy">
             <p className="pet-eyebrow">Your study companion</p>
@@ -825,6 +827,14 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
           <p>Your cohort has wardrobe customisation turned off.</p>
         </section>
       ))}
+
+      {activeSection === "habitat" && (
+        <section className="pet-card pet-tab-panel" id="pet-panel-habitat" role="tabpanel" aria-labelledby="pet-tab-habitat">
+          <p className="pet-eyebrow">Make room for them</p>
+          <h3 className="pet-h3">Their little habitat</h3>
+          <PetHabitatControls value={pet.cosmetics?.habitat} onChange={value => petActions.setCosmetic("habitat", value)} />
+        </section>
+      )}
 
       {activeSection === "profile" && (
       <div

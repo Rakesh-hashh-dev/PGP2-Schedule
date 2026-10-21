@@ -121,7 +121,7 @@ describe("row ⇄ state mapping", () => {
     expect(xpOf(s)).toBe(0);
     // Every cosmetic slot defaults to "not wearing one", so a row written
     // before a slot existed reads as bare rather than as invalid.
-    expect(s.cosmetics).toEqual({ accessory: true, hat: null, coat: null, neck: null, title: null, buddy: null });
+    expect(s.cosmetics).toEqual({ accessory: true, hat: null, coat: null, neck: null, title: null, buddy: null, habitat: { scene: "garden", light: "auto", decor: ["plant", "cushion"] } });
   });
 
   it("coerces a bigint last_seen arriving as a string", () => {
