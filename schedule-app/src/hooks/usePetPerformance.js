@@ -3,7 +3,7 @@ import { createPetDirector, RIGGED_PETS } from '../lib/petDirector.js';
 import { usePetTransitions } from './usePetTransitions.js';
 import { usePetBeat } from './usePetBeat.js';
 
-export function usePetPerformance(mood, enabled, petKey, reaction, signatures = true, reactionId = 0, socialCue = null, paired = false) {
+export function usePetPerformance(mood, enabled, petKey, reaction, signatures = true, reactionId = 0, socialCue = null, paired = false, habitatCue = null) {
   const rigged = RIGGED_PETS.has(petKey);
   const beat = usePetBeat(mood, enabled && signatures && !rigged, petKey, reaction);
   const [pose, setPose] = useState({ action: '', source: 'idle', petKey });
@@ -32,9 +32,11 @@ export function usePetPerformance(mood, enabled, petKey, reaction, signatures = 
   }, [rigged, enabled, petKey]);
   useEffect(() => { director.current?.update({ mood, reaction, reactionId, paired, autonomous: signatures }); }, [mood, reaction, signatures, reactionId, paired]);
   useEffect(() => { if (socialCue) director.current?.social(socialCue); }, [socialCue]);
+  useEffect(() => { if (habitatCue) director.current?.habitat(habitatCue); else director.current?.cancelHabitat(); }, [habitatCue]);
   const action = rigged && enabled && pose.petKey === petKey ? pose.action : '';
   return {
     bind: transitions.attach,
+    activity: action && pose.target ? { target:pose.target, behavior:pose.behavior, label:pose.label } : null,
     beat,
     action: action || undefined,
     source: action ? pose.source : undefined,

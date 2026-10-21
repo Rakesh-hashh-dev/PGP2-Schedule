@@ -123,3 +123,28 @@ Actors keep the existing movement/transition/buddy hooks; no pet is remounted on
 scene changes. `scripts/habitat-preview.mjs` builds an offline fixture using the
 actual PetPage and cosmetic transforms. Its local fixture saves are separate
 from the app account; the preview never connects to production services.
+
+## Habitat interactions
+
+Every companion can respond to plant, books, lantern, cushion and sky targets.
+`petHabitatInteraction.js` chooses an anatomy-aware local gesture, a small
+spatial visit and a short activity description. Nimbus follows a lantern arc,
+Leafy unfurls toward the plant, and Byte/Rover scan objects. Other responses
+use their existing species gestures. Cushions invite a doze and a body settle;
+buddies settle alongside or glance toward a discovery after 550 ms.
+
+The Habitat director schedules occasional 45–85 second visits, avoiding the
+previous target. Sleepy/tired/cozy moods first settle after 4.5 seconds when a
+cushion is present. Focus and exam contexts suppress automatic visits and keep
+manual exploration quiet. Spontaneous-off still permits deliberate taps.
+Every interaction is visual: no care, XP, unlock or storage mutation occurs.
+
+The shared pet director accepts habitat cues below buddy/context priority and
+manual taps at touch priority. Care cancels position, gesture and pending
+buddy replies. Scene/decor changes, pet/buddy switches, hidden tabs and motion
+preferences cancel old cues and timers. A new gap starts on resumption.
+Native 44px buttons over the visible decorations provide pointer, touch and
+keyboard access, with an activity status beside the companion's name. Removed
+decorations have no button. Reduced motion/motion-off keeps a static scene.
+The pose blender also samples the actor's translation so an interrupted Nimbus
+flight returns smoothly while the care gesture takes over.

@@ -1,11 +1,11 @@
 import { HABITATS, HABITAT_LIGHTS, HABITAT_DECOR, normalizeHabitat, habitatLight, toggleHabitatDecor } from '../lib/petHabitat.js';
 import '../styles/pet-habitat.css';
 
-/** A decorative scene behind the existing actors; never intercepts their input. */
-export default function PetHabitat({ value, now, motionEnabled = true, children, care, className = '' }) {
+/** Scenery stays behind the actors; named hotspots handle decoration input. */
+export default function PetHabitat({ value, now, motionEnabled = true, children, care, className = '', onInteract, interactive = false, activity = null }) {
   const habitat = normalizeHabitat(value);
   const light = habitatLight(habitat, now);
-  return <div className={`pet-identity-art pet-habitat ${className}`} data-scene={habitat.scene} data-light={light} data-habitat-motion={motionEnabled ? 'on' : 'off'} data-care={care || undefined}>
+  return <div className={`pet-identity-art pet-habitat ${className}`} data-scene={habitat.scene} data-light={light} data-habitat-motion={motionEnabled ? 'on' : 'off'} data-care={care || undefined} data-engaged={activity?.target}>
     <svg className="pet-habitat-scenery" viewBox="0 0 240 240" aria-hidden="true" focusable="false">
       <circle className="habitat-sun" cx="181" cy="44" r="16" />
       <g className="habitat-moon"><circle cx="181" cy="44" r="16" /><circle className="habitat-moon-cutout" cx="188" cy="38" r="14" /></g>
@@ -20,6 +20,7 @@ export default function PetHabitat({ value, now, motionEnabled = true, children,
       {habitat.decor.includes('lantern') && <g className="habitat-lantern"><circle className="habitat-lantern-glow" cx="211" cy="165" r="23" /><path d="M205 151v-5a6 6 0 0 1 12 0v5" /><rect x="202" y="152" width="18" height="26" rx="5" /><path className="habitat-lantern-light" d="M211 157v15" /><path d="M200 179h22" /></g>}
     </svg>
     {children}
+    {onInteract && [...habitat.decor, 'sky'].map(target => <button key={target} type="button" className="pet-habitat-spot" data-target={target} data-active={activity?.target === target ? "" : undefined} disabled={!interactive} onClick={() => onInteract(target)} aria-label={{plant:'Explore little plant',books:'Inspect book stack',lantern:'Visit warm lantern',cushion:'Rest on soft cushion',sky:'Watch the sky'}[target]} title={{plant:'Explore the plant',books:'Inspect the books',lantern:'Visit the lantern',cushion:'Settle on the cushion',sky:'Watch the sky'}[target]} />)}
   </div>;
 }
 

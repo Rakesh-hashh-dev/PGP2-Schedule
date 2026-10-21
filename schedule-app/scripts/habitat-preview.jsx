@@ -13,7 +13,9 @@ function Preview() {
   });
   const apply = transform => setPet(previous => {const next=transform(previous);localStorage.setItem('termflow-habitat-fixture',JSON.stringify(next));return next;});
   const [motion,setMotion]=useState(true);
+  const [signatures,setSignatures]=useState(true);
+  const [moment,setMoment]=useState('content');
   const [now] = useState(() => new Date());
-  return <main style={{maxWidth:1040,margin:'auto',padding:20}}><label><input type="checkbox" checked={motion} onChange={event=>setMotion(event.target.checked)}/>Preview motion</label><PetPage pet={pet} now={now} petContext={{}} petSettings={{motion,signatures:true}} onBack={()=>{}} petActions={{setCosmetic:(key,value)=>apply(p=>setCosmetic(p,key,value)),care:(action,time)=>apply(p=>care(p,action,time)),switchTo:key=>apply(p=>switchTo(p,key)),rename:value=>apply(p=>rename(p,value))}} /></main>;
+  return <main style={{maxWidth:1040,margin:'auto',padding:20}}><label><input type="checkbox" checked={motion} onChange={event=>setMotion(event.target.checked)}/>Preview motion</label><label><input type="checkbox" checked={signatures} onChange={event=>setSignatures(event.target.checked)}/>Preview spontaneous gestures</label><label>Preview mood<select value={moment} onChange={event=>setMoment(event.target.value)}><option value="content">Content</option><option value="focused">Focused</option><option value="sleepy">Sleepy</option></select></label><PetPage pet={pet} now={now} petContext={{inClass:moment==='focused',moment:moment==='sleepy' ? 'sleepy' : undefined,momentUntil:now.getTime()+3600000}} petSettings={{motion,signatures}} onBack={()=>{}} petActions={{setCosmetic:(key,value)=>apply(p=>setCosmetic(p,key,value)),care:(action,time)=>apply(p=>care(p,action,time)),switchTo:key=>apply(p=>switchTo(p,key)),rename:value=>apply(p=>rename(p,value))}} /></main>;
 }
 createRoot(document.getElementById('root')).render(<Preview/>);

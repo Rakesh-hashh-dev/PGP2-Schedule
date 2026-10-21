@@ -1,8 +1,9 @@
 // Visual state only. Never writes care, XP, storage, or timetable data.
+import { HABITAT_ACTION_MS, HABITAT_TARGETS } from './petHabitatInteraction.js';
 import { PET_PROFILES } from './petProfiles.js';
 export const RIGGED_PETS = new Set(Object.keys(PET_PROFILES));
 export const ACTION_MS = 1800;
-const PRIORITY = { idle: 10, buddy: 40, context: 60, touch: 80, celebration: 90, care: 100 };
+const PRIORITY = { idle: 10, habitat: 30, buddy: 40, context: 60, touch: 80, celebration: 90, care: 100 };
 const QUIET = new Set(['focused', 'sleepy', 'tired', 'cozy', 'weekend', 'rooting']);
 const CONTEXT = { focused: 'listen', determined: 'proud', restless: 'peek', rooting: 'listen', sleepy: 'doze', tired: 'doze', cozy: 'breathe', weekend: 'stretch', relaxed: 'breathe' };
 const MOMENTS = new Set(['celebrating', 'proud', 'birthday', 'festive', 'reunion', 'hyped']);
@@ -31,13 +32,13 @@ export function createPetDirector({ petKey, onChange, random = Math.random, setT
       play(previous, 'idle');
     }, 18000 + random() * 28000);
   };
-  function play(action, source) {
+  function play(action, source, activity = null) {
     if (!state.enabled || (state.reaction && source !== 'care')) return false;
     if (active.action && PRIORITY[source] < PRIORITY[active.source]) return false;
-    if (active.action === action && active.source === source && source !== 'care') return false;
+    if (active.action === action && active.source === source && source !== 'care' && !activity) return false;
     cancel();
-    emit({ action, source });
-    actionTimer = setTimer(() => { emit({ action: '', source: 'idle' }); schedule(); }, ACTION_MS);
+    emit(activity ? { action, source, target:activity.target, behavior:activity.behavior, label:activity.label } : { action, source });
+    actionTimer = setTimer(() => { emit({ action: '', source: 'idle' }); schedule(); }, activity ? HABITAT_ACTION_MS : ACTION_MS);
     return true;
   }
   return {
@@ -49,7 +50,7 @@ export function createPetDirector({ petKey, onChange, random = Math.random, setT
         if (before.reaction !== state.reaction || before.reactionId !== state.reactionId || !before.enabled) play(state.reaction === 'leap' ? 'celebrate' : state.reaction, 'care');
         return;
       }
-      if (!state.autonomous && active.action && ['idle','context','buddy','celebration'].includes(active.source)) { cancel(); emit({ action:'', source:'idle' }); }
+      if (!state.autonomous && active.action && ['idle','habitat','context','buddy','celebration'].includes(active.source)) { cancel(); emit({ action:'', source:'idle' }); }
       if (before.reaction && active.source === 'care' && active.action) return;
       if (before.reaction) { cancel(); emit({ action: '', source: 'idle' }); }
       if (state.autonomous && (before.mood !== state.mood || before.paired !== state.paired || !before.enabled)) {
@@ -62,6 +63,12 @@ export function createPetDirector({ petKey, onChange, random = Math.random, setT
       const target = part.startsWith('wing') ? 'wing-stretch' : part === 'tail' ? 'tail-swish' : part.startsWith('ear') ? 'listen' : part === 'body' ? 'breathe' : 'nuzzle';
       return play(target, 'touch');
     },
+    habitat(cue) {
+      const actions = [...(PET_PROFILES[petKey]?.idles || []), 'listen', 'doze', 'buddy-look'];
+      return cue && HABITAT_TARGETS.includes(cue.target) && actions.includes(cue.action)
+        && ['habitat','touch'].includes(cue.source) ? play(cue.action,cue.source,cue) : false;
+    },
+    cancelHabitat() { if (active.target) { cancel();emit({action:'',source:'idle'});schedule(); } },
     social(cue) { return cue && ["buddy-look", "nuzzle", "paw-wave", "wing-stretch", "celebrate"].includes(cue.action) && ["buddy", "touch", "celebration"].includes(cue.source) ? play(cue.action, cue.source) : false; },
     gesture(action) { return idlePool(petKey, state.mood).includes(action) ? play(action, 'touch') : false; },
     stop() { state = { ...state, enabled: false }; cancel(); emit({ action: '', source: 'idle' }); },
