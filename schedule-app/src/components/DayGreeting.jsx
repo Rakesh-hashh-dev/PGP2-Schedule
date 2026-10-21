@@ -9,7 +9,7 @@ import {
 import PetSleepCue from "./PetSleepCue.jsx";
 import PetHat from "./PetHat.jsx";
 import PetNeckwear from "./PetNeckwear.jsx";
-import { usePetBeat } from "../hooks/usePetBeat.js";
+import { usePetPerformance } from "../hooks/usePetPerformance.js";
 import { usePetGaze } from "../hooks/usePetGaze.js";
 import { recordMood } from "../lib/petStats.js";
 
@@ -55,6 +55,7 @@ export default function DayGreeting({
   const [greetingStamp, setGreetingStamp] = useState(null);
   const [isPetTrayOpen, setIsPetTrayOpen] = useState(false);
   const [petReaction, setPetReaction] = useState("");
+  const [reactionId, setReactionId] = useState(0);
   // Tagged with the pet it was written about, so a message can't outlive its pet.
   const [petMessage, setPetMessage] = useState(null);
   const reactionTimer = useRef(null);
@@ -89,7 +90,8 @@ export default function DayGreeting({
   const mood = adopted ? moodExplainFor(pet, now, petContext).mood : "content";
   // Cohort policy, defaulting ON — same rule as the pet page.
   const wardrobeOn = petSettings?.wardrobe !== false;
-  const beat = usePetBeat(mood, adopted && motionEnabled && petSettings?.signatures !== false, displayPet?.key, petReaction);
+  const performance = usePetPerformance(mood, adopted && motionEnabled, displayPet?.key, petReaction, petSettings?.signatures !== false, reactionId);
+  const beat = performance.beat;
   const gaze = usePetGaze(adopted && motionEnabled);
   const progress = adopted ? levelProgress(xpOf(pet)) : null;
   const left = adopted ? careLeft(pet, now) : 0;
@@ -152,6 +154,7 @@ export default function DayGreeting({
         ? options[used % options.length]
         : "has had plenty of attention today.",
     });
+    setReactionId(id => id + 1);
     setPetReaction(reunion ? "leap" : action);
     window.clearTimeout(reactionTimer.current);
     reactionTimer.current = window.setTimeout(() => setPetReaction(""), displayPet?.key === "luna" ? 1920 : reunion ? 1400 : 1150);
@@ -175,8 +178,11 @@ export default function DayGreeting({
             data-neck={(adopted && visibleNeckwear(pet, { wardrobe: wardrobeOn })) || undefined}
             data-reaction={petReaction || undefined}
             data-beat={petReaction ? undefined : beat || undefined}
+            data-action={performance.action}
+            data-action-source={performance.source} data-action-replay={performance.replay}
             data-sig={petSettings?.signatures === false ? "off" : undefined}
             {...gaze}
+            onPointerDown={event => { gaze.onPointerDown?.(event); performance.touch(event); }}
             onClick={() => (isPetTrayOpen ? closeTray() : setIsPetTrayOpen(true))}
             aria-expanded={isPetTrayOpen}
             aria-controls="daily-pet-actions"

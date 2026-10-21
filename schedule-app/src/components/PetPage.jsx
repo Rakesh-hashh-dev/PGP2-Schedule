@@ -19,7 +19,7 @@ import { petMilestones, petWeek, recentPetMoments, unlockRoadmap } from "../lib/
 import PetSleepCue from "./PetSleepCue.jsx";
 import PetHat from "./PetHat.jsx";
 import PetNeckwear from "./PetNeckwear.jsx";
-import { usePetBeat } from "../hooks/usePetBeat.js";
+import { usePetPerformance } from "../hooks/usePetPerformance.js";
 import { usePetGaze } from "../hooks/usePetGaze.js";
 import "../styles/pet.css";
 
@@ -122,7 +122,8 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
     ? moodExplainFor(pet, now, petContext)
     : { mood: "content", because: "" };
   const motionEnabled = petSettings?.motion !== false;
-  const beat = usePetBeat(mood, adopted && motionEnabled && petSettings?.signatures !== false, pet?.petKey, careFeedback?.action);
+  const performance = usePetPerformance(mood, adopted && motionEnabled, pet?.petKey, careFeedback?.reunion ? "leap" : careFeedback?.action, petSettings?.signatures !== false, careFeedback?.at);
+  const beat = performance.beat;
   const gaze = usePetGaze(motionEnabled);
   const left = careLeft(pet, now);
   const unlocked = useMemo(() => new Set(unlockedFor(pet)), [pet]);
@@ -270,7 +271,8 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
       <div className="pet-summary-grid">
         <section className="pet-card pet-identity-card" aria-label="Your companion">
           <div className="pet-identity-art" data-care={careFeedback?.action || undefined}>
-            <span
+            <button
+              type="button"
               key={careFeedback?.at || "idle"}
               className="dg-pet pet-identity-pet"
               data-pet={current.key}
@@ -278,19 +280,23 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
               data-stage={stage.key}
               data-mood={mood}
               data-beat={!careFeedback ? beat || undefined : undefined}
+              data-action={performance.action}
+              data-action-source={performance.source} data-action-replay={performance.replay}
               data-sig={signaturesOn ? undefined : "off"}
               data-accessory={accessoryOn ? "on" : "off"}
               data-coat={coat || undefined}
               data-neck={neck || undefined}
               data-reaction={(careFeedback?.reunion ? "leap" : careFeedback?.action) || undefined}
-              aria-hidden="true"
+              aria-label={`Say hello to ${pet.name || current.label}`}
               {...gaze}
+              onPointerDown={event => { gaze.onPointerDown?.(event); performance.touch(event); }}
+              onClick={event => { if (event.detail === 0) performance.greet(); }}
             >
               <current.Svg />
               <PetHat hat={hat} />
               <PetNeckwear neck={neck} />
               <PetSleepCue />
-            </span>
+            </button>
             {buddy && (
               <span
                 className="dg-pet pet-identity-buddy"

@@ -4,6 +4,7 @@ import "./styles.css";
 import "./styles/pet-personality.css";
 import "./styles/luna.css";
 import "./styles/pet-art.css";
+import "./styles/pet-rig.css";
 import "./styles/freeday.css";
 import "./styles/motion-details.css";
 import "./styles/premium-polish.css";

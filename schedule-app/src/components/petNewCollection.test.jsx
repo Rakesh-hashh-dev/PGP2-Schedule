@@ -27,7 +27,7 @@ describe("devotion collection integration", () => {
     it(`${key} has addressable eyes, expressions, optional accessories and unique gradient references`, () => {
       const pet = getPetByKey(key);
       const html = renderToStaticMarkup(<><pet.Svg /><pet.Svg /></>);
-      expect(html).toContain('class="pet-art"');
+      expect(html).toMatch(/class="pet-art(?: [^"]*)?"/);
       for (const part of ["dg-pet-eyes", "dg-pet-pupils", "dg-pet-face", "dg-pet-head", "dg-pet-expression-joy", "dg-pet-expression-rest", "dg-pet-accessory"]) expect(html).toContain(part);
       const ids = [...html.matchAll(/ id="([^"]+)"/g)].map(m => m[1]);
       expect(ids.length).toBe(2);

@@ -178,7 +178,7 @@ function Fox() {
   const earFluff = `url(#${id}-ear-fluff)`;
   const cream = "#fdf7ee";
   return (
-    <svg className="pet-art" viewBox="0 0 32 32" aria-hidden="true"><defs>
+    <svg className="pet-art pet-rig" viewBox="0 0 32 32" aria-hidden="true"><defs>
         <radialGradient id={`${id}-coat`} cx="40%" cy="24%" r="80%">
           <stop offset="0" stopColor="#fa9442" />
           <stop offset=".52" stopColor="#eb6a1e" />
@@ -197,7 +197,7 @@ function Fox() {
           curving plume and a fluffy cream tip peaking beside the flank.
           Its bounding box roots at the hip on its right edge, matching the
           transform-origin in styles.css. */}
-      <g className="dg-pet-tail" data-part="tail">
+      <g className="dg-pet-tail pet-rig-tail" data-part="tail" data-pet-part="tail">
         {/* Tail base plume */}
         <path
           d="M11.6 28.6C6.2 29.4 2 26 1.6 20.4c-.4-5.4 2.2-9.8 5.2-10.8 1.6-.6 3 .4 2.8 2-.4 3.2 0 7.4 2.8 11.2z"
@@ -218,6 +218,7 @@ function Fox() {
         <path d="M4.6 23.6q1.4-.7 1.8-2M3.8 19q1.2-.4 1.6-1.5" fill="none" stroke="#be430c" strokeWidth=".75" strokeLinecap="round" opacity=".55" />
       </g>
 
+      <g className="pet-rig-body" data-pet-part="body">
       {/* Seated body with dark-socked front paws. */}
       <path
         d="M10.8 19.2h10.4c2.6 0 4.6 2 4.6 5.2 0 2.2-1.6 3.8-4.6 3.8H10.8c-3 0-4.6-1.6-4.6-3.8 0-3.2 2-5.2 4.6-5.2z"
@@ -228,6 +229,7 @@ function Fox() {
       />
       {/* Cream bib / chest ruff */}
       <path d="M12.8 20.6c2.1.9 4.3.9 6.4 0v4.4c0 1.6-1.2 2.6-3.2 2.6s-3.2-1-3.2-2.6z" fill={cream} />
+      </g><g className="pet-rig-feet" data-pet-part="body">
       {/* Front paws with signature fox black socks */}
       <ellipse cx="12.7" cy="28.9" rx="2.3" ry="1.25" fill="#2a1b14" stroke={ink} strokeWidth=".85" />
       <ellipse cx="19.3" cy="28.9" rx="2.3" ry="1.25" fill="#2a1b14" stroke={ink} strokeWidth=".85" />
@@ -237,12 +239,13 @@ function Fox() {
       <circle cx="18.8" cy="29.2" r=".35" fill="#fdf7ee" opacity=".7" />
       <circle cx="19.8" cy="29.2" r=".35" fill="#fdf7ee" opacity=".7" />
 
+      </g>
       {/* Tall pointed ears with iconic black backs/tips and cream inner fluff.
           Drawn before the head so the skull cleanly overlaps the ear roots. */}
 
       {/* Head with distinct fox cheek ruffs: double flare points on each side
           that taper sharply into a refined chin and snout. */}
-      <g className="dg-pet-head" data-part="head" style={{ "--pet-head-x": "16px", "--pet-head-y": "24px" }}>
+      <g className="dg-pet-head pet-rig-head" data-part="head" data-pet-part="head" style={{ "--pet-head-x": "16px", "--pet-head-y": "24px" }}>
 <g className="dg-pet-ear dg-pet-ear-left" data-part="ear-left">
         {/* Main ear mass */}
         <path d="M12.4 9.6 6.5 1.9c-.7-.9-2.05-.45-2.15.75L3.7 11.2c.6 1.4 2.2 2.2 4 2.2z" fill={coat} stroke={ink} strokeWidth="1.2" strokeLinejoin="round" />
@@ -295,7 +298,7 @@ function Fox() {
         opacity=".65"
       />
 <PetExpression left={12.2} right={19.8} y={15.2} mouthY={20} ink="#241f2b" />
-<PetDetail pet="fox" />
+<PetDetail pet="fox" /><path className="pet-rig-mature" d="m13 10 1 1m4-1 1 1" stroke="#ffe5c7" strokeWidth=".7" />
 </g>
 
       {/* Fox mask & cheek ruffs: white/cream fur wrapping from the outer cheek
@@ -314,10 +317,10 @@ function Fox() {
       {/* Delicate fox whiskers */}
 
       {/* Default collar with gold bell, replaced when custom neckwear is worn */}
-      <path className="dg-pet-accessory" d="M11.4 24.6c2.9 1.1 6.3 1.1 9.2 0l.35 1.4c-3.3 1.2-6.5 1.2-9.9 0z" fill="#3f8576" stroke={ink} strokeWidth=".55" strokeLinejoin="round" />
+      <g className="pet-rig-neck"><path className="dg-pet-accessory" d="M11.4 24.6c2.9 1.1 6.3 1.1 9.2 0l.35 1.4c-3.3 1.2-6.5 1.2-9.9 0z" fill="#3f8576" stroke={ink} strokeWidth=".55" strokeLinejoin="round" />
       <circle className="dg-pet-accessory" cx="16" cy="26.4" r="1.1" fill="#f6ca59" stroke={ink} strokeWidth=".55" />
 
-<PetDetail pet="fox" layer="body" />
+</g><PetDetail pet="fox" layer="body" />
 </g></g></svg>
   );
 }

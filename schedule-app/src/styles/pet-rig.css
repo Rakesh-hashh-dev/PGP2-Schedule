@@ -1,0 +1,96 @@
+/* v2 pilot. All part transforms use the same 32-unit viewBox, including
+   wearable anchors. Anticipation 0–18%, action 18–72%, recovery 72–100%. */
+.dg-pet:has(> .pet-rig) {
+  animation: none;
+  container-type: inline-size;
+  container-name: pet-portrait;
+  --rig-time: 1800ms;
+  --rig-breath: 5.4s;
+}
+.dg-pet[data-pet="mochi"] { --rig-breath: 7s; }
+.dg-pet[data-pet="ember"] { --rig-breath: 4.8s; }
+.dg-pet[data-pet="nimbus"] { --pet-hat-y: -.3px; --pet-neck-y: 1px; --pet-neck-scale: .82; }
+.dg-pet:has(> .pet-rig) :is(svg, .dg-pet-face, .dg-pet-ear, .dg-pet-wing, .dg-pet-tail, .dg-pet-sig, .dg-pet-accessory) { animation: none; }
+.dg-pet:has(> .pet-rig) :is(.pet-rig-head, .pet-rig-neck, .pet-rig-body, .pet-rig-tail, .pet-rig-feet, .pet-rig-wing-left, .pet-rig-wing-right) {
+  transform-box: view-box;
+  transform-origin: 16px 24px;
+  animation-duration: var(--rig-time);
+  animation-timing-function: cubic-bezier(.3, 0, .25, 1);
+  animation-fill-mode: both;
+  animation-iteration-count: 1;
+}
+.dg-pet:has(> .pet-rig) .pet-rig-head { animation: rigHeadRest var(--rig-breath) ease-in-out infinite; }
+.dg-pet:has(> .pet-rig) :is(.pet-rig-body, .pet-rig-neck) { animation: rigBreathe var(--rig-breath) ease-in-out infinite; transform-origin: 16px 29px; }
+.dg-pet:has(> .pet-rig) .pet-rig-tail { transform-origin: 21px 28px; }
+.dg-pet[data-pet="fox"] .pet-rig-tail { transform-origin: 11px 27px; }
+.dg-pet:has(> .pet-rig) .pet-rig-wing-left { transform-origin: 11px 20px; }
+.dg-pet:has(> .pet-rig) .pet-rig-wing-right { transform-origin: 21px 20px; }
+.dg-pet[data-pet="nimbus"] :is(.pet-rig-wing-left, .pet-rig-wing-right) { transform-origin: 14px 18px; }
+.dg-pet:has(> .pet-rig)[data-action] :is(.pet-rig-head, .pet-rig-neck, .pet-rig-body) { animation: none; }
+.dg-pet:has(> .pet-rig):is([data-action="listen"], [data-action="peek"], [data-action="nuzzle"], [data-action="pet"]) .pet-rig-head { animation: var(--rig-nuzzle, rigNuzzle) var(--rig-time) ease-in-out both; }
+.dg-pet:has(> .pet-rig)[data-action="peek"] .pet-rig-head { animation-name: rigPeek; }
+.dg-pet:has(> .pet-rig)[data-action="listen"] .dg-pet-ear-left { animation: rigListen var(--rig-time) ease-in-out both; transform-box: fill-box; transform-origin: 50% 95%; }
+.dg-pet:has(> .pet-rig)[data-action="sniff"] .pet-rig-head { animation: rigSniff var(--rig-time) ease-in-out both; }
+.dg-pet:has(> .pet-rig):is([data-action="doze"], [data-action="breathe"], [data-action="treat"]) .pet-rig-head { animation: var(--rig-doze, rigDoze) var(--rig-time) ease-in-out both; }
+.dg-pet:has(> .pet-rig):is([data-action="stretch"], [data-action="proud"], [data-action="breathe"]) :is(.pet-rig-body, .pet-rig-neck) { animation: rigStretch var(--rig-time) ease-in-out both; }
+.dg-pet:has(> .pet-rig):is([data-action="stretch"], [data-action="proud"]) .pet-rig-head { animation: rigLift var(--rig-time) ease-in-out both; }
+.dg-pet:has(> .pet-rig):is([data-action="tail-swish"], [data-action="pet"], [data-action="nuzzle"], [data-action="celebrate"], [data-action="play"]) .pet-rig-tail { animation: rigTail var(--rig-time) ease-in-out both; }
+.dg-pet:has(> .pet-rig):is([data-action="wing-stretch"], [data-action="hover"], [data-action="celebrate"], [data-action="play"]) :is(.pet-rig-wing-left, .pet-rig-wing-right) { animation: rigWing var(--rig-time) ease-in-out both; }
+.dg-pet[data-pet="ember"] .pet-rig-wing-right { --rig-wing-turn: 16deg; }
+.dg-pet:has(> .pet-rig):is([data-action="celebrate"], [data-action="play"]) :is(.pet-rig-head, .pet-rig-body, .pet-rig-neck, .pet-rig-feet) { animation: var(--rig-celebrate, rigCelebrate) var(--rig-time) ease-in-out both; }
+.dg-pet:has(> .pet-rig)[data-action="hover"] :is(.pet-rig-head, .pet-rig-body, .pet-rig-neck) { animation: rigHover var(--rig-time) ease-in-out both; }
+.dg-pet:has(> .pet-rig)[data-action="treat"] .dg-pet-expression-smile { animation: dgPetChew var(--rig-time) ease-in-out both; }
+/* Expressions remain legible in the static accessibility pose. */
+.dg-pet:has(> .pet-rig)[data-action="doze"] { --pet-face-base: none; --pet-face-joy: none; --pet-face-rest: inline; }
+.dg-pet:has(> .pet-rig):is([data-action="celebrate"], [data-action="nuzzle"], [data-action="pet"], [data-action="play"], [data-action="treat"]) {
+  --pet-face-base: none; --pet-face-rest: none; --pet-face-surprise: none; --pet-face-brows: none;
+  --pet-face-joy: inline; --pet-mouth-base: none; --pet-mouth-yawn: none; --pet-mouth-oh: none; --pet-mouth-smile: inline;
+}
+.pet-rig-mature { display: none; }
+.dg-pet:is([data-stage="elder"], [data-stage="ascended"]) .pet-rig-mature { display: inline; }
+.dg-pet[data-stage="hatchling"] .pet-rig-head { scale: 1.04; }
+.dg-pet[data-stage="ascended"] .pet-rig-mature { stroke-width: 1; }
+button.pet-identity-pet { padding: 0; border: 0; background: transparent; cursor: pointer; }
+button.pet-identity-pet:focus-visible { outline: 2px solid var(--accent, #8973bb); outline-offset: 5px; border-radius: 24px; }
+/* At badge size preserve the silhouette and eyes; omit texture and movement. */
+@container pet-portrait (max-width: 32px) {
+  .pet-rig-mature, .pet-rig .dg-pet-expression-brows { display: none !important; }
+  .pet-rig *, .dg-pet-hat *, .dg-pet-neck * { animation: none !important; }
+}
+@keyframes rigHeadRest { 0%, 100% { transform: rotate(0); } 50% { transform: translateY(-.15px) rotate(.6deg); } }
+@keyframes rigBreathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.012, 1.025); } }
+@keyframes rigNuzzle { 0%, 100% { transform: none; } 15% { transform: rotate(2deg) translateY(.3px); } 38%, 58% { transform: rotate(-7deg) translateY(-.4px); } 78% { transform: rotate(1.5deg); } }
+@keyframes rigPeek { 0%, 100% { transform: none; } 15% { transform: translateX(-.2px); } 40%, 65% { transform: translateX(.8px) rotate(5deg); } 83% { transform: translateX(-.1px) rotate(-1deg); } }
+@keyframes rigListen { 0%, 100% { transform: none; } 18% { transform: rotate(4deg); } 36%, 66% { transform: rotate(-13deg); } 82% { transform: rotate(2deg); } }
+@keyframes rigSniff { 0%, 100% { transform: none; } 18% { transform: translateY(.2px); } 38%, 60% { transform: translateY(-.6px); } 48%, 70% { transform: translateY(-.1px); } }
+@keyframes rigDoze { 0%, 100% { transform: none; } 18% { transform: translateY(-.15px); } 45%, 67% { transform: translateY(.65px) rotate(2deg); } 84% { transform: translateY(.1px); } }
+@keyframes rigStretch { 0%, 100% { transform: none; } 18% { transform: scale(1.025,.97); } 42%, 64% { transform: scale(.98,1.075); } 82% { transform: scale(1.01,.99); } }
+@keyframes rigLift { 0%, 100% { transform: none; } 18% { transform: translateY(.35px); } 42%, 64% { transform: translateY(-.9px) rotate(-2deg); } 82% { transform: translateY(.1px); } }
+@keyframes rigTail { 0%, 100% { transform: none; } 18% { transform: rotate(-4deg); } 38%, 65% { transform: rotate(12deg); } 52% { transform: rotate(-7deg); } 84% { transform: rotate(-2deg); } }
+@keyframes rigWing { 0%, 100% { transform: none; } 18% { transform: rotate(3deg); } 38%, 64% { transform: rotate(var(--rig-wing-turn,-16deg)) scaleX(.93); } 51% { transform: rotate(6deg); } 84% { transform: rotate(-2deg); } }
+@keyframes rigCelebrate { 0%, 100% { transform: none; } 18% { transform: translateY(.8px) scale(1.025,.96); } 40% { transform: translateY(-2px) scale(.99,1.025); } 59% { transform: translateY(.3px) scale(1.02,.98); } 74% { transform: translateY(-.65px); } 88% { transform: none; } }
+@keyframes rigHover { 0%, 100% { transform: none; } 18% { transform: translateY(.25px); } 44%, 62% { transform: translateY(-1.1px); } 85% { transform: translateY(.1px); } }
+/* All new rules are bounded by the same settings as existing pets. */
+.dg-pet:has(> .pet-rig)[data-sig="off"][data-action-source="idle"] *,
+.dg-pet:has(> .pet-rig)[data-sig="off"][data-action-source="context"] *,
+.dg-pet:has(> .pet-rig)[data-sig="off"][data-action-source="celebration"] * { animation: none !important; }
+.dg-pet:has(> .pet-rig)[data-motion="off"], .dg-pet:has(> .pet-rig)[data-motion="off"] * { animation: none !important; transition: none !important; }
+.dg-pet:has(> .pet-rig)[data-offscreen] * { animation-play-state: paused !important; }
+@media (prefers-reduced-motion: reduce) {
+  .dg-pet:has(> .pet-rig), .dg-pet:has(> .pet-rig) * { animation: none !important; transition: none !important; }
+}
+/* PetPage's local care rules load lazily; the rig owns the whole choreography. */
+.dg-pet:has(> .pet-rig)[data-reaction] { animation: none; }
+/* The current shared canvas remains; v2 owns the inner pilot parts. */
+.dg-pet:has(> .pet-rig) :is(.dg-pet-body, .dg-pet-wearable-body:not(.pet-rig-neck)) { animation: none; }
+.dg-pet:has(> .pet-rig) .dg-pet-wearable-body:not(.pet-rig-neck) { transform: none; }
+.dg-pet:has(> .pet-rig) :is(.dg-pet-ear, .dg-pet-wing, .dg-pet-tail) { transform: none; }
+
+@keyframes rigNuzzleReplay { 0%, 100% { transform: none; } 15% { transform: rotate(2deg) translateY(.3px); } 38%, 58% { transform: rotate(-7deg) translateY(-.4px); } 78% { transform: rotate(1.5deg); } }
+.dg-pet:has(> .pet-rig)[data-action-replay="b"] { --rig-nuzzle: rigNuzzleReplay; }
+
+@keyframes rigCelebrateReplay { 0%, 100% { transform: none; } 18% { transform: translateY(.8px) scale(1.025,.96); } 40% { transform: translateY(-2px) scale(.99,1.025); } 59% { transform: translateY(.3px) scale(1.02,.98); } 74% { transform: translateY(-.65px); } 88% { transform: none; } }
+.dg-pet:has(> .pet-rig)[data-action-replay="b"] { --rig-celebrate: rigCelebrateReplay; }
+
+@keyframes rigDozeReplay { 0%, 100% { transform: none; } 18% { transform: translateY(-.15px); } 45%, 67% { transform: translateY(.65px) rotate(2deg); } 84% { transform: translateY(.1px); } }
+.dg-pet:has(> .pet-rig)[data-action-replay="b"] { --rig-doze: rigDozeReplay; }

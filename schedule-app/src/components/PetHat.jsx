@@ -299,7 +299,7 @@ export default function PetHat({ hat }) {
   if (!art) return null;
   return (
     <svg className="dg-pet-hat" viewBox="0 0 32 32" aria-hidden="true" data-hat={hat}>
-      <g className="dg-pet-wearable-canvas"><g className="dg-pet-wearable-body"><g className="dg-pet-wearable-head">{art}</g></g></g>
+      <g className="dg-pet-wearable-canvas"><g className="dg-pet-wearable-body"><g className="dg-pet-wearable-head pet-rig-head">{art}</g></g></g>
     </svg>
   );
 }
