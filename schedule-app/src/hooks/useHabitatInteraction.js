@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createHabitatDirector } from '../lib/petHabitatInteraction.js';
-export function useHabitatInteraction({ primary, buddy, habitat, mood, enabled, autonomous, reaction, reactionId }) {
+export function useHabitatInteraction({ primary, buddy, habitat, mood, enabled, autonomous, reaction, reactionId, favorite }) {
   const identity=`${primary}:${buddy}`;
   const [cues,setCues]=useState({identity,primary:null,buddy:null});
   const [available,setAvailable]=useState(false);
   const engine=useRef(null);
-  const inputs=useRef({habitat,mood,autonomous,reaction,reactionId});
-  useEffect(()=>{inputs.current={habitat,mood,autonomous,reaction,reactionId};},[habitat,mood,autonomous,reaction,reactionId]);
+  const inputs=useRef({habitat,mood,autonomous,reaction,reactionId,favorite});
+  useEffect(()=>{inputs.current={habitat,mood,autonomous,reaction,reactionId,favorite};},[habitat,mood,autonomous,reaction,reactionId,favorite]);
   useEffect(()=>{
     if (!enabled || !primary) return undefined;
     const director=createHabitatDirector({primary,buddy,onCue:(role,cue)=>setCues(previous=>({...previous,identity,[role]:cue}))});
@@ -16,7 +16,7 @@ export function useHabitatInteraction({ primary, buddy, habitat, mood, enabled, 
     document.addEventListener('visibilitychange',sync);media?.addEventListener?.('change',sync);sync();
     return ()=>{engine.current=null;director.stop();document.removeEventListener('visibilitychange',sync);media?.removeEventListener?.('change',sync);};
   },[primary,buddy,identity,enabled]);
-  useEffect(()=>{engine.current?.update({habitat,mood,autonomous,reaction,reactionId});},[habitat,mood,autonomous,reaction,reactionId]);
+  useEffect(()=>{engine.current?.update({habitat,mood,autonomous,reaction,reactionId,favorite});},[habitat,mood,autonomous,reaction,reactionId,favorite]);
   const interact=useCallback(target=>{engine.current?.interact(target);},[]);
   return {available:enabled && available && !reaction,primary:enabled && cues.identity===identity ? cues.primary:null,buddy:enabled && cues.identity===identity ? cues.buddy:null,interact};
 }

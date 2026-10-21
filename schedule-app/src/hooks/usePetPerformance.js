@@ -3,12 +3,14 @@ import { createPetDirector, RIGGED_PETS } from '../lib/petDirector.js';
 import { usePetTransitions } from './usePetTransitions.js';
 import { usePetBeat } from './usePetBeat.js';
 
-export function usePetPerformance(mood, enabled, petKey, reaction, signatures = true, reactionId = 0, socialCue = null, paired = false, habitatCue = null) {
+export function usePetPerformance(mood, enabled, petKey, reaction, signatures = true, reactionId = 0, socialCue = null, paired = false, habitatCue = null, onActivity = null, welcomeCue = null) {
   const rigged = RIGGED_PETS.has(petKey);
   const beat = usePetBeat(mood, enabled && signatures && !rigged, petKey, reaction);
   const [pose, setPose] = useState({ action: '', source: 'idle', petKey });
   const transitions = usePetTransitions(pose.action, pose.replay, enabled);
   const director = useRef(null);
+  const activityHandler = useRef(onActivity);
+  useEffect(() => { activityHandler.current = onActivity; }, [onActivity]);
   const prepare = useRef(transitions.prepare);
   useEffect(() => { prepare.current = transitions.prepare; }, [transitions.prepare]);
   const sequence = useRef(0);
@@ -16,7 +18,7 @@ export function usePetPerformance(mood, enabled, petKey, reaction, signatures = 
   useEffect(() => { inputs.current = { mood, reaction, reactionId, paired, autonomous: signatures }; }, [mood, reaction, signatures, reactionId, paired]);
   useEffect(() => {
     if (!rigged || !enabled) return undefined;
-    const engine = createPetDirector({ petKey, onChange: next => { prepare.current(); setPose({ ...next, petKey, replay: sequence.current++ % 2 ? 'b' : 'a' }); } });
+    const engine = createPetDirector({ petKey, onChange: next => { if(next.target) activityHandler.current?.(next); prepare.current(); setPose({ ...next, petKey, replay: sequence.current++ % 2 ? 'b' : 'a' }); } });
     director.current = engine;
     const media = window.matchMedia?.('(prefers-reduced-motion: reduce)');
     const sync = () => engine.update({ ...inputs.current, enabled: !document.hidden && !media?.matches });
@@ -33,6 +35,7 @@ export function usePetPerformance(mood, enabled, petKey, reaction, signatures = 
   useEffect(() => { director.current?.update({ mood, reaction, reactionId, paired, autonomous: signatures }); }, [mood, reaction, signatures, reactionId, paired]);
   useEffect(() => { if (socialCue) director.current?.social(socialCue); }, [socialCue]);
   useEffect(() => { if (habitatCue) director.current?.habitat(habitatCue); else director.current?.cancelHabitat(); }, [habitatCue]);
+  useEffect(() => { if (welcomeCue && inputs.current.autonomous) director.current?.social(welcomeCue); }, [welcomeCue]);
   const action = rigged && enabled && pose.petKey === petKey ? pose.action : '';
   return {
     bind: transitions.attach,

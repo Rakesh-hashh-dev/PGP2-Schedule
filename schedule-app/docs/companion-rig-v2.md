@@ -148,3 +148,43 @@ keyboard access, with an activity status beside the companion's name. Removed
 decorations have no button. Reduced motion/motion-off keeps a static scene.
 The pose blender also samples the actor's translation so an interrupted Nimbus
 flight returns smoothly while the care gesture takes over.
+
+## Companion memory and evolving bonds
+
+The memory journal is independent of `pet_state`, cosmetics, care and XP.
+`companionMemory.js` validates immutable events and derives favourites, pair
+familiarity, return greetings and small discoveries for the full roster.
+Intentional exploration contributes one observation per pet/target/local day;
+a favourite emerges after three distinct days. Pair familiarity counts one
+shared day at a time, regardless of which pet is primary. Familiar (3 days)
+and old-friend (7 days) pairs use expanded greeting routines. Neither measure
+has decay, a streak requirement or a reward quota.
+
+The habitat scheduler weights a remembered favourite while still avoiding an
+immediate repeat. Focus and motion rules continue to apply. Rare discoveries
+are deterministic per pet/day/target, with at most one discovery per pet/day.
+They produce a small SVG moment and can be saved by choice. The Journey tab's
+Memory album preserves the primary/buddy names, caption, discovery and habitat
+at save time; later renames or companion switches do not rewrite an album card.
+
+Returns after an observed class or time away get a short welcome. App records
+observed class context even when the companion page is closed. Opening the
+page and resuming after an absence record a visit; ordinary clock ticks do
+not. Quiet returns remain gentle and all animation uses the existing shared
+priority/motion controls.
+
+Persistence is account-bound local storage plus the new append-only
+`companion_memory_events` table. Apply
+`supabase/migrations/20261021120000_companion_memories.sql` in the Dashboard SQL
+Editor before the cloud release. The repository's existing instruction says
+not to use `db push`. The migration adds a table, required-payload constraints,
+self-only SELECT/INSERT RLS policies and privileges. It does not modify the
+pet-state RPC, XP ledger or friend visibility. Cloud inserts ignore duplicate
+IDs; merging is a set union. Pending local events survive reloads, retry after
+network/migration failures, and reconcile on reconnect or foregrounding.
+
+The album accurately shows "Saved on this device" until cloud sync succeeds.
+Storage failure is reported as unsaved. Accounts get separate journals and
+session moment state is also bound to its owner. No production migration or
+deployment was run during implementation. A signed-in two-device smoke test
+is required after applying the migration.

@@ -5,9 +5,11 @@ export function buddyGreeting(petKey) {
   const actions = PET_PROFILES[petKey]?.idles || [];
   return actions.includes('paw-wave') ? 'paw-wave' : actions.includes('wing-stretch') ? 'wing-stretch' : 'nuzzle';
 }
-export function buddyPlan(primary, buddy, kind = 'glance') {
+export function buddyPlan(primary, buddy, kind = 'glance', familiarity = 0) {
   if (!PET_PROFILES[primary] || !PET_PROFILES[buddy]) return [];
   if (kind === 'celebrate') return [{ role:'primary',action:'celebrate',at:0 },{ role:'buddy',action:'celebrate',at:220 }];
+  if (kind === 'greet' && familiarity >= 7) return [{role:'primary',action:buddyGreeting(primary),at:0},{role:'buddy',action:buddyGreeting(buddy),at:300},{role:'primary',action:'buddy-look',at:950},{role:'buddy',action:'buddy-look',at:1300}];
+  if (kind === 'greet' && familiarity >= 3) return [{role:'primary',action:'buddy-look',at:0},{role:'buddy',action:buddyGreeting(buddy),at:220},{role:'primary',action:buddyGreeting(primary),at:600},{role:'buddy',action:'buddy-look',at:1400}];
   if (kind === 'greet') return [{ role:'primary',action:'buddy-look',at:0 },{ role:'buddy',action:buddyGreeting(buddy),at:260 },{ role:'primary',action:buddyGreeting(primary),at:650 }];
   return [{ role:'primary',action:'buddy-look',at:0 },{ role:'buddy',action:'buddy-look',at:340 }];
 }
@@ -23,7 +25,7 @@ export function createBuddyDirector({ primary, buddy, onCue, random = Math.rando
   function run(kind, deliberate = false) {
     if (!state.enabled || state.reaction || (!deliberate && (!state.autonomous || QUIET.has(state.mood)))) return false;
     cancel();
-    const plan = buddyPlan(primary,buddy,QUIET.has(state.mood) ? 'glance' : kind);
+    const plan = buddyPlan(primary,buddy,QUIET.has(state.mood) ? 'glance' : kind,state.familiarity);
     if (!plan.length) return false;
     const source = kind === 'celebrate' ? 'celebration' : deliberate ? 'touch' : 'buddy';
     const id = ++sequence;

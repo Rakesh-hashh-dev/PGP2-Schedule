@@ -20,6 +20,8 @@ import PetHabitat, { PetHabitatControls } from "./PetHabitat.jsx";
 import PetSleepCue from "./PetSleepCue.jsx";
 import PetHat from "./PetHat.jsx";
 import PetNeckwear from "./PetNeckwear.jsx";
+import { useCompanionStory } from "../hooks/useCompanionStory.js";
+import PetMemoryPanel from "./PetMemoryPanel.jsx";
 import { useHabitatInteraction } from "../hooks/useHabitatInteraction.js";
 import { useBuddyInteraction } from "../hooks/useBuddyInteraction.js";
 import { usePetPerformance } from "../hooks/usePetPerformance.js";
@@ -116,7 +118,7 @@ function BuddyArt({ buddy, mood, motionEnabled, signaturesOn, coat, cue, habitat
   return <span ref={petRef} data-habitat-target={activity?.target} data-habitat-behavior={activity?.behavior} data-partner-side="left" className="dg-pet pet-identity-buddy" data-pet={buddy.key} data-motion={motionEnabled ? 'on' : 'off'} data-mood={mood} data-coat={coat || undefined} data-sig={signaturesOn ? undefined : 'off'} data-action={action} data-action-source={source} data-action-replay={replay} aria-hidden="true"><buddy.Svg /></span>;
 }
 
-export default function PetPage({ pet, petActions, petContext, petSettings, now, onBack }) {
+export default function PetPage({ pet, petActions, petContext, petSettings, now, onBack, companionMemory }) {
   const [nameDraft, setNameDraft] = useState(null);
   const [adoptChoice, setAdoptChoice] = useState(null);
   const [activeSection, setActiveSection] = useState("overview");
@@ -132,9 +134,10 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
     : { mood: "content", because: "" };
   const motionEnabled = petSettings?.motion !== false;
   const buddyKey = buddyFor(pet);
-  const habitatInteraction = useHabitatInteraction({primary:pet?.petKey,buddy:buddyKey,habitat:pet?.cosmetics?.habitat,mood,enabled:adopted && motionEnabled,autonomous:petSettings?.signatures !== false,reaction:careFeedback?.action,reactionId:careFeedback?.at});
-  const social = useBuddyInteraction(mood, adopted && motionEnabled, pet?.petKey, buddyKey, careFeedback?.reunion ? "leap" : careFeedback?.action, careFeedback?.at, petSettings?.signatures !== false);
-  const { bind: petRef, beat, action, source, replay, touch, greet, activity } = usePetPerformance(mood, adopted && motionEnabled, pet?.petKey, careFeedback?.reunion ? "leap" : careFeedback?.action, petSettings?.signatures !== false, careFeedback?.at, social.primary, Boolean(buddyKey), habitatInteraction.primary);
+  const story = useCompanionStory({memory:companionMemory,petKey:pet?.petKey,petName:pet?.name || getPetByKey(pet?.petKey)?.label,buddyKey,buddyName:buddyKey ? getPetByKey(buddyKey)?.label:'',scene:pet?.cosmetics?.habitat?.scene || 'garden',inClass:petContext?.inClass,now});
+  const habitatInteraction = useHabitatInteraction({primary:pet?.petKey,buddy:buddyKey,habitat:pet?.cosmetics?.habitat,mood,enabled:adopted && motionEnabled,autonomous:petSettings?.signatures !== false,reaction:careFeedback?.action,reactionId:careFeedback?.at,favorite:story.favorite?.key});
+  const social = useBuddyInteraction(mood, adopted && motionEnabled, pet?.petKey, buddyKey, careFeedback?.reunion ? "leap" : careFeedback?.action, careFeedback?.at, petSettings?.signatures !== false, story.familiarity.days);
+  const { bind: petRef, beat, action, source, replay, touch, greet, activity } = usePetPerformance(mood, adopted && motionEnabled, pet?.petKey, careFeedback?.reunion ? "leap" : careFeedback?.action, petSettings?.signatures !== false, careFeedback?.at, social.primary, Boolean(buddyKey), habitatInteraction.primary, story.accepted, story.welcome);
   const gaze = usePetGaze(motionEnabled);
   const left = careLeft(pet, now);
   const unlocked = useMemo(() => new Set(unlockedFor(pet)), [pet]);
@@ -280,7 +283,7 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
 
       <div className="pet-summary-grid">
         <section className="pet-card pet-identity-card" aria-label="Your companion">
-          <PetHabitat value={pet.cosmetics?.habitat} now={now} motionEnabled={motionEnabled} care={careFeedback?.action} onInteract={habitatInteraction.interact} interactive={habitatInteraction.available} activity={activity}>
+          <PetHabitat value={pet.cosmetics?.habitat} now={now} motionEnabled={motionEnabled} care={careFeedback?.action} onInteract={habitatInteraction.interact} interactive={habitatInteraction.available} activity={activity} discovery={activity ? story.moment?.discovery:null}>
             <button
               type="button"
               ref={petRef}
@@ -322,8 +325,10 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
             {title && <p className="pet-title-line">{titleLabel(title)}</p>}
             <p className="pet-mood">{MOOD_COPY[mood]}</p>
             {because && <p className="pet-because">{because}</p>}
-          {buddy && <button type="button" className="pet-social-greet" onClick={social.greet} disabled={!motionEnabled}>Say hello together</button>}
+          {buddy && <button type="button" className="pet-social-greet" onClick={() => { social.greet(); story.rememberBuddy(); }} disabled={!motionEnabled}>Say hello together</button>}
+            {story.welcome && <p className="pet-memory-welcome" role="status">{story.welcome.caption}</p>}
             <p className="pet-habitat-activity" role="status">{activity ? `${pet.name || current.label} ${activity.label}` : "Tap a decoration to explore their little home."}</p>
+            {story.moment && <button type="button" className="pet-social-greet" disabled={story.saved} onClick={story.save}>{story.saved ? "Moment saved" : "Save moment"}</button>}
             <div className="pet-meta-row">
               <span>{nextStage ? `${nextStage.label} at Lv ${nextStage.from}` : "Fully grown"}</span>
               {seen && <span>Last together {seen}</span>}
@@ -471,6 +476,7 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
 
       {activeSection === "journey" && (
         <div className="pet-tab-panel pet-journey-grid" id="pet-panel-journey" role="tabpanel" aria-labelledby="pet-tab-journey">
+          <PetMemoryPanel memory={companionMemory} favorite={story.favorite} familiarity={story.familiarity} petKey={pet.petKey} buddyKey={buddyKey} petName={pet.name} />
           <section className="pet-card pet-roadmap-card">
             <div className="pet-card-heading">
               <div><p className="pet-eyebrow">Coming up</p><h3 className="pet-h3">Unlock roadmap</h3></div>

@@ -1,5 +1,6 @@
 import { rememberSplitInvite, pendingSplitInvite, clearSplitInvite } from "./lib/splitInvite.js";
 import { MORE_VIEWS } from "./lib/navItems.js";
+import { memoryEvent } from "./lib/companionMemory.js";
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Suspense, lazy, startTransition } from "react";
 import { createPortal } from "react-dom";
 import { setNavView, useNavView } from "./lib/navView.js";
@@ -548,7 +549,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [attendance, setAttendance] = useState(() => loadAttendance());
   // Pet companion. Local copy paints immediately; the hook reconciles with the
   // `pet_state` row and merges anything earned offline. See lib/pet.js.
-  const { pet: myPet, actions: petActions, moment: petMoment, gained: petGained, XP: petXP, keyFor: petKeyFor } = usePet(userId, { xpRate: sysConfig?.flags?.greetingPets?.xpRate });
+  const { pet: myPet, actions: petActions, moment: petMoment, gained: petGained, memory: companionMemory, XP: petXP, keyFor: petKeyFor } = usePet(userId, { xpRate: sysConfig?.flags?.greetingPets?.xpRate });
   const [syncing, setSyncing] = useState(false);
   const [overflowOpen, setOverflowOpen] = useState(false);
   const { mobileUiVersion, setMobileUiVersion, supportsV2: compactViewport, v2Active } = useMobileUiVersion();
@@ -1889,6 +1890,15 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     moment: petMoment?.moment,
     momentUntil: petMoment?.momentUntil,
   }), [current, next, now, todayList, examSoon, deadlineDueToday, classDays, petMoment]);
+
+  // Remember an observed class even when the companion page is not open.
+  const classMemoryPetKey = current && greetingPetsEnabled && myPet?.companionEnabled !== false
+    && sysConfig?.flags?.greetingPets?.enabled !== false && sysConfig?.flags?.greetingPets?.companion !== false ? myPet?.petKey : null;
+  const memoryReady = companionMemory.ready;
+  const recordCompanionVisit = companionMemory.record;
+  useEffect(() => {
+    if (memoryReady && classMemoryPetKey) recordCompanionVisit(memoryEvent("visit", { petKey: classMemoryPetKey, petName: myPet?.name, context: "class" }, new Date()));
+  }, [memoryReady, classMemoryPetKey, myPet?.name, recordCompanionVisit]);
 
   const syncedAgo = Math.max(0, Math.round((now - syncedAt) / 60000));
 
@@ -3635,6 +3645,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                               : view === "pet" && enableCompanion
                                 ? <PetPage
                                     pet={myPet}
+                                    companionMemory={companionMemory}
                                     petActions={petActions}
                                     petContext={petContext}
                                     petSettings={sysConfig?.flags?.greetingPets}

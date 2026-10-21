@@ -50,7 +50,8 @@ export function createHabitatDirector({ primary, buddy, onCue, random = Math.ran
     const resting=REST.has(state.mood);
     timers.push(setTimer(()=>{
       const pool=resting ? [state.habitat.decor.includes('cushion') ? 'cushion' : 'sky'] : targets().filter(target=>target!==previous);
-      const target=pool[Math.min(pool.length-1,Math.floor(random()*pool.length))] || 'sky';
+      const weighted=pool.includes(state.favorite) ? [...pool,state.favorite,state.favorite]:pool;
+      const target=weighted[Math.min(weighted.length-1,Math.floor(random()*weighted.length))] || 'sky';
       run(target,false);
     },initial && resting ? 4500 : 45000+random()*40000));
   };

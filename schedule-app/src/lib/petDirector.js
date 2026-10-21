@@ -69,7 +69,7 @@ export function createPetDirector({ petKey, onChange, random = Math.random, setT
         && ['habitat','touch'].includes(cue.source) ? play(cue.action,cue.source,cue) : false;
     },
     cancelHabitat() { if (active.target) { cancel();emit({action:'',source:'idle'});schedule(); } },
-    social(cue) { return cue && ["buddy-look", "nuzzle", "paw-wave", "wing-stretch", "celebrate"].includes(cue.action) && ["buddy", "touch", "celebration"].includes(cue.source) ? play(cue.action, cue.source) : false; },
+    social(cue) { return cue && ["buddy-look", "nuzzle", "paw-wave", "wing-stretch", "celebrate", "listen"].includes(cue.action) && ["buddy", "touch", "celebration", "context"].includes(cue.source) ? play(cue.action, cue.source) : false; },
     gesture(action) { return idlePool(petKey, state.mood).includes(action) ? play(action, 'touch') : false; },
     stop() { state = { ...state, enabled: false }; cancel(); emit({ action: '', source: 'idle' }); },
   };

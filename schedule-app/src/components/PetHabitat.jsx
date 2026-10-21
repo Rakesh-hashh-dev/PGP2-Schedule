@@ -1,8 +1,9 @@
 import { HABITATS, HABITAT_LIGHTS, HABITAT_DECOR, normalizeHabitat, habitatLight, toggleHabitatDecor } from '../lib/petHabitat.js';
+import { PetDiscoveryArt } from './PetMemoryPanel.jsx';
 import '../styles/pet-habitat.css';
 
 /** Scenery stays behind the actors; named hotspots handle decoration input. */
-export default function PetHabitat({ value, now, motionEnabled = true, children, care, className = '', onInteract, interactive = false, activity = null }) {
+export default function PetHabitat({ value, now, motionEnabled = true, children, care, className = '', onInteract, interactive = false, activity = null, discovery = null }) {
   const habitat = normalizeHabitat(value);
   const light = habitatLight(habitat, now);
   return <div className={`pet-identity-art pet-habitat ${className}`} data-scene={habitat.scene} data-light={light} data-habitat-motion={motionEnabled ? 'on' : 'off'} data-care={care || undefined} data-engaged={activity?.target}>
@@ -18,6 +19,7 @@ export default function PetHabitat({ value, now, motionEnabled = true, children,
       {habitat.decor.includes('plant') && <g className="habitat-plant"><path className="habitat-pot" d="m14 187 4 22h17l4-22Z" /><path className="habitat-stem" d="M27 188v-28" /><path className="habitat-leaf" d="M27 177q-20 1-16-16 17-1 16 16Zm0-7q-1-19 17-19 1 17-17 19Z" /></g>}
       {habitat.decor.includes('books') && <g className="habitat-books"><rect x="183" y="204" width="39" height="9" rx="2" /><rect x="188" y="194" width="35" height="9" rx="2" /><path d="M191 197h27m-28 10h26" /></g>}
       {habitat.decor.includes('lantern') && <g className="habitat-lantern"><circle className="habitat-lantern-glow" cx="211" cy="165" r="23" /><path d="M205 151v-5a6 6 0 0 1 12 0v5" /><rect x="202" y="152" width="18" height="26" rx="5" /><path className="habitat-lantern-light" d="M211 157v15" /><path d="M200 179h22" /></g>}
+      {discovery && <PetDiscoveryArt kind={discovery} className="pet-habitat-discovery" x="92" y="28" width="44" height="44"/>}
     </svg>
     {children}
     {onInteract && [...habitat.decor, 'sky'].map(target => <button key={target} type="button" className="pet-habitat-spot" data-target={target} data-active={activity?.target === target ? "" : undefined} disabled={!interactive} onClick={() => onInteract(target)} aria-label={{plant:'Explore little plant',books:'Inspect book stack',lantern:'Visit warm lantern',cushion:'Rest on soft cushion',sky:'Watch the sky'}[target]} title={{plant:'Explore the plant',books:'Inspect the books',lantern:'Visit the lantern',cushion:'Settle on the cushion',sky:'Watch the sky'}[target]} />)}
