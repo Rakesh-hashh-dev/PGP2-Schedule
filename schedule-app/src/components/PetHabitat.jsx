@@ -3,10 +3,10 @@ import { PetDiscoveryArt } from './PetMemoryPanel.jsx';
 import '../styles/pet-habitat.css';
 
 /** Scenery stays behind the actors; named hotspots handle decoration input. */
-export default function PetHabitat({ value, now, motionEnabled = true, children, care, className = '', onInteract, interactive = false, activity = null, discovery = null }) {
+export default function PetHabitat({ value, now, motionEnabled = true, children, care, className = '', onInteract, interactive = false, activity = null, discovery = null, routine }) {
   const habitat = normalizeHabitat(value);
   const light = habitatLight(habitat, now);
-  return <div className={`pet-identity-art pet-habitat ${className}`} data-scene={habitat.scene} data-light={light} data-habitat-motion={motionEnabled ? 'on' : 'off'} data-care={care || undefined} data-engaged={activity?.target}>
+  return <div className={`pet-identity-art pet-habitat ${className}`} data-scene={habitat.scene} data-light={light} data-habitat-motion={motionEnabled ? 'on' : 'off'} data-care={care || undefined} data-engaged={activity?.target} data-routine={routine}>
     <svg className="pet-habitat-scenery" viewBox="0 0 240 240" aria-hidden="true" focusable="false">
       <circle className="habitat-sun" cx="181" cy="44" r="16" />
       <g className="habitat-moon"><circle cx="181" cy="44" r="16" /><circle className="habitat-moon-cutout" cx="188" cy="38" r="14" /></g>
@@ -32,6 +32,7 @@ export function PetHabitatControls({ value, onChange }) {
     <p className="pet-care-note">A little place to call home. These choices are free and shared by all your companions.</p>
     <fieldset><legend>Choose a place</legend><div className="pet-habitat-options">{HABITATS.map(item => <button type="button" key={item.key} aria-pressed={habitat.scene === item.key} onClick={() => onChange({ ...habitat, scene: item.key })}><span className="pet-habitat-swatch" data-scene={item.key} aria-hidden="true" /><strong>{item.label}</strong><span>{item.detail}</span></button>)}</div></fieldset>
     <fieldset><legend>Lighting</legend><div className="pet-habitat-toggles">{HABITAT_LIGHTS.map(item => <button type="button" key={item.key} aria-pressed={habitat.light === item.key} onClick={() => onChange({ ...habitat, light: item.key })}>{item.label}</button>)}</div><p className="pet-care-note">Follow my day uses your device time: daylight from 6 am to 6 pm.</p></fieldset>
+    <fieldset><legend>Daily rhythm</legend><label className="pet-routine-setting"><input type="checkbox" checked={habitat.routines !== false} onChange={event => onChange({...habitat,routines:event.target.checked})}/><span>Schedule-based routines</span></label><p className="pet-care-note">Quiet during class, exploring between classes, winding down in the evening and resting at bedtime. Uses your timetable and device time.</p></fieldset>
     <fieldset><legend>Little comforts</legend><div className="pet-habitat-toggles">{HABITAT_DECOR.map(item => <button type="button" key={item.key} aria-pressed={habitat.decor.includes(item.key)} onClick={() => onChange(toggleHabitatDecor(habitat, item.key))}>{item.label}</button>)}</div></fieldset>
   </div>;
 }

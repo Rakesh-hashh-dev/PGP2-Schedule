@@ -39,7 +39,7 @@ export function usePetPerformance(mood, enabled, petKey, reaction, signatures = 
   const action = rigged && enabled && pose.petKey === petKey ? pose.action : '';
   return {
     bind: transitions.attach,
-    activity: action && pose.target ? { target:pose.target, behavior:pose.behavior, label:pose.label } : null,
+    activity: action && pose.target ? { target:pose.target, behavior:pose.behavior, label:pose.label, routine:pose.routine } : null,
     beat,
     action: action || undefined,
     source: action ? pose.source : undefined,

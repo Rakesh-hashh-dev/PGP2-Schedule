@@ -1,4 +1,5 @@
 // Visual-only habitat choreography. No care, XP, cosmetics or persistence writes.
+import { routineKey, routinePlan } from './petRoutine.js';
 import { PET_PROFILES } from './petProfiles.js';
 import { normalizeHabitat } from './petHabitat.js';
 export const HABITAT_ACTION_MS = 4200;
@@ -39,44 +40,60 @@ export function habitatResponse(petKey, target, mood = 'content') {
     : { target, action:gesture, behavior:'inspect', label:petKey === 'spark' ? 'answers the lantern with a little glow.' : 'admires the warm lantern.' };
   return { target, action:gesture, behavior:'watch', label:'takes a moment to watch the sky.' };
 }
-export function createHabitatDirector({ primary, buddy, onCue, random = Math.random, setTimer = setTimeout, clearTimer = clearTimeout }) {
-  let state = { enabled:false, autonomous:true, mood:'content', reaction:null, habitat:normalizeHabitat() };
-  let timers=[], sequence=0, previous='';
+export function createHabitatDirector({ primary, buddy, onCue, onStatus=()=>{}, random = Math.random, setTimer = setTimeout, clearTimer = clearTimeout, getTime=Date.now }) {
+  let state = { enabled:false, autonomous:true, mood:'content', reaction:null, habitat:normalizeHabitat(),routine:null,familiarity:0 };
+  let timers=[],sequence=0,previous='',manualUntil=0,manualActive=false;
+  const status=()=>onStatus({pausedUntil:manualUntil});
   const cancel=()=>{timers.forEach(clearTimer);timers=[];};
-  const clear=()=>{cancel();onCue('primary',null);onCue('buddy',null);};
+  const clear=()=>{cancel();manualActive=false;onCue('primary',null);onCue('buddy',null);};
   const targets=()=>[...state.habitat.decor,'sky'];
+  const hold=duration=>{manualUntil=getTime()+duration;status();};
   const schedule=(initial=false)=>{
-    if (!state.enabled || !state.autonomous || state.reaction || QUIET.has(state.mood)) return;
-    const resting=REST.has(state.mood);
+    if(!state.enabled || !state.autonomous || state.reaction || (!state.routine && QUIET.has(state.mood)))return;
+    const resting=REST.has(state.mood),quiet=state.routine && state.routine.key!=='break';
+    const delay=initial && (resting || quiet)?4500:45000+random()*40000;
+    const wait=Math.max(delay,manualUntil-getTime());
     timers.push(setTimer(()=>{
-      const pool=resting ? [state.habitat.decor.includes('cushion') ? 'cushion' : 'sky'] : targets().filter(target=>target!==previous);
-      const weighted=pool.includes(state.favorite) ? [...pool,state.favorite,state.favorite]:pool;
-      const target=weighted[Math.min(weighted.length-1,Math.floor(random()*weighted.length))] || 'sky';
-      run(target,false);
-    },initial && resting ? 4500 : 45000+random()*40000));
+      if(manualUntil>getTime()){schedule();return;}
+      if(manualUntil){manualUntil=0;status();}
+      if(state.routine){
+        const greet=state.routine.key==='break' && buddy && random()<(state.familiarity>=3?.35:.15);
+        const plan=routinePlan(primary,buddy,state.routine,{greet,familiarity:state.familiarity});
+        if(plan.length){perform(plan,false);return;}
+      }
+      const pool=resting?[state.habitat.decor.includes('cushion')?'cushion':'sky']:targets().filter(target=>target!==previous);
+      const favorite=state.routine?.target || state.favorite;
+      const weighted=pool.includes(favorite)?[...pool,favorite,favorite]:pool;
+      run(weighted[Math.min(weighted.length-1,Math.floor(random()*weighted.length))] || 'sky',false);
+    },wait));
   };
-  function run(target, deliberate) {
-    if (!state.enabled || state.reaction || !targets().includes(target) || (!deliberate && (!state.autonomous || QUIET.has(state.mood)))) return false;
-    const response=habitatResponse(primary,target,state.mood);
-    if (!response) return false;
-    clear();previous=target;
+  function perform(plan,deliberate) {
+    if(!state.enabled || state.reaction || (!deliberate && (!state.autonomous || (!state.routine && QUIET.has(state.mood)))))return false;
+    clear();manualActive=deliberate;
     const id=++sequence;
-    onCue('primary',{...response,id:`habitat:${id}`,source:deliberate ? 'touch':'habitat'});
-    if (buddy && PET_PROFILES[buddy]) timers.push(setTimer(()=>{
-      const reply=target === 'cushion' ? habitatResponse(buddy,target,state.mood)
-        : {target,action:'buddy-look',behavior:'watch',label:'shares a little discovery.'};
-      onCue('buddy',{...reply,id:`habitat:${id}:buddy`,source:'habitat'});
-    },550));
-    timers.push(setTimer(()=>{onCue('primary',null);onCue('buddy',null);schedule();},HABITAT_ACTION_MS+650));
+    for(const step of plan){const send=()=>onCue(step.role,{...step,id:`habitat:${id}:${step.at}`,source:deliberate && step.role==='primary'?'touch':'habitat'});if(!step.at)send();else timers.push(setTimer(send,step.at));}
+    timers.push(setTimer(()=>{manualActive=false;onCue('primary',null);onCue('buddy',null);schedule();},HABITAT_ACTION_MS+650));
     return true;
+  }
+  function run(target,deliberate) {
+    if(!targets().includes(target))return false;
+    const response=habitatResponse(primary,target,state.mood);if(!response)return false;
+    previous=target;
+    const reply=target==='cushion'?habitatResponse(buddy,target,state.mood):{target,action:'buddy-look',behavior:'watch',label:'shares a little discovery.'};
+    return perform([{...response,role:'primary',at:0},...(buddy && PET_PROFILES[buddy] && reply?[{...reply,role:'buddy',at:550}]:[])],deliberate);
   }
   return {
     update(next) {
       const old=state;state={...state,...next,habitat:normalizeHabitat(next.habitat ?? state.habitat)};
-      if (!state.enabled || state.reaction) {clear();return;}
-      if (!old.enabled || old.reaction || old.autonomous!==state.autonomous || old.mood!==state.mood || JSON.stringify(old.habitat)!==JSON.stringify(state.habitat)) {clear();schedule(true);}
+      if(!state.enabled || state.reaction){clear();return;}
+      const sceneryChanged=old.habitat.scene!==state.habitat.scene || JSON.stringify(old.habitat.decor)!==JSON.stringify(state.habitat.decor);
+      const changed=!old.enabled || old.reaction || old.autonomous!==state.autonomous || old.mood!==state.mood || sceneryChanged || routineKey(old.routine)!==routineKey(state.routine);
+      if(changed){if(manualActive && !sceneryChanged && (old.routine || state.routine))return;clear();schedule(true);}
     },
-    interact(target) {return run(target,true);},
-    stop() {state={...state,enabled:false};clear();},
+    interact(target){if(!state.enabled || state.reaction || !targets().includes(target))return false;if(state.routine)hold(90000);return run(target,true);},
+    takeOver(){if(!state.routine)return;hold(90000);if(!manualActive){clear();schedule();}},
+    pause(){hold(600000);if(!manualActive){clear();schedule();}},
+    resume(){manualUntil=0;status();clear();schedule(true);},
+    stop(){state={...state,enabled:false};clear();manualUntil=0;status();},
   };
 }

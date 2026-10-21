@@ -37,7 +37,7 @@ export function createPetDirector({ petKey, onChange, random = Math.random, setT
     if (active.action && PRIORITY[source] < PRIORITY[active.source]) return false;
     if (active.action === action && active.source === source && source !== 'care' && !activity) return false;
     cancel();
-    emit(activity ? { action, source, target:activity.target, behavior:activity.behavior, label:activity.label } : { action, source });
+    emit(activity ? { action, source, target:activity.target, behavior:activity.behavior, label:activity.label, ...(activity.routine?{routine:activity.routine}:{}) } : { action, source });
     actionTimer = setTimer(() => { emit({ action: '', source: 'idle' }); schedule(); }, activity ? HABITAT_ACTION_MS : ACTION_MS);
     return true;
   }
@@ -64,7 +64,7 @@ export function createPetDirector({ petKey, onChange, random = Math.random, setT
       return play(target, 'touch');
     },
     habitat(cue) {
-      const actions = [...(PET_PROFILES[petKey]?.idles || []), 'listen', 'doze', 'buddy-look'];
+      const actions = [...(PET_PROFILES[petKey]?.idles || []), 'listen', 'doze', 'buddy-look', 'nuzzle'];
       return cue && HABITAT_TARGETS.includes(cue.target) && actions.includes(cue.action)
         && ['habitat','touch'].includes(cue.source) ? play(cue.action,cue.source,cue) : false;
     },

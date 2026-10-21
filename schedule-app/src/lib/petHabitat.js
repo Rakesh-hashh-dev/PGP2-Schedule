@@ -22,13 +22,15 @@ export function validHabitat(value) {
   return Boolean(value && typeof value === 'object' && sceneKeys.has(value.scene)
     && lightKeys.has(value.light) && Array.isArray(value.decor)
     && value.decor.length <= decorKeys.size && new Set(value.decor).size === value.decor.length
-    && value.decor.every(key => decorKeys.has(key)));
+    && value.decor.every(key => decorKeys.has(key))
+    && (value.routines === undefined || typeof value.routines === 'boolean'));
 }
 export function normalizeHabitat(value) {
   if (validHabitat(value)) return value;
   return {
     scene: sceneKeys.has(value?.scene) ? value.scene : 'garden',
     light: lightKeys.has(value?.light) ? value.light : 'auto',
+    ...(value?.routines !== undefined ? {routines:value.routines !== false}:{}),
     decor: Array.isArray(value?.decor)
       ? HABITAT_DECOR.filter(item => value.decor.includes(item.key)).map(item => item.key)
       : ['plant', 'cushion'],

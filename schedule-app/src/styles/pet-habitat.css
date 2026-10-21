@@ -82,3 +82,11 @@
 @keyframes habitatLeafWelcome { 0%,100% { transform: none; } 35% { transform: rotate(-6deg); } 65% { transform: rotate(4deg); } }
 .pet-habitat[data-habitat-motion="off"] .pet-habitat-scenery * { animation: none !important; }
 @media(prefers-reduced-motion:reduce) { .pet-habitat-scenery * { animation: none !important; } }
+
+.pet-habitat .dg-pet[data-habitat-behavior="quiet-visit"][data-habitat-target="lantern"] { translate: 7% 0; }
+.pet-routine-status { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--border); background: var(--surface); border-radius: 13px; padding: 10px 12px; margin-top: 14px; }
+.pet-routine-status div { display: grid; gap: 5px; text-align: left; }.pet-routine-status strong { font-size: 12px; color: var(--text); }.pet-routine-status span { font-size: 11px; line-height: 1.5; color: var(--muted); }
+.pet-routine-status button { flex-shrink: 0; min-height: 44px; border: 1px solid var(--border); border-radius: 9px; padding: 7px 10px; background: var(--card); color: var(--text); font: inherit; font-size: 11px; cursor: pointer; }.pet-routine-status button:disabled { opacity: .5; cursor: default; }
+.pet-routine-status button:focus-visible,.pet-routine-setting input:focus-visible { outline: 2px solid var(--violet); outline-offset: 3px; }
+.pet-routine-setting { display: flex; align-items: center; gap: 10px; min-height: 44px; color: var(--text); font-size: 12px; cursor: pointer; }.pet-routine-setting input { width: 18px; height: 18px; accent-color: var(--violet); }
+@media(max-width:400px) { .pet-routine-status { flex-wrap: wrap; }.pet-routine-status button { width: 100%; } }

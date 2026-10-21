@@ -20,6 +20,7 @@ import PetHabitat, { PetHabitatControls } from "./PetHabitat.jsx";
 import PetSleepCue from "./PetSleepCue.jsx";
 import PetHat from "./PetHat.jsx";
 import PetNeckwear from "./PetNeckwear.jsx";
+import { routineFor } from "../lib/petRoutine.js";
 import { useCompanionStory } from "../hooks/useCompanionStory.js";
 import PetMemoryPanel from "./PetMemoryPanel.jsx";
 import { useHabitatInteraction } from "../hooks/useHabitatInteraction.js";
@@ -135,9 +136,11 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
   const motionEnabled = petSettings?.motion !== false;
   const buddyKey = buddyFor(pet);
   const story = useCompanionStory({memory:companionMemory,petKey:pet?.petKey,petName:pet?.name || getPetByKey(pet?.petKey)?.label,buddyKey,buddyName:buddyKey ? getPetByKey(buddyKey)?.label:'',scene:pet?.cosmetics?.habitat?.scene || 'garden',inClass:petContext?.inClass,now});
-  const habitatInteraction = useHabitatInteraction({primary:pet?.petKey,buddy:buddyKey,habitat:pet?.cosmetics?.habitat,mood,enabled:adopted && motionEnabled,autonomous:petSettings?.signatures !== false,reaction:careFeedback?.action,reactionId:careFeedback?.at,favorite:story.favorite?.key});
-  const social = useBuddyInteraction(mood, adopted && motionEnabled, pet?.petKey, buddyKey, careFeedback?.reunion ? "leap" : careFeedback?.action, careFeedback?.at, petSettings?.signatures !== false, story.familiarity.days);
-  const { bind: petRef, beat, action, source, replay, touch, greet, activity } = usePetPerformance(mood, adopted && motionEnabled, pet?.petKey, careFeedback?.reunion ? "leap" : careFeedback?.action, petSettings?.signatures !== false, careFeedback?.at, social.primary, Boolean(buddyKey), habitatInteraction.primary, story.accepted, story.welcome);
+  const routine = useMemo(() => routineFor({now,inClass:petContext?.inClass,minsToClass:petContext?.minsToClass,classesToday:petContext?.classesToday,habitat:pet?.cosmetics?.habitat,favorite:story.favorite?.key,mood}),[now,petContext?.inClass,petContext?.minsToClass,petContext?.classesToday,pet?.cosmetics?.habitat,story.favorite?.key,mood]);
+  const performanceMood = routine?.mood || mood;
+  const habitatInteraction = useHabitatInteraction({primary:pet?.petKey,buddy:buddyKey,habitat:pet?.cosmetics?.habitat,mood:performanceMood,enabled:adopted && motionEnabled,autonomous:petSettings?.signatures !== false,reaction:careFeedback?.action,reactionId:careFeedback?.at,favorite:story.favorite?.key,routine,familiarity:story.familiarity.days});
+  const social = useBuddyInteraction(performanceMood, adopted && motionEnabled, pet?.petKey, buddyKey, careFeedback?.reunion ? "leap" : careFeedback?.action, careFeedback?.at, petSettings?.signatures !== false && !routine, story.familiarity.days);
+  const { bind: petRef, beat, action, source, replay, touch, greet, activity } = usePetPerformance(performanceMood, adopted && motionEnabled, pet?.petKey, careFeedback?.reunion ? "leap" : careFeedback?.action, petSettings?.signatures !== false, careFeedback?.at, social.primary, Boolean(buddyKey), habitatInteraction.primary, story.accepted, story.welcome);
   const gaze = usePetGaze(motionEnabled);
   const left = careLeft(pet, now);
   const unlocked = useMemo(() => new Set(unlockedFor(pet)), [pet]);
@@ -182,6 +185,7 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
   }, [careFeedback]);
 
   const handleCare = action => {
+    habitatInteraction.takeOver();
     const reunion = hoursSince(pet, now) >= REUNION_HOURS;
     petActions.care(action, now);
     setCareFeedback(previous => ({ action, earned: left > 0, reunion, at: (previous?.at || 0) + 1 }));
@@ -283,10 +287,11 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
 
       <div className="pet-summary-grid">
         <section className="pet-card pet-identity-card" aria-label="Your companion">
-          <PetHabitat value={pet.cosmetics?.habitat} now={now} motionEnabled={motionEnabled} care={careFeedback?.action} onInteract={habitatInteraction.interact} interactive={habitatInteraction.available} activity={activity} discovery={activity ? story.moment?.discovery:null}>
+          <PetHabitat value={pet.cosmetics?.habitat} now={now} motionEnabled={motionEnabled} care={careFeedback?.action} onInteract={habitatInteraction.interact} interactive={habitatInteraction.available} routine={routine?.key} activity={activity} discovery={activity ? story.moment?.discovery:null}>
             <button
               type="button"
               ref={petRef}
+              data-action-routine={activity?.routine}
               data-habitat-target={activity?.target}
               data-habitat-behavior={activity?.behavior}
               data-partner-side="right"
@@ -294,7 +299,7 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
               data-pet={current.key}
               data-motion={motionEnabled ? "on" : "off"}
               data-stage={stage.key}
-              data-mood={mood}
+              data-mood={performanceMood}
               data-beat={!careFeedback ? beat || undefined : undefined}
               data-action={action}
               data-action-source={source} data-action-replay={replay}
@@ -305,15 +310,15 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
               data-reaction={(careFeedback?.reunion ? "leap" : careFeedback?.action) || undefined}
               aria-label={`Say hello to ${pet.name || current.label}`}
               {...gaze}
-              onPointerDown={event => { gaze.onPointerDown?.(event); touch(event); }}
-              onClick={event => { if (event.detail === 0) greet(); }}
+              onPointerDown={event => { gaze.onPointerDown?.(event); habitatInteraction.takeOver(); touch(event); }}
+              onClick={event => { if (event.detail === 0) { habitatInteraction.takeOver(); greet(); } }}
             >
               <current.Svg />
               <PetHat hat={hat} />
               <PetNeckwear neck={neck} />
               <PetSleepCue />
             </button>
-            {buddy && <BuddyArt buddy={buddy} mood={mood} motionEnabled={motionEnabled} signaturesOn={signaturesOn} coat={coat} cue={social.buddy} habitatCue={habitatInteraction.buddy} />}
+            {buddy && <BuddyArt buddy={buddy} mood={performanceMood} motionEnabled={motionEnabled} signaturesOn={signaturesOn} coat={coat} cue={social.buddy} habitatCue={habitatInteraction.buddy} />}
           </PetHabitat>
 
           <div className="pet-identity-copy">
@@ -325,7 +330,8 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
             {title && <p className="pet-title-line">{titleLabel(title)}</p>}
             <p className="pet-mood">{MOOD_COPY[mood]}</p>
             {because && <p className="pet-because">{because}</p>}
-          {buddy && <button type="button" className="pet-social-greet" onClick={() => { social.greet(); story.rememberBuddy(); }} disabled={!motionEnabled}>Say hello together</button>}
+          {buddy && <button type="button" className="pet-social-greet" onClick={() => { habitatInteraction.takeOver(); social.greet(); story.rememberBuddy(); }} disabled={!motionEnabled}>Say hello together</button>}
+            {routine && <section className="pet-routine-status" aria-label="Daily routine"><div><strong>{routine.label}</strong><span>{!motionEnabled || !signaturesOn ? "Automatic movement is paused." : habitatInteraction.pausedUntil ? "Your choice for now. Resume whenever you like." : routine.description}</span></div><button type="button" disabled={!motionEnabled || !signaturesOn} onClick={habitatInteraction.pausedUntil ? habitatInteraction.resume : habitatInteraction.pause}>{habitatInteraction.pausedUntil ? "Resume routine" : "Pause 10 min"}</button></section>}
             {story.welcome && <p className="pet-memory-welcome" role="status">{story.welcome.caption}</p>}
             <p className="pet-habitat-activity" role="status">{activity ? `${pet.name || current.label} ${activity.label}` : "Tap a decoration to explore their little home."}</p>
             {story.moment && <button type="button" className="pet-social-greet" disabled={story.saved} onClick={story.save}>{story.saved ? "Moment saved" : "Save moment"}</button>}

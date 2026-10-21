@@ -185,6 +185,28 @@ network/migration failures, and reconcile on reconnect or foregrounding.
 
 The album accurately shows "Saved on this device" until cloud sync succeeds.
 Storage failure is reported as unsaved. Accounts get separate journals and
-session moment state is also bound to its owner. No production migration or
-deployment was run during implementation. A signed-in two-device smoke test
-is required after applying the migration.
+session moment state is also bound to its owner. A signed-in two-device smoke
+test is required for the cloud release.
+
+### Coordinated daily routines
+
+All 32 companions and their buddies share one habitat routine controller.
+Observed class time and the ten minutes before class choose a quiet book-side
+visit. From 18:00 the pair gathers by the lantern; from 22:00 until 06:00 they
+settle on the cushion. Device-local time matches the existing habitat lighting.
+Decorations are optional: missing objects fall back to an available favourite
+or a quiet sky spot. Between classes, remembered favourites weight exploration
+and familiar buddies are more likely to greet. Celebration moments keep their
+own choreography.
+
+The Habitat tab's Schedule-based routines checkbox persists through existing
+cosmetic storage. Manual habitat, head-touch, care and buddy interactions hold
+automatic routines for 90 seconds. Pause 10 min and Resume routine are available
+beside the habitat. Quiet pairs arrive with a familiarity-dependent delay, using
+the existing animation transitions and care priority. Hidden tabs, reduced
+motion and spontaneous-gesture settings continue to control automatic movement.
+There is no additional cloud schema, XP change, care penalty or streak.
+
+Validation: 17 companion suites / 389 tests, production Vite/PWA build, ESLint,
+and actual-page browser checks for study, evening, bedtime, paired settling,
+manual override, pause/resume, persistent opt-out and 390px mobile layout.

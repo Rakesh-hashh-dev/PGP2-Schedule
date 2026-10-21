@@ -32,7 +32,7 @@ export function useCompanionStory({memory,petKey,petName,buddyKey,buddyName,scen
  const accepted=useCallback(activity=>{
   if(!activity.target || !record || !getEvents)return;
   const at=new Date();const details={...context(),target:activity.target};
-  const discovery=discoveryFor(getEvents(),petKey,activity.target,at);
+  const discovery=activity.routine && activity.routine!=='break' ? null:discoveryFor(getEvents(),petKey,activity.target,at);
   if(activity.source==='touch'){
    record(memoryEvent('interaction',details,at));
    if(buddyKey)record(memoryEvent('bond',details,at));
