@@ -31,13 +31,14 @@ export default function PetCameo({
   const enabled = isAdopted(pet) && pet?.companionEnabled !== false && petSettings?.enabled !== false;
   const art = getPetByKey(pet?.petKey);
   const { mood } = enabled ? moodExplainFor(pet, now, petContext || {}) : { mood: 'content' };
-  const performance = usePetPerformance(mood, enabled && motion && size > 32 && petSettings?.motion !== false, art?.key, null, petSettings?.signatures !== false);
+  const { bind: petRef, action, source, replay } = usePetPerformance(mood, enabled && motion && size > 32 && petSettings?.motion !== false, art?.key, null, petSettings?.signatures !== false);
   if (!enabled || !art) return null;
   const wardrobe = petSettings?.wardrobe !== false;
   const hatsOff = petSettings?.hatsOff || [];
 
   return (
     <span
+      ref={petRef}
       className={`dg-pet pet-cameo ${className}`.trim()}
       // The px offsets the hat and collar are tuned against assume the 40px
       // greeting chip; scaling them here keeps a cameo at any size wearing its
@@ -47,9 +48,9 @@ export default function PetCameo({
       data-motion={motion && petSettings?.motion !== false ? "on" : "off"}
       data-mood={mood}
       data-stage={growthStageFor(levelProgress(xpOf(pet)).level).key}
-      data-action={performance.action}
-      data-action-source={performance.source}
-      data-action-replay={performance.replay}
+      data-action={action}
+      data-action-source={source}
+      data-action-replay={replay}
       data-coat={visibleCoat(pet, { wardrobe }) || undefined}
       data-neck={visibleNeckwear(pet, { wardrobe }) || undefined}
       data-accessory={pet?.cosmetics?.accessory === false ? "off" : undefined}

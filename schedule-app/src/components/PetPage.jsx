@@ -19,6 +19,7 @@ import { petMilestones, petWeek, recentPetMoments, unlockRoadmap } from "../lib/
 import PetSleepCue from "./PetSleepCue.jsx";
 import PetHat from "./PetHat.jsx";
 import PetNeckwear from "./PetNeckwear.jsx";
+import { useBuddyInteraction } from "../hooks/useBuddyInteraction.js";
 import { usePetPerformance } from "../hooks/usePetPerformance.js";
 import { usePetGaze } from "../hooks/usePetGaze.js";
 import "../styles/pet.css";
@@ -107,9 +108,9 @@ function unlockRequirement(key) {
   return level ? `Lv ${level}` : null;
 }
 
-function BuddyArt({ buddy, mood, motionEnabled, signaturesOn, coat }) {
-  const performance = usePetPerformance(mood, motionEnabled, buddy.key, null, signaturesOn);
-  return <span className="dg-pet pet-identity-buddy" data-pet={buddy.key} data-motion={motionEnabled ? 'on' : 'off'} data-mood={mood} data-coat={coat || undefined} data-sig={signaturesOn ? undefined : 'off'} data-action={performance.action} data-action-source={performance.source} data-action-replay={performance.replay} aria-hidden="true"><buddy.Svg /></span>;
+function BuddyArt({ buddy, mood, motionEnabled, signaturesOn, coat, cue }) {
+  const { bind: petRef, action, source, replay } = usePetPerformance(mood, motionEnabled, buddy.key, null, signaturesOn, 0, cue, true);
+  return <span ref={petRef} data-partner-side="left" className="dg-pet pet-identity-buddy" data-pet={buddy.key} data-motion={motionEnabled ? 'on' : 'off'} data-mood={mood} data-coat={coat || undefined} data-sig={signaturesOn ? undefined : 'off'} data-action={action} data-action-source={source} data-action-replay={replay} aria-hidden="true"><buddy.Svg /></span>;
 }
 
 export default function PetPage({ pet, petActions, petContext, petSettings, now, onBack }) {
@@ -127,8 +128,9 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
     ? moodExplainFor(pet, now, petContext)
     : { mood: "content", because: "" };
   const motionEnabled = petSettings?.motion !== false;
-  const performance = usePetPerformance(mood, adopted && motionEnabled, pet?.petKey, careFeedback?.reunion ? "leap" : careFeedback?.action, petSettings?.signatures !== false, careFeedback?.at);
-  const beat = performance.beat;
+  const buddyKey = buddyFor(pet);
+  const social = useBuddyInteraction(mood, adopted && motionEnabled, pet?.petKey, buddyKey, careFeedback?.reunion ? "leap" : careFeedback?.action, careFeedback?.at, petSettings?.signatures !== false);
+  const { bind: petRef, beat, action, source, replay, touch, greet } = usePetPerformance(mood, adopted && motionEnabled, pet?.petKey, careFeedback?.reunion ? "leap" : careFeedback?.action, petSettings?.signatures !== false, careFeedback?.at, social.primary, Boolean(buddyKey));
   const gaze = usePetGaze(motionEnabled);
   const left = careLeft(pet, now);
   const unlocked = useMemo(() => new Set(unlockedFor(pet)), [pet]);
@@ -154,7 +156,6 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
   const earnedNeck = useMemo(() => new Set(neckwearFor(pet, { wardrobe: wardrobeOn })), [pet, wardrobeOn]);
   const earnedTitles = useMemo(() => new Set(titlesFor(pet, now)), [pet, now]);
   const title = visibleTitle(pet, now);
-  const buddyKey = buddyFor(pet);
   const buddy = buddyKey ? getPetByKey(buddyKey) : null;
   const streak = careStreak(pet, now);
   const multiplier = devotionMultiplier(pet, now);
@@ -278,15 +279,16 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
           <div className="pet-identity-art" data-care={careFeedback?.action || undefined}>
             <button
               type="button"
-              key={careFeedback?.at || "idle"}
+              ref={petRef}
+              data-partner-side="right"
               className="dg-pet pet-identity-pet"
               data-pet={current.key}
               data-motion={motionEnabled ? "on" : "off"}
               data-stage={stage.key}
               data-mood={mood}
               data-beat={!careFeedback ? beat || undefined : undefined}
-              data-action={performance.action}
-              data-action-source={performance.source} data-action-replay={performance.replay}
+              data-action={action}
+              data-action-source={source} data-action-replay={replay}
               data-sig={signaturesOn ? undefined : "off"}
               data-accessory={accessoryOn ? "on" : "off"}
               data-coat={coat || undefined}
@@ -294,15 +296,15 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
               data-reaction={(careFeedback?.reunion ? "leap" : careFeedback?.action) || undefined}
               aria-label={`Say hello to ${pet.name || current.label}`}
               {...gaze}
-              onPointerDown={event => { gaze.onPointerDown?.(event); performance.touch(event); }}
-              onClick={event => { if (event.detail === 0) performance.greet(); }}
+              onPointerDown={event => { gaze.onPointerDown?.(event); touch(event); }}
+              onClick={event => { if (event.detail === 0) greet(); }}
             >
               <current.Svg />
               <PetHat hat={hat} />
               <PetNeckwear neck={neck} />
               <PetSleepCue />
             </button>
-            {buddy && <BuddyArt buddy={buddy} mood={mood} motionEnabled={motionEnabled} signaturesOn={signaturesOn} coat={coat} />}
+            {buddy && <BuddyArt buddy={buddy} mood={mood} motionEnabled={motionEnabled} signaturesOn={signaturesOn} coat={coat} cue={social.buddy} />}
           </div>
 
           <div className="pet-identity-copy">
@@ -314,6 +316,7 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
             {title && <p className="pet-title-line">{titleLabel(title)}</p>}
             <p className="pet-mood">{MOOD_COPY[mood]}</p>
             {because && <p className="pet-because">{because}</p>}
+          {buddy && <button type="button" className="pet-social-greet" onClick={social.greet} disabled={!motionEnabled}>Say hello together</button>}
             <div className="pet-meta-row">
               <span>{nextStage ? `${nextStage.label} at Lv ${nextStage.from}` : "Fully grown"}</span>
               {seen && <span>Last together {seen}</span>}

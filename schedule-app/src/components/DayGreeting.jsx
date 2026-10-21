@@ -90,8 +90,7 @@ export default function DayGreeting({
   const mood = adopted ? moodExplainFor(pet, now, petContext).mood : "content";
   // Cohort policy, defaulting ON — same rule as the pet page.
   const wardrobeOn = petSettings?.wardrobe !== false;
-  const performance = usePetPerformance(mood, adopted && motionEnabled, displayPet?.key, petReaction, petSettings?.signatures !== false, reactionId);
-  const beat = performance.beat;
+  const { bind: petRef, beat, action, source, replay, touch } = usePetPerformance(mood, adopted && motionEnabled, displayPet?.key, petReaction, petSettings?.signatures !== false, reactionId);
   const gaze = usePetGaze(adopted && motionEnabled);
   const progress = adopted ? levelProgress(xpOf(pet)) : null;
   const left = adopted ? careLeft(pet, now) : 0;
@@ -168,6 +167,7 @@ export default function DayGreeting({
         <span className="dg-pet-shell" ref={shellRef}>
           <button
             type="button"
+            ref={petRef}
             className="dg-pet"
             data-pet={displayPet.key}
             data-motion={motionEnabled ? "on" : "off"}
@@ -178,11 +178,11 @@ export default function DayGreeting({
             data-neck={(adopted && visibleNeckwear(pet, { wardrobe: wardrobeOn })) || undefined}
             data-reaction={petReaction || undefined}
             data-beat={petReaction ? undefined : beat || undefined}
-            data-action={performance.action}
-            data-action-source={performance.source} data-action-replay={performance.replay}
+            data-action={action}
+            data-action-source={source} data-action-replay={replay}
             data-sig={petSettings?.signatures === false ? "off" : undefined}
             {...gaze}
-            onPointerDown={event => { gaze.onPointerDown?.(event); performance.touch(event); }}
+            onPointerDown={event => { gaze.onPointerDown?.(event); touch(event); }}
             onClick={() => (isPetTrayOpen ? closeTray() : setIsPetTrayOpen(true))}
             aria-expanded={isPetTrayOpen}
             aria-controls="daily-pet-actions"

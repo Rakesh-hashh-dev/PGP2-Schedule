@@ -180,3 +180,17 @@ button.pet-identity-pet:focus-visible { outline: 2px solid var(--accent, #8973bb
    Suppress the old pilot's extra chest transform so neckwear stays attached. */
 .dg-pet:has(> .pet-rig) :is(.pet-rig-body, .pet-rig-neck) { animation: none; }
 .dg-pet:has(> .pet-rig):is([data-action="breathe"], [data-action="stretch"], [data-action="proud"]) :is(.pet-rig-body, .pet-rig-neck) { animation: none; }
+/* Paired gestures turn only the head/pupils, preserving species silhouettes. */
+.dg-pet[data-partner-side="left"] { --pet-partner-direction: -1; }
+.dg-pet[data-partner-side="right"] { --pet-partner-direction: 1; }
+.dg-pet:has(> .pet-rig)[data-action="buddy-look"] .pet-rig-head { animation: rigBuddyLook var(--rig-time) ease-in-out both; }
+.dg-pet:has(> .pet-rig)[data-action="buddy-look"] .dg-pet-pupils { animation: rigBuddyEyes var(--rig-time) ease-in-out both; }
+@keyframes rigBuddyLook { 0%,100% { transform: none; } 16% { transform: translateY(.15px); } 40%,65% { transform: translateX(calc(var(--pet-partner-direction,1) * .45px)) rotate(calc(var(--pet-partner-direction,1) * 4deg)); } 84% { transform: rotate(calc(var(--pet-partner-direction,1) * -.5deg)); } }
+@keyframes rigBuddyEyes { 0%,100% { transform: none; } 38%,68% { transform: translateX(calc(var(--pet-partner-direction,1) * .5px)); } }
+.pet-social-greet { margin-top: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); padding: 9px 13px; font: inherit; font-size: 12px; cursor: pointer; }
+.pet-social-greet:focus-visible { outline: 2px solid var(--violet); outline-offset: 3px; }
+.pet-social-greet:disabled { opacity: .55; cursor: default; }
+/* CSS guards also cover social actions; runtime additionally cancels blends. */
+.dg-pet:has(> .pet-rig)[data-motion="off"] * { animation: none !important; transition: none !important; }
+@media (prefers-reduced-motion: reduce) { .dg-pet:has(> .pet-rig) * { animation: none !important; transition: none !important; } }
+.dg-pet:has(> .pet-rig)[data-sig="off"][data-action-source="buddy"] * { animation: none !important; }

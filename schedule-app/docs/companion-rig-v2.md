@@ -53,7 +53,7 @@ accessible way to pet, play and treat. Greeting activation still opens its tray.
 ```sh
 npm ci
 node scripts/companion-upgrade-preview.mjs
-npx vitest run src/lib/petDirector.test.js src/components/petRigRoster.test.jsx src/components/companionArt.test.jsx src/components/greetingPets.test.jsx src/components/petNewCollection.test.jsx src/lib/petPersonality.test.js src/lib/pet.test.js src/lib/petEconomy.test.js src/lib/petInsights.test.js src/lib/petStorage.test.js
+npx vitest run src/lib/petBuddy.test.js src/lib/petDirector.test.js src/components/petRigRoster.test.jsx src/components/companionArt.test.jsx src/components/greetingPets.test.jsx src/components/petNewCollection.test.jsx src/lib/petPersonality.test.js src/lib/pet.test.js src/lib/petEconomy.test.js src/lib/petInsights.test.js src/lib/petStorage.test.js
 npx vite build
 ```
 
@@ -62,11 +62,43 @@ hook into an offline preview, including care, context, wardrobe, growth and
 motion controls. No sign-in or application data is used. `esbuild` is declared
 as a pinned development dependency for reproducible preview generation.
 
-Validation: 10 suites / 318 tests, targeted lint, production Vite/PWA build.
+Validation: 11 suites / 325 tests, targeted lint, production Vite/PWA build.
 Offline Chromium checked all 32 pets / 128 instances and all 128 signature actions, repeated IDs and paint references,
 care priority, head/hat transform and pivot agreement for every pet, motion-off and reduced-motion
 guards, and 390px layout. Desktop, dark and mobile renders were inspected.
 
-The complete roster is covered. Paired social interactions and habitat scenes
-are separate features and are not included. No database migration or production deployment is
-included. A signed-in smoke test is still needed for release.
+The complete roster and paired social gestures are covered. Habitat scenes are
+a separate feature. No database migration or production deployment is included.
+A signed-in smoke test is still needed for release.
+
+## Smooth transitions
+
+`usePetTransitions` captures the rendered SVG-part transforms before a director
+state change. After React commits the next action, additive Web Animations
+corrections decay to identity over 180ms while the new CSS action keeps running.
+This preserves the outgoing pose instead of jumping to rest. It works on the
+body, head, limbs and matching wearable anchors across all 32 pets. Repeated
+interruptions sample the current blended pose. Finished/old blends are cancelled;
+removed pets, unmount, reduced motion and motion-off cannot leave stale blends.
+The Companion hero stays mounted through care, preserving focus and continuity.
+
+Offline Chromium sampled a head during an interrupted listening gesture: the
+first blended treat pose matched the previous transform exactly (matrix delta 0).
+Motion-off and reduced-motion checks include active Web Animations, not only CSS.
+
+## Buddy interactions
+
+`useBuddyInteraction` coordinates the existing Companion-page primary and buddy
+through `petBuddy.js`. They exchange glances and anatomy-appropriate greetings,
+and stagger shared celebrations. The explicit Say hello together button is
+keyboard accessible. Each pet's director remains the authority: buddy cues sit
+below class context, touch, celebration and care; care cancels pending replies.
+A cared-for companion gets a gentle acknowledgement from its buddy.
+
+Automatic exchanges have fresh 32–64-second gaps after recovery. Class, exam,
+sleep and tired contexts stay quiet; deliberate greetings in those contexts use
+only glances. Turning off spontaneous gestures cancels automatic pair work while
+leaving deliberate greetings available. Hidden pages, reduced motion, motion-off,
+pet changes and unmount cancel both actors' delayed cues. No XP or state writes
+are introduced. Pure tests cover all 1024 pair combinations, priority and timer
+cancellation. The offline preview includes both partner selectors and care.

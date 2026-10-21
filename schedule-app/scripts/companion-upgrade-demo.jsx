@@ -8,12 +8,13 @@ import PetNeckwear from '../src/components/PetNeckwear.jsx';
 import { usePetPerformance } from '../src/hooks/usePetPerformance.js';
 import { usePetGaze } from '../src/hooks/usePetGaze.js';
 import { ACTION_MS } from '../src/lib/petDirector.js';
+import CompanionPairDemo from './companion-pair-demo.jsx';
 import { PET_PROFILES } from '../src/lib/petProfiles.js';
 function Companion({ petKey, motion, signatures, mood, stage, hat, neck }) {
   const pet = getPetByKey(petKey);
   const [care, setCare] = useState(null);
   const gestureIndex = useRef(0);
-  const performance = usePetPerformance(mood, motion, petKey, care?.action, signatures, care?.id);
+  const { bind: petRef, action, source, replay, touch, greet, gesture } = usePetPerformance(mood, motion, petKey, care?.action, signatures, care?.id);
   const gaze = usePetGaze(motion);
   useEffect(() => {
     if (!care) return;
@@ -21,12 +22,12 @@ function Companion({ petKey, motion, signatures, mood, stage, hat, neck }) {
     return () => clearTimeout(timer);
   }, [care]);
   return <article data-card={petKey} data-gestures={JSON.stringify(PET_PROFILES[petKey].idles)}>
-    <div className="portrait"><button type="button" className="dg-pet" data-pet={petKey} data-motion={motion ? 'on' : 'off'} data-mood={mood} data-stage={stage} data-action={performance.action} data-action-source={performance.source} data-action-replay={performance.replay} data-sig={signatures ? undefined : 'off'} data-reaction={care?.action} data-neck={neck || undefined} aria-label={`Say hello to ${pet.label}`} {...gaze} onPointerDown={e => { gaze.onPointerDown?.(e); performance.touch(e); }} onClick={e => { if (!e.detail) performance.greet(); }}>
+    <div className="portrait"><button ref={petRef} type="button" className="dg-pet" data-pet={petKey} data-motion={motion ? 'on' : 'off'} data-mood={mood} data-stage={stage} data-action={action} data-action-source={source} data-action-replay={replay} data-sig={signatures ? undefined : 'off'} data-reaction={care?.action} data-neck={neck || undefined} aria-label={`Say hello to ${pet.label}`} {...gaze} onPointerDown={e => { gaze.onPointerDown?.(e); touch(e); }} onClick={e => { if (!e.detail) greet(); }}>
       <pet.Svg /><PetHat hat={hat} /><PetNeckwear neck={neck} />
     </button></div>
     <h2>{pet.label}</h2><p>{PET_PROFILES[petKey]?.description}</p>
     <div className="care">{['pet', 'play', 'treat'].map(action => <button type="button" key={action} onClick={() => setCare(previous => ({ action, id: (previous?.id || 0) + 1 }))}>{action}</button>)}</div>
-    <button type="button" data-gesture={petKey} onClick={() => { const choices = PET_PROFILES[petKey].idles; performance.gesture(choices[gestureIndex.current++ % choices.length]); }}>Show gesture</button>
+    <button type="button" data-gesture={petKey} onClick={() => { const choices = PET_PROFILES[petKey].idles; gesture(choices[gestureIndex.current++ % choices.length]); }}>Show gesture</button>
     <div className="feedback" aria-live="polite">{care ? `${pet.label} ${care.action === 'treat' ? 'enjoys a little snack.' : care.action === 'play' ? 'is happy to play!' : 'leans into your hand.'}` : 'Tap to say hello.'}</div>
     <div className="badge-row">{[17, 32, 48].map(size => <span key={size} className="dg-pet" data-pet={petKey} data-motion="off" style={{ width: size, height: size }}><pet.Svg /></span>)}</div>
   </article>;
@@ -45,6 +46,7 @@ function Demo() {
       <label className="check"><input type="checkbox" checked={signatures} onChange={e => setSignatures(e.target.checked)} />Spontaneous gestures</label>
       <button type="button" onClick={() => setDark(v => !v)}>Toggle theme</button>
     </section>
+    <CompanionPairDemo {...{mood,motion,signatures,hat,neck}} />
     <section className="collection">{PETS.map(({ key }) => <Companion key={key} petKey={key} {...{motion, signatures, mood, stage, hat, neck}} />)}</section>
     <footer>Explore their faces, wings, and tail. Care buttons and keyboard greetings work too.<br />This preview uses the app’s real components. No account data or XP is changed.</footer>
     </div></main>;
