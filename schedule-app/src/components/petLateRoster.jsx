@@ -1,3 +1,4 @@
+import PetGrowthDetail from "./PetGrowthDetail.jsx";
 // The level 13-20 companions after Frost (2026-10-20): three cosy ones on the
 // odd levels and two mythic ones on 18/20, replacing Sol and Eclipse (their
 // saved keys map onto them, see RENAMED_PETS in lib/pet.js). Lv 16 is Sable,
@@ -29,11 +30,11 @@ const HEAD = { "--pet-head-x": "16px", "--pet-head-y": "24px" };
 export function Hamster() {
   const id = "hm" + useId().replace(/\W/g, "");
   const coat = `url(#${id}-coat)`;
-  return <svg className="pet-art" viewBox="0 0 32 32" aria-hidden="true">
+  return <svg className="pet-art pet-rig" viewBox="0 0 32 32" aria-hidden="true">
 <defs><PetPaintDefs id={`${id}-coat`} light="#ffd9a0" coat="#f2ad5c" shade="#c97d36" /></defs>
 <ellipse className="dg-pet-ground" cx="16" cy="30.25" rx="7.3" ry=".85" fill="#252333" opacity=".12" />
 <g className="dg-pet-canvas" transform="translate(1 .35) scale(.935)">
-<g className="dg-pet-body" data-part="body">
+<g className="dg-pet-body pet-rig-frame" data-part="body" data-pet-part="body">
     <ellipse cx="16" cy="25.9" rx="7.7" ry="4.8" fill={coat} stroke={INK} strokeWidth="1" />
     <ellipse cx="16" cy="26.8" rx="4.9" ry="3.4" fill="#fff1dc" />
     <g fill="#f6b8b0" stroke={INK} strokeWidth=".7"><ellipse cx="12" cy="29.7" rx="1.9" ry="1" /><ellipse cx="20" cy="29.7" rx="1.9" ry="1" /></g>
@@ -41,7 +42,8 @@ export function Hamster() {
     <path d="M16 24.5c1.1.7 1.4 2 0 3.5-1.4-1.5-1.1-2.8 0-3.5z" fill="#3d3836" stroke={INK} strokeWidth=".5" />
     <path d="M16 24.9v2.6" stroke="#f4efe6" strokeWidth=".45" strokeLinecap="round" />
     <g fill="#f8c8bf" stroke={INK} strokeWidth=".6"><ellipse cx="14.5" cy="26.6" rx="1.15" ry=".9" /><ellipse cx="17.5" cy="26.6" rx="1.15" ry=".9" /></g>
-    <g className="dg-pet-head" data-part="head" style={HEAD}>
+    <g className="dg-pet-head pet-rig-head" data-part="head" style={HEAD} data-pet-part="head">
+<PetGrowthDetail pet="hamster" />
 <g className="dg-pet-ear dg-pet-ear-left" data-part="ear-left">
         <ellipse cx="9.4" cy="9.5" rx="2.9" ry="2.7" fill={coat} stroke={INK} strokeWidth="1" />
         <ellipse cx="9.6" cy="9.8" rx="1.6" ry="1.4" fill="#f6b8b0" />
@@ -81,18 +83,19 @@ export function Sloth() {
   const id = "sl" + useId().replace(/\W/g, "");
   const coat = `url(#${id}-coat)`;
   const patch = "#5b4636";
-  return <svg className="pet-art" viewBox="0 0 32 32" aria-hidden="true">
+  return <svg className="pet-art pet-rig" viewBox="0 0 32 32" aria-hidden="true">
 <defs><PetPaintDefs id={`${id}-coat`} light="#d6c5ad" coat="#b09a80" shade="#87705a" /></defs>
 <ellipse className="dg-pet-ground" cx="16" cy="30.25" rx="7.3" ry=".85" fill="#252333" opacity=".12" />
 <g className="dg-pet-canvas" transform="translate(1 .35) scale(.935)">
-<g className="dg-pet-body" data-part="body">
+<g className="dg-pet-body pet-rig-frame" data-part="body" data-pet-part="body">
     <ellipse cx="16" cy="26" rx="7.4" ry="4.6" fill={coat} stroke={INK} strokeWidth="1" />
     <ellipse cx="16" cy="26.6" rx="4.2" ry="3.1" fill="#d9c8ae" />
     {/* Long arms draped down the front, three cream claws each. */}
     <path d="M10.4 22.4c-1.7 1.6-2.1 4.1-1.1 6.4l2.3.2c-.4-1.9 0-3.7 1.3-5z" fill={coat} stroke={INK} strokeWidth=".9" strokeLinejoin="round" />
     <path d="M21.6 22.4c1.7 1.6 2.1 4.1 1.1 6.4l-2.3.2c.4-1.9 0-3.7-1.3-5z" fill={coat} stroke={INK} strokeWidth=".9" strokeLinejoin="round" />
     <path d="M9.4 28.9q-.3.9.2 1.4M10.2 29.1q-.2.9.3 1.3M11.1 29q-.1.8.4 1.2M22.6 28.9q.3.9-.2 1.4M21.8 29.1q.2.9-.3 1.3M20.9 29q.1.8-.4 1.2" fill="none" stroke="#f3e6d0" strokeWidth=".55" strokeLinecap="round" />
-    <g className="dg-pet-head" data-part="head" style={HEAD}>
+    <g className="dg-pet-head pet-rig-head" data-part="head" style={HEAD} data-pet-part="head">
+<PetGrowthDetail pet="sloth" />
 <g className="dg-pet-ear dg-pet-ear-left" data-part="ear-left"><ellipse cx="7.4" cy="14.2" rx="1.3" ry="1.1" fill={coat} stroke={INK} strokeWidth=".8" /></g>
 <g className="dg-pet-ear dg-pet-ear-right" data-part="ear-right"><ellipse cx="24.6" cy="14.2" rx="1.3" ry="1.1" fill={coat} stroke={INK} strokeWidth=".8" /></g>
 <ellipse className="dg-pet-face" cx="16" cy="16.8" rx="9.4" ry="8.6" fill={coat} stroke={INK} strokeWidth="1.15" />
@@ -126,11 +129,11 @@ export function Sloth() {
 export function Capy() {
   const id = "cp" + useId().replace(/\W/g, "");
   const coat = `url(#${id}-coat)`;
-  return <svg className="pet-art" viewBox="0 0 32 32" aria-hidden="true">
+  return <svg className="pet-art pet-rig" viewBox="0 0 32 32" aria-hidden="true">
 <defs><PetPaintDefs id={`${id}-coat`} light="#e8c294" coat="#c99a66" shade="#9c6f45" /></defs>
 <ellipse className="dg-pet-ground" cx="16" cy="30.25" rx="7.3" ry=".85" fill="#252333" opacity=".12" />
 <g className="dg-pet-canvas" transform="translate(1 .35) scale(.935)">
-<g className="dg-pet-body" data-part="body">
+<g className="dg-pet-body pet-rig-frame" data-part="body" data-pet-part="body">
     <ellipse cx="15.6" cy="26.2" rx="7.8" ry="4.4" fill={coat} stroke={INK} strokeWidth="1" />
     <g fill="#6e4a2e" stroke={INK} strokeWidth=".7"><rect x="10" y="28.6" width="3.4" height="1.9" rx=".9" /><rect x="17.6" y="28.6" width="3.4" height="1.9" rx=".9" /></g>
     <g className="dg-pet-sig dg-pet-sig-capy">
@@ -139,7 +142,8 @@ export function Capy() {
       <path d="M26.8 25.8c.6-.9 1.7-1.2 2.6-.8-.6.9-1.6 1.2-2.6.8z" fill="#6cbf4f" stroke={INK} strokeWidth=".3" />
       <circle cx="25.4" cy="27.4" r=".55" fill="#fff" opacity=".6" />
     </g>
-    <g className="dg-pet-head" data-part="head" style={HEAD}>
+    <g className="dg-pet-head pet-rig-head" data-part="head" style={HEAD} data-pet-part="head">
+<PetGrowthDetail pet="capy" />
 <g className="dg-pet-ear dg-pet-ear-left" data-part="ear-left">
         <path d="M9.4 10.4c-.7-1.5 0-3 1.5-3.2 1.3-.2 2.3.9 2.1 2.1z" fill={coat} stroke={INK} strokeWidth=".9" strokeLinejoin="round" />
         <path d="M10.3 9.6c-.2-.7.2-1.3.8-1.4" fill="none" stroke="#6e4a2e" strokeWidth=".6" strokeLinecap="round" />
@@ -179,7 +183,7 @@ export function Unicorn() {
   const coat = `url(#${id}-coat)`;
   const horn = `url(#${id}-horn)`;
   return (
-    <svg className="pet-art" viewBox="0 0 32 32" aria-hidden="true"><defs>
+    <svg className="pet-art pet-rig" viewBox="0 0 32 32" aria-hidden="true"><defs>
         <radialGradient id={`${id}-coat`} cx="42%" cy="32%" r="76%">
           <stop offset="0" stopColor="#ffffff" />
           <stop offset=".62" stopColor="#f1efff" />
@@ -193,7 +197,7 @@ export function Unicorn() {
       </defs>
 <ellipse className="dg-pet-ground" cx="16" cy="30.25" rx="7.3" ry=".85" fill="#252333" opacity=".12" />
 <g className="dg-pet-canvas" transform="translate(1 .35) scale(.935)">
-<g className="dg-pet-body" data-part="body">
+<g className="dg-pet-body pet-rig-frame" data-part="body" data-pet-part="body">
 
       {/* A soft rainbow behind the head that brightens and fades. */}
       <g className="dg-pet-rainbow" fill="none" strokeLinecap="round" opacity=".55">
@@ -211,7 +215,7 @@ export function Unicorn() {
       </g>
 
       {/* Rainbow tail, three strands. */}
-      <g className="dg-pet-tail" data-part="tail" fill="none" strokeLinecap="round">
+      <g className="dg-pet-tail pet-rig-tail" data-part="tail" fill="none" strokeLinecap="round" data-pet-part="tail">
         <path d="M21 27.4c3.2 1 6-.4 6.8-3.4.4-1.6 1.5-2.6 2.8-2.8" stroke="#f77fb5" strokeWidth="1.6" />
         <path d="M21.2 28.3c3.6.6 6.6-1 7.4-3.8" stroke="#46c9a2" strokeWidth="1.5" />
         <path d="M21.4 29.1c3.4.4 6.2-.8 7.4-2.8" stroke="#5aa9f0" strokeWidth="1.4" />
@@ -227,7 +231,8 @@ export function Unicorn() {
       <path d="M10.6 10.6c-2.6 1-4.2 3.6-4 6.6.2 1.6 1 3 2.2 3.8.8-.4 1.4-1 1.8-1.8z" fill="#9ce8cb" />
       <path d="M21.6 9.4c2.2.6 3.8 2.2 4.4 4.4-.9-.4-1.8-.4-2.6 0z" fill="#cdb2ff" stroke={ink} strokeWidth=".5" strokeLinejoin="round" />
 
-      <g className="dg-pet-head" data-part="head" style={HEAD}>
+      <g className="dg-pet-head pet-rig-head" data-part="head" style={HEAD} data-pet-part="head">
+<PetGrowthDetail pet="unicorn" />
 <g className="dg-pet-ear dg-pet-ear-left" data-part="ear-left">
         <path d="M11.2 9.8 9.2 3.6Q12.8 5 13.6 8.8z" fill={coat} stroke={ink} strokeWidth=".9" strokeLinejoin="round" />
         <path d="M11.4 9 10.2 5.2q2 1 2.4 3.2z" fill="#ffc5de" />
@@ -279,7 +284,7 @@ export function Dragon() {
   const wingL = `url(#${id}-wingl)`;
   const wingR = `url(#${id}-wingr)`;
   return (
-    <svg className="pet-art" viewBox="0 0 32 32" aria-hidden="true"><defs>
+    <svg className="pet-art pet-rig" viewBox="0 0 32 32" aria-hidden="true"><defs>
         <radialGradient id={`${id}-scale`} cx="40%" cy="30%" r="78%">
           <stop offset="0" stopColor="#a6f5c4" />
           <stop offset=".52" stopColor="#38bf83" />
@@ -306,7 +311,7 @@ export function Dragon() {
       </defs>
 <ellipse className="dg-pet-ground" cx="16" cy="30.25" rx="7.3" ry=".85" fill="#252333" opacity=".12" />
 <g className="dg-pet-canvas" transform="translate(1 .35) scale(.935)">
-<g className="dg-pet-body" data-part="body">
+<g className="dg-pet-body pet-rig-frame" data-part="body" data-pet-part="body">
 
       {/* Aura, then the rune ring turning behind everything. */}
       <circle className="dg-pet-dragonaura" cx="16" cy="16.6" r="14.4" fill={`url(#${id}-aura)`} />
@@ -328,18 +333,18 @@ export function Dragon() {
       <g transform="translate(6.4 29.4) scale(.5)"><path className="dg-pet-glint dg-pet-glint-b" d={GLINT} fill="#fff" /></g>
 
       {/* Tail ending in a gold spade. */}
-      <g className="dg-pet-tail" data-part="tail">
+      <g className="dg-pet-tail pet-rig-tail" data-part="tail" data-pet-part="tail">
         <path d="M21.2 27.6c3.8 1 6.6-.6 7-3.6.3-2-.8-3.6-2.4-4" fill="none" stroke={ink} strokeWidth="3.4" strokeLinecap="round" />
         <path d="M21.2 27.6c3.8 1 6.6-.6 7-3.6.3-2-.8-3.6-2.4-4" fill="none" stroke="#38bf83" strokeWidth="2" strokeLinecap="round" />
         <path d="M25.8 20.8 24.6 17.6l3.2 1.2z" fill={gold} stroke={ink} strokeWidth=".55" strokeLinejoin="round" />
       </g>
 
       {/* Bat wings raised, finger bones fanning out. */}
-      <g className="dg-pet-wing dg-pet-wing-left" data-part="wing-left">
+      <g className="dg-pet-wing dg-pet-wing-left pet-rig-wing-left" data-part="wing-left" data-pet-part="wing">
         <path d="M10.6 21.8C8 21.6 5.6 20.2 3.8 17.8l1.6-.2-1.8-2.6 1.9.1L4.4 12c2.2.6 4.4 2.2 5.8 4.4.9 1.4 1.2 3.2.4 5.4z" fill={wingL} stroke={ink} strokeWidth=".9" strokeLinejoin="round" />
         <path d="M10.4 21 4.4 12M10.4 21 3.6 15M10.4 21 3.8 17.8" fill="none" stroke="#0f5a40" strokeWidth=".5" strokeLinecap="round" />
       </g>
-      <g className="dg-pet-wing dg-pet-wing-right" data-part="wing-right">
+      <g className="dg-pet-wing dg-pet-wing-right pet-rig-wing-right" data-part="wing-right" data-pet-part="wing">
         <path d="M21.4 21.8C24 21.6 26.4 20.2 28.2 17.8l-1.6-.2 1.8-2.6-1.9.1L27.6 12c-2.2.6-4.4 2.2-5.8 4.4-.9 1.4-1.2 3.2-.4 5.4z" fill={wingR} stroke={ink} strokeWidth=".9" strokeLinejoin="round" />
         <path d="M21.6 21 27.6 12M21.6 21 28.4 15M21.6 21 28.2 17.8" fill="none" stroke="#0f5a40" strokeWidth=".5" strokeLinecap="round" />
       </g>
@@ -355,7 +360,8 @@ export function Dragon() {
       {/* Gold crest spikes behind the head. */}
       <path d="M13 9.4l.9-2.4 1.3 1.6L16 5.8l.8 2.8 1.3-1.6.9 2.4z" fill={gold} stroke={ink} strokeWidth=".7" strokeLinejoin="round" />
 
-      <g className="dg-pet-head" data-part="head" style={HEAD}>
+      <g className="dg-pet-head pet-rig-head" data-part="head" style={HEAD} data-pet-part="head">
+<PetGrowthDetail pet="dragon" />
 <g className="dg-pet-ear dg-pet-ear-left" data-part="ear-left">
         <path d="M8.4 12.6 3.4 10.6l2.4-.6-1.6-2 2.6.2-.4-2.4 3.6 3.4z" fill="#7fe6ad" stroke={ink} strokeWidth=".8" strokeLinejoin="round" />
       </g>

@@ -35,9 +35,10 @@ export function usePetPerformance(mood, enabled, petKey, reaction, signatures = 
     replay: action ? pose.replay : undefined,
     touch(event) {
       if (!rigged || !enabled || event.button > 0) return;
-      const part = event.target?.closest?.('[data-pet-part]')?.dataset.petPart || 'head';
+      const part = event.target?.closest?.('[data-pet-part], [data-part]')?.dataset.petPart || event.target?.closest?.('[data-pet-part], [data-part]')?.dataset.part || 'head';
       director.current?.touch(part);
     },
+    gesture(action) { return director.current?.gesture(action) || false; },
     greet() { if (rigged && enabled) director.current?.touch('head'); },
   };
 }

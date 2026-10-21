@@ -107,6 +107,11 @@ function unlockRequirement(key) {
   return level ? `Lv ${level}` : null;
 }
 
+function BuddyArt({ buddy, mood, motionEnabled, signaturesOn, coat }) {
+  const performance = usePetPerformance(mood, motionEnabled, buddy.key, null, signaturesOn);
+  return <span className="dg-pet pet-identity-buddy" data-pet={buddy.key} data-motion={motionEnabled ? 'on' : 'off'} data-mood={mood} data-coat={coat || undefined} data-sig={signaturesOn ? undefined : 'off'} data-action={performance.action} data-action-source={performance.source} data-action-replay={performance.replay} aria-hidden="true"><buddy.Svg /></span>;
+}
+
 export default function PetPage({ pet, petActions, petContext, petSettings, now, onBack }) {
   const [nameDraft, setNameDraft] = useState(null);
   const [adoptChoice, setAdoptChoice] = useState(null);
@@ -297,18 +302,7 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
               <PetNeckwear neck={neck} />
               <PetSleepCue />
             </button>
-            {buddy && (
-              <span
-                className="dg-pet pet-identity-buddy"
-                data-pet={buddy.key}
-                data-motion={motionEnabled ? "on" : "off"}
-                data-mood={mood}
-                data-coat={coat || undefined}
-                aria-hidden="true"
-              >
-                <buddy.Svg />
-              </span>
-            )}
+            {buddy && <BuddyArt buddy={buddy} mood={mood} motionEnabled={motionEnabled} signaturesOn={signaturesOn} coat={coat} />}
           </div>
 
           <div className="pet-identity-copy">

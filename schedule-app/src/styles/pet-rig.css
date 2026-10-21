@@ -1,11 +1,11 @@
-/* v2 pilot. All part transforms use the same 32-unit viewBox, including
+/* Whole-roster movement system. All part transforms use the same 32-unit viewBox, including
    wearable anchors. Anticipation 0–18%, action 18–72%, recovery 72–100%. */
 .dg-pet:has(> .pet-rig) {
   animation: none;
   container-type: inline-size;
   container-name: pet-portrait;
   --rig-time: 1800ms;
-  --rig-breath: 5.4s;
+  --rig-breath: var(--pet-breath-cycle, 5.4s);
 }
 .dg-pet[data-pet="mochi"] { --rig-breath: 7s; }
 .dg-pet[data-pet="ember"] { --rig-breath: 4.8s; }
@@ -13,7 +13,7 @@
 .dg-pet:has(> .pet-rig) :is(svg, .dg-pet-face, .dg-pet-ear, .dg-pet-wing, .dg-pet-tail, .dg-pet-sig, .dg-pet-accessory) { animation: none; }
 .dg-pet:has(> .pet-rig) :is(.pet-rig-head, .pet-rig-neck, .pet-rig-body, .pet-rig-tail, .pet-rig-feet, .pet-rig-wing-left, .pet-rig-wing-right) {
   transform-box: view-box;
-  transform-origin: 16px 24px;
+  transform-origin: var(--pet-head-x, 16px) var(--pet-head-y, 24px);
   animation-duration: var(--rig-time);
   animation-timing-function: cubic-bezier(.3, 0, .25, 1);
   animation-fill-mode: both;
@@ -21,10 +21,10 @@
 }
 .dg-pet:has(> .pet-rig) .pet-rig-head { animation: rigHeadRest var(--rig-breath) ease-in-out infinite; }
 .dg-pet:has(> .pet-rig) :is(.pet-rig-body, .pet-rig-neck) { animation: rigBreathe var(--rig-breath) ease-in-out infinite; transform-origin: 16px 29px; }
-.dg-pet:has(> .pet-rig) .pet-rig-tail { transform-origin: 21px 28px; }
+.dg-pet:has(> .pet-rig) .pet-rig-tail { transform-origin: var(--pet-tail-x, 21px) var(--pet-tail-y, 28px); }
 .dg-pet[data-pet="fox"] .pet-rig-tail { transform-origin: 11px 27px; }
-.dg-pet:has(> .pet-rig) .pet-rig-wing-left { transform-origin: 11px 20px; }
-.dg-pet:has(> .pet-rig) .pet-rig-wing-right { transform-origin: 21px 20px; }
+.dg-pet:has(> .pet-rig) .pet-rig-wing-left { transform-origin: var(--pet-wing-left-x, 11px) var(--pet-wing-left-y, 20px); }
+.dg-pet:has(> .pet-rig) .pet-rig-wing-right { transform-origin: var(--pet-wing-right-x, 21px) var(--pet-wing-right-y, 20px); }
 .dg-pet[data-pet="nimbus"] :is(.pet-rig-wing-left, .pet-rig-wing-right) { transform-origin: 14px 18px; }
 .dg-pet:has(> .pet-rig)[data-action] :is(.pet-rig-head, .pet-rig-neck, .pet-rig-body) { animation: none; }
 .dg-pet:has(> .pet-rig):is([data-action="listen"], [data-action="peek"], [data-action="nuzzle"], [data-action="pet"]) .pet-rig-head { animation: var(--rig-nuzzle, rigNuzzle) var(--rig-time) ease-in-out both; }
@@ -94,3 +94,89 @@ button.pet-identity-pet:focus-visible { outline: 2px solid var(--accent, #8973bb
 
 @keyframes rigDozeReplay { 0%, 100% { transform: none; } 18% { transform: translateY(-.15px); } 45%, 67% { transform: translateY(.65px) rotate(2deg); } 84% { transform: translateY(.1px); } }
 .dg-pet:has(> .pet-rig)[data-action-replay="b"] { --rig-doze: rigDozeReplay; }
+/* Every companion shares a moving frame. Attached wearables inherit the same
+   movement; the head, limbs and species parts add local gestures within it. */
+.dg-pet:has(> .pet-rig) .pet-rig-frame {
+  transform-box: view-box;
+  transform-origin: 16px 30px;
+  animation: rigBreathe var(--rig-breath) ease-in-out infinite;
+}
+.dg-pet:has(> .pet-rig)[data-action] .pet-rig-frame { animation: none; }
+.dg-pet:has(> .pet-rig):is([data-action="breathe"], [data-action="stretch"], [data-action="proud"]) .pet-rig-frame { animation: rigStretch var(--rig-time) ease-in-out both; }
+.dg-pet:has(> .pet-rig):is([data-action="play"], [data-action="celebrate"], [data-action="hop"]) .pet-rig-frame { animation: var(--rig-celebrate, rigCelebrate) var(--rig-time) ease-in-out both; }
+.dg-pet:has(> .pet-rig)[data-action="hover"] .pet-rig-frame { animation: rigHover var(--rig-time) ease-in-out both; }
+/* Head lift is local; whole-frame actions already carry the chest and feet. */
+.dg-pet:has(> .pet-rig):is([data-action="play"], [data-action="celebrate"], [data-action="hover"]) :is(.pet-rig-head, .pet-rig-body, .pet-rig-neck, .pet-rig-feet) { animation: none; }
+.dg-pet:has(> .pet-rig)[data-action="waddle"] .pet-rig-frame { animation: rigWaddle var(--rig-time) ease-in-out both; }
+.dg-pet:has(> .pet-rig)[data-action="curl"] .pet-rig-frame { animation: rigCurl var(--rig-time) ease-in-out both; }
+.dg-pet:has(> .pet-rig):is([data-action="groom"], [data-action="paw-wave"]) .dg-pet-gesture { display: inline; }
+.dg-pet:has(> .pet-rig):is([data-action="groom"], [data-action="paw-wave"]) .dg-pet-paw-left { animation: dgPetPawLift var(--rig-time) ease-in-out both; }
+.dg-pet:has(> .pet-rig)[data-action="paw-wave"] .pet-rig-wing-right { animation: rigWave var(--rig-time) ease-in-out both; }
+.dg-pet:has(> .pet-rig)[data-action="gill-ripple"] .dg-pet-ear { animation: rigGill var(--rig-time) ease-in-out both; }
+.dg-pet:has(> .pet-rig)[data-action="scan"] .dg-pet-pupils { animation: rigScan var(--rig-time) ease-in-out both; }
+.dg-pet:has(> .pet-rig)[data-action="scan"] .dg-pet-antenna { animation: rigListen var(--rig-time) ease-in-out both; }
+.dg-pet:has(> .pet-rig)[data-action="mane-shake"] .pet-rig-head { animation: rigMane var(--rig-time) ease-in-out both; }
+.dg-pet:has(> .pet-rig)[data-action="unfurl"] .dg-pet-vine-leaf { animation: rigUnfurl var(--rig-time) ease-in-out both; }
+.dg-pet:has(> .pet-rig)[data-action="charge"] .pet-rig-frame { animation: rigCharge var(--rig-time) ease-in-out both; }
+.dg-pet:has(> .pet-rig)[data-action="nibble"] .pet-rig-head { animation: rigNibble var(--rig-time) ease-in-out both; }
+.dg-pet:has(> .pet-rig)[data-action="howl"] .pet-rig-head { animation: rigHowl var(--rig-time) ease-in-out both; }
+.dg-pet:has(> .pet-rig)[data-action="howl"] { --pet-mouth-base: none; --pet-mouth-smile: none; --pet-mouth-oh: inline; }
+.dg-pet:has(> .pet-rig)[data-action="curl"] { --pet-face-base: none; --pet-face-joy: none; --pet-face-rest: inline; }
+.dg-pet:is([data-pet="byte"], [data-pet="rover"])[data-action="play"] .dg-pet-expression-heart { display: inline; }
+.dg-pet:is([data-pet="byte"], [data-pet="rover"])[data-action="play"] .dg-pet-expression-joy { display: none; }
+.pet-rig-baby { display: none; }
+.dg-pet[data-stage="hatchling"] .pet-rig-baby { display: inline; }
+@container pet-portrait (max-width: 32px) { .pet-growth-detail { display: none; } }
+@keyframes rigWaddle { 0%,100% { transform: none; } 16% { transform: translateY(.3px); } 34% { transform: translateX(-.8px) rotate(-4deg); } 58% { transform: translateX(.8px) rotate(4deg); } 80% { transform: rotate(-1deg); } }
+@keyframes rigCurl { 0%,100% { transform: none; } 18% { transform: translateY(-.2px); } 44%,65% { transform: translateY(1px) scale(.95,.92); } 84% { transform: scale(1.01); } }
+@keyframes rigWave { 0%,100% { transform: none; } 18% { transform: rotate(5deg); } 36%,62% { transform: rotate(-24deg); } 49%,74% { transform: rotate(-10deg); } }
+@keyframes rigGill { 0%,100% { transform: none; } 18% { transform: scale(.98); } 38%,66% { transform: scale(1.06) rotate(4deg); } 52% { transform: scale(1.01) rotate(-3deg); } }
+@keyframes rigScan { 0%,100% { transform: none; } 18% { transform: translateX(.1px); } 36%,49% { transform: translateX(-.5px); } 65%,78% { transform: translateX(.5px); } }
+@keyframes rigMane { 0%,100% { transform: none; } 18% { transform: rotate(2deg); } 36%,61% { transform: rotate(-4deg); } 49%,73% { transform: rotate(4deg); } 88% { transform: rotate(-.5deg); } }
+@keyframes rigUnfurl { 0%,100% { transform: none; } 18% { transform: scale(.95); } 44%,65% { transform: scale(1.08) rotate(-4deg); } 84% { transform: scale(.99); } }
+@keyframes rigCharge { 0%,100% { transform: none; filter: none; } 18% { transform: scale(1.02,.97); } 42%,63% { transform: translateY(-.5px); filter: brightness(1.12); } 82% { transform: scale(1.01,.99); } }
+@keyframes rigNibble { 0%,100% { transform: none; } 18% { transform: translateY(.2px); } 34%,58% { transform: scale(1.02,.99); } 46%,70% { transform: scale(.995,1.015); } }
+@keyframes rigHowl { 0%,100% { transform: none; } 18% { transform: translateY(.3px) rotate(2deg); } 44%,66% { transform: translateY(-.6px) rotate(-5deg); } 84% { transform: rotate(.8deg); } }
+/* These final guards also cover the newly added whole-frame/part actions. */
+.dg-pet:has(> .pet-rig)[data-motion="off"], .dg-pet:has(> .pet-rig)[data-motion="off"] * { animation: none !important; transition: none !important; }
+@media (prefers-reduced-motion: reduce) { .dg-pet:has(> .pet-rig), .dg-pet:has(> .pet-rig) * { animation: none !important; transition: none !important; } }
+
+/* Species cadence shared by static and interactive mounts. */
+.dg-pet[data-pet="cat"] { --rig-breath: 5.1s; }
+.dg-pet[data-pet="fox"] { --rig-breath: 4.5s; }
+.dg-pet[data-pet="dog"] { --rig-breath: 4.2s; }
+.dg-pet[data-pet="bunny"] { --rig-breath: 3.8s; }
+.dg-pet[data-pet="penguin"] { --rig-breath: 5.2s; }
+.dg-pet[data-pet="panda"] { --rig-breath: 6.2s; }
+.dg-pet[data-pet="chick"] { --rig-breath: 3.7s; }
+.dg-pet[data-pet="koala"] { --rig-breath: 6.8s; }
+.dg-pet[data-pet="otter"] { --rig-breath: 4.9s; }
+.dg-pet[data-pet="rover"] { --rig-breath: 7.2s; }
+.dg-pet[data-pet="raccoon"] { --rig-breath: 4.7s; }
+.dg-pet[data-pet="axolotl"] { --rig-breath: 5.7s; }
+.dg-pet[data-pet="spark"] { --rig-breath: 3.9s; }
+.dg-pet[data-pet="leafy"] { --rig-breath: 6.4s; }
+.dg-pet[data-pet="cinder"] { --rig-breath: 5.3s; }
+.dg-pet[data-pet="hoot"] { --rig-breath: 5.8s; }
+.dg-pet[data-pet="byte"] { --rig-breath: 7.8s; }
+.dg-pet[data-pet="pebble"] { --rig-breath: 7.3s; }
+.dg-pet[data-pet="prickle"] { --rig-breath: 5.9s; }
+.dg-pet[data-pet="luna"] { --rig-breath: 4.8s; }
+.dg-pet[data-pet="frost"] { --rig-breath: 5.6s; }
+.dg-pet[data-pet="unicorn"] { --rig-breath: 5.5s; }
+.dg-pet[data-pet="dragon"] { --rig-breath: 5s; }
+.dg-pet[data-pet="hamster"] { --rig-breath: 4.8s; }
+.dg-pet[data-pet="sloth"] { --rig-breath: 8.4s; }
+.dg-pet[data-pet="capy"] { --rig-breath: 7.4s; }
+.dg-pet[data-pet="maple"] { --rig-breath: 5.3s; }
+.dg-pet[data-pet="ember"] { --rig-breath: 4.8s; }
+.dg-pet[data-pet="mochi"] { --rig-breath: 7s; }
+.dg-pet[data-pet="nimbus"] { --rig-breath: 6s; }
+.dg-pet[data-pet="sable"] { --rig-breath: 5.7s; }
+.dg-pet[data-pet="inky"] { --rig-breath: 6.2s; }
+/* Leafy's taller head pivots one unit below the shared default. */
+.dg-pet[data-pet="leafy"] { --pet-head-y: 25px; }
+/* The whole frame now owns breathing/stretching for the complete roster.
+   Suppress the old pilot's extra chest transform so neckwear stays attached. */
+.dg-pet:has(> .pet-rig) :is(.pet-rig-body, .pet-rig-neck) { animation: none; }
+.dg-pet:has(> .pet-rig):is([data-action="breathe"], [data-action="stretch"], [data-action="proud"]) :is(.pet-rig-body, .pet-rig-neck) { animation: none; }

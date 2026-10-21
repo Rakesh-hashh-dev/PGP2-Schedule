@@ -1,13 +1,8 @@
 // Visual state only. Never writes care, XP, storage, or timetable data.
-export const RIGGED_PETS = new Set(['fox', 'mochi', 'ember', 'nimbus']);
+import { PET_PROFILES } from './petProfiles.js';
+export const RIGGED_PETS = new Set(Object.keys(PET_PROFILES));
 export const ACTION_MS = 1800;
 const PRIORITY = { idle: 10, context: 60, touch: 80, celebration: 90, care: 100 };
-const IDLES = {
-  fox: ['listen', 'tail-swish', 'peek', 'sniff'],
-  mochi: ['breathe', 'sniff', 'stretch', 'doze'],
-  ember: ['wing-stretch', 'proud', 'peek', 'breathe'],
-  nimbus: ['hover', 'wing-stretch', 'listen', 'doze'],
-};
 const QUIET = new Set(['focused', 'sleepy', 'tired', 'cozy', 'weekend', 'rooting']);
 const CONTEXT = { focused: 'listen', determined: 'proud', restless: 'peek', rooting: 'listen', sleepy: 'doze', tired: 'doze', cozy: 'breathe', weekend: 'stretch', relaxed: 'breathe' };
 const MOMENTS = new Set(['celebrating', 'proud', 'birthday', 'festive', 'reunion', 'hyped']);
@@ -16,12 +11,12 @@ export function contextAction(mood) {
     : CONTEXT[mood] ? { action: CONTEXT[mood], source: 'context' } : null;
 }
 export function idlePool(petKey, mood) {
-  const pool = IDLES[petKey] || ['breathe'];
-  return QUIET.has(mood) ? pool.filter(a => ['listen', 'breathe', 'doze', 'sniff'].includes(a)) : pool;
+  const pool = PET_PROFILES[petKey]?.idles || ['breathe'];
+  return QUIET.has(mood) ? pool.filter(a => ['listen', 'breathe', 'doze', 'sniff', 'scan'].includes(a)) : pool;
 }
 /** One action at a time. Interruptions discard the old action, never queue it. */
 export function createPetDirector({ petKey, onChange, random = Math.random, setTimer = setTimeout, clearTimer = clearTimeout }) {
-  let state = { mood: 'content', reaction: null, enabled: false, autonomous: true }; 
+  let state = { mood: 'content', reaction: null, enabled: false, autonomous: true };
   let active = { action: '', source: 'idle' };
   let actionTimer, idleTimer, previous = '';
   const emit = next => { active = next; onChange(next); };
@@ -63,8 +58,10 @@ export function createPetDirector({ petKey, onChange, random = Math.random, setT
       if (!active.action) schedule();
     },
     touch(part = 'head') {
-      return play(part === 'tail' ? 'tail-swish' : part === 'wing' ? 'wing-stretch' : part === 'body' ? 'breathe' : 'nuzzle', 'touch');
+      const target = part.startsWith('wing') ? 'wing-stretch' : part === 'tail' ? 'tail-swish' : part.startsWith('ear') ? 'listen' : part === 'body' ? 'breathe' : 'nuzzle';
+      return play(target, 'touch');
     },
+    gesture(action) { return idlePool(petKey, state.mood).includes(action) ? play(action, 'touch') : false; },
     stop() { state = { ...state, enabled: false }; cancel(); emit({ action: '', source: 'idle' }); },
   };
 }

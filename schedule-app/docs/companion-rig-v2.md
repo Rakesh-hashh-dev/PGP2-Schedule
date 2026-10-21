@@ -1,14 +1,23 @@
-# Companion movement pilot
+# Companion movement system — complete roster
 
 Prepared against release 7.7.0, commit `670a9e505fa9500788f214bb2f9e10b8fdadb862`.
 
-Fox, Mochi, Ember and Nimbus use a visual-only animation director on the Companion
-page and daily greeting. Other companions retain their existing beat clock.
+All 32 registered companions use the visual-only animation director on the
+Companion page, daily greeting, buddy slot and cameos. Every species has an
+explicit personality profile; no registered pet falls back to the legacy clock.
 The current 32-pet registry, unlock gates, XP ledger, storage, renamed identities,
 Luna artwork, and shared eye/detail system are preserved.
 
 Nimbus is now a lavender moon moth with feathered antennae, wing eye spots and
 a gold crescent. It retains `nimbus`, its name and its Devotion 3 gate.
+
+## Species coverage
+
+`petProfiles.js` defines four supported actions and a calm cadence per companion.
+Examples include grooming and paw waves, robot scans, gill ripples, leaf
+unfurling, penguin waddles, wolf howls, hamster nibbles and dragon wing stretches.
+Quiet contexts filter busy actions. Each profile is checked against actual SVG
+anatomy; the preview has a Show gesture button per pet.
 
 ## Runtime
 
@@ -28,11 +37,12 @@ touch available. Motion off disables all movement. Offscreen CSS pauses parts.
 
 ## Artwork and attachments
 
-The pilot extends the current `pet-art` canvas and `PetEyes`, with independent
-head, chest, feet, tail or wing groups. Hat anchors use the same head transform;
-neckwear follows the chest. Per-pet wardrobe offsets remain intact. Small badges
+The movement system extends the current `pet-art` canvas and `PetEyes`, with independent
+body frames, heads, paws, tails, wings, gills and antennae where present. Hat anchors use the same head transform;
+neckwear follows the body frame. Per-pet wardrobe offsets remain intact. Small badges
 omit texture and animation at 32px and below. Existing growth scales remain;
-hatchlings have a slightly larger head and elder/ascended pets reveal markings.
+hatchlings have a slightly larger head and elder/ascended pets reveal species-appropriate fur, feather, scale, circuit,
+leaf or sparkle markings. These follow each pet’s head.
 
 Pointer hits on head, body, tail and wings have distinct visual reactions.
 Keyboard activation of the hero says hello; existing care buttons remain the
@@ -43,7 +53,7 @@ accessible way to pet, play and treat. Greeting activation still opens its tray.
 ```sh
 npm ci
 node scripts/companion-upgrade-preview.mjs
-npx vitest run src/lib/petDirector.test.js src/components/companionArt.test.jsx src/components/greetingPets.test.jsx src/components/petNewCollection.test.jsx src/lib/petPersonality.test.js src/lib/pet.test.js src/lib/petEconomy.test.js src/lib/petInsights.test.js src/lib/petStorage.test.js
+npx vitest run src/lib/petDirector.test.js src/components/petRigRoster.test.jsx src/components/companionArt.test.jsx src/components/greetingPets.test.jsx src/components/petNewCollection.test.jsx src/lib/petPersonality.test.js src/lib/pet.test.js src/lib/petEconomy.test.js src/lib/petInsights.test.js src/lib/petStorage.test.js
 npx vite build
 ```
 
@@ -52,11 +62,11 @@ hook into an offline preview, including care, context, wardrobe, growth and
 motion controls. No sign-in or application data is used. `esbuild` is declared
 as a pinned development dependency for reproducible preview generation.
 
-Validation: 9 suites / 252 tests, targeted lint, production Vite/PWA build.
-Offline Chromium checked all four pets, repeated IDs and paint references,
-care priority, exact head/hat transform agreement, motion-off and reduced-motion
+Validation: 10 suites / 318 tests, targeted lint, production Vite/PWA build.
+Offline Chromium checked all 32 pets / 128 instances and all 128 signature actions, repeated IDs and paint references,
+care priority, head/hat transform and pivot agreement for every pet, motion-off and reduced-motion
 guards, and 390px layout. Desktop, dark and mobile renders were inspected.
 
-This is a four-pet pilot, not a rig conversion for the whole roster. Pair
-interactions are deferred. No database migration or production deployment is
+The complete roster is covered. Paired social interactions and habitat scenes
+are separate features and are not included. No database migration or production deployment is
 included. A signed-in smoke test is still needed for release.
