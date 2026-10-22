@@ -253,3 +253,9 @@ Review: .local/companion-preview.html. Details and regeneration: docs/companion-
 Boundaries: isolated offline SSR/component/CSS verification, no saved data/authenticated app operations. Preview application-page buttons are static; preview controls only mutate preview DOM. Geometry sampled at 550ms, not every in-between frame. Existing build warnings are documented.
 
 Preserved unrelated sheet.js, sheet.test.js, vite.config.js and docs/pet-codex-lessons-plan.md changes. Original paused checkpoint remains under session/20261014_183848 as history.
+
+## 2026-10-22 — Next 7 days agenda redesign
+Changed DeadlineStrip.jsx and deadlines.css: date grouping, full course names, visible 12-hour times/rooms, urgency styling, and inline expansion. Preserved source data and navigation callbacks. Local changes only.
+Validation: targeted ESLint exit 0; Vite build 2470 modules, 16.52s, 122 precache entries, isolated .local/deadlines-build output; git diff --check exit 0. Existing splitCloud import and plugin timing warnings.
+Actual component preview: six mixed fixtures, same-day grouping, four-to-six-to-four expansion, Exams/Assignments callback status verified, keyboard Tab focus solid and Enter callback verified. DOM clientWidth/scrollWidth matched at 320px and 768px; time remained visible. Screenshots inspected at desktop light, 320px light, and 390px dark. No authenticated dashboard or physical-phone verification.
+Review: .local/deadlines-review/index.html served at 127.0.0.1:3012, with inert assignment fixtures and no user data writes.

@@ -310,10 +310,14 @@ function parseTimetable(ss, legend) {
   for (let i = 0; i < grid.values.length; i++) {
     const row = grid.values[i];
     const rawRow = grid.raw[i];
-    // forward-fill date/day from cols 0,1
-    const d = parseDate(rawRow[0], row[0]);
-    if (d) { curDate = d.iso; curDay = String(row[1]).trim() || d.day; }
     const section = SECTION_MAP[String(row[2]).trim().toLowerCase()];
+    // Only blank date cells inherit the previous date. A malformed date must
+    // fail the rebuild rather than silently moving a whole day backwards.
+    const d = parseDate(rawRow[0], row[0]);
+    if (section && String(row[0] || '').trim() && !d) {
+      throw new Error('Invalid timetable date at row ' + (i + 1) + ': ' + row[0]);
+    }
+    if (d) { curDate = d.iso; curDay = String(row[1]).trim() || d.day; }
     if (!section || !curDate) continue;
     for (let s = 0; s < SLOTS.length; s++) {
       const cell = String(row[3 + s] || '').trim();
@@ -337,6 +341,7 @@ function parseTimetable(ss, legend) {
       const span = grid.merges[i + ',' + (3 + s)] || { rows: 1, cols: 1 };
       // Cell merged across slot columns = one session spanning those slots.
       const end = (SLOTS[Math.min(s + span.cols - 1, SLOTS.length - 1)])[1];
+      const explicitTimes = parseSessionTimes(cell);
       const isGuest = session && session.toLowerCase().includes('guest');
       if (isGuest) {
         // Room is often written inline, e.g. "BM 6 &7 Guest Session ( Seminar Hall)"
@@ -381,7 +386,9 @@ function parseTimetable(ss, legend) {
       for (const sec of sectionsToEmit) {
         out.push({
           date: curDate, day: curDay, section: sec, slot: s,
-          start: SLOTS[s][0], end: end, type, code, session, name, faculty, room
+          start: explicitTimes ? explicitTimes.start : SLOTS[s][0],
+          end: explicitTimes ? explicitTimes.end : end,
+          type, code, session, name, faculty, room
         });
       }
     }
@@ -549,9 +556,32 @@ function parseDate(rawVal, dispVal) {
   if (m) {
     const raw = m[2].toLowerCase();
     const mm = MONTHS[raw] || MONTHS[MONTH_ALIASES[raw]];
-    if (mm) return { iso: TERM_YEAR + '-' + pad(mm) + '-' + pad(+m[1]), day: '' };
+    if (mm) {
+      const day = +m[1];
+      const check = new Date(Date.UTC(TERM_YEAR, mm - 1, day));
+      if (check.getUTCMonth() === mm - 1 && check.getUTCDate() === day) {
+        return { iso: TERM_YEAR + '-' + pad(mm) + '-' + pad(day), day: '' };
+      }
+    }
   }
   return null;
+}
+
+// Explicit AM/PM ranges in a cell override its column's standard slot.
+// Require both meridiems so course/session numbers cannot look like times.
+function parseSessionTimes(cell) {
+  const match = String(cell).match(/\b(\d{1,2})(?:[:.](\d{2}))?\s*([ap])\.?m\.?\s*(?:[-\u2013\u2014]|to)\s*(\d{1,2})(?:[:.](\d{2}))?\s*([ap])\.?m\.?\b/i);
+  if (!match) return null;
+  function clock(hour, minute, meridiem) {
+    hour = +hour;
+    minute = +(minute || 0);
+    if (hour < 1 || hour > 12 || minute > 59) throw new Error('Invalid session time: ' + cell);
+    return pad(hour % 12 + (meridiem.toLowerCase() === 'p' ? 12 : 0)) + ':' + pad(minute);
+  }
+  const start = clock(match[1], match[2], match[3]);
+  const end = clock(match[4], match[5], match[6]);
+  if (end <= start) throw new Error('Invalid session time range: ' + cell);
+  return { start, end };
 }
 
 function classify(raw) {
