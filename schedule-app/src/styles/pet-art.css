@@ -199,3 +199,42 @@ html[data-pets-paused] .dg-pet, html[data-pets-paused] .dg-pet::before, html[dat
 @container pet-portrait (max-width: 36px) {
   .pet-design-fine { display: none; }
 }
+
+/* Anatomy revision: anchors follow the redrawn skulls and shoulders. These
+   selectors apply only to the new art, preserving Luna and Dragon's fitting. */
+.dg-pet:has(> [data-art-revision="anatomy-2"]) {
+  --pet-hat-x: 0px; --pet-hat-y: -.4px; --pet-hat-scale: .94;
+  --pet-neck-x: 0px; --pet-neck-y: .5px; --pet-neck-scale: .9;
+  --pet-face-x: 0px; --pet-face-y: -.5px; --pet-face-scale: .92;
+}
+.dg-pet[data-pet="bunny"]:has(> [data-art-revision="anatomy-2"]) { --pet-hat-y: .4px; --pet-face-y: .5px; }
+.dg-pet[data-pet="rover"]:has(> [data-art-revision="anatomy-2"]) { --pet-neck-y: -1.1px; --pet-neck-scale: .78; --pet-face-y: -.7px; }
+.dg-pet[data-pet="byte"]:has(> [data-art-revision="anatomy-2"]) { --pet-neck-y: -.2px; --pet-neck-scale: .78; --pet-face-y: -.7px; }
+.dg-pet[data-pet="leafy"]:has(> [data-art-revision="anatomy-2"]) { --pet-hat-y: .7px; --pet-hat-scale: .8; --pet-neck-scale: .8; }
+.dg-pet[data-pet="cinder"]:has(> [data-art-revision="anatomy-2"]) { --pet-hat-y: -.2px; --pet-hat-scale: .88; --pet-face-y: .2px; }
+.dg-pet[data-pet="pebble"]:has(> [data-art-revision="anatomy-2"]) {
+  --pet-hat-x: 8.8px; --pet-hat-y: 4.5px; --pet-hat-scale: .58;
+  --pet-neck-x: 8.8px; --pet-neck-y: 2.1px; --pet-neck-scale: .58;
+  --pet-face-x: 8.8px; --pet-face-y: 4.8px; --pet-face-scale: .62;
+  --pet-head-x: 20px; --pet-head-y: 26px;
+}
+.dg-pet[data-pet="prickle"]:has(> [data-art-revision="anatomy-2"]) {
+  --pet-hat-x: 3.2px; --pet-hat-y: 2.4px; --pet-hat-scale: .78;
+  --pet-neck-x: 3.2px; --pet-neck-y: 1.9px; --pet-neck-scale: .72;
+  --pet-face-x: 3px; --pet-face-y: 1.7px; --pet-face-scale: .84;
+  --pet-head-x: 18px;
+}
+.dg-pet[data-pet="nimbus"]:has(> [data-art-revision="anatomy-2"]) {
+  --pet-hat-y: 1.1px; --pet-hat-scale: .58; --pet-neck-y: -2px; --pet-neck-scale: .58;
+  --pet-face-y: -.3px; --pet-face-scale: .58;
+  --pet-wing-left-x: 14px; --pet-wing-left-y: 18px; --pet-wing-right-x: 18px; --pet-wing-right-y: 18px;
+}
+.dg-pet[data-pet="fox"]:has(> [data-art-revision="anatomy-2"]) { --pet-tail-x: 21px; --pet-tail-y: 27px; }
+.dg-pet[data-pet="fox"]:has(> [data-art-revision="anatomy-2"]) .pet-rig-tail { transform-origin: 21px 27px; }
+.dg-pet[data-pet="nimbus"]:has(> [data-art-revision="anatomy-2"]) .pet-rig-wing-right { transform-origin: 18px 18px; }
+.dg-pet:has(> [data-art-revision="anatomy-2"]) .dg-pet-hat:is([data-hat="specs"], [data-hat="shades"], [data-hat="phones"]) {
+  translate: calc(var(--pet-face-x) * var(--pet-overlay-k, 1)) calc(var(--pet-face-y) * var(--pet-overlay-k, 1));
+  scale: var(--pet-face-scale); transform-origin: 50% 50%;
+}
+.dg-pet:has(> [data-art-revision="anatomy-2"]):has(> .dg-pet-hat:is([data-hat="specs"], [data-hat="shades"])) .dg-pet-glasses { visibility: hidden; }
+.dg-pet[data-neck]:has(> [data-art-revision="anatomy-2"]) .pet-native-prop { display: inline; }
