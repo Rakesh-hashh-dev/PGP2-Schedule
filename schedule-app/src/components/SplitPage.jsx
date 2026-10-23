@@ -25,6 +25,7 @@ import { useReceipt } from "../lib/useSplitReceipt.js";
 import { exportCSV, downloadFile } from "../lib/splitCircle.js";
 import "../styles/split.css";
 import "../styles/split-circle.css";
+import { useBackClose } from "../lib/backClose.js";
 
 // TermFlow Split — Splitwise-style shared expenses. Two screens: a list of
 // groups (with your net position) and a group ledger (balances, simplified /
@@ -68,6 +69,7 @@ function Ava({ name, size = 28 }) {
 //  Create / edit group modal
 // ═══════════════════════════════════════════════════════════════
 function GroupModal({ userId, userName, friends, existing, balances, onClose, onSaved, onDeleted }) {
+  useBackClose(onClose);
   const cloudFriends = useMemo(() => (friends || []).filter(f => f.cloudId), [friends]);
   const [name, setName] = useState(existing?.name || "");
   const [picked, setPicked] = useState(() => {
@@ -218,6 +220,7 @@ function GroupModal({ userId, userName, friends, existing, balances, onClose, on
 //  Add / edit expense modal
 // ═══════════════════════════════════════════════════════════════
 function SettleModal({ userId, userName, group, members, suggested, onClose, onSettled }) {
+  useBackClose(onClose);
   const others = members.filter(m => m.id !== userId);
   const [toUser, setToUser] = useState(suggested?.toUser || others[0]?.id || "");
   const [amount, setAmount] = useState(suggested?.amountPaise ? (suggested.amountPaise / 100).toString() : "");
@@ -290,6 +293,7 @@ function SettleModal({ userId, userName, group, members, suggested, onClose, onS
 //  Invite modal
 // ═══════════════════════════════════════════════════════════════
 function InviteModal({ group, onClose }) {
+  useBackClose(onClose);
   const url = buildInviteUrl(group.id);
   const [copied, setCopied] = useState(false);
   async function copy() {

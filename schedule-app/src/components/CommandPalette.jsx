@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { CalendarEventBadgeSVG } from "./CalendarSVGs.jsx";
 import "../styles/cmdk.css";
+import { useBackClose } from "../lib/backClose.js";
 
 const PAGES = [
   { id: "today", label: "Today", detail: "Your day at a glance", Icon: Clock },
@@ -18,6 +19,7 @@ const PAGES = [
 ];
 
 export default function CommandPalette({ isOpen, onClose, onViewChange, allClasses = [], friends = [], onOpenCalendarExport }) {
+  useBackClose(onClose, isOpen);
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef(null);

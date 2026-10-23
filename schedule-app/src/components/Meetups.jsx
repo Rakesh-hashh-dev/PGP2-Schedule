@@ -5,6 +5,7 @@ import { PLACE_PRESETS, fmtMeetupTime, createMeetupSeries, updateMeetup, fetchMy
 import { PLAN_TEMPLATES, buildOccurrences, findPlanConflicts, localDate } from "../lib/socialPlanning.js";
 import { fmtTime12 } from "../lib/datetime.js";
 import { EmptyState } from "./ui.jsx";
+import { useBackClose } from "../lib/backClose.js";
 
 function defaultDateTime(now) {
   const date = new Date(now.getTime() + 3600000); date.setMinutes(0, 0, 0);
@@ -20,6 +21,7 @@ function initialDateTime(draft, now) {
 }
 
 export function MeetupModal({ userId, userName, friends, draft, onCreated, onClose, allClasses = [], enrolled = {}, now = new Date() }) {
+  useBackClose(onClose);
   const initial = initialDateTime(draft, now);
   const [title, setTitle] = useState(draft?.title || "Catch-up");
   const [place, setPlace] = useState(draft?.place || "");

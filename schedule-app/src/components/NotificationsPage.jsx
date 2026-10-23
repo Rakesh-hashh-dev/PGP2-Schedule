@@ -8,6 +8,7 @@ import { NotificationPrefsPanel } from "./notifications/NotificationPrefsPanel.j
 import CohortPolls from "./notifications/CohortPolls.jsx";
 import { EmptyState } from "./ui.jsx";
 import { notificationDateParts } from "../lib/notificationWorkspace.js";
+import { useBackClose } from "../lib/backClose.js";
 
 const SWIPE_HINT_KEY = "pgp2.notif-swipe-hint-seen";
 const LOAD_TS = Date.now();
@@ -45,6 +46,7 @@ export default function NotificationsPage({ allChanges, myChanges, isAdmin, user
   const [syncState, setSyncState] = useState("idle"); // idle | syncing | synced
   const [query, setQuery] = useState("");
   const [showAlertSettings, setShowAlertSettings] = useState(false);
+  useBackClose(() => setShowAlertSettings(false), showAlertSettings);
   const [handledPrefsSignal, setHandledPrefsSignal] = useState(openPrefsSignal);
   const [nowTick, setNowTick] = useState(LOAD_TS);
   const [swipeHintSeen, setSwipeHintSeen] = useState(() => { try { return localStorage.getItem(SWIPE_HINT_KEY) === "1"; } catch { return true; } });

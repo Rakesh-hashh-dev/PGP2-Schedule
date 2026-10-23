@@ -1,4 +1,5 @@
 import { X, Sparkles, ChevronRight, ArrowRight, BellRing, AlarmClock, Sunrise, ClipboardCheck, Link2, CalendarDays, Megaphone, Zap, Users, GraduationCap, BookOpenCheck } from "lucide-react";
+import { useBackClose } from "../lib/backClose.js";
 
 // "What's New" feature announcements. Entries come from
 // system_config.flags.whatsNew (managed in Admin Tools):
@@ -64,6 +65,7 @@ export function WhatsNewPill({ item, count, onOpen }) {
 }
 
 export function WhatsNewModal({ items, onClose, onOpenGuide }) {
+  useBackClose(onClose);
   return (
     <div className="wn-overlay" role="dialog" aria-modal="true" aria-labelledby="wn-title" onClick={onClose}>
       <div className="wn-modal" onClick={(e) => e.stopPropagation()}>

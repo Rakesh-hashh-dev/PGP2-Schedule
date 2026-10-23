@@ -1,0 +1,125 @@
+/* Shared dining surfaces. Keep the existing meal/data and V2 sheet contracts. */
+.fs-modal-content.mess-menu-refresh {
+  width: min(960px, calc(100vw - 36px));
+  max-width: 960px;
+  max-height: min(90dvh, 900px);
+  background: var(--card);
+  border-color: var(--border);
+  border-radius: 24px;
+}
+.mess-menu-refresh .mess-modal-header { padding: 21px 24px; }
+.mess-menu-refresh .mess-modal-title-text h3 { font-size: 22px; font-weight: 750; }
+.mess-menu-refresh .mess-weekstrip { padding: 12px 24px 8px; background: var(--card); border-bottom: 0; gap: 8px; }
+.mess-menu-refresh .mess-day { min-height: 58px; background: var(--card-hi); border-color: transparent; box-shadow: none; }
+.mess-menu-refresh .mess-day.on { background: var(--violet); border-color: var(--violet); color: #fff; box-shadow: none; }
+.mess-menu-refresh .mess-day.on :is(.mess-day-dow, .mess-day-num) { color: #fff; }
+.mess-menu-refresh .mess-day.on .mess-day-dot { background: #fff; }
+.mess-menu-refresh .mess-day-num { font-size: 18px; }
+.mess-meal-filters { display: flex; flex: none; gap: 6px; padding: 8px 24px 14px; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--border); }
+.mess-meal-filters::-webkit-scrollbar { display: none; }
+.mess-meal-filters button { display: inline-flex; flex: none; align-items: center; justify-content: center; gap: 6px; min-height: 38px; padding: 7px 13px; border: 1px solid transparent; border-radius: 10px; background: transparent; color: var(--muted); font: inherit; font-size: 11.5px; font-weight: 650; cursor: pointer; touch-action: manipulation; }
+.mess-meal-filters button[aria-pressed="true"] { color: color-mix(in srgb, var(--mess-acc, var(--violet)) 65%, var(--text)); border-color: color-mix(in srgb, var(--mess-acc, var(--violet)) 24%, var(--border)); background: var(--mess-acc-dim, var(--violet-dim)); }
+.mess-meal-filters button:hover { background: var(--card-hi); color: var(--text); }
+.mess-meal-filters button:focus-visible, .mess-menu-refresh .mess-day-overview:focus-visible, .mess-dish:focus-visible, .mess-week-link:focus-visible { outline: 2px solid var(--violet); outline-offset: 2px; }
+.mess-menu-refresh .mess-modal-body { padding: 20px 24px 24px; background: color-mix(in srgb, var(--bg) 45%, var(--card)); scrollbar-width: thin; scrollbar-color: var(--border-hi) transparent; }
+.mess-menu-refresh .mess-day-overview { width: 100%; text-align: left; font: inherit; cursor: pointer; min-height: 115px; padding: 18px 20px; border-radius: 18px; gap: 16px; background: linear-gradient(110deg, var(--mess-acc-dim), var(--card)); transition: border-color .15s ease; }
+.mess-menu-refresh .mess-day-overview:hover { border-color: var(--mess-acc); }
+.mess-menu-refresh .mess-overview-icon { width: 54px; height: 54px; border-radius: 17px; }
+.mess-menu-refresh .mess-overview-copy { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+.mess-menu-refresh .mess-overview-copy strong { font-size: 25px; line-height: 1.15; font-weight: 750; }
+.mess-menu-refresh .mess-overview-copy > span { font-size: 11.5px; color: var(--muted); }
+.mess-menu-refresh .mess-overview-copy .mess-overview-eyebrow { font-size: 9px; color: color-mix(in srgb, var(--mess-acc) 65%, var(--text)); letter-spacing: .08em; }
+.mess-menu-refresh .mess-overview-copy .mess-overview-dishes { font-size: 12px; color: var(--text); margin-top: 3px; overflow-wrap: anywhere; }
+.mess-menu-refresh .mess-overview-side { flex-direction: column; align-items: flex-end; gap: 6px; flex: none; color: var(--mess-acc); }
+.mess-menu-refresh .mess-overview-total { border: 0; background: none; padding: 0; font-weight: 550; }
+.mess-menu-refresh .mess-menu-guide { align-items: center; margin: 23px 1px 13px; }
+.mess-menu-refresh .mess-guide-heading strong { font-size: 17px; }
+.mess-menu-refresh .mess-fav-hint { font-size: 10.5px; }
+.mess-menu-refresh .mess-meal-grid { gap: 14px; align-items: start; }
+.mess-menu-refresh .mess-meal-grid:has(> :only-child) { grid-template-columns: 1fr; }
+.mess-menu-refresh .mess-meal-card { padding: 17px 17px 13px; border-radius: 17px; background: var(--card); }
+.mess-menu-refresh .mess-meal-spine { top: 18px; bottom: auto; height: 33px; width: 3px; border-radius: 0 3px 3px 0; }
+.mess-menu-refresh .mess-meal-card.is-past { opacity: 1; }
+.mess-menu-refresh .mess-meal-card.is-past .mess-meal-icon { opacity: .7; }
+.mess-menu-refresh .mess-meal-card-head { align-items: flex-start; flex-wrap: wrap; gap: 10px; }
+.mess-menu-refresh .mess-meal-heading { flex: 1; }
+.mess-menu-refresh .mess-meal-name { margin: 0; font-size: 17px; font-weight: 750; line-height: 1.3; }
+.mess-menu-refresh .mess-meal-time { margin-top: 3px; }
+.mess-menu-refresh .mess-meal-hours { display: inline-flex; align-items: center; gap: 5px; font-family: var(--body); font-size: 10.5px; font-weight: 550; }
+.mess-menu-refresh .mess-meal-status { padding-top: 2px; }
+.mess-menu-refresh .mess-status-pill { font-size: 9px; padding: 4px 7px; }
+.mess-menu-refresh .mess-status-pill:is(.is-live, .is-next) { color: color-mix(in srgb, var(--mess-acc) 60%, var(--text)); }
+.mess-dishes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px 10px; margin-top: 15px; }
+.mess-dish { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; min-height: 38px; padding: 7px 8px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: var(--text); font: inherit; font-size: 12px; line-height: 1.45; text-align: left; overflow-wrap: anywhere; }
+button.mess-dish { cursor: pointer; touch-action: manipulation; }
+.mess-dish .mess-chip-star { flex: none; width: 14px; margin: 0; color: color-mix(in srgb, var(--muted) 60%, var(--card)); }
+button.mess-dish:hover { background: var(--card-hi); border-color: var(--border); }
+.mess-dish.is-fav { background: color-mix(in srgb, var(--amber) 8%, var(--card)); color: var(--amber-text, var(--amber)); }
+.mess-dish.is-fav .mess-chip-star, button.mess-dish:hover .mess-chip-star { color: var(--amber); }
+.mess-menu-refresh .mess-meal-footer { border-top-style: solid; margin-top: 12px; padding-top: 9px; }
+.mess-menu-refresh .mess-meal-footer .mess-rate-btn { min-width: 34px; min-height: 34px; }
+.mess-menu-refresh .mess-menu-disclaimer { font-style: italic; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); font-size: 10.5px; line-height: 1.6; }
+
+/* Today card: a short preview, with a persistent route to the weekly menu. */
+.mess-card-refresh { padding: 17px 18px; border-radius: 20px; }
+.mess-card-refresh.is-live { border-color: color-mix(in srgb, var(--live) 30%, var(--border)); }
+.mess-card-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.mess-card-header > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.mess-card-heading { display: inline-flex; align-items: center; gap: 8px; color: var(--text); font-size: 16px; font-weight: 750; letter-spacing: -.025em; }
+.mess-card-heading svg { color: var(--violet); }
+.mess-card-date { color: var(--muted); font-size: 10px; }
+.mess-week-link { display: inline-flex; flex: none; align-items: center; gap: 6px; min-height: 38px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--card-hi); color: var(--text); font: inherit; font-size: 10.5px; font-weight: 650; cursor: pointer; }
+.mess-week-link:hover { color: var(--violet); border-color: var(--violet); }
+.mess-card-refresh .mess-bar { grid-template-columns: minmax(0, 1fr) auto; padding: 13px; background: color-mix(in srgb, var(--mess-acc) 4%, var(--card)); border-color: color-mix(in srgb, var(--mess-acc) 15%, var(--border)); border-radius: 14px; gap: 11px; }
+.mess-card-refresh .mess-bar-head { min-width: 0; }
+.mess-bar-copy { display: flex; flex-direction: column; gap: 4px; }
+.mess-card-refresh .mess-bar-name { font-size: 17px; }
+.mess-card-refresh .mess-bar-time { display: block; padding: 0; border: 0; font: inherit; font-size: 10px; color: var(--muted); }
+.mess-card-refresh .mess-bar-status { grid-column: 2; gap: 8px; }
+.mess-card-refresh .mess-bar-serving { padding: 4px 7px; font-size: 9px; border: 0; color: color-mix(in srgb, var(--live) 65%, var(--text)); }
+.mess-card-refresh .mess-bar-rail { padding: 0; border: 0; overflow: visible; mask-image: none; -webkit-mask-image: none; }
+.mess-card-refresh .mess-bar-chips { flex-wrap: wrap; padding: 0; gap: 5px; }
+.mess-card-refresh .mess-bar-chip { max-width: 100%; white-space: normal; font-size: 11px; padding: 5px 8px; background: var(--card); border: 0; }
+.mess-more-dishes { color: var(--muted); padding: 5px 3px; font-size: 10px; font-weight: 600; }
+.mess-card-refresh .mess-bar-arrow { width: 28px; height: 28px; background: var(--card); color: var(--text); border: 1px solid var(--border); }
+.mess-card-refresh .mess-featured { border-radius: 15px; }
+.mess-card-refresh .mess-featured .mess-dishes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.mess-card-refresh .mess-title { font-family: var(--body); font-size: 10px; letter-spacing: .03em; }
+.mess-card-refresh .mess-head { flex-wrap: wrap; }
+.mess-card-refresh .mess-head-right { flex-wrap: wrap; }
+.mess-card-refresh .mess-viewfull { border-style: solid; min-height: 42px; color: var(--violet); background: var(--violet-dim); border-color: transparent; }
+.mess-card-refresh .mess-all { gap: 15px; }
+.mess-card-refresh .mess-card-disclaimer { font-size: 10px; }
+@media (max-width: 700px) {
+  .fs-modal-content.mess-menu-refresh { width: calc(100vw - 20px); border-radius: 20px; }
+  .mess-menu-refresh .mess-weekstrip { padding-inline: 12px; gap: 5px; }
+  .mess-menu-refresh .mess-day { min-height: 52px; }
+  .mess-meal-filters { padding: 7px 12px 10px; gap: 3px; }
+  .mess-meal-filters button { min-height: 40px; padding-inline: 10px; font-size: 10.5px; }
+  .mess-menu-refresh .mess-modal-body { padding: 14px 12px calc(20px + env(safe-area-inset-bottom, 0px)); }
+  .mess-menu-refresh .mess-day-overview { min-height: 105px; padding: 14px; gap: 11px; }
+  .mess-menu-refresh .mess-overview-icon { width: 42px; height: 42px; border-radius: 13px; }
+  .mess-menu-refresh .mess-overview-copy strong { font-size: 22px; }
+  .mess-menu-refresh .mess-overview-side .mess-overview-total { display: none; }
+  .mess-menu-refresh .mess-overview-dishes { max-width: 100%; }
+  .mess-menu-refresh .mess-menu-guide { align-items: start; flex-direction: column; gap: 8px; margin-top: 18px; }
+  .mess-menu-refresh .mess-meal-grid { grid-template-columns: 1fr; }
+  .mess-menu-refresh .mess-meal-card { padding: 15px; }
+  .mess-dish { min-height: 42px; font-size: 12px; padding: 8px; }
+  .mess-card-refresh { padding: 14px; }
+  .mess-card-refresh .mess-bar { padding: 10px; gap: 10px; }
+  .mess-card-refresh .mess-bar-head { gap: 7px; }
+  .mess-card-refresh .mess-bar-status { gap: 5px; }
+  .mess-card-refresh .mess-bar-name { font-size: 15px; }
+}
+@media (max-width: 380px) {
+  .mess-dishes { grid-template-columns: 1fr; }
+  .mess-card-refresh .mess-featured .mess-dishes { grid-template-columns: 1fr; }
+  .mess-menu-refresh .mess-overview-icon { display: none; }
+  .mess-menu-refresh .mess-meal-status { width: 100%; padding: 0 0 0 48px; }
+  .mess-card-refresh .mess-bar-serving { font-size: 8px; padding-inline: 5px; gap: 3px; }
+  .mess-card-refresh .mess-bar-status { gap: 4px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mess-menu-refresh .mess-day-overview { transition: none; }
+}

@@ -7,6 +7,7 @@ import { isExamSession } from "../lib/attendance.js";
 import { fmtTime12 } from "../lib/datetime.js";
 import { CalendarEventBadgeSVG } from "./CalendarSVGs.jsx";
 import { PlacementIcon, CelebrationIcon } from "./PremiumIcons.jsx";
+import { useBackClose } from "../lib/backClose.js";
 
 function examCategory(name, session) {
   const n = (name || "").toLowerCase();
@@ -64,6 +65,8 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
   const [showAllClasses, setShowAllClasses] = useState(false);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [dateModalOpen, setDateModalOpen] = useState(false);
+  useBackClose(() => setFilterModalOpen(false), filterModalOpen);
+  useBackClose(() => setDateModalOpen(false), dateModalOpen);
   const [dateToJump, setDateToJump] = useState(TODAY);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [viewMode, setViewMode] = useState("list");

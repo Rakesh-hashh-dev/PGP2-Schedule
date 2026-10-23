@@ -32,6 +32,7 @@ import {
   CalendarEventBadgeSVG,
   GlowingAlarmBellSVG,
 } from "./CalendarSVGs.jsx";
+import { useBackClose } from "../lib/backClose.js";
 
 const AREA_LABELS = {
   "F&A": "Finance",
@@ -53,6 +54,7 @@ export default function CalendarExportModal({
   initialSelectedCodes = null,
   initialIncludeExams = true,
 }) {
+  useBackClose(onClose, isOpen);
   const detectedPlatform = useMemo(() => detectPlatform(), []);
   const enrolledCodes = useMemo(() => Object.keys(enrolled || {}), [enrolled]);
 

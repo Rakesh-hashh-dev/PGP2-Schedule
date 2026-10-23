@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, CalendarDays, CalendarClock, ChartNoAxesCombined, Check, CloudOff, CloudSun, Focus, LayoutDashboard, RefreshCw, RotateCcw, Settings2, UtensilsCrossed, X } from "lucide-react";
 import { DASHBOARD_CARDS, dashboardCardVisible, moveDashboardCard, normalizeDashboardPrefs } from "../lib/dashboardPrefs.js";
 import "../styles/premium-workflow.css";
+import { useBackClose } from "../lib/backClose.js";
 
 export function DashboardCustomize({ prefs, onChange, compact = false }) {
   const [open, setOpen] = useState(false);
@@ -31,6 +32,7 @@ export function DashboardCustomize({ prefs, onChange, compact = false }) {
     setOpen(false);
     toggleRef.current?.focus();
   }, []);
+  useBackClose(close, open);
   const toggle = () => {
     setOpen((value) => !value);
   };

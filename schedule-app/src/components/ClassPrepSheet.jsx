@@ -7,6 +7,7 @@ import { fmtTime12 } from "../lib/datetime.js";
 import { sessionItems } from "../lib/premiumWorkflow.js";
 import { safeUrl } from "../lib/safeUrl.js";
 import "../styles/premium-workflow.css";
+import { useBackClose } from "../lib/backClose.js";
 
 function dateLabel(iso) {
   const [year, month, day] = iso.split("-").map(Number);
@@ -14,6 +15,7 @@ function dateLabel(iso) {
 }
 
 export default function ClassPrepSheet({ session, termNumber, attendance = {}, onClose, onOpenCourse, onOpenTask, onOpenSchedule }) {
+  useBackClose(onClose);
   const closeRef = useRef(null);
   const tasks = useMemo(() => (loadAssignments()[session.code] || []).filter((task) => !task.completed)
     .sort((a, b) => (a.dueDate || "9999").localeCompare(b.dueDate || "9999")).slice(0, 3), [session]);

@@ -6,6 +6,7 @@ import { isNationalHoliday } from "../lib/nationalHolidays.js";
 import IndiaFlagIcon from "./IndiaFlagIcon.jsx";
 import { CancellationStripe } from "./CancelledClassNotice.jsx";
 import { fmtTime12 } from "../lib/datetime.js";
+import { useBackClose } from "../lib/backClose.js";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
@@ -16,6 +17,7 @@ function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart
 // sidebar panel brings its own card chrome and week nav, which in a dialog read
 // as a card inside a card. Here the week nav *is* the dialog header.
 export default function ScheduleModal({ visible, now, offset, setOffset, todayISO, onClose, onViewFullSchedule }) {
+  useBackClose(onClose);
   // Week Stats stays where the reader left it, same as the sidebar's toggle.
   const [showStats, setShowStats] = useState(() => localStorage.getItem("sm-stats-closed") !== "1");
   const toggleStats = () => setShowStats((open) => {

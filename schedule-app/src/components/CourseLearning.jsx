@@ -2,6 +2,7 @@ import { useState } from "react";
 import { BookMarked, Check, ChevronDown, CircleHelp, ExternalLink, FileText, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { nextReviewDate, reviewQueue } from "../lib/courseHub.js";
 import { safeUrl } from "../lib/safeUrl.js";
+import { useBackClose } from "../lib/backClose.js";
 
 const dayKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 const labelDate = (iso) => {
@@ -32,6 +33,7 @@ export default function CourseLearning({ course, items, now, isArchived, onSave,
     setError("");
   };
   const closeForm = () => { setForm(blank); setError(""); };
+  useBackClose(closeForm, !!form.kind);
   const submit = (event) => {
     event.preventDefault();
     const title = form.title.trim();

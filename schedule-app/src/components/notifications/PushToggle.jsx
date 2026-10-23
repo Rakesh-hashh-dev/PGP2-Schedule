@@ -2,8 +2,10 @@ import { useState } from "react";
 import { Bell, BellOff, BellRing, Smartphone, Share, SquarePlus, Info, X } from "lucide-react";
 import { isIOS } from "../../lib/push.js";
 import { usePushStatus } from "../../hooks/usePushStatus.js";
+import { useBackClose } from "../../lib/backClose.js";
 
 export function PushHelpSheet({ mode, onClose }) {
+  useBackClose(onClose);
   const iosDevice = isIOS();
   const steps =
     mode === "ios-install"

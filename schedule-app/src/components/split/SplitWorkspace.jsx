@@ -5,6 +5,7 @@ import { splitFeatures, acceptSecureInvite, getPreferences, savePreferences } fr
 import { analytics, balancesByCurrency, currencyCode, dayToday, expenseDate, exportCSV, downloadFile } from "../../lib/splitCircle.js";
 import { CirclePanel } from "./Collaboration.jsx";
 import MobileV2Breadcrumbs from "../mobile/MobileV2Breadcrumbs.jsx";
+import { useBackClose } from "../../lib/backClose.js";
 const tabs = [["overview", LayoutDashboard, "Overview"], ["groups", Users, "Groups"], ["expenses", Receipt, "Expenses"], ["insights", ChartNoAxesCombined, "Insights"], ["recurring", Repeat2, "Recurring"]];
 const categoryIcons = { food: Utensils, travel: Car, groceries: ShoppingCart, stay: Home, shopping: ShoppingBag, utilities: Lightbulb, entertainment: PartyPopper, other: Tag };
 const monthLabel = value => new Intl.DateTimeFormat("en-IN", { month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${value}-01T12:00:00Z`));
@@ -58,6 +59,8 @@ export default function SplitWorkspace({ userId, userName, friends, initialGroup
   const totals = balancesByCurrency(groups, ledgers, userId), summary = totals[currency] || { net: 0, owe: 0, owed: 0 };
   const stats = analytics(entries, userId, month, currency);
   const active = groups.find(g => g.id === activeId);
+  // An open group is a step of its own: back returns to the group list.
+  useBackClose(() => { setActiveId(null); void reload(); }, Boolean(activeId));
   const codes = [...new Set([currency, "INR", ...Object.keys(totals)])];
   const groupBalances = Object.fromEntries(groups.map(g => [g.id, balancesByCurrency([g], ledgers, userId)[currencyCode(g.currency)]?.net || 0]));
   const visibleGroups = groups.filter(g => g.name.toLowerCase().includes(groupSearch.trim().toLowerCase()) && (groupStatus === "all" || (groupStatus === "settled" ? groupBalances[g.id] === 0 : groupBalances[g.id] !== 0)));

@@ -31,6 +31,7 @@ import { fmtTime12 } from "../lib/datetime.js";
 const SHARE_HINT_KEY = "pgp2.share-hint-seen";
 import PollCard, { PollComposer } from "./PollCard.jsx";
 import { groupInvite, groupInviteUrl } from "../lib/groupInvites.js";
+import { useBackClose } from "../lib/backClose.js";
 
 // profiles still holds pre-cutover DEV ghost rows (the data source for
 // migrate-user's on-login restore) — exclude them wherever we list students,
@@ -120,6 +121,7 @@ function StatusIcon({ id, size = 14, className = "" }) {
 }
 
 function StatusModal({ current, onSave, onClose }) {
+  useBackClose(onClose);
   const [presetId, setPresetId] = useState(current?.id || null);
   const [customText, setCustomText] = useState(current && !current.id ? current.text : "");
   const [availability, setAvailability] = useState(current?.availability || "unspecified");
@@ -1037,6 +1039,11 @@ export default function FriendsPanel({
 
   // Student directory ("find people") modal — lists everyone using the app
   const [showDirectory, setShowDirectory] = useState(false);
+  useBackClose(() => setShowConnectModal(false), showConnectModal);
+  useBackClose(() => setShowAllFriendsModal(false), showAllFriendsModal);
+  useBackClose(() => setShowAllGroupsModal(false), showAllGroupsModal);
+  useBackClose(() => setShowAllBuddiesModal(false), showAllBuddiesModal);
+  useBackClose(() => setShowDirectory(false), showDirectory);
   const [directory, setDirectory] = useState(null); // null = not fetched yet
   const [dirSearch, setDirSearch] = useState("");
   const [requestedIds, setRequestedIds] = useState(() => new Set());

@@ -2,10 +2,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, Download, Image, Share2, X } from "lucide-react";
 import { buildWrappedShareFiles, createWrappedPreview, downloadWrappedShareFiles, WRAPPED_SHARE_SLIDES, WRAPPED_SHARE_THEMES } from "../../lib/wrappedShare.js";
+import { useBackClose } from "../../lib/backClose.js";
 
 const DEFAULT_SLIDES = ["summary", "workload", "attendance"];
 
 export default function WrappedShareSheet({ open, onClose, stats, termLabel, userName }) {
+  useBackClose(onClose, open);
   const [selected, setSelected] = useState(DEFAULT_SLIDES);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");

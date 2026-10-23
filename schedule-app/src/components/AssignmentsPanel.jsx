@@ -3,6 +3,7 @@ import "../styles/assignments.css";
 import { CheckCircle2, Circle, Plus, Trash2, X, ChevronDown, Check, Sparkles, BookOpen, Clock, AlertCircle, List, CalendarRange, ArrowDownUp } from "lucide-react";
 import { loadAssignments, pushAssignments } from "../lib/assignments.js";
 import { EmptyState } from "./ui.jsx";
+import { useBackClose } from "../lib/backClose.js";
 
 function daysUntil(dueDate) {
   if (!dueDate) return null;
@@ -226,6 +227,7 @@ function SwipeableTaskRow({ task, onToggle, onDelete, onOpen, courseCode, course
 export default function AssignmentsPanel({ enrolled, legend, userId, onTaskCompleted, openTarget, onOpenTargetConsumed, onOpenCourse }) {
   const [assignments, setAssignments] = useState(() => loadAssignments());
   const [modalOpen, setModalOpen] = useState(Boolean(openTarget?.code));
+  useBackClose(() => setModalOpen(false), modalOpen);
   const [collapsedCards, setCollapsedCards] = useState({});
   const [modalData, setModalData] = useState(() => openTarget?.task
     ? { ...openTarget.task, code: openTarget.code }

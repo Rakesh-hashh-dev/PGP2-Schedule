@@ -1,14 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { UtensilsCrossed, X, Star, ThumbsUp, ThumbsDown, Clock3, Heart, CalendarDays } from "lucide-react";
+import { UtensilsCrossed, X, Star, ThumbsUp, ThumbsDown, Clock3, Heart, CalendarDays, ArrowUpRight, LayoutGrid } from "lucide-react";
 import { getMenuForDay, MEAL_TIMES } from "../data/messMenu.js";
 import { MEAL_ICONS, WEEK_LABELS, mondayOf, toMin, fmt12, fmtIn, mealStatus, useMessData } from "../lib/messView.js";
 import { readMobileUiVersion, supportsV2Viewport } from "../hooks/useMobileUiVersion.js";
 import "../styles/mess.css";
+import "../styles/mess-refresh.css";
+import { useBackClose } from "../lib/backClose.js";
 
-export function ItemChips({ items, small, favourites, onToggleFav }) {
+export function ItemChips({ items, small, favourites, onToggleFav, menu = false }) {
   return (
-    <div className={`mess-chips${small ? " small" : ""}`}>
+    <div className={menu ? "mess-dishes" : `mess-chips${small ? " small" : ""}`}>
       {items.map((it) => {
         const fav = favourites?.has(it);
         if (onToggleFav) {
@@ -16,18 +18,20 @@ export function ItemChips({ items, small, favourites, onToggleFav }) {
             <button
               key={it}
               type="button"
-              className={`mess-chip mess-chip-btn${fav ? " is-fav" : ""}`}
+              className={`${menu ? "mess-dish" : "mess-chip mess-chip-btn"}${fav ? " is-fav" : ""}`}
               onClick={() => onToggleFav(it)}
               aria-pressed={fav}
               title={fav ? "Remove from favourites" : "Add to favourites"}
+              aria-label={menu ? `${it}, ${fav ? "remove from" : "add to"} favourites` : undefined}
             >
-              <Star size={11} className="mess-chip-star" fill={fav ? "currentColor" : "none"} />
-              {it}
+              {menu && <span>{it}</span>}
+              <Star size={menu ? 14 : 11} className="mess-chip-star" fill={fav ? "currentColor" : "none"} aria-hidden="true" />
+              {!menu && it}
             </button>
           );
         }
         return (
-          <span key={it} className={`mess-chip${fav ? " is-fav" : ""}`}>
+          <span key={it} className={`${menu ? "mess-dish" : "mess-chip"}${fav ? " is-fav" : ""}`}>
             {fav && <Star size={10} className="mess-chip-star" fill="currentColor" />}
             {it}
           </span>
@@ -51,7 +55,7 @@ export function MealRating({ mealId, stats, mine, onRate }) {
         className={`mess-rate-btn${my === 1 ? " on" : ""}`}
         onClick={() => onRate(mealId, my === 1 ? null : 1)}
         aria-pressed={my === 1}
-        aria-label="Thumbs up"
+        aria-label={`Like ${mealId}`}
       >
         <ThumbsUp size={13} />
       </button>
@@ -60,7 +64,7 @@ export function MealRating({ mealId, stats, mine, onRate }) {
         className={`mess-rate-btn down${my === -1 ? " on" : ""}`}
         onClick={() => onRate(mealId, my === -1 ? null : -1)}
         aria-pressed={my === -1}
-        aria-label="Thumbs down"
+        aria-label={`Dislike ${mealId}`}
       >
         <ThumbsDown size={13} />
       </button>
@@ -76,14 +80,24 @@ export function MealRating({ mealId, stats, mine, onRate }) {
 // Full-week mess menu — day tabs across the top, one card per meal. Purely
 // presentational: favourites + ratings are passed in.
 export default function MessMenuModal({ now, onClose, favourites, onToggleFav, ratings }) {
+  useBackClose(onClose);
   const todayIdx = (now.getDay() + 6) % 7; // Mon=0 ... Sun=6
   const [dayIdx, setDayIdx] = useState(todayIdx);
+  const [mealFilter, setMealFilter] = useState("all");
+  const dialogRef = useRef(null);
+  const panelId = useId();
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const isV2 = readMobileUiVersion() === "v2" && supportsV2Viewport();
 
   useEffect(() => {
-    const opener = document.activeElement;
-    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e) => {
+      if (e.key === "Escape") { e.preventDefault(); onClose(); }
+      if (e.key !== "Tab") return;
+      const controls = Array.from(dialogRef.current?.querySelectorAll('button:not(:disabled):not([tabindex="-1"]), [tabindex="0"]') || []).filter(node => node.getClientRects().length);
+      const first = controls[0], last = controls[controls.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
+    };
     document.addEventListener("keydown", onKey);
     // Lock background scroll while the modal is open. The page scrolls on the
     // document element (html), so we lock both html and body — locking body
@@ -102,9 +116,14 @@ export default function MessMenuModal({ now, onClose, favourites, onToggleFav, r
       html.style.overflow = prevHtml;
       html.style.scrollbarGutter = prevGutter;
       document.body.style.overflow = prevBody;
-      if (opener instanceof HTMLElement) opener.focus();
     };
   }, [onClose]);
+
+  useEffect(() => {
+    const opener = document.activeElement;
+    dialogRef.current?.querySelector('.fs-modal-close')?.focus();
+    return () => { if (opener instanceof HTMLElement && opener.isConnected) opener.focus(); };
+  }, []);
 
   const monday = mondayOf(now);
   const weekDays = WEEK_LABELS.map((label, i) => {
@@ -129,6 +148,7 @@ export default function MessMenuModal({ now, onClose, favourites, onToggleFav, r
       || mealStates[mealStates.length - 1]
     : mealStates[0];
   const focusStart = toMin(focusMeal.start);
+  const FocusIcon = MEAL_ICONS[focusMeal.id];
   const overviewEyebrow = !isToday
     ? "Plan your day"
     : focusMeal.status === "now"
@@ -150,7 +170,7 @@ export default function MessMenuModal({ now, onClose, favourites, onToggleFav, r
 
   return createPortal(
     <div className={`fs-modal-overlay${isV2 ? " is-v2 mobile-ui-v2" : ""}`} onClick={onClose}>
-      <div className={`fs-modal-content mess-modal${isV2 ? " is-v2" : ""}`} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Full mess menu">
+      <div ref={dialogRef} className={`fs-modal-content mess-modal mess-menu-refresh${isV2 ? " is-v2" : ""}`} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Full mess menu">
         {isV2 && <span className="mess-modal-drag-handle" aria-hidden="true" />}
         <div className="fs-modal-header mess-modal-header">
           <div className="mess-modal-title">
@@ -173,7 +193,8 @@ export default function MessMenuModal({ now, onClose, favourites, onToggleFav, r
               type="button"
               role="tab"
               aria-selected={i === dayIdx}
-              aria-controls="mess-day-panel"
+              aria-controls={panelId}
+              id={`${panelId}-${i}`}
               aria-label={`${d.label} ${d.date.getDate()}${i === todayIdx ? " (today)" : ""}`}
               className={`mess-day${i === dayIdx ? " on" : ""}${i === todayIdx ? " is-today" : ""}`}
               onClick={() => setDayIdx(i)}
@@ -197,19 +218,29 @@ export default function MessMenuModal({ now, onClose, favourites, onToggleFav, r
           ))}
         </div>
 
-        <div className="fs-modal-body mess-modal-body" id="mess-day-panel" role="tabpanel" key={dayIdx}>
-          <section className={`mess-day-overview mess-acc-${focusMeal.id}`} aria-label={`${overviewEyebrow}: ${focusMeal.label}`}>
-            <span className="mess-overview-icon"><Clock3 size={18} /></span>
+        <div className="mess-meal-filters" role="group" aria-label="Filter meals">
+          <button type="button" aria-pressed={mealFilter === "all"} onClick={() => setMealFilter("all")}><LayoutGrid size={14} aria-hidden="true" />All meals</button>
+          {MEAL_TIMES.map(meal => {
+            const Icon = MEAL_ICONS[meal.id];
+            return <button type="button" key={meal.id} className={`mess-acc-${meal.id}`} aria-pressed={mealFilter === meal.id} onClick={() => setMealFilter(meal.id)}><Icon size={14} aria-hidden="true" />{meal.label}</button>;
+          })}
+        </div>
+
+        <div className="fs-modal-body mess-modal-body" id={panelId} role="tabpanel" aria-labelledby={`${panelId}-${dayIdx}`} tabIndex={0} key={dayIdx}>
+          <button type="button" className={`mess-day-overview mess-acc-${focusMeal.id}`} onClick={() => setMealFilter(focusMeal.id)} aria-label={`${overviewEyebrow}: ${focusMeal.label}. View dishes`}>
+            <span className="mess-overview-icon"><FocusIcon size={25} aria-hidden="true" /></span>
             <span className="mess-overview-copy">
               <span className="mess-overview-eyebrow">{overviewEyebrow}</span>
               <strong>{focusMeal.label}</strong>
               <span>{overviewDetail}</span>
+              <span className="mess-overview-dishes">{(dayMenu[focusMeal.id] || []).slice(0, 2).join(" · ")}</span>
             </span>
             <span className="mess-overview-side">
               {savedItems.size > 0 && <span className="mess-overview-favs"><Heart size={12} fill="currentColor" /> {savedItems.size} saved</span>}
               <span className="mess-overview-total">{totalItems} dishes {isToday ? "today" : "on menu"}</span>
+              <ArrowUpRight size={19} aria-hidden="true" />
             </span>
-          </section>
+          </button>
 
           <div className="mess-menu-guide">
             <div className="mess-guide-heading"><strong>{dateSub}</strong><span>{MEAL_TIMES.length} meals · {totalItems} dishes</span></div>
@@ -217,7 +248,7 @@ export default function MessMenuModal({ now, onClose, favourites, onToggleFav, r
           </div>
 
           <div className="mess-meal-grid">
-          {mealStates.map((m, mealIndex) => {
+          {mealStates.filter(meal => mealFilter === "all" || meal.id === mealFilter).map((m) => {
             const Icon = MEAL_ICONS[m.id];
             const items = dayMenu[m.id] || [];
             const st = m.status;
@@ -229,10 +260,9 @@ export default function MessMenuModal({ now, onClose, favourites, onToggleFav, r
                 <div className="mess-meal-card-head">
                   <span className="mess-meal-icon"><Icon size={16} /></span>
                   <span className="mess-meal-heading">
-                    <span className="mess-meal-kicker">Meal {String(mealIndex + 1).padStart(2, "0")}</span>
-                    <span className="mess-meal-name">{m.label}</span>
+                    <h4 className="mess-meal-name">{m.label}</h4>
                     <span className="mess-meal-time">
-                      <span className="mess-meal-hours">{fmt12(m.start)} – {fmt12(m.end)}</span>
+                      <span className="mess-meal-hours"><Clock3 size={12} aria-hidden="true" />{fmt12(m.start)} – {fmt12(m.end)}</span>
                     </span>
                   </span>
                   <span className="mess-meal-status">
@@ -248,7 +278,7 @@ export default function MessMenuModal({ now, onClose, favourites, onToggleFav, r
                   </span>
                 </div>
                 {items.length > 0
-                  ? <ItemChips items={items} favourites={favourites} onToggleFav={onToggleFav} />
+                  ? <ItemChips items={items} favourites={favourites} onToggleFav={onToggleFav} menu />
                   : <div className="mess-meal-empty">Not served</div>}
                 <div className="mess-meal-footer">
                   <span>{items.length} item{items.length === 1 ? "" : "s"}</span>

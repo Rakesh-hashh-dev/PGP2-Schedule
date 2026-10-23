@@ -5,6 +5,7 @@ import { getMenuForDay, MEAL_TIMES, favouritesInMenu } from "../data/messMenu.js
 import FullMenuModal, { ItemChips, MealRating } from "./MessMenuModal.jsx";
 import { useMessData, MEAL_ICONS, toMin, fmt12, fmtIn, mealStatus } from "../lib/messView.js";
 import "./../styles/mess.css";
+import "../styles/mess-refresh.css";
 
 // Desktop (mouse) expands on hover; touch devices keep the tap toggle
 const CAN_HOVER = typeof window !== "undefined" && window.matchMedia("(hover: hover) and (pointer: fine)").matches;
@@ -66,14 +67,20 @@ export default function MessCard({ now, userId, friends = [] }) {
 
   return (
     <section
-      className={`mess-card${expanded ? " is-open" : ""}${status === "now" ? " is-live" : ""}`}
+      className={`mess-card mess-card-refresh${expanded ? " is-open" : ""}${status === "now" ? " is-live" : ""}`}
       aria-label="Mess menu"
       {...hoverProps}
     >
+      <header className="mess-card-header">
+        <div>
+          <span className="mess-card-heading"><UtensilsCrossed size={17} aria-hidden="true" />Mess Menu</span>
+          <span className="mess-card-date">{dayLabel} · {menuDate.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</span>
+        </div>
+        <button type="button" className="mess-week-link" aria-label="Full mess menu" onClick={() => setFullMenuOpen(true)}><CalendarDays size={14} aria-hidden="true" />Weekly menu</button>
+      </header>
       {/* ── Compact bar (collapsed) ── */}
-      <div className="mess-collapse mess-collapse-bar" aria-hidden={expanded}>
+      <div className="mess-collapse mess-collapse-bar" aria-hidden={expanded} inert={expanded}>
         <div className="mess-clip">
-          <span className="mess-title mess-bar-title"><UtensilsCrossed size={14} strokeWidth={2.25} /> Mess Menu</span>
           {/* A plain div (not a <button>) wraps the row: the chip strip inside
               scrolls horizontally on mobile, and nesting a native scrollable
               region inside a real <button> is unreliable for taps on touch
@@ -89,20 +96,23 @@ export default function MessCard({ now, userId, friends = [] }) {
           >
             <span className="mess-bar-head">
               <span className="mess-meal-icon"><FeatIcon size={17} /></span>
-              <span className="mess-bar-name">{featured.label}</span>
-              <span className="mess-bar-time">{fmt12(featured.start)}–{fmt12(featured.end)}</span>
+              <span className="mess-bar-copy">
+                <span className="mess-bar-name">{featured.label}</span>
+                <span className="mess-bar-time">{fmt12(featured.start)} – {fmt12(featured.end)}</span>
+              </span>
             </span>
             <span className="mess-bar-rail">
               <span className="mess-bar-chips">
-                {items.map((it) => (
+                {items.slice(0, 3).map((it) => (
                   <span key={it} className="mess-chip mess-bar-chip"><span className="mess-chip-dot" />{it}</span>
                 ))}
+                {items.length > 3 && <span className="mess-more-dishes">+{items.length - 3} more</span>}
               </span>
             </span>
             <span className="mess-bar-status">
               {status === "now"
-                ? <span className="mess-bar-serving"><span className="mess-chip-dot" />Serving</span>
-                : <span className="mess-bar-when">{isTomorrow ? "Tmrw" : fmtIn(startMin - nowMin)}</span>}
+                ? <span className="mess-bar-serving"><span className="mess-chip-dot" />Serving now</span>
+                : <span className="mess-bar-when">{isTomorrow ? "Tomorrow" : fmtIn(startMin - nowMin)}</span>}
               <span className="mess-bar-arrow"><ChevronDown size={16} /></span>
             </span>
           </div>
@@ -110,11 +120,11 @@ export default function MessCard({ now, userId, friends = [] }) {
       </div>
 
       {/* ── Expanded dropdown ── */}
-      <div className="mess-collapse mess-collapse-exp" aria-hidden={!expanded}>
+      <div className="mess-collapse mess-collapse-exp" aria-hidden={!expanded} inert={!expanded}>
         <div className="mess-clip">
           <div className="mess-exp-inner">
             <div className="mess-head">
-              <span className="mess-title"><UtensilsCrossed size={14} /> Mess Menu</span>
+              <span className="mess-title">{dayWord}&rsquo;s menu</span>
               <span className="mess-head-right">
                 {messMates.length > 0 && (
                   <span className="mess-friends-pill" title={`Heading to mess: ${messMates.join(", ")}`}>
@@ -171,7 +181,7 @@ export default function MessCard({ now, userId, friends = [] }) {
                 </div>
               )}
 
-              <ItemChips items={items} favourites={favourites} />
+              <ItemChips items={items} favourites={favourites} onToggleFav={toggleFav} menu />
               {ratings && !isTomorrow && (
                 <div className="mess-featured-rate">
                   <span className="mess-rate-label">Rate today&rsquo;s {featured.label.toLowerCase()}</span>

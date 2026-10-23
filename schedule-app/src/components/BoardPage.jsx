@@ -6,6 +6,7 @@ import {
   setBoardPostStatus, deleteBoardPost, reportBoardPost, contactPoster, subscribeBoard,
 } from "../lib/board.js";
 import "../styles/board.css";
+import { useBackClose } from "../lib/backClose.js";
 
 // Campus Board — cohort lost & found + buy/sell. Feed is Supabase-backed with
 // realtime refresh; moderation is report-to-hide (3 reports) plus admin
@@ -41,6 +42,7 @@ function KindIcon({ kind, size = 14, className = "" }) {
 }
 
 function BoardComposer({ userId, userName, onCreated, onClose }) {
+  useBackClose(onClose);
   const [kind, setKind] = useState("lost");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");

@@ -13,6 +13,7 @@ import { loadAssignments } from "../lib/assignments.js";
 import { courseHubId, courseHubStamp, loadCourseHubItems, saveCourseHubItems, syncCourseHubItems } from "../lib/courseHubStore.js";
 import { safeUrl } from "../lib/safeUrl.js";
 import "../styles/course-hub.css";
+import { useBackClose } from "../lib/backClose.js";
 
 const dateLabel = (iso, options = { weekday: "short", day: "numeric", month: "short" }) => {
   if (!iso) return "Date to be announced";
@@ -103,6 +104,7 @@ export default function CourseHub({ allClasses = [], enrolled = {}, legend = {},
   const [revision, setRevision] = useState(0);
   const [query, setQuery] = useState("");
   const [form, setForm] = useState({ kind: "", id: "", title: "", url: "" });
+  useBackClose(() => setForm({ kind: "", id: "", title: "", url: "" }), !!form.kind);
   const [error, setError] = useState("");
   const courses = useMemo(() => buildCourseHub({ allClasses, enrolled, legend, attendance, assignments: isArchived ? {} : assignments, now }), [allClasses, enrolled, legend, attendance, assignments, now, isArchived]);
   const visibleCourses = courses.filter((item) => `${item.name} ${item.code}`.toLowerCase().includes(query.toLowerCase()));

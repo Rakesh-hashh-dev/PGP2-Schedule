@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { CalendarDays, CheckCircle2, CircleDashed, Clock, GraduationCap, MapPin, X, XCircle } from "lucide-react";
 import { subjectClass } from "../../lib/subjectColors.js";
 import { fmtTime12 } from "../../lib/datetime.js";
+import { useBackClose } from "../../lib/backClose.js";
 
 function hours(value) {
   return `${Number.isInteger(value) ? value : value.toFixed(1)}h`;
@@ -83,6 +84,7 @@ function WeekDetail({ week }) {
 }
 
 export default function WrappedDetailModal({ detail, onClose }) {
+  useBackClose(onClose, !!detail);
   const modalRef = useRef(null);
   const closeRef = useRef(null);
   const closeModal = useCallback(() => onClose(), [onClose]);

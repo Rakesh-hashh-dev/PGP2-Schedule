@@ -70,3 +70,12 @@ export function itemsForGroup(groupId, flags = {}) {
 
 /** Views reachable from the collapsible group — used to keep it open on a tool page. */
 export const MORE_VIEWS = NAV_ITEMS.filter(i => i.group === "more" && i.view).map(i => i.view);
+
+// Browser-tab / history title for a view, e.g. "Exams · TermFlow". Labels come
+// from the sidebar so the two never drift; views outside it are named here.
+const EXTRA_VIEW_LABELS = { week: "This week", glance: "Glance", leave: "Leave planner", admin: "Admin tools" };
+export function viewTitle(view, detail) {
+  const label = NAV_ITEMS.find(i => i.view === view)?.label || EXTRA_VIEW_LABELS[view];
+  if (!label) return "TermFlow";
+  return `${detail ? `${detail} · ` : ""}${label} · TermFlow`;
+}

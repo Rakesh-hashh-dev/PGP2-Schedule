@@ -1,9 +1,10 @@
 import { rememberSplitInvite, pendingSplitInvite, clearSplitInvite } from "./lib/splitInvite.js";
-import { MORE_VIEWS } from "./lib/navItems.js";
+import { MORE_VIEWS, viewTitle } from "./lib/navItems.js";
 import { memoryEvent } from "./lib/companionMemory.js";
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Suspense, lazy, startTransition } from "react";
 import { createPortal } from "react-dom";
-import { setNavView, useNavView } from "./lib/navView.js";
+import { setNavView, useNavView, URL_VIEWS, urlWithView, scrollViewToTop } from "./lib/navView.js";
+import { useBackClose } from "./lib/backClose.js";
 import BnavLens from "./components/BnavLens.jsx";
 import SbFloatTip from "./components/SbFloatTip.jsx";
 import { startPetMotionWatcher } from "./lib/petMotion.js";
@@ -194,10 +195,11 @@ const ADMIN_EMAILS = [
 
 // Mobile tab / dock button. Reads the nav store rather than App's `view`, so
 // it highlights on the tap itself while the page renders in a transition.
-function NavButton({ nav, className, children, ...rest }) {
+function NavButton({ nav, className, children, onClick, ...rest }) {
   const on = useNavView() === nav;
   return (
-    <button className={`${className}${on ? " on" : ""}`} aria-current={on ? "page" : undefined} {...rest}>
+    <button className={`${className}${on ? " on" : ""}`} aria-current={on ? "page" : undefined}
+      onClick={(e) => { if (on) scrollViewToTop(); onClick?.(e); }} {...rest}>
       {children}
     </button>
   );
@@ -378,10 +380,15 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [view, setViewState] = useState(() => {
     let v = "today";
     try {
-      v = localStorage.getItem(VIEW_KEY) || "today";
-      if (v === "courses") v = "exams"; // retired view → its new home
-      if (v === "insights") v = "today"; // retired view
-      if (v === "glance") v = "today"; // peek surface, never sticky
+      // A ?view= URL (refresh, shared link, new tab) wins over the last view.
+      const fromUrl = new URLSearchParams(window.location.search).get("view");
+      if (fromUrl && URL_VIEWS.has(fromUrl)) v = fromUrl;
+      else {
+        v = localStorage.getItem(VIEW_KEY) || "today";
+        if (v === "courses") v = "exams"; // retired view → its new home
+        if (v === "insights") v = "today"; // retired view
+        if (v === "glance") v = "today"; // peek surface, never sticky
+      }
       if (v === "leave") v = "planner"; // leave planning now lives inside Planner
     } catch { }
     setNavView(v);
@@ -389,13 +396,22 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   });
   const [plannerSection, setPlannerSection] = useState(() => {
     try {
+      if (new URLSearchParams(window.location.search).get("view") === "leave") return "leave";
       return localStorage.getItem(VIEW_KEY) === "leave" || localStorage.getItem("pgp2.planner-section") === "leave" ? "leave" : "schedule";
     } catch { return "schedule"; }
   });
   useEffect(() => {
     try { localStorage.setItem("pgp2.planner-section", plannerSection); } catch { /* optional UI preference */ }
   }, [plannerSection]);
-  const [courseHubCode, setCourseHubCode] = useState(null);
+  // The course open in Course Hub. It lives in the URL (?course=) and on the
+  // history entry too, so back, refresh and shared links reopen that course.
+  const [courseHubCode, setCourseHubCode] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get("view") === "courseHub" ? params.get("course") : null;
+    } catch { return null; }
+  });
+  const courseHubCodeRef = useRef(courseHubCode);
   const [assignmentOpenTarget, setAssignmentOpenTarget] = useState(null);
   useEffect(() => { if (view !== "courseHub") setCourseHubCode(null); }, [view]);
   useEffect(() => { if (view !== "assignments") setAssignmentOpenTarget(null); }, [view]);
@@ -406,7 +422,13 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // compare (a flash of e.g. the full Social page) before the new view.
   const navInFlightRef = useRef(false);
   useEffect(() => { startPetMotionWatcher(); }, []);
-  const setView = useCallback((nextView) => {
+  // Scroll position the next committed view should open at: 0 for a new page,
+  // the saved offset when back/forward returns to one.
+  const pendingScrollRef = useRef(null);
+  // Set by setView: once the new page commits, focus moves to it so screen
+  // readers announce the page and keyboard users continue from its top.
+  const focusPageRef = useRef(false);
+  const setView = useCallback((nextView, { fromHistory = false, scrollY = 0 } = {}) => {
     const requested = typeof nextView === "function"
       ? nextView(currentViewRef.current)
       : nextView;
@@ -415,6 +437,27 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     const previous = currentViewRef.current;
     if (!target || target === previous) return;
 
+    // Each view change is a history entry, so the device/browser back button
+    // retraces the views visited instead of closing the app. A change that
+    // came from back/forward itself must not push again. The page being left
+    // keeps its scroll offset on its own entry, for when back returns to it.
+    //
+    // Navigating from inside a popup (command palette, compare, a sheet's
+    // link) takes over the popup's entry rather than stacking on it: the
+    // popup is closing anyway, and a leftover entry would make a later back
+    // press land on it and do nothing.
+    if (!fromHistory) {
+      try {
+        if (window.history.state?.tfPopup) {
+          window.history.replaceState({ tfView: target }, "", urlWithView(target));
+        } else {
+          window.history.replaceState({ ...window.history.state, tfScroll: window.scrollY }, "");
+          window.history.pushState({ tfView: target }, "", urlWithView(target));
+        }
+      } catch { }
+    }
+    pendingScrollRef.current = fromHistory ? scrollY : 0;
+    focusPageRef.current = true;
     currentViewRef.current = target;
     // The highlight moves now; the page renders as an interruptible
     // transition. (This used to be startViewTransition + flushSync, which
@@ -425,6 +468,45 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     startTransition(() => setViewState(target));
     navInFlightRef.current = true;
     queueMicrotask(() => { navInFlightRef.current = false; });
+  }, []);
+  useLayoutEffect(() => {
+    if (focusPageRef.current) {
+      focusPageRef.current = false;
+      document.querySelector(".tf-page-stage")?.focus({ preventScroll: true });
+    }
+    const y = pendingScrollRef.current;
+    if (y == null) return;
+    pendingScrollRef.current = null;
+    window.scrollTo(0, y);
+    // Lazy sections may still be filling in the page; settle once they have.
+    if (y > 0) requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo(0, y)));
+  }, [view]);
+  useEffect(() => {
+    courseHubCodeRef.current = courseHubCode;
+    if (view !== "courseHub") return;
+    try {
+      window.history.replaceState(
+        { ...window.history.state, tfCourse: courseHubCode || undefined },
+        "",
+        urlWithView("courseHub", { course: courseHubCode }),
+      );
+    } catch { }
+  }, [view, courseHubCode]);
+  // Picking a course inside Course Hub is a step of its own: back returns to
+  // the course list (at its old scroll), as does the in-page "All courses".
+  const selectHubCourse = useCallback((code) => {
+    if (code) {
+      try {
+        window.history.replaceState({ ...window.history.state, tfScroll: window.scrollY }, "");
+        window.history.pushState({ tfView: "courseHub", tfCourse: code, tfCourseDrill: true }, "", urlWithView("courseHub", { course: code }));
+      } catch { }
+      setCourseHubCode(code);
+      window.scrollTo(0, 0);
+    } else if (window.history.state?.tfCourseDrill) {
+      window.history.back(); // popstate restores the list and its scroll
+    } else {
+      setCourseHubCode(null); // opened straight into a course: nothing to go back to
+    }
   }, []);
   // Glance is a shortcut peek, not a destination — don't make it the view the
   // app re-opens on next launch.
@@ -582,6 +664,41 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     if (navInFlightRef.current) startTransition(() => setCompareTargetState(next));
     else setCompareTargetState(next);
   }, []);
+  // Back/forward: restore the view stored on that history entry. The launch
+  // entry is tagged with the starting view so backing out of the first page
+  // lands there before the app closes.
+  useEffect(() => {
+    try {
+      // Scroll is restored per view by setView, not by the browser.
+      window.history.scrollRestoration = "manual";
+      const view = currentViewRef.current;
+      const course = view === "courseHub" ? courseHubCodeRef.current : null;
+      window.history.replaceState({ ...window.history.state, tfView: view }, "", urlWithView(view, { course }));
+    } catch { }
+    const onPop = (e) => {
+      const v = e.state?.tfView;
+      if (!v) return;
+      const course = v === "courseHub" ? e.state.tfCourse ?? null : null;
+      if (v === currentViewRef.current) {
+        // Course Hub list <-> course. Any other same-view pop is a popup
+        // closing (see lib/backClose.js): leave compare and scroll be.
+        if (v === "courseHub" && course !== courseHubCodeRef.current) {
+          setCourseHubCode(course);
+          const y = e.state.tfScroll || 0;
+          requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo(0, y)));
+        }
+        return;
+      }
+      if (v === "courseHub") setCourseHubCode(course);
+      setView(v, { fromHistory: true, scrollY: e.state?.tfScroll || 0 });
+      setCompareTarget(null);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [setView, setCompareTarget]);
+  // Comparing with a friend/group fills the page like a page of its own, so
+  // back closes it and returns to Social (it rides the popup history stack).
+  useBackClose(() => setCompareTarget(null), !!compareTarget);
   // A free slot picked in CompareView, waiting to prefill the meetup modal on
   // the Social page: { title?, date, start, memberCloudIds, groupId?, groupName? }
   // (Lives up here with the other hooks — declaring it below the login/
@@ -737,6 +854,17 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   }, [tabsReady, view]);
 
   const [cmdOpen, setCmdOpen] = useState(false);
+  // Popups owned by App: the back button closes them before leaving the view.
+  // (Popup components register themselves — see lib/backClose.js.)
+  useBackClose(() => setNotifOpen(false), notifOpen);
+  useBackClose(() => setProfileOpen(false), profileOpen);
+  useBackClose(() => setSbProfileOpen(false), sbProfileOpen);
+  useBackClose(() => setOverflowOpen(false), overflowOpen);
+  useBackClose(() => setMobileV2MoreOpen(false), mobileV2MoreOpen);
+  useBackClose(() => setDesktopTermMenuOpen(false), desktopTermMenuOpen);
+  useBackClose(() => setHelpModalOpen(false), helpModalOpen);
+  useBackClose(() => setFilterModalOpen(false), filterModalOpen);
+  useBackClose(closeTabletSidebar, tabletSidebarOpen);
   const premiumMode = true;
 
   useEffect(() => {
@@ -764,16 +892,33 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // tapped while the app is already open (PWA or an existing tab, where the
   // mount effect never re-runs) still gets picked up.
   useEffect(() => {
-    const DEEP_LINK_VIEWS = new Set([
-      "today", "tomorrow", "week", "attendance", "exams", "assignments", "pet",
-      "notifications", "friends", "leave", "glance", "board", "split", "planner", "courseHub", "fullSchedule",
-    ]);
-    const captureFromUrl = () => {
+    const captureFromUrl = (event) => {
       const params = new URLSearchParams(window.location.search);
       const code = params.get("f");
       const groupToken = params.get("group_invite");
-      const wanted = params.get("view");
-      if (!code && !groupToken && !(wanted && DEEP_LINK_VIEWS.has(wanted))) return;
+      // ?view= now mirrors the current view on every entry, so on back/forward
+      // it's the popstate handler's job, and a URL naming the view already
+      // shown (focus, visibility, launch) is not a deep link to act on.
+      const rawView = event?.type === "popstate" ? null : params.get("view");
+      const wanted = rawView && URL_VIEWS.has(rawView) ? rawView : null;
+      const session = pushSessionFromParams(params);
+      const newView = wanted && wanted !== currentViewRef.current && !(wanted === "leave" && currentViewRef.current === "planner");
+      if (!code && !groupToken && !newView && !session && !(wanted === "split" && (params.get("g") || params.get("join")))) return;
+
+      // Strip the consumed params, preserving anything else on the URL. Done
+      // before any setView so the entry it pushes (and the one back returns
+      // to) carries a clean URL — otherwise back would replay the deep link.
+      const rest = new URLSearchParams(window.location.search);
+      rest.delete("f");
+      rest.delete("group_invite");
+      if (!wanted) rest.delete("view");
+      rest.delete("g");
+      rest.delete("join");
+      if (wanted === "fullSchedule") {
+        rest.delete("date"); rest.delete("code"); rest.delete("start");
+      }
+      const qs = rest.toString();
+      window.history.replaceState(window.history.state, "", window.location.pathname + (qs ? `?${qs}` : ""));
 
       if (code) {
         try { localStorage.setItem(PENDING_INVITE_KEY, code); } catch { }
@@ -784,8 +929,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         setPendingGroupInvite(groupToken);
         setView("friends");
       }
-      if (wanted && DEEP_LINK_VIEWS.has(wanted)) setView(wanted);
-      const session = pushSessionFromParams(params);
+      if (wanted) setView(wanted);
       if (session) setJumpToSession(session);
       if (wanted === "split") {
         const g = params.get("g");
@@ -793,19 +937,6 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         const join = params.get("join");
         if (join && rememberSplitInvite(join)) setSplitJoinLink(join);
       }
-
-      // Strip the consumed params, preserving anything else on the URL.
-      const rest = new URLSearchParams(window.location.search);
-      rest.delete("f");
-      rest.delete("group_invite");
-      rest.delete("view");
-      rest.delete("g");
-      rest.delete("join");
-      if (wanted === "fullSchedule") {
-        rest.delete("date"); rest.delete("code"); rest.delete("start");
-      }
-      const qs = rest.toString();
-      window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
     };
 
     // Seed from a code stashed on a previous load (survives the OAuth redirect).
@@ -2010,7 +2141,13 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // Surface unread count on the tab title + installed-PWA app icon badge
   useEffect(() => {
     const total = unreadChangeCount + unreadFriendCount + unreadAlertCount;
-    document.title = total > 0 ? `(${total}) TermFlow` : "TermFlow | IIM Sambalpur | PGP2";
+    // Signed out keeps the full brand title (search results, link previews);
+    // signed in names the page, which also labels back-history entries.
+    const page = isSignedIn ? viewTitle(view, view === "courseHub" ? courseHubCode : null) : "TermFlow | IIM Sambalpur | PGP2";
+    document.title = total > 0 ? `(${total}) ${page}` : page;
+  }, [unreadChangeCount, unreadFriendCount, unreadAlertCount, isSignedIn, view, courseHubCode]);
+  useEffect(() => {
+    const total = unreadChangeCount + unreadFriendCount + unreadAlertCount;
     if ("setAppBadge" in navigator) {
       if (total > 0) navigator.setAppBadge(total).catch(() => {});
       else navigator.clearAppBadge?.().catch(() => {});
@@ -3444,6 +3581,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               key={`${view}:${compareTarget ? "compare" : "primary"}`}
               className={`${view === "week" ? "pane-today hide-mobile" : "pane-today"} tf-page-stage`}
               data-page={view}
+              tabIndex={-1}
+              role="region"
+              aria-label={compareTarget ? "Compare schedules" : viewTitle(view).replace(/ · TermFlow$/, "")}
             >
               <Suspense fallback={<div className="loading-screen" style={{ minHeight: "300px" }} role="status" aria-live="polite"><TermFlowLoader size={48} /><span className="tf-section-loading">Opening your page…</span></div>}>
                 {compareTarget
@@ -3541,7 +3681,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                           isOffline={isOffline}
                           isArchived={isArchivedView}
                           selectedCode={courseHubCode}
-                          onSelectCode={setCourseHubCode}
+                          onSelectCode={selectHubCourse}
                           onOpenSchedule={(item) => { setJumpToSession({ date: item.date, code: item.code, start: item.start }); setView("fullSchedule"); }}
                           onNavigate={(nextView) => { setView(nextView); setCompareTarget(null); }}
                           onOpenTask={isArchivedView ? undefined : (code, task) => { setAssignmentOpenTarget({ code, task }); setView("assignments"); }}

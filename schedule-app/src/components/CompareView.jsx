@@ -5,6 +5,7 @@ import { EmptyState } from "./ui.jsx";
 import { findFreeSlots, findGroupFreeSlots, scheduleInsights, friendVisibleClasses, avatarGradient } from "../lib/friends.js";
 import { isNationalHoliday } from "../lib/nationalHolidays.js";
 import IndiaFlagIcon from "./IndiaFlagIcon.jsx";
+import { useBackClose } from "../lib/backClose.js";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
@@ -344,6 +345,7 @@ export default function CompareView({
   const [moreModal, setMoreModal] = useState(null); // null | "timeline" | "free"
   const [modalJumpOpen, setModalJumpOpen] = useState(false);
   const moreBodyRef = useRef(null);
+  useBackClose(closeMoreModal, !!moreModal);
   const modalJumpRef = useRef(null);
 
   function closeMoreModal() {

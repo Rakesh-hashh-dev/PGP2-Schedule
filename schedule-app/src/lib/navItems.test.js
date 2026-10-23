@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { NAV_GROUPS, NAV_ITEMS, itemsForGroup, MORE_VIEWS } from "./navItems.js";
+import { NAV_GROUPS, NAV_ITEMS, itemsForGroup, MORE_VIEWS, viewTitle } from "./navItems.js";
 
 const GROUP_IDS = NAV_GROUPS.map(g => g.id);
 
@@ -99,5 +99,14 @@ describe("nav structure decisions", () => {
 
   it("declares exactly one collapsible group", () => {
     expect(NAV_GROUPS.filter(g => g.collapsible)).toHaveLength(1);
+  });
+});
+
+describe("viewTitle", () => {
+  it("names sidebar views, extra views and unknown views", () => {
+    expect(viewTitle("exams")).toBe("Exams · TermFlow");
+    expect(viewTitle("week")).toBe("This week · TermFlow");
+    expect(viewTitle("courseHub", "BAV")).toBe("BAV · Courses · TermFlow");
+    expect(viewTitle("nope")).toBe("TermFlow");
   });
 });

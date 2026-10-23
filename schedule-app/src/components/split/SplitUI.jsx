@@ -2,8 +2,10 @@ import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { useReceipt } from "../../lib/useSplitReceipt.js";
+import { useBackClose } from "../../lib/backClose.js";
 
 export function Modal({ title, onClose, children, wide = false }) {
+  useBackClose(onClose);
   const ref = useRef(null), close = useRef(onClose);
   useEffect(() => { close.current = onClose; }, [onClose]);
   useEffect(() => {

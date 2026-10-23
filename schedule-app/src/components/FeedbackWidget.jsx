@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { MessageSquare, X, CheckCircle, Send } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import { useBackClose } from "../lib/backClose.js";
 
 export default function FeedbackWidget({ user, onClose }) {
+  useBackClose(onClose);
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);

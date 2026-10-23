@@ -1,4 +1,4 @@
-import { useNavView } from "../lib/navView.js";
+import { useNavView, scrollViewToTop } from "../lib/navView.js";
 
 // One sidebar nav row, rendered from a NAV_ITEMS entry (see lib/navItems.js).
 //
@@ -29,7 +29,7 @@ export default function SbLink({ item, view, badge, count, onSelect, onIntent, s
       onMouseEnter={e => { onIntent?.(); showSbTip(e, item.tip || item.label); }}
       onMouseLeave={hideSbTip}
       onPointerDown={() => onIntent?.()}
-      onClick={() => { onSelect(item); hideSbTip(); }}
+      onClick={() => { if (active) scrollViewToTop(); onSelect(item); hideSbTip(); }}
     >
       <Icon size={18} strokeWidth={1.85} aria-hidden="true" /><span className="sb-link-label">{item.label}</span>
       {badge && <> <span className="beta-badge">{badge}</span></>}
