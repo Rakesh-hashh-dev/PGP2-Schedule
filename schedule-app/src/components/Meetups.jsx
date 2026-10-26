@@ -6,6 +6,7 @@ import { PLAN_TEMPLATES, buildOccurrences, findPlanConflicts, localDate } from "
 import { fmtTime12 } from "../lib/datetime.js";
 import { EmptyState } from "./ui.jsx";
 import { useBackClose } from "../lib/backClose.js";
+import { useDialog } from "../hooks/useDialog.js";
 
 function defaultDateTime(now) {
   const date = new Date(now.getTime() + 3600000); date.setMinutes(0, 0, 0);
@@ -22,6 +23,7 @@ function initialDateTime(draft, now) {
 
 export function MeetupModal({ userId, userName, friends, draft, onCreated, onClose, allClasses = [], enrolled = {}, now = new Date() }) {
   useBackClose(onClose);
+  const dialogRef = useDialog(true, onClose);
   const initial = initialDateTime(draft, now);
   const [title, setTitle] = useState(draft?.title || "Catch-up");
   const [place, setPlace] = useState(draft?.place || "");
@@ -57,7 +59,7 @@ export function MeetupModal({ userId, userName, friends, draft, onCreated, onClo
       }
     } catch (err) { setError(err.message); } finally { setSaving(false); }
   };
-  return <div className="fr-modal-backdrop" onClick={onClose}><form className="fr-status-modal fr-meetup-modal" role="dialog" aria-modal="true" aria-labelledby="fr-meetup-title" onClick={e => e.stopPropagation()} onSubmit={handleCreate}>
+  return <div className="fr-modal-backdrop" onClick={onClose}><form className="fr-status-modal fr-meetup-modal" ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="fr-meetup-title" onClick={e => e.stopPropagation()} onSubmit={handleCreate}>
     <div className="fr-friends-modal-title-row"><h2 id="fr-meetup-title" className="fr-friends-modal-title">{draft?.id ? "Edit plan" : "New plan"}</h2><button type="button" className="fr-modal-close" onClick={onClose} aria-label="Close plan editor"><X size={18} /></button></div>
     {!draft?.id && <div className="fr-plan-templates" aria-label="Plan templates">{PLAN_TEMPLATES.map(template => <button type="button" className={`fr-status-preset${templateId === template.id ? " is-active" : ""}`} key={template.id} aria-pressed={templateId === template.id} onClick={() => applyTemplate(template)}>{template.title}<small>{template.duration} min</small></button>)}</div>}
     <label>Plan title<input className="fr-add-input" required maxLength={80} value={title} onChange={e => setTitle(e.target.value)} /></label>

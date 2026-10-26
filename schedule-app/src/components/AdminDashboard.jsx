@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useId } from "react";
 import "../styles/admin.css";
 import "../styles/assignments.css";
 import "../styles/cmdk.css";
@@ -10,6 +10,7 @@ import { supabase } from "../lib/supabase";
 import { logAdminAction } from "../lib/adminAudit.js";
 import { listAdminRoles, setAdminRole, removeAdminRole, myAdminRole, READ_ONLY_MESSAGE } from "../lib/adminRoles.js";
 import { safeUrl } from "../lib/safeUrl.js";
+import { useDialog, dialogProps } from "../hooks/useDialog.js";
 import { isPushCronStale, pushCronIssueDetails, pushCronIssues } from "../lib/pushCronHealth.js";
 import { CLASSES, LEGEND } from "../data/schedule.js";
 import { taughtSectionsByCode } from "../lib/sections.js";
@@ -178,12 +179,14 @@ function istDateKey(value) {
 // more room than a short confirm), everything else (positioning, max-height,
 // close affordance) stays identical so a future fix only has to land once.
 function AdminModal({ title, onClose, width = 640, subtitle, className = "", showHeader = true, children }) {
+  const dialogRef = useDialog(true, onClose);
+  const titleId = useId();
   return (
     <div className="admin-modal-overlay" onClick={onClose}>
-      <div className={`admin-modal-card admin-scroll-hide ${className}`} style={{ maxWidth: width }} onClick={e => e.stopPropagation()}>
+      <div ref={dialogRef} {...dialogProps(typeof title === "string" ? title : "Dialog", showHeader ? { labelledBy: titleId } : {})} className={`admin-modal-card admin-scroll-hide ${className}`} style={{ maxWidth: width }} onClick={e => e.stopPropagation()}>
         {showHeader && <div className="admin-modal-header">
           <div>
-            <h3 className="admin-modal-title">{title}</h3>
+            <h3 className="admin-modal-title" id={titleId}>{title}</h3>
             {subtitle && <p className="admin-modal-subtitle">{subtitle}</p>}
           </div>
           <button onClick={onClose} className="admin-modal-close-btn" aria-label="Close modal"><X size={18} /></button>
@@ -629,6 +632,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const liveSchedule = scheduleView.CLASSES || [];
   const [liveEditorDate, setLiveEditorDate] = useState(ymd(new Date()));
   const [liveEditorModal, setLiveEditorModal] = useState(null);
+  const allNotifsDialogRef = useDialog(showAllAdminNotifs, () => setShowAllAdminNotifs(false));
+  const reviewDialogRef = useDialog(reviewOpen, () => setReviewOpen(false));
+  const viewAsDialogRef = useDialog(!!viewAsUser, () => setViewAsUser(null));
+  const liveEditorDialogRef = useDialog(!!liveEditorModal, () => setLiveEditorModal(null));
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
 
   // Database Data Explorer State
@@ -1635,10 +1642,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   // ── Broadcast agenda: all scheduled pushes/announcements/deploys, next 21 days ──
   const broadcastAgenda = (() => {
     const items = [];
-    (flags.scheduledPushes || []).forEach(p => items.push({ when: `${p.date || ""} ${p.time || ""}`.trim(), sort: `${p.date || ""}T${p.time || "00:00"}`, kind: "Push", label: p.title || "(push)", color: "var(--live)" }));
-    (flags.scheduledAnnouncements || []).forEach(a => items.push({ when: a.start || "", sort: `${a.start || ""}T00:00`, kind: "Announcement", label: (a.text || a.message || "").slice(0, 50) || "(announcement)", color: "var(--amber)", end: a.end }));
+    (flags.scheduledPushes || []).forEach(p => items.push({ when: `${p.date || ""} ${p.time || ""}`.trim(), sort: `${p.date || ""}T${p.time || "00:00"}`, kind: "Push", label: p.title || "(push)", color: "var(--live-text)" }));
+    (flags.scheduledAnnouncements || []).forEach(a => items.push({ when: a.start || "", sort: `${a.start || ""}T00:00`, kind: "Announcement", label: (a.text || a.message || "").slice(0, 50) || "(announcement)", color: "var(--amber-text)", end: a.end }));
     (flags.scheduledConfigDeploys || []).forEach(d => items.push({ when: (d.at || "").replace("T", " "), sort: d.at || "", kind: "Config deploy", label: "Queued config", color: "var(--violet)" }));
-    (flags.quickLinks || []).filter(q => q.start).forEach(q => items.push({ when: q.start, sort: `${q.start}T00:00`, kind: "Quick link", label: q.title || q.url || "(link)", color: "var(--blue)", end: q.end }));
+    (flags.quickLinks || []).filter(q => q.start).forEach(q => items.push({ when: q.start, sort: `${q.start}T00:00`, kind: "Quick link", label: q.title || q.url || "(link)", color: "var(--blue-text)", end: q.end }));
     return items.filter(i => i.sort).sort((a, b) => a.sort.localeCompare(b.sort));
   })();
 
@@ -2355,7 +2362,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       {undoToast && (
         <div style={{ position: "fixed", left: "50%", bottom: 28, transform: "translateX(-50%)", zIndex: 1000, display: "flex", alignItems: "center", gap: 16, padding: "12px 18px", background: "var(--text)", color: "var(--bg)", borderRadius: 12, boxShadow: "0 8px 30px rgba(0,0,0,0.25)", fontSize: 14, fontWeight: 600, maxWidth: "90vw" }}>
           <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{undoToast.label}</span>
-          <button onClick={runUndo} style={{ background: "transparent", border: "none", color: "var(--live)", fontWeight: 800, cursor: "pointer", fontSize: 14, padding: "2px 6px", flex: "0 0 auto" }}>Undo</button>
+          <button onClick={runUndo} style={{ background: "transparent", border: "none", color: "var(--live-text)", fontWeight: 800, cursor: "pointer", fontSize: 14, padding: "2px 6px", flex: "0 0 auto" }}>Undo</button>
         </div>
       )}
 
@@ -2862,7 +2869,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                                 const prev = flags.classOverrides;
                                 restoreClass(liveEditorDate, ident, c.section, c.start);
                                 setCmdUndoStack(s => [{ label: `Restored: ${c.code} on ${liveEditorDate}`, prevOverrides: prev }, ...s.slice(0, 9)]);
-                              }} className="sched-class-btn" style={{ color: "var(--live)" }}>
+                              }} className="sched-class-btn" style={{ color: "var(--live-text)" }}>
                                 <RefreshCw size={12} /> Restore
                               </button>
                             ) : (
@@ -2951,7 +2958,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           <DataQualityMonitor classes={liveSchedule} overrides={flags.classOverrides} onOpenSchedule={date => { if (date) setLiveEditorDate(date); setActiveTab("schedule"); document.querySelector(".scc-shell")?.scrollIntoView({ behavior: "smooth", block: "start" }); }} onOpenSystem={() => setActiveTab("system")} />
           <ScheduleImpactWeek classes={liveSchedule} overrides={flags.classOverrides} announcements={flags.scheduledAnnouncements || []} today={scheduleToday} onOpenDate={date => { setLiveEditorDate(date); document.querySelector(".scc-shell")?.scrollIntoView({ behavior: "smooth", block: "start" }); }} />
           <section className="admin-card admin-span-all admin-g-schedule schedule-ops-overview" style={{ gridColumn: "1 / -1" }}>
-            <div className="schedule-ops-head"><div><span className="schedule-ops-eyebrow">Change control</span><h2><Shield size={20} color="var(--blue)" /> Schedule operations</h2><p className="admin-subtext">See what is staged before deployment and start the most common interventions from one place.</p></div><div className="schedule-ops-live"><span /> Staged locally</div></div>
+            <div className="schedule-ops-head"><div><span className="schedule-ops-eyebrow">Change control</span><h2><Shield size={20} color="var(--blue-text)" /> Schedule operations</h2><p className="admin-subtext">See what is staged before deployment and start the most common interventions from one place.</p></div><div className="schedule-ops-live"><span /> Staged locally</div></div>
             <div className="schedule-ops-metrics">
               <div><strong>{scheduleOverrideCount}</strong><span>total overrides</span></div>
               <div><strong>{upcomingOverrideCount}</strong><span>upcoming changes</span></div>
@@ -2981,7 +2988,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
           {/* Bulk room relocation */}
           <section className="admin-card admin-span-all admin-g-schedule schedule-action-card schedule-action-card--relocation" style={{ gridColumn: "1 / -1" }}>
-            <h2><CalendarDays size={20} color="var(--blue)" /> Room Relocation</h2>
+            <h2><CalendarDays size={20} color="var(--blue-text)" /> Room Relocation</h2>
             <p className="admin-subtext">Move every class from one room to another across a date range (e.g. "all A01 classes → A04 until 2 Aug"). Stages room overrides — Review &amp; Deploy to apply.</p>
             <details className="sched-paste">
               <summary className="sched-paste-summary">📋 Paste from email / notice</summary>
@@ -3004,7 +3011,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
           {/* Room / time conflict detector */}
           <section className="admin-card admin-span-all admin-g-schedule schedule-conflicts-card" style={{ gridColumn: "1 / -1" }}>
-            <h2><AlertTriangle size={20} color="var(--amber)" /> Room &amp; Time Conflicts</h2>
+            <h2><AlertTriangle size={20} color="var(--amber-text)" /> Room &amp; Time Conflicts</h2>
             <p className="admin-subtext">Same room booked for different classes at the same date &amp; time in the bundled schedule.</p>
             {scheduleConflicts.length === 0 ? (
               <div className="admin-empty">No conflicts detected.</div>
@@ -3022,7 +3029,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
           {/* Class Editor */}
           <section className="admin-card admin-span-all admin-g-schedule schedule-action-card schedule-action-card--editor" style={{ gridColumn: "1 / -1" }}>
-            <h2><CalendarDays size={20} color="var(--blue)" /> Class Editor</h2>
+            <h2><CalendarDays size={20} color="var(--blue-text)" /> Class Editor</h2>
             <p className="admin-subtext">Globally change the classroom or timings for a specific class on a given date.</p>
             <div className="admin-field-row sched-editor-row" style={{ marginTop: 10 }}>
               <div className="admin-field sched-ed-wide">
@@ -3103,7 +3110,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 }} >Copy to Target Date</button>
              </div>
              <div>
-                <h2><FileText size={20} color="var(--blue)" /> Bulk CSV Importer</h2>
+                <h2><FileText size={20} color="var(--blue-text)" /> Bulk CSV Importer</h2>
                 <p className="admin-subtext">Format: Date,Code,Section,Room,Start,End,Cancel(true/false)</p>
                 <CancellationVisibilitySelect value={cancelVisibility} onChange={setCancelVisibility} />
                 <textarea className="admin-textarea sched-csv-input" value={bulkCsv} onChange={e => setBulkCsv(e.target.value)} placeholder="2026-07-20,BM,A,C-104,10:00,11:30,false&#10;2026-07-21,QM,B,,,,true" rows={4} aria-label="Bulk override CSV"></textarea>
@@ -3159,7 +3166,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           {/* ── Active Class Overrides Hub ── */}
           {flags.classOverrides && Object.keys(flags.classOverrides).length > 0 && (
             <section className="admin-card admin-span-all admin-g-schedule" style={{ gridColumn: "1 / -1" }}>
-              <h2><Pencil size={20} color="var(--blue)" /> Active Class Overrides</h2>
+              <h2><Pencil size={20} color="var(--blue-text)" /> Active Class Overrides</h2>
 
               {/* Summary metrics */}
               {(() => {
@@ -3178,12 +3185,12 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     {[
                       { label: `${total} Total`, color: "var(--text)", bg: "var(--bg)", filter: "all" },
                       { label: `${nCancelled} Cancelled`, color: "var(--danger)", bg: "rgba(231,76,60,0.06)", filter: "cancelled" },
-                      { label: `${nRoom} Room`, color: "var(--blue)", bg: "rgba(59,130,246,0.06)", filter: "room" },
-                      { label: `${nTime} Time`, color: "var(--amber)", bg: "rgba(245,158,11,0.06)", filter: "time" },
+                      { label: `${nRoom} Room`, color: "var(--blue-text)", bg: "rgba(59,130,246,0.06)", filter: "room" },
+                      { label: `${nTime} Time`, color: "var(--amber-text)", bg: "rgba(245,158,11,0.06)", filter: "time" },
                       { label: `${nExam} Exam`, color: "var(--violet)", bg: "rgba(109,91,208,0.08)", filter: "exam" },
                       { label: `${nEvent} Event`, color: "var(--live, #10B981)", bg: "rgba(16,185,129,0.08)", filter: "event" },
                       { label: `${nPlacement} Placement`, color: "#2563EB", bg: "rgba(37,99,235,0.08)", filter: "placement" },
-                      { label: `${nCustom} Custom`, color: "var(--live)", bg: "rgba(31,169,113,0.06)", filter: "custom" },
+                      { label: `${nCustom} Custom`, color: "var(--live-text)", bg: "rgba(31,169,113,0.06)", filter: "custom" },
                     ].map(chip => (
                       <button key={chip.filter} onClick={() => setOvrFilterType(chip.filter)} className="aco-chip" aria-pressed={ovrFilterType === chip.filter}
                         style={{ borderColor: ovrFilterType === chip.filter ? chip.color : "var(--border)", background: ovrFilterType === chip.filter ? chip.bg : "transparent", color: ovrFilterType === chip.filter ? chip.color : "var(--muted)" }}>
@@ -3199,8 +3206,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               {/* Stale overrides alert */}
               {staleOverrideDates.length > 0 && (
                 <div className="aco-stale">
-                  <span><AlertTriangle size={15} color="var(--amber)" style={{ verticalAlign: "middle", marginRight: 6 }} />{staleOverrideDates.length} override date(s) are in the past — students still download them.</span>
-                  <button className="admin-btn outline" onClick={purgeStaleOverrides} style={{ borderColor: "var(--amber)", color: "var(--amber)" }}><Trash2 size={14} /> Purge expired</button>
+                  <span><AlertTriangle size={15} color="var(--amber-text)" style={{ verticalAlign: "middle", marginRight: 6 }} />{staleOverrideDates.length} override date(s) are in the past — students still download them.</span>
+                  <button className="admin-btn outline" onClick={purgeStaleOverrides} style={{ borderColor: "var(--amber)", color: "var(--amber-text)" }}><Trash2 size={14} /> Purge expired</button>
                 </div>
               )}
 
@@ -3242,10 +3249,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                       : isEvent ? { label: "EVENT", Icon: CelebrationIcon, color: "var(--live, #10B981)", bg: "rgba(16,185,129,0.14)" }
                       : isPlacement ? { label: "PLACEMENT", Icon: PlacementIcon, color: "#2563EB", bg: "rgba(37,99,235,0.14)" }
                       : isExam ? { label: "EXAM", Icon: ExamIcon, color: "var(--violet)", bg: "rgba(109,91,208,0.10)" }
-                      : isCustom ? { label: "CUSTOM CLASS", color: "var(--live)", bg: "rgba(31,169,113,0.10)" }
-                      : hasRoom && hasTime ? { label: `ROOM+TIME`, color: "var(--amber)", bg: "rgba(245,158,11,0.10)" }
-                      : hasRoom ? { label: `ROOM: ${override.room}`, color: "var(--blue)", bg: "rgba(59,130,246,0.10)" }
-                      : { label: `TIME: ${override.start || "?"}–${override.end || "?"}`, color: "var(--amber)", bg: "rgba(245,158,11,0.10)" };
+                      : isCustom ? { label: "CUSTOM CLASS", color: "var(--live-text)", bg: "rgba(31,169,113,0.10)" }
+                      : hasRoom && hasTime ? { label: `ROOM+TIME`, color: "var(--amber-text)", bg: "rgba(245,158,11,0.10)" }
+                      : hasRoom ? { label: `ROOM: ${override.room}`, color: "var(--blue-text)", bg: "rgba(59,130,246,0.10)" }
+                      : { label: `TIME: ${override.start || "?"}–${override.end || "?"}`, color: "var(--amber-text)", bg: "rgba(245,158,11,0.10)" };
 
                     return (
                       <div key={rowKey} className={`aco-row${isEditing ? " is-editing" : ""}`}>
@@ -3259,7 +3266,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                               {new Date(date + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short" })} — {displayCode}
                             </div>
                             {sessionsCovered > 1 && (
-                              <div className="aco-meta" style={{ color: "var(--amber)" }}>
+                              <div className="aco-meta" style={{ color: "var(--amber-text)" }}>
                                 <AlertTriangle size={11} style={{ verticalAlign: "-1px", marginRight: 4 }} />Applies to all {sessionsCovered} sessions this day — delete and re-edit each session to split
                               </div>
                             )}
@@ -3283,7 +3290,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                                 if (Object.keys(forDate).length === 0) delete next[date]; else next[date] = forDate;
                                 setFlags({ ...flags, classOverrides: next });
                                 removeWithUndo(`Override removed — ${displayCode}`, () => setFlags(f => ({ ...f, classOverrides: prev })));
-                              }} className="aco-btn" style={{ borderColor: "var(--live)", color: "var(--live)" }}>
+                              }} className="aco-btn" style={{ borderColor: "var(--live)", color: "var(--live-text)" }}>
                                 <RefreshCw size={12} /> Restore
                               </button>
                             )}
@@ -3401,7 +3408,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                   <span className="broadcast-panel-icon"><Megaphone size={18} strokeWidth={1.8} /></span>
                   <span className="bcast-acc-name">In-App Banner Announcements <small>Visible in the app during the selected dates</small></span>
                   {(flags.scheduledAnnouncements || []).length > 0 && (
-                    <span className="bcast-acc-badge" style={{ background: "rgba(245,158,11,0.15)", color: "var(--amber)" }}>
+                    <span className="bcast-acc-badge" style={{ background: "rgba(245,158,11,0.15)", color: "var(--amber-text)" }}>
                       {flags.scheduledAnnouncements.length} total
                     </span>
                   )}
@@ -3558,7 +3565,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                   {/* Overlap detector warning */}
                   {announcementOverlaps.length > 0 && (
                     <div style={{ padding: "10px 14px", background: "rgba(245,158,11,0.08)", border: "1px solid var(--amber)", borderRadius: 10 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--amber)", display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}><AlertTriangle size={15} /> {announcementOverlaps.length} overlapping announcement(s) detected</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--amber-text)", display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}><AlertTriangle size={15} /> {announcementOverlaps.length} overlapping announcement(s) detected</div>
                       {announcementOverlaps.map((c, i) => (
                         <div key={i} style={{ fontSize: 12, color: "var(--muted)" }}>
                           • “{(c.a.message || "").slice(0, 32)}” &amp; “{(c.b.message || "").slice(0, 32)}” both appear to {c.a.target === "global" || c.b.target === "global" ? "everyone" : c.a.target} on overlapping dates.
@@ -3754,7 +3761,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                   <span className="broadcast-panel-icon"><BellRing size={18} strokeWidth={1.8} /></span>
                   <span className="bcast-acc-name">Web Push Notifications <small>Delivered to subscribed devices</small></span>
                   {(flags.scheduledPushes || []).length > 0 && (
-                    <span className="bcast-acc-badge" style={{ background: "rgba(31,169,113,0.15)", color: "var(--live)" }}>
+                    <span className="bcast-acc-badge" style={{ background: "rgba(31,169,113,0.15)", color: "var(--live-text)" }}>
                       {flags.scheduledPushes.length} queued
                     </span>
                   )}
@@ -4030,7 +4037,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
         {/* ── 2. Mission Control (Timeline Agenda + Delivery Stats + Queued Pushes) ── */}
         <section id="broadcast-activity" className="admin-card admin-span-all admin-g-broadcast" style={{ gridColumn: "1 / -1" }}>
-          <h2><Clock size={20} color="var(--live)" /> Broadcast Mission Control</h2>
+          <h2><Clock size={20} color="var(--live-text)" /> Broadcast Mission Control</h2>
           <p className="admin-subtext">Unified schedule of upcoming pushes, active banners, and recent broadcast delivery performance.</p>
 
           {/* Scheduled Timeline Agenda */}
@@ -4108,8 +4115,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                         </div>
                         <div className="bmc-stat-nums">
                           <span><b>{s.total}</b> sent</span>
-                          <span style={{ color: "var(--blue)" }}><b>{s.delivered}</b> delivered ({dPct}%)</span>
-                          <span style={{ color: "var(--live)" }}><b>{s.opened}</b> opened ({oPct}%)</span>
+                          <span style={{ color: "var(--blue-text)" }}><b>{s.delivered}</b> delivered ({dPct}%)</span>
+                          <span style={{ color: "var(--live-text)" }}><b>{s.opened}</b> opened ({oPct}%)</span>
                         </div>
                         <div className="bmc-stat-bar">
                           <div style={{ position: "absolute", inset: 0, width: `${dPct}%`, background: "var(--blue)", opacity: 0.35 }} />
@@ -4261,10 +4268,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 onClick={() => setOpenContent(o => ({ ...o, quickLinks: !o.quickLinks }))}
                 >
                 <div className="bcast-acc-title">
-                  <Flag size={17} color="var(--blue)" />
+                  <Flag size={17} color="var(--blue-text)" />
                   <span className="bcast-acc-name">Quick Links <small>Date-bound links in the student sidebar</small></span>
                   {(flags.quickLinks || []).length > 0 && (
-                    <span className="bcast-acc-badge" style={{ background: "rgba(59,130,246,0.15)", color: "var(--blue)" }}>
+                    <span className="bcast-acc-badge" style={{ background: "rgba(59,130,246,0.15)", color: "var(--blue-text)" }}>
                       {flags.quickLinks.length} total
                     </span>
                   )}
@@ -4341,7 +4348,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 onClick={() => setOpenContent(o => ({ ...o, updatePrompt: !o.updatePrompt }))}
                 >
                 <div className="bcast-acc-title">
-                  <RefreshCw size={17} color="var(--live)" />
+                  <RefreshCw size={17} color="var(--live-text)" />
                   <span className="bcast-acc-name">Update Prompt <small>Message shown when a new version is available</small></span>
                 </div>
                 <span className="bcast-acc-toggle">{openContent.updatePrompt ? "▲" : "▼"}<em>{openContent.updatePrompt ? "Collapse" : "Expand"}</em></span>
@@ -4489,8 +4496,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             {(() => {
               const steps = [
                 { label: "Signed up", n: funnel.signedUp, color: "var(--green)" },
-                { label: "Picked a section", n: funnel.pickedSection, color: "var(--blue)" },
-                { label: "Enabled push (devices)", n: funnel.pushDevices, color: "var(--live)" },
+                { label: "Picked a section", n: funnel.pickedSection, color: "var(--blue-text)" },
+                { label: "Enabled push (devices)", n: funnel.pushDevices, color: "var(--live-text)" },
                 { label: "Active this week", n: funnel.activeWeek, color: "var(--violet)" },
               ];
               const max = Math.max(funnel.signedUp, 1);
@@ -5138,7 +5145,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
           {/* Config backup & restore */}
           <section className="admin-card admin-g-system system-control-card system-backup-card">
-            <h2><Database size={20} color="var(--blue)" /> Config Backup &amp; Restore</h2>
+            <h2><Database size={20} color="var(--blue-text)" /> Config Backup &amp; Restore</h2>
             <p className="admin-subtext">Download the live config as JSON, or import a backup (loads into the editor — Review &amp; Deploy to apply). Rollback to a recent deploy lives in the save bar below.</p>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               <button className="admin-btn outline" onClick={_exportConfigJSON}><FileText size={15} /> Export JSON</button>
@@ -5158,7 +5165,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
           {/* Data export center */}
           <section className="admin-card admin-g-system system-control-card system-export-card">
-            <h2><FileText size={20} color="var(--blue)" /> Data Export</h2>
+            <h2><FileText size={20} color="var(--blue-text)" /> Data Export</h2>
             <p className="admin-subtext">Download the currently loaded admin data as CSV for reporting or backup.</p>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               <button className="admin-btn outline" onClick={() => exportCsv("users.csv", ["user_id", "name", "last_seen_at", "courses"], allUsers.map(u => [u.user_id, u.name, u.last_seen_at || "", Object.keys(u.courses || {}).filter(c => !c.startsWith("_")).join(";")]))} disabled={allUsers.length === 0}>Users ({allUsers.length})</button>
@@ -5169,7 +5176,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
           {/* Scheduled config deploys */}
           <section className="admin-card admin-g-system system-control-card system-deploy-card">
-            <h2><Clock size={20} color="var(--amber)" /> Scheduled Deploys <AdminActionBadge mode="scheduled" /></h2>
+            <h2><Clock size={20} color="var(--amber-text)" /> Scheduled Deploys <AdminActionBadge mode="scheduled" /></h2>
             <p className="admin-subtext">Queue the current pending config to auto-publish at a future time (requires the apply-scheduled-config cron). For an immediate change, use Deploy Config in the save bar instead.</p>
             <div className="admin-field-row" style={{ alignItems: "flex-end", maxWidth: 480 }}>
               <div className="admin-field"><label>Deploy at</label><input type="datetime-local" className="admin-input" value={scheduleDeployAt} onChange={e => setScheduleDeployAt(e.target.value)} /></div>
@@ -5509,7 +5516,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
 
           <section className="admin-card admin-g-system system-control-card system-experience-card">
-            <h2><Sparkles size={20} color="var(--blue)" /> Release &amp; Presentation</h2>
+            <h2><Sparkles size={20} color="var(--blue-text)" /> Release &amp; Presentation</h2>
             <div className="admin-field" style={{ marginTop: 16 }}>
               <label style={{ display: "block", marginBottom: 8, fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "1px" }}>TermFlow Wrapped Release</label>
               {(() => {
@@ -5574,7 +5581,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
              {/* A/B Testing — managed from flags.abTests */}
 
 <section className="admin-card admin-span-all admin-g-broadcast" style={{ gridColumn: "1 / -1" }}>
-            <h2><Megaphone size={20} color="var(--amber)" /> All Announcements</h2>
+            <h2><Megaphone size={20} color="var(--amber-text)" /> All Announcements</h2>
             <div className="admin-subtext" style={{ marginBottom: 16 }}>Live feed of all schedule changes (including admin-only data quality issues).</div>
             
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -5597,7 +5604,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                         <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", lineHeight: 1.4 }}>{c.text}</div>
                         <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4, display: "flex", gap: 8 }}>
                           <span>{new Date(c.ts).toLocaleString()}</span>
-                          {c.admin_only && <span style={{ color: "var(--amber)", fontWeight: 700 }}>ADMIN ONLY</span>}
+                          {c.admin_only && <span style={{ color: "var(--amber-text)", fontWeight: 700 }}>ADMIN ONLY</span>}
                           {c.code && <span>Course: {c.code}</span>}
                           <span>Type: {c.kind}</span>
                         </div>
@@ -5632,10 +5639,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
           {showAllAdminNotifs && (
             <div className="assign-modal-overlay" onClick={() => setShowAllAdminNotifs(false)}>
-              <div className="assign-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 600, maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
+              <div className="assign-modal" ref={allNotifsDialogRef} {...dialogProps(null, { labelledBy: "admin-all-notifs-title" })} onClick={e => e.stopPropagation()} style={{ maxWidth: 600, maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
                 <div className="assign-modal-head">
-                  <h2><Megaphone size={20} color="var(--amber)" style={{ verticalAlign: "middle", marginRight: 8, marginTop: -3 }} /> All Announcements</h2>
-                  <button className="assign-modal-close" onClick={() => setShowAllAdminNotifs(false)}><X size={16} /></button>
+                  <h2 id="admin-all-notifs-title"><Megaphone size={20} color="var(--amber-text)" style={{ verticalAlign: "middle", marginRight: 8, marginTop: -3 }} /> All Announcements</h2>
+                  <button type="button" className="assign-modal-close" aria-label="Close announcements" onClick={() => setShowAllAdminNotifs(false)}><X size={16} /></button>
                 </div>
                 <div className="assign-modal-body" style={{ overflowY: "auto", flex: 1, padding: "24px 32px", gap: 12 }}>
                   {allChanges.map(c => (
@@ -5654,7 +5661,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                           <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)", lineHeight: 1.4 }}>{c.text}</div>
                           <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6, display: "flex", gap: 8, flexWrap: "wrap" }}>
                             <span>{new Date(c.ts).toLocaleString()}</span>
-                            {c.admin_only && <span style={{ color: "var(--amber)", fontWeight: 700 }}>ADMIN ONLY</span>}
+                            {c.admin_only && <span style={{ color: "var(--amber-text)", fontWeight: 700 }}>ADMIN ONLY</span>}
                             {c.code && <span>Course: {c.code}</span>}
                             <span>Type: {c.kind}</span>
                           </div>
@@ -5668,7 +5675,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           )}
 
           <section className="admin-card admin-g-system system-control-card system-experiments-card">
-               <h2><Flag size={20} color="var(--blue)" /> A/B Testing</h2>
+               <h2><Flag size={20} color="var(--blue-text)" /> A/B Testing</h2>
                <p className="admin-subtext">Rollout experiments stored in flags. Deploy config to apply changes.</p>
 
                {/* Add new experiment */}
@@ -5720,7 +5727,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
           {/* Time Machine */}
           <section className="admin-card admin-span-all admin-g-system system-time-machine" style={{ gridColumn: "1 / -1" }}>
-            <h2><Clock size={20} color="var(--amber)" /> Time Machine</h2>
+            <h2><Clock size={20} color="var(--amber-text)" /> Time Machine</h2>
             <p className="admin-subtext">Override the application's current time to test the timeline, agenda, and UI states.</p>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12, alignItems: "center" }}>
               <input type="datetime-local" className="admin-input" style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)" }}
@@ -5732,7 +5739,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               <button className="admin-btn outline" onClick={() => setTimeOverride(nextOccurrence(1, 26))}>Preview Republic Day</button>
             </div>
             {timeOverride && (
-               <div style={{ marginTop: 12, padding: "8px 12px", background: "rgba(245, 158, 11, 0.1)", border: "1px solid var(--amber)", color: "var(--amber)", borderRadius: 8, fontSize: 13, fontWeight: 600 }}>
+               <div style={{ marginTop: 12, padding: "8px 12px", background: "rgba(245, 158, 11, 0.1)", border: "1px solid var(--amber)", color: "var(--amber-text)", borderRadius: 8, fontSize: 13, fontWeight: 600 }}>
                  ⚠️ The application is currently running in simulated time.
                </div>
             )}
@@ -5810,7 +5817,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
           {/* Config drift — what live config layers on top of the bundled snapshot */}
           <section className="admin-card admin-g-system system-control-card system-drift-card" style={{ display: "flex", flexDirection: "column" }}>
-            <h2><Database size={20} color="var(--blue)" /> Config Drift</h2>
+            <h2><Database size={20} color="var(--blue-text)" /> Config Drift</h2>
             <p className="admin-subtext">How far the live cloud config has drifted from the timetable baked into the app at build time. High counts mean students are downloading a lot of overrides — consider a snapshot rebuild.</p>
             <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 12 }}>
               Snapshot baked {snapshotMeta.ts ? new Date(snapshotMeta.ts).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "—"} · {snapshotMeta.classes || "?"} classes
@@ -5837,7 +5844,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
           {/* Health alerts — admin-only push when a job stalls or the feed dies */}
           <section className="admin-card admin-g-system system-control-card system-alerts-card" style={{ display: "flex", flexDirection: "column" }}>
-            <h2><BellRing size={20} color="var(--amber)" /> Health Alerts</h2>
+            <h2><BellRing size={20} color="var(--amber-text)" /> Health Alerts</h2>
             <p className="admin-subtext">The <code>health-monitor</code> cron checks every 15 min for stalled/failed jobs and a dead Sheets feed, then pushes an alert — to admins on this list only, never to students. Deploy Config to save the recipient list.</p>
             {(() => {
               const recipients = flags.alertRecipients || [];
@@ -6237,12 +6244,12 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
         return (
           <>
             <div className="notif-backdrop" onClick={() => setReviewOpen(false)} style={{ zIndex: 10000 }} />
-            <div className="admin-mobile-dialog" style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "var(--card)", padding: 24, borderRadius: 16, width: "92%", maxWidth: 520, maxHeight: "85vh", overflowY: "auto", zIndex: 10001, border: "1px solid var(--border)", boxShadow: "0 10px 40px rgba(0,0,0,0.2)" }}>
+            <div ref={reviewDialogRef} {...dialogProps(null, { labelledBy: "admin-review-title" })} className="admin-mobile-dialog" style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "var(--card)", padding: 24, borderRadius: 16, width: "92%", maxWidth: 520, maxHeight: "85vh", overflowY: "auto", zIndex: 10001, border: "1px solid var(--border)", boxShadow: "0 10px 40px rgba(0,0,0,0.2)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                <h2 style={{ margin: 0, fontSize: 18, display: "flex", gap: 8, alignItems: "center" }}>
+                <h2 id="admin-review-title" style={{ margin: 0, fontSize: 18, display: "flex", gap: 8, alignItems: "center" }}>
                   <FileText size={18} color="var(--violet)" /> Review changes
                 </h2>
-                <button onClick={() => setReviewOpen(false)} style={{ background: "transparent", border: "none", color: "var(--muted)", cursor: "pointer" }} aria-label="Close"><XCircle size={18} /></button>
+                <button type="button" onClick={() => setReviewOpen(false)} style={{ background: "transparent", border: "none", color: "var(--muted)", cursor: "pointer" }} aria-label="Close"><XCircle size={18} /></button>
               </div>
               <div className="admin-subtext" style={{ marginBottom: 14 }}>
                 Local edits vs the config you loaded. Nothing is live until you deploy.
@@ -6250,7 +6257,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
               {reviewDrift && (
                 <div style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "10px 14px", marginBottom: 14, background: "rgba(245,158,11,0.1)", border: "1px solid var(--amber)", borderRadius: 10 }}>
-                  <AlertTriangle size={16} color="var(--amber)" style={{ flex: "0 0 auto", marginTop: 1 }} />
+                  <AlertTriangle size={16} color="var(--amber-text)" style={{ flex: "0 0 auto", marginTop: 1 }} />
                   <span style={{ fontSize: 12.5, color: "var(--text)" }}>
                     Another admin deployed at {new Date(reviewDrift.when).toLocaleTimeString()}. Deploying now is blocked to protect their changes — <strong>refresh the dashboard</strong> and re-apply your edits.
                   </span>
@@ -6794,12 +6801,12 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
         return (
           <>
             <div className="notif-backdrop" onClick={() => setViewAsUser(null)} style={{ zIndex: 10000 }} />
-          <div className="admin-mobile-dialog" style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "var(--card)", padding: 24, borderRadius: 16, width: "90%", maxWidth: 480, maxHeight: "88vh", overflowY: "auto", zIndex: 10001, border: "1px solid var(--border)", boxShadow: "0 10px 40px rgba(0,0,0,0.25)" }}>
+          <div ref={viewAsDialogRef} {...dialogProps(null, { labelledBy: "admin-viewas-title" })} className="admin-mobile-dialog" style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "var(--card)", padding: 24, borderRadius: 16, width: "90%", maxWidth: 480, maxHeight: "88vh", overflowY: "auto", zIndex: 10001, border: "1px solid var(--border)", boxShadow: "0 10px 40px rgba(0,0,0,0.25)" }}>
 
               {/* Header */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                <h2 style={{ margin: 0, fontSize: 18, display: "flex", gap: 8, alignItems: "center" }}><VenetianMask size={18} color="var(--violet)" /> Viewing as {viewAsUser.name || "user"}</h2>
-                <button onClick={() => setViewAsUser(null)} style={{ background: "transparent", border: "none", color: "var(--muted)", cursor: "pointer" }}><XCircle size={18} /></button>
+                <h2 id="admin-viewas-title" style={{ margin: 0, fontSize: 18, display: "flex", gap: 8, alignItems: "center" }}><VenetianMask size={18} color="var(--violet)" /> Viewing as {viewAsUser.name || "user"}</h2>
+                <button type="button" aria-label="Close" onClick={() => setViewAsUser(null)} style={{ background: "transparent", border: "none", color: "var(--muted)", cursor: "pointer" }}><XCircle size={18} /></button>
               </div>
               <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 16, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
                 <span>Read-only preview</span>
@@ -6919,10 +6926,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       {liveEditorModal && (
         <>
           <div className="notif-backdrop" onClick={() => setLiveEditorModal(null)} style={{ zIndex: 10000 }} />
-          <div className="admin-mobile-dialog" style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "var(--card)", padding: 24, borderRadius: 16, width: "90%", maxWidth: 400, maxHeight: "85vh", overflowY: "auto", zIndex: 10001, border: "1px solid var(--border)", boxShadow: "0 10px 40px rgba(0,0,0,0.2)" }}>
+          <div ref={liveEditorDialogRef} {...dialogProps(null, { labelledBy: "admin-live-editor-title" })} className="admin-mobile-dialog" style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "var(--card)", padding: 24, borderRadius: 16, width: "90%", maxWidth: 400, maxHeight: "85vh", overflowY: "auto", zIndex: 10001, border: "1px solid var(--border)", boxShadow: "0 10px 40px rgba(0,0,0,0.2)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h2 style={{ margin: 0, fontSize: 18, display: "flex", gap: 8, alignItems: "center" }}><CalendarDays size={18} color="var(--blue)" /> Edit Class</h2>
-              <button onClick={() => setLiveEditorModal(null)} style={{ background: "transparent", border: "none", color: "var(--muted)", cursor: "pointer" }}><XCircle size={18} /></button>
+              <h2 id="admin-live-editor-title" style={{ margin: 0, fontSize: 18, display: "flex", gap: 8, alignItems: "center" }}><CalendarDays size={18} color="var(--blue-text)" /> Edit Class</h2>
+              <button type="button" aria-label="Close" onClick={() => setLiveEditorModal(null)} style={{ background: "transparent", border: "none", color: "var(--muted)", cursor: "pointer" }}><XCircle size={18} /></button>
             </div>
 
             <div style={{ marginBottom: 16 }}>
@@ -7316,7 +7323,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
         <AdminModal
           title={
             <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <BellRing size={18} color="var(--blue)" />
+              <BellRing size={18} color="var(--blue-text)" />
               <span>Push Notification Subscribers ({pushSubCount})</span>
             </span>
           }

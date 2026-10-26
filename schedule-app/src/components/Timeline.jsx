@@ -238,6 +238,7 @@ function useChangedRows(list) {
 export default React.memo(function Timeline({ list, current, now, showNowLine = true, label = "Today", dateLabel, attendance = {}, markAttendance, skipInfo, syncStatus, onRefresh, isSyncing, onOpenSession, focusMode = false }) {
   const ptr = usePullToRefresh(onRefresh, isSyncing);
   const changedRows = useChangedRows(list);
+  const [editingAtt, setEditingAtt] = useState(null); // sessionKey whose marked chip was tapped to change
   if (!list.length)
     return (
       <section className={`panel timeline-panel${showNowLine ? " timeline-today" : ""}`}>
@@ -428,6 +429,53 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
                         >
                           <XCircle size={13} strokeWidth={2.2} /> Skipped
                         </button>
+                      </div>
+                      {/* V2 phone swaps the segmented pill for this (mobile-v2.css):
+                          one-tap CTA while unmarked, a compact result chip once marked. */}
+                      <div className="row-att-cta" role="group" aria-label={`Attendance for ${c.name}`}>
+                        {attStatus && editingAtt !== attKey ? (
+                          // The whole chip is the "change" control: tapping it reopens the buttons.
+                          <button
+                            type="button"
+                            className={`row-att-done row-att-done-${attStatus}`}
+                            onClick={() => setEditingAtt(attKey)}
+                            aria-label={`${attStatus === "present" ? "Attended" : "Skipped"}${skipInfo?.[c.code]?.pct != null ? `, ${skipInfo[c.code].pct}%` : ""}. Tap to change`}
+                          >
+                            {attStatus === "present"
+                              ? <CheckCircle2 size={15} strokeWidth={2.4} aria-hidden="true" />
+                              : <XCircle size={15} strokeWidth={2.4} aria-hidden="true" />}
+                            <strong>{attStatus === "present" ? "Attended" : "Skipped"}</strong>
+                            {skipInfo?.[c.code]?.pct != null && (
+                              <span className="row-att-done-sub">{skipInfo[c.code].pct}%</span>
+                            )}
+                            {/* Skip budget only surfaces once it's nearly gone */}
+                            {attStatus === "absent" && skipInfo?.[c.code]?.totalAllowedSkips > 0 && skipInfo[c.code].skipsRemaining <= 1 && (
+                              <span className={`row-att-warn${skipInfo[c.code].skipsRemaining === 0 ? " is-out" : ""}`}>
+                                {skipInfo[c.code].skipsRemaining === 0 ? "No skips left" : "Last skip left"}
+                              </span>
+                            )}
+                          </button>
+                        ) : (
+                          <>
+                            {/* While changing, the current choice is highlighted; tapping it again clears the mark. */}
+                            <button
+                              type="button"
+                              className={`row-att-primary${attStatus === "present" ? " is-on" : ""}`}
+                              onClick={() => { markAttendance(c, attStatus === "present" ? null : "present"); setEditingAtt(null); }}
+                              aria-pressed={attStatus ? attStatus === "present" : undefined}
+                            >
+                              <CheckCircle2 size={15} strokeWidth={2.4} aria-hidden="true" /> {isCur ? "I'm in class" : "Attended"}
+                            </button>
+                            <button
+                              type="button"
+                              className={`row-att-secondary${attStatus === "absent" ? " is-on" : ""}`}
+                              onClick={() => { markAttendance(c, attStatus === "absent" ? null : "absent"); setEditingAtt(null); }}
+                              aria-pressed={attStatus ? attStatus === "absent" : undefined}
+                            >
+                              Skipped
+                            </button>
+                          </>
+                        )}
                       </div>
                       {!isPast && !attStatus && <SkipHint info={skipInfo?.[c.code]} name={c.name} />}
                       {detailsBtn}

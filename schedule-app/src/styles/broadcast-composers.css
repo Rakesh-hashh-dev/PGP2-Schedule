@@ -33,7 +33,7 @@
 .broadcast-compose-panel .bcast-actions { padding-top: 12px; border-top: 1px solid var(--border); }
 .broadcast-mode-picker { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .broadcast-mode-picker button { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 1px 8px; align-items: center; padding: 11px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); text-align: left; cursor: pointer; font: inherit; }
-.broadcast-mode-picker button svg { grid-row: 1 / 3; color: var(--live); }
+.broadcast-mode-picker button svg { grid-row: 1 / 3; color: var(--live-text); }
 .broadcast-mode-picker button strong { font-size: 12px; }
 .broadcast-mode-picker button small { color: var(--muted); font-size: 10px; }
 .broadcast-mode-picker button.is-selected { border-color: var(--live); background: color-mix(in srgb, var(--live) 8%, var(--card)); }

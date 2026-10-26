@@ -250,9 +250,9 @@ html[data-theme="dark"] .exam-aura i { opacity: .2; }
 }
 .exam-stat-icon { display: grid; flex: none; width: 32px; height: 32px; place-items: center; border-radius: 10px; }
 .exam-stat-icon.violet { color: var(--violet); background: var(--violet-dim); }
-.exam-stat-icon.green { color: var(--live); background: var(--live-dim); }
-.exam-stat-icon.amber { color: var(--amber); background: var(--amber-dim); }
-.exam-stat-icon.blue { color: var(--blue); background: color-mix(in srgb, var(--blue) 11%, transparent); }
+.exam-stat-icon.green { color: var(--live-text); background: var(--live-dim); }
+.exam-stat-icon.amber { color: var(--amber-text); background: var(--amber-dim); }
+.exam-stat-icon.blue { color: var(--blue-text); background: color-mix(in srgb, var(--blue) 11%, transparent); }
 .exam-stat > div { display: flex; flex-direction: column; min-width: 0; }
 .exam-stat strong { color: var(--text); font: 800 20px/1 var(--display); font-variant-numeric: tabular-nums; }
 .exam-stat > div > span { margin-top: 4px; overflow: hidden; color: var(--muted); font-size: 10px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
@@ -406,11 +406,11 @@ html[data-theme="dark"] .exam-cal-sync-btn { background: color-mix(in srgb, var(
 .ecc-bot { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; padding-top: 10px; border-top: 1px solid var(--border); }
 .ecc-pill { padding: 4px 7px; border-radius: 7px; color: var(--muted); background: var(--surface); font-size: 9.5px; font-weight: 650; }
 .ecc-pill span { color: var(--text); font-weight: 800; }
-.ecc-pill-att.att-good { color: var(--live); background: var(--live-dim); }
-.ecc-pill-att.att-warn { color: var(--amber); background: var(--amber-dim); }
+.ecc-pill-att.att-good { color: var(--live-text); background: var(--live-dim); }
+.ecc-pill-att.att-warn { color: var(--amber-text); background: var(--amber-dim); }
 .ecc-pill-att.att-bad { color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); }
 .ecc-pill-next { color: var(--violet); background: var(--violet-dim); }
-.ecc-pill-ended { color: var(--live); background: var(--live-dim); }
+.ecc-pill-ended { color: var(--live-text); background: var(--live-dim); }
 .ecc-caret { flex: none; margin-left: auto; color: var(--muted); transition: transform .2s; }
 .exam-cc-card.is-open .ecc-caret { transform: rotate(180deg); }
 .ecc-detail { display: flex; flex-direction: column; gap: 11px; padding: 0 14px 14px; border-top: 1px solid var(--border); animation: exam-rise .22s ease both; }
@@ -418,7 +418,7 @@ html[data-theme="dark"] .exam-cal-sync-btn { background: color-mix(in srgb, var(
 .ecc-detail-row { display: flex; align-items: flex-start; gap: 6px; min-width: 0; color: var(--muted); font-size: 10.5px; }
 .ecc-detail-row svg { flex: none; color: var(--violet); }
 .ecc-detail-row span { overflow: hidden; text-overflow: ellipsis; }
-.ecc-skip { display: flex; align-items: center; gap: 7px; padding: 8px 10px; border-radius: 9px; color: var(--live); background: var(--live-dim); font-size: 10.5px; font-weight: 650; }
+.ecc-skip { display: flex; align-items: center; gap: 7px; padding: 8px 10px; border-radius: 9px; color: var(--live-text); background: var(--live-dim); font-size: 10.5px; font-weight: 650; }
 .ecc-skip.is-warn { color: var(--amber-text); background: var(--amber-dim); }
 .ecc-skip.is-bad { color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); }
 .ecc-detail-label { margin-bottom: 6px; color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }

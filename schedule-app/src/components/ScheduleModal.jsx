@@ -7,6 +7,7 @@ import IndiaFlagIcon from "./IndiaFlagIcon.jsx";
 import { CancellationStripe } from "./CancelledClassNotice.jsx";
 import { fmtTime12 } from "../lib/datetime.js";
 import { useBackClose } from "../lib/backClose.js";
+import { useDialog } from "../hooks/useDialog.js";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
@@ -18,6 +19,7 @@ function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart
 // as a card inside a card. Here the week nav *is* the dialog header.
 export default function ScheduleModal({ visible, now, offset, setOffset, todayISO, onClose, onViewFullSchedule }) {
   useBackClose(onClose);
+  const dialogRef = useDialog(true, onClose);
   // Week Stats stays where the reader left it, same as the sidebar's toggle.
   const [showStats, setShowStats] = useState(() => localStorage.getItem("sm-stats-closed") !== "1");
   const toggleStats = () => setShowStats((open) => {
@@ -80,11 +82,10 @@ export default function ScheduleModal({ visible, now, offset, setOffset, todayIS
     };
   }, []);
 
-  // Arrow keys page through weeks; Esc closes (the overlay click already does).
+  // Arrow keys page through weeks (Esc is handled by useDialog).
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === "Escape") onClose();
-      else if (e.key === "ArrowLeft") setOffset(offset - 1);
+      if (e.key === "ArrowLeft") setOffset(offset - 1);
       else if (e.key === "ArrowRight") setOffset(offset + 1);
       else return;
       e.preventDefault();
@@ -95,7 +96,7 @@ export default function ScheduleModal({ visible, now, offset, setOffset, todayIS
 
   return (
     <div className="fs-modal-overlay hide-mobile" onClick={onClose}>
-      <div className="sm-card" role="dialog" aria-modal="true" aria-label="Week schedule" onClick={(e) => e.stopPropagation()}>
+      <div className="sm-card" ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Week schedule" onClick={(e) => e.stopPropagation()}>
         <header className="sm-head">
           <div className="sm-head-nav">
             <button className="sm-nav" onClick={() => setOffset(offset - 1)} aria-label="Previous week"><ChevronLeft size={17} /></button>

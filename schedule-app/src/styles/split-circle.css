@@ -86,7 +86,7 @@ html[data-theme="dark"] .sc-workspace, html[data-theme="premium"] .sc-workspace 
 .sc-workspace .neg { color: var(--danger); }
 .sc-expenses { padding-bottom: 8px; }
 .sc-expenses .sc-toolbar { margin-bottom: 8px; }
-.sc-search { display: flex; gap: 9px; align-items: center; border: 1px solid var(--line); border-radius: 9px; padding: 9px 12px; flex: 2; min-width: 200px; color: var(--muted); background: var(--bg); }
+.sc-search { display: flex; gap: 9px; align-items: center; border: 1px solid var(--border-input); border-radius: 9px; padding: 9px 12px; flex: 2; min-width: 200px; color: var(--muted); background: var(--bg); }
 .sc-search input { width: 100%; border: 0; color: var(--ink); background: none; outline: none; font-size: 13px; font-family: inherit; }
 .sc-search:focus-within { border-color: var(--sc-accent); outline: 2px solid var(--sc-soft); outline-offset: 2px; }
 .sc-expense-line { display: flex; align-items: center; gap: 14px; width: 100%; border: 0; background: none; color: var(--ink); padding: 18px 0; border-top: 1px solid var(--line); text-align: left; cursor: pointer; }

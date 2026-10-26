@@ -25,7 +25,7 @@
 .dl-row-top { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
 .dl-row-top .ses { font-size: 9px; line-height: 1.4; padding: 1px 5px; }
 .dl-row-label { display: inline-flex; align-items: center; gap: 4px; color: var(--violet); font-size: 9px; line-height: 1.4; font-weight: 700; }
-.dl-row-label.is-assignment { color: var(--live); }
+.dl-row-label.is-assignment { color: var(--live-text); }
 .dl-row-text { color: var(--text); font-size: 13px; font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }
 .dl-row-description { color: var(--muted); font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
 .dl-row-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 12px; margin-top: 3px; color: var(--muted); font-size: 10.5px; line-height: 1.4; font-variant-numeric: tabular-nums; }

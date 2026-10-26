@@ -1,5 +1,6 @@
 import { X, Sparkles, ChevronRight, ArrowRight, BellRing, AlarmClock, Sunrise, ClipboardCheck, Link2, CalendarDays, Megaphone, Zap, Users, GraduationCap, BookOpenCheck } from "lucide-react";
 import { useBackClose } from "../lib/backClose.js";
+import { useDialog } from "../hooks/useDialog.js";
 
 // "What's New" feature announcements. Entries come from
 // system_config.flags.whatsNew (managed in Admin Tools):
@@ -66,10 +67,11 @@ export function WhatsNewPill({ item, count, onOpen }) {
 
 export function WhatsNewModal({ items, onClose, onOpenGuide }) {
   useBackClose(onClose);
+  const dialogRef = useDialog(true, onClose);
   return (
-    <div className="wn-overlay" role="dialog" aria-modal="true" aria-labelledby="wn-title" onClick={onClose}>
-      <div className="wn-modal" onClick={(e) => e.stopPropagation()}>
-        <button className="wn-close" onClick={onClose} aria-label="Close">
+    <div className="wn-overlay" onClick={onClose}>
+      <div className="wn-modal" ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="wn-title" onClick={(e) => e.stopPropagation()}>
+        <button type="button" className="wn-close" onClick={onClose} aria-label="Close what's new">
           <X size={15} />
         </button>
         <div className="wn-head">

@@ -3,9 +3,11 @@ import { Bell, BellOff, BellRing, Smartphone, Share, SquarePlus, Info, X } from 
 import { isIOS } from "../../lib/push.js";
 import { usePushStatus } from "../../hooks/usePushStatus.js";
 import { useBackClose } from "../../lib/backClose.js";
+import { useDialog } from "../../hooks/useDialog.js";
 
 export function PushHelpSheet({ mode, onClose }) {
   useBackClose(onClose);
+  const dialogRef = useDialog(true, onClose);
   const iosDevice = isIOS();
   const steps =
     mode === "ios-install"
@@ -29,7 +31,7 @@ export function PushHelpSheet({ mode, onClose }) {
 
   return (
     <div className="push-help-overlay" onClick={onClose}>
-      <div className="push-help-sheet" role="dialog" aria-modal="true" aria-label="How to enable notifications" onClick={(e) => e.stopPropagation()}>
+      <div className="push-help-sheet" ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="How to enable notifications" onClick={(e) => e.stopPropagation()}>
         <div className="push-help-head">
           <div className="push-help-ico"><BellRing size={17} /></div>
           <h3>{mode === "ios-install" ? "Get notifications on iPhone" : "Notifications are blocked"}</h3>

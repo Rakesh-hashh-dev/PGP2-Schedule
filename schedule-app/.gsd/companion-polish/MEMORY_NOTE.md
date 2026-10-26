@@ -1,0 +1,7 @@
+# PGP2 companion artwork paused checkpoint
+
+User explicitly asked to save the conversation to continue later on2026-10-14. Resume from F:/Web Dev/Antigravity/PGP2 Schedule/schedule-app/session/20261014_183848/handoff.md and session_state.md, or project .gsd/companion-polish/STATE.md.24vector pets plus Luna were being refined directly in the existing project; implementation remains incomplete and not finally verified. Files are local/uncommitted. Main work done: connected SVG groups,new PetEyes/PetDetail,per-species motion and pivots,wardrobe wrappers,visibility/gaze cleanup,preview bundler repair for Vite8/Rolldown,and Luna edge-unmatting/lossless regeneration. Next: fix/check wearable reduced-motion guards,render allpets/allstates on both themes and sizes,build compact interactive preview,run regression tests/lint/build. Preserve unrelated sheet.js,sheet.test.js,vite.config.js and docs/pet-codex-lessons-plan.md.
+
+Important correction: raw-WebP image tool introduced apparent gray rectangles around Luna. Real composited assets/source GIF had no suchblocks. The real issue was binary-alpha light fringe,which the pipeline now softens. Do not repeat the incorrect block-artifact diagnosis.
+
+Shell sandbox process helper fails; scoped elevated exec commands work. Existing CDP QA scripts use local headless Chromium; nodeREPL can read/write but imports of some CJS/image libraries fail. No commits/pushes performed.

@@ -405,7 +405,7 @@
   border: 1px solid rgba(31, 169, 113, .2);
   border-radius: 12px;
   padding: 10px 16px;
-  color: var(--live);
+  color: var(--live-text);
   font-weight: 600;
   font-size: 13.5px;
 }
@@ -534,7 +534,7 @@
 .cv-sbs-freeday-badge {
   font-size: 10.5px;
   font-weight: 800;
-  color: var(--live);
+  color: var(--live-text);
   background: rgba(31, 169, 113, .16);
   padding: 3px 8px;
   border-radius: 8px;
@@ -608,7 +608,7 @@
 .cv-sbs-freepill {
   background: rgba(31, 169, 113, .18);
   border: 1px solid rgba(31, 169, 113, .35);
-  color: var(--live);
+  color: var(--live-text);
   padding: 9px 12px;
   border-radius: 12px;
   font-size: 12px;
@@ -732,7 +732,7 @@
   align-items: center;
   gap: 3px;
   background: rgba(31, 169, 113, .18);
-  color: var(--live);
+  color: var(--live-text);
   font-size: 10.5px;
   font-weight: 800;
   text-transform: uppercase;
@@ -788,7 +788,7 @@
 .cv-free-dur {
   font-size: 12.5px;
   font-weight: 600;
-  color: var(--live);
+  color: var(--live-text);
 }
 
 .cv-free-bar {
@@ -831,7 +831,7 @@
 .cv-insight-same {
   background: rgba(31, 169, 113, .06);
   border: 1px solid rgba(31, 169, 113, .15);
-  color: var(--live);
+  color: var(--live-text);
 }
 
 .cv-insight-match {
@@ -978,7 +978,7 @@
 .cv-more-icon-green {
   background: rgba(31, 169, 113, .1);
   border: 1px solid rgba(31, 169, 113, .22);
-  color: var(--live);
+  color: var(--live-text);
 }
 
 .cv-more-titles {
@@ -1488,7 +1488,7 @@
 }
 
 .cv-private-note svg {
-  color: var(--live);
+  color: var(--live-text);
 }
 
 .cv-identity-wrap {
@@ -1600,7 +1600,7 @@
 }
 
 .cv-stat-primary .cv-stat-icon {
-  color: var(--live);
+  color: var(--live-text);
   background: color-mix(in srgb, var(--live) 12%, transparent);
 }
 
@@ -1712,7 +1712,7 @@
   padding: 6px 9px;
   border: 1px solid color-mix(in srgb, var(--live) 25%, transparent);
   border-radius: 999px;
-  color: var(--live);
+  color: var(--live-text);
   background: color-mix(in srgb, var(--live) 9%, transparent);
   font-size: 11px;
   font-weight: 800;
@@ -2042,7 +2042,7 @@
   height: 27px;
   flex: none;
   border-radius: 9px;
-  color: var(--live);
+  color: var(--live-text);
   background: color-mix(in srgb, var(--live) 14%, transparent);
 }
 
@@ -2065,7 +2065,7 @@
 
 .cv-sbs-freepill-copy small {
   margin-top: 3px;
-  color: var(--live);
+  color: var(--live-text);
   font-size: 9.5px;
   font-weight: 750;
 }
@@ -2158,11 +2158,11 @@
   gap: 6px;
   border-color: color-mix(in srgb, var(--live) 23%, var(--border));
   background: color-mix(in srgb, var(--live) 4%, var(--surface));
-  color: var(--live);
+  color: var(--live-text);
 }
 
 .cv-sbs-emptycell span {
-  color: var(--live);
+  color: var(--live-text);
   font-size: 9.5px;
 }
 

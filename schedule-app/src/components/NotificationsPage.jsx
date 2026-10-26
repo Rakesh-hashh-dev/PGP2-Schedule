@@ -9,6 +9,7 @@ import CohortPolls from "./notifications/CohortPolls.jsx";
 import { EmptyState } from "./ui.jsx";
 import { notificationDateParts } from "../lib/notificationWorkspace.js";
 import { useBackClose } from "../lib/backClose.js";
+import { useDialog } from "../hooks/useDialog.js";
 
 const SWIPE_HINT_KEY = "pgp2.notif-swipe-hint-seen";
 const LOAD_TS = Date.now();
@@ -47,6 +48,7 @@ export default function NotificationsPage({ allChanges, myChanges, isAdmin, user
   const [query, setQuery] = useState("");
   const [showAlertSettings, setShowAlertSettings] = useState(false);
   useBackClose(() => setShowAlertSettings(false), showAlertSettings);
+  const settingsDialogRef = useDialog(showAlertSettings, () => setShowAlertSettings(false));
   const [handledPrefsSignal, setHandledPrefsSignal] = useState(openPrefsSignal);
   const [nowTick, setNowTick] = useState(LOAD_TS);
   const [swipeHintSeen, setSwipeHintSeen] = useState(() => { try { return localStorage.getItem(SWIPE_HINT_KEY) === "1"; } catch { return true; } });
@@ -300,7 +302,7 @@ export default function NotificationsPage({ allChanges, myChanges, isAdmin, user
 
       {showAlertSettings && (
         <div className="notif-settings-backdrop" onClick={() => setShowAlertSettings(false)}>
-          <section className="notif-settings-sheet" role="dialog" aria-modal="true" aria-labelledby="notif-settings-title" onClick={e => e.stopPropagation()}>
+          <section className="notif-settings-sheet" ref={settingsDialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="notif-settings-title" onClick={e => e.stopPropagation()}>
             <div className="notif-settings-head">
               <div><span className="notif-eyebrow">Delivery preferences</span><h2 id="notif-settings-title">Manage alerts</h2><p>Choose how TermFlow reaches you about timetable changes.</p></div>
               <button className="notif-settings-close" onClick={() => setShowAlertSettings(false)} aria-label="Close alert settings"><X size={18} /></button>

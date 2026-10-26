@@ -27,7 +27,7 @@
 .aw-filters button { padding: 6px 10px; border: 1px solid var(--border); border-radius: 99px; background: var(--card); color: var(--muted); font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; }
 .aw-filters button.active { border-color: var(--violet); background: var(--violet-dim); color: var(--violet); }
 .aw-filters button:focus-visible, .aw-actions button:focus-visible { outline: 2px solid var(--violet); outline-offset: 2px; }
-.aw-issue > svg { flex-shrink: 0; color: var(--amber); }
+.aw-issue > svg { flex-shrink: 0; color: var(--amber-text); }
 .aw-issue.is-error > svg { color: var(--danger); }
 .aw-issue button { flex-shrink: 0; }
 .aw-coverage-row { align-items: center; }
@@ -44,8 +44,8 @@
 .aw-before-after small, .aw-preview > small { color: var(--muted); font-size: 10px; }
 .aw-before-after span { color: var(--text); font-size: 11px; line-height: 1.35; overflow-wrap: anywhere; }
 .aw-preview > p { margin: 0; color: var(--text); font-size: 11px; }
-.aw-preview-warning, .aw-preview-ok { display: flex; align-items: start; gap: 6px; color: var(--amber); font-size: 11px; line-height: 1.4; }
-.aw-preview-ok { color: var(--live); }
+.aw-preview-warning, .aw-preview-ok { display: flex; align-items: start; gap: 6px; color: var(--amber-text); font-size: 11px; line-height: 1.4; }
+.aw-preview-ok { color: var(--live-text); }
 .aw-feedback { display: grid; gap: 9px; }
 .aw-feedback-meta { display: flex; justify-content: space-between; gap: 8px; }
 .aw-feedback-meta span { color: var(--muted); font-size: 10px; }

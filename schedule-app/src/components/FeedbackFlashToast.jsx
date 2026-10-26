@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { MessageSquare, X, ExternalLink, ArrowRight } from "lucide-react";
+import { announce } from "../lib/announce.js";
 
 export default function FeedbackFlashToast({ config, onOpenFeedback, onClose }) {
   const [visible, setVisible] = useState(false);
@@ -16,6 +17,7 @@ export default function FeedbackFlashToast({ config, onOpenFeedback, onClose }) 
   useEffect(() => {
     // Small delay to allow the slide-in animation to trigger after mount
     const timer = setTimeout(() => setVisible(true), 100);
+    announce(`Feedback reminder: ${config.subjectName || "your classes"}`);
 
     // Auto-dismiss after 15 seconds unless they interact
     const autoDismiss = setTimeout(() => {
@@ -50,11 +52,11 @@ export default function FeedbackFlashToast({ config, onOpenFeedback, onClose }) 
   return (
     <div className={`feedback-flash-toast ${visible && !closing ? "show" : ""} ${closing ? "hide" : ""}`}>
       <div className="feedback-flash-inner">
-        <button className="feedback-flash-close" onClick={handleClose} aria-label="Close">
+        <button className="feedback-flash-close" onClick={handleClose} aria-label="Close feedback reminder">
           <X size={16} />
         </button>
         <div className="feedback-flash-icon">
-          <MessageSquare size={20} color="var(--amber)" />
+          <MessageSquare size={20} color="var(--amber-text)" aria-hidden="true" />
         </div>
         <div className="feedback-flash-content">
           <div className="feedback-flash-title">

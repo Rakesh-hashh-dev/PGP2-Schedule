@@ -29,7 +29,7 @@
 
 .pet-care { display: flex; gap: 7px; margin-top: 13px; }
 .pet-btn { padding: 7px 15px; border: 1px solid color-mix(in srgb, var(--violet) 22%, var(--border)); border-radius: 9px; background: color-mix(in srgb, var(--violet) 8%, var(--bg)); color: var(--text); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; transition: transform 130ms ease, background 130ms ease, border-color 130ms ease; }
-.pet-btn:hover, .pet-btn:focus-visible { border-color: color-mix(in srgb, var(--violet) 52%, var(--border)); background: color-mix(in srgb, var(--violet) 17%, var(--bg)); outline: none; }
+.pet-btn:hover, .pet-btn:focus-visible { border-color: color-mix(in srgb, var(--violet) 52%, var(--border)); background: color-mix(in srgb, var(--violet) 17%, var(--bg)); }
 .pet-btn:active { transform: translateY(1px) scale(.97); }
 .pet-btn-primary { border-color: var(--violet); background: var(--violet); color: #fff; }
 .pet-btn-primary:hover, .pet-btn-primary:focus-visible { border-color: var(--violet); background: color-mix(in srgb, var(--violet) 86%, #000); }
@@ -46,7 +46,7 @@
 /* ── Roster ────────────────────────────────────────────────── */
 .pet-roster { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
 .pet-slot { position: relative; display: grid; justify-items: center; gap: 3px; padding: 10px 5px 8px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); color: var(--text); font: inherit; cursor: pointer; transition: transform 130ms ease, background 130ms ease, border-color 130ms ease; }
-.pet-slot:hover:not(:disabled), .pet-slot:focus-visible { border-color: color-mix(in srgb, var(--violet) 45%, var(--border)); background: color-mix(in srgb, var(--violet) 8%, var(--bg)); outline: none; }
+.pet-slot:hover:not(:disabled), .pet-slot:focus-visible { border-color: color-mix(in srgb, var(--violet) 45%, var(--border)); background: color-mix(in srgb, var(--violet) 8%, var(--bg)); }
 .pet-slot:active:not(:disabled) { transform: translateY(1px) scale(.98); }
 .pet-slot.on { border-color: var(--violet); background: color-mix(in srgb, var(--violet) 13%, var(--bg)); }
 .pet-slot.locked { cursor: default; opacity: .5; }
@@ -61,8 +61,8 @@
 .pet-adopt { display: grid; gap: 12px; }
 .pet-adopt-lede { margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
 .pet-adopt-confirm { display: flex; gap: 8px; }
-.pet-input { flex: 1; min-width: 0; padding: 7px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg); color: var(--text); font: inherit; font-size: 12.5px; }
-.pet-input:focus-visible { border-color: var(--violet); outline: none; }
+.pet-input { flex: 1; min-width: 0; padding: 7px 10px; border: 1px solid var(--border-input); border-radius: 9px; background: var(--bg); color: var(--text); font: inherit; font-size: 12.5px; }
+.pet-input:focus-visible { border-color: var(--violet); outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--violet) 35%, transparent); }
 .pet-field { display: grid; gap: 5px; margin-bottom: 11px; font-size: 12px; font-weight: 600; }
 .pet-field-row { display: flex; align-items: center; gap: 8px; margin-bottom: 0; font-weight: 600; }
 .pet-field-row input { accent-color: var(--violet); }
@@ -90,7 +90,7 @@
   cursor: pointer;
   transition: transform 130ms ease, background 130ms ease, border-color 130ms ease;
 }
-.pet-hat-slot:hover:not(:disabled), .pet-hat-slot:focus-visible { transform: translateY(-1px); border-color: color-mix(in srgb, var(--violet) 42%, var(--border)); background: color-mix(in srgb, var(--violet) 12%, var(--bg)); outline: none; }
+.pet-hat-slot:hover:not(:disabled), .pet-hat-slot:focus-visible { transform: translateY(-1px); border-color: color-mix(in srgb, var(--violet) 42%, var(--border)); background: color-mix(in srgb, var(--violet) 12%, var(--bg)); }
 .pet-hat-slot.on { border-color: var(--violet); background: color-mix(in srgb, var(--violet) 18%, var(--bg)); }
 .pet-hat-slot.locked { cursor: not-allowed; opacity: .5; }
 /* The hat art is drawn against a whole 32x32 pet, so the preview shows the top
@@ -135,7 +135,7 @@
   cursor: pointer;
   transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
 }
-.pet-coat-slot:hover:not(:disabled), .pet-coat-slot:focus-visible { transform: translateY(-1px); border-color: color-mix(in srgb, var(--violet) 42%, var(--border)); background: color-mix(in srgb, var(--violet) 12%, var(--bg)); outline: none; }
+.pet-coat-slot:hover:not(:disabled), .pet-coat-slot:focus-visible { transform: translateY(-1px); border-color: color-mix(in srgb, var(--violet) 42%, var(--border)); background: color-mix(in srgb, var(--violet) 12%, var(--bg)); }
 .pet-coat-slot.on { border-color: var(--violet); background: color-mix(in srgb, var(--violet) 18%, var(--bg)); }
 .pet-coat-slot.locked { cursor: not-allowed; opacity: .5; }
 .pet-coat-art { width: 38px; height: 38px; --pet-z: 8px; }
@@ -159,7 +159,7 @@
   cursor: pointer;
   transition: border-color 140ms ease, background 140ms ease;
 }
-.pet-title:hover:not(:disabled), .pet-title:focus-visible { border-color: color-mix(in srgb, var(--violet) 42%, var(--border)); outline: none; }
+.pet-title:hover:not(:disabled), .pet-title:focus-visible { border-color: color-mix(in srgb, var(--violet) 42%, var(--border)); }
 .pet-title.on { border-color: var(--violet); background: color-mix(in srgb, var(--violet) 18%, var(--bg)); color: var(--violet); }
 .pet-title.locked { cursor: not-allowed; opacity: .5; }
 

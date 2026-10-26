@@ -260,10 +260,10 @@
 .prep-open-chev { display: none; }
 @media (max-width: 760px) {
   .timeline-today .row-head { gap: 6px; }
-  .timeline-today .prep-open { display: inline-grid; place-items: center; width: 22px; height: 22px; margin: -3px -5px 0 0; padding: 0; border-radius: 7px; }
-  .timeline-today .prep-open:hover { background: color-mix(in srgb, var(--violet) 10%, transparent); }
-  .timeline-today .prep-open-label { display: none; }
-  .timeline-today .prep-open-chev { display: block; }
+  :is(.timeline-today, .timeline-tomorrow) .prep-open { display: inline-grid; place-items: center; width: 22px; height: 22px; margin: -3px -5px 0 0; padding: 0; border-radius: 7px; }
+  :is(.timeline-today, .timeline-tomorrow) .prep-open:hover { background: color-mix(in srgb, var(--violet) 10%, transparent); }
+  :is(.timeline-today, .timeline-tomorrow) .prep-open-label { display: none; }
+  :is(.timeline-today, .timeline-tomorrow) .prep-open-chev { display: block; }
   .timeline-today .row-faculty { min-width: 0; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 
   /* Compact on phones: one tight two-line card per class (name, then room).

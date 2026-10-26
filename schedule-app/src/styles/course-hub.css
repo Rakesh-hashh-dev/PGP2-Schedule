@@ -3,7 +3,7 @@
 .ch-overview-head, .ch-detail-head { margin: 12px 0 25px; }
 .ch-overview-head h1, .ch-detail-head h1 { margin: 8px 0; font: 760 clamp(2rem, 3.7vw, 3rem)/1.08 var(--display); letter-spacing: -.045em; }
 .ch-overview-head p, .ch-detail-head p { margin: 0; color: var(--muted); line-height: 1.5; }
-.ch-search { display: flex; align-items: center; gap: 10px; width: min(440px, 100%); margin-bottom: 21px; padding: 11px 14px; border: 1px solid var(--border); border-radius: 13px; background: var(--card); color: var(--muted); }
+.ch-search { display: flex; align-items: center; gap: 10px; width: min(440px, 100%); margin-bottom: 21px; padding: 11px 14px; border: 1px solid var(--border-input); border-radius: 13px; background: var(--card); color: var(--muted); }
 .ch-search input { min-width: 0; width: 100%; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; }
 .ch-search:focus-within { border-color: var(--violet); box-shadow: 0 0 0 3px var(--violet-dim); }
 .ch-course-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
@@ -106,7 +106,7 @@
 .ch-items { display: grid; gap: 7px; margin: 14px 0; }
 .ch-prep-item, .ch-resource-item { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 10px; border-radius: 10px; background: var(--surface); font-size: .78rem; }
 .ch-prep-item > button:first-child { display: grid; flex: none; width: 24px; height: 24px; place-items: center; border: 1px solid var(--border); border-radius: 7px; background: var(--card); color: transparent; cursor: pointer; }
-.ch-prep-item > button:first-child.is-done { border-color: var(--live); background: var(--live); color: white; }
+.ch-prep-item > button:first-child.is-done { border-color: var(--live); background: var(--live-solid); color: white; }
 .ch-prep-item > span { min-width: 0; flex: 1; overflow-wrap: anywhere; }
 .ch-prep-item > span.is-done { color: var(--muted); text-decoration: line-through; }
 .ch-resource-item a { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; color: var(--text); text-decoration: none; }
@@ -184,9 +184,9 @@
 .ch-modal { width: min(420px, 100%); padding: 22px; border: 1px solid var(--border); border-radius: 19px; background: var(--card); color: var(--text); box-shadow: 0 24px 70px rgba(0, 0, 0, .22); animation: ch-modal-in 190ms ease-out both; }
 .ch-modal h2 { margin: 0 0 18px; font: 740 1.25rem var(--display); }
 .ch-modal label { display: grid; gap: 6px; margin: 12px 0; font-size: .75rem; font-weight: 700; }
-.ch-modal input { width: 100%; padding: 11px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--text); font: inherit; }
+.ch-modal input { width: 100%; padding: 11px 12px; border: 1px solid var(--border-input); border-radius: 9px; background: var(--surface); color: var(--text); font: inherit; }
 .ch-modal input:focus { outline: 2px solid var(--violet); outline-offset: 1px; }
-.ch-modal textarea, .ch-modal select { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--text); font: inherit; resize: vertical; }
+.ch-modal textarea, .ch-modal select { width: 100%; padding: 10px 12px; border: 1px solid var(--border-input); border-radius: 9px; background: var(--surface); color: var(--text); font: inherit; resize: vertical; }
 .ch-modal textarea:focus, .ch-modal select:focus { outline: 2px solid var(--violet); outline-offset: 1px; }
 .ch-learning-modal { max-height: min(90vh, 750px); overflow-y: auto; }
 .ch-learning-modal .ch-check-label { display: flex; align-items: center; gap: 9px; }
@@ -206,7 +206,7 @@
 .ch-learning-row > span strong { font-size: .76rem; }
 .ch-learning-row > span small { margin-top: 2px; color: var(--muted); font-size: .65rem; }
 .ch-topic-check { display: grid; flex: none; width: 25px; height: 25px; place-items: center; border: 1px solid var(--border); border-radius: 7px; background: var(--card); color: transparent; cursor: pointer; }
-.ch-topic-check.is-done { border-color: var(--live); background: var(--live); color: white; }
+.ch-topic-check.is-done { border-color: var(--live); background: var(--live-solid); color: white; }
 .ch-revision { margin-top: 18px; padding-top: 15px; border-top: 1px solid var(--border); }
 .ch-revision h3 { margin: 0; font: 730 .9rem var(--display); }
 .ch-review-item { border-top: 1px solid var(--border); }

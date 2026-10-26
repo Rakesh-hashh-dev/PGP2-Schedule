@@ -149,7 +149,7 @@
 .fs-date-jump-form { display: flex; flex-direction: column; gap: 14px; padding: 20px; }
 .fs-date-jump-form input {
   width: 100%; box-sizing: border-box; min-height: 44px; padding: 10px 14px;
-  border: 1px solid var(--border); border-radius: 10px;
+  border: 1px solid var(--border-input); border-radius: 10px;
   background: var(--bg); color: var(--text); font: 15px var(--body);
 }
 .fs-date-jump-form button {

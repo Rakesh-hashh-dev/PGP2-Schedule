@@ -32,6 +32,7 @@ const SHARE_HINT_KEY = "pgp2.share-hint-seen";
 import PollCard, { PollComposer } from "./PollCard.jsx";
 import { groupInvite, groupInviteUrl } from "../lib/groupInvites.js";
 import { useBackClose } from "../lib/backClose.js";
+import { useDialog, dialogProps } from "../hooks/useDialog.js";
 
 // profiles still holds pre-cutover DEV ghost rows (the data source for
 // migrate-user's on-login restore) — exclude them wherever we list students,
@@ -122,6 +123,7 @@ function StatusIcon({ id, size = 14, className = "" }) {
 
 function StatusModal({ current, onSave, onClose }) {
   useBackClose(onClose);
+  const dialogRef = useDialog(true, onClose);
   const [presetId, setPresetId] = useState(current?.id || null);
   const [customText, setCustomText] = useState(current && !current.id ? current.text : "");
   const [availability, setAvailability] = useState(current?.availability || "unspecified");
@@ -144,10 +146,10 @@ function StatusModal({ current, onSave, onClose }) {
 
   return (
     <div className="fr-modal-backdrop" onClick={onClose}>
-      <div className="fr-status-modal" onClick={e => e.stopPropagation()}>
+      <div className="fr-status-modal" ref={dialogRef} {...dialogProps(null, { labelledBy: "fr-status-title" })} onClick={e => e.stopPropagation()}>
         <div className="fr-friends-modal-title-row">
-          <h2 className="fr-friends-modal-title">Set a status</h2>
-          <button className="fr-modal-close" onClick={onClose}><X size={18} /></button>
+          <h2 className="fr-friends-modal-title" id="fr-status-title">Set a status</h2>
+          <button type="button" className="fr-modal-close" onClick={onClose} aria-label="Close status picker"><X size={18} /></button>
         </div>
         <div className="fr-status-presets">
           {STATUS_PRESETS.map(p => (
@@ -1044,6 +1046,11 @@ export default function FriendsPanel({
   useBackClose(() => setShowAllGroupsModal(false), showAllGroupsModal);
   useBackClose(() => setShowAllBuddiesModal(false), showAllBuddiesModal);
   useBackClose(() => setShowDirectory(false), showDirectory);
+  const connectDialogRef = useDialog(showConnectModal, () => setShowConnectModal(false));
+  const allFriendsDialogRef = useDialog(showAllFriendsModal, () => setShowAllFriendsModal(false));
+  const allGroupsDialogRef = useDialog(showAllGroupsModal, () => setShowAllGroupsModal(false));
+  const allBuddiesDialogRef = useDialog(showAllBuddiesModal, () => setShowAllBuddiesModal(false));
+  const directoryDialogRef = useDialog(showDirectory, () => setShowDirectory(false));
   const [directory, setDirectory] = useState(null); // null = not fetched yet
   const [dirSearch, setDirSearch] = useState("");
   const [requestedIds, setRequestedIds] = useState(() => new Set());
@@ -1574,11 +1581,11 @@ export default function FriendsPanel({
 
       {showAllFriendsModal && (
         <div className="fr-modal-backdrop" onClick={() => setShowAllFriendsModal(false)}>
-          <div className="fr-friends-modal" onClick={e => e.stopPropagation()}>
+          <div className="fr-friends-modal" ref={allFriendsDialogRef} {...dialogProps(null, { labelledBy: "fr-all-friends-title" })} onClick={e => e.stopPropagation()}>
             <div className="fr-friends-modal-head">
               <div className="fr-friends-modal-title-row">
-                <h2 className="fr-friends-modal-title">All Friends</h2>
-                <button className="fr-modal-close" onClick={() => setShowAllFriendsModal(false)}>
+                <h2 className="fr-friends-modal-title" id="fr-all-friends-title">All Friends</h2>
+                <button type="button" className="fr-modal-close" aria-label="Close all friends" onClick={() => setShowAllFriendsModal(false)}>
                   <X size={18} />
                 </button>
               </div>
@@ -1643,11 +1650,11 @@ export default function FriendsPanel({
       {/* ── Groups Modal ── */}
       {showAllGroupsModal && (
         <div className="fr-modal-backdrop" onClick={() => setShowAllGroupsModal(false)}>
-          <div className="fr-friends-modal" onClick={e => e.stopPropagation()}>
+          <div className="fr-friends-modal" ref={allGroupsDialogRef} {...dialogProps(null, { labelledBy: "fr-all-groups-title" })} onClick={e => e.stopPropagation()}>
             <div className="fr-friends-modal-head">
               <div className="fr-friends-modal-title-row">
-                <h2 className="fr-friends-modal-title">All Groups</h2>
-                <button className="fr-modal-close" onClick={() => setShowAllGroupsModal(false)}>
+                <h2 className="fr-friends-modal-title" id="fr-all-groups-title">All Groups</h2>
+                <button type="button" className="fr-modal-close" aria-label="Close all groups" onClick={() => setShowAllGroupsModal(false)}>
                   <X size={18} />
                 </button>
               </div>
@@ -1701,11 +1708,11 @@ export default function FriendsPanel({
       {/* ── Student Directory Modal (find people) ── */}
       {showDirectory && (
         <div className="fr-modal-backdrop" onClick={() => setShowDirectory(false)}>
-          <div className="fr-friends-modal" onClick={e => e.stopPropagation()}>
+          <div className="fr-friends-modal" ref={directoryDialogRef} {...dialogProps(null, { labelledBy: "fr-directory-title" })} onClick={e => e.stopPropagation()}>
             <div className="fr-friends-modal-head">
               <div className="fr-friends-modal-title-row">
-                <h2 className="fr-friends-modal-title">Find Students</h2>
-                <button className="fr-modal-close" onClick={() => setShowDirectory(false)}>
+                <h2 className="fr-friends-modal-title" id="fr-directory-title">Find Students</h2>
+                <button type="button" className="fr-modal-close" aria-label="Close find students" onClick={() => setShowDirectory(false)}>
                   <X size={18} />
                 </button>
               </div>
@@ -1774,11 +1781,11 @@ export default function FriendsPanel({
       {/* ── Suggested Buddies Modal ── */}
       {showAllBuddiesModal && (
         <div className="fr-modal-backdrop" onClick={() => setShowAllBuddiesModal(false)}>
-          <div className="fr-friends-modal" onClick={e => e.stopPropagation()}>
+          <div className="fr-friends-modal" ref={allBuddiesDialogRef} {...dialogProps(null, { labelledBy: "fr-buddies-title" })} onClick={e => e.stopPropagation()}>
             <div className="fr-friends-modal-head">
               <div className="fr-friends-modal-title-row">
-                <h2 className="fr-friends-modal-title">Suggested Buddies</h2>
-                <button className="fr-modal-close" onClick={() => setShowAllBuddiesModal(false)}>
+                <h2 className="fr-friends-modal-title" id="fr-buddies-title">Suggested Buddies</h2>
+                <button type="button" className="fr-modal-close" aria-label="Close suggested buddies" onClick={() => setShowAllBuddiesModal(false)}>
                   <X size={18} />
                 </button>
               </div>
@@ -1795,7 +1802,7 @@ export default function FriendsPanel({
       {/* ── Add people sheet ── */}
       {showConnectModal && (
         <div className="fr-modal-backdrop" onClick={() => setShowConnectModal(false)}>
-          <div className="fr-connect-modal" role="dialog" aria-modal="true" aria-labelledby="fr-connect-title" onClick={e => e.stopPropagation()}>
+          <div className="fr-connect-modal" ref={connectDialogRef} {...dialogProps(null, { labelledBy: "fr-connect-title" })} onClick={e => e.stopPropagation()}>
             <div className="fr-connect-head">
               <div>
                 <span className="fr-eyebrow">Grow your circle</span>

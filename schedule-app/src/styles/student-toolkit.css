@@ -11,7 +11,7 @@
 .toolkit-card .toolkit-primary, .toolkit-sync-hero .toolkit-primary { border-color: transparent; background: var(--violet); color: #fff; }
 .toolkit-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .toolkit-form label, .toolkit-options label { display: grid; gap: 6px; color: var(--muted); font-size: 11.5px; font-weight: 700; }
-.toolkit-form input, .toolkit-form select, .toolkit-form textarea, .toolkit-options input, .toolkit-options select, .toolkit-row select { width: 100%; min-width: 0; min-height: 39px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); font: inherit; }
+.toolkit-form input, .toolkit-form select, .toolkit-form textarea, .toolkit-options input, .toolkit-options select, .toolkit-row select { width: 100%; min-width: 0; min-height: 39px; padding: 8px 10px; border: 1px solid var(--border-input); border-radius: 10px; background: var(--bg); color: var(--text); font: inherit; }
 .toolkit-form textarea { resize: vertical; }
 .toolkit-form .toolkit-span { grid-column: 1 / -1; }
 .toolkit-form > .toolkit-primary { justify-self: start; }
@@ -32,14 +32,14 @@
 .toolkit-card .toolkit-icon-btn { width: 34px; min-height: 34px; flex: 0 0 auto; padding: 0; color: var(--muted); }
 .toolkit-card .toolkit-link { margin-top: 12px; }
 .toolkit-empty { display: flex; align-items: center; gap: 9px; padding: 18px; border: 1px dashed var(--border); border-radius: 13px; color: var(--muted); font-size: 13px; }
-.toolkit-empty svg { color: var(--live); }
+.toolkit-empty svg { color: var(--live-text); }
 .toolkit-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .toolkit-metrics > div { min-width: 0; padding: 15px; border: 1px solid var(--border); border-radius: 15px; background: var(--card); }
 .toolkit-metrics span, .toolkit-metrics strong { display: block; }
 .toolkit-metrics span { color: var(--muted); font-size: 11px; }
 .toolkit-metrics strong { margin-top: 6px; overflow: hidden; font-size: 20px; text-overflow: ellipsis; white-space: nowrap; }
 .toolkit-metrics .is-unlikely strong { color: var(--danger); }
-.toolkit-metrics .is-reached strong { color: var(--live); }
+.toolkit-metrics .is-reached strong { color: var(--live-text); }
 .toolkit-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .toolkit-options label:has(input[type="checkbox"]) { display: flex; align-items: center; min-height: 42px; padding: 9px 11px; border: 1px solid var(--border); border-radius: 11px; color: var(--text); }
 .toolkit-options input[type="checkbox"] { width: auto; min-height: auto; accent-color: var(--violet); }

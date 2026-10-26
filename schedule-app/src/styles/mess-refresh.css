@@ -1,5 +1,9 @@
 /* Shared dining surfaces. Keep the existing meal/data and V2 sheet contracts. */
 .fs-modal-content.mess-menu-refresh {
+  /* Portaled to <body>, outside .app, so it must set the app font itself —
+     otherwise dishes, chips and buttons fall back to the browser serif. */
+  font-family: var(--body);
+  color: var(--text);
   width: min(960px, calc(100vw - 36px));
   max-width: 960px;
   max-height: min(90dvh, 900px);
@@ -55,7 +59,7 @@ button.mess-dish { cursor: pointer; touch-action: manipulation; }
 .mess-dish .mess-chip-star { flex: none; width: 14px; margin: 0; color: color-mix(in srgb, var(--muted) 60%, var(--card)); }
 button.mess-dish:hover { background: var(--card-hi); border-color: var(--border); }
 .mess-dish.is-fav { background: color-mix(in srgb, var(--amber) 8%, var(--card)); color: var(--amber-text, var(--amber)); }
-.mess-dish.is-fav .mess-chip-star, button.mess-dish:hover .mess-chip-star { color: var(--amber); }
+.mess-dish.is-fav .mess-chip-star, button.mess-dish:hover .mess-chip-star { color: var(--amber-text); }
 .mess-menu-refresh .mess-meal-footer { border-top-style: solid; margin-top: 12px; padding-top: 9px; }
 .mess-menu-refresh .mess-meal-footer .mess-rate-btn { min-width: 34px; min-height: 34px; }
 .mess-menu-refresh .mess-menu-disclaimer { font-style: italic; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); font-size: 10.5px; line-height: 1.6; }

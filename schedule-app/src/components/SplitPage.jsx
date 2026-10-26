@@ -26,6 +26,7 @@ import { exportCSV, downloadFile } from "../lib/splitCircle.js";
 import "../styles/split.css";
 import "../styles/split-circle.css";
 import { useBackClose } from "../lib/backClose.js";
+import { useDialog } from "../hooks/useDialog.js";
 
 // TermFlow Split — Splitwise-style shared expenses. Two screens: a list of
 // groups (with your net position) and a group ledger (balances, simplified /
@@ -70,6 +71,7 @@ function Ava({ name, size = 28 }) {
 // ═══════════════════════════════════════════════════════════════
 function GroupModal({ userId, userName, friends, existing, balances, onClose, onSaved, onDeleted }) {
   useBackClose(onClose);
+  const dialogRef = useDialog(true, onClose);
   const cloudFriends = useMemo(() => (friends || []).filter(f => f.cloudId), [friends]);
   const [name, setName] = useState(existing?.name || "");
   const [picked, setPicked] = useState(() => {
@@ -145,7 +147,7 @@ function GroupModal({ userId, userName, friends, existing, balances, onClose, on
 
   return createPortal(
     <div className="sp-modal-backdrop" onClick={onClose}>
-      <form className="sp-modal" role="dialog" aria-modal="true" aria-label={existing ? "Edit group" : "New group"} onClick={e => e.stopPropagation()} onKeyDown={e => { if (e.key === "Escape") onClose(); }} onSubmit={submit}>
+      <form className="sp-modal" ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={existing ? "Edit group" : "New group"} onClick={e => e.stopPropagation()} onSubmit={submit}>
         <div className="sp-modal-head">
           <h3><Users size={16} /> {existing ? "Edit group" : "New group"}</h3>
           <button type="button" className="sp-icon-btn" onClick={onClose} aria-label="Close"><X size={16} /></button>
@@ -221,6 +223,7 @@ function GroupModal({ userId, userName, friends, existing, balances, onClose, on
 // ═══════════════════════════════════════════════════════════════
 function SettleModal({ userId, userName, group, members, suggested, onClose, onSettled }) {
   useBackClose(onClose);
+  const dialogRef = useDialog(true, onClose);
   const others = members.filter(m => m.id !== userId);
   const [toUser, setToUser] = useState(suggested?.toUser || others[0]?.id || "");
   const [amount, setAmount] = useState(suggested?.amountPaise ? (suggested.amountPaise / 100).toString() : "");
@@ -242,7 +245,7 @@ function SettleModal({ userId, userName, group, members, suggested, onClose, onS
 
   return createPortal(
     <div className="sp-modal-backdrop" onClick={onClose}>
-      <form className="sp-modal" role="dialog" aria-modal="true" aria-label="Settle up" onClick={e => e.stopPropagation()} onKeyDown={e => { if (e.key === "Escape") onClose(); }} onSubmit={submit}>
+      <form className="sp-modal" ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Settle up" onClick={e => e.stopPropagation()} onSubmit={submit}>
         <div className="sp-modal-head">
           <h3><HandCoins size={16} /> Settle up</h3>
           <button type="button" className="sp-icon-btn" onClick={onClose} aria-label="Close"><X size={16} /></button>
@@ -294,6 +297,7 @@ function SettleModal({ userId, userName, group, members, suggested, onClose, onS
 // ═══════════════════════════════════════════════════════════════
 function InviteModal({ group, onClose }) {
   useBackClose(onClose);
+  const dialogRef = useDialog(true, onClose);
   const url = buildInviteUrl(group.id);
   const [copied, setCopied] = useState(false);
   async function copy() {
@@ -302,9 +306,9 @@ function InviteModal({ group, onClose }) {
   }
   return createPortal(
     <div className="sp-modal-backdrop" onClick={onClose}>
-      <div className="sp-modal" onClick={e => e.stopPropagation()}>
+      <div className="sp-modal" ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="sp-invite-title" onClick={e => e.stopPropagation()}>
         <div className="sp-modal-head">
-          <h3><Share2 size={16} /> Invite to {group.name}</h3>
+          <h3 id="sp-invite-title"><Share2 size={16} aria-hidden="true" /> Invite to {group.name}</h3>
           <button type="button" className="sp-icon-btn" onClick={onClose} aria-label="Close"><X size={16} /></button>
         </div>
         <p className="sp-hint">Anyone with this link who&rsquo;s signed in can join the group and start splitting.</p>

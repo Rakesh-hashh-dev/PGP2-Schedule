@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Users, Zap, Megaphone, Sparkles, CircleCheck, X, ExternalLink } from "lucide-react";
 import { safeUrl } from "../lib/safeUrl.js";
+import { announce } from "../lib/announce.js";
 
 const SVG_TYPES = {
   social: { Component: Users, color: "#8B5CF6", bg: "rgba(139, 92, 246, 0.14)" },
@@ -23,6 +24,10 @@ export default function SocialFlashToast({ config, onClose }) {
       if (onClose) onClose();
     }, 350);
   }, [onClose]);
+
+  useEffect(() => {
+    if (config) announce(`${config.title || "Social Notification"}. ${config.message || "You have a new update!"}`);
+  }, [config]);
 
   useEffect(() => {
     const timer = setTimeout(() => setVisible(true), 50);
@@ -51,7 +56,7 @@ export default function SocialFlashToast({ config, onClose }) {
 
         <div className="social-flash-badge" style={{ background: bg, border: `1px solid ${color}44` }}>
           <span className="social-flash-badge-ring" aria-hidden="true" />
-          <Component size={20} color={color} strokeWidth={1.8} />
+          <Component size={20} color={color} strokeWidth={1.8} aria-hidden="true" />
         </div>
 
         <div className="social-flash-body">
@@ -65,7 +70,7 @@ export default function SocialFlashToast({ config, onClose }) {
               className="social-flash-action"
               onClick={handleClose}
             >
-              View <ExternalLink size={12} strokeWidth={1.8} />
+              View <ExternalLink size={12} strokeWidth={1.8} aria-hidden="true" /><span className="sr-only"> (opens in new tab)</span>
             </a>
           )}
         </div>

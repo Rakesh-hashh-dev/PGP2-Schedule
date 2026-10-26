@@ -36,7 +36,7 @@ export default function ConfigHistoryPanel({ history = [], liveFlags, hasStagedC
   }
 
   return <section className="admin-card admin-g-system system-control-card config-history-card">
-    <h2><Clock3 size={20} color="var(--blue)" /> Configuration history</h2>
+    <h2><Clock3 size={20} color="var(--blue-text)" /> Configuration history</h2>
     <p className="admin-subtext">Review a saved version against the live configuration. Restoring loads it into the editor; use Review changes and Deploy Config to publish it.</p>
     {entries.length === 0 ? <div className="admin-empty">No previous deployments are saved yet.</div> : <>
       <label className="config-history-picker">Previous version

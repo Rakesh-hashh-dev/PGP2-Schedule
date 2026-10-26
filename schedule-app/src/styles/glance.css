@@ -71,7 +71,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: .06em;
-  color: var(--live);
+  color: var(--live-text);
 }
 
 .glance-hero:not(.is-live) .glance-hero-chip { color: var(--violet); }
@@ -91,7 +91,7 @@
 
 .glance-hero-day { font-size: 11px; color: var(--muted); }
 .glance-hero-eta { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
-.glance-hero.is-live .glance-hero-eta { color: var(--live); }
+.glance-hero.is-live .glance-hero-eta { color: var(--live-text); }
 
 .glance-hero-name {
   display: flex;
@@ -137,7 +137,7 @@
   color: var(--muted);
 }
 
-.glance-hero-empty svg { color: var(--amber); flex-shrink: 0; }
+.glance-hero-empty svg { color: var(--amber-text); flex-shrink: 0; }
 .glance-hero-empty strong { display: block; color: var(--text); font-size: 14px; }
 .glance-hero-empty span { font-size: 12px; }
 
@@ -235,7 +235,7 @@
 
 .glance-kind {
   display: inline-flex;
-  color: var(--blue);
+  color: var(--blue-text);
   flex-shrink: 0;
 }
 
@@ -258,12 +258,12 @@
   height: 30px;
   border-radius: 9px;
   background: var(--surface);
-  color: var(--amber);
+  color: var(--amber-text);
   flex-shrink: 0;
 }
 
 .glance-acc-dinner .glance-meal-icon { color: var(--violet); }
-.glance-acc-lunch .glance-meal-icon { color: var(--live); }
+.glance-acc-lunch .glance-meal-icon { color: var(--live-text); }
 
 .glance-meal-body { flex: 1; min-width: 0; }
 
@@ -301,7 +301,7 @@
   gap: 5px;
   font-size: 11px;
   font-weight: 700;
-  color: var(--live);
+  color: var(--live-text);
   flex-shrink: 0;
 }
 

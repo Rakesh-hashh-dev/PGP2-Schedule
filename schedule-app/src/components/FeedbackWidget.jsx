@@ -2,9 +2,11 @@ import { useState } from "react";
 import { MessageSquare, X, CheckCircle, Send } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useBackClose } from "../lib/backClose.js";
+import { useDialog, dialogProps } from "../hooks/useDialog.js";
 
 export default function FeedbackWidget({ user, onClose }) {
   useBackClose(onClose);
+  const dialogRef = useDialog(true, onClose);
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -37,7 +39,7 @@ export default function FeedbackWidget({ user, onClose }) {
   return (
     <>
       <div className="notif-backdrop" onClick={onClose} style={{ zIndex: 10000 }} />
-      <div className="tf-centered-dialog" style={{
+      <div className="tf-centered-dialog" ref={dialogRef} {...dialogProps(null, { labelledBy: "feedback-dialog-title" })} style={{
         position: "fixed",
         top: "50%",
         left: "50%",
@@ -52,16 +54,16 @@ export default function FeedbackWidget({ user, onClose }) {
         boxShadow: "0 10px 40px rgba(0,0,0,0.2)"
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-          <h2 style={{ margin: 0, fontSize: "18px", display: "flex", alignItems: "center", gap: "8px" }}>
-            <MessageSquare size={18} color="var(--violet)" /> Submit Feedback
+          <h2 id="feedback-dialog-title" style={{ margin: 0, fontSize: "18px", display: "flex", alignItems: "center", gap: "8px" }}>
+            <MessageSquare size={18} color="var(--violet)" aria-hidden="true" /> Submit Feedback
           </h2>
-          <button onClick={onClose} style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--muted)" }}>
+          <button type="button" onClick={onClose} aria-label="Close feedback" style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--muted)" }}>
             <X size={18} />
           </button>
         </div>
 
         {submitted ? (
-          <div style={{ textAlign: "center", padding: "32px 0", color: "var(--green)" }}>
+          <div role="status" style={{ textAlign: "center", padding: "32px 0", color: "var(--green)" }}>
             <CheckCircle size={48} style={{ margin: "0 auto 16px" }} />
             <h3 style={{ margin: "0 0 8px", color: "var(--text)" }}>Thank You!</h3>
             <p style={{ margin: 0, color: "var(--muted)", fontSize: "14px" }}>Your feedback has been sent to the admins.</p>
@@ -75,6 +77,7 @@ export default function FeedbackWidget({ user, onClose }) {
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder="What's on your mind?"
+              aria-label="Your feedback"
               rows={4}
               style={{
                 width: "100%",
@@ -89,7 +92,7 @@ export default function FeedbackWidget({ user, onClose }) {
                 marginBottom: "16px"
               }}
             />
-            {error && <div style={{ color: "var(--danger)", fontSize: "13px", marginBottom: "16px" }}>{error}</div>}
+            {error && <div role="alert" style={{ color: "var(--danger)", fontSize: "13px", marginBottom: "16px" }}>{error}</div>}
             <button
               type="submit"
               disabled={submitting || !message.trim()}

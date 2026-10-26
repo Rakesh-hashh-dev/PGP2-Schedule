@@ -8,6 +8,7 @@ import { fmtTime12 } from "../lib/datetime.js";
 import { CalendarEventBadgeSVG } from "./CalendarSVGs.jsx";
 import { PlacementIcon, CelebrationIcon } from "./PremiumIcons.jsx";
 import { useBackClose } from "../lib/backClose.js";
+import { useDialog, dialogProps } from "../hooks/useDialog.js";
 
 function examCategory(name, session) {
   const n = (name || "").toLowerCase();
@@ -67,6 +68,8 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
   const [dateModalOpen, setDateModalOpen] = useState(false);
   useBackClose(() => setFilterModalOpen(false), filterModalOpen);
   useBackClose(() => setDateModalOpen(false), dateModalOpen);
+  const filterDialogRef = useDialog(filterModalOpen, () => setFilterModalOpen(false));
+  const dateDialogRef = useDialog(dateModalOpen, () => setDateModalOpen(false));
   const [dateToJump, setDateToJump] = useState(TODAY);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [viewMode, setViewMode] = useState("list");
@@ -459,10 +462,10 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
       {/* Date Jump Modal */}
       {dateModalOpen && (
         <div className="filter-modal-overlay" onClick={() => setDateModalOpen(false)}>
-          <div className="filter-modal-sheet" onClick={e => e.stopPropagation()}>
+          <div className="filter-modal-sheet" ref={dateDialogRef} {...dialogProps(null, { labelledBy: "fs-date-jump-title" })} onClick={e => e.stopPropagation()}>
             <div className="filter-modal-header">
-              <h3>Jump to Date</h3>
-              <button onClick={() => setDateModalOpen(false)}><X size={18} /></button>
+              <h3 id="fs-date-jump-title">Jump to Date</h3>
+              <button type="button" onClick={() => setDateModalOpen(false)} aria-label="Close jump to date"><X size={18} /></button>
             </div>
             <form className="filter-modal-scroll fs-date-jump-form" onSubmit={(e) => {
               e.preventDefault();
@@ -503,10 +506,10 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
       {/* Filter Modal */}
       {filterModalOpen && (
         <div className="filter-modal-overlay" onClick={() => setFilterModalOpen(false)}>
-          <div className="filter-modal-sheet" onClick={e => e.stopPropagation()}>
+          <div className="filter-modal-sheet" ref={filterDialogRef} {...dialogProps(null, { labelledBy: "fs-filter-title" })} onClick={e => e.stopPropagation()}>
             <div className="filter-modal-header">
-              <h3>Filter Schedule</h3>
-              <button onClick={() => setFilterModalOpen(false)}><X size={18} /></button>
+              <h3 id="fs-filter-title">Filter Schedule</h3>
+              <button type="button" onClick={() => setFilterModalOpen(false)} aria-label="Close filters"><X size={18} /></button>
             </div>
             <div className="filter-modal-scroll" style={{ padding: "20px" }}>
               <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>

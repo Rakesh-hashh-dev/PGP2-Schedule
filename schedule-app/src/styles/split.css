@@ -62,7 +62,7 @@
 .sp-overview-breakdown > div { display: grid; gap: 6px; min-width: 0; padding: 15px; border: 1px solid var(--border); border-radius: 13px; background: var(--surface); }
 .sp-overview-breakdown span { color: var(--muted); font-size: 12px; }
 .sp-overview-breakdown strong { font: 750 clamp(16px, 2vw, 21px) var(--display); overflow-wrap: anywhere; }
-.sp-overview-breakdown .pos { color: var(--live); }
+.sp-overview-breakdown .pos { color: var(--live-text); }
 .sp-overview-breakdown .neg { color: var(--danger); }
 .sp-section-head { display: flex; align-items: end; justify-content: space-between; gap: 15px; margin-top: 6px; }
 .sp-section-head h3 { margin: 4px 0 0; color: var(--text); font: 760 20px var(--display); }
@@ -109,10 +109,10 @@
   background: var(--surface); color: var(--text);
   margin-top: auto;
 }
-.sp-group-net.pos { background: var(--live-dim); color: var(--live); }
+.sp-group-net.pos { background: var(--live-dim); color: var(--live-text); }
 .sp-group-net.neg { background: rgba(220, 38, 38, 0.1); color: var(--danger); }
 .sp-group-net b { font-weight: 800; }
-.sp-group-net.pos b { color: var(--live); }
+.sp-group-net.pos b { color: var(--live-text); }
 .sp-group-net.neg b { color: var(--danger); }
 .sp-group-net-label { font-weight: 600; }
 .sp-group-net-load { color: var(--muted); letter-spacing: 2px; }
@@ -171,9 +171,9 @@
 }
 .sp-net-label { font-size: 14px; color: var(--muted); font-weight: 600; }
 .sp-net-amt { font: 800 36px var(--display); letter-spacing: -1.5px; }
-.sp-net-card.pos .sp-net-amt { color: var(--live); }
+.sp-net-card.pos .sp-net-amt { color: var(--live-text); }
 .sp-net-card.neg .sp-net-amt { color: var(--danger); }
-.sp-net-zero { display: inline-flex; align-items: center; gap: 7px; font: 600 16px var(--body); color: var(--live); }
+.sp-net-zero { display: inline-flex; align-items: center; gap: 7px; font: 600 16px var(--body); color: var(--live-text); }
 
 /* ── Settle block ── */
 .sp-block-title {
@@ -202,7 +202,7 @@
 .sp-transfer-txt { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text); flex: 1; }
 .sp-transfer-txt svg { color: var(--muted); }
 .sp-transfer-amt { font-weight: 700; font-size: 13.5px; }
-.sp-transfer-amt.pos { color: var(--live); }
+.sp-transfer-amt.pos { color: var(--live-text); }
 .sp-transfer-amt.neg { color: var(--danger); }
 
 .sp-mini-btn {
@@ -211,7 +211,7 @@
   font: 600 11.5px var(--body); cursor: pointer;
 }
 .sp-mini-btn.ghost { background: var(--violet-dim); color: var(--violet); }
-.sp-mini-done { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--live); font-weight: 600; }
+.sp-mini-done { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--live-text); font-weight: 600; }
 
 /* ── Ledger actions ── */
 .sp-ledger-actions { display: flex; flex-direction: column; gap: 10px; }
@@ -258,15 +258,15 @@
   background: var(--surface);
 }
 .sp-feed-kind { display: grid; flex: none; width: 36px; height: 36px; place-items: center; border-radius: 10px; background: var(--violet-dim); color: var(--violet); }
-.sp-feed-settle .sp-feed-kind { background: var(--live-dim); color: var(--live); }
+.sp-feed-settle .sp-feed-kind { background: var(--live-dim); color: var(--live-text); }
 .sp-feed-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .sp-feed-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .sp-feed-desc { font: 730 14px var(--body); color: var(--text); overflow-wrap: anywhere; }
 .sp-feed-total { font-weight: 700; font-size: 14px; color: var(--text); flex-shrink: 0; }
-.sp-feed-total.pos { color: var(--live); }
+.sp-feed-total.pos { color: var(--live-text); }
 .sp-feed-sub { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 10px; font-size: 12px; color: var(--muted); }
 .sp-lent { white-space: nowrap; display: inline-flex; }
-.sp-lent.pos { color: var(--live); font-weight: 600; }
+.sp-lent.pos { color: var(--live-text); font-weight: 600; }
 .sp-lent.neg { color: var(--danger); font-weight: 600; }
 .sp-feed-settle { background: color-mix(in srgb, var(--live-dim) 40%, var(--card)); }
 .sp-feed-confirm { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 4px; flex-shrink: 0; }
@@ -340,7 +340,7 @@
 .sp-input {
   width: 100%; box-sizing: border-box;
   padding: 12px 14px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-input);
   border-radius: 11px;
   background: var(--surface);
   color: var(--text);
@@ -481,7 +481,7 @@
 .sp-split-input-wrap { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .sp-split-input {
   width: 66px; padding: 6px 8px; text-align: right;
-  border: 1px solid var(--border); border-radius: 8px;
+  border: 1px solid var(--border-input); border-radius: 8px;
   background: var(--surface); color: var(--text);
   font: 600 13px var(--body); outline: none;
 }
@@ -520,7 +520,7 @@
 
 /* ── Member balance note (edit modal) ── */
 .sp-mbal { font-size: 11px; font-weight: 600; margin-left: 2px; }
-.sp-mbal.pos { color: var(--live); }
+.sp-mbal.pos { color: var(--live-text); }
 .sp-mbal.neg { color: var(--danger); }
 
 /* ── Receipt in expense modal ── */

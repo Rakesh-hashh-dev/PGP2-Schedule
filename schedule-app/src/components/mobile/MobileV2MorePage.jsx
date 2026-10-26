@@ -13,7 +13,7 @@ function MoreRow({ Icon, label, detail, badge, danger = false, onClick }) {
         <strong>{label}</strong>
         {detail && <small>{detail}</small>}
       </span>
-      {badge > 0 && <span className="mobile-v2-more-badge">{badge > 99 ? "99+" : badge}</span>}
+      {badge > 0 && <span className="mobile-v2-more-badge">{badge > 99 ? "99+" : badge}<span className="sr-only"> unread</span></span>}
       {!danger && <ChevronRight size={15} className="mobile-v2-more-chevron" aria-hidden="true" />}
     </button>
   );

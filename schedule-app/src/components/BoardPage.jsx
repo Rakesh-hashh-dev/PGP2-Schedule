@@ -7,6 +7,7 @@ import {
 } from "../lib/board.js";
 import "../styles/board.css";
 import { useBackClose } from "../lib/backClose.js";
+import { useDialog, dialogProps } from "../hooks/useDialog.js";
 
 // Campus Board — cohort lost & found + buy/sell. Feed is Supabase-backed with
 // realtime refresh; moderation is report-to-hide (3 reports) plus admin
@@ -43,6 +44,7 @@ function KindIcon({ kind, size = 14, className = "" }) {
 
 function BoardComposer({ userId, userName, onCreated, onClose }) {
   useBackClose(onClose);
+  const dialogRef = useDialog(true, onClose);
   const [kind, setKind] = useState("lost");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -115,9 +117,11 @@ function BoardComposer({ userId, userName, onCreated, onClose }) {
 
   return createPortal(
     <div className="board-modal-backdrop" onClick={onClose}>
-      <form 
-        className="board-composer" 
-        onClick={e => e.stopPropagation()} 
+      <form
+        ref={dialogRef}
+        {...dialogProps(null, { labelledBy: "board-composer-title" })}
+        className="board-composer"
+        onClick={e => e.stopPropagation()}
         onSubmit={submit}
         onPaste={onPaste}
         onDrop={onDrop}
@@ -126,7 +130,7 @@ function BoardComposer({ userId, userName, onCreated, onClose }) {
         <div className="board-composer-head">
           <div>
             <span className="board-eyebrow">Campus Board</span>
-            <h3><Package size={18} /> Create a post</h3>
+            <h3 id="board-composer-title"><Package size={18} aria-hidden="true" /> Create a post</h3>
             <p>Share it with your batch for the next 30 days.</p>
           </div>
           <button type="button" className="board-icon-btn" onClick={onClose} aria-label="Close"><X size={16} /></button>

@@ -34,5 +34,5 @@
 }
 .ps-note-dismiss:hover, .ps-note-dismiss:focus-visible {
   background: color-mix(in srgb, var(--amber) 14%, transparent);
-  color: var(--text); outline: none;
+  color: var(--text);
 }

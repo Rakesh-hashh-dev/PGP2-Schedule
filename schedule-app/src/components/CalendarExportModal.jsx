@@ -33,6 +33,7 @@ import {
   GlowingAlarmBellSVG,
 } from "./CalendarSVGs.jsx";
 import { useBackClose } from "../lib/backClose.js";
+import { useDialog, dialogProps } from "../hooks/useDialog.js";
 
 const AREA_LABELS = {
   "F&A": "Finance",
@@ -55,6 +56,7 @@ export default function CalendarExportModal({
   initialIncludeExams = true,
 }) {
   useBackClose(onClose, isOpen);
+  const dialogRef = useDialog(isOpen, onClose);
   const detectedPlatform = useMemo(() => detectPlatform(), []);
   const enrolledCodes = useMemo(() => Object.keys(enrolled || {}), [enrolled]);
 
@@ -165,7 +167,7 @@ export default function CalendarExportModal({
 
   return (
     <div className="cal-modal-backdrop" onClick={onClose}>
-      <div className="cal-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="cal-modal" ref={dialogRef} {...dialogProps(null, { labelledBy: "cal-modal-title" })} onClick={(e) => e.stopPropagation()}>
         {/* ── Modal Header with Ambient Glow ── */}
         <div className="cal-modal-header">
           <div className="cal-header-left">
@@ -187,10 +189,10 @@ export default function CalendarExportModal({
                   </span>
                 )}
               </div>
-              <h2 className="cal-modal-title">Sync Timetable to Calendar</h2>
+              <h2 className="cal-modal-title" id="cal-modal-title">Sync Timetable to Calendar</h2>
             </div>
           </div>
-          <button className="cal-modal-close" onClick={onClose} aria-label="Close modal">
+          <button className="cal-modal-close" onClick={onClose} aria-label="Close calendar sync">
             <X size={16} />
           </button>
         </div>

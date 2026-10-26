@@ -4,6 +4,7 @@ import { CheckCircle2, Circle, Plus, Trash2, X, ChevronDown, Check, Sparkles, Bo
 import { loadAssignments, pushAssignments } from "../lib/assignments.js";
 import { EmptyState } from "./ui.jsx";
 import { useBackClose } from "../lib/backClose.js";
+import { useDialog, dialogProps } from "../hooks/useDialog.js";
 
 function daysUntil(dueDate) {
   if (!dueDate) return null;
@@ -228,6 +229,7 @@ export default function AssignmentsPanel({ enrolled, legend, userId, onTaskCompl
   const [assignments, setAssignments] = useState(() => loadAssignments());
   const [modalOpen, setModalOpen] = useState(Boolean(openTarget?.code));
   useBackClose(() => setModalOpen(false), modalOpen);
+  const dialogRef = useDialog(modalOpen, () => setModalOpen(false));
   const [collapsedCards, setCollapsedCards] = useState({});
   const [modalData, setModalData] = useState(() => openTarget?.task
     ? { ...openTarget.task, code: openTarget.code }
@@ -603,7 +605,7 @@ export default function AssignmentsPanel({ enrolled, legend, userId, onTaskCompl
       )}
 
       {undoState && (
-        <div className="assign-undo-toast">
+        <div className="assign-undo-toast" role="status">
           <span>Deleted "{undoState.task.title || "Untitled Task"}"</span>
           <button onClick={undoDelete}>Undo</button>
         </div>
@@ -611,11 +613,11 @@ export default function AssignmentsPanel({ enrolled, legend, userId, onTaskCompl
 
       {modalOpen && (
         <div className="assign-modal-overlay" onClick={() => setModalOpen(false)}>
-          <div className="assign-modal" onClick={e => e.stopPropagation()}>
-            <span className="assign-modal-drag-handle" />
+          <div className="assign-modal" ref={dialogRef} {...dialogProps(null, { labelledBy: "assign-modal-title" })} onClick={e => e.stopPropagation()}>
+            <span className="assign-modal-drag-handle" aria-hidden="true" />
             <div className="assign-modal-head">
-              <h2>{modalData.id ? "Edit Assignment" : "New Assignment"}</h2>
-              <button className="assign-modal-close" aria-label="Close" onClick={() => setModalOpen(false)}>
+              <h2 id="assign-modal-title">{modalData.id ? "Edit Assignment" : "New Assignment"}</h2>
+              <button className="assign-modal-close" aria-label="Close assignment editor" onClick={() => setModalOpen(false)}>
                 <X size={16}/>
               </button>
             </div>

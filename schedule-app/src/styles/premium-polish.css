@@ -32,11 +32,11 @@ body .mark-prompt {
   font: 700 .72rem var(--body);
   white-space: nowrap;
 }
-.mark-prompt .att-b.present { border-color: color-mix(in srgb, var(--live) 35%, var(--border)); color: var(--live); background: color-mix(in srgb, var(--live) 8%, var(--card)); }
+.mark-prompt .att-b.present { border-color: color-mix(in srgb, var(--live) 35%, var(--border)); color: var(--live-text); background: color-mix(in srgb, var(--live) 8%, var(--card)); }
 .mark-prompt .att-b.absent { border-color: color-mix(in srgb, var(--danger) 28%, var(--border)); color: var(--danger); background: color-mix(in srgb, var(--danger) 5%, var(--card)); }
 .mark-prompt-feedback { margin: 7px 0 0; color: var(--muted); font-size: .72rem; }
 .mark-confirm { display: inline-flex; align-items: center; gap: 8px; margin: 0 0 12px; padding: 9px 12px; border: 1px solid color-mix(in srgb, var(--live) 32%, var(--border)); border-radius: 10px; background: var(--card); color: var(--text); font: 650 .77rem var(--body); box-shadow: var(--tf-surface-shadow); }
-.mark-confirm svg { color: var(--live); }
+.mark-confirm svg { color: var(--live-text); }
 .tf-section-loading { margin-top: 12px; color: var(--muted); font: 650 .8rem var(--body); }
 .pane-today .loading-screen { border: 1px solid var(--border); border-radius: var(--tf-surface-radius); background: var(--card); box-shadow: var(--tf-surface-shadow); }
 

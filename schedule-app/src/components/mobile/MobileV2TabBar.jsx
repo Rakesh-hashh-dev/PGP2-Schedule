@@ -12,19 +12,19 @@ export default function MobileV2TabBar({
   const items = [
     ["today", "Today", "today"],
     ["schedule", "Schedule", "week"],
-    ...(attendanceEnabled ? [["attendance", "Attend", "attendance"]] : []),
+    ...(attendanceEnabled ? [["attendance", "Attend", "attendance", "Attendance"]] : []),
     ["tasks", "Tasks", "assignments"],
     ["more", "More", null],
   ];
 
   return (
-    <nav className="mobile-v2-tabbar" aria-label="V2 primary navigation" style={{ "--mobile-nav-count": items.length }}>
-      {items.map(([id, label, target]) => (
+    <nav className="mobile-v2-tabbar" aria-label="Primary" style={{ "--mobile-nav-count": items.length }}>
+      {items.map(([id, label, target, spoken]) => (
         <button
           type="button"
           key={id}
           className={active === id ? "is-active" : ""}
-          aria-label={label}
+          aria-label={spoken || label}
           aria-current={active === id ? "page" : undefined}
           onClick={() => id === "more" ? onOpenMore() : onNavigate(target)}
         >

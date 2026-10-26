@@ -5,6 +5,8 @@ import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Sus
 import { createPortal } from "react-dom";
 import { setNavView, useNavView, URL_VIEWS, urlWithView, scrollViewToTop } from "./lib/navView.js";
 import { useBackClose } from "./lib/backClose.js";
+import { useDialog, dialogProps } from "./hooks/useDialog.js";
+import { announce } from "./lib/announce.js";
 import BnavLens from "./components/BnavLens.jsx";
 import SbFloatTip from "./components/SbFloatTip.jsx";
 import { startPetMotionWatcher } from "./lib/petMotion.js";
@@ -709,6 +711,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // too so the user sees their own on-leave state, not just friends.
   const [myAway, setMyAway] = useState(() => loadMyAway());
   const [friendToast, setFriendToast] = useState(null);
+  useEffect(() => { if (typeof friendToast === "string") announce(friendToast); }, [friendToast]);
   // XP toast queue: each item is { id, xp, label, firstOfDay }. The head of the
   // queue is shown; when it calls onDone the head is shifted off and the next
   // item (if any) mounts. This keeps toasts sequential even when several
@@ -865,6 +868,14 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   useBackClose(() => setHelpModalOpen(false), helpModalOpen);
   useBackClose(() => setFilterModalOpen(false), filterModalOpen);
   useBackClose(closeTabletSidebar, tabletSidebarOpen);
+  // Keyboard: Escape closes, focus returns to the opener. Menus are non-modal
+  // (the profile menu opens on hover), full sheets trap focus.
+  const profileMenuRef = useDialog(profileOpen, () => setProfileOpen(false), { modal: false });
+  const sbProfileMenuRef = useDialog(sbProfileOpen, () => setSbProfileOpen(false), { modal: false });
+  const overflowMenuRef = useDialog(overflowOpen, () => setOverflowOpen(false), { modal: false });
+  const termMenuRef = useDialog(desktopTermMenuOpen, () => setDesktopTermMenuOpen(false), { modal: false });
+  const helpDialogRef = useDialog(helpModalOpen, () => setHelpModalOpen(false));
+  const filterDialogRef = useDialog(filterModalOpen, () => setFilterModalOpen(false));
   const premiumMode = true;
 
   useEffect(() => {
@@ -2341,7 +2352,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       {desktopTermMenuOpen && termPickerPos && createPortal(
         <>
           <div className="notif-backdrop" onClick={() => setDesktopTermMenuOpen(false)} />
-          <div className="over-menu term-picker-menu" style={{ position: "fixed", top: termPickerPos.top, left: termPickerPos.left, minWidth: Math.max(200, termPickerPos.minWidth) }}>
+          <div ref={termMenuRef} className="over-menu term-picker-menu" role="group" aria-label="Choose term" style={{ position: "fixed", top: termPickerPos.top, left: termPickerPos.left, minWidth: Math.max(200, termPickerPos.minWidth) }}>
             <button className="over-term-row" onClick={() => { pickTerm(TERM?.number ?? "", true); setDesktopTermMenuOpen(false); }}>
               <span className="over-term-row-top">
                 <Radio size={14} className="over-term-live-icon" /> Term {TERM?.number}
@@ -2676,7 +2687,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
   const renderSbAvatarWrap = () => (
     <div className="sb-avatar-wrap" onMouseEnter={(e) => showSbTip(e, "Profile", true)} onMouseLeave={hideSbTip}>
-      <button className="sb-avatar-btn" onClick={(e) => { e.stopPropagation(); setSbProfileOpen(o => !o); hideSbTip(); }} aria-label="Profile">
+      <button className="sb-avatar-btn" onClick={(e) => { e.stopPropagation(); setSbProfileOpen(o => !o); hideSbTip(); }} aria-label="Profile" aria-expanded={sbProfileOpen}>
         <div className="sb-avatar-img">
           {user?.imageUrl ? <img src={user.imageUrl} alt="" /> : (user?.firstName?.[0] || "?")}
         </div>
@@ -2689,7 +2700,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         </div>
       </button>
       {sbProfileOpen && <div className="notif-backdrop" style={{ zIndex: 299 }} onClick={() => setSbProfileOpen(false)} />}
-      <div className={`sb-profile-pop ${sbProfileOpen ? "sb-open" : ""}`}>
+      <div ref={sbProfileMenuRef} className={`sb-profile-pop ${sbProfileOpen ? "sb-open" : ""}`} role="group" aria-label="Profile and settings">
         <div className="sb-pop-head">
           <div className={`sb-pop-ava ${isUploadingAva ? "is-uploading" : ""}`} onClick={() => !isUploadingAva && avaInputRef.current?.click()}>
             <input type="file" ref={avaInputRef} accept="image/*" style={{ display: 'none' }} onChange={handleAvatarUpload} />
@@ -2851,6 +2862,15 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
   return (
     <div className={`app-shell${v2Active ? " mobile-ui-v2" : " mobile-ui-v1"}`}>
+      {/* Skip link: first tab stop, jumps past the sidebar/top bar. Focus is
+          moved by hand so the URL hash (used by back-button history) stays. */}
+      <a
+        className="skip-link"
+        href="#main-content"
+        onClick={(e) => { e.preventDefault(); document.getElementById("main-content")?.focus(); }}
+      >
+        Skip to content
+      </a>
       {/* ── Dev→Prod Migration Banner (one-time, self-removing) ── */}
       {migrationState && <MigrationBanner state={migrationState} />}
 
@@ -2895,8 +2915,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
       {/* ── Friend-added toast (share-link accepts) ── */}
       {friendToast && (
-        <div className="app-toast" role="status">
-          <Users size={15} /> {friendToast}
+        <div className="app-toast">
+          <Users size={15} aria-hidden="true" /> {friendToast}
         </div>
       )}
 
@@ -3044,7 +3064,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               {profileOpen && (
                 <>
                   <div className="notif-backdrop" onClick={() => setProfileOpen(false)} />
-                  <div className="over-menu">
+                  <div ref={profileMenuRef} className="over-menu" role="group" aria-label="Profile and settings">
                     <div className="over-profile">
                       <UserAvatar user={user} size={36} />
                       <div className="over-profile-info">
@@ -3103,7 +3123,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               {overflowOpen && (
                 <>
                   <div className="notif-backdrop" onClick={() => setOverflowOpen(false)} />
-                  <div className={`over-menu${v2Active ? " mobile-v2-quick-menu" : ""}`}>
+                  <div ref={overflowMenuRef} className={`over-menu${v2Active ? " mobile-v2-quick-menu" : ""}`} role="group" aria-label="More options">
                     <MobileUiVersionMenu
                       version={mobileUiVersion}
                       onVersionChange={(next) => {
@@ -3307,8 +3327,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                         {adminSecOpen && (
                           <div className="over-section-body">
                             {showAdminUI && (
-                              <button onClick={() => { setView("admin"); setCompareTarget(null); setOverflowOpen(false); }} style={{ color: "var(--live)" }}>
-                                <Shield size={14} color="var(--live)" /> Admin Dashboard
+                              <button onClick={() => { setView("admin"); setCompareTarget(null); setOverflowOpen(false); }} style={{ color: "var(--live-text)" }}>
+                                <Shield size={14} color="var(--live-text)" /> Admin Dashboard
                               </button>
                             )}
                             {isAdmin && (
@@ -3369,7 +3389,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                     <GraduationCap size={15} /> <span className="tab-label">Exams</span>
                   </NavButton>
                 )}
-                <NavButton nav="notifications" className="tab" aria-label="Announcements" onClick={() => { setView("notifications"); setCompareTarget(null); }}>
+                <NavButton nav="notifications" className="tab" aria-label={unreadChangeCount > 0 ? `Announcements, ${unreadChangeCount} unread` : "Announcements"} onClick={() => { setView("notifications"); setCompareTarget(null); }}>
                   <Megaphone size={15} /> <span className="tab-label">Announcements</span>
                   {unreadChangeCount > 0 && <span className="nav-badge">{unreadChangeCount}</span>}
                 </NavButton>
@@ -3377,7 +3397,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                   <BookOpenCheck size={15} /> <span className="tab-label">Assignments</span>
                 </NavButton>
                 {enableFriends && (
-                  <NavButton nav="friends" className="tab" aria-label="Social" onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); markBadgeSeen("social"); }}>
+                  <NavButton nav="friends" className="tab" aria-label={unreadFriendCount > 0 ? `Social, ${unreadFriendCount} unread` : "Social"} onClick={() => { setView("friends"); setCompareTarget(null); markGroupsSeen(); markBadgeSeen("social"); }}>
                     <Users size={15} /> <span className="tab-label">Social</span> {showBadge("social") && <span className="beta-badge tab-label">Beta</span>}
                     {unreadFriendCount > 0 && <span className="nav-badge">{unreadFriendCount}</span>}
                   </NavButton>
@@ -3581,6 +3601,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               key={`${view}:${compareTarget ? "compare" : "primary"}`}
               className={`${view === "week" ? "pane-today hide-mobile" : "pane-today"} tf-page-stage`}
               data-page={view}
+              id="main-content"
               tabIndex={-1}
               role="region"
               aria-label={compareTarget ? "Compare schedules" : viewTitle(view).replace(/ · TermFlow$/, "")}
@@ -3917,11 +3938,11 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         {/* Global Help Modal */}
         {helpModalOpen && (
           <div className="fs-modal-overlay" onClick={() => setHelpModalOpen(false)}>
-            <div className="fs-modal-content" onClick={e => e.stopPropagation()}>
-              
+            <div className="fs-modal-content" ref={helpDialogRef} {...dialogProps(null, { labelledBy: "help-modal-title" })} onClick={e => e.stopPropagation()}>
+
               <div className="fs-modal-header">
-                <h3><BookOpenCheck size={20} color="var(--violet)" /> App Guide</h3>
-                <button className="fs-modal-close" onClick={() => setHelpModalOpen(false)}><X size={18}/></button>
+                <h3 id="help-modal-title"><BookOpenCheck size={20} color="var(--violet)" aria-hidden="true" /> App Guide</h3>
+                <button type="button" className="fs-modal-close" aria-label="Close app guide" onClick={() => setHelpModalOpen(false)}><X size={18}/></button>
               </div>
 
               <div className="fs-modal-body">
@@ -4004,10 +4025,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
         {filterModalOpen && (
           <div className="filter-modal-overlay" onClick={() => setFilterModalOpen(false)}>
-            <div className="filter-modal-sheet" onClick={e => e.stopPropagation()}>
+            <div className="filter-modal-sheet" ref={filterDialogRef} {...dialogProps(null, { labelledBy: "subject-filter-title" })} onClick={e => e.stopPropagation()}>
               <div className="filter-modal-header">
-                <h3>Filter Subjects</h3>
-                <button onClick={() => setFilterModalOpen(false)}><X size={18} /></button>
+                <h3 id="subject-filter-title">Filter Subjects</h3>
+                <button type="button" aria-label="Close subject filter" onClick={() => setFilterModalOpen(false)}><X size={18} /></button>
               </div>
               <div className="filter-modal-scroll">
                  <SubjectFilter legend={enrolledLegend} mine={mine} setMine={setMine} forceOpen={true} onEditSetup={() => { openEditSetup(); setFilterModalOpen(false); }} />

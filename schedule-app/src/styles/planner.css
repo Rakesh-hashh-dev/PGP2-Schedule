@@ -3,7 +3,7 @@
 .planner-head h1 { margin: 9px 0 8px; font: 750 clamp(2rem, 4vw, 3.25rem)/1 var(--display); letter-spacing: -.045em; }
 .planner-head p { max-width: 670px; margin: 0; color: var(--muted); line-height: 1.65; }
 .planner-kicker { display: flex; align-items: center; gap: 7px; color: var(--violet); font-size: .72rem; font-weight: 850; letter-spacing: .14em; }
-.planner-live-pill { display: flex; align-items: center; gap: 7px; flex: none; padding: 9px 12px; border: 1px solid color-mix(in srgb, var(--live) 30%, var(--border)); border-radius: 999px; background: var(--live-dim); color: var(--live); font-size: .76rem; font-weight: 750; }
+.planner-live-pill { display: flex; align-items: center; gap: 7px; flex: none; padding: 9px 12px; border: 1px solid color-mix(in srgb, var(--live) 30%, var(--border)); border-radius: 999px; background: var(--live-dim); color: var(--live-text); font-size: .76rem; font-weight: 750; }
 .planner-live-pill.is-offline { border-color: var(--border); background: var(--surface); color: var(--muted); }
 .planner-tabs { display: flex; gap: 5px; margin-bottom: 20px; padding: 5px; overflow-x: auto; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); scrollbar-width: none; }
 .planner-tabs::-webkit-scrollbar { display: none; }
@@ -40,12 +40,12 @@
 .planner-row-dot.is-soon { background: var(--amber); }
 .planner-score { display: grid; min-width: 46px; height: 38px; place-items: center; border-radius: 10px; background: var(--surface); font-size: .78rem; font-weight: 850; }
 .planner-score.is-risk { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger); }
-.planner-score.is-watch { background: var(--amber-dim); color: var(--amber); }
+.planner-score.is-watch { background: var(--amber-dim); color: var(--amber-text); }
 .planner-change-kind { min-width: 58px; padding: 5px 7px; border-radius: 7px; background: var(--violet-dim); color: var(--violet); font-size: .62rem; font-style: normal; font-weight: 850; text-align: center; text-transform: uppercase; }
 .planner-change-kind.is-removed { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger); }
-.planner-change-kind.is-moved { background: var(--amber-dim); color: var(--amber); }
+.planner-change-kind.is-moved { background: var(--amber-dim); color: var(--amber-text); }
 .planner-empty { display: flex; min-height: 116px; flex-direction: column; align-items: center; justify-content: center; padding: 22px; color: var(--muted); text-align: center; }
-.planner-empty svg { margin-bottom: 9px; color: var(--live); }
+.planner-empty svg { margin-bottom: 9px; color: var(--live-text); }
 .planner-empty strong { color: var(--text); font-size: .9rem; }
 .planner-empty span { margin-top: 5px; font-size: .76rem; line-height: 1.5; }
 .planner-callout { display: flex; align-items: flex-start; gap: 13px; padding: 16px 18px; border: 1px solid color-mix(in srgb, var(--violet) 22%, var(--border)); border-radius: 15px; background: var(--violet-dim); color: var(--violet); }
@@ -129,21 +129,21 @@
 .planner-stepper small { display: block; color: var(--muted); font-size: .55rem; }
 .planner-forecast-note { grid-column: 1 / -1; padding-top: 12px; border-top: 1px solid var(--border); color: var(--muted); font-size: .76rem; }
 .planner-task-estimate { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px; border-radius: 12px; background: var(--card-hi); }
-.planner-task-estimate select { max-width: 128px; padding: 8px 9px; border: 1px solid var(--border); border-radius: 9px; background: var(--card); color: var(--text); font: 650 .72rem var(--body); }
+.planner-task-estimate select { max-width: 128px; padding: 8px 9px; border: 1px solid var(--border-input); border-radius: 9px; background: var(--card); color: var(--text); font: 650 .72rem var(--body); }
 .planner-study-slot { display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: center; gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; }
-.planner-study-slot > span { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 10px; background: var(--live-dim); color: var(--live); }
+.planner-study-slot > span { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 10px; background: var(--live-dim); color: var(--live-text); }
 .planner-change-list { display: grid; gap: 9px; }
 .planner-change-row { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; align-items: center; gap: 13px; padding: 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--card-hi); color: var(--text); text-align: left; cursor: pointer; }
 .planner-change-row.is-unread { border-color: color-mix(in srgb, var(--violet) 35%, var(--border)); background: color-mix(in srgb, var(--violet) 5%, var(--card-hi)); }
 .planner-change-icon { display: grid; width: 42px; height: 42px; place-items: center; border-radius: 12px; background: var(--violet-dim); color: var(--violet); }
 .planner-change-icon.is-removed { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger); }
-.planner-change-icon.is-moved { background: var(--amber-dim); color: var(--amber); }
+.planner-change-icon.is-moved { background: var(--amber-dim); color: var(--amber-text); }
 .planner-change-copy { min-width: 0; }
 .planner-change-copy > span { display: flex; align-items: center; gap: 8px; }
 .planner-change-copy i { padding: 3px 6px; border-radius: 999px; background: var(--violet); color: white; font-size: .55rem; font-style: normal; font-weight: 850; text-transform: uppercase; }
 .planner-change-copy small { display: block; margin-top: 5px; overflow: hidden; color: var(--muted); font-size: .77rem; text-overflow: ellipsis; white-space: nowrap; }
 .planner-change-copy em { display: block; margin-top: 6px; color: var(--muted); font-size: .65rem; font-style: normal; }
-.planner-sync-hero { display: flex; align-items: center; gap: 15px; padding: 22px; border: 1px solid color-mix(in srgb, var(--live) 28%, var(--border)); border-radius: 20px; background: var(--live-dim); color: var(--live); }
+.planner-sync-hero { display: flex; align-items: center; gap: 15px; padding: 22px; border: 1px solid color-mix(in srgb, var(--live) 28%, var(--border)); border-radius: 20px; background: var(--live-dim); color: var(--live-text); }
 .planner-sync-hero.is-offline { border-color: var(--border); background: var(--surface); color: var(--muted); }
 .planner-sync-hero > div { min-width: 0; flex: 1; }
 .planner-sync-hero span, .planner-sync-hero strong { display: block; }
@@ -153,7 +153,7 @@
 .planner-sync-hero button:disabled { cursor: not-allowed; opacity: .45; }
 .planner-sync-list { display: grid; margin-top: 17px; }
 .planner-sync-list > div { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 13px 0; border-top: 1px solid var(--border); }
-.planner-sync-mark { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 10px; background: var(--live-dim); color: var(--live); }
+.planner-sync-mark { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 10px; background: var(--live-dim); color: var(--live-text); }
 .planner-sync-mark.is-local { background: var(--violet-dim); color: var(--violet); }
 .planner-sync-list strong, .planner-sync-list small { display: block; }
 .planner-sync-list strong { font-size: .83rem; }
@@ -164,16 +164,16 @@
 .planner-metric > span { color: var(--muted); font-size: .7rem; font-weight: 750; }
 .planner-metric strong { display: block; margin: 16px 0 6px; font: 750 2rem/1 var(--display); letter-spacing: -.04em; }
 .planner-metric small { color: var(--muted); font-size: .7rem; }
-.planner-metric.tone-good strong { color: var(--live); }
+.planner-metric.tone-good strong { color: var(--live-text); }
 .planner-metric.tone-risk strong { color: var(--danger); }
 .planner-metric.tone-violet strong { color: var(--violet); }
-.planner-metric.tone-blue strong { color: var(--blue); }
+.planner-metric.tone-blue strong { color: var(--blue-text); }
 
 /* Analytical views share the existing Planner surfaces and theme tokens. */
 .planner-capacity-card { grid-column: 1 / -1; }
 .planner-capacity-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 9px 18px; margin-bottom: 16px; color: var(--muted); font-size: .73rem; }
 .planner-capacity-controls label { display: inline-flex; align-items: center; gap: 9px; color: var(--text); font-weight: 700; }
-.planner-capacity-controls select { padding: 7px 28px 7px 9px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--text); font: inherit; }
+.planner-capacity-controls select { padding: 7px 28px 7px 9px; border: 1px solid var(--border-input); border-radius: 9px; background: var(--surface); color: var(--text); font: inherit; }
 .planner-capacity-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .planner-capacity-summary > div { min-width: 0; padding: 12px 14px; border-radius: 12px; background: var(--surface); }
 .planner-capacity-summary strong, .planner-capacity-summary span { display: block; }

@@ -38,11 +38,22 @@
   --live-dim: rgba(31, 169, 113, .08);
   --amber: #C9882B;
   --amber-dim: rgba(201, 136, 43, .13);
-  --violet: #6D5BD0;
-  --violet-dim: rgba(109, 91, 208, .08);
+  --violet: #5F4DC4;
+  --violet-dim: rgba(95, 77, 196, .08);
   --blue: #3B82F6;
   --danger: #C0392B;
   --amber-text: #8A5A14;
+  /* Text-safe accents (WCAG AA 4.5:1 on --bg/--surface/--card). The bright
+     --live/--blue stay for fills, dots and borders; use these for text. */
+  --live-text: #0E7047;
+  --blue-text: #1D5FD1;
+  /* Keyboard focus ring (>= 3:1 on every surface) and form-control borders */
+  --focus-ring: #4B3BB0;
+  --border-input: #8A8578;
+  /* Solid fills behind white text (>= 4.5:1 with #fff in both themes) */
+  --live-solid: #0E7047;
+  --blue-solid: #1D5FD1;
+  --amber-solid: #8A5A14;
   --amber-transparent: rgba(201, 136, 43, .10);
   --ink: #15182B;
   --bone: #F3F1EA;
@@ -73,6 +84,10 @@ html[data-theme="dark"] {
   --blue: #60A5FA;
   --danger: #F87171;
   --amber-text: #FCD34D;
+  --live-text: #2FC68A;
+  --blue-text: #60A5FA;
+  --focus-ring: #B4A8F5;
+  --border-input: #6B7080;
   --amber-transparent: rgba(224, 160, 68, .14);
   --ink: #E8E6DF;
   --bone: #101216;

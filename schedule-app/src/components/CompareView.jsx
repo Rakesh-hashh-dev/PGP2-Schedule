@@ -6,6 +6,7 @@ import { findFreeSlots, findGroupFreeSlots, scheduleInsights, friendVisibleClass
 import { isNationalHoliday } from "../lib/nationalHolidays.js";
 import IndiaFlagIcon from "./IndiaFlagIcon.jsx";
 import { useBackClose } from "../lib/backClose.js";
+import { useDialog } from "../hooks/useDialog.js";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
@@ -346,6 +347,7 @@ export default function CompareView({
   const [modalJumpOpen, setModalJumpOpen] = useState(false);
   const moreBodyRef = useRef(null);
   useBackClose(closeMoreModal, !!moreModal);
+  const moreDialogRef = useDialog(!!moreModal, closeMoreModal);
   const modalJumpRef = useRef(null);
 
   function closeMoreModal() {
@@ -357,15 +359,12 @@ export default function CompareView({
     if (!moreModal) return;
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    const onKey = e => { if (e.key === "Escape") closeMoreModal(); };
     const onDown = e => {
       if (modalJumpRef.current && !modalJumpRef.current.contains(e.target)) setModalJumpOpen(false);
     };
-    document.addEventListener("keydown", onKey);
     document.addEventListener("mousedown", onDown);
     return () => {
       document.body.style.overflow = prevOverflow;
-      document.removeEventListener("keydown", onKey);
       document.removeEventListener("mousedown", onDown);
     };
   }, [moreModal]);
@@ -701,14 +700,14 @@ export default function CompareView({
       {/* Full-range modal: bottom sheet on mobile, dialog on desktop */}
       {moreModal && (
         <div className="cv-more-backdrop" onClick={closeMoreModal}>
-          <div className="cv-more-modal" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
+          <div className="cv-more-modal" ref={moreDialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="cv-more-title" onClick={e => e.stopPropagation()}>
             <div className="cv-more-grab" aria-hidden="true" />
             <div className="cv-more-head">
               <div className={`cv-more-icon ${moreModal === "timeline" ? "cv-more-icon-violet" : "cv-more-icon-green"}`}>
                 {moreModal === "timeline" ? <CalendarDays size={16} /> : <Clock size={16} />}
               </div>
               <div className="cv-more-titles">
-                <h3>{moreModal === "timeline" ? "Full schedule" : "All free time"}</h3>
+                <h3 id="cv-more-title">{moreModal === "timeline" ? "Full schedule" : "All free time"}</h3>
                 <span className="cv-more-sub">
                   {prettyDateLabel || "Custom range"} · {selectedDates.length} day{selectedDates.length !== 1 ? "s" : ""}
                 </span>
