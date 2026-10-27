@@ -11,6 +11,7 @@ export default defineConfig([
     '**/dev-dist',
     'backups',
     '.local',
+    '.tmp-v2-navigation-build',
   ]),
   {
     files: ['**/*.{js,jsx}'],

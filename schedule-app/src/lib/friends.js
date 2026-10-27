@@ -630,6 +630,8 @@ const SOCIAL_COPY = {
   friend_removed:  (name) => ({ title: "Friend removed", body: `${name} removed you` }),
   group_poll:      (name, group) => ({ title: "📊 New poll", body: `${name} started a poll in "${group}"` }),
   board_contact:   (name, title) => ({ title: "📦 Campus Board", body: `${name} is interested in "${title}"` }),
+  board_comment:   (name, title) => ({ title: "💬 New comment", body: `${name} commented on "${title}"` }),
+  board_reply:     (name, title) => ({ title: "💬 Poster replied", body: `${name} replied on "${title}"` }),
 };
 
 /**
@@ -650,14 +652,18 @@ export async function sendSocialNotification(targetUserId, type, meta = {}) {
         ? `social:group_poll:${meta.pollId || ""}:${meta.fromId}`
         : type === "board_contact"
           ? `social:board_contact:${meta.postId || ""}:${meta.fromId}`
-          : `social:${type}:${meta.fromId}`;
+          : type === "board_comment" || type === "board_reply"
+            // Hour bucket: a burst of comments from one person is one ping per hour.
+            ? `social:${type}:${meta.postId || ""}:${meta.fromId}:${new Date().toISOString().slice(0, 13)}`
+            : `social:${type}:${meta.fromId}`;
+  const isBoard = type.startsWith("board_");
   try {
     const { error } = await supabase.from("notifications").insert({
       user_id: targetUserId,
       type,
       title: copy.title,
-      body: copy.body,
-      url: type === "board_contact" ? "/?view=board" : "/?view=friends",
+      body: meta.preview ? `${copy.body}: “${meta.preview}”` : copy.body,
+      url: isBoard ? `/?view=board${meta.postId ? `&post=${meta.postId}` : ""}` : "/?view=friends",
       icon: "/icon-192.png",
       data: {
         from_id: meta.fromId,          // pinned to caller by RLS — do not change key
@@ -670,7 +676,8 @@ export async function sendSocialNotification(targetUserId, type, meta = {}) {
       },
       dedup_key: dedupKey,
     });
-    if (error) console.error("[sendSocialNotification] error:", error.message, error.details, error.hint);
+    // 23505 = dedup_key already used (same person, same post, same hour) — expected.
+    if (error && !(isBoard && error.code === "23505")) console.error("[sendSocialNotification] error:", error.message, error.details, error.hint);
   } catch (e) {
     console.error("[sendSocialNotification] catch:", e);
   }

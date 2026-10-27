@@ -4,7 +4,7 @@ import "../styles/assignments.css";
 import "../styles/cmdk.css";
 import "../styles/content-hub.css";
 import "../styles/broadcast-composers.css";
-import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil, BarChart2, GraduationCap, PartyPopper, CloudOff, Shield, Smartphone, Copy, Activity, ChevronRight, Clock3, Download, Filter, Eye, ListFilter, PawPrint, Shirt, BookOpen, Zap, Info } from "lucide-react";
+import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil, BarChart2, GraduationCap, PartyPopper, CloudOff, Shield, Smartphone, Copy, Activity, ChevronRight, Clock3, Download, Filter, Eye, ListFilter, PawPrint, BookOpen, Zap, Info } from "lucide-react";
 import { PlacementIcon, ExamIcon, CelebrationIcon, CancelClassIcon } from "./PremiumIcons.jsx";
 import { supabase } from "../lib/supabase";
 import { logAdminAction } from "../lib/adminAudit.js";
@@ -37,11 +37,12 @@ import FeedbackFlashScheduler from "./FeedbackFlashScheduler.jsx";
 import FeedbackResponseTracking from "./FeedbackResponseTracking.jsx";
 import PushDeliveryDiagnostics from "./PushDeliveryDiagnostics.jsx";
 import ConfigHistoryPanel from "./ConfigHistoryPanel.jsx";
+import SystemSectionNav from "./SystemSectionNav.jsx";
+import CompanionAdmin from "./CompanionAdmin.jsx";
 import { stageConfigSnapshot } from "../lib/configHistory.js";
 import { WhatsNewPill, WhatsNewModal } from "./WhatsNew.jsx";
 import { PETS, getPetByKey } from "./greetingPets.jsx";
-import PetHat from "./PetHat.jsx";
-import { HATS, COATS, NECKWEAR, SERVER_LEVEL_CAP, hatRequirement } from "../lib/pet.js";
+import { SERVER_LEVEL_CAP } from "../lib/pet.js";
 import { buildBroadcastAudience, feedbackState, previewScheduleChange, previewStagedScheduleChanges } from "../lib/adminWorkflow.js";
 import { AdoptionTrends, AttendanceRisk, BroadcastAudienceBuilder, ChangeTimeline, IncidentCenter, ScheduleImpactWeek, SupportQueue, DataQualityMonitor, ScheduleChangePreview, FeedbackTriage, HandoffNotes } from "./AdminWorkflowPanels.jsx";
 
@@ -87,6 +88,14 @@ function nextOccurrence(month, day) {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T09:00`;
 }
 
+// datetime-local value for `daysAhead` days from today at `hour`:00 local time.
+function presetDateTime(daysAhead, hour) {
+  const d = new Date();
+  d.setDate(d.getDate() + daysAhead);
+  const pad = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(hour)}:00`;
+}
+
 // Canonical feature toggles the app actually reads (all default ON when the key
 // is absent, i.e. `flags.x !== false`). Rendered as a curated list so the Feature
 // Flags card always shows every real feature — and never internal data keys like
@@ -102,6 +111,32 @@ const FEATURE_FLAGS = [
   { key: "enableAwayShare", label: "Away sharing" },
 ];
 const FEATURE_FLAG_KEYS = new Set(FEATURE_FLAGS.map(f => f.key));
+// flags.features.* kill switches (default ON when unset).
+const CORE_MODULES = [
+  { key: "social", label: "Social feed & statuses", hint: "User statuses and the social feed." },
+  { key: "chat", label: "Group chats", hint: "Group messaging." },
+  { key: "splits", label: "Expense splitting", hint: "The group expense splitter." },
+  { key: "polls", label: "Group polls", hint: "Poll creation in groups." },
+  { key: "specialDayTheme", label: "Independence/Republic Day theme", hint: "Tricolor accent and greeting banner on 15 Aug and 26 Jan." },
+];
+
+// System tab sections — ids match the `system-<id>` anchors the nav jumps to.
+const SYSTEM_SECTIONS = [
+  { id: "overview", label: "Overview", Icon: Activity },
+  { id: "releases", label: "Releases", Icon: Clock3 },
+  { id: "features", label: "Features", Icon: Flag },
+  { id: "access", label: "Access & safety", Icon: Shield },
+  { id: "dev", label: "Dev tools", Icon: Terminal },
+];
+
+function SystemSectionHead({ id, Icon, title, children }) {
+  return (
+    <div className="admin-span-all admin-g-system system-section-head" id={`system-${id}`}>
+      <span className="system-section-icon" aria-hidden="true"><Icon size={16} /></span>
+      <div><h2>{title}</h2><p>{children}</p></div>
+    </div>
+  );
+}
 
 const DATABASE_TABLES = [
   { id: "profiles", label: "Profiles", description: "Student profile and setup records" },
@@ -332,7 +367,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   // classes and shown/hidden with CSS keyed off [data-active-tab] on the masonry.
   // Which tab was open last, so a refresh lands where the admin left off.
   const ADMIN_TAB_KEY = "pgp2.admin-tab-v2";
-  const ADMIN_TABS = ["overview", "broadcast", "schedule", "users", "insights", "moderation", "database", "system"];
+  const ADMIN_TABS = ["overview", "broadcast", "schedule", "users", "insights", "moderation", "database", "companion", "system"];
   const [activeTab, setActiveTab] = useState(() => {
     try {
       const stored = localStorage.getItem(ADMIN_TAB_KEY);
@@ -340,6 +375,16 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     } catch { return "overview"; }
   });
   useEffect(() => { try { localStorage.setItem(ADMIN_TAB_KEY, activeTab); } catch { } }, [activeTab]);
+  // The tab bar scrolls sideways on narrow screens — keep the active tab in view.
+  // Scrolls the bar only (scrollIntoView would also scroll the page on load).
+  useEffect(() => {
+    const bar = document.querySelector(".admin-tabs");
+    const tab = bar?.querySelector(".admin-tab.active");
+    if (!tab) return;
+    const left = tab.getBoundingClientRect().left - bar.getBoundingClientRect().left + bar.scrollLeft;
+    if (left < bar.scrollLeft) bar.scrollLeft = left - 8;
+    else if (left + tab.offsetWidth > bar.scrollLeft + bar.clientWidth) bar.scrollLeft = left + tab.offsetWidth - bar.clientWidth + 8;
+  }, [activeTab]);
   const [previewTheme, setPreviewTheme] = useState("dark"); // announcement banner preview
 
   const [flags, setFlags] = useState({
@@ -432,10 +477,6 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   }, [selectedUser?.user_id, petStateNonce]);
   // Cohort-wide companion controls, kept separate from the per-user ones so a
   // busy/failed bulk run can never be mistaken for the single-student panel.
-  const [petBulkDraft, setPetBulkDraft] = useState(100);
-  const [petBulkLevelDraft, setPetBulkLevelDraft] = useState(1);
-  const [petBulkBusy, setPetBulkBusy] = useState(false);
-  const [petBulkMessage, setPetBulkMessage] = useState("");
 
   const [activeUsersListModalOpen, setActiveUsersListModalOpen] = useState(false);
   const [pushSubscribersModalOpen, setPushSubscribersModalOpen] = useState(false);
@@ -494,7 +535,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [relocEnd, setRelocEnd] = useState("");
   const [csvPreview, setCsvPreview] = useState(null); // dry-run summary of Bulk CSV
   const [roleUserId, setRoleUserId] = useState("");
-  const [roleValue, setRoleValue] = useState("full");
+  // Must be a value admin_set_role accepts — the old "full" default was
+  // rejected as "Unknown role" unless the dropdown was touched first.
+  const [roleValue, setRoleValue] = useState("monitor");
   const [reEngaging, setReEngaging] = useState(false);
   const [reEngageMsg, setReEngageMsg] = useState("");
   const [inactiveDays, setInactiveDays] = useState(14);
@@ -707,6 +750,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   // A/B Test editor
   const [abTestName, setAbTestName] = useState("");
   const [abTestRollout, setAbTestRollout] = useState(50);
+  const [abDeleteKey, setAbDeleteKey] = useState(null);
+  const [flagSearch, setFlagSearch] = useState("");
 
   const admin_id = user?.id || user?.user_id || "unknown";
 
@@ -719,6 +764,15 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [adminRoster, setAdminRoster] = useState([]);
   const [myRole, setMyRole] = useState(null);
   const isReadOnlyAdmin = myRole === "monitor";
+  // admin_set_role / admin_remove_role refuse anyone but a superadmin.
+  const canManageRoles = myRole === "superadmin";
+  // Grant by email or Clerk user ID. An unknown email can't be granted (no
+  // user_id to key on), but a raw user_xxx id is accepted as-is for accounts
+  // that haven't loaded into allUsers.
+  const roleQuery = roleUserId.trim().toLowerCase();
+  const roleTarget = !roleQuery ? null
+    : allUsers.find(u => u.email?.toLowerCase() === roleQuery || u.user_id?.toLowerCase() === roleQuery)
+      || (roleQuery.startsWith("user_") ? { user_id: roleUserId.trim() } : null);
 
   async function fetchAdminRoles() {
     const [roster, mine] = await Promise.all([listAdminRoles(), myAdminRole()]);
@@ -1257,6 +1311,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   // Shared push sender. Pass a targetUserId to deliver only to that user's devices
   // (used by "Send test to me"); omit it to broadcast to everyone.
   async function postPush({ targetUserId } = {}) {
+    // send-push refuses monitors server-side; this just says why up front.
+    if (isReadOnlyAdmin) { setPushResult(READ_ONLY_MESSAGE); return; }
     const sessionToken = await window.Clerk?.session?.getToken();
     if (!sessionToken) { setPushResult("Your admin session is unavailable. Refresh and sign in again."); return; }
     setPushSending(true);
@@ -1628,7 +1684,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     const items = [
       ...(changesCount ? [{ id: "changes", tone: "watch", title: `${changesCount} staged change${changesCount === 1 ? "" : "s"}`, detail: "Review and deploy when the configuration is ready.", action: "Review changes", onClick: () => setReviewOpen(true) }] : []),
       ...(staleJobs ? [{ id: "jobs", tone: "risk", title: `${staleJobs} automation job${staleJobs === 1 ? " needs" : "s need"} attention`, detail: "Open Insights for the latest cron and service health.", action: "Open health", onClick: () => setActiveTab("insights") }] : []),
-      ...(flags.maintenanceMode ? [{ id: "maintenance", tone: "risk", title: "Maintenance lockout is live", detail: "Non-admin students cannot access TermFlow until it is turned off and deployed.", action: "Review lockout", onClick: () => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" }) }] : []),
+      ...(flags.maintenanceMode ? [{ id: "maintenance", tone: "risk", title: "Maintenance lockout is live", detail: "Non-admin students cannot access TermFlow until it is turned off and deployed.", action: "Review lockout", onClick: () => { setActiveTab("system"); requestAnimationFrame(() => document.querySelector(".system-maintenance-card")?.scrollIntoView({ behavior: "smooth", block: "center" })); } }] : []),
     ];
     return { maintenance, staleJobs, items: items.slice(0, 3) };
   })();
@@ -1757,10 +1813,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   // the point: a role that only applies after a deploy is a role that does not
   // apply during the window you most need it to.
   async function saveAdminRole() {
-    const id = roleUserId.trim();
-    if (!id) return alert("Enter a user ID.");
+    if (!roleTarget) return alert(roleUserId.trim() ? "No TermFlow account matches that email or user ID." : "Enter an email or user ID.");
     try {
-      await setAdminRole(id, roleValue);
+      await setAdminRole(roleTarget.user_id, roleValue);
       setRoleUserId("");
       await refreshAdminRoles();
     } catch (e) {
@@ -1790,6 +1845,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
   // ── Push to an explicit set of user IDs (bulk "Push Selected" + re-engagement) ──
   async function pushToUserIds(ids, { title, body, url = "/?view=today", image, confirmMsg } = {}) {
+    if (isReadOnlyAdmin) return alert(READ_ONLY_MESSAGE);
     if (!ids || ids.length === 0) return alert("No users to push to.");
     const sessionToken = await window.Clerk?.session?.getToken();
     if (!sessionToken) return { ok: false, data: { error: "Your admin session is unavailable. Refresh and sign in again." } };
@@ -1804,6 +1860,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   }
 
   async function pushSelectedUsers() {
+    if (isReadOnlyAdmin) return alert(READ_ONLY_MESSAGE);
     const ids = [...selectedUserIds];
     if (ids.length === 0) return alert("Select users first.");
     const title = prompt(`Push title for ${ids.length} selected user(s):`);
@@ -1902,6 +1959,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const selectedDayOverrides = Object.keys(flags.classOverrides?.[liveEditorDate] || {}).length;
   const selectedDayLabel = new Date(`${liveEditorDate}T12:00:00`).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   async function clearUserStatus(target) {
+    if (isReadOnlyAdmin) return alert(READ_ONLY_MESSAGE);
     if (!confirm(`Clear status for ${target.name || "this student"}?`)) return;
     setModerationBusyId(target.user_id);
     setModerationMessage("");
@@ -1999,6 +2057,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
   // ── Scheduled config deploy: queue the current pending config for a future time ──
   async function queueConfigDeploy() {
+    if (isReadOnlyAdmin) return alert(READ_ONLY_MESSAGE);
     if (!scheduleDeployAt) return alert("Pick a date & time to schedule the deploy.");
     const snapshot = { ...flags };
     delete snapshot.scheduledConfigDeploys;
@@ -2019,10 +2078,14 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     alert("Scheduled. It auto-deploys at the chosen time (requires the apply-scheduled-config cron).");
   }
   async function removeScheduledDeploy(id) {
+    if (isReadOnlyAdmin) return alert(READ_ONLY_MESSAGE);
     const { data: live } = await supabase.from("system_config").select("flags, announcement").eq("id", "global").single();
     const liveFlags = { ...(live?.flags || {}), scheduledConfigDeploys: ((live?.flags?.scheduledConfigDeploys) || []).filter(e => e.id !== id) };
     const stamp = new Date().toISOString();
-    await supabase.from("system_config").upsert({ id: "global", announcement: live?.announcement ?? null, flags: liveFlags, updated_at: stamp });
+    // Used to ignore the result, so a refused write still removed the entry
+    // locally and looked cancelled while the cron went on to deploy it.
+    const { error } = await supabase.from("system_config").upsert({ id: "global", announcement: live?.announcement ?? null, flags: liveFlags, updated_at: stamp });
+    if (error) return alert("Could not cancel the scheduled deploy: " + error.message);
     setLoadedUpdatedAt(stamp);
     setFlags(f => ({ ...f, scheduledConfigDeploys: liveFlags.scheduledConfigDeploys }));
   }
@@ -2524,6 +2587,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           { id: "insights", label: "Insights", Icon: BarChart2 },
           { id: "moderation", label: "Moderation", Icon: Shield },
           { id: "database", label: "Database", Icon: Database },
+          { id: "companion", label: "Companion", Icon: PawPrint },
           { id: "system", label: "System", Icon: ShieldAlert },
         ].map(({ id, label, Icon, isNew }) => (
           <button
@@ -2542,6 +2606,13 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </button>
         ))}
       </nav>
+
+      {isReadOnlyAdmin && (
+        <div className="admin-readonly-banner" role="status">
+          <Eye size={16} aria-hidden="true" />
+          <div><strong>Read-only Monitor</strong><span>You can view every tab, but deploys, pushes and changes to students are turned off. Ask a Superadmin to make changes.</span></div>
+        </div>
+      )}
 
       {/* ── Card flow: 2-col masonry ≥1200px, single column below ── */}
       <div className="admin-masonry" data-active-tab={activeTab}>
@@ -3891,10 +3962,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                       } else {
                         sendPushBroadcast();
                       }
-                    }} disabled={pushSending || (pushMode === "schedule" && (!pushScheduleDate || !pushScheduleTime))}>
+                    }} disabled={pushSending || (pushMode === "schedule" ? (!pushScheduleDate || !pushScheduleTime) : isReadOnlyAdmin)}>
                       <BellRing size={14} /> {pushSending ? "Sending..." : (pushMode === "schedule" ? "Stage scheduled push" : pushTarget !== "all" ? "Send to audience now" : "Send to all subscribers now")}
                     </button>
-                    <button className="admin-btn outline" onClick={sendTestPushToMe} disabled={pushSending} title="Delivers only to your own subscribed devices — arrives within ~1 min">
+                    <button className="admin-btn outline" onClick={sendTestPushToMe} disabled={pushSending || isReadOnlyAdmin} title="Delivers only to your own subscribed devices — arrives within ~1 min">
                       <BellRing size={14} /> Send test to me
                     </button>
                     {pushResult && (
@@ -4613,7 +4684,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                       setSelectedUserIds(new Set());
                    }}>Unban</button>
 
-                   <button className="admin-btn outline" onClick={pushSelectedUsers}><BellRing size={12} /> Push</button>
+                   <button className="admin-btn outline" onClick={pushSelectedUsers} disabled={isReadOnlyAdmin}><BellRing size={12} /> Push</button>
 
                    <button className="admin-btn outline" onClick={() => setSelectedUserIds(new Set())}>Clear</button>
                 </div>
@@ -5078,79 +5149,41 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           onWhatsNew={item => { setWnTitle(item.message.slice(0, 58)); setWnDesc(item.message); setWnEmoji("✨"); setActiveTab("broadcast"); window.scrollTo({ top: 0, behavior: "smooth" }); }} />
         <FeedbackResponseTracking feedback={feedbackList} users={allUsers} triage={feedbackTriage} busyId={triageBusyId} onSetTarget={setFeedbackResponseTarget} readOnly={isReadOnlyAdmin} unavailable={triageUnavailable || responseTrackingUnavailable} />
 
-          <section className="admin-card admin-span-all admin-g-system system-ops-console" style={{ gridColumn: "1 / -1" }}>
+          <SystemSectionNav sections={SYSTEM_SECTIONS} enabled={activeTab === "system"} />
+
+          <section className="admin-card admin-span-all admin-g-system system-ops-console" id="system-overview" style={{ gridColumn: "1 / -1" }}>
             <div className="system-ops-head"><div><span className="system-ops-eyebrow">Platform operations</span><h2><ShieldAlert size={20} color="var(--violet)" /> System command centre</h2><p className="admin-subtext">A practical read of what is live, what is staged, and the safest next move.</p></div><div className={`system-ops-status ${systemOverview.items.some(item => item.tone === "risk") ? "is-watch" : ""}`}><span /> {systemOverview.items.some(item => item.tone === "risk") ? "Attention needed" : "Controls ready"}</div></div>
             <div className="system-ops-metrics"><div><strong>{changesCount}</strong><span>staged changes</span></div><div><strong>{configDrift.total}</strong><span>config drift items</span></div><div><strong>{(flags.scheduledConfigDeploys || []).length}</strong><span>scheduled deploys</span></div><div className={snapshotMeta.status === "success" ? "is-healthy" : "is-risk"}><strong>{snapshotMeta.status === "success" ? "OK" : "!"}</strong><span>snapshot automation</span></div></div>
             <div className="system-state-strip"><span><Shield size={15} /> Access <strong>{systemOverview.maintenance}</strong></span><span><Activity size={15} /> Automation <strong>{systemOverview.staleJobs ? `${systemOverview.staleJobs} issue${systemOverview.staleJobs === 1 ? "" : "s"}` : "healthy from last check"}</strong></span><span><Users size={15} /> Presence <strong>{presentAdmins.length || 1} admin{presentAdmins.length === 1 ? "" : "s"} online</strong></span></div>
             {systemOverview.items.length > 0 && <div className="system-attention-queue">{systemOverview.items.map(item => <div className={`system-attention-row is-${item.tone}`} key={item.id}><span aria-hidden="true" /><div><strong>{item.title}</strong><small>{item.detail}</small></div><button type="button" className="admin-btn outline" onClick={item.onClick}>{item.action}<ChevronRight size={14} /></button></div>)}</div>}
-            <div className="system-ops-actions"><button type="button" className="admin-btn outline" onClick={checkApiHealth} disabled={healthChecking}><Activity size={14} /> {healthChecking ? "Checking…" : "Check services"}</button><button type="button" className="admin-btn outline" onClick={requestForceRefresh}><RefreshCw size={14} /> Force client sync</button><button type="button" className="admin-btn outline" onClick={_exportConfigJSON}><Download size={14} /> Export config</button><button type="button" className="admin-btn outline" onClick={openReviewChanges}><FileText size={14} /> Review staged changes</button></div>
-          </section>
-          {/* Maintenance scheduler */}
-          <section className="admin-card admin-g-system system-control-card system-maintenance-card">
-            <h2><CloudOff size={20} color="var(--danger)" /> Maintenance Window</h2>
-            <p className="admin-subtext">Schedule an automatic maintenance lockout (non-admins see the "Under Maintenance" screen while the window is active). Leave blank for none. Deploy Config to apply.</p>
-            <div className="admin-field-row" style={{ maxWidth: 520 }}>
-              <div className="admin-field">
-                <label>Start</label>
-                <input type="datetime-local" className="admin-input" value={flags.maintenanceWindow?.start || ""} onChange={e => setFlags({ ...flags, maintenanceWindow: { ...(flags.maintenanceWindow || {}), start: e.target.value } })} />
-              </div>
-              <div className="admin-field">
-                <label>End</label>
-                <input type="datetime-local" className="admin-input" value={flags.maintenanceWindow?.end || ""} onChange={e => setFlags({ ...flags, maintenanceWindow: { ...(flags.maintenanceWindow || {}), end: e.target.value } })} />
-              </div>
-            </div>
-            {(flags.maintenanceWindow?.start || flags.maintenanceWindow?.end) && (
-              <button className="admin-btn outline" style={{ marginTop: 4 }} onClick={() => { if (!confirm("Clear the scheduled maintenance window?")) return; const n = { ...flags }; delete n.maintenanceWindow; setFlags(n); }}>Clear window</button>
-            )}
+            <div className="system-ops-actions"><button type="button" className="admin-btn outline" onClick={checkApiHealth} disabled={healthChecking}><Activity size={14} /> {healthChecking ? "Checking…" : "Check services"}</button><button type="button" className="admin-btn outline" onClick={_exportConfigJSON}><Download size={14} /> Export config</button><button type="button" className="admin-btn outline" onClick={openReviewChanges} disabled={!changesCount}><FileText size={14} /> Review staged changes</button></div>
+            <div className="system-legend" aria-label="What the badges mean"><span><AdminActionBadge mode="live" /> applies the moment you click</span><span><AdminActionBadge mode="staged" /> waits for Review &amp; Deploy</span><span><AdminActionBadge mode="scheduled" /> publishes at a set time</span></div>
           </section>
 
-          {/* Admin roles */}
-          <section className="admin-card admin-g-system system-control-card system-roles-card">
-            <h2><ShieldAlert size={20} color="var(--violet)" /> Admin Roles <AdminActionBadge mode="live" /></h2>
-            <p className="admin-subtext">Grant Monitor (read-only) or Superadmin access by user ID. You can also set a role from any user's detail panel.</p>
-            <div className="admin-field-row" style={{ alignItems: "flex-end" }}>
-              <div className="admin-field" style={{ flex: 2 }}>
-                <label>User ID</label>
-                <input className="admin-input" value={roleUserId} onChange={e => setRoleUserId(e.target.value)} placeholder="user_xxx" />
-              </div>
-              <div className="admin-field" style={{ flex: 1 }}>
-                <label>Role</label>
-                <select className="admin-input" value={roleValue} onChange={e => setRoleValue(e.target.value)}>
-                  <option value="monitor">Monitor</option>
-                  <option value="superadmin">Superadmin</option>
-                </select>
-              </div>
-              <button className="admin-btn primary" style={{ flex: "0 0 auto", marginBottom: 10 }} onClick={saveAdminRole}>Grant</button>
+          <SystemSectionHead id="releases" Icon={Clock3} title="Releases & config">What is live, what is queued, and how to get back to a known-good state.</SystemSectionHead>
+
+          {/* Scheduled config deploys */}
+          <section className="admin-card admin-g-system system-control-card system-deploy-card">
+            <h2><Clock size={20} color="var(--amber-text)" /> Scheduled Deploys <AdminActionBadge mode="scheduled" /></h2>
+            <p className="admin-subtext">Queue the current pending config to auto-publish at a future time (requires the apply-scheduled-config cron). For an immediate change, use Deploy Config in the save bar instead.</p>
+            <div className="admin-field-row" style={{ alignItems: "flex-end", maxWidth: 480 }}>
+              <div className="admin-field"><label>Deploy at</label><input type="datetime-local" className="admin-input" value={scheduleDeployAt} onChange={e => setScheduleDeployAt(e.target.value)} /></div>
+              <button className="admin-btn primary" style={{ flex: "0 0 auto", marginBottom: 10 }} onClick={queueConfigDeploy} disabled={isReadOnlyAdmin}>Schedule deploy</button>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
-              {adminRoster.length === 0 ? (
-                <div className="admin-empty">No admin roles assigned.</div>
-              ) : adminRoster.map(({ user_id: id, role }) => {
-                const u = allUsers.find(x => x.user_id === id);
-                return (
-                  <div key={id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)" }}>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600 }}>{u?.name || id}</div>
-                      <div style={{ fontSize: 11, color: "var(--muted)", fontFamily: "var(--mono)" }}>{id}</div>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10, background: "rgba(109,91,208,0.12)", color: "var(--violet)" }}>{role}</span>
-                      <button onClick={() => requestRevokeAdminRole(id)} className="admin-btn danger" style={{ padding: "4px 8px" }} aria-label={`Remove admin access for ${u?.name || id}`}><Trash2 size={14} /></button>
-                    </div>
+            <div className="system-roster">
+              <div className="system-subhead"><span className="system-kicker">Queue</span><small>{(flags.scheduledConfigDeploys || []).length || "Empty"}</small></div>
+              {(flags.scheduledConfigDeploys || []).length === 0 ? (
+                <div className="admin-empty">No scheduled deploys.</div>
+              ) : [...(flags.scheduledConfigDeploys || [])].sort((a, b) => new Date(a.at) - new Date(b.at)).map(e => (
+                <div key={e.id} className="system-roster-row">
+                  <span className="system-row-icon" aria-hidden="true"><Clock size={15} /></span>
+                  <div className="system-roster-who">
+                    <strong>{new Date(e.at).toLocaleString("en-IN", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</strong>
+                    <small>Queued by {allUsers.find(u => u.user_id === e.author)?.name || "an admin"}</small>
                   </div>
-                );
-              })}
-            </div>
-          </section>
-
-          {/* Config backup & restore */}
-          <section className="admin-card admin-g-system system-control-card system-backup-card">
-            <h2><Database size={20} color="var(--blue-text)" /> Config Backup &amp; Restore</h2>
-            <p className="admin-subtext">Download the live config as JSON, or import a backup (loads into the editor — Review &amp; Deploy to apply). Rollback to a recent deploy lives in the save bar below.</p>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <button className="admin-btn outline" onClick={_exportConfigJSON}><FileText size={15} /> Export JSON</button>
-              <button className="admin-btn outline" onClick={() => configFileRef.current?.click()}><FileText size={15} /> Import JSON</button>
-              <input ref={configFileRef} type="file" accept="application/json,.json" onChange={handleImportConfig} style={{ display: "none" }} />
+                  <button type="button" onClick={() => removeScheduledDeploy(e.id)} disabled={isReadOnlyAdmin} className="system-icon-btn is-danger" aria-label={`Cancel deploy scheduled for ${new Date(e.at).toLocaleString("en-IN")}`}><Trash2 size={14} /></button>
+                </div>
+              ))}
             </div>
           </section>
 
@@ -5163,422 +5196,463 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             setUpdatePromptHighlights((next.updatePrompt?.highlights || []).join("\n"));
           }} />
 
-          {/* Data export center */}
-          <section className="admin-card admin-g-system system-control-card system-export-card">
-            <h2><FileText size={20} color="var(--blue-text)" /> Data Export</h2>
-            <p className="admin-subtext">Download the currently loaded admin data as CSV for reporting or backup.</p>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <button className="admin-btn outline" onClick={() => exportCsv("users.csv", ["user_id", "name", "last_seen_at", "courses"], allUsers.map(u => [u.user_id, u.name, u.last_seen_at || "", Object.keys(u.courses || {}).filter(c => !c.startsWith("_")).join(";")]))} disabled={allUsers.length === 0}>Users ({allUsers.length})</button>
-              <button className="admin-btn outline" onClick={() => exportCsv("feedback.csv", ["created_at", "status", "user_id", "message"], feedbackList.map(f => [f.created_at, f.status, f.user_id || "", f.message]))} disabled={feedbackList.length === 0}>Feedback ({feedbackList.length})</button>
-              <button className="admin-btn outline" onClick={() => exportCsv("audit_logs.csv", ["created_at", "action", "admin_id", "details"], auditLogs.map(l => [l.created_at, l.action, l.admin_id, JSON.stringify(l.details || {})]))} disabled={auditLogs.length === 0}>Audit logs ({auditLogs.length})</button>
-            </div>
-          </section>
-
-          {/* Scheduled config deploys */}
-          <section className="admin-card admin-g-system system-control-card system-deploy-card">
-            <h2><Clock size={20} color="var(--amber-text)" /> Scheduled Deploys <AdminActionBadge mode="scheduled" /></h2>
-            <p className="admin-subtext">Queue the current pending config to auto-publish at a future time (requires the apply-scheduled-config cron). For an immediate change, use Deploy Config in the save bar instead.</p>
-            <div className="admin-field-row" style={{ alignItems: "flex-end", maxWidth: 480 }}>
-              <div className="admin-field"><label>Deploy at</label><input type="datetime-local" className="admin-input" value={scheduleDeployAt} onChange={e => setScheduleDeployAt(e.target.value)} /></div>
-              <button className="admin-btn primary" style={{ flex: "0 0 auto", marginBottom: 10 }} onClick={queueConfigDeploy}>Schedule deploy</button>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {(flags.scheduledConfigDeploys || []).length === 0 ? (
-                <div className="admin-empty">No scheduled deploys.</div>
-              ) : (flags.scheduledConfigDeploys || []).map(e => (
-                <div key={e.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)" }}>
-                  <div style={{ fontSize: 13 }}>
-                    <b>{new Date(e.at).toLocaleString()}</b>
-                    <div style={{ fontSize: 11, color: "var(--muted)" }}>by {allUsers.find(u => u.user_id === e.author)?.name || "admin"}</div>
-                  </div>
-                  <button onClick={() => removeScheduledDeploy(e.id)} className="admin-btn outline" style={{ padding: "4px 8px", borderColor: "var(--danger)", color: "var(--danger)" }}><Trash2 size={14} /></button>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="admin-card admin-g-system system-control-card system-flags-card">
-            <h2><Flag size={20} color="var(--violet)" /> Feature Flags</h2>
-            <div className="admin-flag-list">
-              {/* Curated toggles (default ON when unset) + any other real boolean
-                  flags. Internal data keys (classOverrides, configHistory,
-                  messMenuOverrides…) and Danger-Zone toggles are excluded. */}
-              {FEATURE_FLAGS.map(({ key, label }) => (
-                <label key={key} className="admin-flag-item">
-                  <input
-                    type="checkbox"
-                    checked={flags[key] !== false}
-                    onChange={e => setFlags({ ...flags, [key]: e.target.checked })}
-                  />
-                  <span>{label} <span style={{ color: "var(--muted)", fontWeight: 500, fontSize: 12 }}>({key})</span></span>
-                </label>
-              ))}
-              {Object.keys(flags)
-                .filter(k => typeof flags[k] === "boolean" && !FEATURE_FLAG_KEYS.has(k) && k !== "maintenanceMode" && k !== "dispatchEnabled")
-                .map(key => (
-                  <label key={key} className="admin-flag-item">
-                    <input type="checkbox" checked={!!flags[key]} onChange={e => setFlags({ ...flags, [key]: e.target.checked })} />
-                    <span>{key}</span>
-                  </label>
-                ))}
-            </div>
-          </section>
-
-          <section className="admin-card admin-span-all admin-g-system system-control-card system-companion-card" style={{ gridColumn: "1 / -1" }}>
-            <div className="system-companion-head">
-              <div>
-                <span className="system-companion-eyebrow">Student experience</span>
-                <h2><PawPrint size={20} color="var(--violet)" /> Companion Settings</h2>
-                <p className="admin-subtext">Manage greeting pets, adoption, progression, motion, wardrobe availability, and cohort-wide companion XP from one place.</p>
+          {/* Backup & export — config JSON round-trip plus CSV exports of loaded data */}
+          <section className="admin-card admin-g-system system-control-card system-backup-card">
+            <h2><Download size={20} color="var(--blue-text)" /> Backup &amp; Export</h2>
+            <p className="admin-subtext">Download the live config or the admin data loaded on this page. An imported config only loads into the editor — review and deploy to apply it.</p>
+            <div className="system-backup-group">
+              <span className="system-kicker">Configuration · JSON</span>
+              <div className="system-btn-row">
+                <button type="button" className="admin-btn outline" onClick={_exportConfigJSON}><Download size={15} /> Export config</button>
+                <button type="button" className="admin-btn outline" onClick={() => configFileRef.current?.click()}><FileText size={15} /> Import config</button>
+                <input ref={configFileRef} type="file" accept="application/json,.json" onChange={handleImportConfig} hidden />
               </div>
-              <span className="system-companion-badge"><Sparkles size={14} /> Pet controls</span>
             </div>
+            <div className="system-backup-group">
+              <span className="system-kicker">Data · CSV</span>
+              <div className="system-btn-row">
+                <button type="button" className="admin-btn outline" onClick={() => exportCsv("users.csv", ["user_id", "name", "last_seen_at", "courses"], allUsers.map(u => [u.user_id, u.name, u.last_seen_at || "", Object.keys(u.courses || {}).filter(c => !c.startsWith("_")).join(";")]))} disabled={allUsers.length === 0}>Users <span className="system-count">{allUsers.length}</span></button>
+                <button type="button" className="admin-btn outline" onClick={() => exportCsv("feedback.csv", ["created_at", "status", "user_id", "message"], feedbackList.map(f => [f.created_at, f.status, f.user_id || "", f.message]))} disabled={feedbackList.length === 0}>Feedback <span className="system-count">{feedbackList.length}</span></button>
+                <button type="button" className="admin-btn outline" onClick={() => exportCsv("audit_logs.csv", ["created_at", "action", "admin_id", "details"], auditLogs.map(l => [l.created_at, l.action, l.admin_id, JSON.stringify(l.details || {})]))} disabled={auditLogs.length === 0}>Audit logs <span className="system-count">{auditLogs.length}</span></button>
+              </div>
+            </div>
+            {originalFlags?.configHistory?.length > 0 && (
+              <button type="button" className="system-link-btn" onClick={() => document.querySelector(".config-history-card")?.scrollIntoView({ behavior: "smooth", block: "start" })}>
+                Need to roll back? Open config history <ChevronRight size={14} />
+              </button>
+            )}
+          </section>
 
-            {(() => {
-              const greetingPets = {
-                enabled: true,
-                petKey: "cat",
-                motion: true,
-                // Both absent in any config saved before the companion shipped,
-                // so the defaults here ARE the back-compat story — no migration.
-                companion: true,
-                xpRate: 1,
-                // Absent in every config written before signature motion and
-                // the wardrobe shipped. Defaulting them ON is the back-compat
-                // story — the same call made for `companion` above.
-                signatures: true,
-                wardrobe: true,
-                hatsOff: [],
-                ...(flags.greetingPets || {}),
-              };
-              const updateGreetingPets = patch => {
-                const next = { ...greetingPets, ...patch };
-                delete next.mode; // Drop the retired daily/featured rotation setting on the next save.
-                setFlags({ ...flags, greetingPets: next });
-              };
-              // getPetByKey (not a raw find) so a config still carrying the
-              // legacy "turtle" key previews the rover the admin actually picked.
-              const previewPet = getPetByKey(greetingPets.petKey);
-              const PreviewPet = previewPet.Svg;
-              return (
-                <div className="admin-field system-companion-config">
-                  <div className="system-companion-layout">
-                    <div className="system-companion-panel system-companion-greeting">
-                      <span className="system-companion-panel-kicker">Greeting</span>
-                      <label className="system-companion-toggle">
-                        <input type="checkbox" checked={greetingPets.enabled} onChange={e => updateGreetingPets({ enabled: e.target.checked })} />
-                        <Sparkles size={15} color="var(--violet)" /> Greeting companion
-                      </label>
-                      <p className="admin-subtext">Choose the companion shown beside the Today greeting until a student adopts their own. Deploy Config to publish this cohort-wide.</p>
-                      <div className="system-companion-preview" data-disabled={!greetingPets.enabled}>
-                        <span className="dg-pet" data-pet={previewPet.key} data-motion={greetingPets.motion ? "on" : "off"} aria-hidden="true" style={{ width: 44, height: 44 }}>
-                          <PreviewPet />
-                        </span>
-                        <div style={{ minWidth: 0 }}>
-                          <strong>{greetingPets.enabled ? "Student greeting preview" : "Companions are hidden"}</strong>
-                          <small>
-                            {previewPet.label} is the cohort greeting pet. {greetingPets.motion ? "Motion on." : "Motion off."}
-                          </small>
-                        </div>
-                      </div>
-                      <div className="system-companion-fields" data-disabled={!greetingPets.enabled}>
-                        <label className="admin-field">
-                          <span>Greeting pet</span>
-                          <select className="admin-input" disabled={!greetingPets.enabled} value={previewPet.key} onChange={e => updateGreetingPets({ petKey: e.target.value })}>
-                            {PETS.map(pet => <option key={pet.key} value={pet.key}>{pet.label}</option>)}
-                          </select>
-                        </label>
-                        <label className="system-companion-check">
-                          <input type="checkbox" disabled={!greetingPets.enabled} checked={greetingPets.motion} onChange={e => updateGreetingPets({ motion: e.target.checked })} /> Motion
-                        </label>
-                      </div>
-                    </div>
-
-                    {/* Companion layer — adoption, the pet page, XP and friends'
-                        pets. Separate from the switch above so the decorative
-                        greeting pet can stay while the game is turned off. */}
-                    <div className="system-companion-panel system-companion-progression" data-disabled={!greetingPets.enabled}>
-                      <span className="system-companion-panel-kicker">Progression</span>
-                      <label className="system-companion-toggle" style={{ cursor: greetingPets.enabled ? "pointer" : "not-allowed" }}>
-                        <input type="checkbox" disabled={!greetingPets.enabled} checked={greetingPets.companion !== false} onChange={e => updateGreetingPets({ companion: e.target.checked })} />
-                        <PawPrint size={15} color="var(--violet)" /> Adoptable companion
-                      </label>
-                      <p className="admin-subtext">
-                        Lets students adopt and name a pet that levels up from marked classes and cleared deadlines, unlocks the Companion page, and shows friends&apos; pets on their cards. Turn off to leave only the decorative greeting pet.
-                      </p>
-                      <label className="admin-field system-companion-rate">
-                        <span>XP rate</span>
-                        <select
-                          className="admin-input"
-                          disabled={!greetingPets.enabled || greetingPets.companion === false}
-                          value={String(greetingPets.xpRate ?? 1)}
-                          onChange={e => updateGreetingPets({ xpRate: Number(e.target.value) })}
-                        >
-                          <option value="0.5">0.5× — slower</option>
-                          <option value="1">1× — normal</option>
-                          <option value="1.5">1.5×</option>
-                          <option value="2">2× — double</option>
-                          <option value="3">3× — max</option>
-                        </select>
-                      </label>
-                      <p className="admin-subtext system-companion-note">
-                        Applies to new XP only. Banked XP keeps its value; the rate is safely clamped to 0.25&times;&ndash;3&times;.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Presentation controls. Nothing here touches progression:
-                      withdrawing a wearable hides it, it does not un-earn it,
-                      and turning it back on returns every student to the hat
-                      they had chosen. */}
-                  <div className="system-companion-panel system-companion-appearance" data-disabled={!greetingPets.enabled || greetingPets.companion === false}>
-                    <span className="system-companion-panel-kicker">Appearance &amp; motion</span>
-                    <label className="system-companion-toggle">
-                      <input
-                        type="checkbox"
-                        disabled={!greetingPets.enabled}
-                        checked={greetingPets.signatures !== false}
-                        onChange={e => updateGreetingPets({ signatures: e.target.checked })}
-                      />
-                      <Sparkles size={15} color="var(--violet)" /> Signature micro-motion
-                    </label>
-                    <p className="admin-subtext" style={{ margin: "6px 0 12px" }}>
-                      The one small loop each companion has of its own — the dog pants, the panda chews, the robot&apos;s status light blinks. Off leaves the shared idle, the moods and the reactions running. Readers who have asked their device for reduced motion never see any of it either way.
-                    </p>
-
-                    <label className="system-companion-toggle">
-                      <input
-                        type="checkbox"
-                        disabled={!greetingPets.enabled || greetingPets.companion === false}
-                        checked={greetingPets.wardrobe !== false}
-                        onChange={e => updateGreetingPets({ wardrobe: e.target.checked })}
-                      />
-                      <Shirt size={15} color="var(--violet)" /> Wardrobe
-                    </label>
-                    <p className="admin-subtext" style={{ margin: "6px 0 10px" }}>
-                      {HATS.length} hats, {COATS.length} coats and {NECKWEAR.length} collars. Hats and collars are mostly earned by level; the coats and the last of the hats come from devotion, which starts at level 12 and runs alongside levels 13-20. Off hides the whole section — every hat, collar and coat on every pet.
-                    </p>
-
-                    {greetingPets.wardrobe !== false && (() => {
-                      const hatsOff = greetingPets.hatsOff || [];
-                      const toggleHat = key => updateGreetingPets({
-                        hatsOff: hatsOff.includes(key) ? hatsOff.filter(k => k !== key) : [...hatsOff, key],
-                      });
-                      return (
-                        <div style={{ opacity: greetingPets.enabled && greetingPets.companion !== false ? 1 : 0.55 }}>
-                          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(84px, 1fr))", gap: 7 }}>
-                            {HATS.map(h => {
-                              const withdrawn = hatsOff.includes(h.key);
-                              return (
-                                <button
-                                  key={h.key}
-                                  type="button"
-                                  disabled={!greetingPets.enabled || greetingPets.companion === false}
-                                  aria-pressed={!withdrawn}
-                                  title={withdrawn ? `${h.label} — withdrawn` : `${h.label} — ${hatRequirement(h.key)}`}
-                                  onClick={() => toggleHat(h.key)}
-                                  style={{
-                                    display: "grid", justifyItems: "center", gap: 2, padding: "7px 4px 5px",
-                                    border: `1px solid ${withdrawn ? "var(--border)" : "var(--violet)"}`,
-                                    borderRadius: 10,
-                                    background: withdrawn ? "var(--bg)" : "color-mix(in srgb, var(--violet) 12%, var(--bg))",
-                                    color: "var(--text)", font: "inherit", cursor: "pointer",
-                                    opacity: withdrawn ? 0.5 : 1,
-                                  }}
-                                >
-                                  <span className="dg-pet" style={{ display: "inline-grid", position: "relative", width: 34, height: 34 }} data-motion="off" aria-hidden="true">
-                                    <PetHat hat={h.key} />
-                                  </span>
-                                  <span style={{ fontSize: 9.5, fontWeight: 700, lineHeight: 1.2, textAlign: "center" }}>{h.label}</span>
-                                  <span style={{ fontSize: 8.5, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".3px" }}>
-                                    {withdrawn ? "withdrawn" : hatRequirement(h.key)}
-                                  </span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                          <p className="admin-subtext" style={{ margin: "9px 0 0" }}>
-                            Tap to withdraw one. A withdrawn wearable disappears from the wardrobe and stops being drawn — but it is <strong>not</strong> un-earned: anyone already wearing it keeps the choice, and turning it back on puts it straight back on their pet. {hatsOff.length > 0 && `${hatsOff.length} withdrawn.`}
-                          </p>
-                        </div>
-                      );
-                    })()}
-
-                    <p className="admin-subtext" style={{ margin: "10px 0 0" }}>
-                      To give one student a wearable early, raise their companion&apos;s level in the student inspector — hats are earned from level, so there is no separate grant to make.
-                    </p>
-                  </div>
+          {/* Config drift — what live config layers on top of the bundled snapshot */}
+          <section className="admin-card admin-g-system system-control-card system-drift-card" style={{ display: "flex", flexDirection: "column" }}>
+            <h2><Database size={20} color="var(--blue-text)" /> Config Drift</h2>
+            <p className="admin-subtext">How far the live cloud config has drifted from the timetable baked into the app at build time. High counts mean students are downloading a lot of overrides — consider a snapshot rebuild.</p>
+            <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 12 }}>
+              Snapshot baked {snapshotMeta.ts ? new Date(snapshotMeta.ts).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "—"} · {snapshotMeta.classes || "?"} classes
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 10 }}>
+              {[
+                { label: "Class overrides", n: configDrift.overrideClasses, sub: `${configDrift.overrideDays} day(s)` },
+                { label: "Announcements", n: configDrift.announcements, sub: "scheduled" },
+                { label: "Quick links", n: configDrift.quickLinks, sub: "active" },
+              ].map(s => (
+                <div key={s.label} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, padding: "12px 14px" }}>
+                  <div style={{ fontSize: 24, fontWeight: 800, fontFamily: "var(--display)", color: s.n > 0 ? "var(--text)" : "var(--muted)" }}>{s.n}</div>
+                  <div style={{ fontSize: 12, fontWeight: 700 }}>{s.label}</div>
+                  <div style={{ fontSize: 11, color: "var(--muted)" }}>{s.sub}</div>
                 </div>
+              ))}
+            </div>
+            <div style={{ fontSize: 12, marginTop: 12, color: configDrift.total > 0 ? "var(--amber)" : "var(--live)", display: "flex", alignItems: "center", gap: 6 }}>
+              {configDrift.total > 0
+                ? <><AlertTriangle size={14} /> Live config adds {configDrift.total} item(s) on top of the bundle.</>
+                : <><Check size={14} /> Live config matches the bundled snapshot.</>}
+            </div>
+          </section>
+
+          <section className="admin-card admin-g-system system-control-card system-snapshot-card">
+            <h2><Database size={20} color="var(--violet)" /> Bundled Snapshot</h2>
+            <p className="admin-subtext">
+              Fallback timetable baked into the app at build time. Regenerated automatically from the live sheet on every deploy.
+            </p>
+            <div className="admin-danger-row">
+              <div>
+                <strong style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                  {snapshotMeta.status === "success" ? (
+                    <><Check size={15} color="var(--live, #2ecc71)" /> Automation passed</>
+                  ) : (
+                    <><AlertTriangle size={15} color="var(--danger, #e74c3c)" /> Automation failed</>
+                  )}
+                </strong>
+                <span className="admin-subtext" style={{ margin: 0 }}>
+                  {snapshotMeta.status === "success" ? (
+                    <>Generated {new Date(snapshotMeta.ts).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} · {snapshotMeta.classes} classes · {snapshotMeta.courses} courses · term {snapshotMeta.termStart} → {snapshotMeta.termEnd}</>
+                  ) : (
+                    <>
+                      {snapshotMeta.error || "Feed unreachable at build time"} — serving snapshot from{" "}
+                      {snapshotMeta.lastSuccessTs ? new Date(snapshotMeta.lastSuccessTs).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "an older build"}
+                    </>
+                  )}
+                </span>
+              </div>
+              <button className="admin-btn outline" onClick={triggerSnapshotRebuild} disabled={rebuilding}>
+                <RefreshCw size={14} className={rebuilding ? "spin-icon" : ""} /> Rebuild
+              </button>
+            </div>
+            {rebuildMsg && (
+              <span className={`admin-save-msg ${rebuildMsg.startsWith("Failed") ? "error" : "success"}`} style={{ display: "block", marginTop: 8 }}>
+                {rebuildMsg}
+              </span>
+            )}
+          </section>
+
+          <SystemSectionHead id="features" Icon={Flag} title="Features">Switch modules on or off for the whole cohort, run rollouts, and schedule releases.</SystemSectionHead>
+
+          {/* Feature switches — every boolean the client reads from config, grouped */}
+          <section className="admin-card admin-span-all admin-g-system system-control-card system-switches-card">
+            {(() => {
+              const live = originalFlags || {};
+              // Flipping a switch back restores the exact live value (including
+              // "unset"), so the staged-change count drops back to zero.
+              const setTop = (key, on, wasOn) => {
+                const next = { ...flags };
+                if (on !== wasOn) next[key] = on;
+                else if (key in live) next[key] = live[key];
+                else delete next[key];
+                setFlags(next);
+              };
+              const setFeature = (key, on, wasOn) => {
+                const features = { ...(flags.features || {}) };
+                if (on !== wasOn) features[key] = on;
+                else if (live.features && key in live.features) features[key] = live.features[key];
+                else delete features[key];
+                const next = { ...flags, features };
+                if (!Object.keys(features).length && !("features" in live)) delete next.features;
+                setFlags(next);
+              };
+              const groups = [
+                {
+                  id: "core", title: "Core modules", note: "Kill switches — off hides the module for every student.",
+                  items: CORE_MODULES.map(m => ({ ...m, id: `features.${m.key}`, on: flags.features?.[m.key] !== false, was: live.features?.[m.key] !== false, set: on => setFeature(m.key, on, live.features?.[m.key] !== false) })),
+                },
+                {
+                  id: "social", title: "Social features", note: "Pieces of the Friends experience that can be switched off individually.",
+                  items: FEATURE_FLAGS.map(f => ({ ...f, id: f.key, on: flags[f.key] !== false, was: live[f.key] !== false, set: on => setTop(f.key, on, live[f.key] !== false) })),
+                },
+                {
+                  id: "other", title: "Other flags", note: "Remaining on/off values found in the config.",
+                  items: Object.keys(flags)
+                    .filter(k => typeof flags[k] === "boolean" && !FEATURE_FLAG_KEYS.has(k) && k !== "maintenanceMode" && k !== "dispatchEnabled")
+                    .map(k => ({ key: k, label: k, id: k, on: !!flags[k], was: !!live[k], set: on => setTop(k, on, !!live[k]) })),
+                },
+              ];
+              const q = flagSearch.trim().toLowerCase();
+              const all = groups.flatMap(g => g.items);
+              const onCount = all.filter(i => i.on).length;
+              const changed = all.filter(i => i.on !== i.was).length;
+              const shown = groups
+                .map(g => ({ ...g, items: q ? g.items.filter(i => `${i.label} ${i.id} ${i.hint || ""}`.toLowerCase().includes(q)) : g.items }))
+                .filter(g => g.items.length);
+              return (
+                <>
+                  <div className="system-card-head">
+                    <div>
+                      <h2><Flag size={20} color="var(--violet)" /> Feature switches <AdminActionBadge mode="staged" /></h2>
+                      <p className="admin-subtext">{onCount} of {all.length} on{changed ? ` · ${changed} changed, not deployed yet` : ""}. Switches only reach students after you deploy.</p>
+                    </div>
+                    <label className="admin-search-control system-switch-search"><Search size={15} /><input value={flagSearch} onChange={e => setFlagSearch(e.target.value)} placeholder="Find a switch…" aria-label="Search feature switches" />{flagSearch && <button type="button" onClick={() => setFlagSearch("")} aria-label="Clear switch search"><X size={14} /></button>}</label>
+                  </div>
+                  <fieldset className="admin-readonly-group" disabled={isReadOnlyAdmin}>
+                    {shown.length === 0 ? (
+                      <div className="admin-empty">No switch matches “{flagSearch.trim()}”.</div>
+                    ) : (
+                      <div className="system-switch-groups">
+                        {shown.map(g => (
+                          <div key={g.id} className="system-switch-group">
+                            <div className="system-switch-group-head"><span className="system-kicker">{g.title}</span><small>{g.note}</small></div>
+                            {g.items.map(item => (
+                              <label key={item.id} className={`system-switch${item.on !== item.was ? " is-changed" : ""}`}>
+                                <span className="system-switch-copy">
+                                  <strong>{item.label}{item.on !== item.was && <i className="system-switch-dot" title="Changed — not deployed yet" aria-label="Changed, not deployed yet" />}</strong>
+                                  {item.hint && <small>{item.hint}</small>}
+                                  <code>{item.id}</code>
+                                </span>
+                                <span className="admin-toggle"><input type="checkbox" checked={item.on} onChange={e => item.set(e.target.checked)} /><span className="slider" /></span>
+                              </label>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </fieldset>
+                </>
               );
             })()}
+          </section>
 
-            {/* Cohort-wide companion XP. These take effect immediately on every
-                adopted pet — they are RPC calls, not flags, so there is no
-                Deploy step to undo them. Hence the explicit counts and the
-                typed confirmation on the destructive one. */}
-            <div className="admin-field system-companion-bulk">
-              <span className="system-companion-panel-kicker">Immediate cohort action</span>
-              <h3><Activity size={17} /> Companion XP — all students</h3>
-              <p className="admin-subtext" style={{ margin: "0 0 10px" }}>
-                Applies to every student who has adopted a companion. Adjustments sit
-                beside earned XP rather than replacing it, so classes, deadlines and
-                streaks are never deleted and any change here can be undone with
-                &ldquo;Reset adjustments&rdquo;. Totals floor at zero.
-              </p>
-
-              <div className="admin-field-row" style={{ alignItems: "flex-end", maxWidth: 460 }}>
-                <label className="admin-field" style={{ flex: "1 1 110px", margin: 0 }}>
-                  <span>XP amount</span>
-                  <input
-                    className="admin-input"
-                    type="number"
-                    min="1"
-                    step="10"
-                    value={petBulkDraft}
-                    disabled={petBulkBusy}
-                    onChange={e => setPetBulkDraft(Math.max(1, Number(e.target.value) || 0))}
-                  />
-                </label>
-                {[["Add to all", 1], ["Remove from all", -1]].map(([label, sign]) => (
-                  <button
-                    key={label}
-                    type="button"
-                    className="admin-btn outline"
-                    disabled={petBulkBusy || petBulkDraft < 1}
-                    onClick={async () => {
-                      const delta = sign * petBulkDraft;
-                      if (!confirm(`${sign > 0 ? "Add" : "Remove"} ${petBulkDraft} XP ${sign > 0 ? "to" : "from"} EVERY student with a companion?\n\nThis takes effect immediately. Earned history is kept, and this can be undone by applying the opposite amount.`)) return;
-                      setPetBulkBusy(true); setPetBulkMessage("");
-                      const { data, error } = await supabase.rpc("admin_bulk_adjust_pet_xp", { p_delta: delta });
-                      setPetBulkBusy(false);
-                      if (error) { setPetBulkMessage(`Could not update companions: ${error.message}`); return; }
-                      setPetBulkMessage(`${sign > 0 ? "Added" : "Removed"} ${petBulkDraft} XP ${sign > 0 ? "to" : "from"} ${data} companion${data === 1 ? "" : "s"}.`);
-                      await logAdminAction(admin_id, "bulk_adjust_pet_xp", { delta, affected: data });
-                    }}
-                  >
-                    {petBulkBusy ? "Working…" : label}
-                  </button>
-                ))}
+          {/* A/B testing — percentage rollouts stored in flags.abTests */}
+          <section className="admin-card admin-g-system system-control-card system-experiments-card">
+            <h2><Flag size={20} color="var(--blue-text)" /> A/B Testing <AdminActionBadge mode="staged" /></h2>
+            <p className="admin-subtext">Percentage rollouts stored in config. Changes are staged until you deploy.</p>
+            <fieldset className="admin-readonly-group" disabled={isReadOnlyAdmin}>
+              <form className="system-ab-add" onSubmit={e => {
+                e.preventDefault();
+                const key = abTestName.trim().toLowerCase().replace(/\s+/g, "_");
+                if (!key) return;
+                setFlags({ ...flags, abTests: { ...(flags.abTests || {}), [key]: { name: abTestName.trim(), rollout: abTestRollout, active: true } } });
+                setAbTestName(""); setAbTestRollout(50);
+              }}>
+                <div className="admin-field">
+                  <label htmlFor="system-ab-name">Experiment name</label>
+                  <input id="system-ab-name" className="admin-input" value={abTestName} onChange={e => setAbTestName(e.target.value)} placeholder="e.g. new_home_v4" />
+                </div>
+                <div className="admin-field system-ab-pct">
+                  <label htmlFor="system-ab-rollout">Rollout %</label>
+                  <input id="system-ab-rollout" type="number" min={0} max={100} className="admin-input" value={abTestRollout} onChange={e => setAbTestRollout(Math.min(100, Math.max(0, Number(e.target.value))))} />
+                </div>
+                <button type="submit" className="admin-btn primary" disabled={!abTestName.trim()}>Add</button>
+              </form>
+              <div className="system-ab-list">
+                {Object.keys(flags.abTests || {}).length === 0 ? (
+                  <div className="admin-empty">No experiments yet.</div>
+                ) : Object.entries(flags.abTests || {}).map(([key, exp]) => {
+                  const rollout = Math.min(100, Math.max(0, Number(exp.rollout) || 0));
+                  const setRollout = value => setFlags({ ...flags, abTests: { ...flags.abTests, [key]: { ...exp, rollout: Math.min(100, Math.max(0, Number(value) || 0)) } } });
+                  return (
+                    <div key={key} className="system-ab-row">
+                      <div className="system-ab-top">
+                        <div><strong>{exp.name || key}</strong><code>{key}</code></div>
+                        {abDeleteKey === key ? (
+                          <span className="system-btn-row">
+                            <button type="button" className="admin-btn" onClick={() => setAbDeleteKey(null)}>Keep</button>
+                            <button type="button" className="admin-btn danger" onClick={() => { const next = { ...flags.abTests }; delete next[key]; setFlags({ ...flags, abTests: next }); setAbDeleteKey(null); }}>Delete</button>
+                          </span>
+                        ) : (
+                          <button type="button" className="system-icon-btn" onClick={() => setAbDeleteKey(key)} aria-label={`Delete experiment ${exp.name || key}`}><Trash2 size={14} /></button>
+                        )}
+                      </div>
+                      <div className="system-ab-control">
+                        <input type="range" min={0} max={100} step={5} value={rollout} onChange={e => setRollout(e.target.value)} aria-label={`Rollout for ${exp.name || key}`} style={{ "--fill": `${rollout}%` }} />
+                        <input type="number" min={0} max={100} className="admin-input system-ab-num" value={rollout} onChange={e => setRollout(e.target.value)} aria-label={`Rollout percent for ${exp.name || key}`} />
+                        <span>%</span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-
-              <div className="admin-field-row" style={{ alignItems: "flex-end", maxWidth: 460, marginTop: 10 }}>
-                <label className="admin-field" style={{ flex: "1 1 110px", margin: 0 }}>
-                  <span>Set everyone to</span>
-                  <select
-                    className="admin-input"
-                    value={petBulkLevelDraft}
-                    disabled={petBulkBusy}
-                    onChange={e => setPetBulkLevelDraft(Number(e.target.value))}
-                  >
-                    {/* SERVER_LEVEL_CAP: the highest level the grant RPCs and pet_state check accept. */}
-                    {Array.from({ length: SERVER_LEVEL_CAP }, (_, index) => index + 1).map(level => <option key={level} value={level}>Level {level}</option>)}
-                  </select>
-                </label>
-                <button
-                  type="button"
-                  className="admin-btn outline"
-                  disabled={petBulkBusy}
-                  onClick={async () => {
-                    // The only cohort action that can take progress away from
-                    // students who earned it, so it asks for the level typed back.
-                    const typed = prompt(`Set EVERY companion to exactly Level ${petBulkLevelDraft}?\n\nStudents who earned beyond this will be reduced to match — it flattens the leaderboard. Earned history is kept and "Reset adjustments" undoes it.\n\nType ${petBulkLevelDraft} to confirm:`);
-                    if (typed === null) return;
-                    if (typed.trim() !== String(petBulkLevelDraft)) { setPetBulkMessage("Cancelled — confirmation did not match."); return; }
-                    setPetBulkBusy(true); setPetBulkMessage("");
-                    const { data, error } = await supabase.rpc("admin_bulk_set_pet_level", { p_level: petBulkLevelDraft });
-                    setPetBulkBusy(false);
-                    if (error) { setPetBulkMessage(`Could not update companions: ${error.message}`); return; }
-                    setPetBulkMessage(`Set ${data} companion${data === 1 ? "" : "s"} to Level ${petBulkLevelDraft}.`);
-                    await logAdminAction(admin_id, "bulk_set_pet_level", { level: petBulkLevelDraft, affected: data });
-                  }}
-                >
-                  Set all to level
-                </button>
-                <button
-                  type="button"
-                  className="admin-btn outline"
-                  disabled={petBulkBusy}
-                  onClick={async () => {
-                    if (!confirm("Reset every admin adjustment?\n\nAll companions fall back to purely earned XP. Grants and reductions are cleared; nothing students earned is affected.")) return;
-                    setPetBulkBusy(true); setPetBulkMessage("");
-                    const { data, error } = await supabase.rpc("admin_bulk_reset_pet_adjustments");
-                    setPetBulkBusy(false);
-                    if (error) { setPetBulkMessage(`Could not reset companions: ${error.message}`); return; }
-                    setPetBulkMessage(data === 0 ? "No companions had adjustments to reset." : `Reset adjustments on ${data} companion${data === 1 ? "" : "s"}.`);
-                    await logAdminAction(admin_id, "bulk_reset_pet_adjustments", { affected: data });
-                  }}
-                >
-                  Reset adjustments
-                </button>
-              </div>
-              {petBulkMessage && <p className="admin-subtext" style={{ margin: "9px 0 0", color: petBulkMessage.startsWith("Could not") ? "var(--danger)" : "var(--live)" }}>{petBulkMessage}</p>}
-            </div>
+            </fieldset>
           </section>
 
           <section className="admin-card admin-g-system system-control-card system-experience-card">
-            <h2><Sparkles size={20} color="var(--blue-text)" /> Release &amp; Presentation</h2>
-            <div className="admin-field" style={{ marginTop: 16 }}>
-              <label style={{ display: "block", marginBottom: 8, fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "1px" }}>TermFlow Wrapped Release</label>
-              {(() => {
-                const WRAPPED_MIN_DATE = "2026-12-14"; // hard floor (last week of Term V) — mirrored in App.jsx gating
-                const todayStr = new Date().toISOString().split("T")[0];
-                const rel = flags.wrappedReleaseDate || "";
-                const effective = rel && rel < WRAPPED_MIN_DATE ? WRAPPED_MIN_DATE : rel;
-                const status = !rel
-                  ? "Not scheduled — students can't see Wrapped yet."
-                  : todayStr >= effective
-                    ? `🟢 LIVE for the cohort since ${effective}.`
-                    : `Scheduled — goes live on ${effective}.`;
-                return (
-                  <>
-                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                      <input
-                        type="date"
-                        className="admin-input"
-                        min={WRAPPED_MIN_DATE}
-                        value={rel}
-                        onChange={e => setFlags({ ...flags, wrappedReleaseDate: e.target.value || null })}
-                        style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)" }}
-                      />
-                      <button
-                        type="button"
-                        className="admin-btn"
-                        onClick={() => setFlags({ ...flags, wrappedReleaseDate: todayStr > WRAPPED_MIN_DATE ? todayStr : WRAPPED_MIN_DATE })}
-                        title="Release immediately (or on 14 Dec 2026 if that hasn't arrived yet)"
-                      >
-                        Push now
-                      </button>
-                      {rel && (
-                        <button type="button" className="admin-btn" onClick={() => setFlags({ ...flags, wrappedReleaseDate: null })}>
-                          Unschedule
-                        </button>
-                      )}
-                    </div>
-                    <div className="admin-subtext" style={{ marginTop: 6 }}>
-                      {status} Earliest allowed release is 14 Dec 2026 (dates before it are clamped). Automatically unlocked in the last week of Term V (14–20 Dec 2026). Remember to hit <b>Deploy Config to Cloud</b>.
-                    </div>
-                  </>
-                );
-              })()}
-            </div>
-
-            <div className="admin-field" style={{ marginTop: 16 }}>
-              <label style={{ display: "block", marginBottom: 8, fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "1px" }}>Hero Backdrop Strategy</label>
-              <select 
-                className="admin-input" 
-                value={flags.heroBackdrop || "swap"} 
-                onChange={e => setFlags({ ...flags, heroBackdrop: e.target.value })}
-                style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", width: "100%" }}
-              >
-                <option value="none">None (Remove Background)</option>
-                <option value="swap">Swap Alt Days (Default)</option>
-                <option value="v2">Static (V2 Image)</option>
-                <option value="v3">Static (V3 Image)</option>
+            <h2><Sparkles size={20} color="var(--blue-text)" /> Release &amp; Presentation <AdminActionBadge mode="staged" /></h2>
+            <p className="admin-subtext">Cohort-wide releases and how the home screen looks.</p>
+            <fieldset className="admin-readonly-group" disabled={isReadOnlyAdmin}>
+            {(() => {
+              const WRAPPED_MIN_DATE = "2026-12-14"; // hard floor (last week of Term V) — mirrored in App.jsx gating
+              const todayStr = new Date().toISOString().split("T")[0];
+              const rel = flags.wrappedReleaseDate || "";
+              const effective = rel && rel < WRAPPED_MIN_DATE ? WRAPPED_MIN_DATE : rel;
+              const live = rel && todayStr >= effective;
+              const status = !rel
+                ? "Not scheduled — students can't see Wrapped yet."
+                : live
+                  ? `Live for the cohort since ${effective}.`
+                  : `Scheduled — goes live on ${effective}.`;
+              return (
+                <div className="system-subsection">
+                  <div className="system-subhead"><label className="system-kicker" htmlFor="system-wrapped-date">TermFlow Wrapped release</label></div>
+                  <div className={`system-status-line is-${live ? "ok" : rel ? "watch" : "muted"}`} role="status"><span aria-hidden="true" />{status}</div>
+                  <div className="system-btn-row">
+                    <input id="system-wrapped-date" type="date" className="admin-input system-date-input" min={WRAPPED_MIN_DATE} value={rel} onChange={e => setFlags({ ...flags, wrappedReleaseDate: e.target.value || null })} />
+                    <button type="button" className="admin-btn outline" onClick={() => setFlags({ ...flags, wrappedReleaseDate: todayStr > WRAPPED_MIN_DATE ? todayStr : WRAPPED_MIN_DATE })} title="Release immediately (or on 14 Dec 2026 if that hasn't arrived yet)">Push now</button>
+                    {rel && <button type="button" className="admin-btn" onClick={() => setFlags({ ...flags, wrappedReleaseDate: null })}>Unschedule</button>}
+                  </div>
+                  <small className="system-help">Earliest release is 14 Dec 2026 — earlier dates are clamped. It also unlocks automatically in the last week of Term V (14–20 Dec).</small>
+                </div>
+              );
+            })()}
+            <div className="system-subsection">
+              <div className="system-subhead"><label className="system-kicker" htmlFor="system-hero-backdrop">Hero backdrop</label></div>
+              <select id="system-hero-backdrop" className="admin-input" value={flags.heroBackdrop || "swap"} onChange={e => setFlags({ ...flags, heroBackdrop: e.target.value })}>
+                <option value="none">None (remove background)</option>
+                <option value="swap">Swap on alternate days (default)</option>
+                <option value="v2">Static (V2 image)</option>
+                <option value="v3">Static (V3 image)</option>
               </select>
+            </div>
+            </fieldset>
+          </section>
+
+          <SystemSectionHead id="access" Icon={Shield} title="Access & safety">Who can administer TermFlow, who gets alerted, and the switches that affect every student at once.</SystemSectionHead>
+
+          {/* Admin roles */}
+          <section className="admin-card admin-g-system system-control-card system-roles-card">
+            <h2><ShieldAlert size={20} color="var(--violet)" /> Admin Roles <AdminActionBadge mode="live" /></h2>
+            <p className="admin-subtext">Anyone with a role can open Admin Tools. A Monitor can see everything but change nothing; a Superadmin has full access. Roles apply on their next app load. You can also set a role from any user's detail panel.</p>
+            {!canManageRoles && <p className="admin-subtext" style={{ color: "var(--amber-text)" }}>Only a Superadmin can grant or remove roles.</p>}
+            <fieldset className="admin-readonly-group" disabled={!canManageRoles}>
+            <div className="admin-field-row" style={{ alignItems: "flex-end" }}>
+              <div className="admin-field" style={{ flex: 2 }}>
+                <label htmlFor="admin-role-target">Email or user ID</label>
+                <input id="admin-role-target" className="admin-input" value={roleUserId} onChange={e => setRoleUserId(e.target.value)} placeholder="name@iimsambalpur.ac.in" autoComplete="off" />
+              </div>
+              <div className="admin-field" style={{ flex: 1 }}>
+                <label htmlFor="admin-role-value">Role</label>
+                <select id="admin-role-value" className="admin-input" value={roleValue} onChange={e => setRoleValue(e.target.value)}>
+                  <option value="monitor">Monitor</option>
+                  <option value="superadmin">Superadmin</option>
+                </select>
+              </div>
+              <button className="admin-btn primary" style={{ flex: "0 0 auto", marginBottom: 10 }} onClick={saveAdminRole} disabled={!roleTarget}>Grant</button>
+            </div>
+            {roleQuery && (
+              <p className="admin-subtext" style={{ margin: "-4px 0 8px" }} aria-live="polite">
+                {roleTarget
+                  ? <>Will grant to <strong>{roleTarget.name || roleTarget.email || roleTarget.user_id}</strong>{roleTarget.email && roleTarget.name ? ` (${roleTarget.email})` : ""}{adminRoster.some(r => r.user_id === roleTarget.user_id) ? " — replaces their current role" : ""}</>
+                  : "No TermFlow account matches. They need to sign in to TermFlow once before they can be granted a role."}
+              </p>
+            )}
+            </fieldset>
+            <div className="system-roster">
+              <div className="system-subhead"><span className="system-kicker">Current admins</span><small>{adminRoster.length} with a role</small></div>
+              {adminRoster.length === 0 ? (
+                <div className="admin-empty">No admin roles assigned.</div>
+              ) : adminRoster.map(({ user_id: id, role }) => {
+                const u = allUsers.find(x => x.user_id === id);
+                return (
+                  <div key={id} className="system-roster-row">
+                    <Avatar name={u?.name || id} email={u?.email || id} />
+                    <div className="system-roster-who">
+                      <strong>{u?.name || id}{id === admin_id && <span className="system-you">You</span>}</strong>
+                      <code>{u?.email || id}</code>
+                    </div>
+                    <span className={`system-role-pill is-${role}`}>{role}</span>
+                    <button type="button" onClick={() => requestRevokeAdminRole(id)} disabled={!canManageRoles} className="system-icon-btn is-danger" aria-label={`Remove admin access for ${u?.name || id}`}><Trash2 size={14} /></button>
+                  </div>
+                );
+              })}
             </div>
           </section>
 
-             {/* A/B Testing — managed from flags.abTests */}
+          {/* Health alerts — admin-only push when a job stalls or the feed dies */}
+          <section className="admin-card admin-g-system system-control-card system-alerts-card">
+            <h2><BellRing size={20} color="var(--amber-text)" /> Health Alerts <AdminActionBadge mode="staged" /></h2>
+            <p className="admin-subtext">The <code>health-monitor</code> cron checks every 15 min for stalled or failed jobs and a dead Sheets feed, then pushes an alert to the admins listed here — never to students.</p>
+            {(() => {
+              const recipients = flags.alertRecipients || [];
+              const meIncluded = recipients.includes(admin_id);
+              // An emptied list goes back to "unset" when the live config had none,
+              // so add-then-remove leaves nothing staged.
+              const setRecipients = list => {
+                const next = { ...flags, alertRecipients: list };
+                if (!list.length && !("alertRecipients" in (originalFlags || {}))) delete next.alertRecipients;
+                setFlags(next);
+              };
+              return (
+                <fieldset className="admin-readonly-group" disabled={isReadOnlyAdmin}>
+                  <label className="system-switch">
+                    <span className="system-switch-copy"><strong>Send health alerts to me</strong><small>Alerts arrive in your inbox and as a push.</small></span>
+                    <span className="admin-toggle"><input type="checkbox" checked={meIncluded} onChange={e => {
+                      setRecipients(e.target.checked ? [...new Set([...recipients, admin_id])] : recipients.filter(id => id !== admin_id));
+                    }} /><span className="slider" /></span>
+                  </label>
+                  <div className="system-subhead"><span className="system-kicker">Recipients</span><small>{recipients.length || "None"}</small></div>
+                  {recipients.length === 0 ? (
+                    <div className="admin-empty">No recipients — alerts are off. (Admins with a role still receive them.)</div>
+                  ) : (
+                    <div className="system-chip-list">
+                      {recipients.map(id => {
+                        const name = id === admin_id ? "You" : allUsers.find(u => u.user_id === id)?.name || id.slice(0, 10);
+                        return (
+                          <span key={id} className="system-chip">
+                            {name}
+                            <button type="button" onClick={() => setRecipients(recipients.filter(x => x !== id))} aria-label={`Remove ${name} from alert recipients`}><X size={12} /></button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <small className="system-help">Needs the <code>health-monitor</code> edge function and its cron deployed.</small>
+                </fieldset>
+              );
+            })()}
+          </section>
+
+          {/* Maintenance — instant lockout and scheduled window in one place */}
+          <section className="admin-card admin-g-system system-control-card system-maintenance-card">
+            {(() => {
+              const win = flags.maintenanceWindow || {};
+              const startMs = win.start ? new Date(win.start).getTime() : null;
+              const endMs = win.end ? new Date(win.end).getTime() : null;
+              const fmt = ms => new Date(ms).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+              const lockChanged = !!flags.maintenanceMode !== !!originalFlags?.maintenanceMode;
+              const badWindow = startMs && endMs && endMs <= startMs;
+              let tone = "ok";
+              let status = "Students have full access.";
+              if (flags.maintenanceMode) { tone = "risk"; status = lockChanged ? "Lockout staged — students are locked out as soon as you deploy." : "Lockout is LIVE — students cannot use TermFlow."; }
+              else if (lockChanged) { tone = "watch"; status = "Lockout will lift when you deploy."; }
+              else if (badWindow) { tone = "watch"; status = "Scheduled window is invalid — fix the times below."; }
+              else if (startMs && endMs && LOAD_NOW >= startMs && LOAD_NOW < endMs) { tone = "risk"; status = `Scheduled window is active until ${fmt(endMs)}.`; }
+              else if (startMs && startMs > LOAD_NOW) { tone = "watch"; status = `Window scheduled: ${fmt(startMs)}${endMs ? ` → ${fmt(endMs)}` : ""}.`; }
+              else if (endMs && endMs <= LOAD_NOW) { status = "Students have full access. The last scheduled window has ended."; }
+              return (
+                <>
+                  <h2><CloudOff size={20} color="var(--danger)" /> Maintenance <AdminActionBadge mode="staged" /></h2>
+                  <div className={`system-status-line is-${tone}`} role="status"><span aria-hidden="true" />{status}</div>
+                  <fieldset className="admin-readonly-group" disabled={isReadOnlyAdmin}>
+                    <label className="system-switch system-switch-danger">
+                      <span className="system-switch-copy"><strong>Lock out students now</strong><small>Non-admins see the “Under maintenance” screen as soon as this is deployed.</small></span>
+                      <span className="admin-toggle"><input type="checkbox" checked={!!flags.maintenanceMode} onChange={e => setFlags({ ...flags, maintenanceMode: e.target.checked })} /><span className="slider" /></span>
+                    </label>
+                    <div className="system-subhead"><span className="system-kicker">Scheduled window</span><small>Locks out automatically between these times. Leave blank for none.</small></div>
+                    <div className="admin-field-row">
+                      <div className="admin-field">
+                        <label htmlFor="system-mw-start">Start</label>
+                        <input id="system-mw-start" type="datetime-local" className="admin-input" value={win.start || ""} onChange={e => setFlags({ ...flags, maintenanceWindow: { ...win, start: e.target.value } })} />
+                      </div>
+                      <div className="admin-field">
+                        <label htmlFor="system-mw-end">End</label>
+                        <input id="system-mw-end" type="datetime-local" className="admin-input" min={win.start || undefined} value={win.end || ""} onChange={e => setFlags({ ...flags, maintenanceWindow: { ...win, end: e.target.value } })} />
+                      </div>
+                    </div>
+                    {badWindow && <p className="system-field-error" role="alert"><AlertTriangle size={13} /> The window ends before it starts.</p>}
+                    {(win.start || win.end) && (
+                      <button type="button" className="admin-btn outline" onClick={() => { const n = { ...flags }; delete n.maintenanceWindow; setFlags(n); }}>Clear window</button>
+                    )}
+                  </fieldset>
+                </>
+              );
+            })()}
+          </section>
+
+          <section className="admin-card admin-g-system danger-zone system-control-card system-danger-card">
+            <h2><AlertTriangle size={20} color="var(--danger)" /> Danger Zone</h2>
+            <p className="admin-subtext">Platform-wide switches — each one affects every student.</p>
+            <div className="admin-danger-row">
+              <div>
+                <strong className="system-row-title">Push Dispatcher <AdminActionBadge mode="staged" /></strong>
+                <span className="admin-subtext">After deployment, ON delivers push and OFF pauses outgoing push within a minute (the in-app inbox still updates; queued events resume when re-enabled). Kill-switch if the push system misbehaves — flip OFF, deploy, then redeploy the legacy functions to fully fall back.</span>
+              </div>
+              <label className="admin-toggle">
+                <input type="checkbox" checked={flags.dispatchEnabled !== false} disabled={isReadOnlyAdmin} onChange={e => setFlags({ ...flags, dispatchEnabled: e.target.checked })} aria-label="Push dispatcher" />
+                <span className="slider"></span>
+              </label>
+            </div>
+            <div className="admin-danger-row">
+              <div>
+                <strong className="system-row-title">Force Global Refresh <AdminActionBadge mode="live" /></strong>
+                <span className="admin-subtext">Every open client re-syncs from the cloud right away.</span>
+              </div>
+              <button type="button" className="admin-btn outline" onClick={requestForceRefresh} disabled={isReadOnlyAdmin}>
+                <RefreshCw size={14} /> Force sync
+              </button>
+            </div>
+          </section>
+
+          <SystemSectionHead id="dev" Icon={Terminal} title="Developer tools">Local-only testing aids. Nothing here changes what students see.</SystemSectionHead>
+
+          {/* Time Machine */}
+          <section className="admin-card admin-span-all admin-g-system system-time-machine" style={{ gridColumn: "1 / -1" }}>
+            <h2><Clock size={20} color="var(--amber-text)" /> Time Machine</h2>
+            <p className="admin-subtext">Override the app's current time in this browser to test the timeline, agenda and date-based UI. Students are unaffected.</p>
+            {timeOverride && (
+              <div className="system-status-line is-watch" role="status"><span aria-hidden="true" />Running in simulated time: {new Date(timeOverride).toLocaleString("en-IN", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</div>
+            )}
+            <div className="system-btn-row">
+              <input type="datetime-local" className="admin-input system-date-input" aria-label="Simulated date and time" value={timeOverride || ""} onChange={e => setTimeOverride(e.target.value)} />
+              {timeOverride && <button type="button" className="admin-btn primary" onClick={() => setTimeOverride(null)}>Back to real time</button>}
+            </div>
+            <div className="system-subhead"><span className="system-kicker">Presets</span></div>
+            <div className="system-btn-row">
+              <button type="button" className="admin-btn outline" onClick={() => setTimeOverride(presetDateTime(1, 9))}>Tomorrow 9:00</button>
+              <button type="button" className="admin-btn outline" onClick={() => setTimeOverride(presetDateTime(((8 - new Date().getDay()) % 7) || 7, 9))}>Next Monday 9:00</button>
+              <button type="button" className="admin-btn outline" onClick={() => setTimeOverride(nextOccurrence(8, 15))}>Independence Day</button>
+              <button type="button" className="admin-btn outline" onClick={() => setTimeOverride(nextOccurrence(1, 26))}>Republic Day</button>
+            </div>
+          </section>
+
+          <CompanionAdmin flags={flags} setFlags={setFlags} originalFlags={originalFlags} readOnly={isReadOnlyAdmin} adminId={admin_id} requestConfirm={requestAdminConfirmation} />
+
 
 <section className="admin-card admin-span-all admin-g-broadcast" style={{ gridColumn: "1 / -1" }}>
             <h2><Megaphone size={20} color="var(--amber-text)" /> All Announcements</h2>
@@ -5674,76 +5748,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             </div>
           )}
 
-          <section className="admin-card admin-g-system system-control-card system-experiments-card">
-               <h2><Flag size={20} color="var(--blue-text)" /> A/B Testing</h2>
-               <p className="admin-subtext">Rollout experiments stored in flags. Deploy config to apply changes.</p>
-
-               {/* Add new experiment */}
-               <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
-                 <div className="admin-field" style={{ flex: 2, minWidth: 140 }}>
-                   <label>Experiment Name</label>
-                   <input className="admin-input" value={abTestName} onChange={e => setAbTestName(e.target.value)} placeholder="e.g. new_home_v4" />
-                 </div>
-                 <div className="admin-field" style={{ flex: 1, minWidth: 80 }}>
-                   <label>Rollout %</label>
-                   <input type="number" min={0} max={100} className="admin-input" value={abTestRollout} onChange={e => setAbTestRollout(Number(e.target.value))} />
-                 </div>
-                 <button className="admin-btn primary" style={{ marginBottom: 10 }} onClick={() => {
-                   const key = abTestName.trim().toLowerCase().replace(/\s+/g, "_");
-                   if (!key) return alert("Enter an experiment name.");
-                   setFlags({ ...flags, abTests: { ...(flags.abTests || {}), [key]: { name: abTestName.trim(), rollout: abTestRollout, active: true } } });
-                   setAbTestName(""); setAbTestRollout(50);
-                 }}>Add</button>
-               </div>
-
-               {/* Existing experiments */}
-               <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 8 }}>
-                 {Object.keys(flags.abTests || {}).length === 0 ? (
-                   <div className="admin-empty">No experiments. Add one above.</div>
-                 ) : Object.entries(flags.abTests || {}).map(([key, exp]) => (
-                   <div key={key} style={{ padding: 12, background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)" }}>
-                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                       <div>
-                         <span style={{ fontSize: 13, fontWeight: 700 }}>{exp.name || key}</span>
-                         <span style={{ fontSize: 11, color: "var(--muted)", marginLeft: 8 }}>({key})</span>
-                       </div>
-                       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                         <input type="number" min={0} max={100} value={exp.rollout} onChange={e => setFlags({ ...flags, abTests: { ...flags.abTests, [key]: { ...exp, rollout: Number(e.target.value) } } })} style={{ width: 52, padding: "2px 6px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)", fontSize: 12, textAlign: "center" }} />
-                         <span style={{ fontSize: 11, color: "var(--muted)" }}>%</span>
-                         <button onClick={() => {
-                           const next = { ...flags.abTests }; delete next[key];
-                           setFlags({ ...flags, abTests: next });
-                         }} style={{ background: "transparent", border: "none", cursor: "pointer", padding: 2 }}><Trash2 size={14} color="var(--danger)" /></button>
-                       </div>
-                     </div>
-                     <div style={{ height: 6, background: "var(--card)", borderRadius: 3, overflow: "hidden", border: "1px solid var(--border)" }}>
-                       <div style={{ width: `${Math.min(100, Math.max(0, exp.rollout))}%`, height: "100%", background: "var(--blue)", transition: "width 0.3s" }}></div>
-                     </div>
-                   </div>
-                 ))}
-               </div>
-             </section>
 
 
-          {/* Time Machine */}
-          <section className="admin-card admin-span-all admin-g-system system-time-machine" style={{ gridColumn: "1 / -1" }}>
-            <h2><Clock size={20} color="var(--amber-text)" /> Time Machine</h2>
-            <p className="admin-subtext">Override the application's current time to test the timeline, agenda, and UI states.</p>
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12, alignItems: "center" }}>
-              <input type="datetime-local" className="admin-input" style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)" }}
-                 value={timeOverride || ""} onChange={e => setTimeOverride(e.target.value)} />
-              {timeOverride && (
-                <button className="admin-btn outline" onClick={() => setTimeOverride(null)}>Reset to Real Time</button>
-              )}
-              <button className="admin-btn outline" onClick={() => setTimeOverride(nextOccurrence(8, 15))}>Preview Independence Day</button>
-              <button className="admin-btn outline" onClick={() => setTimeOverride(nextOccurrence(1, 26))}>Preview Republic Day</button>
-            </div>
-            {timeOverride && (
-               <div style={{ marginTop: 12, padding: "8px 12px", background: "rgba(245, 158, 11, 0.1)", border: "1px solid var(--amber)", color: "var(--amber-text)", borderRadius: 8, fontSize: 13, fontWeight: 600 }}>
-                 ⚠️ The application is currently running in simulated time.
-               </div>
-            )}
-          </section>
 
           {/* Live Sync Logs */}
           <section className="admin-card admin-span-all admin-g-insights insights-sync-log" style={{ gridColumn: "1 / -1" }}>
@@ -5815,208 +5821,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             {filteredAuditLogs.length > 60 && <p className="audit-limit-note">Showing the first 60 matching records. Export CSV for the complete filtered result.</p>}
           </section>
 
-          {/* Config drift — what live config layers on top of the bundled snapshot */}
-          <section className="admin-card admin-g-system system-control-card system-drift-card" style={{ display: "flex", flexDirection: "column" }}>
-            <h2><Database size={20} color="var(--blue-text)" /> Config Drift</h2>
-            <p className="admin-subtext">How far the live cloud config has drifted from the timetable baked into the app at build time. High counts mean students are downloading a lot of overrides — consider a snapshot rebuild.</p>
-            <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 12 }}>
-              Snapshot baked {snapshotMeta.ts ? new Date(snapshotMeta.ts).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "—"} · {snapshotMeta.classes || "?"} classes
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 10 }}>
-              {[
-                { label: "Class overrides", n: configDrift.overrideClasses, sub: `${configDrift.overrideDays} day(s)` },
-                { label: "Announcements", n: configDrift.announcements, sub: "scheduled" },
-                { label: "Quick links", n: configDrift.quickLinks, sub: "active" },
-              ].map(s => (
-                <div key={s.label} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, padding: "12px 14px" }}>
-                  <div style={{ fontSize: 24, fontWeight: 800, fontFamily: "var(--display)", color: s.n > 0 ? "var(--text)" : "var(--muted)" }}>{s.n}</div>
-                  <div style={{ fontSize: 12, fontWeight: 700 }}>{s.label}</div>
-                  <div style={{ fontSize: 11, color: "var(--muted)" }}>{s.sub}</div>
-                </div>
-              ))}
-            </div>
-            <div style={{ fontSize: 12, marginTop: 12, color: configDrift.total > 0 ? "var(--amber)" : "var(--live)", display: "flex", alignItems: "center", gap: 6 }}>
-              {configDrift.total > 0
-                ? <><AlertTriangle size={14} /> Live config adds {configDrift.total} item(s) on top of the bundle.</>
-                : <><Check size={14} /> Live config matches the bundled snapshot.</>}
-            </div>
-          </section>
 
-          {/* Health alerts — admin-only push when a job stalls or the feed dies */}
-          <section className="admin-card admin-g-system system-control-card system-alerts-card" style={{ display: "flex", flexDirection: "column" }}>
-            <h2><BellRing size={20} color="var(--amber-text)" /> Health Alerts</h2>
-            <p className="admin-subtext">The <code>health-monitor</code> cron checks every 15 min for stalled/failed jobs and a dead Sheets feed, then pushes an alert — to admins on this list only, never to students. Deploy Config to save the recipient list.</p>
-            {(() => {
-              const recipients = flags.alertRecipients || [];
-              const meIncluded = recipients.includes(admin_id);
-              return (
-                <>
-                  <label className="admin-flag-item" style={{ marginBottom: 10 }}>
-                    <input type="checkbox" checked={meIncluded} onChange={e => {
-                      const next = e.target.checked ? [...new Set([...recipients, admin_id])] : recipients.filter(id => id !== admin_id);
-                      setFlags({ ...flags, alertRecipients: next });
-                    }} />
-                    <span>Send health alerts to me</span>
-                  </label>
-                  {recipients.length === 0 ? (
-                    <div className="admin-empty">No recipients — alerts are off. (Admins with a role still receive them.)</div>
-                  ) : (
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                      {recipients.map(id => {
-                        const name = allUsers.find(u => u.user_id === id)?.name || (id === admin_id ? "You" : id.slice(0, 10));
-                        return (
-                          <span key={id} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 20, padding: "3px 4px 3px 10px", fontSize: 12 }}>
-                            {name}
-                            <button type="button" onClick={() => setFlags({ ...flags, alertRecipients: recipients.filter(x => x !== id) })} style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--muted)", display: "flex" }} aria-label="Remove recipient"><X size={12} /></button>
-                          </span>
-                        );
-                      })}
-                    </div>
-                  )}
-                  <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 10 }}>Requires the <code>health-monitor</code> edge function + cron deployed. Alerts land in your inbox and as a push.</div>
-                </>
-              );
-            })()}
-          </section>
-
-          {/* Bundled Snapshot + Danger Zone — one row at the bottom */}
-          <div className="admin-grid admin-span-all admin-g-system">
-
-            <section className="admin-card system-control-card system-snapshot-card">
-              <h2><Database size={20} color="var(--violet)" /> Bundled Snapshot</h2>
-              <p className="admin-subtext">
-                Fallback timetable baked into the app at build time. Regenerated automatically from the live sheet on every deploy.
-              </p>
-              <div className="admin-danger-row">
-                <div>
-                  <strong style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                    {snapshotMeta.status === "success" ? (
-                      <><Check size={15} color="var(--live, #2ecc71)" /> Automation passed</>
-                    ) : (
-                      <><AlertTriangle size={15} color="var(--danger, #e74c3c)" /> Automation failed</>
-                    )}
-                  </strong>
-                  <span className="admin-subtext" style={{ margin: 0 }}>
-                    {snapshotMeta.status === "success" ? (
-                      <>Generated {new Date(snapshotMeta.ts).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} · {snapshotMeta.classes} classes · {snapshotMeta.courses} courses · term {snapshotMeta.termStart} → {snapshotMeta.termEnd}</>
-                    ) : (
-                      <>
-                        {snapshotMeta.error || "Feed unreachable at build time"} — serving snapshot from{" "}
-                        {snapshotMeta.lastSuccessTs ? new Date(snapshotMeta.lastSuccessTs).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "an older build"}
-                      </>
-                    )}
-                  </span>
-                </div>
-                <button className="admin-btn outline" onClick={triggerSnapshotRebuild} disabled={rebuilding}>
-                  <RefreshCw size={14} className={rebuilding ? "spin-icon" : ""} /> Rebuild
-                </button>
-              </div>
-              {rebuildMsg && (
-                <span className={`admin-save-msg ${rebuildMsg.startsWith("Failed") ? "error" : "success"}`} style={{ display: "block", marginTop: 8 }}>
-                  {rebuildMsg}
-                </span>
-              )}
-            </section>
-
-            <section className="admin-card admin-g-system">
-              <h2><Terminal size={20} color="var(--violet)" /> Feature Toggles</h2>
-              <p className="admin-subtext">Remote kill switches. If a toggle is on, the feature is active for all users.</p>
-              
-              <div className="admin-danger-row" style={{ border: "none", padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
-                <div>
-                  <strong style={{ display: "block", marginBottom: 4 }}>Social Feed & TermFlow</strong>
-                  <span className="admin-subtext" style={{ margin: 0 }}>Enable or disable user statuses and feeds.</span>
-                </div>
-                <label className="admin-toggle">
-                  <input type="checkbox" checked={flags.features?.social !== false} onChange={e => setFlags({ ...flags, features: { ...(flags.features || {}), social: e.target.checked } })} />
-                  <span className="slider"></span>
-                </label>
-              </div>
-
-              <div className="admin-danger-row" style={{ border: "none", padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
-                <div>
-                  <strong style={{ display: "block", marginBottom: 4 }}>Group Chats</strong>
-                  <span className="admin-subtext" style={{ margin: 0 }}>Enable or disable group messaging.</span>
-                </div>
-                <label className="admin-toggle">
-                  <input type="checkbox" checked={flags.features?.chat !== false} onChange={e => setFlags({ ...flags, features: { ...(flags.features || {}), chat: e.target.checked } })} />
-                  <span className="slider"></span>
-                </label>
-              </div>
-
-              <div className="admin-danger-row" style={{ border: "none", padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
-                <div>
-                  <strong style={{ display: "block", marginBottom: 4 }}>Expense Splitting</strong>
-                  <span className="admin-subtext" style={{ margin: 0 }}>Enable or disable the group expense splitter.</span>
-                </div>
-                <label className="admin-toggle">
-                  <input type="checkbox" checked={flags.features?.splits !== false} onChange={e => setFlags({ ...flags, features: { ...(flags.features || {}), splits: e.target.checked } })} />
-                  <span className="slider"></span>
-                </label>
-              </div>
-
-              <div className="admin-danger-row" style={{ border: "none", padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
-                <div>
-                  <strong style={{ display: "block", marginBottom: 4 }}>Group Polls</strong>
-                  <span className="admin-subtext" style={{ margin: 0 }}>Enable or disable poll creation in groups.</span>
-                </div>
-                <label className="admin-toggle">
-                  <input type="checkbox" checked={flags.features?.polls !== false} onChange={e => setFlags({ ...flags, features: { ...(flags.features || {}), polls: e.target.checked } })} />
-                  <span className="slider"></span>
-                </label>
-              </div>
-
-              <div className="admin-danger-row" style={{ border: "none", padding: "10px 0" }}>
-                <div>
-                  <strong style={{ display: "block", marginBottom: 4 }}>Independence/Republic Day Theme</strong>
-                  <span className="admin-subtext" style={{ margin: 0 }}>Tricolor accent + greeting banner on 15 Aug and 26 Jan.</span>
-                </div>
-                <label className="admin-toggle">
-                  <input type="checkbox" checked={flags.features?.specialDayTheme !== false} onChange={e => setFlags({ ...flags, features: { ...(flags.features || {}), specialDayTheme: e.target.checked } })} />
-                  <span className="slider"></span>
-                </label>
-              </div>
-            </section>
-
-            <section className="admin-card danger-zone system-danger-card">
-              <h2><AlertTriangle size={20} color="var(--danger, #e74c3c)" /> Danger Zone</h2>
-
-              <div className="admin-danger-row">
-                <div>
-                  <strong style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 4 }}>Maintenance Mode <AdminActionBadge mode="staged" /></strong>
-                  <span className="admin-subtext" style={{ margin: 0 }}>Once deployed, locks out all non-admin users immediately.</span>
-                </div>
-                <label className="admin-toggle">
-                  <input type="checkbox" checked={!!flags.maintenanceMode} onChange={e => setFlags({ ...flags, maintenanceMode: e.target.checked })} />
-                  <span className="slider"></span>
-                </label>
-              </div>
-
-              <div className="admin-danger-row">
-                <div>
-                  <strong style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 4 }}>Push Dispatcher <AdminActionBadge mode="staged" /></strong>
-                  <span className="admin-subtext" style={{ margin: 0 }}>
-                    After deployment, ON delivers push and OFF pauses outgoing push within a minute (the in-app inbox still updates; queued events resume when re-enabled). Kill-switch if the new push system misbehaves — flip OFF, deploy, then redeploy the legacy functions to fully fall back.
-                  </span>
-                </div>
-                <label className="admin-toggle">
-                  <input type="checkbox" checked={flags.dispatchEnabled !== false} onChange={e => setFlags({ ...flags, dispatchEnabled: e.target.checked })} />
-                  <span className="slider"></span>
-                </label>
-              </div>
-
-              <div className="admin-danger-row">
-                <div>
-                  <strong style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 4 }}>Force Global Refresh <AdminActionBadge mode="live" /></strong>
-                  <span className="admin-subtext" style={{ margin: 0 }}>Force all clients to re-sync from cloud.</span>
-                </div>
-                <button className="admin-btn outline" onClick={requestForceRefresh}>
-                  <RefreshCw size={14} /> Force Sync
-                </button>
-              </div>
-            </section>
-
-          </div>
 
           <section className="admin-card admin-span-all admin-g-moderation moderation-workspace" style={{ gridColumn: "1 / -1" }}>
             <div className="moderation-hero">
@@ -6334,7 +6139,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               <section className="admin-user-xray-section">
                 <h3>Access role</h3>
                 <p>Applies immediately — role changes no longer wait for a config deploy.</p>
-                <select className="admin-input" value={adminRoster.find(r => r.user_id === selectedUser.user_id)?.role || "user"} onChange={async e => {
+                <select className="admin-input" disabled={!canManageRoles} aria-label="Access role" value={adminRoster.find(r => r.user_id === selectedUser.user_id)?.role || "user"} onChange={async e => {
                     const role = e.target.value;
                     try {
                       if (role === "user") await removeAdminRole(selectedUser.user_id);
@@ -6375,6 +6180,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                  />
             </section>
 
+            <fieldset className="admin-readonly-group" disabled={isReadOnlyAdmin}>
             <section className="admin-user-xray-section">
               <h3><PawPrint size={15} /> Companion XP &amp; level</h3>
               <p>
@@ -6650,6 +6456,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               </div>
               {petLevelMessage && <p className="admin-subtext" style={{ margin: "9px 0 0", color: petLevelMessage.startsWith("Could not") ? "var(--danger)" : "var(--live)" }}>{petLevelMessage}</p>}
             </section>
+            </fieldset>
 
             <section className="admin-user-xray-section">
                  <h3>Recent admin activity</h3>
@@ -6685,6 +6492,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 </button>
                 {selectedUser.courses?._status && new Date(selectedUser.courses._status.until).getTime() > LOAD_NOW && (
                   <button onClick={async () => {
+                     if (isReadOnlyAdmin) return alert(READ_ONLY_MESSAGE);
                      if (confirm(`Clear active status for ${selectedUser.name}?`)) {
                         const updated = { ...selectedUser.courses };
                         delete updated._status;

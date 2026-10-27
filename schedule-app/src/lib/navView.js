@@ -36,7 +36,7 @@ export const URL_VIEWS = new Set([
 
 // Params that belong to one view's page (Course Hub's open course), dropped
 // whenever the URL moves to a different page.
-const VIEW_PARAMS = ["course"];
+const VIEW_PARAMS = ["course", "post"];
 
 // The current URL with `view` (and that page's own params) set — every other
 // param, and the hash, kept.
@@ -52,4 +52,20 @@ export function urlWithView(view, params = {}) {
 export function scrollViewToTop() {
   const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   window.scrollTo({ top: 0, behavior: reduced ? "auto" : "smooth" });
+}
+
+// Campus Board post from a launch URL (?view=board&post=<id>, e.g. an
+// "I'm interested" push). Captured at load because App normalises the URL on
+// mount, before the lazy board page exists to read it. Handed out once.
+let initialBoardPost = (() => {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("view") === "board" ? params.get("post") : null;
+  } catch { return null; }
+})();
+
+export function takeInitialBoardPost() {
+  const id = initialBoardPost;
+  initialBoardPost = null;
+  return id;
 }

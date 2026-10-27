@@ -209,7 +209,21 @@ function NavButton({ nav, className, children, onClick, ...rest }) {
 
 function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const userEmail = user?.primaryEmailAddress?.emailAddress?.toLowerCase();
-  const isAdmin = userEmail && ADMIN_EMAILS.includes(userEmail);
+  // Admin entry = a role on public.admins (granted from Admin Roles), with the
+  // hardcoded emails kept as a lockout fallback. The role is fetched once per
+  // signed-in user; the database still enforces what each role may write.
+  const [adminRoleState, setAdminRoleState] = useState({ userId: null, role: null });
+  const adminRoleResolved = !isSignedIn || (!!userId && adminRoleState.userId === userId);
+  const isAdmin = !!((userEmail && ADMIN_EMAILS.includes(userEmail)) || (adminRoleResolved && adminRoleState.role));
+  useEffect(() => {
+    if (!isSignedIn || !userId) return;
+    let alive = true;
+    supabase.rpc("admin_role").then(
+      ({ data, error }) => { if (alive) setAdminRoleState({ userId, role: error ? null : data ?? null }); },
+      () => { if (alive) setAdminRoleState({ userId, role: null }); }
+    );
+    return () => { alive = false; };
+  }, [isSignedIn, userId]);
   // Defaults on: it is never persisted, so a false start only creates a window
   // where an admin looks like a normal user and gets bounced out of the admin
   // view before Clerk has resolved who they are.
@@ -353,7 +367,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     if (!file || !user) return;
     try {
       setIsUploadingAva(true);
-      const compressedBlob = await resizeImage(file, 400, 400, 0.8);
+      const compressedBlob = await resizeImage(file, 400, 0.8);
       await user.setProfileImage({ file: compressedBlob });
       await user.reload(); // fetch updated user.imageUrl
       if (enrolled) {
@@ -544,12 +558,12 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     // Without the guard this fires on first paint of a refresh, sending the
     // admin back to Today and overwriting the stored view before Clerk has
     // even reported who is signed in.
-    if (!identityResolved) return;
+    if (!identityResolved || !adminRoleResolved) return;
     if (!showAdminUI) {
       if (view === "admin") setView("today");
       setTimeOverride(null);
     }
-  }, [view, showAdminUI, identityResolved, setView]);
+  }, [view, showAdminUI, identityResolved, adminRoleResolved, setView]);
   // Recently visited Tools-group views — the sidebar's Tools accordion is
   // collapsed by default (see sbToolsOpen below), so a "Full timetable" or
   // "Split" visit is otherwise a click-to-expand away every single time.
