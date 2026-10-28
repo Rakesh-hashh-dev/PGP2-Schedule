@@ -120,7 +120,7 @@
   .mobile-ui-v1 .today-dashboard .timeline-panel-head { flex-wrap: wrap; }
   .mobile-ui-v1 .today-dashboard .timeline-overview { flex: 1 1 100%; min-width: 0; max-width: 100%; margin-left: 0; }
 }
-@media (max-width: 1366px) {
+@media (width < 1367px) {
   dialog.dashboard-customize-panel {
     position: fixed;
     inset: auto 12px max(12px, env(safe-area-inset-bottom)) 12px;

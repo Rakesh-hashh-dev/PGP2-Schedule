@@ -4,7 +4,7 @@ export const MOBILE_UI_VERSION_KEY = "pgp2.mobile-ui-version";
 export const V2_MAX_VIEWPORT_WIDTH = 1366;
 
 export function supportsV2Viewport(width = globalThis.innerWidth) {
-  return Number.isFinite(width) && width <= V2_MAX_VIEWPORT_WIDTH;
+  return Number.isFinite(width) && width < V2_MAX_VIEWPORT_WIDTH + 1;
 }
 
 export function readMobileUiVersion(storage = globalThis.localStorage) {
@@ -20,7 +20,7 @@ export function useMobileUiVersion() {
   const [supportsV2, setSupportsV2] = useState(() => supportsV2Viewport());
 
   useEffect(() => {
-    const query = globalThis.matchMedia?.(`(max-width: ${V2_MAX_VIEWPORT_WIDTH}px)`);
+    const query = globalThis.matchMedia?.(`(width < ${V2_MAX_VIEWPORT_WIDTH + 1}px)`);
     if (!query) return undefined;
     const update = () => setSupportsV2(query.matches);
     update();

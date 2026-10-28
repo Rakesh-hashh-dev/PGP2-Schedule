@@ -765,15 +765,13 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // matching the orientation-aware breakpoints in styles.css.
   const checkIsTabletLandscape = () => {
     if (typeof window === "undefined") return false;
-    const isLandscape = window.matchMedia("(orientation: landscape)").matches || window.innerWidth > window.innerHeight;
-    const w = window.innerWidth;
-    return isLandscape && w >= 768 && w <= V2_MAX_VIEWPORT_WIDTH;
+    return window.matchMedia(`(min-width: 768px) and (width < ${V2_MAX_VIEWPORT_WIDTH + 1}px) and (orientation: landscape)`).matches;
   };
   const [isTablet, setIsTablet] = useState(checkIsTabletLandscape);
   useEffect(() => {
     const update = () => setIsTablet(checkIsTabletLandscape());
     update();
-    const mq = window.matchMedia(`(min-width: 768px) and (max-width: ${V2_MAX_VIEWPORT_WIDTH}px) and (orientation: landscape)`);
+    const mq = window.matchMedia(`(min-width: 768px) and (width < ${V2_MAX_VIEWPORT_WIDTH + 1}px) and (orientation: landscape)`);
     try { mq.addEventListener("change", update); } catch { mq.addListener?.(update); }
     window.addEventListener("resize", update, { passive: true });
     window.addEventListener("orientationchange", update, { passive: true });
