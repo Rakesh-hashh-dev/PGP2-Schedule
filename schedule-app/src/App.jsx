@@ -121,7 +121,7 @@ import { fetchNotifications, subscribeToNotifications, markNotificationRead } fr
 import { assignSubjectColors, subjectClass } from "./lib/subjectColors.js";
 import { haptic } from "./lib/haptics.js";
 import { useSidebar } from "./hooks/useSidebar.js";
-import { useMobileUiVersion } from "./hooks/useMobileUiVersion.js";
+import { useMobileUiVersion, V2_MAX_VIEWPORT_WIDTH } from "./hooks/useMobileUiVersion.js";
 import { useNotifications, buildNotificationHandlers } from "./hooks/useNotifications.js";
 import MarkPrompt from "./components/MarkPrompt.jsx";
 import { WhatsNewPill, WhatsNewModal } from "./components/WhatsNew.jsx";
@@ -758,22 +758,22 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [, setSeenRecvCount] = useState(() => {
     try { return parseInt(localStorage.getItem("pgp2.recv-groups-count") || "0", 10); } catch { return 0; }
   });
-  // Tablet landscape tier (768–1200px landscape): sidebar is forced to the collapsed icon
+  // Tablet landscape tier (768–1366px landscape): sidebar is forced to the collapsed icon
   // rail — there isn't room for the expanded 256px panel next to content and the week rail,
-  // so the user's stored expand/collapse preference only applies on desktop displays (above 1200px).
-  // Portrait tablets (768–1200px) get the single-column mobile view with header/tabs,
+  // so the user's stored expand/collapse preference only applies on desktop displays (above 1366px).
+  // Portrait tablets (768–1366px) get the single-column mobile view with header/tabs,
   // matching the orientation-aware breakpoints in styles.css.
   const checkIsTabletLandscape = () => {
     if (typeof window === "undefined") return false;
     const isLandscape = window.matchMedia("(orientation: landscape)").matches || window.innerWidth > window.innerHeight;
     const w = window.innerWidth;
-    return isLandscape && w >= 768 && w <= 1200;
+    return isLandscape && w >= 768 && w <= V2_MAX_VIEWPORT_WIDTH;
   };
   const [isTablet, setIsTablet] = useState(checkIsTabletLandscape);
   useEffect(() => {
     const update = () => setIsTablet(checkIsTabletLandscape());
     update();
-    const mq = window.matchMedia("(min-width: 768px) and (max-width: 1200px) and (orientation: landscape)");
+    const mq = window.matchMedia(`(min-width: 768px) and (max-width: ${V2_MAX_VIEWPORT_WIDTH}px) and (orientation: landscape)`);
     try { mq.addEventListener("change", update); } catch { mq.addListener?.(update); }
     window.addEventListener("resize", update, { passive: true });
     window.addEventListener("orientationchange", update, { passive: true });
@@ -802,7 +802,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     adminSecOpen, setAdminSecOpen,
     showRightScroll, setShowRightScroll,
     showLeftScroll, setShowLeftScroll,
-  } = useSidebar({ isTablet, v2Active });
+  } = useSidebar({ isTablet });
 
   const previousSidebarView = useRef(view);
   useEffect(() => {
@@ -3022,7 +3022,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         setMessMenuOpen={setMessMenuOpen} activeQuickLinks={activeQuickLinks} showAdminUI={showAdminUI}
         renderSbUtilStrip={renderSbUtilStrip} renderSbAvatarWrap={renderSbAvatarWrap} syncing={syncing}
         syncedAgo={syncedAgo} isTablet={isTablet} sidebarCollapsed={sidebarCollapsed} toggleSidebar={toggleSidebar}
-        tabletControls={v2Active && isTablet} tabletSidebarOpen={tabletSidebarOpen} onCloseTabletSidebar={closeTabletSidebar}
+        tabletControls={isTablet} tabletSidebarOpen={tabletSidebarOpen} onCloseTabletSidebar={closeTabletSidebar}
       />
 
       <SbFloatTip />
@@ -3476,7 +3476,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       </button>
                     )}
                   </span>
-                  <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                  <div className="view-date-actions">
                       {/* Report Bug button moved to overflow menu */}
                     {view === "today" && <DashboardCustomize prefs={dashboardPrefs} onChange={setDashboardPrefs} compact={compactViewport} />}
                     <button className="desktop-only vdh-filter-btn" onClick={() => setFilterModalOpen(true)}>
@@ -4191,3 +4191,4 @@ export function DevApp() {
   // which is what tells AppCore identity is already resolved.
   return <AppCore isSignedIn={true} isLoaded={true} signOut={() => { }} userId={null} user={null} />;
 }
+

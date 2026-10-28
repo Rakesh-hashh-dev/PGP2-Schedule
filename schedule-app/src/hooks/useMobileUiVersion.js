@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 export const MOBILE_UI_VERSION_KEY = "pgp2.mobile-ui-version";
-export const V2_MAX_VIEWPORT_WIDTH = 1200;
+export const V2_MAX_VIEWPORT_WIDTH = 1366;
 
 export function supportsV2Viewport(width = globalThis.innerWidth) {
   return Number.isFinite(width) && width <= V2_MAX_VIEWPORT_WIDTH;
@@ -43,3 +43,4 @@ export function useMobileUiVersion() {
     v2Active: mobileUiVersion === "v2" && supportsV2,
   };
 }
+
