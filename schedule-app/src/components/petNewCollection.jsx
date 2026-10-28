@@ -35,8 +35,8 @@ function Art({ defs, children, rig = true, moth = false }) {
   </svg>;
 }
 
-function Eyes({ iris = "#e5ae51", y = 16, left = 12, right = 20, rx = 2.1, ry = 2.45 }) {
-  return <PetEyes left={left} right={right} y={y} rx={rx} ry={ry} ink={INK} iris={iris} />;
+function Eyes({ pet, iris = "#e5ae51", y = 16, left = 12, right = 20, rx = 2.1, ry = 2.45 }) {
+  return <PetEyes pet={pet} left={left} right={right} y={y} rx={rx} ry={ry} ink={INK} iris={iris} />;
 }
 
 function Smile({ y = 22, nose = true }) {
@@ -76,8 +76,8 @@ export function Maple() {
       <path d="m10.7 10.8 2.3-.3m6 0 2.3.3" stroke={CREAM} strokeWidth="1.5" strokeLinecap="round" />
       <g fill="#804334"><path d="M8.4 14q2.2-2.6 5-.3l.7 3.9-2.4 2-3.4-1.2z" /><path d="M23.6 14q-2.2-2.6-5-.3l-.7 3.9 2.4 2 3.4-1.2z" /></g>
       <path d="m14.3 11.9 1.7-1.3 1.7 1.3-.8 5.2h-1.8z" fill="#fff4de" />
-      <Eyes y={16.5} rx={1.8} ry={2.1} /><Smile y={22} />
-      <PetDesignDetail pet="maple" /><PetExpression y={16.5} mouthY={22} ink={INK} />
+      <Eyes pet="maple" y={16.5} rx={1.8} ry={2.1} /><Smile y={22} />
+      <PetDesignDetail pet="maple" /><PetExpression pet="maple" left={12} right={20} y={16.5} rx={1.8} ry={2.1} mouthY={22} ink={INK} />
     </g>
     <Scarf />
     <PetGesture fur="#673d38" ink={INK} />
@@ -101,10 +101,10 @@ export function Ember() {
       <path d="M9.2 10.6q-4-2.4-2.7-6.8 1.5 2.9 4.9 3.6m9.4 3.2q4-2.4 2.7-6.8-1.5 2.9-4.9 3.6" fill={CREAM} stroke={INK} strokeWidth=".8" />
       <path className="dg-pet-face" d="M16 7q10 0 10 10c0 5.5-4.4 8.2-10 8.2S6 22.5 6 17Q6 7 16 7z" fill={fur} stroke={INK} strokeWidth="1.1" />
       <path d="m13.1 8.2 1.4-3 1.5 2.3 1.5-2.3 1.4 3" fill="#378991" stroke={INK} strokeWidth=".6" strokeLinejoin="round" />
-      <ellipse cx="16" cy="21.2" rx="5.2" ry="3" fill={CREAM} /><path d="m14.8 10.8 1.2-.9 1.2.9-1.2.9zM8.9 19.6l1 .8 1-.8m10.2 0 1 .8 1-.8" fill="#a0e5c6" /><Eyes iris="#f4c269" rx={1.9} ry={2.2} />
+      <ellipse cx="16" cy="21.2" rx="5.2" ry="3" fill={CREAM} /><path d="m14.8 10.8 1.2-.9 1.2.9-1.2.9zM8.9 19.6l1 .8 1-.8m10.2 0 1 .8 1-.8" fill="#a0e5c6" /><Eyes pet="ember" iris="#f4c269" rx={1.9} ry={2.2} />
       <circle cx="14.4" cy="20.1" r=".4" fill={INK} /><circle cx="17.6" cy="20.1" r=".4" fill={INK} />
       <Smile y={22.1} nose={false} />
-      <path className="pet-rig-mature" d="m11 12 1-1 1 1m6 0 1-1 1 1" fill="none" stroke="#b3efe0" strokeWidth=".6" /><PetDesignDetail pet="ember" /><PetExpression mouthY={22.1} ink={INK} />
+      <path className="pet-rig-mature" d="m11 12 1-1 1 1m6 0 1-1 1 1" fill="none" stroke="#b3efe0" strokeWidth=".6" /><PetDesignDetail pet="ember" /><PetExpression pet="ember" left={12} right={20} y={16} rx={1.9} ry={2.2} mouthY={22.1} ink={INK} />
     </g>
     <g className="pet-rig-neck"><g className="dg-pet-accessory"><path d="M11.1 24.6q4.9 1.4 9.8 0" fill="none" stroke="#8a65b8" strokeWidth="1.5" /><circle cx="16" cy="26" r=".8" fill="#f5c66c" /></g>
     </g><PetGesture fur="#4bb3ac" ink={INK} />
@@ -126,10 +126,10 @@ export function Mochi() {
       <g className="dg-pet-ear dg-pet-ear-right" data-part="ear-right"><ellipse cx="24.6" cy="9.5" rx="2.6" ry="2.8" fill={fur} stroke={INK} strokeWidth=".9" /><ellipse cx="24.6" cy="9.5" rx="1.45" ry="1.8" fill="#a26b54" /></g>
       <path className="dg-pet-face" d="M11.5 8.5h9Q26 8.5 26.4 15v5.7Q26 26 20.8 26h-9.6Q6 26 5.6 20.7V15q.4-6.5 5.9-6.5z" fill={fur} stroke={INK} strokeWidth="1.1" />
       <path d="M9.5 18.5q6.5-2.2 13 0l.4 3.3q-.4 3.2-6.9 3.2t-6.9-3.2z" fill="#dab080" />
-      <Eyes iris="#bb804f" y={16} rx={1.7} ry={1.8} />
+      <Eyes pet="mochi" iris="#bb804f" y={16} rx={1.7} ry={1.8} />
       <g className="dg-pet-sig dg-pet-sig-new-nose" fill={INK}><ellipse cx="14" cy="20" rx=".8" ry=".6" /><ellipse cx="18" cy="20" rx=".8" ry=".6" /></g>
       <path d="M16 20.7v1.2" fill="none" stroke="#88624f" strokeWidth=".55" /><Smile y={22.4} nose={false} />
-      <path className="pet-rig-mature" d="m10 12 1-.4m10 .4 1 .4" stroke="#f5dfb5" strokeWidth=".7" /><PetDesignDetail pet="mochi" /><PetExpression mouthY={22.4} ink={INK} />
+      <path className="pet-rig-mature" d="m10 12 1-.4m10 .4 1 .4" stroke="#f5dfb5" strokeWidth=".7" /><PetDesignDetail pet="mochi" /><PetExpression pet="mochi" left={12} right={20} y={16} rx={1.7} ry={1.8} mouthY={22.4} ink={INK} />
       <g className="dg-pet-accessory"><path d="M15.8 9q-4.6-6.7 5.8-5.8Q21.2 9.5 15.8 9z" fill="#80a86b" stroke={INK} strokeWidth=".6" /><path d="m17.4 7.2 2-.1m-1.3-.7-.1-1.1M16 8.6l4-4" stroke="#d3df9b" strokeWidth=".5" /></g>
     </g>
     <PetGesture fur="#c69465" ink={INK} />
@@ -162,11 +162,11 @@ export function Nimbus() {
       <g className="dg-pet-ear dg-pet-ear-right"><path d="M20 10q4.4-3.2 2.7-7.4m.4 1.9 1-.4m-.9 1.4 1.4-.4m-1.6 1.4 1.7-.3m-2.2 1.3 1.8-.1m-1.3-3.3-1-.8m1 2-.9-.9m.6 2-1.2-.8" fill="none" stroke="#65517d" strokeWidth=".7" strokeLinecap="round" /></g>
       <path className="dg-pet-face" d="M16 8.2q8.1 0 8.4 7.7l1 1.4-1.6.8Q24 24 16 24t-7.8-5.9l-1.6-.8 1-1.4q.3-7.7 8.4-7.7z" fill="#f5edee" stroke={INK} strokeWidth="1" strokeLinejoin="round" />
       <path d="M9.7 12.4q6.3 3.3 12.6 0" fill="none" stroke="#e1d2e8" strokeWidth="1.4" />
-      <Eyes iris="#9980c7" left={12.3} right={19.7} y={17} rx={1.9} ry={2.1} />
+      <Eyes pet="nimbus" iris="#9980c7" left={12.3} right={19.7} y={17} rx={1.9} ry={2.1} />
       <ellipse cx="10" cy="20.2" rx="1.4" ry=".7" fill="#e6a9bf" opacity=".55" /><ellipse cx="22" cy="20.2" rx="1.4" ry=".7" fill="#e6a9bf" opacity=".55" />
       <Smile y={21.7} nose={false} />
       <path className="dg-pet-accessory dg-pet-sig" d="M17.8 10.2q-3 .3-2.2-2.4-3.1 1.6-.9 3.6 2.1 1.3 3.1-1.2z" fill="#e7bd6b" stroke="#9c7646" strokeWidth=".35" />
-      <PetDesignDetail pet="nimbus" /><PetExpression left={12.3} right={19.7} y={17} mouthY={21.7} ink={INK} />
+      <PetDesignDetail pet="nimbus" /><PetExpression pet="nimbus" left={12.3} right={19.7} y={17} rx={1.9} ry={2.1} mouthY={21.7} ink={INK} />
     </g>
     <PetDesignDetail pet="nimbus" layer="body" />
   </Art>;
@@ -186,9 +186,9 @@ export function Sable() {
       <path className="dg-pet-face" d="M16 7.4Q26 7.4 26 17l1.2 1.2-1.7 1Q24 25 16 25T6.5 19.2l-1.7-1L6 17q0-9.6 10-9.6z" fill={fur} stroke={INK} strokeWidth="1.05" />
       <g fill="none" stroke="#6a687f" strokeWidth=".85" strokeLinecap="round"><path d="M11.3 10.2q-2-.4-1.7 1.3m5.7-2.3q-1.6.8-.4 1.8m5.5-.8q1.7-.4 1.4 1.2M8.5 18.1l1 .8m12.9-.8-1 .8M8 14.2l.8.5m14.4-.5-.8.5" /></g>
       <ellipse cx="14" cy="21.2" rx="2.7" ry="2" fill="#fff7ee" /><ellipse cx="18" cy="21.2" rx="2.7" ry="2" fill="#fff7ee" />
-      <g fill="none" stroke="#737185" strokeWidth=".75" strokeLinecap="round"><path d="M8.6 19.9l1.3 1.1m12.2 0 1.3-1.1" /></g><Eyes iris="#85b5e8" y={16.2} rx={1.9} ry={2.1} /><Smile y={22.3} />
+      <g fill="none" stroke="#737185" strokeWidth=".75" strokeLinecap="round"><path d="M8.6 19.9l1.3 1.1m12.2 0 1.3-1.1" /></g><Eyes pet="sable" iris="#85b5e8" y={16.2} rx={1.9} ry={2.1} /><Smile y={22.3} />
       <path d="M10.7 21 5 20m5.7 2.3L5.8 24M21.3 21l5.7-1m-5.7 2.3 4.9 1.7" stroke="#6a687f" strokeWidth=".5" strokeLinecap="round" />
-      <PetDesignDetail pet="sable" /><PetExpression y={16.2} mouthY={22.3} ink={INK} />
+      <PetDesignDetail pet="sable" /><PetExpression pet="sable" left={12} right={20} y={16.2} rx={1.9} ry={2.1} mouthY={22.3} ink={INK} />
     </g>
     <Scarf color="#a39acb" />
     <PetGesture fur="#c5c3ce" ink={INK} />
@@ -217,10 +217,10 @@ export function Inky() {
       <path className="dg-pet-face" d="M16 7.4q9.6 0 9.2 9.6-.3 8.6-9.2 8.6T6.8 17Q6.4 7.4 16 7.4z" fill={fur} stroke={INK} strokeWidth="1.05" />
       <ellipse cx="12.3" cy="10.6" rx="3" ry="1.3" fill="#fff" opacity=".25" transform="rotate(-20 12.3 10.6)" />
       <g fill="#63529e" opacity=".55"><circle cx="8.5" cy="14.1" r=".8" /><circle cx="9.1" cy="12.3" r=".65" /><circle cx="23.4" cy="14.2" r=".7" /><circle cx="21.9" cy="11.5" r=".55" /></g>
-      <g fill="#9970ba" opacity=".7"><circle cx="10.1" cy="11.1" r=".6" /><circle cx="22.2" cy="11.6" r=".8" /><circle cx="8.8" cy="18.7" r=".5" /><circle cx="23.3" cy="19.3" r=".55" /></g><Eyes iris="#7edbdc" y={16.5} rx={1.9} ry={2.2} />
+      <g fill="#9970ba" opacity=".7"><circle cx="10.1" cy="11.1" r=".6" /><circle cx="22.2" cy="11.6" r=".8" /><circle cx="8.8" cy="18.7" r=".5" /><circle cx="23.3" cy="19.3" r=".55" /></g><Eyes pet="inky" iris="#7edbdc" y={16.5} rx={1.9} ry={2.2} />
       <g className="dg-pet-sig dg-pet-sig-new-cloud" fill="#eeabc9" opacity=".7"><ellipse cx="9.5" cy="20.2" rx="1.3" ry=".8" /><ellipse cx="22.5" cy="20.2" rx="1.3" ry=".8" /></g>
       <Smile y={22.5} nose={false} />
-      <PetDesignDetail pet="inky" /><PetExpression y={16.5} mouthY={22.5} ink={INK} />
+      <PetDesignDetail pet="inky" /><PetExpression pet="inky" left={12} right={20} y={16.5} rx={1.9} ry={2.2} mouthY={22.5} ink={INK} />
     </g>
     <g className="dg-pet-accessory"><path d="M11.1 24.6q4.9 1.4 9.8 0" fill="none" stroke="#61c6c3" strokeWidth="1.2" /><circle cx="16" cy="25.8" r=".65" fill="#f8d28c" /></g>
     <PetDesignDetail pet="inky" layer="body" />

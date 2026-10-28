@@ -394,7 +394,10 @@ export default function Hero({ current, next, now, todayISO, tomorrowISO, onMark
             </span>
           )}
         </div>
-        <h1 className="hero-course">{next.name}</h1>
+        <h1 className="hero-course">
+          <span className="hero-course-full">{next.name}</span>
+          <span className="hero-course-mobile-code">{next.code || next.name}</span>
+        </h1>
         <div className="hero-meta">
           <span className="t">{fmtTime12(next.start)}</span>
           <span className="sep">·</span>

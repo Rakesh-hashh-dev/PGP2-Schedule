@@ -1,7 +1,8 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createElement } from "react";
 import DesktopSidebar from "./DesktopSidebar.jsx";
+import { watchAdminRole } from "../lib/adminRoleWatcher.js";
 
 const noop = () => { };
 
@@ -37,6 +38,20 @@ function groups(html) {
 }
 
 describe("DesktopSidebar nav", () => {
+  it("shows Admin Tools when an open student's session discovers a Monitor grant", async () => {
+    vi.useFakeTimers();
+    let role = null;
+    const loadRole = vi.fn().mockResolvedValueOnce(null).mockResolvedValue('monitor');
+    const watcher = watchAdminRole({ loadRole, onRole: value => { role = value; }, windowTarget: new EventTarget(), documentTarget: new EventTarget() });
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      expect(labels(render({ showAdminUI: !!role }))).not.toContain('Admin Tools');
+      await watcher.refresh();
+      expect(role).toBe('monitor');
+      expect(labels(render({ showAdminUI: !!role }))).toContain('Admin Tools');
+    } finally { watcher.stop(); vi.useRealTimers(); }
+  });
+
   it("keeps tablet navigation compact without offering a desktop expand control", () => {
     const tablet = render({ isTablet: true, sbCollapsed: true });
     expect(tablet).toContain('class="sidebar collapsed"');

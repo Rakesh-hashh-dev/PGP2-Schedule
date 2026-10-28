@@ -9,6 +9,22 @@
   display: none;
 }
 
+/* Only the phone V2 Up next heading uses the compact subject code. */
+.hero-course-mobile-code {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .mobile-ui-v2 .hero-upnext .hero-course-full {
+    display: none;
+  }
+
+  .mobile-ui-v2 .hero-upnext .hero-course-mobile-code {
+    display: inline;
+    overflow-wrap: anywhere;
+  }
+}
+
 /* Today timeline — compact V2 integration. Portrait tablets use the same
    readable rail; landscape tablets retain the denser desktop timeline. */
 @media (max-width: 767px),

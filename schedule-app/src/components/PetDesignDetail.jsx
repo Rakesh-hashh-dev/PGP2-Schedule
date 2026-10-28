@@ -1,3 +1,5 @@
+import PetSurfaceRelief from './PetSurfaceRelief.jsx';
+
 // Surface marks belong to the head/body that carries them, so gaze, mood and
 // movement never leave a marking behind. Broad shapes also survive badge sizes.
 const DESIGNS = {
@@ -37,7 +39,8 @@ const DESIGNS = {
 export default function PetDesignDetail({ pet, layer = 'head' }) {
   const detail = DESIGNS[pet];
   if (!detail) return null;
-  return <g className="pet-design-fine" data-design-detail={pet} fill="none" stroke={detail[0]} strokeWidth=".5" strokeLinecap="round" strokeLinejoin="round">
-    <path d={detail[layer === 'body' ? 2 : 1]} />
+  return <g data-design-detail={pet} fill="none" stroke={detail[0]} strokeWidth=".5" strokeLinecap="round" strokeLinejoin="round">
+    <PetSurfaceRelief pet={pet} layer={layer} ink={detail[0]} />
+    <path className="pet-design-fine" d={detail[layer === 'body' ? 2 : 1]} opacity=".8" />
   </g>;
 }

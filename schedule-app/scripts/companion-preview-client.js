@@ -3,7 +3,7 @@
   const data = JSON.parse(document.querySelector('#preview-data').textContent);
   const control = id => document.getElementById(id);
   const samples = () => [...document.querySelectorAll('.companion-card .dg-pet')];
-  const state = { theme: 'light', size: 160, mood: 'content', beat: '', reaction: '', outfit: false, motion: true, signatures: true, paused: false };
+  const state = { theme: 'light', size: 160, mood: 'content', beat: '', reaction: '', outfit: false, motion: true, signatures: true, paused: false, action: '' };
   const setAttribute = (node, key, value) => value ? node.setAttribute(key, value) : node.removeAttribute(key);
   const apply = () => {
     document.documentElement.dataset.theme = state.theme;
@@ -12,6 +12,8 @@
     for (const pet of samples()) {
       pet.dataset.mood = state.mood;
       pet.dataset.motion = state.motion ? 'on' : 'off';
+      setAttribute(pet, 'data-action', state.action ? (state.reaction ? (state.reaction === 'leap' ? 'celebrate' : state.reaction) : state.action) : '');
+      setAttribute(pet, 'data-action-source', state.action ? (state.reaction ? 'care' : 'idle') : '');
       setAttribute(pet, 'data-sig', state.signatures ? '' : 'off');
       setAttribute(pet, 'data-neck', state.outfit ? 'scarf' : '');
       setAttribute(pet, 'data-reaction', state.reaction);
@@ -28,6 +30,7 @@
   const setState = update => {
     Object.assign(state, update);
     for (const [id, value] of Object.entries(state)) {
+      if (!control(id)) continue;
       if (typeof value === 'boolean') control(id).checked = value;
       else control(id).value = value;
     }
@@ -38,7 +41,7 @@
     control('page-label').textContent = data.pets.find(p => p.key === key).label;
     control('page-preview').open = true;
   };
-  for (const id of Object.keys(state)) control(id).addEventListener('change', () => setState({ [id]: typeof state[id] === 'boolean' ? control(id).checked : id === 'size' ? Number(control(id).value) : control(id).value }));
+  for (const id of Object.keys(state).filter(id => control(id))) control(id).addEventListener('change', () => setState({ [id]: typeof state[id] === 'boolean' ? control(id).checked : id === 'size' ? Number(control(id).value) : control(id).value }));
   control('replay').addEventListener('click', apply);
   document.querySelectorAll('[data-select]').forEach(button => button.addEventListener('click', () => selectPage(button.dataset.select)));
   for (const pet of samples()) {

@@ -2,6 +2,7 @@
 /* global window, document, getComputedStyle, innerWidth, innerHeight */
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { PET_PROFILES } from '../src/lib/petProfiles.js';
 
 export async function verifyCompanions(send, sessionId, out, name, reduced) {
   const evaluate = async (fn, ...args) => {
@@ -13,7 +14,7 @@ export async function verifyCompanions(send, sessionId, out, name, reduced) {
     if (await evaluate(() => !!window.companionQA)) break;
     await new Promise(done => setTimeout(done, 100));
   }
-  const report = await evaluate(async (dark, reduced) => {
+  const report = await evaluate(async (dark, reduced, profiles) => {
     const qa = window.companionQA;
     if (!qa) throw new Error('Preview controls did not initialize');
     qa.setState({ theme: dark ? 'dark' : 'light', paused: true, outfit: true });
@@ -43,7 +44,7 @@ export async function verifyCompanions(send, sessionId, out, name, reduced) {
     if (!reduced && getComputedStyle(focusedPet.querySelector('.dg-pet-head')).animationName !== getComputedStyle(focusedPet.querySelector('.dg-pet-wearable-head')).animationName) throw new Error('Hat does not follow focused head');
     const outside = [];
     const checkBounds = tag => {
-      for (const pet of qa.samples().filter(p => p.style.width !== '40px' && p.dataset.pet !== 'luna')) {
+      for (const pet of qa.samples().filter(p => p.style.width !== '40px')) {
         const svg = pet.querySelector('.pet-art');
         const box = svg.getBoundingClientRect();
         for (const shape of svg.querySelectorAll('path,circle,ellipse,rect,polygon')) {
@@ -82,6 +83,38 @@ export async function verifyCompanions(send, sessionId, out, name, reduced) {
       if (!reduced && getComputedStyle(head).animationName !== getComputedStyle(pet.querySelector('.dg-pet-wearable-head')).animationName) throw new Error('Hat does not follow care head');
       combinations += qa.data.pets.length;
     }
+    result.rigActions = [];
+    for (const action of [...new Set(Object.values(profiles).flatMap(p => p.idles))]) {
+      qa.setState({ action, beat: '', reaction: '', mood: 'content' });
+      const matching = qa.samples().filter(p => profiles[p.dataset.pet].idles.includes(action));
+      for (const pet of qa.samples().filter(p => !profiles[p.dataset.pet].idles.includes(action))) {
+        delete pet.dataset.action;
+        delete pet.dataset.actionSource;
+      }
+      checkBounds('rig/' + action);
+      for (const pet of matching) {
+        const running = [pet,...pet.querySelectorAll('*')].filter(e => getComputedStyle(e).animationName !== 'none');
+        if (!reduced && !running.length) throw new Error('No rig action animation: ' + pet.dataset.pet + '/' + action);
+        if (reduced && running.length) throw new Error('Reduced rig action animated: ' + pet.dataset.pet + '/' + action);
+      }
+      result.rigActions.push({ action, pets: matching.length });
+      combinations += qa.data.pets.length;
+    }
+    result.rigCare = [];
+    for (const reaction of ['pet','play','treat','leap']) {
+      qa.setState({ action: 'listen', reaction, mood: 'sleepy', beat: 'headtilt' });
+      checkBounds('rig-care/' + reaction);
+      for (const pet of qa.samples()) {
+        const expected = reaction === 'leap' ? 'celebrate' : reaction;
+        if (pet.dataset.action !== expected || pet.dataset.actionSource !== 'care' || pet.dataset.beat) throw new Error('Current rig care priority lost: ' + pet.dataset.pet);
+        const head = getComputedStyle(pet.querySelector('.pet-rig-head')).animationName;
+        const hat = getComputedStyle(pet.querySelector('.dg-pet-wearable-head')).animationName;
+        if (head !== hat) throw new Error('Current care hat detached: ' + pet.dataset.pet);
+      }
+      result.rigCare.push(reaction);
+      combinations += qa.data.pets.length;
+    }
+    qa.setState({ action: '', reaction: '', beat: '' });
     result.combinations = combinations;
     result.outside = outside;
     result.applicationPages = [];
@@ -94,24 +127,29 @@ export async function verifyCompanions(send, sessionId, out, name, reduced) {
     }
     document.querySelector('#page-preview').open = false;
     const luna = qa.samples().find(p => p.dataset.pet === 'luna');
-    const activeLuna = () => [...luna.querySelectorAll('.luna-state')].filter(s => getComputedStyle(s).display !== 'none').map(s => s.classList[1]);
+    result.lunaVector = !!luna.querySelector('svg.pet-rig') && !luna.querySelector('image,.luna-strip');
+    result.lunaEyeProfile = luna.querySelector('.dg-pet-eyes')?.dataset.eyePersonality;
+    result.lunaPupilClips = luna.querySelectorAll('.dg-pet-eye [clip-path]').length;
+    if (!result.lunaVector || result.lunaEyeProfile !== 'luna' || result.lunaPupilClips !== 2) throw new Error('Luna vector/eye rig missing');
     result.lunaPriority = [];
+    for (const reaction of ['pet','play','treat','leap']) {
+      // A stale idle beat and sleepy face must yield to the care response.
+      luna.dataset.mood = 'sleepy'; luna.dataset.beat = 'headtilt'; luna.dataset.reaction = reaction;
+      const head = getComputedStyle(luna.querySelector('.pet-rig-head')).animationName;
+      const joy = getComputedStyle(luna.querySelector('.dg-pet-expression-joy')).display;
+      const rest = getComputedStyle(luna.querySelector('.dg-pet-expression-rest')).display;
+      result.lunaPriority.push({ reaction, head, joy, rest });
+      if ((!reduced && head !== 'petAttention') || (reduced && head !== 'none') || joy === 'none' || rest !== 'none') throw new Error('Luna care priority failure');
+    }
     if (!reduced) {
-      for (const [reaction, expected] of [['pet','wave'], ['play','jump'], ['treat','wait']]) {
-        // Deliberately retain a stale idle beat to challenge the CSS priority.
-        luna.dataset.beat = 'luna-run-right'; luna.dataset.reaction = reaction;
-        const states = activeLuna();
-        result.lunaPriority.push({ reaction, states });
-        if (states.length !== 1 || states[0] !== 'luna-state-' + expected) throw new Error('Luna care priority failure');
-      }
       qa.setState({ mood: 'content', reaction: '', beat: '', paused: false });
-      const strip = luna.querySelector('.luna-state-idle .luna-strip');
+      const head = luna.querySelector('.pet-rig-head');
       luna.scrollIntoView({ block: 'center' });
       await new Promise(done => setTimeout(done, 200));
-      const before = getComputedStyle(strip).transform;
+      const before = getComputedStyle(head).transform;
       await new Promise(done => setTimeout(done, 400));
-      result.lunaAdvances = getComputedStyle(strip).transform !== before;
-      if (!result.lunaAdvances) throw new Error('Luna did not advance frames');
+      result.lunaAdvances = getComputedStyle(head).transform !== before;
+      if (!result.lunaAdvances) throw new Error('Luna vector head did not animate');
     }
     qa.setState({ reaction: '', beat: '', mood: 'content', paused: false });
     // Trigger the real visibility listener, then inspect every running layer.
@@ -133,8 +171,8 @@ export async function verifyCompanions(send, sessionId, out, name, reduced) {
     // Frozen captures include all pets, even those outside a normal viewport.
     for (const pet of qa.samples()) { pet.removeAttribute('data-offscreen'); for (const animation of pet.getAnimations({ subtree: true })) animation.currentTime = 550; }
     return result;
-  }, name.includes('dark'), reduced);
-  const screenshot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false }, sessionId);
+  }, name.includes('dark'), reduced, PET_PROFILES);
+  const screenshot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true }, sessionId);
   writeFileSync(resolve(out, `companion-${name}.png`), Buffer.from(screenshot.data, 'base64'));
   writeFileSync(resolve(out, `${name}-report.json`), JSON.stringify(report, null, 2));
   if (report.duplicateIds.length || report.missingRefs.length || report.overflow || report.outside.length || report.motionOffAnimations || report.reducedAnimations || report.motionOffFocusRotate !== 'none' || report.reducedFocusRotate !== 'none' || report.signatureOffBeats || report.hiddenUnpaused || !report.offscreenObserved) throw new Error(`Companion QA failed: ${JSON.stringify(report)}`);

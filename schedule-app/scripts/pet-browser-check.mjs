@@ -96,28 +96,33 @@ try {
     if (name === "luna") {
       const checks = await send("Runtime.evaluate", { awaitPromise: true, returnByValue: true, expression: `(async () => {
         const pet = document.querySelector('[data-pet="luna"]');
-        const state = () => [...pet.querySelectorAll('.luna-state')].filter(e => getComputedStyle(e).display !== 'none').map(e => e.classList[1]);
+        const head = pet.querySelector('.pet-rig-head');
         const before = { mood: pet.dataset.mood, beat: pet.dataset.beat, reaction: pet.dataset.reaction, motion: pet.dataset.motion };
-        pet.dataset.mood = 'sleepy'; pet.dataset.beat = 'luna-run-right';
+        const face = selector => getComputedStyle(pet.querySelector(selector)).display;
+        pet.dataset.mood = 'sleepy'; pet.dataset.beat = 'headtilt';
         const priority = [];
-        for (const reaction of ['pet', 'play', 'treat']) { pet.dataset.reaction = reaction; priority.push([reaction, state()]); }
+        for (const reaction of ['pet', 'play', 'treat', 'leap']) {
+          pet.dataset.reaction = reaction;
+          priority.push({ reaction, head: getComputedStyle(head).animationName, joy: face('.dg-pet-expression-joy'), rest: face('.dg-pet-expression-rest') });
+        }
         delete pet.dataset.reaction; delete pet.dataset.beat; pet.dataset.mood = 'content';
-        const strip = pet.querySelector('.luna-state-idle .luna-strip');
-        strip.style.animationPlayState = 'running'; strip.style.animationDelay = '0s';
-        const first = getComputedStyle(strip).transform;
+        head.style.animationPlayState = 'running'; head.style.animationDelay = '0s';
+        const first = getComputedStyle(head).transform;
         await new Promise(done => setTimeout(done, 350));
-        const next = getComputedStyle(strip).transform;
-        strip.style.animationPlayState = 'paused'; strip.style.animationDelay = '-.55s';
+        const next = getComputedStyle(head).transform;
+        head.style.removeProperty('animation-play-state'); head.style.removeProperty('animation-delay');
         pet.dataset.motion = 'off';
-        const still = getComputedStyle(pet.querySelector('.luna-still')).display !== 'none';
-        const offState = state();
+        const offAnimations = [pet,...pet.querySelectorAll('*')].filter(e => getComputedStyle(e).animationName !== 'none').length;
+        const vector = !!pet.querySelector('svg.pet-rig') && !pet.querySelector('image,.luna-strip');
+        const eyes = pet.querySelector('.dg-pet-eyes').dataset.eyePersonality;
+        const pupilClips = pet.querySelectorAll('.dg-pet-eye [clip-path]').length;
         for (const [key, value] of Object.entries(before)) { if (value === undefined) delete pet.dataset[key]; else pet.dataset[key] = value; }
-        return { priority, advances: first !== next, still, offState };
+        return { priority, advances: first !== next, offAnimations, vector, eyes, pupilClips };
       })()` }, sessionId);
+      if (checks.exceptionDetails) throw new Error(checks.exceptionDetails.exception?.description || checks.exceptionDetails.text);
       report.lunaChecks = checks.result.value;
-      const expected = { pet: 'luna-state-wave', play: 'luna-state-jump', treat: 'luna-state-wait' };
-      if (!report.lunaChecks.advances || !report.lunaChecks.still || report.lunaChecks.offState.length
-        || report.lunaChecks.priority.some(([action, states]) => states.length !== 1 || states[0] !== expected[action])) {
+      if (!report.lunaChecks.advances || report.lunaChecks.offAnimations || !report.lunaChecks.vector || report.lunaChecks.eyes !== 'luna' || report.lunaChecks.pupilClips !== 2
+        || report.lunaChecks.priority.some(check => check.head !== 'petAttention' || check.joy === 'none' || check.rest !== 'none')) {
         throw new Error(`Luna reaction/animation failure: ${JSON.stringify(report.lunaChecks)}`);
       }
     }

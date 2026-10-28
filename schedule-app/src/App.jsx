@@ -1,5 +1,7 @@
 import { rememberSplitInvite, pendingSplitInvite, clearSplitInvite } from "./lib/splitInvite.js";
 import { MORE_VIEWS, viewTitle } from "./lib/navItems.js";
+import { myAdminRole } from "./lib/adminRoles.js";
+import { watchAdminRole } from "./lib/adminRoleWatcher.js";
 import { memoryEvent } from "./lib/companionMemory.js";
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Suspense, lazy, startTransition } from "react";
 import { createPortal } from "react-dom";
@@ -210,19 +212,21 @@ function NavButton({ nav, className, children, onClick, ...rest }) {
 function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const userEmail = user?.primaryEmailAddress?.emailAddress?.toLowerCase();
   // Admin entry = a role on public.admins (granted from Admin Roles), with the
-  // hardcoded emails kept as a lockout fallback. The role is fetched once per
-  // signed-in user; the database still enforces what each role may write.
+  // hardcoded emails kept as a lockout fallback. Recheck role grants/revocations
+  // for open sessions; the database still enforces what each role may write.
   const [adminRoleState, setAdminRoleState] = useState({ userId: null, role: null });
+  const adminRoleRefresh = useRef(null);
   const adminRoleResolved = !isSignedIn || (!!userId && adminRoleState.userId === userId);
-  const isAdmin = !!((userEmail && ADMIN_EMAILS.includes(userEmail)) || (adminRoleResolved && adminRoleState.role));
+  const isAdmin = !!(isSignedIn && ((userEmail && ADMIN_EMAILS.includes(userEmail)) || (userId && adminRoleState.userId === userId && adminRoleState.role)));
   useEffect(() => {
     if (!isSignedIn || !userId) return;
-    let alive = true;
-    supabase.rpc("admin_role").then(
-      ({ data, error }) => { if (alive) setAdminRoleState({ userId, role: error ? null : data ?? null }); },
-      () => { if (alive) setAdminRoleState({ userId, role: null }); }
-    );
-    return () => { alive = false; };
+    const watcher = watchAdminRole({
+      loadRole: myAdminRole,
+      onRole: role => setAdminRoleState({ userId, role }),
+      onError: error => console.warn("Could not refresh admin access; retrying:", error.message),
+    });
+    adminRoleRefresh.current = watcher.refresh;
+    return () => { adminRoleRefresh.current = null; watcher.stop(); };
   }, [isSignedIn, userId]);
   // Defaults on: it is never persisted, so a false start only creates a window
   // where an admin looks like a normal user and gets bounced out of the admin
@@ -2309,6 +2313,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
   const handleSync = async (eventOrTrigger) => {
     const trigger = typeof eventOrTrigger === "string" ? eventOrTrigger : "Manual refresh";
+    adminRoleRefresh.current?.();
     haptic([10]);
     setSyncing(true);
     try {

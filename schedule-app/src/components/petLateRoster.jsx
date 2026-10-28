@@ -62,12 +62,12 @@ export function Hamster() {
       </g>
 <g fill="#f59a9a" opacity=".45"><ellipse cx="9.4" cy="19.6" rx="1.4" ry=".8" /><ellipse cx="22.6" cy="19.6" rx="1.4" ry=".8" /></g>
 <g className="pet-design-marking" data-design-marking="hamster"><path d="M8.5 20q.6 2.6 3.6 2.9m11.4-2.9q-.6 2.6-3.6 2.9" fill="none" stroke="#fce0ab" strokeWidth="1.2" strokeLinecap="round" /></g>
-<PetEyes left={12.4} right={19.6} y={15.9} rx={1.85} ry={2.05} ink={INK} iris="#5a3a24" />
+<PetEyes pet="hamster" left={12.4} right={19.6} y={15.9} rx={1.85} ry={2.05} ink={INK} iris="#5a3a24" />
 <path d="M15.2 18.6h1.6L16 19.6z" fill="#e88a8a" stroke={INK} strokeWidth=".45" strokeLinejoin="round" />
 <path className="dg-pet-mouth-base" d="M16 19.7v.5m0 0q-1 1-2 .3m2-.3q1 1 2 .3" fill="none" stroke={INK} strokeWidth=".75" strokeLinecap="round" />
 <path d="M15.45 20.75h1.1v1h-1.1z" fill="#fff" stroke={INK} strokeWidth=".3" />
 <path d="M11.4 18.8 8 18.2M11.4 19.6l-3.2.6M20.6 18.8l3.4-.6M20.6 19.6l3.2.6" stroke="#b8865a" strokeWidth=".35" strokeLinecap="round" opacity=".8" />
-<PetExpression left={12.4} right={19.6} y={15.9} mouthY={20.2} ink={INK} />
+<PetExpression pet="hamster" rx={1.85} ry={2.05} left={12.4} right={19.6} y={15.9} mouthY={20.2} ink={INK} />
 <PetDetail pet="hamster" />
 </g>
     <g className="dg-pet-accessory">
@@ -106,7 +106,7 @@ export function Sloth() {
 <path d="M9.2 18.6c.2-2.4 1.8-4 3.8-4.2 1.4-.1 2.2.9 2 2.2-.4 1.8-2.4 3.2-4.4 3.4-.9.1-1.4-.4-1.4-1.4z" fill={patch} />
 <path d="M22.8 18.6c-.2-2.4-1.8-4-3.8-4.2-1.4-.1-2.2.9-2 2.2.4 1.8 2.4 3.2 4.4 3.4.9.1 1.4-.4 1.4-1.4z" fill={patch} />
 <g className="pet-design-marking" data-design-marking="sloth"><path d="m13.4 9.1 1.1 1 1.5-.6 1.5.6 1.1-1" fill="none" stroke="#d7c4a0" strokeWidth="1.1" strokeLinecap="round" /></g>
-<PetEyes left={12.6} right={19.4} y={16.6} rx={1.45} ry={1.6} ink="#241a12" iris="#3b2a1e" />
+<PetEyes pet="sloth" left={12.6} right={19.4} y={16.6} rx={1.45} ry={1.6} ink="#241a12" iris="#3b2a1e" />
 <g fill="#e9a08f" opacity=".42"><ellipse cx="9.6" cy="20.8" rx="1.4" ry=".8" /><ellipse cx="22.4" cy="20.8" rx="1.4" ry=".8" /></g>
 <ellipse cx="16" cy="19.8" rx="1.35" ry=".9" fill="#3a2a20" />
 <circle cx="15.6" cy="19.5" r=".3" fill="#fff" opacity=".6" />
@@ -115,7 +115,7 @@ export function Sloth() {
         <path d="M16.3 8.4c.4-2 2-3.4 4-3.4-.2 2-1.8 3.4-4 3.4z" fill="#7cc46a" stroke={INK} strokeWidth=".5" strokeLinejoin="round" />
         <path d="M16.3 8.4q1.6-1.4 3.2-2.6" fill="none" stroke="#4e9a48" strokeWidth=".35" strokeLinecap="round" />
       </g>
-<PetExpression left={12.6} right={19.4} y={16.6} mouthY={21.6} ink={INK} />
+<PetExpression pet="sloth" rx={1.45} ry={1.6} left={12.6} right={19.4} y={16.6} mouthY={21.6} ink={INK} />
 <PetDetail pet="sloth" />
 </g>
     <g className="dg-pet-accessory">
@@ -161,11 +161,11 @@ export function Capy() {
 <g fill="#4a3324"><ellipse cx="13.8" cy="18.6" rx=".75" ry=".5" /><ellipse cx="18.2" cy="18.6" rx=".75" ry=".5" /></g>
 
 <g className="pet-design-marking" data-design-marking="capy"><path d="M11 20.1q5-1.6 10 0" fill="none" stroke="#c89765" strokeWidth="1" strokeLinecap="round" /></g>
-<PetEyes left={11.8} right={20.2} y={14.4} rx={1.55} ry={1.5} ink={INK} iris="#2e1f15" />
+<PetEyes pet="capy" left={11.8} right={20.2} y={14.4} rx={1.55} ry={1.5} ink={INK} iris="#2e1f15" />
 <path d="M10 13q1.8-.9 3.6 0M18.4 13q1.8-.9 3.6 0" fill="none" stroke="#6e4a2e" strokeWidth=".55" strokeLinecap="round" opacity=".8" />
 <g fill="#e9997f" opacity=".38"><ellipse cx="8.8" cy="18.2" rx="1.3" ry=".75" /><ellipse cx="23.2" cy="18.2" rx="1.3" ry=".75" /></g>
 <path className="dg-pet-mouth-base" d="M16 20.2v.8m0 0q-1.2.9-2.2.4m2.2-.4q1.2.9 2.2.4" fill="none" stroke={INK} strokeWidth=".75" strokeLinecap="round" />
-<PetExpression left={11.8} right={20.2} y={14.4} mouthY={21} ink={INK} />
+<PetExpression pet="capy" rx={1.55} ry={1.5} left={11.8} right={20.2} y={14.4} mouthY={21} ink={INK} />
 <PetDetail pet="capy" />
 </g>
     <g className="dg-pet-accessory">
@@ -252,14 +252,14 @@ export function Unicorn() {
 <g transform="translate(16.6 2.6) scale(.7)"><path className="dg-pet-glint" d={GLINT} fill="#fff" /></g>
 <path d="M12.6 9.4c1.2-1.4 3.4-1.8 5-.8-1.2.2-2 .9-2.4 1.8 1.4-.4 2.8 0 3.6 1-1.8-.2-3.4.3-4.6 1.4-.2-1.4-.8-2.4-1.6-3.4z" fill="#9ac8ff" stroke={ink} strokeWidth=".45" strokeLinejoin="round" />
 <g className="pet-design-marking" data-design-marking="unicorn"><path d="M8.4 10.4q1.3 1.3 1.2 3m12.8-3q-1.3 1.3-1.2 3" fill="none" stroke="#e0b5e8" strokeWidth="1.1" strokeLinecap="round" /></g>
-<PetEyes left={12.3} right={19.7} y={16.3} rx={2.05} ry={2.3} ink={ink} iris="#9a7cf0" />
+<PetEyes pet="unicorn" left={12.3} right={19.7} y={16.3} rx={2.05} ry={2.3} ink={ink} iris="#9a7cf0" />
 <path d="M10.2 14.7 9.2 14.1M21.8 14.7l1-.6" fill="none" stroke={ink} strokeWidth=".6" strokeLinecap="round" />
 <g fill="#ff9ec7" opacity=".45"><ellipse cx="9.2" cy="19.6" rx="1.5" ry=".9" /><ellipse cx="22.8" cy="19.6" rx="1.5" ry=".9" /></g>
 <ellipse cx="16" cy="21" rx="3.9" ry="2.6" fill="#fde9f3" />
 <circle cx="15" cy="20.4" r=".32" fill={ink} opacity=".6" />
 <circle cx="17" cy="20.4" r=".32" fill={ink} opacity=".6" />
 <path className="dg-pet-mouth-base" d="M14.4 22.2q1.6 1.3 3.2 0" fill="none" stroke={ink} strokeWidth=".8" strokeLinecap="round" />
-<PetExpression left={12.3} right={19.7} y={16.3} mouthY={22.1} ink={ink} />
+<PetExpression pet="unicorn" rx={2.05} ry={2.3} left={12.3} right={19.7} y={16.3} mouthY={22.1} ink={ink} />
 <PetDetail pet="unicorn" />
 </g>
 
@@ -322,12 +322,12 @@ export function Dragon() {
         <path d="m16 8.5-2 3.1 2-.7 2 .7z" fill="#a6dab2" />
         <path d="M10.2 12.4q2-.8 4 .2m3.6 0q2-1 4-.2" fill="none" stroke="#257b60" strokeWidth="1.1" strokeLinecap="round" />
         <PetGrowthDetail pet="dragon" />
-        <PetEyes left={12} right={20} y={15.9} rx={1.8} ry={2.05} ink={ink} iris="#e6b76b" />
+        <PetEyes pet="dragon" left={12} right={20} y={15.9} rx={1.8} ry={2.05} ink={ink} iris="#e6b76b" />
         <path d="M11.5 18.4q4.5-1.4 9 0l1.4 2q.6 3.6-5.9 3.7-6.5-.1-5.9-3.7z" fill="#c0dcb4" stroke="#3c8067" strokeWidth=".55" />
         <g fill={ink}><ellipse cx="13.3" cy="20.1" rx=".65" ry=".45" transform="rotate(-18 13.3 20.1)" /><ellipse cx="18.7" cy="20.1" rx=".65" ry=".45" transform="rotate(18 18.7 20.1)" /></g>
         <path className="dg-pet-mouth-base" d="M13.4 22.4q2.6 1.6 5.2 0" fill="none" stroke={ink} strokeWidth=".7" strokeLinecap="round" />
         <g fill="#edf1e3" stroke="#b1c4b3" strokeWidth=".3"><g className="dg-pet-breath" opacity="0"><circle cx="12" cy="20.4" r=".9" /><circle cx="10.6" cy="19.8" r="1.1" /></g><g className="dg-pet-breath dg-pet-breath-b" opacity="0"><circle cx="20" cy="20.4" r=".9" /><circle cx="21.4" cy="19.8" r="1.1" /></g></g>
-        <PetExpression left={12} right={20} y={15.9} mouthY={22.4} ink={ink} />
+        <PetExpression pet="dragon" rx={1.8} ry={2.05} left={12} right={20} y={15.9} mouthY={22.4} ink={ink} />
         <PetDetail pet="dragon" />
       </g>
       <g className="dg-pet-accessory"><path d="M10.8 24.6q5.2 1.5 10.4 0l.2 1.1q-5.4 1.6-10.8 0z" fill="#b8874c" stroke={ink} strokeWidth=".5" /><path d="m16 25.5 1.1 1.3-1.1 1.4-1.1-1.4z" fill="#d78951" stroke={ink} strokeWidth=".4" /></g>

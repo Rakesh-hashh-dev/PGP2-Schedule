@@ -1,26 +1,35 @@
+import { eyeContour, petFace } from '../lib/petFaces.js';
+
 // Alternate faces use each character's own eye and mouth coordinates. The
 // original face stays the neutral pose; CSS selects the expression on its parent.
-export default function PetExpression({ left = 12, right = 20, y = 16, mouthY = 22, ink = "#252333", digital = false, beak = false, onDark = false }) {
+export default function PetExpression({ pet, left = 12, right = 20, y = 16, rx = 2, ry = rx, mouthY = 22, ink = "#252333", digital = false, beak = false, onDark = false }) {
   const middle = (left + right) / 2;
   const lidInk = onDark ? "#f4edda" : ink;
+  const face = petFace(pet);
+  const width = rx * face.width * .85;
+  const height = ry * face.height;
+  const tilt = face.tilt;
+  const curve = (x, rise) => `M${x - width} ${y + .25}q${width} ${rise} ${width * 2} 0`;
   return (
-    <g className="dg-pet-expression" fill="none" stroke={ink} strokeWidth=".85" strokeLinecap="round" strokeLinejoin="round">
+    <g className="dg-pet-expression" data-face-personality={pet} fill="none" stroke={ink} strokeWidth=".85" strokeLinecap="round" strokeLinejoin="round">
       <g className="dg-pet-expression-joy" stroke={lidInk} data-part="happy-eyelids">
-        <path d={`M${left - 1.6} ${y + .4}q1.6-2.2 3.2 0M${right - 1.6} ${y + .4}q1.6-2.2 3.2 0`} />
+        {[left, right].map((x, i) => <path key={x} d={curve(x, -height * (face.shape === 'cozy' ? .65 : 1))} transform={`rotate(${i ? -tilt : tilt} ${x} ${y})`} />)}
       </g>
       <g className="dg-pet-expression-rest" stroke={lidInk} data-part="sleeping-eyelids">
-        <path d={`M${left - 1.6} ${y}q1.6 1.5 3.2 0M${right - 1.6} ${y}q1.6 1.5 3.2 0`} />
+        {[left, right].map(x => <path key={x} d={curve(x, height * .55)} />)}
       </g>
       <g className="dg-pet-expression-surprise">
-        <ellipse cx={left} cy={y} rx="1.65" ry="2.15" fill={digital ? ink : "#fffaf2"} />
-        <ellipse cx={right} cy={y} rx="1.65" ry="2.15" fill={digital ? ink : "#fffaf2"} />
-        {!digital && <><circle cx={left} cy={y} r=".75" fill={ink} /><circle cx={right} cy={y} r=".75" fill={ink} /></>}
+        {[left, right].map((x, i) => <g key={x} transform={`rotate(${i ? -tilt : tilt} ${x} ${y})`}>
+          {digital ? <rect x={x - width} y={y - height} width={width * 2} height={height * 2} rx={width * .5} fill={ink} />
+            : <path d={eyeContour(x, y, width, height, face.shape)} fill="#fffaf2" strokeWidth=".4" />}
+          {!digital && <><ellipse cx={x} cy={y} rx={width * face.pupil * .8} ry={height * .63} fill={ink} /><ellipse cx={x - width * .2} cy={y - height * .3} rx={width * .2} ry={height * .15} fill="#fffdf6" stroke="none" /></>}
+        </g>)}
       </g>
       {digital && <g className="dg-pet-expression-heart" fill="#f589b5" stroke="none">
         {[left, right].map(x => <path key={x} d={`M${x} ${y + 1.8}l-1.6-1.6c-1.5-1.5.6-3.1 1.6-1.5 1-1.6 3.1 0 1.6 1.5z`} />)}
       </g>}
       <g className="dg-pet-expression-brows">
-        <path d={`M${left - 1.5} ${y - 2.8}q1.35-.7 2.7-.25M${right - 1.2} ${y - 3.05}q1.35-.45 2.7.25`} stroke={lidInk} strokeWidth=".65" />
+        {[left, right].map((x, i) => <path key={x} d={`M${x - width * .8} ${y - height - .65 + (i ? -face.brow : face.brow)}q${width * .8} ${-.5 - Math.abs(face.brow)} ${width * 1.6} ${i ? face.brow : -face.brow}`} stroke={lidInk} strokeWidth=".55" />)}
       </g>
       {!beak && <>
         <path className="dg-pet-expression-smile" d={`M${middle - 2} ${mouthY}q2 2.2 4 0`} />

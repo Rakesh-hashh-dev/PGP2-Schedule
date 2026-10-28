@@ -5468,7 +5468,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           {/* Admin roles */}
           <section className="admin-card admin-g-system system-control-card system-roles-card">
             <h2><ShieldAlert size={20} color="var(--violet)" /> Admin Roles <AdminActionBadge mode="live" /></h2>
-            <p className="admin-subtext">Anyone with a role can open Admin Tools. A Monitor can see everything but change nothing; a Superadmin has full access. Roles apply on their next app load. You can also set a role from any user's detail panel.</p>
+            <p className="admin-subtext">Anyone with a role can open Admin Tools. A Monitor can see everything but change nothing; a Superadmin has full access. Access refreshes when they return to the app or within a minute while it is open. You can also set a role from any user's detail panel.</p>
             {!canManageRoles && <p className="admin-subtext" style={{ color: "var(--amber-text)" }}>Only a Superadmin can grant or remove roles.</p>}
             <fieldset className="admin-readonly-group" disabled={!canManageRoles}>
             <div className="admin-field-row" style={{ alignItems: "flex-end" }}>
