@@ -1,5 +1,5 @@
 /* Sidebar usability additions. Keeps the existing colour system and active-row treatment intact. */
-@media (min-width: 1201px), (min-width: 768px) and (orientation: landscape) {
+@media (min-width: 1367px), (min-width: 768px) and (orientation: landscape) {
   .sb-float-tip { animation-duration: 80ms; }
   .sb-class-status {
     display: flex;
@@ -497,7 +497,7 @@
    The Aurora skin deliberately keeps its own visual language. Classic is the
    quieter, high-contrast option: layered plum surfaces, stronger hierarchy,
    and a crisp selected row instead of ambient glow. */
-@media (min-width: 1201px), (min-width: 768px) and (orientation: landscape) {
+@media (min-width: 1367px), (min-width: 768px) and (orientation: landscape) {
   .sidebar:not(.sb-aurora) {
     width: 268px;
     min-width: 268px;
@@ -790,7 +790,7 @@
 }
 
 /* Keep compact spacing after both sidebar skins so their later defaults do not win. */
-@media (min-width: 1201px), (min-width: 768px) and (orientation: landscape) {
+@media (min-width: 1367px), (min-width: 768px) and (orientation: landscape) {
   .sidebar.sb-compact:not(.collapsed) .sb-brand {
     margin-bottom: 6px;
     padding: 7px 8px;
@@ -824,3 +824,4 @@
     margin-top: 6px;
   }
 }
+

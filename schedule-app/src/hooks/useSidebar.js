@@ -7,8 +7,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { readTabletSidebar, saveTabletSidebar, effectiveSidebarCollapsed } from "../lib/tabletSidebar.js";
 import { setSbFloatTip } from "../lib/sbFloatTip.js";
 
-export function useSidebar({ isTablet, v2Active = false }) {
-  const tabletControls = isTablet && v2Active;
+export function useSidebar({ isTablet }) {
+  const tabletControls = isTablet;
   const [tabletExpanded, setTabletExpanded] = useState(() => tabletControls && readTabletSidebar());
   const tabletSidebarOpen = tabletControls && tabletExpanded;
   const closeTabletSidebar = useCallback(() => {
@@ -32,8 +32,8 @@ export function useSidebar({ isTablet, v2Active = false }) {
       return Boolean(isTablet);
     }
   });
-  // V2 tablet expansion is independent of the desktop preference.
-  const sbCollapsed = effectiveSidebarCollapsed({ isTablet, v2Active, tabletExpanded, sidebarCollapsed });
+  // Tablet expansion is independent of the desktop preference.
+  const sbCollapsed = effectiveSidebarCollapsed({ isTablet, tabletExpanded, sidebarCollapsed });
   function toggleSidebar() {
     if (tabletControls) {
       const next = !tabletExpanded;
@@ -193,3 +193,4 @@ export function useSidebar({ isTablet, v2Active = false }) {
     showLeftScroll, setShowLeftScroll,
   };
 }
+

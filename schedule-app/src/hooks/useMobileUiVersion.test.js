@@ -33,11 +33,17 @@ describe("supportsV2Viewport", () => {
     expect(supportsV2Viewport(390)).toBe(true);
     expect(supportsV2Viewport(768)).toBe(true);
     expect(supportsV2Viewport(1024)).toBe(true);
+    expect(supportsV2Viewport(1280)).toBe(true);
+    expect(supportsV2Viewport(1366)).toBe(true);
+    // Browser zoom can leave CSS viewports between integer breakpoints.
+    expect(supportsV2Viewport(1366.5)).toBe(true);
     expect(supportsV2Viewport(V2_MAX_VIEWPORT_WIDTH)).toBe(true);
   });
 
   it("keeps V2 off desktop widths", () => {
     expect(supportsV2Viewport(V2_MAX_VIEWPORT_WIDTH + 1)).toBe(false);
+    expect(supportsV2Viewport(1367)).toBe(false);
     expect(supportsV2Viewport(1440)).toBe(false);
   });
 });
+

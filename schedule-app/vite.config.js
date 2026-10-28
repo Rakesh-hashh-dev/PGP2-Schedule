@@ -94,7 +94,7 @@ const FULL_MANIFEST = {
   display: 'standalone',
   start_url: '/',
   scope: '/',
-  orientation: 'portrait',
+  orientation: 'any',
   icons: FULL_ICONS,
   // Android surfaces at most 4 shortcuts in the long-press menu, in
   // order — Glance / Today / Announcements / Attendance made the cut
@@ -271,3 +271,4 @@ export default defineConfig({
     }
   }
 });
+

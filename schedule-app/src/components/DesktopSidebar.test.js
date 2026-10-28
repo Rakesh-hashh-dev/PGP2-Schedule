@@ -59,6 +59,17 @@ describe("DesktopSidebar nav", () => {
     expect(render()).toContain('aria-label="Toggle sidebar"');
   });
 
+  it("offers the tablet drawer control independently of the selected UI version", () => {
+    const rail = render({ isTablet: true, tabletControls: true, sbCollapsed: true });
+    expect(rail).toContain('aria-label="Expand sidebar"');
+    expect(rail).toContain('aria-controls="termflow-sidebar"');
+    const drawer = render({ isTablet: true, tabletControls: true, tabletSidebarOpen: true });
+    expect(drawer).toContain('aria-label="Collapse sidebar"');
+    expect(drawer).toContain('role="dialog" aria-modal="true"');
+    expect(labels(drawer)).toContain("Attendance");
+    expect(labels(drawer)).toContain("Split");
+  });
+
   it("renders the groups in order", () => {
     expect(groups(render())).toEqual(["Schedule", "Track", "Campus", "More"]);
   });
@@ -152,3 +163,4 @@ describe("aurora entrance cascade", () => {
     }
   });
 });
+

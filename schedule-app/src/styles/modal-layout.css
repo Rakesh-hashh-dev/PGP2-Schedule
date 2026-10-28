@@ -1,7 +1,7 @@
 /* Center dialogs in the content area beside the visible navigation rail.
    Keep the backdrop across the whole viewport so modal dismissal still works.
    These sizes match the Classic and Aurora sidebar layouts. */
-@media (min-width: 1201px), (min-width: 768px) and (orientation: landscape) {
+@media (min-width: 1367px), (min-width: 768px) and (orientation: landscape) {
   :root:has(.app-shell > .sidebar) { --tf-modal-sidebar-space: 268px; }
   :root:has(.app-shell > .sidebar.sb-aurora) { --tf-modal-sidebar-space: 296px; }
   :root:has(.app-shell > .sidebar.collapsed) { --tf-modal-sidebar-space: 72px; }
@@ -48,3 +48,4 @@
   :root:has(.app-shell > .sidebar) .admin-modal-title { flex-wrap: wrap; }
   :root:has(.app-shell > .sidebar) .admin-modal-close-btn { flex-shrink: 0; }
 }
+

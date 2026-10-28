@@ -1,5 +1,5 @@
 /* TermFlow compact interface V2.
-   Active on phones and tablets up to 1200px. Tablet landscape retains the
+   Active on phones and tablets up to 1366px. Tablet landscape retains the
    collapsed sidebar; desktop widths keep the existing V1 rendering. */
 
 .mobile-v2-only,
@@ -28,7 +28,7 @@
 /* Today timeline — compact V2 integration. Portrait tablets use the same
    readable rail; landscape tablets retain the denser desktop timeline. */
 @media (max-width: 767px),
-  (min-width: 768px) and (max-width: 1200px) and (orientation: portrait) {
+  (min-width: 768px) and (width < 1367px) and (orientation: portrait) {
   /* Container shell matches V2 card rhythm (16px radius, subtle border) */
   .mobile-ui-v2 .timeline-today {
     border-radius: 16px !important;
@@ -476,7 +476,7 @@
 
 /* Shared V2 visual system for phones and tablets. Orientation-specific tablet
    layout corrections live at the end of this block. */
-@media (max-width: 1200px) {
+@media (width < 1367px) {
   .mobile-ui-v1 .over-menu {
     max-height: calc(100dvh - 82px - env(safe-area-inset-top, 0px));
     overflow-y: auto;
@@ -2911,7 +2911,7 @@
 
 /* Tablet portrait keeps the V2 navigation model, but gives it tablet-scale
    gutters, a centred dock and a contained More surface. */
-@media (min-width: 768px) and (max-width: 1200px) and (orientation: portrait) {
+@media (min-width: 768px) and (width < 1367px) and (orientation: portrait) {
   .mobile-ui-v2 {
     --mobile-v2-gutter: 28px;
     --mobile-v2-appbar: 72px;
@@ -3011,7 +3011,7 @@
 
 /* Tablet landscape uses the collapsed sidebar. The shared tablet layout sizes
    the week rail to available space; phone navigation is hidden. */
-@media (min-width: 768px) and (max-width: 1200px) and (orientation: landscape) {
+@media (min-width: 768px) and (width < 1367px) and (orientation: landscape) {
   .mobile-ui-v2 {
     --mobile-v2-gutter: 24px;
     --mobile-v2-bottom-clearance: 0px;
@@ -3085,7 +3085,7 @@
 /* ── V2 theme refinement ────────────────────────────────────────────────
    Final-priority styling keeps the feature DOM and established palette intact,
    while giving every compact-screen surface one calmer visual language. */
-@media (max-width: 1200px) {
+@media (width < 1367px) {
   .mobile-ui-v2 {
     --v2-radius-sm: 10px;
     --v2-radius-md: 14px;
@@ -3535,7 +3535,7 @@
   }
 }
 
-@media (max-width: 1200px) and (prefers-reduced-motion: reduce) {
+@media (width < 1367px) and (prefers-reduced-motion: reduce) {
   .mobile-ui-v2 .main-col > *,
   .mobile-ui-v2 .mobile-v2-tabbar *,
   .mobile-ui-v2 .mobile-v2-switcher *,
@@ -3586,7 +3586,7 @@
 
 /* Mobile keeps the navigation still and uses a slightly shorter entrance
    for the keyed page stage. */
-@media (max-width: 1200px) {
+@media (width < 1367px) {
   .mobile-ui-v2 .tf-page-stage {
     animation: tf-page-enter 190ms ease-out backwards;
   }
@@ -3596,7 +3596,7 @@
   }
 }
 
-@media (max-width: 1200px) and (prefers-reduced-motion: reduce) {
+@media (width < 1367px) and (prefers-reduced-motion: reduce) {
   .mobile-ui-v2 .tf-page-stage {
     animation: none;
   }
@@ -3609,7 +3609,7 @@
 }
 
 /* V2 hierarchy and landscape-tablet navigation controls. */
-@media (max-width: 1200px) {
+@media (width < 1367px) {
   .mobile-ui-v2 .mobile-v2-breadcrumbs {
     min-width: 0; max-width: 100%; margin: 0 0 12px; color: var(--muted);
     font-size: 12px; animation: none !important;
@@ -3640,27 +3640,27 @@
   }
   .mobile-ui-v2 .mobile-v2-breadcrumb-back span { overflow: hidden; text-overflow: ellipsis; }
 }
-@media (min-width: 768px) and (max-width: 1200px) and (orientation: landscape) {
-  html:has(.mobile-ui-v2) { scrollbar-gutter: stable; }
-  .mobile-ui-v2 .mobile-v2-sidebar-space { width: 72px; min-width: 72px; flex-shrink: 0; }
-  .mobile-ui-v2 .mobile-v2-sidebar-space.is-aurora { width: 84px; min-width: 84px; }
-  .mobile-ui-v2 .mobile-v2-sidebar-backdrop { position: fixed; inset: 0; z-index: 199; background: rgb(9 6 20 / 45%); }
-  .mobile-ui-v2 .sidebar.mobile-v2-sidebar-open {
+@media (min-width: 768px) and (width < 1367px) and (orientation: landscape) {
+  html:has(.app-shell) { scrollbar-gutter: stable; }
+  .app-shell .mobile-v2-sidebar-space { width: 72px; min-width: 72px; flex-shrink: 0; }
+  .app-shell .mobile-v2-sidebar-space.is-aurora { width: 84px; min-width: 84px; }
+  .app-shell .mobile-v2-sidebar-backdrop { position: fixed; inset: 0; z-index: 199; background: rgb(9 6 20 / 45%); }
+  .app-shell .sidebar.mobile-v2-sidebar-open {
     position: fixed; inset: 0 auto 0 0; height: 100dvh; z-index: 200; animation: none;
     transition: none; transform: none;
   }
-  .mobile-ui-v2 .sidebar.sb-aurora.mobile-v2-sidebar-open { top: 12px; bottom: 12px; height: calc(100dvh - 24px); margin: 0 0 0 12px; }
-  .mobile-ui-v2 .sidebar .mobile-v2-sidebar-toggle {
+  .app-shell .sidebar.sb-aurora.mobile-v2-sidebar-open { top: 12px; bottom: 12px; height: calc(100dvh - 24px); margin: 0 0 0 12px; }
+  .app-shell .sidebar .mobile-v2-sidebar-toggle {
     display: flex; align-items: center; justify-content: center; gap: 8px;
     flex-shrink: 0; min-height: 44px; min-width: 44px; width: 100%; margin-bottom: 10px;
     padding: 8px 10px; border: 1px solid rgb(196 181 253 / 28%); border-radius: 12px;
     background: rgb(167 139 250 / 12%); color: #eee9ff; font-size: 12px; font-weight: 600;
   }
-  .mobile-ui-v2 .sidebar .mobile-v2-sidebar-toggle:hover { background: rgb(167 139 250 / 24%); }
-  .mobile-ui-v2 .sidebar .mobile-v2-sidebar-toggle:focus-visible { outline: 2px solid #c4b5fd; outline-offset: 2px; }
-  .mobile-ui-v2 .sidebar.collapsed .mobile-v2-sidebar-toggle { padding-inline: 0; }
-  .mobile-ui-v2 .sidebar.mobile-v2-sidebar-open .sb-link { min-height: 44px; }
-  .mobile-ui-v2 .sidebar.mobile-v2-sidebar-open .sb-nav > * { animation: none !important; }
+  .app-shell .sidebar .mobile-v2-sidebar-toggle:hover { background: rgb(167 139 250 / 24%); }
+  .app-shell .sidebar .mobile-v2-sidebar-toggle:focus-visible { outline: 2px solid #c4b5fd; outline-offset: 2px; }
+  .app-shell .sidebar.collapsed .mobile-v2-sidebar-toggle { padding-inline: 0; }
+  .app-shell .sidebar.mobile-v2-sidebar-open .sb-link { min-height: 44px; }
+  .app-shell .sidebar.mobile-v2-sidebar-open .sb-nav > * { animation: none !important; }
 }
 
 /* Attendance CTA (Timeline.jsx .row-att-cta) only renders on V2 phone. */
@@ -3966,3 +3966,4 @@
     letter-spacing: 0 !important;
   }
 }
+
