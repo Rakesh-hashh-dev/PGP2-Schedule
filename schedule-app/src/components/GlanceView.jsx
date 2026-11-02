@@ -1,6 +1,8 @@
+import { useAppControls } from '../lib/appControls.js';
+import { istMinutes } from '../lib/messControls.js';
 import { Clock, MapPin, Zap, CalendarClock, GraduationCap, BookOpenCheck, UtensilsCrossed, ArrowRight, PartyPopper } from "lucide-react";
 import { upcomingDeadlines } from "../lib/insights.js";
-import { getMenuForDay, MEAL_TIMES } from "../data/messMenu.js";
+import { getMenuForDay, getMealTimes, getMessNotices } from "../data/messMenu.js";
 import { MEAL_ICONS, toMin, fmt12, fmtIn, mealStatus } from "../lib/messView.js";
 import { subjectClass } from "../lib/subjectColors.js";
 import { fmtTime12 } from "../lib/datetime.js";
@@ -27,7 +29,9 @@ function prettyDeadlineDate(iso, todayISO, tomorrowISO) {
 }
 
 export default function GlanceView({ current, next, todayList, now, todayISO, tomorrowISO, visible, legend, onNavigate }) {
-  const nowMin = now.getHours() * 60 + now.getMinutes();
+  useAppControls();
+  const MEAL_TIMES = getMealTimes(now);
+  const nowMin = istMinutes(now);
   const hero = current || next;
   const heroIsToday = hero && hero.date === todayISO;
 
@@ -44,9 +48,10 @@ export default function GlanceView({ current, next, todayList, now, todayISO, to
   const menuDate = new Date(now);
   let meal = MEAL_TIMES.find(m => mealStatus(m, nowMin) !== "past");
   let mealTomorrow = false;
-  if (!meal) { meal = MEAL_TIMES[0]; menuDate.setDate(menuDate.getDate() + 1); mealTomorrow = true; }
+  if (!meal) { meal = getMealTimes(new Date(+now + 86400000))[0]; menuDate.setDate(menuDate.getDate() + 1); mealTomorrow = true; }
   const menu = getMenuForDay(menuDate.getDay(), menuDate);
-  const mealItems = menu ? (menu[meal.id] || []).slice(0, 4) : [];
+  const mealNotices = getMessNotices(now);
+  const mealItems = [...mealNotices.map(n => n.text), ...(menu?.[meal.id] || [])].slice(0, 4);
   const mealLive = !mealTomorrow && mealStatus(meal, nowMin) === "now";
   const MealIcon = MEAL_ICONS[meal.id];
 

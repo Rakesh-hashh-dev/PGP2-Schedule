@@ -46,13 +46,13 @@ export function moveDashboardCard(prefs, id, direction) {
   return next;
 }
 
-export function readDashboardPrefs() {
+export function readDashboardPrefs(defaults = null) {
   try {
     const saved = JSON.parse(localStorage.getItem(DASHBOARD_KEY) || "null");
-    const prefs = normalizeDashboardPrefs(saved);
+    const prefs = normalizeDashboardPrefs(saved || defaults);
     if (saved?.focusMode === undefined && prefs.visible.todayCommand) prefs.focusMode = localStorage.getItem(TODAY_FOCUS_KEY) === "1";
     return prefs;
-  } catch { return normalizeDashboardPrefs(null); }
+  } catch { return normalizeDashboardPrefs(defaults); }
 }
 
 export function saveDashboardPrefs(prefs) {

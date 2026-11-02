@@ -1,4 +1,6 @@
 import NavIcon from "./NavIcon.jsx";
+import { useAppControls } from '../../lib/appControls.js';
+import { navVisible, navLabel } from '../../lib/navigationControls.js';
 import { activeMobileV2Destination } from "../../lib/mobileNav.js";
 
 export default function MobileV2TabBar({
@@ -8,6 +10,7 @@ export default function MobileV2TabBar({
   onNavigate,
   onOpenMore,
 }) {
+  const { payload } = useAppControls();
   const active = activeMobileV2Destination(view, moreOpen, attendanceEnabled);
   const items = [
     ["today", "Today", "today"],
@@ -15,7 +18,7 @@ export default function MobileV2TabBar({
     ...(attendanceEnabled ? [["attendance", "Attend", "attendance", "Attendance"]] : []),
     ["tasks", "Tasks", "assignments"],
     ["more", "More", null],
-  ];
+  ].filter(([, , target]) => !target || navVisible(target, payload.navigation));
 
   return (
     <nav className="mobile-v2-tabbar" aria-label="Primary" style={{ "--mobile-nav-count": items.length }}>
@@ -24,14 +27,14 @@ export default function MobileV2TabBar({
           type="button"
           key={id}
           className={active === id ? "is-active" : ""}
-          aria-label={spoken || label}
+          aria-label={navLabel(target, spoken || label, payload.navigation)}
           aria-current={active === id ? "page" : undefined}
           onClick={() => id === "more" ? onOpenMore() : onNavigate(target)}
         >
           <span className="mobile-v2-tab-icon" aria-hidden="true">
             <NavIcon kind={id} />
           </span>
-          <span className="mobile-v2-tab-label">{label}</span>
+          <span className="mobile-v2-tab-label">{navLabel(target, label, payload.navigation)}</span>
         </button>
       ))}
     </nav>

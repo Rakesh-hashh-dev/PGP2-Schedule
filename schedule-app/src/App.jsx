@@ -1,9 +1,12 @@
+import { useAppControls, getControls } from './lib/appControls.js';
+import { navVisible, navLabel } from './lib/navigationControls.js';
+import './styles/tablet-notifications.css';
 import { rememberSplitInvite, pendingSplitInvite, clearSplitInvite } from "./lib/splitInvite.js";
 import { MORE_VIEWS, viewTitle } from "./lib/navItems.js";
 import { myAdminRole } from "./lib/adminRoles.js";
 import { watchAdminRole } from "./lib/adminRoleWatcher.js";
 import { memoryEvent } from "./lib/companionMemory.js";
-import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Suspense, lazy, startTransition } from "react";
+import { Children, cloneElement, isValidElement, useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Suspense, lazy, startTransition } from "react";
 import { createPortal } from "react-dom";
 import { setNavView, useNavView, URL_VIEWS, urlWithView, scrollViewToTop } from "./lib/navView.js";
 import { useBackClose } from "./lib/backClose.js";
@@ -201,15 +204,46 @@ const ADMIN_EMAILS = [
 // it highlights on the tap itself while the page renders in a transition.
 function NavButton({ nav, className, children, onClick, ...rest }) {
   const on = useNavView() === nav;
+  const { payload } = useAppControls();
+  if (!navVisible(nav, payload.navigation)) return null;
+  const label = payload.navigation.items[nav]?.label;
+  const configuredChildren = label ? Children.map(children, child => {
+    if (isValidElement(child) && child.type === 'span' && (!child.props.className || child.props.className === 'tab-label')) return cloneElement(child, {}, label);
+    return child;
+  }) : children;
+  if (label) rest['aria-label'] = label;
   return (
     <button className={`${className}${on ? " on" : ""}`} aria-current={on ? "page" : undefined}
       onClick={(e) => { if (on) scrollViewToTop(); onClick?.(e); }} {...rest}>
-      {children}
+      {configuredChildren}
     </button>
   );
 }
 
+function getLegacyToolItems(config, companion, wrapped) {
+  const items = [
+    { id: "fullSchedule", label: "Full timetable", Icon: CalendarRange },
+    { id: "courseHub", label: "Courses", Icon: BookOpenCheck },
+    { id: "planner", label: "Personal planner", Icon: LayoutDashboard },
+    { id: "messMenu", label: "Mess menu", Icon: UtensilsCrossed },
+    { id: "split", label: "Split", Icon: Wallet },
+    ...(companion ? [{ id: "pet", label: "Companion", Icon: PawPrint }] : []),
+    { id: "board", label: "Campus Board", Icon: Package },
+    ...(wrapped ? [{ id: "wrapped", label: "Term Wrapped", Icon: Sparkles }] : []),
+  ];
+  const rank = id => config.order.includes(id) ? config.order.indexOf(id) : 999;
+  return items.filter(i => navVisible(i.id, config)).map(i => ({ ...i, label: navLabel(i.id, i.label, config) })).sort((a,b) => rank(a.id) - rank(b.id));
+}
+
 function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
+  const appControls = useAppControls();
+  useEffect(() => {
+    let alive = true;
+    if (appControls.loaded) fetchMessMenu().then(menu => { if (alive) { setMessMenuOverrides(menu || {}); setMessMenuRev(r => r + 1); } });
+    return () => { alive = false; };
+  }, [appControls.payload.mess.feedUrl, appControls.loaded]);
+  const dashboardTouched = useRef(false);
+  const [dashboardHydrated, setDashboardHydrated] = useState(false);
   const userEmail = user?.primaryEmailAddress?.emailAddress?.toLowerCase();
   // Admin entry = a role on public.admins (granted from Admin Roles), with the
   // hardcoded emails kept as a lockout fallback. Recheck role grants/revocations
@@ -237,12 +271,18 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // no user, so `isAdmin` reads false for the first few renders of every
   // refresh. Anything that revokes admin access has to wait for this.
   const identityResolved = isLoaded && (!isSignedIn || user !== undefined);
-  const [dashboardPrefs, setDashboardPrefs] = useState(readDashboardPrefs);
+  const [dashboardPrefs, setDashboardPrefsState] = useState(() => readDashboardPrefs());
+  const setDashboardPrefs = useCallback(next => { dashboardTouched.current = true; setDashboardPrefsState(next); }, []);
+  useEffect(() => {
+    if (!appControls.loaded || appControls.error || dashboardHydrated) return;
+    if (!dashboardTouched.current) setDashboardPrefsState(readDashboardPrefs(appControls.payload.dashboard));
+    setDashboardHydrated(true);
+  }, [appControls, dashboardHydrated]);
   const [classPrepSession, setClassPrepSession] = useState(null);
   const todayFocusMode = dashboardPrefs.focusMode;
-  const setTodayFocusMode = useCallback((focusMode) => setDashboardPrefs((prefs) => ({ ...prefs, focusMode })), []);
+  const setTodayFocusMode = useCallback((focusMode) => setDashboardPrefs((prefs) => ({ ...prefs, focusMode })), [setDashboardPrefs]);
   const closePrepSheet = useCallback(() => setClassPrepSession(null), []);
-  useEffect(() => { saveDashboardPrefs(dashboardPrefs); }, [dashboardPrefs]);
+  useEffect(() => { if (dashboardHydrated || dashboardTouched.current) saveDashboardPrefs(dashboardPrefs); }, [dashboardPrefs, dashboardHydrated]);
 
   // ── User-switch guard ──────────────────────────────────────────
   // When a different account logs in on the same browser, wipe stale
@@ -272,7 +312,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       setClassPrepSession(null);
     }
     try { localStorage.setItem(LAST_USER_KEY, userId); } catch { }
-  }, [userId]);
+  }, [userId, setDashboardPrefs]);
   // ──────────────────────────────────────────────────────────────
 
   // ── Migration bridge (dev instance only, background) ───────────
@@ -452,7 +492,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     const requested = typeof nextView === "function"
       ? nextView(currentViewRef.current)
       : nextView;
-    const target = requested === "leave" ? "planner" : requested;
+    const candidate = requested === "leave" ? "planner" : requested;
+    const target = navVisible(candidate, getControls().payload.navigation) ? candidate : "today";
     if (requested === "leave") setPlannerSection("leave");
     const previous = currentViewRef.current;
     if (!target || target === previous) return;
@@ -489,6 +530,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     navInFlightRef.current = true;
     queueMicrotask(() => { navInFlightRef.current = false; });
   }, []);
+  useEffect(() => {
+    if (!navVisible(view, appControls.payload.navigation)) setView("today");
+  }, [view, appControls.payload.navigation, setView]);
   useLayoutEffect(() => {
     if (focusPageRef.current) {
       focusPageRef.current = false;
@@ -605,6 +649,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [syncedAt, setSyncedAt] = useState(new Date());
   const notifOpenedAt = useRef(0);
   const notifLastTriggerRef = useRef(null);
+  const [notifSurface, setNotifSurface] = useState('topbar');
   const [, setLastSeenTs] = useState(() => loadLastSeen());
   const {
     notifOpen, setNotifOpen, notifFilter, setNotifFilter,
@@ -621,7 +666,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     };
     document.addEventListener("keydown", onEscape);
     return () => document.removeEventListener("keydown", onEscape);
-  }, [notifOpen, setNotifOpen]);
+  }, [notifOpen, notifSurface, setNotifOpen]);
   const [swUpdateFn, setSwUpdateFn] = useState(null);
   const [socialFlashToast, setSocialFlashToast] = useState(null);
   const [installPromptEvent, setInstallPromptEvent] = useState(null);
@@ -2574,12 +2619,12 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
   const renderNotificationBell = (variant = "topbar") => (
     <div className="tb-wrap notif-wrap">
-      <button className={variant === "sidebar" ? "sb-util-btn" : "sync"} onClick={e => { notifLastTriggerRef.current = e.currentTarget; handleOpenNotif(); }} aria-label={hasUnread ? `Notifications, ${unreadTotal} unread` : "Notifications"} aria-expanded={notifOpen}>
+      <button className={variant === "sidebar" ? "sb-util-btn" : "sync"} onClick={e => { notifLastTriggerRef.current = e.currentTarget; setNotifSurface(variant); if (notifOpen && notifSurface !== variant) setNotifOpen(true); else handleOpenNotif(); }} aria-label={hasUnread ? `Notifications, ${unreadTotal} unread` : "Notifications"} aria-expanded={notifOpen && notifSurface === variant}>
         <Bell size={variant === "sidebar" ? 16 : 15} />
         {hasUnread && <span className="notif-badge">{unreadTotal > 9 ? "9+" : unreadTotal}</span>}
       </button>
       <span className="tooltip" role="tooltip">Notifications</span>
-      {notifOpen && (
+      {notifOpen && notifSurface === variant && (
         <>
           <div className="notif-backdrop" onClick={() => setNotifOpen(false)} />
           <div className="notif-panel" role="dialog" aria-labelledby={`notif-panel-title-${variant}`}>
@@ -3205,15 +3250,15 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
                     {/* ── Recent (Tools views visited recently, only while Tools itself
                          is collapsed — avoids showing the same item twice) ── */}
-                    {!toolsSecOpen && recentToolViews.filter(v => v !== view && TOOLS_VIEWS.includes(v) && (v !== "pet" || enableCompanion) && (v !== "wrapped" || wrappedActive)).length > 0 && (
+                    {!toolsSecOpen && recentToolViews.filter(v => v !== view && TOOLS_VIEWS.includes(v) && navVisible(v, appControls.payload.navigation) && (v !== "pet" || enableCompanion) && (v !== "wrapped" || wrappedActive)).length > 0 && (
                       <>
                         <div className="over-sep" />
                         <div className="over-section-label">Recent</div>
-                        {recentToolViews.filter(v => v !== view && TOOLS_VIEWS.includes(v) && (v !== "pet" || enableCompanion) && (v !== "wrapped" || wrappedActive)).map(v => {
+                        {recentToolViews.filter(v => v !== view && TOOLS_VIEWS.includes(v) && navVisible(v, appControls.payload.navigation) && (v !== "pet" || enableCompanion) && (v !== "wrapped" || wrappedActive)).map(v => {
                           const { icon: Icon, label } = TOOLS_VIEW_META[v];
                           return (
                             <button key={v} onClick={() => { setView(v); setCompareTarget(null); setOverflowOpen(false); }}>
-                              <Icon size={14} /> {label}
+                              <Icon size={14} /> {navLabel(v, label, appControls.payload.navigation)}
                             </button>
                           );
                         })}
@@ -3228,34 +3273,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                     </button>
                     {toolsSecOpen && (
                       <div className="over-section-body">
-                        <button onClick={() => { setView("fullSchedule"); setCompareTarget(null); setOverflowOpen(false); }}>
-                          <CalendarRange size={14} /> Full timetable
-                        </button>
-                        <button onClick={() => { setView("courseHub"); setCompareTarget(null); setOverflowOpen(false); }}>
-                          <BookOpenCheck size={14} /> Courses
-                        </button>
-                        <button onClick={() => { setView("planner"); setCompareTarget(null); setOverflowOpen(false); }}>
-                          <LayoutDashboard size={14} /> Personal planner
-                        </button>
-                        <button onClick={() => { setMessMenuOpen(true); setOverflowOpen(false); }}>
-                          <UtensilsCrossed size={14} /> Mess menu
-                        </button>
-                        <button onClick={() => { setView("split"); setCompareTarget(null); setOverflowOpen(false); }}>
-                          <Wallet size={14} /> Split
-                        </button>
-                        {enableCompanion && (
-                          <button onClick={() => { setView("pet"); setCompareTarget(null); setOverflowOpen(false); }}>
-                            <PawPrint size={14} /> Companion
-                          </button>
-                        )}
-                        <button onClick={() => { setView("board"); setCompareTarget(null); setOverflowOpen(false); }}>
-                          <Package size={14} /> Campus Board
-                        </button>
-                        {wrappedActive && (
-                          <button onClick={() => { setView("wrapped"); setCompareTarget(null); setOverflowOpen(false); }}>
-                            <Sparkles size={14} /> Term Wrapped
-                          </button>
-                        )}
+                        {getLegacyToolItems(appControls.payload.navigation, enableCompanion, wrappedActive).map(({ id, label, Icon }) => <button key={id} onClick={() => { if (id === "messMenu") setMessMenuOpen(true); else { setView(id); setCompareTarget(null); } setOverflowOpen(false); }}><Icon size={14} /> {label}</button>)}
                       </div>
                     )}
 
@@ -3580,7 +3598,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 onViewChanges={() => { setView("notifications"); setCompareTarget(null); }}
                 tomorrowISO={tomorrowISO}
                 nextClass={nextClassAfterTomorrow}
-                onOpenMess={() => setMessMenuOpen(true)}
+                onOpenMess={() => setMessMenuOpen(navVisible("messMenu", getControls().payload.navigation))}
                 onOpenAssignments={() => { setView("assignments"); setCompareTarget(null); }}
                 onViewFullSchedule={(targetDate) => {
                   if (targetDate) setJumpToDate(targetDate);
@@ -3936,7 +3954,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             wrappedActive={wrappedActive}
             showAdmin={showAdminUI}
             onNavigate={navigateMobileV2}
-            onOpenMess={() => { setMobileV2MoreOpen(false); setMessMenuOpen(true); }}
+            onOpenMess={() => { setMobileV2MoreOpen(false); setMessMenuOpen(navVisible("messMenu", getControls().payload.navigation)); }}
             onOpenCalendar={() => { setMobileV2MoreOpen(false); openCalendarExport(); }}
             onFilter={() => { setMobileV2MoreOpen(false); setFilterModalOpen(true); }}
             onEditSetup={() => { setMobileV2MoreOpen(false); openEditSetup(); }}

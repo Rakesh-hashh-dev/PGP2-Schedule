@@ -1,7 +1,9 @@
+import { useAppControls } from '../lib/appControls.js';
+import { istMinutes } from '../lib/messControls.js';
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { UtensilsCrossed, X, Star, ThumbsUp, ThumbsDown, Clock3, Heart, CalendarDays, ArrowUpRight, LayoutGrid } from "lucide-react";
-import { getMenuForDay, MEAL_TIMES } from "../data/messMenu.js";
+import { getMenuForDay, getMealTimes, getMessNotices } from "../data/messMenu.js";
 import { MEAL_ICONS, WEEK_LABELS, mondayOf, toMin, fmt12, fmtIn, mealStatus, useMessData } from "../lib/messView.js";
 import { readMobileUiVersion, supportsV2Viewport } from "../hooks/useMobileUiVersion.js";
 import "../styles/mess.css";
@@ -80,13 +82,14 @@ export function MealRating({ mealId, stats, mine, onRate }) {
 // Full-week mess menu — day tabs across the top, one card per meal. Purely
 // presentational: favourites + ratings are passed in.
 export default function MessMenuModal({ now, onClose, favourites, onToggleFav, ratings }) {
+  useAppControls();
   useBackClose(onClose);
   const todayIdx = (now.getDay() + 6) % 7; // Mon=0 ... Sun=6
   const [dayIdx, setDayIdx] = useState(todayIdx);
   const [mealFilter, setMealFilter] = useState("all");
   const dialogRef = useRef(null);
   const panelId = useId();
-  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const nowMin = istMinutes(now);
   const isV2 = readMobileUiVersion() === "v2" && supportsV2Viewport();
 
   useEffect(() => {
@@ -133,7 +136,8 @@ export default function MessMenuModal({ now, onClose, favourites, onToggleFav, r
   });
   const isToday = dayIdx === todayIdx;
   const selected = weekDays[dayIdx];
-  const dayMenu = selected.menu;
+  const MEAL_TIMES = getMealTimes(selected.date);
+  const dayMenu = getMenuForDay(selected.date.getDay(), selected.date);
   const totalItems = MEAL_TIMES.reduce((n, m) => n + (dayMenu[m.id]?.length || 0), 0);
   const savedItems = new Set(
     MEAL_TIMES.flatMap((meal) => dayMenu[meal.id] || []).filter((item) => favourites?.has(item))
@@ -243,6 +247,7 @@ export default function MessMenuModal({ now, onClose, favourites, onToggleFav, r
           </button>
 
           <div className="mess-menu-guide">
+            {getMessNotices(now).map(n => <p className="mess-control-notice" key={n.id}>{n.text}</p>)}
             <div className="mess-guide-heading"><strong>{dateSub}</strong><span>{MEAL_TIMES.length} meals · {totalItems} dishes</span></div>
             <p className="mess-fav-hint"><Star size={11} /> Tap any dish to save it</p>
           </div>

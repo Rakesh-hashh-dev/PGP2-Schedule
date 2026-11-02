@@ -1,0 +1,10 @@
+/* The tablet drawer's bell must not anchor a wide popup off its narrow rail. */
+@media (min-width: 768px) and (width < 1367px) {
+  .app-shell .sidebar .sb-util-strip .notif-panel {
+    position: fixed;
+    inset: 72px auto auto 84px;
+    width: min(420px, calc(100vw - 108px));
+    max-height: min(70dvh, calc(100dvh - 96px));
+    transform-origin: top left;
+  }
+}

@@ -1,7 +1,9 @@
+import { useAppControls } from '../lib/appControls.js';
+import { istMinutes } from '../lib/messControls.js';
 import { useState, useEffect } from "react";
 import { UtensilsCrossed, ChevronDown, CalendarDays, Heart, Users } from "lucide-react";
 import { fetchFriendStatuses } from "../lib/status.js";
-import { getMenuForDay, MEAL_TIMES, favouritesInMenu } from "../data/messMenu.js";
+import { getMenuForDay, getMealTimes, getMessNotices, favouritesInMenu } from "../data/messMenu.js";
 import FullMenuModal, { ItemChips, MealRating } from "./MessMenuModal.jsx";
 import { useMessData, MEAL_ICONS, toMin, fmt12, fmtIn, mealStatus } from "../lib/messView.js";
 import "./../styles/mess.css";
@@ -15,6 +17,8 @@ function fmt12min(min) {
 }
 
 export default function MessCard({ now, userId, friends = [] }) {
+  useAppControls();
+  const MEAL_TIMES = getMealTimes(now);
   const [expanded, setExpanded] = useState(false);
   const [fullMenuOpen, setFullMenuOpen] = useState(false);
   const { favourites, toggleFav, ratings } = useMessData(now, userId);
@@ -35,7 +39,7 @@ export default function MessCard({ now, userId, friends = [] }) {
     .filter(f => f.cloudId && statusMap[f.cloudId]?.id === "mess")
     .map(f => f.name.split(" ")[0]);
 
-  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const nowMin = istMinutes(now);
 
   // Featured meal: the one serving now, else the next one today,
   // else tomorrow's breakfast (late night).
@@ -43,7 +47,7 @@ export default function MessCard({ now, userId, friends = [] }) {
   let dayLabel = "Today";
   let featured = MEAL_TIMES.find(m => mealStatus(m, nowMin) !== "past");
   if (!featured) {
-    featured = MEAL_TIMES[0];
+    featured = getMealTimes(new Date(+now + 86400000))[0];
     menuDate.setDate(menuDate.getDate() + 1);
     dayLabel = "Tomorrow";
   }
@@ -71,6 +75,7 @@ export default function MessCard({ now, userId, friends = [] }) {
       aria-label="Mess menu"
       {...hoverProps}
     >
+      {getMessNotices(now).map(n => <p className="mess-control-notice" key={n.id}>{n.text}</p>)}
       <header className="mess-card-header">
         <div>
           <span className="mess-card-heading"><UtensilsCrossed size={17} aria-hidden="true" />Mess Menu</span>

@@ -1,3 +1,6 @@
+import { Children } from 'react';
+import { useAppControls } from '../../lib/appControls.js';
+import { navVisible, navLabel } from '../../lib/navigationControls.js';
 import {
   Bell, BookOpen, CalendarDays, CheckSquare2, ChevronRight,
   CircleHelp, Download, LogOut, MessageSquare, Package,
@@ -5,7 +8,10 @@ import {
   Wallet, LayoutDashboard,
 } from "lucide-react";
 
-function MoreRow({ Icon, label, detail, badge, danger = false, onClick }) {
+function MoreRow({ navId, Icon, label, detail, badge, danger = false, onClick }) {
+  const { payload } = useAppControls();
+  if (navId && !navVisible(navId, payload.navigation)) return null;
+  label = navLabel(navId, label, payload.navigation);
   return (
     <button type="button" className={`mobile-v2-more-row${danger ? " is-danger" : ""}`} onClick={onClick}>
       <span className="mobile-v2-more-row-icon"><Icon size={16} aria-hidden="true" /></span>
@@ -20,7 +26,13 @@ function MoreRow({ Icon, label, detail, badge, danger = false, onClick }) {
 }
 
 function MoreSection({ title, children }) {
-  return <section className="mobile-v2-more-section"><h2>{title}</h2><div>{children}</div></section>;
+  const { payload } = useAppControls();
+  const order = payload.navigation.order;
+  const sorted = Children.toArray(children).sort((a, b) => {
+    const ai = order.indexOf(a.props.navId), bi = order.indexOf(b.props.navId);
+    return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi);
+  });
+  return <section className="mobile-v2-more-section"><h2>{title}</h2><div>{sorted}</div></section>;
 }
 
 export default function MobileV2MorePage({
@@ -56,32 +68,32 @@ export default function MobileV2MorePage({
       </section>
 
       <MoreSection title="Campus">
-        <MoreRow Icon={Bell} label="Announcements" detail="Updates and alerts" badge={unreadCount} onClick={() => onNavigate("notifications")} />
-        {enableFriends && <MoreRow Icon={Users} label="Social" detail="Friends, groups and free slots" onClick={() => onNavigate("friends")} />}
-        <MoreRow Icon={LayoutDashboard} label="Planner" detail="Schedule, workload and leave plans" onClick={() => onNavigate("planner")} />
-        <MoreRow Icon={Package} label="Campus Board" detail="Community posts" onClick={() => onNavigate("board")} />
-        <MoreRow Icon={UtensilsCrossed} label="Mess menu" detail="Today's meals" onClick={onOpenMess} />
+        <MoreRow navId="notifications" Icon={Bell} label="Announcements" detail="Updates and alerts" badge={unreadCount} onClick={() => onNavigate("notifications")}  />
+        {enableFriends && <MoreRow navId="friends" Icon={Users} label="Social" detail="Friends, groups and free slots" onClick={() => onNavigate("friends")}  />}
+        <MoreRow navId="planner" Icon={LayoutDashboard} label="Planner" detail="Schedule, workload and leave plans" onClick={() => onNavigate("planner")}  />
+        <MoreRow navId="board" Icon={Package} label="Campus Board" detail="Community posts" onClick={() => onNavigate("board")}  />
+        <MoreRow navId="messMenu" Icon={UtensilsCrossed} label="Mess menu" detail="Today's meals" onClick={onOpenMess} />
       </MoreSection>
 
       <MoreSection title="Tools">
-        <MoreRow Icon={CheckSquare2} label="Assignments" detail="Tasks and deadlines" onClick={() => onNavigate("assignments")} />
-        <MoreRow Icon={BookOpen} label="Courses" detail="Classes, work and materials by subject" onClick={() => onNavigate("courseHub")} />
-        <MoreRow Icon={CalendarDays} label="Full timetable" detail="Browse the complete term" onClick={() => onNavigate("fullSchedule")} />
-        <MoreRow Icon={Wallet} label="Split expenses" detail="Settle group spending" onClick={() => onNavigate("split")} />
+        <MoreRow navId="assignments" Icon={CheckSquare2} label="Assignments" detail="Tasks and deadlines" onClick={() => onNavigate("assignments")}  />
+        <MoreRow navId="courseHub" Icon={BookOpen} label="Courses" detail="Classes, work and materials by subject" onClick={() => onNavigate("courseHub")}  />
+        <MoreRow navId="fullSchedule" Icon={CalendarDays} label="Full timetable" detail="Browse the complete term" onClick={() => onNavigate("fullSchedule")}  />
+        <MoreRow navId="split" Icon={Wallet} label="Split expenses" detail="Settle group spending" onClick={() => onNavigate("split")}  />
         <MoreRow Icon={Download} label="Add to calendar" detail="Export classes and exams" onClick={onOpenCalendar} />
       </MoreSection>
 
       {(enableCompanion || wrappedActive) && (
         <MoreSection title="Personal">
-          {enableCompanion && <MoreRow Icon={PawPrint} label="Companion" detail="Care, progress and rewards" onClick={() => onNavigate("pet")} />}
-          {wrappedActive && <MoreRow Icon={Sparkles} label="Term Wrapped" detail="Your term in review" onClick={() => onNavigate("wrapped")} />}
+          {enableCompanion && <MoreRow navId="pet" Icon={PawPrint} label="Companion" detail="Care, progress and rewards" onClick={() => onNavigate("pet")}  />}
+          {wrappedActive && <MoreRow navId="wrapped" Icon={Sparkles} label="Term Wrapped" detail="Your term in review" onClick={() => onNavigate("wrapped")}  />}
         </MoreSection>
       )}
 
       <MoreSection title="Settings">
         <MoreRow Icon={SlidersHorizontal} label="Filter subjects" detail="Choose what appears" onClick={onFilter} />
         <MoreRow Icon={Settings2} label="Edit setup" detail="Courses and sections" onClick={onEditSetup} />
-        {showAdmin && <MoreRow Icon={Shield} label="Admin tools" detail="Manage TermFlow" onClick={() => onNavigate("admin")} />}
+        {showAdmin && <MoreRow navId="admin" Icon={Shield} label="Admin tools" detail="Manage TermFlow" onClick={() => onNavigate("admin")}  />}
       </MoreSection>
 
       <MoreSection title="Support">

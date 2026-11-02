@@ -127,3 +127,12 @@ button.mess-dish:hover { background: var(--card-hi); border-color: var(--border)
 @media (prefers-reduced-motion: reduce) {
   .mess-menu-refresh .mess-day-overview { transition: none; }
 }
+.mess-control-notice {
+  padding: 10px 14px;
+  margin: 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+}

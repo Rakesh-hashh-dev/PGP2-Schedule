@@ -1,3 +1,4 @@
+import { useAppControls } from '../lib/appControls.js';
 // Desktop sidebar (<aside className="sidebar">).
 //
 // The nav is data-driven off `lib/navItems.js`; this file owns only the chrome
@@ -35,6 +36,7 @@ export default function DesktopSidebar({
   renderSbAvatarWrap, syncing, syncedAgo, toggleSidebar, isTablet,
   tabletControls = false, tabletSidebarOpen = false, onCloseTabletSidebar,
 }) {
+  const { payload: appControls } = useAppControls();
   const sidebarRef = useRef(null);
   const tabletToggleRef = useRef(null);
   useLayoutEffect(() => {
@@ -107,7 +109,7 @@ export default function DesktopSidebar({
 
   // Feature flags, keyed by the `gate` names used in NAV_ITEMS.
   const flags = { enableAttendance, enableExams, enableFriends, companionEnabled, wrappedActive };
-  const available = NAV_GROUPS.flatMap(group => itemsForGroup(group.id, flags));
+  const available = NAV_GROUPS.flatMap(group => itemsForGroup(group.id, flags, appControls.navigation));
   const pinnedItems = pins.map(id => available.find(item => item.id === id)).filter(Boolean);
   // Unread counters and extra select-time side effects, keyed the same way.
   const counts = { unreadChangeCount, unreadFriendCount };
@@ -147,7 +149,9 @@ export default function DesktopSidebar({
       role={tabletSidebarOpen ? "dialog" : undefined} aria-modal={tabletSidebarOpen || undefined}
       onClickCapture={event => {
         // Close before launching app dialogs from search, profile or utility controls.
-        if (tabletSidebarOpen && event.target.closest(".sb-search-btn, .sb-util-btn, .sb-avatar-btn")) onCloseTabletSidebar?.();
+        // Search opens outside the drawer. Utility popups live inside it and
+        // must stay mounted/visible while their trigger handles the click.
+        if (tabletSidebarOpen && event.target.closest(".sb-search-btn")) onCloseTabletSidebar?.();
       }}
       onKeyDown={e => { if (e.key === "Escape") hideSbTip(); }}
       className={"sidebar" + (sbCollapsed ? " collapsed" : "") + (sbStyle === "aurora" ? " sb-aurora" : "") + (compact ? " sb-compact" : "") + (tabletSidebarOpen ? " mobile-v2-sidebar-open" : "")}>
@@ -209,7 +213,7 @@ export default function DesktopSidebar({
           )}
 
           {NAV_GROUPS.map(group => {
-            const items = itemsForGroup(group.id, flags).filter(item => !pinnedItems.some(pin => pin.id === item.id));
+            const items = itemsForGroup(group.id, flags, appControls.navigation).filter(item => !pinnedItems.some(pin => pin.id === item.id));
             if (items.length === 0 && !group.collapsible) return null;
             if (!group.collapsible) {
               return (

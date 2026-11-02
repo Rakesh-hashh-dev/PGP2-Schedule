@@ -1,0 +1,27 @@
+import { UtensilsCrossed, PanelLeft, LayoutDashboard, Coffee, Sun, Cookie, Moon, CalendarDays, Clock3, Sparkles, ShieldCheck } from 'lucide-react';
+
+const HEROES = {
+  mess: { Icon: UtensilsCrossed, kicker: 'CAMPUS DINING', description: 'Shape the week. Fine-tune a day. Keep every meal in sync.' },
+  navigation: { Icon: PanelLeft, kicker: 'APP EXPERIENCE', description: 'Give students a clear path to the things that matter.' },
+  dashboard: { Icon: LayoutDashboard, kicker: 'FIRST IMPRESSIONS', description: 'Create a considered starting point for every new student.' },
+};
+export function ControlHero({ section, title, changed, revision }) {
+  const { Icon, kicker, description } = HEROES[section];
+  return <header className={`ac-hero ac-hero--${section}`}>
+    <div className="ac-hero-copy"><span className="ac-kicker"><span />{kicker}</span><div className="ac-hero-title"><span className="ac-hero-icon"><Icon size={27} strokeWidth={1.6} aria-hidden="true" /></span><h2>{title}</h2></div><p>{description}</p><span className={`ac-publish-badge ${changed ? 'is-draft' : ''}`}><span />{changed ? 'Unpublished changes' : 'Published configuration'}<i />Revision {revision}</span></div>
+    <div className="ac-hero-art" aria-hidden="true"><svg viewBox="0 0 270 150" fill="none"><defs><linearGradient id={`ac-${section}`} x1="30" y1="10" x2="240" y2="140"><stop stopColor="#c4b5fd" /><stop offset="1" stopColor="#5eead4" /></linearGradient></defs><path d="M15 114C68 114 65 22 135 22S207 114 260 114" stroke="white" strokeOpacity=".1" strokeDasharray="4 6" /><circle cx="135" cy="75" r="60" stroke="white" strokeOpacity=".07" /><circle cx="135" cy="75" r="42" stroke={`url(#ac-${section})`} strokeOpacity=".35" />{section === 'mess' ? <><circle cx="135" cy="75" r="28" fill="white" fillOpacity=".08" stroke="white" strokeOpacity=".3" /><path d="M95 53v18m-5-18v9q0 9 10 0v-9m-5 18v27m80-45v45m0-45q-15 15 0 20" stroke={`url(#ac-${section})`} strokeWidth="3" strokeLinecap="round" /><circle cx="140" cy="69" r="6" fill="#5eead4" fillOpacity=".7" /></> : <><rect x="72" y="35" width="126" height="83" rx="12" fill="#30264d" stroke="white" strokeOpacity=".24" /><rect x="81" y="44" width="28" height="65" rx="6" fill="white" fillOpacity=".08" /><path d="M88 55h14m-14 12h10m-10 12h14m-14 12h9" stroke="#c4b5fd" strokeWidth="3" strokeLinecap="round" /><rect x="118" y="45" width="70" height="19" rx="5" fill={`url(#ac-${section})`} fillOpacity=".65" /><rect x="118" y="72" width={section === 'dashboard' ? '30' : '70'} height="30" rx="5" fill="white" fillOpacity=".12" />{section === 'dashboard' && <rect x="155" y="72" width="33" height="30" rx="5" fill="#5eead4" fillOpacity=".2" />}</>}<circle cx="224" cy="45" r="15" fill="#5eead4" fillOpacity=".1" stroke="#5eead4" strokeOpacity=".3" /><path d="m219 45 4 4 7-8" stroke="#5eead4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /><circle cx="49" cy="98" r="10" fill="#c4b5fd" fillOpacity=".15" /><path d="M45 98h8m-4-4v8" stroke="#c4b5fd" strokeLinecap="round" /></svg></div>
+  </header>;
+}
+export function ControlStats({ items }) {
+  return <div className="ac-stat-strip">{items.map(({ Icon, label, value, detail }) => <div className="ac-stat" key={label}><span className="ac-stat-icon"><Icon size={18} strokeWidth={1.7} aria-hidden="true" /></span><div><small>{label}</small><strong>{value}</strong>{detail && <span>{detail}</span>}</div></div>)}</div>;
+}
+export function ControlSectionTitle({ Icon, title, description, aside }) {
+  return <div className="ac-section-heading"><span className="ac-section-icon"><Icon size={19} strokeWidth={1.7} aria-hidden="true" /></span><div><h3>{title}</h3>{description && <p>{description}</p>}</div>{aside && <span className="ac-section-tag">{aside}</span>}</div>;
+}
+export function MealGlyph({ meal, size = 17 }) {
+  const Icon = meal.startsWith('snacks') ? Cookie : meal === 'breakfast' ? Coffee : meal === 'lunch' ? Sun : Moon;
+  return <Icon size={size} strokeWidth={1.7} aria-hidden="true" />;
+}
+export function DashboardMiniature({ layout, cards, icons }) {
+  return <div className={`ac-dashboard-model ${layout.density === 'compact' ? 'is-compact' : ''}`} aria-label="Dashboard layout preview"><div className="ac-browser-chrome"><span /><span /><span /><small>Student dashboard · layout preview</small></div><div className="ac-model-greeting"><span><Sparkles size={14} />Your day, at a glance</span><strong>Welcome to TermFlow</strong><div className="ac-model-line" /></div><div className="ac-model-body"><div className="ac-model-widgets">{layout.order.filter(id => id === 'timeline' || layout.visible[id] !== false).map((id, index) => { const Icon = icons[id] || CalendarDays; return <div key={id} className={`ac-model-widget ac-model-widget--${id}`}><span className="ac-model-widget-icon"><Icon size={17} /></span><strong>{cards.find(c => c.id === id)?.label}</strong><span className="ac-model-lines"><i /><i /></span><small>{String(index + 1).padStart(2, '0')}</small></div>; })}</div>{layout.weekPanel && <aside className="ac-model-week"><CalendarDays size={15} /><span>This week</span>{[1, 2, 3, 4, 5].map(i => <i key={i}><b /> <em /></i>)}</aside>}</div>{layout.visible.weather && <div className="ac-model-weather"><Sun size={15} /><span>Weather widget</span></div>}<div className="ac-preview-caption"><ShieldCheck size={13} />Personal layouts are preserved<Clock3 size={13} />{layout.density} spacing</div></div>;
+}

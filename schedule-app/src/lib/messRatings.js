@@ -6,6 +6,7 @@ import { supabase } from "./supabase.js";
 // soft: if the migration hasn't been applied yet, the UI just hides ratings.
 
 function dayISO(date) {
+  if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 

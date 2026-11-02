@@ -1,3 +1,4 @@
+import { configureNav } from './navigationControls.js';
 // Declarative config for the desktop sidebar's navigation.
 //
 // Before this file, DesktopSidebar.jsx hand-wrote 17 near-identical 4-line
@@ -64,8 +65,8 @@ export const NAV_ITEMS = [
 ];
 
 /** Items in `group`, minus any whose feature flag is off. */
-export function itemsForGroup(groupId, flags = {}) {
-  return NAV_ITEMS.filter(i => i.group === groupId && (!i.gate || Boolean(flags[i.gate])));
+export function itemsForGroup(groupId, flags = {}, controls = {}) {
+  return configureNav(NAV_ITEMS.filter(i => i.group === groupId && (!i.gate || Boolean(flags[i.gate]))), controls);
 }
 
 /** Views reachable from the collapsible group — used to keep it open on a tool page. */

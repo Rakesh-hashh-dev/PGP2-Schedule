@@ -1,3 +1,6 @@
+import { getControls } from '../lib/appControls.js';
+import { resolveMenu, resolveMealTimes, activeNotices } from '../lib/messControls.js';
+import { DEFAULT_TIMES } from '../lib/controlsSchema.js';
 // Mess menu — updated 2026-10-26 from the institute's live mess sheet
 // (Google Sheet id 1ZqJCFYScuZwK15SFVelng8VVlABeffhbHi69jQ4MOo4), the same
 // sheet the live feed (lib/messFeed.js) reads. This is the OFFLINE FALLBACK:
@@ -5,21 +8,9 @@
 // the institute publishes a new cycle so first-paint / offline shows the
 // right menu. Day keys follow Date#getDay(): 0 = Sunday … 6 = Saturday.
 
-export const MEAL_TIMES = [
-  { id: "breakfast", label: "Breakfast", start: "08:30", end: "10:30" },
-  { id: "lunch", label: "Lunch", start: "13:00", end: "15:00" },
-  { id: "snacks", label: "Snacks", start: "17:30", end: "18:30" },
-  { id: "dinner", label: "Dinner", start: "20:00", end: "22:30" },
-];
+export const MEAL_TIMES = DEFAULT_TIMES;
 
-// Week-rotation anchor: a Monday that falls in a Week 1&3 week of the CURRENT
-// menu cycle. Used to resolve Week 1&3 vs Week 2&4 snacks by parity. Re-anchor
-// this whenever the institute publishes a new cycle (only the parity matters,
-// not the exact date).
-// 2026-10-26: Anchored to Mon 2026-10-19 (Week 1&3) so that the week of Oct 26-Nov 01
-// evaluates to Week 2&4 snacks (resolving Monday's snack as Hakka Noodles
-// per actual mess service, instead of Papdi Chaat).
-const MENU_START = new Date(2026, 9, 19);
+// The default rotation anchor lives in controlsSchema; admins can publish a new one.
 
 // Served every day alongside the day's breakfast mains
 export const DAILY_BREAKFAST = [
@@ -78,10 +69,8 @@ export const BASE_MENU = {
   },
 };
 
-// ── Admin overrides (from system_config.flags.messMenuOverrides) ──────────
-// Shape mirrors BASE_MENU but sparse: { [dayOfWeek]: { [meal]: [items] } }.
-// Only the meals present override; everything else falls through to the
-// bundled menu. App.jsx applies these once the cloud config loads.
+// Live/cached sheet values, layered above the bundled fallback.
+// Published admin weekly/date patches are resolved separately by resolveMenu.
 let MENU_OVERRIDES = {};
 
 export function setMessMenuOverrides(overrides) {
@@ -125,18 +114,9 @@ export function favouritesInMenu(menu, favourites) {
 }
 
 // Resolves the menu for a given weekday + calendar date (date picks the
-// Week 1&3 vs Week 2&4 snack rotation, counted from MENU_START).
+// Week 1&3 vs Week 2&4 snack rotation using the published Monday anchor).
 export function getMenuForDay(dayOfWeek, date) {
-  const base = BASE_MENU[dayOfWeek];
-  if (!base) return null;
-  const d = { ...base, ...(MENU_OVERRIDES[dayOfWeek] || {}) };
-  const weeks = Math.floor((date - MENU_START) / (7 * 86400000));
-  const isWeek24 = ((weeks % 2) + 2) % 2 === 1;
-  const snacks = isWeek24 && (d.snacksW24 || []).length ? d.snacksW24 : (d.snacksW13 || []);
-  return {
-    breakfast: [...d.breakfast, ...DAILY_BREAKFAST, "Milk + Tea + Coffee"],
-    lunch: d.lunch,
-    snacks,
-    dinner: d.dinner,
-  };
+  return resolveMenu(BASE_MENU, MENU_OVERRIDES, date, getControls().payload.mess, [...DAILY_BREAKFAST, "Milk + Tea + Coffee"]);
 }
+export function getMealTimes(date) { return resolveMealTimes(date, getControls().payload.mess); }
+export function getMessNotices(date) { return activeNotices(date, getControls().payload.mess); }

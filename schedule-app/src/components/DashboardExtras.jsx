@@ -1,3 +1,4 @@
+import { getControls } from '../lib/appControls.js';
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, CalendarDays, CalendarClock, ChartNoAxesCombined, Check, CloudOff, CloudSun, Focus, LayoutDashboard, RefreshCw, RotateCcw, Settings2, UtensilsCrossed, X } from "lucide-react";
 import { DASHBOARD_CARDS, dashboardCardVisible, moveDashboardCard, normalizeDashboardPrefs } from "../lib/dashboardPrefs.js";
@@ -105,7 +106,7 @@ export function DashboardCustomize({ prefs, onChange, compact = false }) {
       <span className="dashboard-announcement" role="status">{announcement}</span>
       <div className="dashboard-customize-foot">
         <span><Check size={13} /> Saves automatically</span>
-        <button type="button" className="dashboard-reset" onClick={() => { onChange(normalizeDashboardPrefs(null)); setAnnouncement("Default layout restored."); }}><RotateCcw size={13} />Reset</button>
+        <button type="button" className="dashboard-reset" onClick={() => { onChange(normalizeDashboardPrefs(getControls().payload.dashboard)); setAnnouncement("Institute default layout restored."); }}><RotateCcw size={13} />Reset</button>
       </div>
     </Panel>}
   </div>;

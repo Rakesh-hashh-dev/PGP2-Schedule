@@ -1,4 +1,7 @@
+import { useAppControls } from '../../lib/appControls.js';
+import { navVisible, navLabel } from '../../lib/navigationControls.js';
 export default function MobileV2Switcher({ view, examsEnabled, onNavigate }) {
+  const { payload } = useAppControls();
   let label;
   let items;
 
@@ -18,7 +21,7 @@ export default function MobileV2Switcher({ view, examsEnabled, onNavigate }) {
 
   return (
     <div className="mobile-v2-switcher" role="tablist" aria-label={label}>
-      {items.map(([id, text]) => (
+      {items.filter(([id]) => navVisible(id, payload.navigation)).map(([id, text]) => (
         <button
           type="button"
           key={id}
@@ -27,7 +30,7 @@ export default function MobileV2Switcher({ view, examsEnabled, onNavigate }) {
           className={view === id ? "is-active" : ""}
           onClick={() => onNavigate(id)}
         >
-          {text}
+          {navLabel(id, text, payload.navigation)}
         </button>
       ))}
     </div>

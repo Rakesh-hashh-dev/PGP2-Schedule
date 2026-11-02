@@ -1,3 +1,6 @@
+import AdminMessControls from './AdminMessControls.jsx';
+import AdminNavigationControls from './AdminNavigationControls.jsx';
+import AdminDashboardDefaults from './AdminDashboardDefaults.jsx';
 import { useState, useEffect, useRef, useId } from "react";
 import "../styles/admin.css";
 import "../styles/assignments.css";
@@ -16,7 +19,7 @@ import { CLASSES, LEGEND } from "../data/schedule.js";
 import { taughtSectionsByCode } from "../lib/sections.js";
 import snapshotMeta from "../data/snapshot-meta.json";
 import { getSnapshot } from "../lib/sheet.js";
-import { MESS_MENU_FEED_URL } from "../lib/messFeed.js";
+import { fetchMessMenuResult } from "../lib/messFeed.js";
 import { classIdent, makeOverrideKey, classOverrideKey, classMatchesKey, lookupOverride, parseOverrideKey, buildOverrideAdds, cancellationVisibility, cancelOverride, restoreCancelledOverride } from "../lib/overrides.js";
 import { scheduleEntryKind } from "../lib/adminSchedule.js";
 import CancellationVisibilitySelect from "./CancellationVisibilitySelect.jsx";
@@ -368,6 +371,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   // Which tab was open last, so a refresh lands where the admin left off.
   const ADMIN_TAB_KEY = "pgp2.admin-tab-v2";
   const ADMIN_TABS = ["overview", "broadcast", "schedule", "users", "insights", "moderation", "database", "companion", "system"];
+  const [scheduleSection, setScheduleSection] = useState('class');
   const [activeTab, setActiveTab] = useState(() => {
     try {
       const stored = localStorage.getItem(ADMIN_TAB_KEY);
@@ -1909,6 +1913,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   });
   const pendingFeedbackCount = feedbackList.filter(item => !["resolved", "duplicate"].includes(feedbackState(item, feedbackTriage).status)).length;
   function goToAdminTab(tab) {
+    if (tab === 'schedule') setScheduleSection('class');
     setActiveTab(tab);
     const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
@@ -2389,12 +2394,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
     // 4. Mess-menu Apps Script — validate both reachability and its menu payload.
     try {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 15000);
-      const resp = await fetch(MESS_MENU_FEED_URL, { signal: ctrl.signal, redirect: "follow" });
-      const data = resp.ok ? await resp.json() : null;
-      clearTimeout(timer);
-      next.mess = resp.ok && !data?.error && data?.menu && Object.keys(data.menu).length ? "ok" : "error";
+      const result = await fetchMessMenuResult({ fresh: true });
+      next.mess = result.source === 'live' ? 'ok' : 'error';
     } catch (e) {
       next.mess = e.name === "AbortError" ? "timeout" : "error";
     }
@@ -2615,7 +2616,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       )}
 
       {/* ── Card flow: 2-col masonry ≥1200px, single column below ── */}
-      <div className="admin-masonry" data-active-tab={activeTab}>
+      {activeTab === 'schedule' && <nav className="admin-schedule-subnav" aria-label="Schedule sections">{[['class', 'Class'], ['menu', 'Menu']].map(([id, label]) => <button type="button" className={`admin-btn ${scheduleSection === id ? '' : 'outline'}`} aria-pressed={scheduleSection === id} key={id} onClick={() => setScheduleSection(id)}>{label}</button>)}</nav>}
+      <div className="admin-masonry" data-active-tab={activeTab} data-schedule-section={scheduleSection}>
+        {activeTab === "schedule" && scheduleSection === 'menu' && <AdminMessControls readOnly={isReadOnlyAdmin} />}
+        {activeTab === "system" && <><AdminNavigationControls readOnly={isReadOnlyAdmin} /><AdminDashboardDefaults readOnly={isReadOnlyAdmin} /></>}
         {workflowMessage && <div className="aw-error admin-span-all" role="alert">{workflowMessage}</div>}
 
         <section className="admin-overview-command admin-span-all admin-g-overview">

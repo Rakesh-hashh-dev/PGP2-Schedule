@@ -6,6 +6,8 @@ import {
 import { CalendarEventBadgeSVG } from "./CalendarSVGs.jsx";
 import "../styles/cmdk.css";
 import { useBackClose } from "../lib/backClose.js";
+import { useAppControls } from '../lib/appControls.js';
+import { configureNav, navVisible } from '../lib/navigationControls.js';
 
 const PAGES = [
   { id: "today", label: "Today", detail: "Your day at a glance", Icon: Clock },
@@ -19,6 +21,7 @@ const PAGES = [
 ];
 
 export default function CommandPalette({ isOpen, onClose, onViewChange, allClasses = [], friends = [], onOpenCalendarExport }) {
+  const { payload } = useAppControls();
   useBackClose(onClose, isOpen);
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -70,7 +73,7 @@ export default function CommandPalette({ isOpen, onClose, onViewChange, allClass
     }] });
   }
 
-  const pages = PAGES.filter(item => !q || `${item.label} ${item.detail}`.toLowerCase().includes(q))
+  const pages = configureNav(PAGES, payload.navigation).filter(item => !q || `${item.label} ${item.detail}`.toLowerCase().includes(q))
     .map(item => ({
       ...item, icon: <item.Icon size={18} strokeWidth={1.9} />,
       perform: () => { onViewChange(item.id); onClose(); },
@@ -86,7 +89,7 @@ export default function CommandPalette({ isOpen, onClose, onViewChange, allClass
       icon: <GraduationCap size={18} strokeWidth={1.9} />,
       perform: () => { onViewChange("fullSchedule"); onClose(); },
     }));
-    if (classes.length) groups.push({ label: "Classes", items: classes });
+    if (classes.length && navVisible('fullSchedule', payload.navigation)) groups.push({ label: "Classes", items: classes });
 
     const people = friends.filter(item => item.name?.toLowerCase().includes(q))
       .slice(0, 3).map(item => ({
@@ -94,7 +97,7 @@ export default function CommandPalette({ isOpen, onClose, onViewChange, allClass
         icon: <Users size={18} strokeWidth={1.9} />,
         perform: () => { onViewChange("friends"); onClose(); },
       }));
-    if (people.length) groups.push({ label: "Friends", items: people });
+    if (people.length && navVisible('friends', payload.navigation)) groups.push({ label: "Friends", items: people });
   }
 
   const results = groups.flatMap(group => group.items);
