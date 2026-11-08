@@ -1,0 +1,10 @@
+alter table public.profiles add column courses jsonb default '{}';
+create table public.schedule_cache(id text primary key,payload jsonb,fetched_at timestamptz);
+create table public.push_subscriptions(user_id text);
+create table public.push_prefs(user_id text primary key,cancellation_alerts boolean default true,prefs jsonb default '{}');
+create table public._migration_map(dev_user_id text primary key);
+insert into public.profiles(user_id,courses) values('student-one','{"BMD":"A"}'),('student-two','{"BMD":"B"}'),('student-three','{"BMD_A":"A"}');
+insert into public.profiles(user_id,courses) values('student-unconfigured','null');
+insert into public.push_subscriptions values('student-one');
+insert into public.push_prefs(user_id,cancellation_alerts) values('student-three',false);
+insert into public.schedule_cache values('latest',jsonb_build_object('CLASSES',jsonb_build_array(jsonb_build_object('date',to_char((now() at time zone 'Asia/Kolkata')::date+1,'YYYY-MM-DD'),'code','BMD','section','A','start','09:00','end','10:00','room','A101','type','class','name','BMD'))),now());

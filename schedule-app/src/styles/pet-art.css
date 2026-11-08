@@ -161,7 +161,7 @@ html[data-theme="dark"] .dg-pet-ground { fill: #090b14; opacity: .32; }
 .dg-pet:where([data-beat="think"]) .pet-art .dg-pet-wing-left { animation: petWingPonder 1.6s ease-in-out both; }
 
 @keyframes petBodyBreath { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.006, 1.012); } }
-@keyframes petEyeBlink { 0%, 89%, 95%, 100% { transform: scaleY(var(--pet-eye-open, 1)); } 92% { transform: scaleY(.08); } }
+@keyframes petEyeBlink { 0%, 89%, 95%, 100% { transform: scaleY(max(1, var(--pet-eye-open, 1))); } 92% { transform: scaleY(.08); } }
 @keyframes petTailSway { 0%, 100% { transform: rotate(0); } 30% { transform: rotate(var(--pet-tail-swing)); } 70% { transform: rotate(calc(var(--pet-tail-swing) * -.65)); } }
 @keyframes petEarListenLeft { 0%, 78%, 94%, 100% { transform: rotate(var(--pet-ear-pose)); } 84% { transform: rotate(calc(var(--pet-ear-pose) - 5deg)); } 89% { transform: rotate(calc(var(--pet-ear-pose) + 2deg)); } }
 @keyframes petEarListenRight { 0%, 78%, 94%, 100% { transform: rotate(calc(var(--pet-ear-pose) * -1)); } 84% { transform: rotate(calc(var(--pet-ear-pose) * -1 + 4deg)); } 89% { transform: rotate(calc(var(--pet-ear-pose) * -1 - 2deg)); } }

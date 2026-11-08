@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from "react";
-import { Bell, Sunrise, CalendarX, ArrowRightLeft, Users, Moon, Check, BellRing, Settings2, ChevronDown, Vibrate } from "lucide-react";
+import { Bell, Sunrise, CalendarX, ArrowRightLeft, Users, Moon, Check, BellRing, Settings2, ChevronDown, Vibrate, Sparkles } from "lucide-react";
 import { getFullPrefs, setFullPrefs, showTestNotification } from "../../lib/push.js";
 import { hapticsSupported, hapticsEnabled, setHapticsEnabled, haptic } from "../../lib/haptics.js";
 
 const LEAD_OPTIONS = [15, 30, 60];
 
 const TYPES = [
+  { key: 'festive_greeting', Icon: Sparkles, label: 'Festive greetings', hint: p => p.push ? 'One Diwali greeting per event; respects quiet hours' : 'No festive greeting pushes' },
   {
     key: "class_reminder",
     Icon: Bell,
@@ -72,6 +73,7 @@ export function NotificationPrefsPanel({ userId, openSignal }) {
       .then((p) => { if (!cancelled) setPrefs(p); })
       .catch(() => {
         if (!cancelled) setPrefs({
+          festive_greeting: { push: true, inapp: true },
           class_reminder:  { push: true,  inapp: true, lead: 30 },
           class_cancelled: { push: true,  inapp: true },
           daily_summary:   { push: false, inapp: false, time: "07:20" },
@@ -278,7 +280,7 @@ export function NotificationPrefsPanel({ userId, openSignal }) {
           <div className="reminder-row npp-row">
             <span className="reminder-bar-label">
               <BellRing size={13} />
-              Delivery check
+              Device display test
             </span>
             <button
               className={`reminder-test-btn${testState === "sent" ? " reminder-test-sent" : ""}`}
@@ -286,10 +288,10 @@ export function NotificationPrefsPanel({ userId, openSignal }) {
               onClick={sendTest}
             >
               {testState === "sent"
-                ? <><Check size={12} strokeWidth={3} /> Sent — check your notifications</>
+                ? <><Check size={12} strokeWidth={3} /> Display requested — check notifications</>
                 : testState === "failed" ? "Couldn't show it — try re-enabling push"
-                : testState === "busy" ? "Sending…"
-                : "Test alerts on this device"}
+                : testState === "busy" ? "Displaying…"
+                : "Test notification display"}
             </button>
             <span className="reminder-bar-hint">Checks device display only. Admin Tools → Send test to me checks server delivery.</span>
           </div>

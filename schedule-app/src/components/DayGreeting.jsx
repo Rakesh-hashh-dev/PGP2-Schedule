@@ -48,7 +48,7 @@ const MOOD_LINE = {
 
 export default function DayGreeting({
   now, name, petSettings, userPetsEnabled = true, pet, petActions, petContext,
-  companionEnabled = true, onOpenPet,
+  companionEnabled = true, onOpenPet, festive = false, festiveOutfit = festive,
 }) {
   const [greeting, setGreeting] = useState(null);
   // Which (day, time-band) the current greeting line was picked for.
@@ -90,6 +90,7 @@ export default function DayGreeting({
   const mood = adopted ? moodExplainFor(pet, now, petContext).mood : "content";
   // Cohort policy, defaulting ON — same rule as the pet page.
   const wardrobeOn = petSettings?.wardrobe !== false;
+  const neck = adopted && festiveOutfit && wardrobeOn ? 'diwali' : adopted ? visibleNeckwear(pet, { wardrobe: wardrobeOn }) : null;
   const { bind: petRef, beat, action, source, replay, touch } = usePetPerformance(mood, adopted && motionEnabled, displayPet?.key, petReaction, petSettings?.signatures !== false, reactionId);
   const gaze = usePetGaze(adopted && motionEnabled);
   const progress = adopted ? levelProgress(xpOf(pet)) : null;
@@ -175,7 +176,7 @@ export default function DayGreeting({
             data-mood={adopted ? mood : undefined}
             data-accessory={adopted && pet.cosmetics?.accessory === false ? "off" : undefined}
             data-coat={(adopted && visibleCoat(pet, { wardrobe: wardrobeOn })) || undefined}
-            data-neck={(adopted && visibleNeckwear(pet, { wardrobe: wardrobeOn })) || undefined}
+            data-neck={neck || undefined}
             data-reaction={petReaction || undefined}
             data-beat={petReaction ? undefined : beat || undefined}
             data-action={action}
@@ -193,7 +194,7 @@ export default function DayGreeting({
           >
             {petEl}
             <PetHat hat={adopted ? visibleHat(pet, { wardrobe: wardrobeOn, hatsOff: petSettings?.hatsOff || [] }) : null} />
-            <PetNeckwear neck={adopted ? visibleNeckwear(pet, { wardrobe: wardrobeOn }) : null} />
+            <PetNeckwear neck={neck} />
             <PetSleepCue />
           </button>
 
@@ -256,7 +257,7 @@ export default function DayGreeting({
           )}
         </span>
       )}
-      <span className="day-greeting-text">{greeting}</span>
+      <span className="day-greeting-text">{festive ? `A little light for your day${name ? `, ${name}` : ''}` : greeting}</span>
     </div>
   );
 }

@@ -54,7 +54,7 @@ button.pet-identity-pet { padding: 0; border: 0; background: transparent; cursor
 button.pet-identity-pet:focus-visible { outline: 2px solid var(--accent, #8973bb); outline-offset: 5px; border-radius: 24px; }
 /* At badge size preserve the silhouette and eyes; omit texture and movement. */
 @container pet-portrait (max-width: 32px) {
-  .pet-rig-mature, .pet-rig .dg-pet-expression-brows { display: none !important; }
+  .pet-rig-mature, .pet-rig .dg-pet-expression-brows, .dg-pet-glint-small { display: none !important; }
   .pet-rig *, .dg-pet-hat *, .dg-pet-neck * { animation: none !important; }
 }
 @keyframes rigHeadRest { 0%, 100% { transform: rotate(0); } 50% { transform: translateY(-.15px) rotate(.6deg); } }

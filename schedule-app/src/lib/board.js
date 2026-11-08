@@ -11,6 +11,7 @@ export const BOARD_KINDS = [
   { id: "found", label: "Found", emoji: "🎒" },
   { id: "sell", label: "For sale", emoji: "🏷️" },
   { id: "ask", label: "Wanted", emoji: "🙏" },
+  { id: "celebrate", label: "Celebrations", emoji: "✨" },
 ];
 
 export const MAX_BOARD_PHOTOS = 3;
@@ -218,7 +219,7 @@ function cleanFields({ kind, title, body, price, contact, location, negotiable }
     title: title.trim().slice(0, 80),
     body: body?.trim()?.slice(0, 500) || null,
     price: priced && price !== "" && price != null ? Math.max(0, Math.round(Number(price))) : null,
-    contact: contact?.trim()?.slice(0, 80) || null,
+    contact: kind === 'celebrate' ? null : contact?.trim()?.slice(0, 80) || null,
     location: location?.trim()?.slice(0, 60) || null,
     negotiable: kind === "sell" && !!negotiable,
   };

@@ -24,6 +24,7 @@
 import webpush from "npm:web-push@3.6.7";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { buildPushPayload } from "../_shared/pushPresentation.ts";
+import { diwaliCampaign } from '../_shared/diwali.js';
 
 // Only scan rows created in this window — a push older than this is stale and
 // shouldn't fire even if it was never delivered (it lives on as an in-app record).
@@ -116,6 +117,9 @@ Deno.serve(async (req) => {
 });
 
 async function runDispatch(supabase: ReturnType<typeof createClient>) {
+  // Retention also runs on idle/disabled cycles, not only when a push is due.
+  const { error: retentionError } = await supabase.rpc('admin_record_push_diagnostics', { p_results: [] });
+  if (retentionError) throw new Error(`Could not maintain diagnostic retention: ${retentionError.message}`);
   // Admin kill-switch (system_config.flags.dispatchEnabled). Absent/true = deliver;
   // an explicit false pauses all push instantly without a redeploy. Producers keep
   // inserting rows, so the in-app inbox is unaffected and pushes resume (bounded by
@@ -163,6 +167,7 @@ async function runDispatch(supabase: ReturnType<typeof createClient>) {
   const deliveredIds: string[] = [];
   const dead: string[] = [];
   const deliveryStates = new Map<string, string[]>();
+  const deviceChecks: { id: string; attempted: number; accepted: number }[] = [];
   const recordState = (id: string, state: string) => {
     const ids = deliveryStates.get(state) ?? [];
     ids.push(id);
@@ -170,6 +175,8 @@ async function runDispatch(supabase: ReturnType<typeof createClient>) {
   };
 
   await Promise.all((rows as Notif[]).map(async (row) => {
+    const evidence = { id: row.id, attempted: 0, accepted: 0 };
+    deviceChecks.push(evidence);
     const userSubs = subsByUser.get(row.user_id);
     if (!userSubs || userSubs.length === 0) {
       recordState(row.id, "no_subscription");
@@ -180,7 +187,11 @@ async function runDispatch(supabase: ReturnType<typeof createClient>) {
     // A silent social row (friend_removed) is processed in-app only, never pushed.
     const pref = prefsByUser.get(row.user_id);
     const typePref = pref?.prefs?.[row.type];
-    if (typePref?.push === false || (row.data && row.data.silent === true)) {
+    // Recheck campaign switches after queueing, just as student opt-outs are
+    // rechecked. An admin can stop a greeting waiting through quiet hours.
+    const festival = row.type === 'festive_greeting' ? diwaliCampaign(new Date(), cfg?.flags || {}) : null;
+    const festivalDisabled = row.type === 'festive_greeting' && (!festival || festival.today !== festival.date || row.data?.campaign !== festival.key || cfg?.flags?.diwali?.greetingPush === false);
+    if (typePref?.push === false || festivalDisabled || (row.data && row.data.silent === true)) {
       // Push suppressed by preference; the row survives as an in-app record. Ages
       // out of the scan window in ≤2h, so it isn't re-scanned indefinitely.
       suppressed++;
@@ -208,11 +219,13 @@ async function runDispatch(supabase: ReturnType<typeof createClient>) {
       recordState(row.id, "expired");
       return;
     }
-    const ttlSec = typeof d.ttl === "number" && d.ttl > 0
+    const configuredTTL = typeof d.ttl === "number" && d.ttl > 0
       ? d.ttl
       : !Number.isNaN(expiresAt)
         ? Math.max(60, Math.floor((expiresAt - now) / 1000))
         : 12 * 3600;
+    // Do not let a queued provider delivery outlive a class/meetup start.
+    const ttlSec = Number.isNaN(expiresAt) ? configuredTTL : Math.min(configuredTTL, Math.max(1, Math.floor((expiresAt - now) / 1000)));
     const urgency = (d.urgency === "normal" || d.urgency === "low" || d.urgency === "high")
       ? d.urgency : "high";
 
@@ -222,6 +235,7 @@ async function runDispatch(supabase: ReturnType<typeof createClient>) {
     let providerFailed = false;
     let endpointRejected = false;
     for (const s of userSubs) {
+      evidence.attempted++;
       try {
         await webpush.sendNotification(
           { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
@@ -229,6 +243,7 @@ async function runDispatch(supabase: ReturnType<typeof createClient>) {
           { urgency, TTL: ttlSec },
         );
         sent++;
+        evidence.accepted++;
         delivered = true;
       } catch (e) {
         const status = (e as { statusCode?: number }).statusCode;
@@ -258,6 +273,9 @@ async function runDispatch(supabase: ReturnType<typeof createClient>) {
   if (dead.length > 0) {
     await supabase.from("push_subscriptions").delete().in("endpoint", dead);
   }
+
+  const { error: diagnosticsError } = await supabase.rpc('admin_record_push_diagnostics', { p_results: deviceChecks });
+  if (diagnosticsError) throw new Error(`Push status saved, but attempt diagnostics failed: ${diagnosticsError.message}`);
   // Housekeeping: drop notification rows older than 30 days (inbox retention).
   await supabase.from("notifications").delete()
     .lt("created_at", new Date(Date.now() - 30 * 86400_000).toISOString());

@@ -1,0 +1,124 @@
+/* Premium finish for the companion roster.
+   Filters/masks live in components/PetFinishDefs.jsx (mounted once in main.jsx).
+   Two tiers of detail:
+   - every size: tinted outlines (in the art), softer whiskers, bigger noses,
+     two-layer ground shadow, species charms;
+   - portrait (container >= 96px, i.e. the Companion page): real lighting
+     instead of painted gloss, soft blush, whisker fades, fur tufts, iris
+     texture. At the 40px chip these are invisible and filters cost paint. */
+
+/* ── Every size ─────────────────────────────────────────────── */
+.pet-lod { display: none; }
+.pet-whisker { opacity: .55; }
+.dg-pet-sig-cat.pet-whisker { stroke-width: .55; }
+.pet-nose { transform-box: fill-box; transform-origin: center; scale: 1.14; }
+
+/* ── Portrait ───────────────────────────────────────────────── */
+@container pet-portrait (min-width: 96px) {
+  .pet-lod { display: inline; }
+  .dg-pet-canvas { filter: url(#pf-figure-base); }
+  .dg-pet[data-pet="frost"] .dg-pet-canvas { filter: url(#pf-figure-frost); }
+  .dg-pet[data-pet="unicorn"] .dg-pet-canvas { filter: url(#pf-figure-unicorn); }
+  .dg-pet[data-pet="dragon"] .dg-pet-canvas { filter: url(#pf-figure-dragon); }
+  .pet-rig-head { filter: url(#pf-head); }
+  /* The filter lights the form now; the painted streaks would double it. */
+  .pet-gloss { display: none; }
+  .pet-blush { filter: blur(.45px); }
+  .pet-whisker { mask: url(#pf-whisker-mask); opacity: .7; }
+  .dg-pet-ground-soft { filter: blur(.55px); }
+  .pet-relief-light {
+    filter: blur(.35px);
+    opacity: .42;
+    transform-box: view-box;
+  }
+}
+
+/* ── Motion (all guarded: reduced motion and data-motion="off" opt out) ── */
+@media (prefers-reduced-motion: no-preference) {
+  /* The key light drifts a hair with each breath, as if the chest catches it. */
+  @container pet-portrait (min-width: 96px) {
+    .dg-pet:not([data-motion="off"]) .pet-relief-light { animation: pfLightDrift var(--rig-breath, 5.4s) ease-in-out infinite; }
+  }
+
+  /* Ground shadow tracks the hop: wide on the crouch and landing, small and
+     faint in the air. Timed to rigCelebrate (pet-rig.css). */
+  .dg-pet:has(> .pet-rig):not([data-motion="off"]):is([data-action="celebrate"], [data-action="play"], [data-action="hop"]) .dg-pet-ground {
+    transform-box: fill-box; transform-origin: center;
+    animation: pfGroundHop var(--rig-time, 1800ms) ease-in-out both;
+  }
+  .dg-pet:has(> .pet-rig):not([data-motion="off"])[data-action="hover"] .dg-pet-ground {
+    transform-box: fill-box; transform-origin: center;
+    animation: pfGroundHover var(--rig-time, 1800ms) ease-in-out both;
+  }
+
+  /* Follow-through: ears lag the body on a hop and overshoot on landing; the
+     tail starts a beat late. Luna keeps her own motion (luna.css). */
+  .dg-pet:has(> .pet-rig):not([data-motion="off"]):not([data-pet="luna"]):is([data-action="celebrate"], [data-action="play"], [data-action="hop"]) .dg-pet-ear-left {
+    animation: pfEarFollowLeft var(--rig-time, 1800ms) ease-in-out both;
+  }
+  .dg-pet:has(> .pet-rig):not([data-motion="off"]):not([data-pet="luna"]):is([data-action="celebrate"], [data-action="play"], [data-action="hop"]) .dg-pet-ear-right {
+    animation: pfEarFollowRight var(--rig-time, 1800ms) ease-in-out both;
+  }
+  .dg-pet:has(> .pet-rig):not([data-motion="off"]):not([data-pet="luna"]):is([data-action="celebrate"], [data-action="play"]) .pet-rig-tail { animation-delay: 90ms; }
+
+  /* Rarity finishes that move: the unicorn's rim cycles pastel, the dragon's
+     scale sheen breathes. */
+  .pf-rim-iridescent { animation: pfIridescent 7s linear infinite; }
+  .pf-sheen { animation: pfSheen 4.2s ease-in-out infinite; }
+}
+
+@keyframes pfLightDrift { 0%, 100% { translate: 0 0; } 50% { translate: .18px -.12px; } }
+@keyframes pfGroundHop {
+  0%, 100% { scale: 1; opacity: 1; }
+  18% { scale: 1.08 1; }
+  40% { scale: .72; opacity: .55; }
+  59% { scale: 1.06 1; opacity: 1; }
+  74% { scale: .9; }
+  88% { scale: 1; }
+}
+@keyframes pfGroundHover { 0%, 100% { scale: 1; opacity: 1; } 44%, 62% { scale: .84; opacity: .7; } }
+@keyframes pfEarFollowLeft {
+  0%, 100% { transform: rotate(var(--pet-ear-pose, 0deg)); }
+  20% { transform: rotate(calc(var(--pet-ear-pose, 0deg) - 6deg)); }
+  42% { transform: rotate(calc(var(--pet-ear-pose, 0deg) + 9deg)); }
+  62% { transform: rotate(calc(var(--pet-ear-pose, 0deg) - 7deg)); }
+  78% { transform: rotate(calc(var(--pet-ear-pose, 0deg) + 2.5deg)); }
+}
+@keyframes pfEarFollowRight {
+  0%, 100% { transform: rotate(calc(var(--pet-ear-pose, 0deg) * -1)); }
+  20% { transform: rotate(calc(var(--pet-ear-pose, 0deg) * -1 + 6deg)); }
+  42% { transform: rotate(calc(var(--pet-ear-pose, 0deg) * -1 - 9deg)); }
+  62% { transform: rotate(calc(var(--pet-ear-pose, 0deg) * -1 + 7deg)); }
+  78% { transform: rotate(calc(var(--pet-ear-pose, 0deg) * -1 - 2.5deg)); }
+}
+@keyframes pfIridescent {
+  0%, 100% { flood-color: #ffc9ef; }
+  33% { flood-color: #cfd2ff; }
+  66% { flood-color: #c4f3ea; }
+}
+@keyframes pfSheen { 0%, 100% { flood-opacity: .18; } 50% { flood-opacity: .38; } }
+
+/* ── Companion page stage ───────────────────────────────────── */
+/* A soft spotlight behind the pet and a darker pool at its feet, over the
+   habitat scenery (z -1) and under the pet. */
+.pet-identity-art.pet-habitat::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 34% 9% at 50% 86%, rgb(37 36 59 / .2), transparent 70%),
+    radial-gradient(ellipse 46% 42% at 50% 52%, rgb(255 249 235 / .5), transparent 72%);
+}
+.pet-habitat[data-light="night"]::after {
+  background:
+    radial-gradient(ellipse 34% 9% at 50% 86%, rgb(5 6 18 / .35), transparent 70%),
+    radial-gradient(ellipse 46% 42% at 50% 52%, rgb(255 230 170 / .16), transparent 72%);
+}
+
+/* Dark theme: pet-art.css dims `.dg-pet-ground` as a whole (it used to be one
+   ellipse); the layers carry their own opacity now, so lift them back. */
+html[data-theme="dark"] .dg-pet-ground { opacity: 1; }
+html[data-theme="dark"] .dg-pet-ground-soft { opacity: .18; }
+html[data-theme="dark"] .dg-pet-ground-contact { opacity: .4; }

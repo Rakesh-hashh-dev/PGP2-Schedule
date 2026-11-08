@@ -49,9 +49,11 @@ function ServiceTimeline({ timings }) {
   const mins = time => { const [h, m] = time.split(':').map(Number); return h * 60 + m; };
   return <div className="ac-service-timeline" aria-label="Daily service windows"><div className="ac-timeline-scale"><span>00:00</span><span>12:00</span><span>24:00</span></div><div className="ac-timeline-track">{timings.map(m => <span key={m.id} className={`ac-timeline-segment is-${m.id}`} style={{ left: `${mins(m.start) / 14.4}%`, width: `${Math.max(0, mins(m.end) - mins(m.start)) / 14.4}%` }} title={`${m.label}: ${m.start}–${m.end}`} />)}</div><div className="ac-timeline-legend">{timings.map(m => <span key={m.id}><MealGlyph meal={m.id} size={12} />{m.label}</span>)}</div></div>;
 }
-function MessEditor({ value, setValue, run, setMessage }) {
-  const [day, setDay] = useState('1'); const [date, setDate] = useState(istDate(new Date()));
+function MessEditor({ value, setValue, run, setMessage, initialDate }) {
+  const [day, setDay] = useState('1'); const [date, setDate] = useState(initialDate || istDate(new Date()));
   const [previewStart, setPreviewStart] = useState(istDate(new Date()));
+  const [lastTarget,setLastTarget] = useState(initialDate);
+  if(initialDate && initialDate!==lastTarget) { setLastTarget(initialDate); setDate(initialDate); setPreviewStart(initialDate); }
   const [feed, setFeed] = useState(lastMessFeedStatus);
   const [notice, setNotice] = useState({ text: '', start: '', end: '' });
   const patch = change => setValue({ ...value, ...change });
@@ -74,6 +76,6 @@ function MessEditor({ value, setValue, run, setMessage }) {
     <section className="admin-controls-box" id="ac-mess-source"><ControlSectionTitle Icon={Radio} title="Menu source & sync" description="Know where the menu comes from, and when it was last checked." /><div className={`ac-feed-status is-${feed.source}`}><span className="ac-feed-orbit"><Radio size={25} /></span><div><small>Current data source</small><strong>{feed.source === "live" ? "Live institute feed" : feed.source === "cache" ? "Saved menu cache" : "Bundled menu"}</strong><span>{feed.source === "live" ? "Last request returned a valid menu" : "A successful live check has not been confirmed"}</span></div>{feed.source === "live" && <CheckCircle2 size={20} />}</div><label>Google Apps Script feed URL<input type="url" value={value.feedUrl} placeholder={MESS_MENU_FEED_URL} onChange={e => patch({ feedUrl: e.target.value.trim() })} /></label><p>Leave blank to use the existing institute feed. Changing it requires a successful live payload check before publication.</p><button type="button" className="admin-btn outline" onClick={() => run(async () => { const result = await fetchMessMenuResult({ url: value.feedUrl || MESS_MENU_FEED_URL, fresh: true }); setFeed(result); if (result.source !== 'live') throw new Error(`${result.source} fallback: ${result.error}`); setMessage('Fresh menu fetched and validated. Upstream caching may still apply.'); })}><RefreshCw size={15} />Fetch and validate source</button><p>Source: <strong>{feed.source}</strong> · Last successful fetch: {feed.fetchedAt ? new Date(feed.fetchedAt).toLocaleString() : 'Not available'} · Upstream build: {feed.buildTs ? String(feed.buildTs) : 'Not supplied'}</p>{feed.error && <p role="alert">{feed.error}</p>}</section></div>
   </>;
 }
-export default function AdminMessControls({ readOnly }) {
-  return <><AdminControlsPublish section="mess" title="Mess menu controls" readOnly={readOnly}>{props => <MessEditor {...props} />}</AdminControlsPublish><div className="admin-controls-panel ac-feedback-panel ac-panel--mess"><Feedback /></div></>;
+export default function AdminMessControls({ readOnly, initialDate }) {
+  return <><AdminControlsPublish section="mess" title="Mess menu controls" readOnly={readOnly}>{props => <MessEditor {...props} initialDate={initialDate} />}</AdminControlsPublish><div className="admin-controls-panel ac-feedback-panel ac-panel--mess"><Feedback /></div></>;
 }

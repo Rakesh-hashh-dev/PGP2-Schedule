@@ -30,9 +30,10 @@ describe("devotion collection integration", () => {
       expect(html).toMatch(/class="pet-art(?: [^"]*)?"/);
       for (const part of ["dg-pet-eyes", "dg-pet-pupils", "dg-pet-face", "dg-pet-head", "dg-pet-expression-joy", "dg-pet-expression-rest", "dg-pet-accessory"]) expect(html).toContain(part);
       const ids = [...html.matchAll(/ id="([^"]+)"/g)].map(m => m[1]);
-      // Each copy owns its coat gradient and two gaze-clipping sockets.
+      // Each copy owns its coat gradient, two gaze-clipping sockets and two lid masks.
       expect([...html.matchAll(/<radialGradient\b/g)]).toHaveLength(2);
-      expect([...html.matchAll(/<clipPath\b/g)]).toHaveLength(4);
+      // Per eye: a socket clip for the gaze plus a lid mask.
+      expect([...html.matchAll(/<clipPath\b/g)]).toHaveLength(8);
       expect(new Set(ids).size).toBe(ids.length);
       for (const id of ids) expect(html).toContain(`url(#${id})`);
       expect(html).not.toMatch(/<image|<script|<foreignObject/);

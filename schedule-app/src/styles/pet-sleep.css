@@ -1,0 +1,116 @@
+/* Sleep motion. Before this, a sleeping pet was a still picture with drifting
+   z's: the only moving part was a 0.15px head bob, and the shared body breath
+   (rigBreathe) had never actually run — pet-rig.css:85 turns off animation on
+   `.dg-pet-body`, and the frame carries that class too, at higher specificity
+   than the rule that starts the breath.
+
+   Luna is excluded throughout: her motion is deliberately left as drawn. */
+
+/* ── Shared breath, restored (awake and asleep) ─────────────── */
+@media (prefers-reduced-motion: no-preference) {
+  .dg-pet:has(> .pet-rig):not([data-action]):not([data-motion="off"]):not([data-pet="luna"]) .pet-rig-frame {
+    animation: rigBreathe var(--rig-breath) ease-in-out infinite;
+  }
+}
+
+/* ── Slower when resting ────────────────────────────────────── */
+/* pet-art.css asks for a 7.8s breath in these moods, but at :where() strength,
+   so every per-pet --pet-breath-cycle beat it and a sleeping cat breathed at
+   its awake pace. Derive from each pet's own rhythm instead: ~45% slower. */
+.dg-pet:has(> .pet-rig):not([data-pet="luna"]):is([data-mood="sleepy"], [data-mood="tired"], [data-mood="cozy"]) {
+  --rig-breath: calc(var(--pet-breath-cycle, 5.4s) * 1.45);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Resting moods breathe deeply enough to see. */
+  .dg-pet:has(> .pet-rig):not([data-action]):not([data-motion="off"]):not([data-pet="luna"]):is([data-mood="sleepy"], [data-mood="tired"], [data-mood="cozy"]) .pet-rig-frame {
+    animation: pfSleepBreath var(--rig-breath) ease-in-out infinite;
+  }
+
+  /* ── Asleep ─────────────────────────────────────────────────── */
+  .dg-pet:has(> .pet-rig):not([data-action]):not([data-motion="off"]):not([data-pet="luna"])[data-mood="sleepy"] {
+    /* Lips part a little on each breath in. */
+    --pet-mouth-oh: inline;
+  }
+  /* The head sinks lower than awake and lifts slightly with each breath in. */
+  .dg-pet:has(> .pet-rig):not([data-action]):not([data-motion="off"]):not([data-pet="luna"])[data-mood="sleepy"] .pet-rig-head {
+    animation: pfSleepHead var(--rig-breath) ease-in-out infinite;
+  }
+  .dg-pet:has(> .pet-rig):not([data-action]):not([data-motion="off"]):not([data-pet="luna"])[data-mood="sleepy"] .dg-pet-expression-oh {
+    transform-box: fill-box; transform-origin: center;
+    animation: pfSleepMouth var(--rig-breath) ease-in-out infinite;
+  }
+
+  /* One z per breath, released as the breath goes out (~55% of the cycle).
+     Each z takes three breaths to drift away, so the three overlap evenly. */
+  .dg-pet:not([data-motion="off"]):not([data-pet="luna"])[data-mood="sleepy"] .dg-pet-z { animation-duration: calc(var(--rig-breath, 7.8s) * 3); }
+  .dg-pet:not([data-motion="off"]):not([data-pet="luna"])[data-mood="sleepy"] .dg-pet-z-a { animation-delay: calc(var(--rig-breath, 7.8s) * -2.45); }
+  .dg-pet:not([data-motion="off"]):not([data-pet="luna"])[data-mood="sleepy"] .dg-pet-z-b { animation-delay: calc(var(--rig-breath, 7.8s) * -1.45); }
+  .dg-pet:not([data-motion="off"]):not([data-pet="luna"])[data-mood="sleepy"] .dg-pet-z-c { animation-delay: calc(var(--rig-breath, 7.8s) * -.45); }
+
+  /* Dream twitches: brief, rare, and out of step. Each part runs its own long
+     cycle (a different multiple of the breath), offset by the pet's blink
+     cycle, so two sleeping pets — or two ears — never twitch together. */
+  .dg-pet:has(> .pet-rig):not([data-action]):not([data-motion="off"]):not([data-pet="luna"])[data-mood="sleepy"] .dg-pet-ear-left {
+    animation: pfDreamEarLeft calc(var(--rig-breath) * 2.7) ease-in-out infinite;
+    animation-delay: calc(var(--pet-blink-cycle, 6s) * -1.3);
+  }
+  .dg-pet:has(> .pet-rig):not([data-action]):not([data-motion="off"]):not([data-pet="luna"])[data-mood="sleepy"] .dg-pet-ear-right {
+    animation: pfDreamEarRight calc(var(--rig-breath) * 3.4) ease-in-out infinite;
+    animation-delay: calc(var(--pet-blink-cycle, 6s) * -2.6);
+  }
+  .dg-pet:has(> .pet-rig):not([data-action]):not([data-motion="off"]):not([data-pet="luna"])[data-mood="sleepy"] .pet-rig-tail {
+    animation: pfDreamTail calc(var(--rig-breath) * 3.1) ease-in-out infinite;
+    animation-delay: calc(var(--pet-blink-cycle, 6s) * -.7);
+  }
+  .dg-pet:has(> .pet-rig):not([data-action]):not([data-motion="off"]):not([data-pet="luna"])[data-mood="sleepy"] :is(.dg-pet-wing-left, .pet-rig-wing-left) {
+    animation: pfDreamWingLeft calc(var(--rig-breath) * 3.6) ease-in-out infinite;
+    animation-delay: calc(var(--pet-blink-cycle, 6s) * -1.9);
+  }
+  .dg-pet:has(> .pet-rig):not([data-action]):not([data-motion="off"]):not([data-pet="luna"])[data-mood="sleepy"] .pet-rig-feet {
+    animation: pfDreamPaw calc(var(--rig-breath) * 4.2) ease-in-out infinite;
+    animation-delay: calc(var(--pet-blink-cycle, 6s) * -3.1);
+  }
+}
+
+@keyframes pfSleepBreath {
+  0%, 100% { transform: scale(1, 1); }
+  /* In through 42%, a short hold, then a longer breath out. */
+  42%, 50% { transform: scale(1.022, 1.04); }
+}
+@keyframes pfSleepHead {
+  0%, 100% { transform: translateY(.65px) rotate(2deg); }
+  42%, 50% { transform: translateY(.3px) rotate(1.3deg); }
+}
+@keyframes pfSleepMouth {
+  0%, 18%, 78%, 100% { opacity: 0; transform: scale(.45, .35); }
+  42%, 50% { opacity: .5; transform: scale(.7, .55); }
+}
+/* Twitches occupy ~4% of a long cycle; the rest is the resting pose. */
+@keyframes pfDreamEarLeft {
+  0%, 60%, 70%, 100% { transform: rotate(var(--pet-ear-pose, 0deg)); }
+  62% { transform: rotate(calc(var(--pet-ear-pose, 0deg) - 10deg)); }
+  64.5% { transform: rotate(calc(var(--pet-ear-pose, 0deg) + 3deg)); }
+  66.5% { transform: rotate(calc(var(--pet-ear-pose, 0deg) - 5deg)); }
+}
+@keyframes pfDreamEarRight {
+  0%, 30%, 36%, 100% { transform: rotate(calc(var(--pet-ear-pose, 0deg) * -1)); }
+  32% { transform: rotate(calc(var(--pet-ear-pose, 0deg) * -1 + 9deg)); }
+  34% { transform: rotate(calc(var(--pet-ear-pose, 0deg) * -1 - 2deg)); }
+}
+@keyframes pfDreamTail {
+  0%, 44%, 53%, 100% { transform: rotate(0); }
+  46% { transform: rotate(8deg); }
+  48.5% { transform: rotate(-3deg); }
+  51% { transform: rotate(4deg); }
+}
+@keyframes pfDreamWingLeft {
+  0%, 20%, 26%, 100% { transform: rotate(var(--pet-wing-pose, 0deg)); }
+  22% { transform: rotate(calc(var(--pet-wing-pose, 0deg) - 6deg)); }
+  24% { transform: rotate(calc(var(--pet-wing-pose, 0deg) + 1.5deg)); }
+}
+@keyframes pfDreamPaw {
+  0%, 80%, 86%, 100% { transform: translateY(0); }
+  82% { transform: translateY(-.35px) rotate(-1.5deg); }
+  84% { transform: translateY(0) rotate(.5deg); }
+}

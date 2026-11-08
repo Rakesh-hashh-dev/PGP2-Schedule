@@ -200,13 +200,33 @@ const RELIEF = {
   },
 };
 
+// Start points of each sub-shape: the cheek planes begin at the cheek edge and
+// the chest plane at the top of the chest, so tufts can sit on real anatomy.
+const starts = d => [...(d || '').matchAll(/M(-?[d.]+)[ ,](-?[d.]+)/g)].map(m => [Number(m[1]), Number(m[2])]);
+
+// Portrait-only fur (styles/pet-finish.css shows .pet-lod at >= 96px): a
+// three-hair tuft sweeping outward on each cheek, a small V of fluff on the chest.
+function Tufts({ relief, head, ink }) {
+  const pts = starts(head ? relief.head : relief.body);
+  const d = head
+    ? pts.filter(([x]) => x < 12.5 || x > 19.5).map(([x, y]) => {
+      const s = x < 16 ? -1 : 1;
+      return `M${x} ${y}l${s * .75} .3M${x + s * .1} ${y + .45}l${s * .7} .45M${x + s * .05} ${y + .9}l${s * .5} .5`;
+    }).join('')
+    : pts.slice(0, 1).map(([, y]) => `M15.1 ${y + .1}l.9.75.9-.75M15.6 ${y + .75}l.4.35.4-.35`).join('');
+  return d ? <path className="pet-lod pet-lod-tuft" d={d} fill="none" stroke={ink} strokeWidth=".32" strokeLinecap="round" opacity=".7" /> : null;
+}
+
 export default function PetSurfaceRelief({ pet, layer, ink }) {
   const relief = RELIEF[pet];
   if (!relief) return null;
   const head = layer !== 'body';
   return <g data-surface-relief={pet} stroke="none">
     <path d={head ? relief.head : relief.body} fill={head ? '#fff3df' : ink} opacity={head ? '.42' : '.2'} />
-    {head && <path d={relief.light} fill="#fff9ec" opacity=".55" />}
+    {/* The painted key light. At portrait size the finish filter lights the
+        head instead, and this softens into a highlight that drifts with breath. */}
+    {head && <path className="pet-relief-light" d={relief.light} fill="#fff9ec" opacity=".55" />}
+    <Tufts relief={relief} head={head} ink={ink} />
     {(head ? relief.headTexture : relief.texture) && <path d={head ? relief.headTexture : relief.texture} fill="none" stroke={ink} strokeWidth=".4" opacity=".65" />}
   </g>;
 }

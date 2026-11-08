@@ -1,11 +1,13 @@
+import { stripPrivateAdminConfig } from './privateAdminConfig.js';
+
 // Snapshots live inside public system_config.flags. Keep bookkeeping and the
 // retired admin-role roster out of both comparisons and restored payloads.
 export const CONFIG_HISTORY_EXCLUDED_KEYS = new Set([
-  "configHistory", "scheduledConfigDeploys", "adminRoles",
+  "configHistory", "scheduledConfigDeploys", "adminRoles", "adminNotes",
 ]);
 
 export function configForHistory(flags) {
-  return Object.fromEntries(Object.entries(flags || {}).filter(([key]) => !CONFIG_HISTORY_EXCLUDED_KEYS.has(key)));
+  return stripPrivateAdminConfig(Object.fromEntries(Object.entries(flags || {}).filter(([key]) => !CONFIG_HISTORY_EXCLUDED_KEYS.has(key))));
 }
 
 const LABELS = {

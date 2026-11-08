@@ -13,6 +13,9 @@
 //         profiles (courses jsonb), system_config (flags.classOverrides)
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { scheduleNoticeCovered } from '../_shared/scheduleNoticeCoverage.js';
+import { classReminderCopy, dailySummaryCopy, scheduleNoticeCopy, meetupReminderCopy, freeNudgeCopy } from '../_shared/notificationCopy.js';
+import { diwaliGreetingRows } from '../_shared/diwali.js';
 
 const LEADS = [15, 30, 60];
 // How far back a trigger moment may be and still fire. Wider than the 5-min cron
@@ -56,14 +59,6 @@ function toMin(hhmm?: string) {
   if (!hhmm || !/^\d{1,2}:\d{2}$/.test(hhmm)) return null;
   const [h, m] = hhmm.split(":").map(Number);
   return h * 60 + m;
-}
-
-// Match the app's schedule display format while keeping HH:MM for calculations.
-function fmtTime12(hhmm?: string) {
-  if (!hhmm || !/^\d{1,2}:\d{2}$/.test(hhmm)) return hhmm || "";
-  const [hour, minute] = hhmm.split(":").map(Number);
-  if (hour > 23 || minute > 59) return hhmm;
-  return `${String(hour % 12 || 12).padStart(2, "0")}:${String(minute).padStart(2, "0")}${hour >= 12 ? "PM" : "AM"}`;
 }
 
 // An IST wall-clock date+time (YYYY-MM-DD, HH:mm) as a UTC ISO instant — used for
@@ -171,7 +166,7 @@ async function runReminders(supabase: ReturnType<typeof createClient>) {
   //  subs are used to skip producing events for users who can't receive push)
   const [{ data: profiles, error: profilesError }, { data: prefs, error: prefsError }, { data: subs, error: subsError }] = await Promise.all([
     supabase.from("profiles").select("user_id, courses"),
-    supabase.from("push_prefs").select("user_id, class_reminders, lead_minutes, daily_summary, summary_time, cancellation_alerts"),
+    supabase.from("push_prefs").select("user_id, class_reminders, lead_minutes, daily_summary, summary_time, cancellation_alerts, prefs"),
     supabase.from("push_subscriptions").select("user_id"),
   ]);
   if (profilesError || prefsError || subsError) {
@@ -204,7 +199,6 @@ async function runReminders(supabase: ReturnType<typeof createClient>) {
   }
 
   // ── 5b. Morning summaries due this run (per-user summary_time) ────────────
-  const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   type SummaryJob = { userId: string; title: string; body: string };
   const summaryJobs: SummaryJob[] = [];
   for (const profile of profiles || []) {
@@ -225,59 +219,31 @@ async function runReminders(supabase: ReturnType<typeof createClient>) {
       })
       .sort((a, b) => (a.start || "").localeCompare(b.start || ""));
 
-    const weekday = WEEKDAYS[new Date(`${dateISO}T00:00:00Z`).getUTCDay()];
-
     // One-line day extras: exams today (from the feed) + assignments due today
     // (synced to profiles.courses._assignments by the app's assignments panel).
     const examsToday = classes
       .filter((c) => c.date === dateISO && c.type === "exam" && c.code && profile.courses?.[c.code])
-      .map((c) => c.code);
-    const dueToday: string[] = [];
+      .map(applyOverride)
+      .filter(c => c.type !== 'cancelled' && (c.section === 'Single' || c.section === 'All' || !c.section || c.section === profile.courses?.[c.code]))
+      .sort((a, b) => (a.start || '').localeCompare(b.start || ''));
+    const dueToday: { code: string; title?: string }[] = [];
     const assignStore = (profile.courses?._assignments ?? {}) as Record<string, unknown>;
     for (const [code, tasks] of Object.entries(assignStore)) {
       if (code.startsWith("_") || !Array.isArray(tasks)) continue;
-      for (const t of tasks as { completed?: boolean; dueDate?: string }[]) {
-        if (!t?.completed && t?.dueDate === dateISO) dueToday.push(code);
+      for (const t of tasks as { completed?: boolean; dueDate?: string; title?: string }[]) {
+        if (!t?.completed && t?.dueDate === dateISO) dueToday.push({ code, title: t.title });
       }
     }
-    const extras: string[] = [];
-    if (examsToday.length) extras.push(`📝 Exam today: ${[...new Set(examsToday)].join(", ")}`);
-    if (dueToday.length) extras.push(`📌 Due today: ${[...new Set(dueToday)].join(", ")}`);
-
     const specialDay = sysConfig?.flags?.features?.specialDayTheme !== false ? getSpecialDay(dateISO) : null;
-
-    if (mine.length === 0 && specialDay) {
-      // No flag emoji here — Windows lacks the regional-indicator glyph pair
-      // and renders 🇮🇳 as literal "IN" text in the notification banner.
-      summaryJobs.push({
-        userId: profile.user_id,
-        title: `Happy ${specialDay.label}`,
-        body: ["No classes today. Enjoy the holiday.", ...extras].join("\n"),
-      });
-    } else if (mine.length === 0) {
-      summaryJobs.push({
-        userId: profile.user_id,
-        title: `No classes today`,
-        body: ["Your timetable is clear this " + weekday + ".", ...extras].join("\n"),
-      });
-    } else {
-      // The first line survives collapsed truncation; expansion reveals each slot.
-      const lines = mine.map((cls, index) =>
-        `${index === 0 ? "First: " : ""}${cls.code} at ${fmtTime12(cls.start)}${cls.end ? `–${fmtTime12(cls.end)}` : ""}${cls.room ? ` · Room ${cls.room}` : ""}`
-      );
-      lines.push(...extras);
-      summaryJobs.push({
-        userId: profile.user_id,
-        title: `Today: ${mine.length} class${mine.length > 1 ? "es" : ""}`,
-        body: lines.join("\n"),
-      });
-    }
+    summaryJobs.push({ userId: profile.user_id, ...dailySummaryCopy({ classes: mine, exams: examsToday, assignments: dueToday, specialDay }) });
   }
 
   // ── 5c. Cancellation alerts (today's still-upcoming + all of tomorrow's) ───
   type CancelJob = { userId: string; code: string; section: string; classDate: string; slot?: string | null; start?: string; room?: string; name?: string };
   const cancelJobs: CancelJob[] = [];
   const allOverrides = sysConfig?.flags?.classOverrides || {};
+  const { data: noticeCoverage, error: coverageError } = await supabase.rpc('admin_list_schedule_notice_coverage', { p_dates: [dateISO, tomorrowISO] });
+  if (coverageError) throw new Error(`Cannot verify schedule notice coverage: ${coverageError.message}`);
   for (const cancelDate of [dateISO, tomorrowISO]) {
     const dayOverrides = allOverrides[cancelDate] || {};
     for (const [key, ovr] of Object.entries(dayOverrides)) {
@@ -305,6 +271,8 @@ async function runReminders(supabase: ReturnType<typeof createClient>) {
         if (!enrolledSection) continue;
         const matches = section === "All" || enrolledSection === section;
         if (!matches) continue;
+        const profileOriginal = classes.find(c => c.date === cancelDate && c.code === code && (c.section === enrolledSection || c.section === 'Single') && (!slotStart || c.start === slotStart));
+        if (scheduleNoticeCovered(noticeCoverage || [], profile.user_id, profileOriginal, dayOverrides)) continue;
         cancelJobs.push({
           userId: profile.user_id, code, section, classDate: cancelDate, slot: slotStart,
           start: orig?.start, room: orig?.room, name: orig?.name,
@@ -343,13 +311,11 @@ async function runReminders(supabase: ReturnType<typeof createClient>) {
       for (const m of dueMeetups as MeetupRow[]) {
         const going = goingByMeetup.get(m.id) ?? new Set<string>();
         const recipients = new Set<string>([m.created_by, ...going]);
-        const minsLeft = Math.max(1, Math.round((new Date(m.starts_at).getTime() - nowMs) / 60_000));
         for (const userId of recipients) {
           meetupRows.push({
             user_id: userId,
             type: "meetup_reminder",
-            title: `📅 ${m.title} in ${minsLeft} min`,
-            body: [m.place, `${going.size + 1} going`].filter(Boolean).join("  ·  "),
+            ...meetupReminderCopy(m),
             url: "/?view=friends",
             icon: "/icon-192.png",
             data: {
@@ -370,56 +336,44 @@ async function runReminders(supabase: ReturnType<typeof createClient>) {
   // still can't double-notify.
   const nudgeRows: Record<string, unknown>[] = [];
   {
+    // An old scheduled end is no longer useful as an availability nudge.
+    await supabase.from('scheduled_nudges').delete().lte('fire_at', new Date(Date.now() - 30 * 60_000).toISOString());
     const { data: dueNudges } = await supabase
       .from("scheduled_nudges")
       .select("id, user_id, about_name, fire_at")
       .lte("fire_at", new Date().toISOString())
       .limit(500);
     if (dueNudges && dueNudges.length > 0) {
-      for (const n of dueNudges as { id: string; user_id: string; about_name: string }[]) {
-        const first = (n.about_name || "Your friend").split(" ")[0];
+      for (const n of dueNudges as { id: string; user_id: string; about_name: string; fire_at: string }[]) {
+        const expiresAt = new Date(Date.parse(n.fire_at) + 30 * 60_000);
+        if (!Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()) continue;
         nudgeRows.push({
           user_id: n.user_id,
           type: "free_nudge",
-          title: `🔔 ${first} should be free now`,
-          body: `${n.about_name}'s class just ended — ping them?`,
+          ...freeNudgeCopy(n.about_name),
           url: "/?view=friends",
           icon: "/icon-192.png",
-          data: { urgency: "normal", ttl: 1800 },
+          data: { urgency: "normal", ttl: 1800, expires_at: expiresAt.toISOString() },
           dedup_key: `free_nudge:${n.id}`,
         });
       }
-      await supabase.from("scheduled_nudges").delete()
-        .in("id", (dueNudges as { id: string }[]).map((n) => n.id));
     }
   }
 
-  if (jobs.length === 0 && summaryJobs.length === 0 && cancelJobs.length === 0 && meetupRows.length === 0 && nudgeRows.length === 0) {
+  const festiveRows = diwaliGreetingRows({ now: new Date(), flags: sysConfig?.flags || {}, profiles: profiles || [], prefs: prefs || [], subscriptions: subs || [] });
+  if (jobs.length === 0 && summaryJobs.length === 0 && cancelJobs.length === 0 && meetupRows.length === 0 && nudgeRows.length === 0 && festiveRows.length === 0) {
     return { created: 0, note: "nothing due this run", date: dateISO, nowMin };
   }
 
   // ── 6. Build notification rows (dispatch delivers them) ───────────────────
   // urgency:"high" wakes a dozing phone; ttl bounds staleness; expires_at lets
   // dispatch drop a push that can no longer be useful (kept as an in-app record).
-  const WEEKDAYS_SHORT = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-
   const classRows = jobs.map(({ userId, cls }) => {
     const lead = prefByUser.get(userId)?.lead_minutes ?? 30;
-    const isGuest = (cls.session || "").toLowerCase().includes("guest");
-    const secLabel = cls.section === "Single" || cls.section === "All" ? null : `Section ${cls.section}`;
-    const title = isGuest
-      ? `Guest session: ${cls.code} in ${lead} min`
-      : `${cls.code} starts in ${lead} min`;
-    const bodyParts = [
-      [cls.start, cls.end].filter(Boolean).map(fmtTime12).join("–"),
-      cls.room ? `Room ${cls.room}` : null,
-    ].filter(Boolean).join(" · ");
-    const detail = [secLabel, cls.name].filter(Boolean).join(" · ");
     return {
       user_id: userId,
       type: "class_reminder",
-      title,
-      body: [bodyParts, detail].filter(Boolean).join("\n"),
+      ...classReminderCopy(cls, dateISO),
       url: "/?view=today",
       icon: "/icon-192.png",
       data: {
@@ -446,21 +400,10 @@ async function runReminders(supabase: ReturnType<typeof createClient>) {
   }));
 
   const cancelRows = cancelJobs.map((j) => {
-    const whenWord = j.classDate === dateISO
-      ? "today"
-      : j.classDate === tomorrowISO
-        ? "tomorrow"
-        : WEEKDAYS_SHORT[new Date(`${j.classDate}T00:00:00Z`).getUTCDay()];
-    const bodyParts = [
-      j.start ? fmtTime12(j.start) : null,
-      j.section === "Single" || j.section === "All" ? null : `Section ${j.section}`,
-      j.room ? `Room ${j.room}` : null,
-    ].filter(Boolean).join(" · ");
     return {
       user_id: j.userId,
       type: "class_cancelled",
-      title: `${j.code} cancelled ${whenWord}`,
-      body: [bodyParts, "Your timetable has been updated."].filter(Boolean).join("\n"),
+      ...scheduleNoticeCopy({ code: j.code, date: j.classDate, section: j.section, effective: { type: 'cancelled', start: j.start, room: j.room }, today: dateISO }),
       url: "/?view=today",
       icon: "/icon-192.png",
       data: {
@@ -474,7 +417,7 @@ async function runReminders(supabase: ReturnType<typeof createClient>) {
     };
   });
 
-  const rows = [...classRows, ...summaryRows, ...cancelRows, ...meetupRows, ...nudgeRows];
+  const rows = [...classRows, ...summaryRows, ...cancelRows, ...meetupRows, ...nudgeRows, ...festiveRows];
 
   // ── 7. Insert — the unique(user_id, dedup_key) constraint makes this once-only
   // across cron runs (ignoreDuplicates); .select() returns only the fresh rows.
@@ -483,6 +426,9 @@ async function runReminders(supabase: ReturnType<typeof createClient>) {
     .upsert(rows, { onConflict: "user_id,dedup_key", ignoreDuplicates: true })
     .select("id");
   if (error) return { error: error.message, candidates: rows.length, date: dateISO, nowMin };
+  // Delete fresh nudges only after durable inbox insertion succeeds.
+  if (nudgeRows.length) await supabase.from('scheduled_nudges').delete()
+    .in('id', nudgeRows.map(row => String(row.dedup_key).replace('free_nudge:', '')));
 
   return {
     created: inserted?.length ?? 0,
@@ -492,6 +438,7 @@ async function runReminders(supabase: ReturnType<typeof createClient>) {
     cancellations: cancelRows.length,
     meetups: meetupRows.length,
     nudges: nudgeRows.length,
+    festive: festiveRows.length,
     date: dateISO, nowMin,
   };
 }

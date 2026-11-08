@@ -43,9 +43,9 @@ export function pushBlockReason() {
 // device. Doesn't exercise the server push path (that's the Admin test send).
 export async function showTestNotification() {
   const reg = await navigator.serviceWorker.ready;
-  const preview = buildPushPayload({ type: "admin_broadcast", title: "Notifications are ready", url: "/?view=notifications" });
-  await reg.showNotification("Notifications are ready", {
-    body: "TermFlow can send updates to this device.\nExpand a notification for details and quick actions.",
+  const preview = buildPushPayload({ type: "admin_broadcast", title: "Test notification displayed", url: "/?view=notifications" });
+  await reg.showNotification("Test notification displayed", {
+    body: "This device can display TermFlow notifications.\nThis local test does not verify server push delivery.",
     icon: "/icon-notification.png",
     badge: "/badge-notification.png",
     tag: "termflow-test",
@@ -185,6 +185,7 @@ export async function unsubscribeFromPush() {
 // Documented target shape for the prefs matrix — getFullPrefs currently builds
 // its base from legacy columns, so this stays as reference until the swap.
 const _PREFS_DEFAULTS = {
+  festive_greeting: { push: true, inapp: true },
   class_reminder:  { push: true,  inapp: true,  lead: 30 },
   class_cancelled: { push: true,  inapp: true },
   daily_summary:   { push: false, inapp: false, time: "07:20" },
@@ -201,6 +202,7 @@ export async function getFullPrefs(userId) {
 
   // Base from legacy columns (always present)
   const base = {
+    festive_greeting: { push: true, inapp: true },
     class_reminder:  { push: data?.class_reminders ?? true,  inapp: true, lead: data?.lead_minutes ?? 30 },
     class_cancelled: { push: data?.cancellation_alerts ?? true, inapp: true },
     daily_summary:   { push: data?.daily_summary ?? false, inapp: false, time: data?.summary_time || "07:20" },
@@ -218,6 +220,7 @@ export async function getFullPrefs(userId) {
     if (p.daily_summary)   base.daily_summary   = { ...base.daily_summary,   ...p.daily_summary };
     if (p.schedule_change) base.schedule_change = { ...base.schedule_change, ...p.schedule_change };
     if (p.friend_request)  base.friend_request  = { ...base.friend_request,  ...p.friend_request };
+    if (p.festive_greeting) base.festive_greeting = { ...base.festive_greeting, ...p.festive_greeting };
   }
   if (data?.quiet_start) base.quiet_start = data.quiet_start;
   if (data?.quiet_end)   base.quiet_end   = data.quiet_end;
@@ -239,6 +242,7 @@ export async function setFullPrefs(userId, prefs) {
 
   // Build the new prefs JSONB (omit quiet hours — those are top-level columns)
   const prefsJsonb = {
+    festive_greeting: { push: prefs.festive_greeting?.push ?? true, inapp: true },
     class_reminder:  { push: prefs.class_reminder?.push  ?? true,  inapp: prefs.class_reminder?.inapp  ?? true,  lead: prefs.class_reminder?.lead ?? 30 },
     class_cancelled: { push: prefs.class_cancelled?.push ?? true,  inapp: prefs.class_cancelled?.inapp ?? true },
     daily_summary:   { push: prefs.daily_summary?.push   ?? false, inapp: false, time: prefs.daily_summary?.time || "07:20" },
@@ -261,6 +265,7 @@ export async function setFullPrefs(userId, prefs) {
 
   // Pre-migration fallback: new columns may not exist yet — retry with only legacy columns
   if (error.code === "PGRST204" || error.message?.includes("column")) {
+    if (prefs.festive_greeting?.push === false) throw new Error('Festive greeting preferences could not be saved. The notification schema needs updating.');
     const { error: retryErr } = await supabase
       .from("push_prefs")
       .upsert({ ...legacyRow, cancellation_alerts: legacyRow.cancellation_alerts }, { onConflict: "user_id" });

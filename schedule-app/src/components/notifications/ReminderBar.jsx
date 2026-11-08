@@ -141,19 +141,19 @@ export function ReminderBar({ userId }) {
       </div>
       <div className="reminder-row">
         <span className="reminder-bar-label">
-          <BellRing size={13} /> Delivery check
+          <BellRing size={13} /> Device display test
         </span>
         <button
           className={`reminder-test-btn${testState === "sent" ? " reminder-test-sent" : ""}`}
           disabled={testState === "busy"}
           onClick={sendTest}
         >
-          {testState === "sent" ? <><Check size={12} strokeWidth={3} /> Sent — check your notifications</>
+          {testState === "sent" ? <><Check size={12} strokeWidth={3} /> Display requested — check notifications</>
             : testState === "failed" ? "Couldn't show it — try re-enabling push"
-            : testState === "busy" ? "Sending…"
-            : "Send a test notification"}
+            : testState === "busy" ? "Displaying…"
+            : "Test notification display"}
         </button>
-        <span className="reminder-bar-hint">Confirms alerts appear on this device</span>
+        <span className="reminder-bar-hint">Checks device display only. Admin Tools → Send test to me checks server delivery.</span>
       </div>
     </div>
   );

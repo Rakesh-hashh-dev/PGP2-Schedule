@@ -17,6 +17,8 @@
 // Cron: select cron.schedule('termflow-schedule-diff','*/10 * * * *', $$ ... $$);
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { scheduleNoticeCovered } from '../_shared/scheduleNoticeCoverage.js';
+import { scheduleNoticeCopy } from '../_shared/notificationCopy.js';
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -87,11 +89,13 @@ async function runDiff(supabase: ReturnType<typeof createClient>) {
   const feedUrl = Deno.env.get("FEED_URL");
   if (!feedUrl) return { skipped: "no FEED_URL" };
   let log: ChangeItem[] | null = null;
+  let sourceClasses: Record<string, string>[] = [];
   try {
     const res = await fetch(feedUrl, { redirect: "follow", signal: AbortSignal.timeout(8_000) });
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data?.CHANGES)) log = data.CHANGES;
+      if (Array.isArray(data?.CLASSES)) sourceClasses = data.CLASSES;
     }
   } catch { /* feed down — skip this run */ }
   if (!log) return { skipped: "no CHANGES in feed" };
@@ -121,19 +125,25 @@ async function runDiff(supabase: ReturnType<typeof createClient>) {
   const enrolledInCode = (code: string) =>
     (profiles || []).filter((p) => subscribed.has(p.user_id) && p.courses?.[code] !== undefined);
 
-  // 4. Build one row per (user, change). Body reuses the feed's own change text so
-  //    the bell reads identically to the Announcements page.
-  const dayLabel = (d?: string) => (d === today ? "Today" : d === tomorrow ? "Tomorrow" : d || "");
+  // 4. Build one row per (user, change). Retain verified session context and
+  //    append the feed's change text; never infer old values from prose.
   const rows: Record<string, unknown>[] = [];
+  const [{ data: noticeCoverage, error: coverageError }, { data: currentConfig, error: configError }] = await Promise.all([
+    supabase.rpc('admin_list_schedule_notice_coverage', { p_dates: [today, tomorrow] }),
+    supabase.from('system_config').select('flags').eq('id','global').maybeSingle(),
+  ]);
+  if (coverageError || configError) throw new Error(`Cannot verify schedule notice coverage: ${coverageError?.message || configError?.message}`);
   for (const ch of relevant) {
-    const title = ch.kind === "added" ? `${ch.code} added to your schedule` : `${ch.code} rescheduled`;
-    const body = ch.text || `${dayLabel(ch.date)}${ch.start ? "  ·  " + ch.start : ""}`;
     for (const p of enrolledInCode(ch.code!)) {
+      const matchingClasses = sourceClasses.filter(c => c.date === ch.date && c.code === ch.code && (!ch.start || c.start === ch.start) && (c.section === p.courses?.[ch.code!] || c.section === 'Single' || c.section === 'All'));
+      if (matchingClasses.length > 0 && matchingClasses.every(c => scheduleNoticeCovered(noticeCoverage || [], p.user_id, c, currentConfig?.flags?.classOverrides?.[ch.date!] || {}))) continue;
+      // Only use a verified session; do not invent before-values from free text.
+      const session = matchingClasses.length === 1 ? matchingClasses[0] : { start: ch.start };
+      const copy = scheduleNoticeCopy({ code: ch.code, date: ch.date, kind: ch.kind, effective: session, note: ch.text || '', today });
       rows.push({
         user_id: p.user_id,
         type: "schedule_change",
-        title,
-        body,
+        ...copy,
         url: "/?view=notifications",
         icon: "/icon-192.png",
         data: {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { BarChart3, Check, Lock, Plus, Trash2, X } from "lucide-react";
 import { fetchPoll, fetchPollVotes, votePoll, closePoll, deletePoll, subscribePoll, pollIsClosed } from "../lib/polls.js";
 import "../styles/polls.css";
+import ReportContentButton from './ReportContentDialog.jsx';
 
 // PollCard — renders one poll (group chat inline, or Announcements for cohort
 // scope) with tap-to-vote rows and live result bars. Results show once you've
@@ -23,6 +24,13 @@ export default function PollCard({ poll: initialPoll, pollId, userId, userName, 
   const [votes, setVotes] = useState(null); // { counts, mine, total, voters }
   const [gone, setGone] = useState(false);
   const id = initialPoll?.id || pollId;
+  useEffect(() => {
+    if (!id) return;
+    let active = true;
+    const refresh = () => { if (document.visibilityState !== 'hidden') fetchPoll(id).then(current => { if (active) { setGone(!current || !!current.moderation_hidden); if (current) setPoll(current); } }); };
+    const timer = setInterval(refresh, 30000);
+    return () => { active = false; clearInterval(timer); };
+  }, [id]);
 
   const optionCount = poll?.options?.length || 0;
 
@@ -102,6 +110,7 @@ export default function PollCard({ poll: initialPoll, pollId, userId, userName, 
 
   return (
     <div className={`poll-card${closed ? " is-closed" : ""}`}>
+      {!isCreator && <ReportContentButton type="poll" contentId={id} />}
       <div className="poll-head">
         <span className="poll-tag"><BarChart3 size={12} /> Poll{poll.multi ? " · multi" : ""}</span>
         <span className="poll-meta">

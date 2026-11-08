@@ -9,6 +9,9 @@ import { CancellationStripe, CancelledClassActions } from "./CancelledClassNotic
 import { isNationalHoliday } from "../lib/nationalHolidays.js";
 import { fmtTime12 } from "../lib/datetime.js";
 import { isScheduleBreak, timelineActivitySummary } from "../lib/scheduleBreaks.js";
+import ClassNoteReminder from "./ClassNoteReminder.jsx";
+import { reminderNotes } from "../lib/classNoteReminder.js";
+import { useTodayCourseNotes } from "../lib/useTodayCourseNotes.js";
 
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 function fmtClock(d) { return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }); }
@@ -235,9 +238,10 @@ function useChangedRows(list) {
   return changed;
 }
 
-export default React.memo(function Timeline({ list, current, now, showNowLine = true, label = "Today", dateLabel, attendance = {}, markAttendance, skipInfo, syncStatus, onRefresh, isSyncing, onOpenSession, focusMode = false }) {
+export default React.memo(function Timeline({ list, current, now, showNowLine = true, label = "Today", dateLabel, attendance = {}, markAttendance, skipInfo, syncStatus, onRefresh, isSyncing, onOpenSession, focusMode = false, termNumber, userId, notesEnabled = false }) {
   const ptr = usePullToRefresh(onRefresh, isSyncing);
   const changedRows = useChangedRows(list);
+  const courseNotes = useTodayCourseNotes(notesEnabled, userId);
   const [editingAtt, setEditingAtt] = useState(null); // sessionKey whose marked chip was tapped to change
   if (!list.length)
     return (
@@ -341,6 +345,7 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
           const attKey = !isBreak && c.type === "class" && !isExamSession(c) ? sessionKey(c) : null;
           const attStatus = attKey ? attendance[attKey] : null;
           const minsLeft = isCur ? Math.max(0, toMin(c.end) - nowMin) : 0;
+          const savedNotes = notesEnabled && c.type === "class" && !isExamSession(c) ? reminderNotes(c, courseNotes, termNumber) : null;
           const detailsBtn = c.type === "class" && onOpenSession && (
             <button type="button" className="prep-open" onClick={() => onOpenSession(c)} aria-label={`Open class details for ${c.name}`}>
               {!canMark && <span className="prep-open-label">Details</span>}
@@ -401,6 +406,7 @@ export default React.memo(function Timeline({ list, current, now, showNowLine = 
                           <span className="row-loc"><MapPin size={13} /> {c.room || "TBA"}</span>
                           {c.section === "Single" && <span className="row-sec">All sections</span>}
                           {c.faculty && <span className="row-faculty" title={c.faculty}>{c.faculty}</span>}
+                          {savedNotes?.notes.length > 0 && onOpenSession && <ClassNoteReminder key={`${userId || "device"}:${termNumber}:${sessionKey(c)}`} session={c} now={now} scope={`${userId || "device"}:${termNumber || "current"}`} previous={savedNotes.previous} eligible={showNowLine && isNext && !isCur} onOpen={() => onOpenSession({ ...c, notesFocus: true })} />}
                           {!isCancelled && !canMark && !isPast && attKey && !attStatus && <SkipHint info={skipInfo?.[c.code]} name={c.name} />}
                         </>
                       : <>

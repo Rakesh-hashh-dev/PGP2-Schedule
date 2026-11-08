@@ -1,6 +1,24 @@
+import AdminDiwaliControls from './AdminDiwaliControls.jsx';
+import { diwaliDecorEnabled } from '../../supabase/functions/_shared/diwali.js';
 import AdminMessControls from './AdminMessControls.jsx';
 import AdminNavigationControls from './AdminNavigationControls.jsx';
 import AdminDashboardDefaults from './AdminDashboardDefaults.jsx';
+import AdminStudentNotes from './AdminStudentNotes.jsx';
+import AdminPublishWorkspace from './AdminPublishWorkspace.jsx';
+import AdminScheduledPublications from './AdminScheduledPublications.jsx';
+import AdminDraftRecovery from './AdminDraftRecovery.jsx';
+import AdminModerationQueue from './AdminModerationQueue.jsx';
+import AdminNotificationDiagnostics from './AdminNotificationDiagnostics.jsx';
+import AdminHistoryExplorer from './AdminHistoryExplorer.jsx';
+import AdminStudentSupport from './AdminStudentSupport.jsx';
+import AdminWorkspaceShortcuts from './AdminWorkspaceShortcuts.jsx';
+import { availableAdminCommands, adminCommandDate } from '../lib/adminCommands.js';
+import { csvCell } from '../lib/adminOperationalSearch.js';
+import { mergePublishedDomain } from '../lib/adminPublication.js';
+import {composePublicationFlags,pendingPublicationChanges,ADMIN_DEFAULT_FLAGS} from '../lib/adminPublicationDomains.js';
+import { stripPrivateAdminConfig } from '../lib/privateAdminConfig.js';
+import { hasAdminCapability } from '../lib/adminCapabilities.js';
+import { watchAdminRole } from '../lib/adminRoleWatcher.js';
 import { useState, useEffect, useRef, useId } from "react";
 import "../styles/admin.css";
 import "../styles/assignments.css";
@@ -11,7 +29,7 @@ import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, Refre
 import { PlacementIcon, ExamIcon, CelebrationIcon, CancelClassIcon } from "./PremiumIcons.jsx";
 import { supabase } from "../lib/supabase";
 import { logAdminAction } from "../lib/adminAudit.js";
-import { listAdminRoles, setAdminRole, removeAdminRole, myAdminRole, READ_ONLY_MESSAGE } from "../lib/adminRoles.js";
+import { listAdminRoles, setAdminRole, removeAdminRole, myAdminRole, READ_ONLY_MESSAGE,ROLE_DESCRIPTIONS } from "../lib/adminRoles.js";
 import { safeUrl } from "../lib/safeUrl.js";
 import { useDialog, dialogProps } from "../hooks/useDialog.js";
 import { isPushCronStale, pushCronIssueDetails, pushCronIssues } from "../lib/pushCronHealth.js";
@@ -52,6 +70,7 @@ import { AdoptionTrends, AttendanceRisk, BroadcastAudienceBuilder, ChangeTimelin
 // Render-stable "now" captured at module load — used for relative-time math in
 // render (inactivity windows, cron staleness) without an impure Date.now() call.
 const LOAD_NOW = Date.now();
+const LEGACY_DATABASE_EXPLORER = false;
 const BANNER_ICON_CHOICES = [
   { emoji: "⚡", Icon: Zap, label: "Urgent" },
   { emoji: "📢", Icon: Megaphone, label: "Announcement" },
@@ -120,7 +139,8 @@ const CORE_MODULES = [
   { key: "chat", label: "Group chats", hint: "Group messaging." },
   { key: "splits", label: "Expense splitting", hint: "The group expense splitter." },
   { key: "polls", label: "Group polls", hint: "Poll creation in groups." },
-  { key: "specialDayTheme", label: "Independence/Republic Day theme", hint: "Tricolor accent and greeting banner on 15 Aug and 26 Jan." },
+  { key: "specialDayTheme", label: "Independence/Republic Day décor", hint: "Tricolor accents and greetings on 15 Aug and 26 Jan." },
+  { key: "diwaliDecor", label: "Diwali décor", hint: "Diwali banner, lanterns, fireworks, bottom diya and festive companion outfit during the event window." },
 ];
 
 // System tab sections — ids match the `system-<id>` anchors the nav jumps to.
@@ -249,10 +269,10 @@ function AdminModal({ title, onClose, width = 640, subtitle, className = "", sho
 // still carry a copy, and restoring one would republish the roster publicly and
 // resurrect roles the database no longer honours. Any future key added to
 // `flags` that is bookkeeping rather than config belongs in this list.
-function stripHistoryKeys(flags) {
+function _stripHistoryKeys(flags) {
   if (!flags) return flags;
   const { configHistory: _h, scheduledConfigDeploys: _q, adminRoles: _r, ...rest } = flags;
-  return rest;
+  return stripPrivateAdminConfig(rest);
 }
 
 // ── Pre-deploy config review ─────────────────────────────────────────────────
@@ -338,7 +358,7 @@ function diffFlagKey(key, before, after) {
   };
 }
 
-function summarizeConfigChanges(orig, cur) {
+function _summarizeConfigChanges(orig, cur) {
   if (!orig) return [];
   const keys = [...new Set([...Object.keys(cur || {}), ...Object.keys(orig)])]
     .filter(k => k !== "configHistory");
@@ -363,22 +383,27 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   
   const [announcement, setAnnouncement] = useState("");
   const [activeAnnouncement, setActiveAnnouncement] = useState(null);
+  const [originalAnnouncement, setOriginalAnnouncement] = useState(null);
+  const [draftBases, setDraftBases] = useState({});
+  const [draftResetKeys, setDraftResetKeys] = useState({});
+  const [diagnosticUserId, setDiagnosticUserId] = useState(null);
   
   const [showAllAdminNotifs, setShowAllAdminNotifs] = useState(false);
 
   // Top-level tab for the admin dashboard. Sections are grouped via `admin-g-*`
   // classes and shown/hidden with CSS keyed off [data-active-tab] on the masonry.
   // Which tab was open last, so a refresh lands where the admin left off.
-  const ADMIN_TAB_KEY = "pgp2.admin-tab-v2";
+  const ADMIN_TAB_KEY = `pgp2.admin-tab-v3:${encodeURIComponent(user?.id || user?.user_id || 'unknown')}`;
   const ADMIN_TABS = ["overview", "broadcast", "schedule", "users", "insights", "moderation", "database", "companion", "system"];
   const [scheduleSection, setScheduleSection] = useState('class');
+  const [menuTargetDate, setMenuTargetDate] = useState(null);
   const [activeTab, setActiveTab] = useState(() => {
     try {
       const stored = localStorage.getItem(ADMIN_TAB_KEY);
       return ADMIN_TABS.includes(stored) ? stored : "overview";
     } catch { return "overview"; }
   });
-  useEffect(() => { try { localStorage.setItem(ADMIN_TAB_KEY, activeTab); } catch { } }, [activeTab]);
+  useEffect(() => { try { localStorage.setItem(ADMIN_TAB_KEY, activeTab); } catch { } }, [activeTab, ADMIN_TAB_KEY]);
   // The tab bar scrolls sideways on narrow screens — keep the active tab in view.
   // Scrolls the bar only (scrollIntoView would also scroll the page on load).
   useEffect(() => {
@@ -391,17 +416,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   }, [activeTab]);
   const [previewTheme, setPreviewTheme] = useState("dark"); // announcement banner preview
 
-  const [flags, setFlags] = useState({
-    enableFriends: true,
-    enableExams: true,
-    enableAttendance: true,
-    maintenanceMode: false,
-    bannedUsers: [],
-    classOverrides: {},
-    abTests: {},
-    dispatchEnabled: true,
-    greetingPets: { enabled: true, petKey: "cat", motion: true, companion: true, xpRate: 1, signatures: true, wardrobe: true, hatsOff: [] }
-  });
+  const [flags, setFlags] = useState(()=>structuredClone(ADMIN_DEFAULT_FLAGS));
   
   const [popularCourses, setPopularCourses] = useState([]);
   const [overrideDate] = useState(new Date().toISOString().split("T")[0]);
@@ -421,7 +436,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [showAllLogs, setShowAllLogs] = useState(false);
   const displayedLogs = showAllLogs ? syncLogs : syncLogs.slice(0, 5);
   
-  const [saving, setSaving] = useState(false);
+  const [saving, _setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
   const [forceDeployReady, setForceDeployReady] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -431,7 +446,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   // Set when the live config's updated_at no longer matches what we loaded —
   // i.e. another admin deployed since. Surfaces the concurrency guard (P2)
   // proactively in the review modal instead of only at deploy time.
-  const [reviewDrift, setReviewDrift] = useState(null); // null | { when }
+  const [_reviewDrift, setReviewDrift] = useState(null); // null | { when }
 
   const [allUsers, setAllUsers] = useState([]);
   const [presenceHistory, setPresenceHistory] = useState([]);
@@ -454,7 +469,14 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [workflowMessage, setWorkflowMessage] = useState("");
   const [auditLogs, setAuditLogs] = useState([]);
   const [announcementTarget, setAnnouncementTarget] = useState("global");
-  const [selectedUser, setSelectedUser] = useState(null);
+  const [selectedUser, _setSelectedUser] = useState(null);
+  const noteDirtyRef = useRef(false);
+  const setSelectedUser = next => {
+    if(typeof next!=='function' && next?.user_id!==selectedUser?.user_id && noteDirtyRef.current && !window.confirm('Discard your unsaved private note? Copy any text you need to keep first.')) return false;
+    if(typeof next!=='function' && next?.user_id!==selectedUser?.user_id) noteDirtyRef.current=false;
+    _setSelectedUser(next);
+    return true;
+  };
   const [petLevelDraft, setPetLevelDraft] = useState(1);
   const [petLevelBusy, setPetLevelBusy] = useState(false);
   const [petLevelMessage, setPetLevelMessage] = useState("");
@@ -557,7 +579,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [featureUsageTrend, setFeatureUsageTrend] = useState([]);
   const [featureUsageUnavailable, setFeatureUsageUnavailable] = useState(false);
   const [presentAdmins, setPresentAdmins] = useState([]); // realtime admin presence
-  const [scheduleDeployAt, setScheduleDeployAt] = useState(""); // scheduled config deploy time
+  const [scheduleDeployAt, _setScheduleDeployAt] = useState(""); // scheduled config deploy time
   const [relocEmail, setRelocEmail] = useState(""); // email→relocation parser input
   const [viewAsUser, setViewAsUser] = useState(null); // read-only "view as" impersonation
   const [viewAsDate, setViewAsDate] = useState(() => new Date().toISOString().split("T")[0]); // date picker for view-as schedule
@@ -767,9 +789,23 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   // costs an admin a confusing error, not unauthorised access.
   const [adminRoster, setAdminRoster] = useState([]);
   const [myRole, setMyRole] = useState(null);
-  const isReadOnlyAdmin = myRole === "monitor";
+  const areaCapability = activeTab === 'schedule' && scheduleSection === 'class' ? 'schedule.publish'
+    : activeTab === 'broadcast' ? 'communications.publish'
+    : activeTab === 'moderation' ? 'moderation.write' : 'system.publish';
+  const isReadOnlyAdmin = !originalFlags || !hasAdminCapability(myRole, areaCapability);
   // admin_set_role / admin_remove_role refuse anyone but a superadmin.
   const canManageRoles = myRole === "superadmin";
+  function runAdminCommand(id) {
+    const command=availableAdminCommands(myRole).find(item=>item.id===id);
+    if(!command) return;
+    setActiveTab(command.tab);
+    if(command.section) setScheduleSection(command.section);
+    if(command.day!==undefined) {
+      const date=adminCommandDate(command.day);
+      if(command.section==='menu') setMenuTargetDate(date); else setLiveEditorDate(date);
+    }
+    if(id==='notification-diagnostics') setDiagnosticUserId(null);
+  }
   // Grant by email or Clerk user ID. An unknown email can't be granted (no
   // user_id to key on), but a raw user_xxx id is accepted as-is for accounts
   // that haven't loaded into allUsers.
@@ -799,6 +835,11 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     return () => { alive = false; };
   }, []);
 
+  useEffect(() => {
+    const watcher = watchAdminRole({ loadRole: myAdminRole, onRole: setMyRole });
+    return () => watcher.stop();
+  }, []);
+
   // Realtime presence — who else is in the admin panel right now
   useEffect(() => {
     const ch = supabase.channel("admin-presence", { config: { presence: { key: admin_id } } });
@@ -816,7 +857,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   }, [admin_id]);
 
   useEffect(() => {
-    if (activeTab === "database") {
+    if (LEGACY_DATABASE_EXPLORER && activeTab === "database") {
       let isMounted = true;
       // eslint-disable-next-line react-hooks/set-state-in-effect -- reset loading UI before async fetch
       setDbLoading(true); setDbError(""); setDbSelectedRow(null);
@@ -1122,6 +1163,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           if (data.flags) {
             setFlags(prev => ({ ...prev, ...data.flags }));
             setOriginalFlags(data.flags);
+            setOriginalAnnouncement(data.announcement ?? null);
             if (data.flags.updatePrompt) {
               setUpdatePromptTitle(data.flags.updatePrompt.title || "");
               setUpdatePromptDesc(data.flags.updatePrompt.desc || "");
@@ -1144,19 +1186,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const changesCount = originalFlags ? Object.keys(flags).reduce((acc, k) => {
-    if (JSON.stringify(flags[k]) !== JSON.stringify(originalFlags[k])) return acc + 1;
-    return acc;
-  }, 0) : 0;
-
-  // Warn on tab close when there are unsaved config changes
-  useEffect(() => {
-    if (changesCount === 0) return;
-    const handler = (e) => { e.preventDefault(); e.returnValue = ""; };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
-   
-  }, [changesCount]);
+  const preparedFlags=composePublicationFlags(flags,feedbackFlashes,{title:updatePromptTitle,desc:updatePromptDesc,highlights:updatePromptHighlights.split('\n').filter(line=>line.trim())},originalFlags);
+  const changesCount=pendingPublicationChanges(originalFlags,preparedFlags,originalAnnouncement,activeAnnouncement);
 
   async function openReviewChanges() {
     setReviewDrift(null);
@@ -1195,122 +1226,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     });
   }
 
-  async function saveConfig({ force = false } = {}) {
-    // Courtesy check only — RLS refuses a monitor's UPDATE regardless, which
-    // surfaces below as a 0-row write rather than an error.
-    if (isReadOnlyAdmin) return alert(READ_ONLY_MESSAGE);
-    setSaving(true);
-    setSaveMsg("");
-    try {
-      // Ensure announcedAt is set for newly enabled flashes
-      const updatedFlashes = feedbackFlashes.map(ff => {
-        const originalFf = originalFlags?.feedbackFlashes?.find(o => o.id === ff.id) || 
-                           (originalFlags?.feedbackFlash && originalFlags.feedbackFlash.id === ff.id ? originalFlags.feedbackFlash : null);
-        
-        let announcedAt = ff.announcedAt;
-        if (ff.enabled && (!originalFf?.enabled || originalFf?.deadline !== ff.deadline || originalFf?.subjectCode !== ff.subjectCode || originalFf?.section !== ff.section)) {
-            announcedAt = new Date().toISOString();
-        }
-        return { ...ff, announcedAt };
-      });
-
-      const newFlags = {
-        ...flags,
-        updatePrompt: {
-          title: updatePromptTitle,
-          desc: updatePromptDesc,
-          highlights: updatePromptHighlights.split("\n").filter(l => l.trim())
-        },
-        feedbackFlashes: updatedFlashes
-      };
-      
-      // Clean up legacy flag
-      delete newFlags.feedbackFlash;
-      
-      // Snapshot the PREVIOUS config for rollback, but strip its own history/queue
-      // first — otherwise each entry re-embeds all prior snapshots and the config
-      // row grows exponentially (the main cause of slow deploys).
-      const prevSnapshot = stripHistoryKeys(originalFlags || {});
-      const historyEntry = {
-         timestamp: new Date().toISOString(),
-         flags: prevSnapshot,
-         author: admin_id
-      };
-      // Defensively re-strip carried-forward entries too: a restored pre-fix
-      // snapshot could still carry an embedded history that would otherwise nest.
-      const carried = (newFlags.configHistory || []).map(h => (
-         h && h.flags ? { ...h, flags: stripHistoryKeys(h.flags) } : h
-      ));
-      newFlags.configHistory = [historyEntry, ...carried].slice(0, 15);
-
-      const nextUpdatedAt = new Date().toISOString();
-      const row = { id: "global", announcement: activeAnnouncement, flags: newFlags, updated_at: nextUpdatedAt };
-
-      // Optimistic-concurrency guard: if the config row already existed when
-      // we loaded it, only write when its updated_at still matches what we
-      // read. If another admin Deployed in the meantime the guarded update
-      // touches 0 rows — we abort instead of silently clobbering their work.
-      // force=true bypasses this check (used by Force Deploy after a conflict).
-      let error = null, conflicted = false;
-      if (force) {
-        // Unconditional overwrite — admin explicitly chose to overwrite.
-        // Use update (not upsert) so we don't trigger the INSERT RLS policy.
-        const { error: upErr } = await supabase.from("system_config").update(row).eq("id", "global");
-        error = upErr;
-      } else if (loadedUpdatedAt) {
-        const { data: updRows, error: updErr } = await supabase
-          .from("system_config")
-          .update(row)
-          .eq("id", "global")
-          .eq("updated_at", loadedUpdatedAt)
-          .select("updated_at");
-        error = updErr;
-        conflicted = !updErr && (!updRows || updRows.length === 0);
-      } else {
-        // First-ever save (no row yet) — plain upsert.
-        const { error: upErr } = await supabase.from("system_config").upsert(row);
-        error = upErr;
-      }
-
-      if (conflicted) {
-        // A zero-row UPDATE has two very different causes now that RLS gates
-        // writes by role: someone else deployed (the row moved on), or the
-        // policy refused us (the row did not move at all). Telling them apart
-        // matters — offering Force Deploy to a monitor sends them round a loop
-        // that can never succeed.
-        const { data: cur } = await supabase
-          .from("system_config").select("updated_at").eq("id", "global").single();
-        const rowUnchanged = cur?.updated_at && cur.updated_at === loadedUpdatedAt;
-        if (rowUnchanged) {
-          setSaveMsg(`⚠ ${READ_ONLY_MESSAGE}`);
-          setForceDeployReady(false);
-          refreshAdminRoles(); // our cached role was evidently wrong
-        } else {
-          const when = cur?.updated_at ? new Date(cur.updated_at).toLocaleTimeString() : "just now";
-          if (cur?.updated_at) setLoadedUpdatedAt(cur.updated_at); // sync so force-deploy works
-          setSaveMsg(`⚠ Another deploy happened at ${when}. Force deploy to overwrite.`);
-          setForceDeployReady(true);
-        }
-      } else if (error) {
-        setSaveMsg("Failed: " + error.message);
-      } else {
-        setForceDeployReady(false);
-        setOriginalFlags(newFlags);
-        setFeedbackFlashes(updatedFlashes);
-        setLoadedUpdatedAt(nextUpdatedAt);
-        onConfigSaved?.(newFlags);
-        setSaveMsg("Successfully saved to cloud!");
-        setTimeout(() => setSaveMsg(""), 3000);
-        logAdminAction(admin_id, "save_config", {
-          changes: changesCount,
-          announcement: activeAnnouncement || null,
-        });
-      }
-    } catch (e) {
-      setSaveMsg("Error saving config.");
-    }
-    setSaving(false);
-  }
+  async function saveConfig() { setReviewOpen(true); }
 
   // Shared push sender. Pass a targetUserId to deliver only to that user's devices
   // (used by "Send test to me"); omit it to broadcast to everyone.
@@ -1341,11 +1257,11 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
         setPushFailureAt(Date.now());
         setPushResult(`Failed: ${data.error || resp.status}`);
       } else if (targetUserId) {
-        setPushResult("Test queued to your devices — should arrive within ~1 min.");
+        setPushResult(`Test queued for ${data.queued ?? 0} user(s). Check your device and delivery diagnostics; queueing does not confirm display.`);
         await logAdminAction(admin_id, "push_test", { title: pushTitle.trim() });
       } else {
-        const n = data.sent ?? data.queued ?? 0;
-        setPushResult(`Sent to ${n} device${n !== 1 ? "s" : ""}${data.failed ? `, ${data.failed} failed` : ""}${data.pruned ? `, ${data.pruned} stale pruned` : ""}.`);
+        const n = data.queued ?? 0;
+        setPushResult(`Queued for ${n} user${n !== 1 ? "s" : ""}. Device delivery is tracked separately in diagnostics.`);
         setPushTitle(""); setPushBody(""); setPushUrl(""); setPushPoster("");
         await logAdminAction(admin_id, "push_broadcast", { title: pushTitle.trim() });
       }
@@ -2022,7 +1938,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
   // ── CSV export helper ──
   function exportCsv(filename, headers, rows) {
-    const esc = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const esc = csvCell;
     const csv = [headers.map(esc).join(","), ...rows.map(r => r.map(esc).join(","))].join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
     const a = document.createElement("a");
@@ -2061,50 +1977,25 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   }
 
   // ── Scheduled config deploy: queue the current pending config for a future time ──
-  async function queueConfigDeploy() {
-    if (isReadOnlyAdmin) return alert(READ_ONLY_MESSAGE);
-    if (!scheduleDeployAt) return alert("Pick a date & time to schedule the deploy.");
-    const snapshot = { ...flags };
-    delete snapshot.scheduledConfigDeploys;
-    delete snapshot.configHistory;
-    snapshot.updatePrompt = { title: updatePromptTitle, desc: updatePromptDesc, highlights: updatePromptHighlights.split("\n").filter(l => l.trim()) };
-    snapshot.feedbackFlashes = feedbackFlashes;
-    const entry = { id: Date.now().toString(), at: scheduleDeployAt, author: admin_id, flags: snapshot, announcement: activeAnnouncement };
-    // Persist ONLY the queue onto live config (don't disturb the deployed flags/announcement).
-    const { data: live } = await supabase.from("system_config").select("flags, announcement").eq("id", "global").single();
-    const liveFlags = { ...(live?.flags || {}), scheduledConfigDeploys: [ ...((live?.flags?.scheduledConfigDeploys) || []), entry ] };
-    const stamp = new Date().toISOString();
-    const { error } = await supabase.from("system_config").upsert({ id: "global", announcement: live?.announcement ?? null, flags: liveFlags, updated_at: stamp });
-    if (error) return alert("Failed to schedule: " + error.message);
-    setLoadedUpdatedAt(stamp);
-    setFlags(f => ({ ...f, scheduledConfigDeploys: liveFlags.scheduledConfigDeploys }));
-    setScheduleDeployAt("");
-    logAdminAction(admin_id, "schedule_config_deploy", { at: entry.at });
-    alert("Scheduled. It auto-deploys at the chosen time (requires the apply-scheduled-config cron).");
+  async function _queueConfigDeploy() {
+    setReviewOpen(true);
+    setSaveMsg('Select an area, review it, and choose its publication time in IST.');
   }
-  async function removeScheduledDeploy(id) {
-    if (isReadOnlyAdmin) return alert(READ_ONLY_MESSAGE);
-    const { data: live } = await supabase.from("system_config").select("flags, announcement").eq("id", "global").single();
-    const liveFlags = { ...(live?.flags || {}), scheduledConfigDeploys: ((live?.flags?.scheduledConfigDeploys) || []).filter(e => e.id !== id) };
-    const stamp = new Date().toISOString();
-    // Used to ignore the result, so a refused write still removed the entry
-    // locally and looked cancelled while the cron went on to deploy it.
-    const { error } = await supabase.from("system_config").upsert({ id: "global", announcement: live?.announcement ?? null, flags: liveFlags, updated_at: stamp });
-    if (error) return alert("Could not cancel the scheduled deploy: " + error.message);
-    setLoadedUpdatedAt(stamp);
-    setFlags(f => ({ ...f, scheduledConfigDeploys: liveFlags.scheduledConfigDeploys }));
+  async function _removeScheduledDeploy() {
+    setReviewOpen(true);
+    setSaveMsg('Use the scoped publication queue to manage scheduled changes.');
   }
 
   async function forceRefresh() {
-    await saveConfig();
-    await logAdminAction(admin_id, "force_refresh", {});
-    setSaveMsg("Refresh signal sent. Users will sync on their next navigation.");
+    if (isReadOnlyAdmin) return alert(READ_ONLY_MESSAGE);
+    const { error } = await supabase.from('system_config').update({updated_at:new Date().toISOString()}).eq('id','global').select('id').single();
+    setSaveMsg(error ? 'Refresh failed: '+error.message : 'Refresh signal sent. Staged edits remain private.');
   }
 
   function requestForceRefresh() {
     requestAdminConfirmation({
       title: "Force every active client to sync?",
-      description: "This publishes the current configuration and asks all active TermFlow clients to refresh on their next navigation.",
+      description: "This asks active TermFlow clients to refresh their published settings on their next navigation. Staged edits remain private.",
       impact: "This action is live and affects the whole cohort.",
       confirmLabel: "Force global sync",
       requireText: "REFRESH",
@@ -2344,7 +2235,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   };
 
   const _exportConfigJSON = () => {
-    const json = JSON.stringify({ announcement: activeAnnouncement, flags }, null, 2);
+    const json = JSON.stringify({ announcement: activeAnnouncement, flags: stripPrivateAdminConfig(flags) }, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -2421,6 +2312,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
   return (
     <div className={`admin-page ${isModernUi ? "modern-ui" : ""} ${changesCount > 0 ? "has-pending-changes" : ""}`}>
+
 
       {/* ── Undo toast for destructive one-click actions ── */}
       {undoToast && (
@@ -2611,15 +2503,33 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       {isReadOnlyAdmin && (
         <div className="admin-readonly-banner" role="status">
           <Eye size={16} aria-hidden="true" />
-          <div><strong>Read-only Monitor</strong><span>You can view every tab, but deploys, pushes and changes to students are turned off. Ask a Superadmin to make changes.</span></div>
+          <div><strong>Read-only in this workspace</strong><span>Your current role cannot change this area. Authorized actions remain available in your other workspaces.</span></div>
         </div>
       )}
 
       {/* ── Card flow: 2-col masonry ≥1200px, single column below ── */}
       {activeTab === 'schedule' && <nav className="admin-schedule-subnav" aria-label="Schedule sections">{[['class', 'Class'], ['menu', 'Menu']].map(([id, label]) => <button type="button" className={`admin-btn ${scheduleSection === id ? '' : 'outline'}`} aria-pressed={scheduleSection === id} key={id} onClick={() => setScheduleSection(id)}>{label}</button>)}</nav>}
+      <div className="admin-workspace-tools">
+      <AdminWorkspaceShortcuts key={admin_id} userId={admin_id} role={myRole} onCommand={runAdminCommand} />
+      {originalFlags && <AdminDraftRecovery key={admin_id} role={myRole} flags={preparedFlags} originalFlags={originalFlags} announcement={activeAnnouncement} originalAnnouncement={originalAnnouncement} baseOverrides={draftBases} resetKeys={draftResetKeys}
+        onResume={(domain,payload,base) => {
+          setFlags(current=>({...structuredClone(ADMIN_DEFAULT_FLAGS),...mergePublishedDomain(current,domain,payload)}));
+          setDraftBases(current=>({...current,[domain]:base}));
+          if(domain==='communications') {
+            setActiveAnnouncement(payload.announcement);
+            setFeedbackFlashes(payload.flags.feedbackFlashes || []);
+            setUpdatePromptTitle(payload.flags.updatePrompt?.title || '');
+            setUpdatePromptDesc(payload.flags.updatePrompt?.desc || '');
+            setUpdatePromptHighlights((payload.flags.updatePrompt?.highlights || []).join('\n'));
+          }
+          setReviewOpen(true);
+        }} />}
+      </div>
       <div className="admin-masonry" data-active-tab={activeTab} data-schedule-section={scheduleSection}>
-        {activeTab === "schedule" && scheduleSection === 'menu' && <AdminMessControls readOnly={isReadOnlyAdmin} />}
-        {activeTab === "system" && <><AdminNavigationControls readOnly={isReadOnlyAdmin} /><AdminDashboardDefaults readOnly={isReadOnlyAdmin} /></>}
+        {activeTab === "schedule" && scheduleSection === 'menu' && <AdminMessControls initialDate={menuTargetDate} readOnly={!hasAdminCapability(myRole, 'system.publish')} />}
+        {activeTab === "system" && <><AdminNavigationControls readOnly={!hasAdminCapability(myRole, 'system.publish')} /><AdminDashboardDefaults readOnly={!hasAdminCapability(myRole, 'system.publish')} /></>}
+        {['insights','broadcast'].includes(activeTab) && hasAdminCapability(myRole,'diagnostics.read') && <AdminNotificationDiagnostics workspace={activeTab} key={diagnosticUserId || 'all'} userId={diagnosticUserId} onClear={()=>setDiagnosticUserId(null)} onInspect={id => { const student=allUsers.find(row=>row.user_id===id); if(student) setSelectedUser(student); }} />}
+        {['database','moderation'].includes(activeTab) && myRole && <AdminHistoryExplorer workspace={activeTab} key={activeTab} userId={admin_id} role={myRole} initialDataset={activeTab==='moderation' && hasAdminCapability(myRole,'diagnostics.read') ? 'audit' : hasAdminCapability(myRole,'support.read') ? 'students' : 'versions'} onInspect={id => { const student=allUsers.find(row=>row.user_id===id); if(student) setSelectedUser(student); }} />}
         {workflowMessage && <div className="aw-error admin-span-all" role="alert">{workflowMessage}</div>}
 
         <section className="admin-overview-command admin-span-all admin-g-overview">
@@ -3959,7 +3869,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                         (async () => {
                           setPushSending(true); setPushResult("");
                           const res = await pushToUserIds(ids, { title: pushTitle.trim(), body: pushBody.trim(), url: pushUrl.trim() || "/", image: pushImage(pushPoster), confirmMsg: `Send this push to ${ids.length} user(s) in "${pushTarget}"?` });
-                          if (res?.ok) { setPushResult(`Sent to ${res.data.queued ?? ids.length} user(s).`); setPushTitle(""); setPushBody(""); setPushUrl(""); setPushPoster(""); await logAdminAction(admin_id, "push_targeted", { target: pushTarget, count: ids.length }); }
+                          if (res?.ok) { setPushResult(`Queued for ${res.data.queued ?? ids.length} user(s). Check diagnostics for delivery.`); setPushTitle(""); setPushBody(""); setPushUrl(""); setPushPoster(""); await logAdminAction(admin_id, "push_targeted", { target: pushTarget, count: ids.length }); }
                           else if (res) { setPushFailureAt(Date.now()); setPushResult(`Failed: ${res.data?.error || "error"}`); }
                           setPushSending(false);
                         })();
@@ -5166,30 +5076,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
           <SystemSectionHead id="releases" Icon={Clock3} title="Releases & config">What is live, what is queued, and how to get back to a known-good state.</SystemSectionHead>
 
-          {/* Scheduled config deploys */}
-          <section className="admin-card admin-g-system system-control-card system-deploy-card">
-            <h2><Clock size={20} color="var(--amber-text)" /> Scheduled Deploys <AdminActionBadge mode="scheduled" /></h2>
-            <p className="admin-subtext">Queue the current pending config to auto-publish at a future time (requires the apply-scheduled-config cron). For an immediate change, use Deploy Config in the save bar instead.</p>
-            <div className="admin-field-row" style={{ alignItems: "flex-end", maxWidth: 480 }}>
-              <div className="admin-field"><label>Deploy at</label><input type="datetime-local" className="admin-input" value={scheduleDeployAt} onChange={e => setScheduleDeployAt(e.target.value)} /></div>
-              <button className="admin-btn primary" style={{ flex: "0 0 auto", marginBottom: 10 }} onClick={queueConfigDeploy} disabled={isReadOnlyAdmin}>Schedule deploy</button>
-            </div>
-            <div className="system-roster">
-              <div className="system-subhead"><span className="system-kicker">Queue</span><small>{(flags.scheduledConfigDeploys || []).length || "Empty"}</small></div>
-              {(flags.scheduledConfigDeploys || []).length === 0 ? (
-                <div className="admin-empty">No scheduled deploys.</div>
-              ) : [...(flags.scheduledConfigDeploys || [])].sort((a, b) => new Date(a.at) - new Date(b.at)).map(e => (
-                <div key={e.id} className="system-roster-row">
-                  <span className="system-row-icon" aria-hidden="true"><Clock size={15} /></span>
-                  <div className="system-roster-who">
-                    <strong>{new Date(e.at).toLocaleString("en-IN", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</strong>
-                    <small>Queued by {allUsers.find(u => u.user_id === e.author)?.name || "an admin"}</small>
-                  </div>
-                  <button type="button" onClick={() => removeScheduledDeploy(e.id)} disabled={isReadOnlyAdmin} className="system-icon-btn is-danger" aria-label={`Cancel deploy scheduled for ${new Date(e.at).toLocaleString("en-IN")}`}><Trash2 size={14} /></button>
-                </div>
-              ))}
-            </div>
-          </section>
+          <AdminScheduledPublications role={myRole} />
+
+
 
           <ConfigHistoryPanel history={originalFlags?.configHistory || []} liveFlags={originalFlags} hasStagedChanges={changesCount > 0} isReadOnly={isReadOnlyAdmin} onStage={entry => {
             const next = stageConfigSnapshot(entry.flags, originalFlags || flags);
@@ -5317,7 +5206,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               const groups = [
                 {
                   id: "core", title: "Core modules", note: "Kill switches — off hides the module for every student.",
-                  items: CORE_MODULES.map(m => ({ ...m, id: `features.${m.key}`, on: flags.features?.[m.key] !== false, was: live.features?.[m.key] !== false, set: on => setFeature(m.key, on, live.features?.[m.key] !== false) })),
+                  items: CORE_MODULES.map(m => { const was = m.key === 'diwaliDecor' ? diwaliDecorEnabled(live) : live.features?.[m.key] !== false; return { ...m, id: `features.${m.key}`, on: m.key === 'diwaliDecor' ? diwaliDecorEnabled(flags) : flags.features?.[m.key] !== false, was, set: on => setFeature(m.key, on, was) }; }),
                 },
                 {
                   id: "social", title: "Social features", note: "Pieces of the Friends experience that can be switched off individually.",
@@ -5374,6 +5263,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             })()}
           </section>
 
+          <AdminDiwaliControls flags={flags} onChange={setFlags} disabled={isReadOnlyAdmin} />
           {/* A/B testing — percentage rollouts stored in flags.abTests */}
           <section className="admin-card admin-g-system system-control-card system-experiments-card">
             <h2><Flag size={20} color="var(--blue-text)" /> A/B Testing <AdminActionBadge mode="staged" /></h2>
@@ -5482,10 +5372,14 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               </div>
               <div className="admin-field" style={{ flex: 1 }}>
                 <label htmlFor="admin-role-value">Role</label>
-                <select id="admin-role-value" className="admin-input" value={roleValue} onChange={e => setRoleValue(e.target.value)}>
+                <select id="admin-role-value" aria-describedby="admin-role-permissions" className="admin-input" value={roleValue} onChange={e => setRoleValue(e.target.value)}>
                   <option value="monitor">Monitor</option>
                   <option value="superadmin">Superadmin</option>
+                  <option value="schedule_editor">Schedule Editor</option>
+                  <option value="communications_editor">Communications Editor</option>
+                  <option value="moderator">Moderator</option>
                 </select>
+                <small id="admin-role-permissions">{ROLE_DESCRIPTIONS[roleValue]}</small>
               </div>
               <button className="admin-btn primary" style={{ flex: "0 0 auto", marginBottom: 10 }} onClick={saveAdminRole} disabled={!roleTarget}>Grant</button>
             </div>
@@ -5827,6 +5721,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
 
 
+          {['superadmin','monitor','moderator'].includes(myRole) && <AdminModerationQueue userId={admin_id} role={myRole} roster={adminRoster} />}
           <section className="admin-card admin-span-all admin-g-moderation moderation-workspace" style={{ gridColumn: "1 / -1" }}>
             <div className="moderation-hero">
               <div><span className="moderation-eyebrow"><Shield size={13} /> Student-facing content</span><h2>Live status moderation</h2><p>Review what is visible across student cards and remove inappropriate or outdated statuses.</p></div>
@@ -5860,6 +5755,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             </div>
           </section>
 
+          {LEGACY_DATABASE_EXPLORER && <>
           <section className="admin-card admin-span-all admin-g-database database-workspace" style={{ gridColumn: "1 / -1" }}>
             <div className="database-hero">
               <div className="database-hero-copy">
@@ -5948,6 +5844,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               </div>
             </div>
           </section>
+          </>}
 
       </div>
 
@@ -6047,77 +5944,31 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       )}
 
       {/* Pre-deploy review modal */}
-      {reviewOpen && (() => {
-        const changes = summarizeConfigChanges(originalFlags, flags);
-        const scheduleImpact = previewStagedScheduleChanges(liveSchedule, flags.classOverrides, allUsers, originalFlags?.classOverrides);
-        return (
-          <>
-            <div className="notif-backdrop" onClick={() => setReviewOpen(false)} style={{ zIndex: 10000 }} />
-            <div ref={reviewDialogRef} {...dialogProps(null, { labelledBy: "admin-review-title" })} className="admin-mobile-dialog" style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "var(--card)", padding: 24, borderRadius: 16, width: "92%", maxWidth: 520, maxHeight: "85vh", overflowY: "auto", zIndex: 10001, border: "1px solid var(--border)", boxShadow: "0 10px 40px rgba(0,0,0,0.2)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                <h2 id="admin-review-title" style={{ margin: 0, fontSize: 18, display: "flex", gap: 8, alignItems: "center" }}>
-                  <FileText size={18} color="var(--violet)" /> Review changes
-                </h2>
-                <button type="button" onClick={() => setReviewOpen(false)} style={{ background: "transparent", border: "none", color: "var(--muted)", cursor: "pointer" }} aria-label="Close"><XCircle size={18} /></button>
-              </div>
-              <div className="admin-subtext" style={{ marginBottom: 14 }}>
-                Local edits vs the config you loaded. Nothing is live until you deploy.
-              </div>
-
-              {reviewDrift && (
-                <div style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "10px 14px", marginBottom: 14, background: "rgba(245,158,11,0.1)", border: "1px solid var(--amber)", borderRadius: 10 }}>
-                  <AlertTriangle size={16} color="var(--amber-text)" style={{ flex: "0 0 auto", marginTop: 1 }} />
-                  <span style={{ fontSize: 12.5, color: "var(--text)" }}>
-                    Another admin deployed at {new Date(reviewDrift.when).toLocaleTimeString()}. Deploying now is blocked to protect their changes — <strong>refresh the dashboard</strong> and re-apply your edits.
-                  </span>
-                </div>
-              )}
-
-              {changes.length === 0 ? (
-                <div style={{ padding: 20, textAlign: "center", color: "var(--muted)", background: "var(--bg)", borderRadius: 10, border: "1px dashed var(--border)" }}>
-                  No pending changes — everything matches the cloud config.
-                </div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {changes.map(c => (
-                    <div key={c.key} style={{ padding: "10px 14px", background: "var(--bg)", borderRadius: 10, border: "1px solid var(--border)", borderLeft: "3px solid var(--violet)" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-                        <span style={{ fontSize: 13.5, fontWeight: 700, color: "var(--text)" }}>{c.label}</span>
-                        <span style={{ fontSize: 12, color: "var(--muted)", fontVariantNumeric: "tabular-nums" }}>{c.summary}</span>
-                      </div>
-                      {c.details.length > 0 && (
-                        <ul style={{ margin: "6px 0 0", paddingLeft: 16, display: "flex", flexDirection: "column", gap: 2 }}>
-                          {c.details.map((d, i) => (
-                            <li key={i} style={{ fontSize: 12, color: d.startsWith("+") ? "var(--live)" : d.startsWith("−") ? "var(--danger)" : "var(--muted)", listStyle: "none", marginLeft: -16 }}>{d}</li>
-                          ))}
-                          {c.extra > 0 && <li style={{ fontSize: 12, color: "var(--muted)", listStyle: "none", marginLeft: -16 }}>…and {c.extra} more</li>}
-                        </ul>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {scheduleImpact.changes.length > 0 && <section className="aw-deploy-impact" aria-label="Schedule impact preview">
-                <h3>Schedule impact before deployment</h3>
-                <p><strong>{scheduleImpact.changes.length}</strong> staged override changes · <strong>{scheduleImpact.affected}</strong> potentially affected students · <strong>{scheduleImpact.conflicts}</strong> possible time clashes</p>
-                <div className="aw-deploy-impact-list">{scheduleImpact.changes.slice(0, 8).map(change => <div key={`${change.date}:${change.key}`}><span>{change.date} · {change.code} · Section {change.section}</span><small>{change.restored ? "Override removed" : change.after ? `${change.after.start || "?"}–${change.after.end || "?"} · ${change.after.room || "Room TBD"}` : "Cancelled"}</small></div>)}</div>
-                {scheduleImpact.changes.length > 8 && <small>And {scheduleImpact.changes.length - 8} more changes</small>}
-                <small>Audience is estimated from current course selections. Deployment does not send a notification.</small>
-              </section>}
-
-              <div style={{ display: "flex", gap: 10, marginTop: 16, justifyContent: "flex-end" }}>
-                <button className="admin-btn" onClick={() => setReviewOpen(false)}>Keep editing</button>
-                {changes.length > 0 && (
-                  <button className="admin-btn primary" disabled={saving || !!reviewDrift} onClick={async () => { await saveConfig(); setReviewOpen(false); }} title={reviewDrift ? "Refresh first — another admin deployed since you loaded" : undefined}>
-                    <Save size={15} /> {saving ? "Deploying…" : "Looks good — Deploy"}
-                  </button>
-                )}
-              </div>
-            </div>
-          </>
-        );
-      })()}
+      {reviewOpen && <>
+        <div className="notif-backdrop" onClick={() => setReviewOpen(false)} style={{ zIndex: 10000 }} />
+        <div ref={reviewDialogRef} {...dialogProps('Review and publish one area')} className="admin-mobile-dialog" style={{ position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)', background:'var(--card)', padding:20, borderRadius:16, width:'92%', maxWidth:850, maxHeight:'85vh', overflowY:'auto', zIndex:10001 }}>
+          <button type="button" className="admin-btn outline" onClick={() => setReviewOpen(false)}>Close review</button>
+          <h2>Review and publish</h2>
+          <AdminPublishWorkspace role={myRole} flags={preparedFlags} originalFlags={originalFlags} announcement={activeAnnouncement} originalAnnouncement={originalAnnouncement} scheduleAt={scheduleDeployAt} baseOverrides={draftBases}
+            onPublished={async (domain,payload) => {
+              setFlags(current => ({...structuredClone(ADMIN_DEFAULT_FLAGS),...mergePublishedDomain(current,domain,payload)}));
+              setOriginalFlags(current => mergePublishedDomain(current,domain,payload));
+              setDraftBases(current => { const next={...current}; delete next[domain]; return next; });
+              setDraftResetKeys(current => ({...current,[domain]:(current[domain]||0)+1}));
+              if(domain==='communications') {
+                setActiveAnnouncement(payload.announcement); setOriginalAnnouncement(payload.announcement);
+                setFeedbackFlashes(payload.flags.feedbackFlashes||[]);
+                setUpdatePromptTitle(payload.flags.updatePrompt?.title||'');setUpdatePromptDesc(payload.flags.updatePrompt?.desc||'');setUpdatePromptHighlights((payload.flags.updatePrompt?.highlights||[]).join('\n'));
+              }
+              setSaveMsg('Published '+domain+'. Other staged areas are preserved.');
+              if (onConfigSaved) {
+                const { data, error } = await supabase.from('system_config').select('flags,updated_at').eq('id','global').single();
+                if (!error) { onConfigSaved(data.flags); setLoadedUpdatedAt(data.updated_at); }
+                else setSaveMsg('Published '+domain+'. Live refresh is pending; your edits are preserved.');
+              }
+            }} />
+        </div>
+      </>}
 
       {/* User X-Ray Modal */}
       {selectedUser && (
@@ -6156,6 +6007,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                     <option value="user">Standard User</option>
                     <option value="monitor">Monitor (Read-only Admin)</option>
                     <option value="superadmin">Superadmin</option>
+                    <option value="schedule_editor">Schedule Editor</option>
+                    <option value="communications_editor">Communications Editor</option>
+                    <option value="moderator">Moderator</option>
                 </select>
               </section>
               <section className="admin-user-xray-section">
@@ -6167,24 +6021,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               </section>
             </div>
 
-            <section className="admin-user-xray-section">
-                 <h3>Private admin notes</h3>
-                 <p>Visible only inside Admin Tools and staged with the rest of the configuration.</p>
-                 <textarea className="admin-input"
-                    placeholder="Private notes about this user..."
-                    value={flags.adminNotes?.[selectedUser.user_id] || ""}
-                    onChange={e => {
-                       const val = e.target.value;
-                       setFlags({
-                          ...flags, 
-                          adminNotes: { ...(flags.adminNotes || {}), [selectedUser.user_id]: val }
-                       });
-                    }}
-                    rows={3}
-                 />
-            </section>
+            {hasAdminCapability(myRole,'support.read') && <AdminStudentSupport key={selectedUser.user_id} userId={selectedUser.user_id} role={myRole} onNavigate={(area,id) => { if(!setSelectedUser(null))return; if(area==='diagnostics') { setDiagnosticUserId(id); setActiveTab('insights'); } else { setActiveTab('users'); requestAnimationFrame(()=>document.querySelector('[aria-label="Feedback triage"]')?.scrollIntoView({behavior:'smooth'})); } }} />}
+            {hasAdminCapability(myRole, 'notes.read') && <AdminStudentNotes key={selectedUser.user_id} userId={selectedUser.user_id} readOnly={!hasAdminCapability(myRole, 'notes.write')} onDirtyChange={dirty=>{noteDirtyRef.current=dirty;}} />}
 
-            <fieldset className="admin-readonly-group" disabled={isReadOnlyAdmin}>
+            <fieldset className="admin-readonly-group" disabled={!hasAdminCapability(myRole, 'system.publish')}>
             <section className="admin-user-xray-section">
               <h3><PawPrint size={15} /> Companion XP &amp; level</h3>
               <p>
@@ -6489,7 +6329,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                    const msg = prompt(`Send a direct push notification to ${selectedUser.name}:`);
                    if (!msg) return;
                    const res = await pushToUserIds([selectedUser.user_id], { title: "Message from Admin", body: msg.trim() });
-                   if (res?.ok) { await logAdminAction(admin_id, "direct_push", { target_user: selectedUser.user_id }); alert("Push delivered."); }
+                   if (res?.ok) { await logAdminAction(admin_id, "direct_push", { target_user: selectedUser.user_id }); alert("Push queued. Check diagnostics for delivery."); }
                    else alert("Failed to send push.");
                 }} className="admin-btn outline">
                   <BellRing size={16} /> Direct Push
@@ -7181,6 +7021,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       )}
 
       <AdminCommandPalette 
+         role={myRole} onCommand={runAdminCommand}
          isOpen={isCommandPaletteOpen}
          onClose={() => setIsCommandPaletteOpen(false)}
          allUsers={allUsers}
@@ -7191,9 +7032,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
             setIsCommandPaletteOpen(false);
          }}
          onFlagSelect={(fKey) => {
-            if (typeof flags[fKey] === 'boolean') {
-               setFlags({ ...flags, [fKey]: !flags[fKey] });
-            }
+            setActiveTab('system');
+            setSaveMsg('Open settings for '+fKey+'. Review any edits before publishing.');
             setIsCommandPaletteOpen(false);
          }}
       />

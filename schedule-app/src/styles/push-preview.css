@@ -10,3 +10,17 @@
 .android-push-actions{display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid #d9cfe5;margin-top:12px;padding-top:6px}.android-push-actions button{appearance:none;background:none;border:0;padding:8px 4px;color:#6c36aa;font:inherit;font-size:12px;font-weight:650;cursor:pointer;min-height:36px}.android-push-actions button:focus-visible{outline:2px solid #6c36aa;outline-offset:2px;border-radius:4px}
 .android-push-preview-caption{margin:10px 0 0;overflow-wrap:anywhere}.android-push-preview-caption strong{font-weight:500}
 @media(max-width:600px){.android-push-preview-states{grid-template-columns:1fr}.android-push-preview-heading{align-items:start;flex-direction:column;gap:4px}}
+.push-preview-platforms{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px}
+.push-preview-platforms button,.push-preview-tap{font:inherit;font-size:12px;border:1px solid var(--border,#62556e);border-radius:8px;padding:8px 12px;min-height:36px;background:var(--surface,#25202d);color:var(--text,#eee8f5);cursor:pointer}
+.push-preview-platforms button[aria-pressed=true]{background:#51386b;color:#fff;border-color:#9474b9}
+.push-preview-platforms button:focus-visible,.push-preview-tap:focus-visible{outline:2px solid #9474b9;outline-offset:3px}
+.push-preview-tap{margin-top:12px}
+.android-push-preview-states>div{min-width:0}
+.push-preview-pc .android-push-card{border-radius:9px;background:#28252e;color:#f8f3ff;border:1px solid #625a6c}
+.push-preview-pc .android-push-body,.push-preview-pc .android-push-brand small{color:#d0c6dc}
+.push-preview-pc .android-push-actions{border-color:#625a6c}
+.push-preview-pc .android-push-actions button{background:#403748;color:#f3e9ff;border:1px solid #62556e;border-radius:5px;padding:7px 10px;flex:1}
+.push-preview-pc .android-push-body{-webkit-line-clamp:2}
+.push-preview-pc .is-expanded .android-push-body{-webkit-line-clamp:unset}
+.push-preview-ios .android-push-card{background:#eee8f2;border-radius:21px}
+@media(max-width:900px){.android-push-preview-states{grid-template-columns:1fr}}

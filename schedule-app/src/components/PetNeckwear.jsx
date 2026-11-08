@@ -15,6 +15,15 @@ import PetWearableFinish from './PetWearableFinish.jsx';
 // `.dg-pet-accessory` whenever `data-neck` is set — so nobody ends up wearing a
 // bow tie over a ribbon.
 const NECKWEAR = {
+  // Temporary festive overlay; never stored as a student's selected wardrobe.
+  diwali: (
+    <g>
+      <path d="M10 23.5q6 3.4 12 0l.4 3q-6.4 3.2-12.8 0Z" fill="#ad326e" stroke="#59233e" strokeWidth=".6" />
+      <path d="m18.9 25 2.9.3 1.1 5.1-3.7-1.1Z" fill="#bd4481" stroke="#59233e" strokeWidth=".55" />
+      <path d="M10.5 24.1q5.5 2.9 11 0M10.4 26q5.6 2.8 11.2 0m-1.8 2.2 2.1.6" fill="none" stroke="#f3c974" strokeWidth=".6" />
+      <path d="m12 25 .7.7m2.6.1.7.6m2.8-1 .7.6m.4 3.1.3 1.2m1-.9.3 1" stroke="#ffe2a0" strokeWidth=".4" strokeLinecap="round" />
+    </g>
+  ),
   scarf: (
     <g>
       {/* Knit wrap contour */}

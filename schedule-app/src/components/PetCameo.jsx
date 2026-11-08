@@ -27,6 +27,7 @@ export default function PetCameo({
   size = 44,
   motion = true,
   className = "",
+  festive = false,
 }) {
   const enabled = isAdopted(pet) && pet?.companionEnabled !== false && petSettings?.enabled !== false;
   const art = getPetByKey(pet?.petKey);
@@ -35,6 +36,7 @@ export default function PetCameo({
   if (!enabled || !art) return null;
   const wardrobe = petSettings?.wardrobe !== false;
   const hatsOff = petSettings?.hatsOff || [];
+  const neck = festive && wardrobe ? 'diwali' : visibleNeckwear(pet, { wardrobe });
 
   return (
     <span
@@ -52,14 +54,14 @@ export default function PetCameo({
       data-action-source={source}
       data-action-replay={replay}
       data-coat={visibleCoat(pet, { wardrobe }) || undefined}
-      data-neck={visibleNeckwear(pet, { wardrobe }) || undefined}
+      data-neck={neck || undefined}
       data-accessory={pet?.cosmetics?.accessory === false ? "off" : undefined}
       data-sig={petSettings?.signatures === false ? "off" : undefined}
       aria-hidden="true"
     >
       <art.Svg />
       <PetHat hat={visibleHat(pet, { wardrobe, hatsOff })} />
-      <PetNeckwear neck={visibleNeckwear(pet, { wardrobe })} />
+      <PetNeckwear neck={neck} />
       <PetSleepCue />
     </span>
   );

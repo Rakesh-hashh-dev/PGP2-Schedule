@@ -114,7 +114,7 @@ function BuddyArt({ buddy, mood, motionEnabled, signaturesOn, coat, cue, habitat
   return <span ref={petRef} data-habitat-target={activity?.target} data-habitat-behavior={activity?.behavior} data-partner-side="left" className="dg-pet pet-identity-buddy" data-pet={buddy.key} data-motion={motionEnabled ? 'on' : 'off'} data-mood={mood} data-coat={coat || undefined} data-sig={signaturesOn ? undefined : 'off'} data-action={action} data-action-source={source} data-action-replay={replay} aria-hidden="true"><buddy.Svg /></span>;
 }
 
-export default function PetPage({ pet, petActions, petContext, petSettings, now, onBack, companionMemory }) {
+export default function PetPage({ pet, petActions, petContext, petSettings, now, onBack, companionMemory, festive = false }) {
   const [nameDraft, setNameDraft] = useState(null);
   const [adoptChoice, setAdoptChoice] = useState(null);
   const [activeSection, setActiveSection] = useState("overview");
@@ -155,7 +155,7 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
   );
   const devotion = devotionFor(xp);
   const coat = visibleCoat(pet, { wardrobe: wardrobeOn });
-  const neck = visibleNeckwear(pet, { wardrobe: wardrobeOn });
+  const neck = festive && wardrobeOn ? 'diwali' : visibleNeckwear(pet, { wardrobe: wardrobeOn });
   const earnedCoats = useMemo(() => new Set(coatsFor(pet, { wardrobe: wardrobeOn })), [pet, wardrobeOn]);
   const earnedNeck = useMemo(() => new Set(neckwearFor(pet, { wardrobe: wardrobeOn })), [pet, wardrobeOn]);
   const earnedTitles = useMemo(() => new Set(titlesFor(pet, now)), [pet, now]);
@@ -317,6 +317,7 @@ export default function PetPage({ pet, petActions, petContext, petSettings, now,
 
           <div className="pet-identity-copy">
             <p className="pet-eyebrow">Your study companion</p>
+            {festive && <p className="pet-eyebrow">Celebrating Diwali with you · festive outfit is temporary</p>}
             <div className="pet-identity-heading">
               <h2>{pet.name || current.label}</h2>
               <span className="pet-stage-chip"><Sparkles size={12} aria-hidden="true" /> {stage.label}</span>

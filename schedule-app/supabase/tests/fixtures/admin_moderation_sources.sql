@@ -1,0 +1,25 @@
+-- Representative source contracts, isolated test DB only.
+create table public.profiles(user_id text primary key,groups jsonb not null default '[]');
+create table public.study_group_invites(group_id text primary key,owner_id text,enabled boolean);
+create table public.study_group_join_requests(group_id text,requester_id text,status text);
+create function public.is_termflow_admin() returns boolean language sql stable as $$ select public.admin_role()='superadmin'; $$;
+create table public.board_posts(id uuid primary key,user_id text,title text,body text,status text default 'open',reported_by jsonb default '[]');
+create table public.board_comments(id uuid primary key,post_id uuid,user_id text,body text,hidden boolean default false,reported_by jsonb default '[]');
+create table public.polls(id uuid primary key,scope text,group_id text,created_by text,question text);
+create table public.group_messages(id uuid primary key,group_id text,from_id text,text text);
+alter table public.board_posts enable row level security;
+alter table public.board_comments enable row level security;
+alter table public.polls enable row level security;
+alter table public.group_messages enable row level security;
+create policy board_select on public.board_posts for select to authenticated using(status<>'removed' or user_id=auth.jwt()->>'sub' or public.is_termflow_admin());
+create policy comment_select on public.board_comments for select to authenticated using(not hidden or user_id=auth.jwt()->>'sub' or public.is_termflow_admin());
+create policy poll_select on public.polls for select to authenticated using(true);
+create policy group_select on public.group_messages for select to authenticated using(true);
+create policy poll_update on public.polls for update to authenticated using(created_by=auth.jwt()->>'sub');
+grant select,update on public.board_posts,public.board_comments,public.polls,public.group_messages to authenticated;
+insert into public.profiles values('owner','[{"id":"g","cloudMemberIds":["student-one","student-two","student-three"]}]');
+insert into public.study_group_invites values('g','owner',true);
+insert into public.board_posts values('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','owner','Report target','Evidence','open','[]');
+insert into public.board_comments values('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','owner','Comment',false,'[]');
+insert into public.polls values('cccccccc-cccc-cccc-cccc-cccccccccccc','group','g','owner','Poll question');
+insert into public.group_messages values('dddddddd-dddd-dddd-dddd-dddddddddddd','g','owner','Reported message');

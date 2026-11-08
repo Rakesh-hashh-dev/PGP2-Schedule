@@ -1,8 +1,22 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { buildPushPayload, pushImage } from "../../supabase/functions/_shared/pushPresentation.ts";
 import { pushSessionFromParams } from "./pushDeepLink.js";
 
-describe("Android push presentation", () => {
+describe("PC and mobile push presentation", () => {
+  it('offers This week for tomorrow’s change while retaining today for current changes', () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date('2026-11-09T08:00:00Z'));
+      const future = buildPushPayload({ type: 'class_cancelled', title: 'Cancelled', data: { date: '2026-11-10' } });
+      expect(future.actions[1]).toMatchObject({ title: 'This week', url: '/?view=week' });
+      const current = buildPushPayload({ type: 'schedule_change', title: 'Room changed', data: { date: '2026-11-09' } });
+      expect(current.actions[1].url).toBe('/?view=today');
+    } finally { vi.useRealTimers(); }
+  });
+  it.each([['friend_request', 'View request'], ['group_invite', 'View group'], ['group_poll', 'View poll'], ['meetup_reminder', 'View meetup'], ['free_nudge', 'Open Friends'], ['board_comment', 'View comment']])('gives %s a contextual action', (type, label) => {
+    const payload = buildPushPayload({ type, title: 'Update', url: '/?view=friends' });
+    expect(payload.actions).toEqual([{ action: 'open', title: label, url: payload.url }]);
+  });
   it("opens the exact class from encoded identifiers and keeps Today as a separate action", () => {
     const payload = buildPushPayload({ type: "class_reminder", title: "SCA starts in 10 min", body: "02:30PM · Room 4\nSection A", data: { code: "SCA", date: "2026-10-13", start: "14:30" }, dedup_key: "class:123" });
     expect(pushSessionFromParams(new URL(payload.url, "https://termflow.test").searchParams)).toEqual({ code: "SCA", date: "2026-10-13", start: "14:30" });

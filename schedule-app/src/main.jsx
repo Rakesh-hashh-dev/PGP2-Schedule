@@ -5,12 +5,15 @@ import "./styles/pet-personality.css";
 import "./styles/luna.css";
 import "./styles/pet-art.css";
 import "./styles/pet-rig.css";
+import "./styles/pet-finish.css";
+import "./styles/pet-sleep.css";
 import "./styles/freeday.css";
 import "./styles/motion-details.css";
 import "./styles/premium-polish.css";
 import "./styles/modal-layout.css";
 import { registerSW } from "virtual:pwa-register";
 import StartupGreeting from "./components/StartupGreeting.jsx";
+import PetFinishDefs from "./components/PetFinishDefs.jsx";
 import { initSentry } from "./lib/sentry.js";
 
 initSentry();
@@ -66,9 +69,10 @@ const PetMoodSheet = lazy(() => import("./components/PetMoodSheet.jsx"));
 
 root.render(
   showMoodSheet
-    ? <Suspense fallback={null}><PetMoodSheet /></Suspense>
+    ? <Suspense fallback={null}><PetFinishDefs /><PetMoodSheet /></Suspense>
     : (
       <React.StrictMode>
+        <PetFinishDefs />
         <Suspense fallback={<StartupGreeting />}>
           <ClerkApp />
         </Suspense>

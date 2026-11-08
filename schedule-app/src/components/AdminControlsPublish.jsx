@@ -1,7 +1,8 @@
-import { RefreshCw, Save, FolderOpen, ArrowUpRight, History, RotateCcw, CheckCircle2, AlertCircle, ShieldCheck, Loader2, GitCompareArrows } from 'lucide-react';
+import { RefreshCw, ArrowUpRight, History, RotateCcw, CheckCircle2, AlertCircle, ShieldCheck, Loader2, GitCompareArrows } from 'lucide-react';
 import { ControlHero } from './AdminControlVisuals.jsx';
 import { useState } from 'react';
-import { useAppControls, refreshControls, saveControlDraft, publishControls } from '../lib/appControls.js';
+import { useAppControls, refreshControls, publishControls } from '../lib/appControls.js';
+import AdminControlDraftRecovery from './AdminControlDraftRecovery.jsx';
 import { useAdminControlHistory } from '../hooks/useAdminControlHistory.js';
 import { DEFAULT_CONTROLS, validateControls } from '../lib/controlsSchema.js';
 import '../styles/admin-mess-controls.css';
@@ -24,7 +25,7 @@ export default function AdminControlsPublish({ section, title, readOnly, childre
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [review, setReview] = useState(false);
-  const { versions, draft, setDraft, error: historyError, reload: reloadHistory } = useAdminControlHistory(section);
+  const { versions, setDraft, error: historyError, reload: reloadHistory } = useAdminControlHistory(section);
   if (controls.loaded && !ready) {
     setValue(structuredClone(controls.payload[section])); setOriginal(structuredClone(controls.payload[section])); setBase(controls.revision); setReady(true);
   }
@@ -35,6 +36,7 @@ export default function AdminControlsPublish({ section, title, readOnly, childre
     try { await action(); } catch (e) { setError(e.message || 'Action failed.'); } finally { setBusy(false); }
   };
   const reload = () => run(async () => {
+    if(changed&&!window.confirm('Reload published settings? Copy any unsaved edits you need to keep first. Saved private drafts remain available.')) return;
     const current = await refreshControls(); if (current.error) throw new Error(current.error);
     setValue(structuredClone(current.payload[section])); setOriginal(structuredClone(current.payload[section])); setBase(current.revision); setReview(false);
     const metadata = await reloadHistory();
@@ -54,13 +56,12 @@ export default function AdminControlsPublish({ section, title, readOnly, childre
     {historyError && <div className="admin-controls-error" role="alert"><AlertCircle size={17} aria-hidden="true" /><span>{historyError}<br /><small>Retrying automatically. Your unsaved changes are preserved.</small></span><button type="button" className="admin-btn outline" disabled={busy} onClick={() => run(() => reloadHistory())}><RefreshCw size={14} />Retry</button></div>}
     {message && <p role="status" className="admin-controls-success"><CheckCircle2 size={17} aria-hidden="true" />{message}</p>}
     {readOnly && <p className="ac-monitor-note"><ShieldCheck size={16} />You have read-only Monitor access.</p>}
+    {ready&&<AdminControlDraftRecovery section={section} value={value} original={original} base={base} readOnly={readOnly} onSaved={setDraft} onResume={(next,current,revision)=>{setValue(next);setOriginal(current);setBase(revision);setReview(false);}} />}
     <fieldset disabled={!ready || readOnly || busy || !!controls.error} className="admin-controls-fields">
       {children({ value, setValue: next => { setValue(next); setReview(false); }, busy, run, setMessage })}
     </fieldset>
     <div className="admin-controls-actions ac-publish-toolbar"><span className="ac-toolbar-caption"><ShieldCheck size={15} />{changed ? "Your changes stay private until published" : "All changes reviewed before publishing"}</span>
       <button type="button" className="admin-btn outline" disabled={busy} onClick={reload}><RefreshCw size={15} className={busy ? "ac-spin" : ""} />Reload</button>
-      <button type="button" className="admin-btn outline" disabled={readOnly || busy || !ready || !!controls.error} onClick={() => run(async () => { await saveControlDraft(section, value, base); setDraft({ payload: structuredClone(value), base_revision: base }); setMessage('Private draft saved. Students still see the published settings.'); })}><Save size={15} />Save draft</button>
-      {draft && <button type="button" className="admin-btn outline" disabled={readOnly || busy} onClick={() => { setValue(structuredClone(validateControls(section, draft.payload))); setBase(draft.base_revision); setReview(false); setMessage('Draft loaded. Review against the published settings.'); }}><FolderOpen size={15} />Load saved draft</button>}
       <button type="button" className="admin-btn" disabled={readOnly || busy || !ready || !!controls.error || stale || !changed} onClick={() => run(async () => { validateControls(section, value); setReview(true); })}><GitCompareArrows size={16} />Review changes<ArrowUpRight size={14} /></button>
     </div>
     {review && <div className="admin-controls-review"><h3><GitCompareArrows size={19} />Review your changes</h3><p>Compare the published settings with your proposal before making it live.</p><div className="admin-controls-table"><table><thead><tr><th>Setting</th><th>Published</th><th>Proposed</th></tr></thead><tbody>{changes(original, value).map(c => <tr key={c.field}><th>{c.field}</th><td>{c.before}</td><td>{c.after}</td></tr>)}</tbody></table></div><button type="button" className="admin-btn" disabled={readOnly || busy || stale || !!controls.error} onClick={publish}>{busy ? <Loader2 size={15} className="ac-spin" /> : <CheckCircle2 size={15} />}{busy ? 'Publishing…' : 'Publish reviewed changes'}</button><button type="button" className="admin-btn outline" onClick={() => setReview(false)}>Keep editing</button></div>}

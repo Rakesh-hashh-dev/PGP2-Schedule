@@ -5,6 +5,7 @@ import { rememberSplitInvite, pendingSplitInvite, clearSplitInvite } from "./lib
 import { MORE_VIEWS, viewTitle } from "./lib/navItems.js";
 import { myAdminRole } from "./lib/adminRoles.js";
 import { watchAdminRole } from "./lib/adminRoleWatcher.js";
+import {mayLeaveAdmin} from './lib/adminNavigationGuard.js';
 import { memoryEvent } from "./lib/companionMemory.js";
 import { Children, cloneElement, isValidElement, useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Suspense, lazy, startTransition } from "react";
 import { createPortal } from "react-dom";
@@ -19,6 +20,10 @@ import { Search, RefreshCw, Calendar, Clock, Sunrise, LogOut, Settings2, Bell, C
 import { useUser, useClerk } from "@clerk/clerk-react";
 import Hero from "./components/Hero.jsx";
 import DayGreeting from "./components/DayGreeting.jsx";
+import DiwaliCelebration from './components/DiwaliCelebration.jsx';
+import DiwaliFireworks from './components/DiwaliFireworks.jsx';
+import DiwaliAmbience from './components/DiwaliAmbience.jsx';
+import { useDiwali } from './hooks/useDiwali.js';
 import SemSummary from "./components/SemSummary.jsx";
 import Timeline from "./components/Timeline.jsx";
 import WeekAgenda from "./components/WeekAgenda.jsx";
@@ -29,6 +34,7 @@ import { DashboardCustomize, ScheduleStatus } from "./components/DashboardExtras
 import { DEFAULT_DASHBOARD, dashboardCardVisible, readDashboardPrefs, saveDashboardPrefs } from "./lib/dashboardPrefs.js";
 import ScheduleModal from "./components/ScheduleModal.jsx";
 import { pushSessionFromParams } from "./lib/pushDeepLink.js";
+import { socialNotificationCopy } from '../supabase/functions/_shared/notificationCopy.js';
 import WeekGlance from "./components/WeekGlance.jsx";
 import SubjectFilter from "./components/SubjectFilter.jsx";
 import Login from "./components/Login.jsx";
@@ -497,6 +503,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     if (requested === "leave") setPlannerSection("leave");
     const previous = currentViewRef.current;
     if (!target || target === previous) return;
+    if(previous==='admin'&&!mayLeaveAdmin()) {
+      if(fromHistory) {try{window.history.pushState({tfView:previous,tfScroll:window.scrollY},'',urlWithView(previous));}catch{}}
+      return;
+    }
 
     // Each view change is a history entry, so the device/browser back button
     // retraces the views visited instead of closing the app. A change that
@@ -1393,27 +1403,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             // Pop up top-right 5-7s flash toast for social events
             const d = row.data || {};
             const fromName = d.from_name || "Someone";
-            if (row.type === "friend_request") {
-              setSocialFlashToast({
-                title: "👥 Friend Request",
-                message: `${fromName} sent you a friend request!`,
-                iconType: "social",
-                duration: 6000
-              });
-            } else if (row.type === "friend_accepted") {
-              setSocialFlashToast({
-                title: "👥 Friend Request Accepted",
-                message: `${fromName} accepted your friend request!`,
-                iconType: "social",
-                duration: 6000
-              });
-            } else if (row.type === "group_invite") {
-              setSocialFlashToast({
-                title: "👥 Group Invitation",
-                message: `${fromName} invited you to ${d.group || "a group"}!`,
-                iconType: "social",
-                duration: 6000
-              });
+            if (["friend_request", "friend_accepted", "group_invite"].includes(row.type)) {
+              const copy = socialNotificationCopy(row.type, { fromName, group: d.group });
+              setSocialFlashToast({ title: copy.title, message: copy.body, iconType: "social", duration: 6000 });
             }
           }
         } else {
@@ -1619,6 +1611,12 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // admin-toggleable via sysConfig.flags.features.specialDayTheme (default on).
   const enableSpecialDayTheme = sysConfig?.flags?.features?.specialDayTheme !== false;
   const specialDay = enableSpecialDayTheme ? getSpecialDay(now) : null;
+  const diwali = useDiwali(userId, now, sysConfig?.flags);
+  const [boardInitialKind, setBoardInitialKind] = useState(null);
+  useEffect(() => {
+    document.body.classList.toggle('theme-diwali', isSignedIn && diwali.enabled);
+    return () => document.body.classList.remove('theme-diwali');
+  }, [isSignedIn, diwali.enabled]);
   useEffect(() => {
     document.body.classList.toggle("theme-tricolor", !!specialDay);
   }, [specialDay]);
@@ -2187,9 +2185,9 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         try {
           meta = JSON.parse(p.from_name);
           name = meta.name || name;
-          if (meta.group) { text = `${name} added you to "${meta.group}"`; kind = "group_invite"; }
-          else if (meta.type === "friend_request") { text = `${name} wants to be your friend`; kind = "friend_request"; }
-          else if (meta.type === "friend_accepted") { text = `${name} accepted your friend request`; kind = "friend_accepted"; }
+          if (meta.group) { text = socialNotificationCopy('group_invite', { fromName: name, group: meta.group }).body.split('\n')[0]; kind = "group_invite"; }
+          else if (meta.type === "friend_request") { text = socialNotificationCopy('friend_request', { fromName: name }).body.split('\n')[0]; kind = "friend_request"; }
+          else if (meta.type === "friend_accepted") { text = socialNotificationCopy('friend_accepted', { fromName: name }).body; kind = "friend_accepted"; }
           else { text = `${name} added you as a friend`; }
         } catch { }
         const pingId = p.id || p.from_id;
@@ -2886,7 +2884,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
             )}
           </div>
       : <>
-            <Timeline list={todayList} current={current} now={now} dateLabel={prettyDate(todayISO)} attendance={attendance} markAttendance={markAttendance} skipInfo={skipInfo} syncStatus={<span className="live"><span className="pulse" /> {scheduleData?._source === "live" ? `Live · synced ${syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}` : "Saved schedule"}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} onOpenSession={setClassPrepSession} focusMode={todayFocusMode} />
+            <Timeline list={todayList} current={current} now={now} dateLabel={prettyDate(todayISO)} attendance={attendance} markAttendance={markAttendance} skipInfo={skipInfo} syncStatus={<span className="live"><span className="pulse" /> {scheduleData?._source === "live" ? `Live · synced ${syncedAgo === 0 ? "just now" : `${syncedAgo}m ago`}` : "Saved schedule"}</span>} onRefresh={handleSync} isSyncing={syncing} premiumMode={premiumMode} onOpenSession={setClassPrepSession} focusMode={todayFocusMode} notesEnabled={!isArchivedView} termNumber={activeTerm?.number} userId={userId} />
           </>
   );
   const todayCards = view === "today" && !compareTarget ? {
@@ -2924,6 +2922,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
   return (
     <div className={`app-shell${v2Active ? " mobile-ui-v2" : " mobile-ui-v1"}`}>
+      <DiwaliAmbience enabled={diwali.enabled} motion={sysConfig?.flags?.greetingPets?.motion !== false} />
+      <DiwaliFireworks enabled={diwali.enabled && diwali.prefs.fireworks} motion={sysConfig?.flags?.greetingPets?.motion !== false} />
       {/* Skip link: first tab stop, jumps past the sidebar/top bar. Focus is
           moved by hand so the URL hash (used by back-button history) stays. */}
       <a
@@ -3486,7 +3486,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                     ))}
                   </div>
                 )}
-                {view === "today" && <DayGreeting now={now} name={user?.firstName || user?.username} petSettings={sysConfig?.flags?.greetingPets} userPetsEnabled={greetingPetsEnabled} pet={myPet} petActions={petActions} petContext={petContext} companionEnabled={enableCompanion} onOpenPet={() => setView("pet")} />}
+                {view === "today" && <DayGreeting now={now} name={user?.firstName || user?.username} petSettings={sysConfig?.flags?.greetingPets} userPetsEnabled={greetingPetsEnabled} pet={myPet} petActions={petActions} petContext={petContext} companionEnabled={enableCompanion} festive={diwali.enabled} festiveOutfit={diwali.outfit} onOpenPet={() => setView("pet")} />}
+                {view === 'today' && <DiwaliCelebration festival={diwali} name={user?.firstName || user?.username} pet={myPet} petSettings={sysConfig?.flags?.greetingPets} petContext={petContext} petsEnabled={enableCompanion} now={now} onOpenBoard={navVisible('board', appControls.payload.navigation) ? () => { setBoardInitialKind('celebrate'); setView('board'); } : undefined} />}
                 <div className="view-date-header">
                   <span className="vdh-label">
                     {view === "notifications" ? `${filteredChanges.length} update${filteredChanges.length !== 1 ? "s" : ""}`
@@ -3842,6 +3843,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                 ? <PetPage
                                     pet={myPet}
                                     companionMemory={companionMemory}
+                                    festive={diwali.outfit}
                                     petActions={petActions}
                                     petContext={petContext}
                                     petSettings={sysConfig?.flags?.greetingPets}
@@ -3850,6 +3852,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                                   />
                               : view === "board"
                                 ? <BoardPage
+                                    initialKind={boardInitialKind}
                                     userId={userId}
                                     userName={user?.firstName || user?.username || "Student"}
                                     isAdmin={isAdmin}

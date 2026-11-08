@@ -1,4 +1,5 @@
 import { useId } from 'react';
+import PetGround from "./PetGround.jsx";
 import PetEyes from './PetEyes.jsx';
 import PetExpression from './PetExpression.jsx';
 import PetGrowthDetail from './PetGrowthDetail.jsx';
@@ -12,7 +13,7 @@ export default function Luna() {
    <radialGradient id={`${id}-fur`} cx="32%" cy="22%" r="85%"><stop stopColor="#8797be"/><stop offset=".5" stopColor="#51638c"/><stop offset="1" stopColor="#303c60"/></radialGradient>
    <linearGradient id={`${id}-silver`} x2=".3" y2="1"><stop stopColor="#fffaf0"/><stop offset="1" stopColor="#cdd9e8"/></linearGradient>
   </defs>
-  <ellipse className="dg-pet-ground" cx="16" cy="30.3" rx="8" ry=".8" fill="#24273e" opacity=".13"/>
+  <PetGround cx={16} cy={30.3} rx={8} ry={.8} />
   <g className="dg-pet-canvas" transform="translate(1 .35) scale(.935)">
    <g className="dg-pet-body pet-rig-frame" data-part="body" data-pet-part="body">
     <g className="dg-pet-tail pet-rig-tail" data-part="tail" data-pet-part="tail">

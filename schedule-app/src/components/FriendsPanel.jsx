@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import ReportContentButton from './ReportContentDialog.jsx';
 import "../styles/friends.css";
 import { Copy, Link2, Sparkles, UserPlus, Users, Trash2, ArrowRight, Plus, X, Check, ChevronDown, ChevronUp, ChevronRight, RefreshCw, Globe, Lock, CheckCircle, AlertCircle, Info, AlertTriangle, Star, CalendarOff, Smile, BarChart3, CalendarPlus, BellRing, Coffee, BookOpen, Utensils, Dumbbell, Moon, MessageSquare, Pencil, Search, LayoutDashboard, GripVertical, Pin } from "lucide-react";
 import { SkeletonText, EmptyState } from "./ui.jsx";
@@ -295,6 +296,14 @@ function GroupChat({ group, userId, userName, focusPollId }) {
   }, [group.id, chatReload]);
 
   useEffect(() => {
+    let active = true;
+    const refresh = () => { if (document.visibilityState !== 'hidden') fetchGroupChatMessages(group.id).then(rows => { if (active) setMessages(rows); }).catch(() => {}); };
+    const timer = setInterval(refresh, 30000);
+    window.addEventListener('focus', refresh);
+    return () => { active = false; clearInterval(timer); window.removeEventListener('focus', refresh); };
+  }, [group.id]);
+
+  useEffect(() => {
     const seenAt = messages.reduce((latest, message) => new Date(message.created_at) > new Date(latest || 0) ? message.created_at : latest, null);
     const read = () => { if (document.visibilityState === "visible" && seenAt) markGroupRead(userId, group.id, seenAt); };
     read(); document.addEventListener("visibilitychange", read);
@@ -395,6 +404,7 @@ function GroupChat({ group, userId, userName, focusPollId }) {
                  {m.id === editingMsg?.id && <span style={{ fontSize: 10, opacity: 0.6, marginLeft: 8, fontStyle: "italic" }}>(Editing)</span>}
                </div>
                <button type="button" className="fr-chat-del-btn" aria-label={`Pin message from ${m.name}`} title="Pin message" onClick={() => pinMessage(m)}><Pin size={12} /></button>
+               {!isMine && <ReportContentButton type="group_message" contentId={m.id} />}
                {canDelete && (
                  <div style={{ display: "flex", gap: 4 }}>
                    <button

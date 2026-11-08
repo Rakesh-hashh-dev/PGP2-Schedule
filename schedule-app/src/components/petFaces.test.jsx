@@ -18,7 +18,8 @@ describe('personality faces across the saved roster', () => {
       const ids = [...markup.matchAll(/ id="([^"]+)"/g)].map(match => match[1]);
       expect(new Set(ids).size).toBe(ids.length);
       const clips = [...markup.matchAll(/clip-path="url\(#([^)]*)\)"/g)].map(match => match[1]);
-      expect(clips.filter(clip => clip.startsWith('eyes'))).toHaveLength(4);
+      // Socket clip + lid mask per eye, two eyes, two instances.
+      expect(clips.filter(clip => clip.startsWith('eyes'))).toHaveLength(8);
       for (const clip of clips) expect(ids).toContain(clip);
       expect(markup).not.toMatch(/NaN|undefined|<image/);
     });

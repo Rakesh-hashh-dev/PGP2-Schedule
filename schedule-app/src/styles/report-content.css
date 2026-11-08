@@ -1,0 +1,4 @@
+.report-content-trigger{border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--muted);font:inherit;font-size:12px;padding:7px 10px;min-height:34px;cursor:pointer}
+.report-content-form{box-sizing:border-box;background:var(--card);color:var(--text);padding:20px;border-radius:16px;width:min(420px,92vw);display:grid;gap:12px;max-height:85dvh;overflow:auto}
+.report-content-form label{display:grid;gap:6px}.report-content-form select,.report-content-form textarea,.report-content-form button{box-sizing:border-box;max-width:100%;min-height:38px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);padding:8px;font:inherit}
+.report-content-form textarea{min-height:96px;resize:vertical}.report-content-form button{cursor:pointer}.report-content-form button:disabled{opacity:.6}

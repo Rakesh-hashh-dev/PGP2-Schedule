@@ -14,6 +14,7 @@ const MY_CODE_KEY = "pgp2.my_share_code";
 
 import { LEGEND } from "../data/schedule.js";
 import { supabase } from "./supabase.js";
+import { socialNotificationCopy } from '../../supabase/functions/_shared/notificationCopy.js';
 
 // Deterministic name → gradient pair, shared by FriendsPanel and CompareView
 const AVATAR_PALETTE = [
@@ -623,17 +624,6 @@ export async function deleteAllFriendPings(userId) {
 // This gains push coverage + a cross-device inbox + read state for free.
 // See docs/notification-architecture.md §Phase 3.
 
-const SOCIAL_COPY = {
-  friend_request:  (name) => ({ title: "New friend request", body: `${name} wants to compare schedules` }),
-  friend_accepted: (name) => ({ title: "Friend request accepted", body: `${name} accepted your request` }),
-  group_invite:    (name, group) => ({ title: "Added to a group", body: `${name} added you to "${group}"` }),
-  friend_removed:  (name) => ({ title: "Friend removed", body: `${name} removed you` }),
-  group_poll:      (name, group) => ({ title: "📊 New poll", body: `${name} started a poll in "${group}"` }),
-  board_contact:   (name, title) => ({ title: "📦 Campus Board", body: `${name} is interested in "${title}"` }),
-  board_comment:   (name, title) => ({ title: "💬 New comment", body: `${name} commented on "${title}"` }),
-  board_reply:     (name, title) => ({ title: "💬 Poster replied", body: `${name} replied on "${title}"` }),
-};
-
 /**
  * Insert a social notification for another user.
  * @param type one of friend_request | friend_accepted | group_invite | friend_removed
@@ -644,7 +634,7 @@ const SOCIAL_COPY = {
 export async function sendSocialNotification(targetUserId, type, meta = {}) {
   if (!targetUserId || !type || !meta.fromId || targetUserId === meta.fromId) return;
   const name = meta.fromName || "Someone";
-  const copy = SOCIAL_COPY[type]?.(name, meta.group) || { title: name, body: "" };
+  const copy = socialNotificationCopy(type, { ...meta, fromName: name });
   const dedupKey =
     type === "group_invite"
       ? `social:group_invite:${meta.group || ""}:${meta.fromId}`
@@ -662,7 +652,7 @@ export async function sendSocialNotification(targetUserId, type, meta = {}) {
       user_id: targetUserId,
       type,
       title: copy.title,
-      body: meta.preview ? `${copy.body}: “${meta.preview}”` : copy.body,
+      body: copy.body,
       url: isBoard ? `/?view=board${meta.postId ? `&post=${meta.postId}` : ""}` : "/?view=friends",
       icon: "/icon-192.png",
       data: {
@@ -707,6 +697,7 @@ export async function fetchGroupChatMessages(groupId) {
       .from("group_messages")
       .select("*")
       .eq("group_id", groupId)
+      .eq('moderation_hidden', false)
       .gte("created_at", cutoff)
       .order("created_at", { ascending: true });
     if (error) throw error;

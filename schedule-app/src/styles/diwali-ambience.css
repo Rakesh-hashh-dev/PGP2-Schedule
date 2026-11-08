@@ -1,0 +1,23 @@
+.theme-diwali .app-shell{isolation:isolate}
+.diwali-ambience{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden;contain:layout paint;user-select:none}
+.diwali-ambience[hidden]{display:none}
+.diwali-ambient-glow{position:absolute;width:420px;height:420px;right:-260px;top:25%;border-radius:50%;background:radial-gradient(circle,#d99b4c12,transparent 68%);animation:diwali-background-glow 22s ease-in-out infinite alternate}
+.diwali-ambient-rangoli{position:absolute;width:260px;height:260px;right:-138px;top:9%;color:#bd8748;opacity:.11;animation:diwali-background-turn 100s linear infinite}
+.diwali-ambient-rangoli svg{display:block;width:100%;height:100%}
+.diwali-grounded-diya{position:fixed;z-index:30;pointer-events:none;user-select:none;display:block;width:104px;height:94px;right:20px;bottom:calc(14px + env(safe-area-inset-bottom));opacity:.9}
+.diwali-floating-lantern{position:absolute;display:block;width:49px;height:71px;bottom:-100px;opacity:0;animation:diwali-lantern-rise 32s linear infinite}
+.diwali-floating-lantern svg{display:block;width:100%;height:100%}
+.diwali-floating-lantern-0{left:3%;animation-delay:-9s}
+.diwali-floating-lantern-1{right:4%;width:39px;height:57px;animation-delay:-23s;animation-duration:39s}
+.diwali-floating-lantern-2{left:12%;width:31px;height:45px;animation-delay:-17s;animation-duration:43s}
+.diwali-ambient-lights>span{position:absolute;left:calc(3% + var(--light-index)*10%);bottom:-18px;width:3px;height:3px;border-radius:50%;background:#dbb66f;box-shadow:0 0 7px #e0b26266;opacity:0;animation:diwali-background-drift calc(17s + var(--light-index)*1.3s) linear infinite;animation-delay:calc(var(--light-index)*-2.7s)}
+.diwali-ambient-lights>span:nth-child(3n){width:2px;height:2px;background:#c28ca7;box-shadow:none}
+@keyframes diwali-lantern-rise{0%{transform:translate(0,0) rotate(-4deg);opacity:0}10%{opacity:.38}45%{transform:translate(16px,-55vh) rotate(4deg);opacity:.3}85%{opacity:.24}100%{transform:translate(-8px,calc(-100vh - 140px)) rotate(-3deg);opacity:0}}
+@keyframes diwali-background-turn{to{transform:rotate(360deg)}}
+@keyframes diwali-background-drift{0%{transform:translate(0,0);opacity:0}12%{opacity:.35}70%{opacity:.2}100%{transform:translate(28px,-85vh);opacity:0}}
+@keyframes diwali-background-glow{to{transform:translate(-30px,45px);opacity:.5}}
+.diwali-ambience[data-paused=true] *{animation-play-state:paused!important}
+.diwali-ambience[data-motion=off] *{animation:none!important}
+.diwali-ambience[data-motion=off] :is(.diwali-ambient-lanterns,.diwali-ambient-lights){display:none}
+@media(max-width:600px){.diwali-grounded-diya{width:68px;height:61px;right:7px;bottom:calc(78px + env(safe-area-inset-bottom));opacity:.45}.diwali-floating-lantern{width:33px;height:48px}.diwali-floating-lantern-0{left:1%}.diwali-floating-lantern-1{right:1%;width:28px;height:41px}.diwali-floating-lantern-2,.diwali-ambient-lights>span:nth-child(n+7){display:none}.diwali-ambient-rangoli{width:190px;height:190px;right:-128px;opacity:.08}.diwali-ambient-glow{display:none}}
+@media(prefers-reduced-motion:reduce){.diwali-ambience *{animation:none!important}.diwali-ambient-lanterns,.diwali-ambient-lights{display:none}}

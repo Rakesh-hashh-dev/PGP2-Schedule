@@ -1,4 +1,4 @@
-// Shared by dispatch and previews: Android renders one notification in two states.
+// Shared by dispatch and PC/mobile previews; the OS owns the final card layout.
 type PushRow = {
   title: string; body?: string | null; type: string; url?: string | null;
   data?: Record<string, unknown> | null; dedup_key?: string; created_at?: string;
@@ -31,12 +31,24 @@ export function buildPushPayload(row: PushRow) {
   } else if (row.type === "class_cancelled" || row.type === "schedule_change") {
     // Hidden cancelled classes may no longer have a timetable row.
     url = "/?view=notifications";
-    actions = [{ action: "open", title: "View changes", url }, { action: "today", title: "Today's schedule", url: "/?view=today" }];
+    const today = new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
+    const future = typeof detail.date === 'string' && detail.date > today;
+    actions = [{ action: "open", title: "View changes", url }, future
+      ? { action: "week", title: "This week", url: "/?view=week" }
+      : { action: "today", title: "Today's schedule", url: "/?view=today" }];
   } else if (row.type === "daily_summary") {
     url = "/?view=today";
     actions = [{ action: "open", title: "Today's schedule", url }, { action: "week", title: "This week", url: "/?view=week" }];
   } else if (row.type === "admin_broadcast") {
     actions = [{ action: "open", title: "Read update", url }, { action: "dismiss", title: "Dismiss", url: "" }];
+  } else {
+    const label: Record<string, string> = {
+      friend_request: "View request", friend_accepted: "Open Friends", group_invite: "View group",
+      group_poll: "View poll", meetup_reminder: "View meetup", free_nudge: "Open Friends",
+      board_contact: "View post", board_comment: "View comment", board_reply: "View reply",
+      festive_greeting: "See greeting",
+    };
+    if (label[row.type]) actions = [{ action: "open", title: label[row.type], url }];
   }
   return {
     title: row.title, body: row.body || "", type: row.type, url,

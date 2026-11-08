@@ -1,0 +1,16 @@
+.class-note-reminder { display: inline-flex; margin-inline-start: auto; flex-shrink: 0; }
+.timeline-today .row-meta > .class-note-reminder::before { content: none; }
+.timeline-today:has(.class-note-cloud), .timeline-today .row-body:has(.class-note-cloud) { overflow: visible !important; }
+.timeline-today .row:has(.class-note-cloud) { z-index: 15; }
+.class-note-icon { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 5px 8px; border: 1px solid var(--border); border-radius: 10px; background: var(--card); color: var(--text); font: inherit; font-size: 11px; cursor: pointer; }
+.class-note-cloud { position: absolute; bottom: calc(100% + 10px); right: 12px; z-index: 12; display: flex; align-items: flex-start; width: min(260px, calc(100vw - 100px)); padding: 9px; border: 1px solid var(--border); border-radius: 23px; background: var(--card); color: var(--text); box-shadow: 0 8px 26px #0002; animation: note-cloud-in .25s ease both; }
+.class-note-cloud::after { content: ""; position: absolute; bottom: -7px; right: 16px; width: 12px; height: 12px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); border-radius: 0 0 5px; background: var(--card); transform: rotate(45deg); }
+.class-note-cloud-open { display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; min-height: 44px; padding: 3px; border: 0; background: transparent; color: inherit; font: inherit; font-size: 12px; line-height: 1.4; text-align: left; cursor: pointer; }
+.class-note-cloud-open svg { flex-shrink: 0; color: var(--violet); }
+.class-note-cloud-open strong { display: block; margin-top: 3px; font-size: 11px; color: var(--violet); }
+.class-note-dismiss { display: grid; place-items: center; flex-shrink: 0; width: 28px; height: 28px; border: 0; border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer; }
+.class-note-reminder button:focus-visible { outline: 2px solid var(--violet); outline-offset: 3px; }
+.class-note-cloud.is-leaving { animation: note-cloud-out .25s ease both; pointer-events: none; }
+@keyframes note-cloud-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes note-cloud-out { to { opacity: 0; transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .class-note-cloud, .class-note-cloud.is-leaving { animation-duration: .01ms; } }

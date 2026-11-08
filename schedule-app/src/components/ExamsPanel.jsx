@@ -44,7 +44,9 @@ function pad2(n) { return String(n).padStart(2, "0"); }
 // for generic exams (e.g. "END Term", "Term Registration") that apply to everyone.
 function examSubjectCode(exam, allCodes) {
   if (exam.code) return exam.code;
-  const name = (exam.name || "").toUpperCase();
+  // Drop intra-word punctuation so sheet spellings like "E-Com" still match
+  // the course code "ECOM" (word boundaries from spaces/newlines are kept).
+  const name = (exam.name || "").toUpperCase().replace(/[-.'’_/]/g, "");
   if (!name || !allCodes) return null;
   const hit = allCodes.find(code => {
     const re = new RegExp(`\\b${code.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");

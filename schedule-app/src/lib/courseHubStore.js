@@ -13,6 +13,7 @@ export function loadCourseHubItems() {
 
 export function saveCourseHubItems(items) {
   try { localStorage.setItem(COURSE_HUB_KEY, JSON.stringify(items)); } catch { /* device storage can be unavailable */ }
+  if (typeof window !== "undefined" && window.dispatchEvent) window.dispatchEvent(new Event("course-hub-items-changed"));
 }
 
 export function mergeCourseHubItems(local, remote) {

@@ -84,16 +84,17 @@ function moodKnobs() {
   const moods = new Map();
   const re = /\.dg-pet\[data-mood="([a-z]+)"\] \{([^}]*)\}/g;
   for (const [, mood, body] of CSS.matchAll(re)) {
-    const knobs = moods.get(mood) || { droop: 0, drop: 0, lean: 0, eye: 1 };
+    const knobs = moods.get(mood) || { droop: 0, drop: 0, lean: 0, eye: 1, pupil: 1 };
     const grab = (name) => new RegExp(`--pet-${name}:\\s*([^;]+);`).exec(body)?.[1];
     if (grab("ear-droop")) knobs.droop = num(grab("ear-droop"), "deg");
     if (grab("drop")) knobs.drop = num(grab("drop"), "px");
     if (grab("lean")) knobs.lean = num(grab("lean"), "deg");
     if (grab("eye-open")) knobs.eye = num(grab("eye-open"), "");
+    if (grab("pupil")) knobs.pupil = num(grab("pupil"), "");
     moods.set(mood, knobs);
   }
   // "content" is the baseline and deliberately has no rules of its own.
-  moods.set("content", { droop: 0, drop: 0, lean: 0, eye: 1 });
+  moods.set("content", { droop: 0, drop: 0, lean: 0, eye: 1, pupil: 1 });
   return moods;
 }
 
@@ -189,7 +190,24 @@ function posed(markup, boxes, knobs, gain) {
     out = out.replace(`class="dg-pet-${part.startsWith("ear") ? "ear " : "wing "}dg-pet-${part}"`,
       `class="x" transform="rotate(${deg.toFixed(2)} ${cx.toFixed(2)} ${cy.toFixed(2)})"`);
   }
-  if (boxes.eyes && knobs.eye !== 1) {
+  // Lids (PetEyes.jsx): eye-open below 1 slides the lid mask + line down.
+  if (knobs.eye < 1) {
+    out = out.replace(/class="(dg-pet-lid [^"]*)" data-lid-travel="([d.]+)"/g, (_, cls, travel) =>
+      `class="${cls}" transform="translate(0 ${(Math.min(1, (1 - knobs.eye) * 1.6) * Number(travel)).toFixed(3)})"`);
+  }
+  // Pupil dilation; slits widen three times faster, horizontally only.
+  const pupil = knobs.pupil ?? 1;
+  if (pupil !== 1) {
+    const slit = Math.min(1.9, Math.max(.45, 1 + (pupil - 1) * 3));
+    out = out.replace(/<ellipse class="dg-pet-pupil" data-pupil="round" cx="([-d.]+)" cy="([-d.]+)"/g, (m, cx, cy) =>
+      `<ellipse transform="translate(${cx} ${cy}) scale(${pupil}) translate(${-cx} ${-cy})" class="p" data-pupil="round" cx="${cx}" cy="${cy}"`);
+    out = out.replace(/<path class="dg-pet-pupil" data-pupil="slit" fill="[^"]*" d="([^"]+)"/g, (m, d) => {
+      const n = d.match(/-?[d.]+/g).map(Number);
+      const cx = n[0], cy = (n[1] + n[5]) / 2;
+      return m.replace('<path ', `<path transform="translate(${cx} ${cy}) scale(${slit} 1) translate(${-cx} ${-cy})" `);
+    });
+  }
+  if (boxes.eyes && knobs.eye > 1) {
     const cx = boxes.eyes.x + boxes.eyes.w / 2, cy = boxes.eyes.y + boxes.eyes.h / 2;
     out = out.replace('class="dg-pet-eyes"',
       `class="e" transform="translate(${cx.toFixed(2)} ${cy.toFixed(2)}) scale(1 ${knobs.eye}) translate(${-cx.toFixed(2)} ${-cy.toFixed(2)})"`);
@@ -251,7 +269,7 @@ async function main() {
       const x = LABEL + col * CELL;
       parts.push(`<rect x="${x}" y="${y}" width="${CELL}" height="${CELL}" fill="${row % 2 ? "#efeae0" : "#f4f1ea"}"/>`);
       parts.push(`<svg class="pet-mood-${mood}" x="${x + 4}" y="${y + 4}" width="${CELL - 8}" height="${CELL - 8}" viewBox="0 0 32 32">${pet.art === "sprite"
-        ? posed(rasterFrames.get(({ happy: "wait", proud: "wait", playful: "wait", focused: "think", bored: "think", curious: "review", restless: "review", tired: "rest", sleepy: "rest", cozy: "rest", missing: "rest", excited: "jump", celebrating: "jump", reunion: "jump", hyped: "jump", determined: "think", weekend: "rest", rooting: "wait", birthday: "jump", festive: "jump" })[mood] || "idle"), {}, { droop: 0, eye: 1, drop: 0, lean: 0 }, 1)
+        ? posed(rasterFrames.get(({ happy: "wait", proud: "wait", playful: "wait", focused: "think", bored: "think", curious: "review", restless: "review", tired: "rest", sleepy: "rest", cozy: "rest", missing: "rest", excited: "jump", celebrating: "jump", reunion: "jump", hyped: "jump", determined: "think", weekend: "rest", rooting: "wait", birthday: "jump", festive: "jump" })[mood] || "idle"), {}, { droop: 0, eye: 1, drop: 0, lean: 0, pupil: 1 }, 1)
         : posed(markup, boxes, moods.get(mood), gain)}</svg>`);
     });
   }

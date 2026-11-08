@@ -1,6 +1,7 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { supabase } from './supabase';
 import { DEFAULT_CONTROLS, normalizeControls, validateControls } from './controlsSchema.js';
+import { loadWorkspaceDraft,saveWorkspaceDraft } from './adminDraftRecovery.js';
 
 const listeners = new Set();
 const CACHE = 'pgp2.app-controls-v1';
@@ -44,13 +45,11 @@ export function useAppControls() {
   return snapshot;
 }
 export async function loadControlDraft(section) {
-  const { data, error } = await supabase.from('app_controls_drafts').select('*').eq('section', section).maybeSingle();
-  if (error) throw error; return data;
+  return loadWorkspaceDraft(section);
 }
-export async function saveControlDraft(section, payload, revision) {
+export async function saveControlDraft(section, payload, revision, draftRevision=0) {
   validateControls(section, payload);
-  const { error } = await supabase.rpc('admin_save_controls_draft', { p_section: section, p_payload: payload, p_revision: revision });
-  if (error) throw error;
+  return saveWorkspaceDraft(section,payload,state.payload[section],revision,draftRevision);
 }
 export async function listControlVersions() {
   const { data, error } = await supabase.from('app_controls_versions').select('*').order('revision', { ascending: false }).limit(30);

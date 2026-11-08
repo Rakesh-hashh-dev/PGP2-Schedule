@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import ReportContentButton from './ReportContentDialog.jsx';
 import {
   Package, Plus, X, Check, Flag, Trash2, MessageSquare, MessageCircle, Phone, ImagePlus, ShieldAlert, CheckCircle2,
   IndianRupee, Search, Backpack, Tag, Megaphone, MapPin, Share2, Pencil, RefreshCw, ChevronLeft, ChevronRight,
@@ -66,6 +67,7 @@ const KIND_ICONS = {
   found: Backpack,
   sell: Tag,
   ask: Megaphone,
+  celebrate: Sparkles,
 };
 
 const SORTS = [
@@ -79,12 +81,14 @@ const TITLE_HINTS = {
   found: "What did you find?",
   sell: "What are you selling?",
   ask: "What are you looking for?",
+  celebrate: 'A wish, a campus moment, a little celebration…',
 };
 
 const LOCATION_LABELS = {
   lost: "Last seen at",
   found: "Found at",
   sell: "Pickup spot",
+  celebrate: 'Celebration spot',
 };
 
 function KindIcon({ kind, size = 14, className = "" }) {
@@ -128,11 +132,11 @@ function StatusBadges({ post, isAdmin }) {
 
 let photoKey = 0;
 
-function BoardComposer({ userId, userName, post, onSaved, onClose }) {
+function BoardComposer({ userId, userName, post, onSaved, onClose, initialKind }) {
   useBackClose(onClose);
   const dialogRef = useDialog(true, onClose);
   const editing = !!post;
-  const [kind, setKind] = useState(post?.kind || "lost");
+  const [kind, setKind] = useState(post?.kind || initialKind || "lost");
   const [title, setTitle] = useState(post?.title || "");
   const [body, setBody] = useState(post?.body || "");
   const [price, setPrice] = useState(post?.price ?? "");
@@ -235,7 +239,7 @@ function BoardComposer({ userId, userName, post, onSaved, onClose }) {
         </label>
         <label className="board-field">
           <span className="board-field-label">Details <em>Optional</em></span>
-          <textarea className="board-input board-textarea" placeholder="Colour, brand, condition, when — anything that helps…" maxLength={500} rows={3} value={body} onChange={e => setBody(e.target.value)} />
+          <textarea className="board-input board-textarea" placeholder={kind === 'celebrate' ? 'Share a Diwali wish or the story behind your campus celebration…' : 'Colour, brand, condition, when — anything that helps…'} maxLength={500} rows={3} value={body} onChange={e => setBody(e.target.value)} />
           <span className="board-char-count">{body.length}/500</span>
         </label>
 
@@ -263,13 +267,14 @@ function BoardComposer({ userId, userName, post, onSaved, onClose }) {
           </label>
         )}
 
-        <label className="board-field">
+        {kind !== 'celebrate' && <label className="board-field">
           <span className="board-field-label">Contact <em>Optional — a 10-digit number adds WhatsApp &amp; call buttons</em></span>
           <input className="board-input" placeholder="Phone or room number" maxLength={80} value={contact} onChange={e => setContact(e.target.value)} />
-        </label>
+        </label>}
 
         <div className="board-field">
           <span className="board-field-label">Photos <em>{photos.length}/{MAX_BOARD_PHOTOS} · paste or drop works too</em></span>
+          {kind === 'celebrate' && <p className="board-celebrate-note">Photos use shareable image links. Post people’s photos only with their permission. Reports go to the campus moderation queue.</p>}
           <div className="board-photo-row">
             <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={e => addFiles(e.target.files)} />
             {photos.map(p => (
@@ -324,7 +329,8 @@ function CommentThread({ post, userId, userName, isAdmin, onToast }) {
     });
     load();
     const unsub = subscribeBoardComments(post.id, load);
-    return () => { alive = false; unsub(); };
+    const interval = setInterval(load, 30000);
+    return () => { alive = false; unsub(); clearInterval(interval); };
   }, [post.id]);
 
   async function submit(e) {
@@ -350,7 +356,7 @@ function CommentThread({ post, userId, userName, isAdmin, onToast }) {
     }
   }
 
-  async function report(c) {
+  async function _report(c) {
     setReported(prev => new Set(prev).add(c.id));
     const n = await reportBoardComment(c.id);
     onToast(n == null ? "Couldn’t send report — try again" : "Thanks — reported to moderators");
@@ -390,7 +396,7 @@ function CommentThread({ post, userId, userName, isAdmin, onToast }) {
                 <div className="board-comment-actions">
                   {!mine && !c.hidden && (reported.has(c.id)
                     ? <span>Reported</span>
-                    : <button type="button" onClick={() => report(c)}>Report</button>)}
+                    : <ReportContentButton type="board_comment" contentId={c.id} />)}
                   {isAdmin && c.hidden && <button type="button" onClick={() => restore(c)}>Restore</button>}
                   {canDelete && (confirmId === c.id
                     ? <><button type="button" className="is-danger" onClick={() => remove(c)}>Confirm delete</button><button type="button" onClick={() => setConfirmId(null)}>Keep</button></>
@@ -431,7 +437,7 @@ function CommentThread({ post, userId, userName, isAdmin, onToast }) {
 
 // ── Detail sheet ─────────────────────────────────────────────────────────────
 
-function PostSheet({ post, posts, userId, userName, isAdmin, pinged, reported, onContact, onReport, onStatus, onRenew, onDelete, onEdit, onOpen, onToast, onClose }) {
+function PostSheet({ post, posts, userId, userName, isAdmin, pinged, reported, onContact, onReport: _onReport, onStatus, onRenew, onDelete, onEdit, onOpen, onToast, onClose }) {
   useBackClose(onClose);
   const dialogRef = useDialog(true, onClose);
   const [photoIdx, setPhotoIdx] = useState(0);
@@ -522,7 +528,7 @@ function PostSheet({ post, posts, userId, userName, isAdmin, pinged, reported, o
             {own && <div><dt><RefreshCw size={13} /> Expires</dt><dd>{left <= 0 ? "Today" : `In ${left} day${left === 1 ? "" : "s"}`}</dd></div>}
           </dl>
 
-          {!own && post.status === "open" && (
+          {!own && post.status === "open" && post.kind !== 'celebrate' && (
             <div className="board-sheet-cta">
               {pinged
                 ? <span className="board-act board-act-done board-act-wide"><Check size={14} /> Pinged — they’ll see it in their notifications</span>
@@ -553,7 +559,7 @@ function PostSheet({ post, posts, userId, userName, isAdmin, pinged, reported, o
             {!own && post.status === "open" && (
               reported
                 ? <span className="board-act board-act-done"><Flag size={12} /> Reported</span>
-                : <button type="button" className="board-act board-act-quiet" onClick={() => onReport(post)}><Flag size={12} /> Report</button>
+                : <ReportContentButton type="board_post" contentId={post.id} />
             )}
             {isAdmin && !own && post.status !== "removed" && (
               <button type="button" className="board-act board-act-danger" onClick={() => onStatus(post, "removed")}><ShieldAlert size={12} /> Remove</button>
@@ -627,6 +633,8 @@ function PostCard({ post, userId, isAdmin, pinged, onOpen, onContact }) {
                 <span className="board-own-tag">Your post</span>
                 {left != null && left <= 5 && <span className="board-expiry"><Clock size={11} /> {left <= 0 ? "Expires today" : `${left}d left`}</span>}
               </>
+            ) : post.kind === 'celebrate' ? (
+              <span className="board-act"><MessageSquare size={13} /> Read wishes &amp; comments</span>
             ) : pinged ? (
               <span className="board-act board-act-done"><Check size={13} /> Pinged</span>
             ) : (
@@ -643,9 +651,9 @@ function PostCard({ post, userId, isAdmin, pinged, onOpen, onContact }) {
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
-export default function BoardPage({ userId, userName, isAdmin }) {
+export default function BoardPage({ userId, userName, isAdmin, initialKind }) {
   const [posts, setPosts] = useState(null); // null = loading, [] = empty
-  const [filter, setFilter] = useState("all"); // all | kind | mine | reported (admin)
+  const [filter, setFilter] = useState(BOARD_KINDS.some(kind => kind.id === initialKind) ? initialKind : 'all'); // all | kind | mine | reported (admin)
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("new");
   const [showDone, setShowDone] = useState(false);
@@ -668,8 +676,9 @@ export default function BoardPage({ userId, userName, isAdmin }) {
     reload.current = load;
     load();
     const unsub = subscribeBoard(load);
+    const interval = setInterval(load, 30000);
     const t = setTimeout(() => { if (alive) setPosts(p => p ?? []); }, 4000); // offline fallback
-    return () => { alive = false; unsub(); clearTimeout(t); clearTimeout(toastTimer.current); };
+    return () => { alive = false; unsub(); clearInterval(interval); clearTimeout(t); clearTimeout(toastTimer.current); };
   }, []);
 
   function showToast(msg) {
@@ -786,6 +795,7 @@ export default function BoardPage({ userId, userName, isAdmin }) {
       </section>
 
       <section className="board-feed">
+        {filter === 'celebrate' && <div className="board-celebrate-intro"><Sparkles size={20} aria-hidden="true" /><div><h2>A little light, shared with campus.</h2><p>Diwali wishes, rangoli, and moments worth keeping. Add a wish or a photo; existing comments, reporting, and moderation apply.</p></div></div>}
         <div className="board-toolbar">
           <label className="board-search">
             <Search size={15} aria-hidden="true" />
@@ -872,6 +882,7 @@ export default function BoardPage({ userId, userName, isAdmin }) {
 
       {composer && (
         <BoardComposer
+          initialKind={filter === 'celebrate' ? 'celebrate' : undefined}
           userId={userId}
           userName={userName}
           post={composer.post}

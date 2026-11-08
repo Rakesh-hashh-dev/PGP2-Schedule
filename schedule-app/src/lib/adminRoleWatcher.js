@@ -1,3 +1,5 @@
+import { isKnownAdminRole } from './adminCapabilities.js';
+
 // Refreshes navigation eligibility only. The database remains the authority for
 // admin reads and Monitor write restrictions; no role is stored in localStorage.
 export function watchAdminRole({
@@ -22,7 +24,7 @@ export function watchAdminRole({
     clearRetry();
     pending = Promise.resolve().then(loadRole).then(role => {
       if (!active) return;
-      if (role !== null && role !== 'monitor' && role !== 'superadmin') {
+      if (role !== null && !isKnownAdminRole(role)) {
         throw new Error('Unrecognised admin role response');
       }
       failures = 0;

@@ -12,6 +12,7 @@
 // spoofed role in the browser buys nothing.
 
 import { supabase } from "./supabase";
+import { hasAdminCapability } from './adminCapabilities.js';
 
 export const ROLE_MONITOR = "monitor";
 export const ROLE_SUPERADMIN = "superadmin";
@@ -19,7 +20,11 @@ export const ROLE_SUPERADMIN = "superadmin";
 export const ROLE_LABELS = {
   [ROLE_MONITOR]: "Monitor (read-only)",
   [ROLE_SUPERADMIN]: "Superadmin",
+  schedule_editor: 'Schedule Editor',
+  communications_editor: 'Communications Editor',
+  moderator: 'Moderator',
 };
+export const ROLE_DESCRIPTIONS={monitor:'Read-only access to supported admin workspaces.',schedule_editor:'Can publish timetable changes. Mess menus and system settings require a Superadmin.',communications_editor:'Can publish announcements and send notifications; cannot change classes or system settings.',moderator:'Can review reports and inspect student support; cannot read private notes or publish settings.',superadmin:'Full admin access, including private notes, system controls and role management.'};
 
 // public.admins has no client write policy; role changes go through
 // SECURITY DEFINER RPCs, which is also where the last-superadmin guard lives.
@@ -48,7 +53,7 @@ export async function myAdminRole() {
 
 // UX gate only — see the note at the top of this file.
 export function canWrite(role) {
-  return role !== ROLE_MONITOR;
+  return hasAdminCapability(role, 'system.publish');
 }
 
 // Turn the database's error into something an admin can act on. A monitor's
@@ -56,4 +61,4 @@ export function canWrite(role) {
 // so callers that see "no rows" on a write they expected to land should say so
 // with this rather than inventing a cause.
 export const READ_ONLY_MESSAGE =
-  "Your account is a read-only Monitor. Ask a Superadmin to make this change.";
+  "Your role cannot perform this action. Ask an administrator with the required permission.";
