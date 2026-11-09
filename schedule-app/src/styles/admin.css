@@ -1590,15 +1590,194 @@
   .admin-masonry[data-active-tab="overview"] > .admin-span-all { grid-column: 1 / -1; }
 }
 
-.admin-change-dock { position: fixed; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); z-index: 90; display: flex; align-items: center; justify-content: space-between; gap: 20px; width: min(980px, calc(100vw - 32px)); padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--violet) 38%, var(--border)); border-radius: 17px; background: color-mix(in srgb, var(--card) 92%, transparent); box-shadow: 0 20px 60px rgba(0, 0, 0, .24); backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px); transform: translateX(-50%); }
-.admin-change-dock-copy { display: flex; align-items: center; gap: 11px; min-width: 0; }
+/* ── Floating Deployment Success Toast ────────────────────────── */
+.admin-deploy-toast {
+  position: fixed;
+  top: max(20px, env(safe-area-inset-top));
+  left: calc(50% + (var(--admin-sidebar-offset, 0px) / 2));
+  transform: translateX(-50%);
+  z-index: 10005;
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  width: min(560px, calc(100vw - var(--admin-sidebar-offset, 0px) - 32px));
+  max-width: calc(100vw - 24px);
+  padding: 13px 16px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--card) 95%, transparent);
+  border: 1px solid color-mix(in srgb, var(--live, #10b981) 50%, var(--border));
+  box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.42), 0 0 24px rgba(16, 185, 129, 0.22);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  animation: admin-deploy-toast-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  box-sizing: border-box;
+}
+
+@keyframes admin-deploy-toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -24px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+.admin-deploy-toast-icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--live, #10b981);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.admin-deploy-toast-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-deploy-toast-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 3px;
+}
+
+.admin-deploy-toast-head strong {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.admin-deploy-toast-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 1.5px 7px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--live, #10b981) 18%, transparent);
+  color: var(--live-text, #059669);
+  border: 1px solid color-mix(in srgb, var(--live, #10b981) 40%, transparent);
+}
+
+.admin-deploy-toast-live i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--live, #10b981);
+  box-shadow: 0 0 8px var(--live, #10b981);
+  animation: admin-pulse 2s infinite;
+}
+
+@keyframes admin-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.85); }
+}
+
+.admin-deploy-toast-time {
+  font-size: 11px;
+  color: var(--muted);
+  margin-left: auto;
+}
+
+.admin-deploy-toast-content p {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.admin-deploy-toast-close {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background-color 0.15s;
+}
+
+.admin-deploy-toast-close:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* ── Admin Staged Changes Floating Dock ────────────────────────── */
+:root {
+  --admin-sidebar-offset: 0px;
+}
+
+@media (min-width: 1367px), (min-width: 768px) and (orientation: landscape) {
+  :root {
+    --admin-sidebar-offset: 256px;
+  }
+  .app-shell:has(.sidebar.collapsed),
+  body:has(.sidebar.collapsed) {
+    --admin-sidebar-offset: 68px;
+  }
+}
+
+.admin-change-dock {
+  position: fixed;
+  left: calc(50% + (var(--admin-sidebar-offset, 0px) / 2));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 95;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: min(880px, calc(100vw - var(--admin-sidebar-offset, 0px) - 40px));
+  max-width: calc(100vw - var(--admin-sidebar-offset, 0px) - 24px);
+  padding: 10px 16px;
+  border: 1px solid color-mix(in srgb, var(--violet) 40%, var(--border));
+  border-radius: 17px;
+  background: color-mix(in srgb, var(--card) 96%, transparent);
+  box-shadow: 0 16px 48px -6px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  transform: translateX(-50%);
+  box-sizing: border-box;
+  transition: bottom 0.25s ease, left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.admin-change-dock-copy {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
 .admin-change-dock-copy > span:last-child { min-width: 0; }
 .admin-change-dock-copy strong, .admin-change-dock-copy small { display: block; }
-.admin-change-dock-copy strong { font-size: 14px; }
-.admin-change-dock-copy small { margin-top: 2px; color: var(--muted); font-size: 12px; }
-.admin-change-dock-actions { display: flex; align-items: center; gap: 7px; flex: 0 0 auto; }
-.admin-change-dock-actions .admin-btn { min-height: 38px; padding: 8px 12px; }
-.admin-page.has-pending-changes { padding-bottom: 108px; }
+.admin-change-dock-copy strong { font-size: 14px; white-space: nowrap; }
+.admin-change-dock-copy small { margin-top: 1px; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.admin-change-dock-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.admin-change-dock-actions .admin-btn {
+  min-height: 38px;
+  padding: 8px 14px;
+  white-space: nowrap;
+}
+
+.admin-page.has-pending-changes {
+  padding-bottom: 120px;
+}
 
 .admin-confirm-impact { display: flex; align-items: flex-start; gap: 10px; padding: 13px 14px; border: 1px solid color-mix(in srgb, var(--amber) 38%, var(--border)); border-radius: 12px; background: color-mix(in srgb, var(--amber) 8%, var(--bg)); color: var(--text); font-size: 13px; line-height: 1.5; }
 .admin-confirm-impact svg { flex: 0 0 auto; color: var(--amber-text); }
@@ -1607,23 +1786,85 @@
 .admin-confirm-field { display: grid; gap: 7px; margin-top: 16px; font-size: 13px; }
 .admin-confirm-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
 
-@media (max-width: 760px) {
+/* ── Tablet View ── */
+@media (max-width: 1024px) and (min-width: 641px) {
+  .admin-change-dock {
+    gap: 12px;
+    padding: 9px 12px;
+    border-radius: 15px;
+  }
+  .admin-change-dock-copy {
+    gap: 8px;
+  }
+  .admin-change-dock-copy strong {
+    font-size: 13px;
+  }
+  .admin-change-dock-copy small {
+    display: none;
+  }
+  .admin-change-dock-actions {
+    gap: 6px;
+  }
+  .admin-change-dock-actions .admin-btn {
+    min-height: 34px;
+    padding: 6px 10px;
+    font-size: 12.5px;
+  }
+}
+
+/* ── Mobile View ── */
+@media (max-width: 640px) {
   .admin-overview-head, .admin-overview-section-head { flex-direction: column; }
   .admin-overview-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-overview-task { grid-template-columns: auto minmax(0, 1fr); }
   .admin-overview-task .admin-btn { grid-column: 2; justify-self: start; }
-  .admin-change-dock { bottom: calc(78px + env(safe-area-inset-bottom)); align-items: stretch; flex-direction: column; gap: 10px; width: calc(100vw - 20px); }
-  .admin-change-dock-actions { display: grid; grid-template-columns: .8fr 1fr 1.15fr; }
-  .admin-change-dock-actions .admin-btn { justify-content: center; padding-inline: 8px; }
-  .admin-page.has-pending-changes { padding-bottom: 190px; }
+
+  .admin-change-dock {
+    bottom: calc(72px + max(10px, env(safe-area-inset-bottom)));
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(100vw - 20px);
+    max-width: 440px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    box-shadow: 0 12px 36px -4px rgba(0, 0, 0, 0.4);
+  }
+  .admin-change-dock-copy {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .admin-change-dock-copy small {
+    display: none;
+  }
+  .admin-change-dock-actions {
+    display: flex;
+    gap: 6px;
+    width: 100%;
+  }
+  .admin-change-dock-actions .admin-btn {
+    flex: 1;
+    justify-content: center;
+    min-height: 36px;
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+  .admin-change-dock-actions .admin-btn.primary {
+    flex: 1.25;
+  }
+  .admin-page.has-pending-changes {
+    padding-bottom: 180px;
+  }
 }
 
 @media (max-width: 440px) {
   .admin-overview-command { padding: 18px 15px; }
   .admin-overview-metrics { grid-template-columns: 1fr; }
   .admin-overview-metrics small { white-space: normal; }
-  .admin-change-dock-copy small { display: none; }
-  .admin-change-dock-actions .admin-btn { font-size: 12px; }
 }
 
 @media (max-width: 1100px) {

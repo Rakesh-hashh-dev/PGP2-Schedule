@@ -5,6 +5,88 @@
 .apw-comparison{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .apw-comparison pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;max-height:280px;overflow:auto;background:var(--bg);padding:10px;border-radius:8px}
 .admin-publish-workspace label{display:grid;gap:6px}.admin-publish-workspace fieldset{min-width:0;display:grid;gap:8px;border:1px solid var(--border);border-radius:8px}
+
+.apw-success-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px 18px;
+  background: color-mix(in srgb, var(--live, #10b981) 10%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--live, #10b981) 40%, transparent);
+  border-radius: 14px;
+  box-shadow: 0 4px 20px -2px rgba(16, 185, 129, 0.18);
+  margin: 10px 0;
+}
+.apw-success-icon-wrap {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.apw-success-body {
+  flex: 1;
+  min-width: 0;
+}
+.apw-success-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.apw-success-title-row strong {
+  font-size: 15px;
+  color: var(--live-text, #059669);
+}
+.apw-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 7px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--live, #10b981) 18%, transparent);
+  color: var(--live-text, #059669);
+  border: 1px solid color-mix(in srgb, var(--live, #10b981) 35%, transparent);
+}
+.apw-live-badge i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--live, #10b981);
+  box-shadow: 0 0 8px var(--live, #10b981);
+}
+.apw-success-body p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.45;
+}
+.apw-done-btn {
+  align-self: center;
+  flex-shrink: 0;
+  padding: 8px 16px;
+  font-weight: 600;
+  border-radius: 8px;
+}
+
+.apw-error-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  background: color-mix(in srgb, var(--danger, #ef4444) 8%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--danger, #ef4444) 35%, transparent);
+  border-radius: 12px;
+  color: var(--danger, #ef4444);
+  font-size: 13px;
+  margin: 10px 0;
+}
+.apw-error-card p {
+  margin: 2px 0 0;
+  color: var(--text);
+  font-size: 12px;
+}
 @media(max-width:640px){.apw-comparison{grid-template-columns:1fr}.admin-publish-workspace .admin-btn{width:100%}}
 .admin-workspace-tools{display:grid;grid-template-columns:minmax(180px,.7fr) minmax(0,1.3fr);gap:10px;margin:12px 0;font-family:var(--body,system-ui,sans-serif);font-size:13px}
 .admin-workspace-tools>.admin-card{padding:12px 14px;margin:0;align-self:start;border-radius:12px}.admin-workspace-tools summary{cursor:pointer;font-weight:650}.admin-workspace-tools p{margin:6px 0;font-size:12px;color:var(--muted)}

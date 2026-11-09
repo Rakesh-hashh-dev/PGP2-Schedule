@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { CheckCircle2, AlertTriangle, ArrowRight, Check } from 'lucide-react';
 import { domainPayload, loadPublication, PUBLICATION_DOMAINS, publishDomain, scheduleDomain, previewScheduleNotices, publishScheduleWithNotice } from '../lib/adminPublication.js';
 import { hasAdminCapability } from '../lib/adminCapabilities.js';
 import { mergeAdminDraft, resolveDraftField } from '../lib/adminDraftMerge.js';
@@ -7,7 +8,7 @@ import PushPreview from './PushPreview.jsx';
 import { scheduleNoticeCopy } from '../../supabase/functions/_shared/notificationCopy.js';
 import '../styles/admin-publishing.css';
 
-export default function AdminPublishWorkspace({ role, flags, originalFlags, announcement, originalAnnouncement, onPublished, scheduleAt = '', baseOverrides }) {
+export default function AdminPublishWorkspace({ role, flags, originalFlags, announcement, originalAnnouncement, onPublished, scheduleAt = '', baseOverrides, onClose }) {
   const [domain, setDomain] = useState('schedule');
   const [snapshot, setSnapshot] = useState(null);
   const [review, setReview] = useState(null);
@@ -59,7 +60,31 @@ export default function AdminPublishWorkspace({ role, flags, originalFlags, anno
     <nav className="apw-tabs" aria-label="Publication areas">{PUBLICATION_DOMAINS.map(area => <button type="button" key={area} aria-pressed={area === domain} onClick={() => { setDomain(area); setSnapshot(null); setReview(null); setMessage(''); }}>
       {area}{JSON.stringify(domainPayload(area, flags, announcement)) !== JSON.stringify(domainPayload(area, originalFlags, originalAnnouncement)) ? ' · pending' : ''}
     </button>)}</nav>
-    {error && <p role="alert">{error}</p>}{message && <p role="status">{message}</p>}
+    {error && (
+      <div className="apw-error-card" role="alert">
+        <AlertTriangle size={18} />
+        <div><strong>Action failed</strong><p>{error}</p></div>
+      </div>
+    )}
+    {message && (
+      <div className="apw-success-card" role="status">
+        <div className="apw-success-icon-wrap">
+          <CheckCircle2 size={24} color="#10b981" />
+        </div>
+        <div className="apw-success-body">
+          <div className="apw-success-title-row">
+            <strong>Deployed successfully</strong>
+            <span className="apw-live-badge"><i /> Live</span>
+          </div>
+          <p>{message}</p>
+        </div>
+        {onClose && (
+          <button type="button" className="admin-btn primary apw-done-btn" onClick={onClose}>
+            Done <Check size={14} />
+          </button>
+        )}
+      </div>
+    )}
     {!snapshot && !error && <p role="status">Loading publication state…</p>}
     {!allowed && <p>Read-only access to this area.</p>}
     <button type="button" className="admin-btn" disabled={busy || !snapshot || !allowed} onClick={prepare}>Review {domain} changes</button>

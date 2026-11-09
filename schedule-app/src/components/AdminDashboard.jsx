@@ -8,6 +8,7 @@ import AdminPublishWorkspace from './AdminPublishWorkspace.jsx';
 import AdminScheduledPublications from './AdminScheduledPublications.jsx';
 import AdminDraftRecovery from './AdminDraftRecovery.jsx';
 import AdminModerationQueue from './AdminModerationQueue.jsx';
+import AdminMediaManager from './AdminMediaManager.jsx';
 import AdminNotificationDiagnostics from './AdminNotificationDiagnostics.jsx';
 import AdminHistoryExplorer from './AdminHistoryExplorer.jsx';
 import AdminStudentSupport from './AdminStudentSupport.jsx';
@@ -25,7 +26,7 @@ import "../styles/assignments.css";
 import "../styles/cmdk.css";
 import "../styles/content-hub.css";
 import "../styles/broadcast-composers.css";
-import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil, BarChart2, GraduationCap, PartyPopper, CloudOff, Shield, Smartphone, Copy, Activity, ChevronRight, Clock3, Download, Filter, Eye, ListFilter, PawPrint, BookOpen, Zap, Info } from "lucide-react";
+import { Users, Megaphone, Flag, Save, Trash2, ShieldAlert, Check, CheckCircle2, Search, RefreshCw, AlertTriangle, CalendarDays, XCircle, VenetianMask, Ban, Terminal, Clock, Database, FileText, X, BellRing, Sparkles, Pencil, BarChart2, GraduationCap, PartyPopper, CloudOff, Shield, Smartphone, Copy, Activity, ChevronRight, Clock3, Download, Filter, Eye, ListFilter, PawPrint, BookOpen, Zap, Info } from "lucide-react";
 import { PlacementIcon, ExamIcon, CelebrationIcon, CancelClassIcon } from "./PremiumIcons.jsx";
 import { supabase } from "../lib/supabase";
 import { logAdminAction } from "../lib/adminAudit.js";
@@ -438,6 +439,13 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   
   const [saving, _setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
+  const [deployToast, setDeployToast] = useState(null);
+  const deployToastTimer = useRef(null);
+  function triggerDeployToast(info) {
+    setDeployToast(info);
+    clearTimeout(deployToastTimer.current);
+    deployToastTimer.current = setTimeout(() => setDeployToast(null), 6500);
+  }
   const [forceDeployReady, setForceDeployReady] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [adminConfirm, setAdminConfirm] = useState(null);
@@ -2313,6 +2321,31 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   return (
     <div className={`admin-page ${isModernUi ? "modern-ui" : ""} ${changesCount > 0 ? "has-pending-changes" : ""}`}>
 
+      {/* ── Floating Deployment Success Toast ── */}
+      {deployToast && (
+        <aside className="admin-deploy-toast" role="status" aria-live="polite">
+          <div className="admin-deploy-toast-icon">
+            <CheckCircle2 size={20} />
+          </div>
+          <div className="admin-deploy-toast-content">
+            <div className="admin-deploy-toast-head">
+              <strong>{deployToast.title}</strong>
+              <span className="admin-deploy-toast-live"><i /> Live</span>
+              {deployToast.time && <span className="admin-deploy-toast-time">{deployToast.time}</span>}
+            </div>
+            <p>{deployToast.message}</p>
+          </div>
+          <button
+            type="button"
+            className="admin-deploy-toast-close"
+            onClick={() => setDeployToast(null)}
+            aria-label="Close notification"
+          >
+            <X size={15} />
+          </button>
+        </aside>
+      )}
+
 
       {/* ── Undo toast for destructive one-click actions ── */}
       {undoToast && (
@@ -2530,6 +2563,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
         {activeTab === "system" && <><AdminNavigationControls readOnly={!hasAdminCapability(myRole, 'system.publish')} /><AdminDashboardDefaults readOnly={!hasAdminCapability(myRole, 'system.publish')} /></>}
         {['insights','broadcast'].includes(activeTab) && hasAdminCapability(myRole,'diagnostics.read') && <AdminNotificationDiagnostics workspace={activeTab} key={diagnosticUserId || 'all'} userId={diagnosticUserId} onClear={()=>setDiagnosticUserId(null)} onInspect={id => { const student=allUsers.find(row=>row.user_id===id); if(student) setSelectedUser(student); }} />}
         {['database','moderation'].includes(activeTab) && myRole && <AdminHistoryExplorer workspace={activeTab} key={activeTab} userId={admin_id} role={myRole} initialDataset={activeTab==='moderation' && hasAdminCapability(myRole,'diagnostics.read') ? 'audit' : hasAdminCapability(myRole,'support.read') ? 'students' : 'versions'} onInspect={id => { const student=allUsers.find(row=>row.user_id===id); if(student) setSelectedUser(student); }} />}
+        {activeTab === 'database' && myRole && <AdminMediaManager role={myRole} />}
         {workflowMessage && <div className="aw-error admin-span-all" role="alert">{workflowMessage}</div>}
 
         <section className="admin-overview-command admin-span-all admin-g-overview">
@@ -5950,7 +5984,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           <button type="button" className="admin-btn outline" onClick={() => setReviewOpen(false)}>Close review</button>
           <h2>Review and publish</h2>
           <AdminPublishWorkspace role={myRole} flags={preparedFlags} originalFlags={originalFlags} announcement={activeAnnouncement} originalAnnouncement={originalAnnouncement} scheduleAt={scheduleDeployAt} baseOverrides={draftBases}
-            onPublished={async (domain,payload) => {
+            onClose={() => setReviewOpen(false)}
+            onPublished={async (domain,payload,revision) => {
               setFlags(current => ({...structuredClone(ADMIN_DEFAULT_FLAGS),...mergePublishedDomain(current,domain,payload)}));
               setOriginalFlags(current => mergePublishedDomain(current,domain,payload));
               setDraftBases(current => { const next={...current}; delete next[domain]; return next; });
@@ -5960,6 +5995,12 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 setFeedbackFlashes(payload.flags.feedbackFlashes||[]);
                 setUpdatePromptTitle(payload.flags.updatePrompt?.title||'');setUpdatePromptDesc(payload.flags.updatePrompt?.desc||'');setUpdatePromptHighlights((payload.flags.updatePrompt?.highlights||[]).join('\n'));
               }
+              const domainLabel = domain ? domain.charAt(0).toUpperCase() + domain.slice(1) : "Configuration";
+              triggerDeployToast({
+                title: `${domainLabel} deployed successfully`,
+                message: `${domainLabel}${revision ? ` (Revision #${revision})` : ''} is now live for all students.`,
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              });
               setSaveMsg('Published '+domain+'. Other staged areas are preserved.');
               if (onConfigSaved) {
                 const { data, error } = await supabase.from('system_config').select('flags,updated_at').eq('id','global').single();
