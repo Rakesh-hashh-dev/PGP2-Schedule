@@ -9,6 +9,7 @@ export default function BuddyPreferences({ userId, preferences, enrolled, onSave
   const [interests, setInterests] = useState(preferences.interests.join(", "));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const configured = preferences.subjects.length + preferences.purposes.length + preferences.interests.length > 0;
   const toggle = (key, item) => setDraft(current => ({ ...current, [key]: current[key].includes(item) ? current[key].filter(value => value !== item) : [...current[key], item] }));
   const save = async event => {
     event.preventDefault(); setBusy(true); setError("");
@@ -19,7 +20,7 @@ export default function BuddyPreferences({ userId, preferences, enrolled, onSave
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   };
   return <section className="fr-extra-section fr-buddy-preferences">
-    <button type="button" className="fr-preferences-toggle" aria-expanded={open} onClick={() => { if (!open) { setDraft(preferences); setInterests(preferences.interests.join(", ")); setError(""); } setOpen(value => !value); }}><SlidersHorizontal size={16} /><span><strong>Study-buddy preferences</strong><small>{preferences.purposes.length ? preferences.purposes.join(" · ") : "Choose your subjects, interests and study purpose"}</small></span><span>{open ? "Close" : "Edit"}</span></button>
+    <button type="button" className="fr-preferences-toggle" aria-expanded={open} onClick={() => { if (!open) { setDraft(preferences); setInterests(preferences.interests.join(", ")); setError(""); } setOpen(value => !value); }}><SlidersHorizontal size={16} /><span><strong>Study-buddy preferences</strong><small>{configured ? `${preferences.subjects.length} subjects · ${preferences.purposes.length} purposes · ${preferences.discoverable ? "Included in matching" : "Private"}` : "Choose subjects and a purpose to improve matches"}</small></span><span>{open ? "Close" : configured ? "Edit" : "Set up"}</span></button>
     {open && <form className="fr-preferences-form" onSubmit={save}>
       <fieldset><legend>Subjects you want to work on</legend><div className="fr-choice-list">{courseCodes(enrolled).map(code => <button type="button" key={code} aria-pressed={draft.subjects.includes(code)} className={`fr-status-preset${draft.subjects.includes(code) ? " is-active" : ""}`} onClick={() => toggle("subjects", code)}>{code}</button>)}</div></fieldset>
       <fieldset><legend>Looking for</legend><div className="fr-choice-list">{STUDY_PURPOSES.map(purpose => <button type="button" key={purpose} aria-pressed={draft.purposes.includes(purpose)} className={`fr-status-preset${draft.purposes.includes(purpose) ? " is-active" : ""}`} onClick={() => toggle("purposes", purpose)}>{purpose}</button>)}</div></fieldset>

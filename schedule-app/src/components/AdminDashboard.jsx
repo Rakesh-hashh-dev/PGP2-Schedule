@@ -797,6 +797,21 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   // costs an admin a confusing error, not unauthorised access.
   const [adminRoster, setAdminRoster] = useState([]);
   const [myRole, setMyRole] = useState(null);
+  const [recordSearchKey, setRecordSearchKey] = useState(0);
+  const [recordSearchDataset, setRecordSearchDataset] = useState(null);
+  function openNotificationDiagnostics(userId = null) {
+    if (!hasAdminCapability(myRole, 'diagnostics.read')) return;
+    setDiagnosticUserId(userId);
+    goToAdminTab('insights');
+    requestAnimationFrame(() => document.getElementById('notification-diagnostics-insights')?.scrollIntoView({ behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }));
+  }
+  function openAdminRecordSearch(dataset) {
+    const capability = dataset === 'audit' ? 'diagnostics.read' : dataset === 'feedback' ? 'support.read' : 'admin.read';
+    if (!hasAdminCapability(myRole, capability)) return;
+    goToAdminTab('database');
+    setRecordSearchDataset(dataset);
+    setRecordSearchKey(current => current + 1);
+  }
   const areaCapability = activeTab === 'schedule' && scheduleSection === 'class' ? 'schedule.publish'
     : activeTab === 'broadcast' ? 'communications.publish'
     : activeTab === 'moderation' ? 'moderation.write' : 'system.publish';
@@ -806,13 +821,14 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   function runAdminCommand(id) {
     const command=availableAdminCommands(myRole).find(item=>item.id===id);
     if(!command) return;
+    if(id==='publication-history') { openAdminRecordSearch('versions'); return; }
+    if(id==='notification-diagnostics') { openNotificationDiagnostics(); return; }
     setActiveTab(command.tab);
     if(command.section) setScheduleSection(command.section);
     if(command.day!==undefined) {
       const date=adminCommandDate(command.day);
       if(command.section==='menu') setMenuTargetDate(date); else setLiveEditorDate(date);
     }
-    if(id==='notification-diagnostics') setDiagnosticUserId(null);
   }
   // Grant by email or Clerk user ID. An unknown email can't be granted (no
   // user_id to key on), but a raw user_xxx id is accepted as-is for accounts
@@ -1837,6 +1853,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   });
   const pendingFeedbackCount = feedbackList.filter(item => !["resolved", "duplicate"].includes(feedbackState(item, feedbackTriage).status)).length;
   function goToAdminTab(tab) {
+    if (tab === 'database') setRecordSearchDataset(null);
     if (tab === 'schedule') setScheduleSection('class');
     setActiveTab(tab);
     const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -2561,8 +2578,9 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       <div className="admin-masonry" data-active-tab={activeTab} data-schedule-section={scheduleSection}>
         {activeTab === "schedule" && scheduleSection === 'menu' && <AdminMessControls initialDate={menuTargetDate} readOnly={!hasAdminCapability(myRole, 'system.publish')} />}
         {activeTab === "system" && <><AdminNavigationControls readOnly={!hasAdminCapability(myRole, 'system.publish')} /><AdminDashboardDefaults readOnly={!hasAdminCapability(myRole, 'system.publish')} /></>}
-        {['insights','broadcast'].includes(activeTab) && hasAdminCapability(myRole,'diagnostics.read') && <AdminNotificationDiagnostics workspace={activeTab} key={diagnosticUserId || 'all'} userId={diagnosticUserId} onClear={()=>setDiagnosticUserId(null)} onInspect={id => { const student=allUsers.find(row=>row.user_id===id); if(student) setSelectedUser(student); }} />}
-        {['database','moderation'].includes(activeTab) && myRole && <AdminHistoryExplorer workspace={activeTab} key={activeTab} userId={admin_id} role={myRole} initialDataset={activeTab==='moderation' && hasAdminCapability(myRole,'diagnostics.read') ? 'audit' : hasAdminCapability(myRole,'support.read') ? 'students' : 'versions'} onInspect={id => { const student=allUsers.find(row=>row.user_id===id); if(student) setSelectedUser(student); }} />}
+        {activeTab === 'broadcast' && hasAdminCapability(myRole,'diagnostics.read') && <section className="admin-card admin-span-all admin-g-broadcast admin-diagnostics-link" aria-label="Notification diagnostics shortcut"><Activity size={19} aria-hidden="true" /><div><h2>Check notification delivery</h2><p>Investigate provider handoffs and recorded checks in Insights.</p></div><button type="button" className="admin-btn outline" onClick={() => openNotificationDiagnostics()}>Open diagnostics<ChevronRight size={14} aria-hidden="true" /></button></section>}
+        {activeTab === 'database' && myRole && <AdminHistoryExplorer workspace="database" key={recordSearchKey} requestedDataset={recordSearchDataset} userId={admin_id} role={myRole} initialDataset={hasAdminCapability(myRole,'support.read') ? 'students' : 'versions'} onInspect={id => { const student=allUsers.find(row=>row.user_id===id); if(student) setSelectedUser(student); }} />}
+        {activeTab === 'moderation' && myRole && <section className="admin-card admin-span-all admin-g-moderation admin-record-link" aria-label="Admin records search shortcut"><Search size={19} aria-hidden="true" /><div><h2>Need to investigate a record?</h2><p>Search activity, feedback and publication history in Database. Your role determines which records are available.</p></div><button type="button" className="admin-btn outline" onClick={() => openAdminRecordSearch(hasAdminCapability(myRole,'diagnostics.read') ? 'audit' : hasAdminCapability(myRole,'support.read') ? 'feedback' : 'versions')}>Search admin records<ChevronRight size={14} aria-hidden="true" /></button></section>}
         {activeTab === 'database' && myRole && <AdminMediaManager role={myRole} />}
         {workflowMessage && <div className="aw-error admin-span-all" role="alert">{workflowMessage}</div>}
 
@@ -5880,6 +5898,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           </section>
           </>}
 
+        {activeTab === 'insights' && hasAdminCapability(myRole,'diagnostics.read') && <AdminNotificationDiagnostics workspace="insights" key={diagnosticUserId || 'all'} userId={diagnosticUserId} onClear={()=>setDiagnosticUserId(null)} onInspect={id => { const student=allUsers.find(row=>row.user_id===id); if(student) setSelectedUser(student); }} />}
       </div>
 
       {changesCount > 0 && (
@@ -6062,7 +6081,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               </section>
             </div>
 
-            {hasAdminCapability(myRole,'support.read') && <AdminStudentSupport key={selectedUser.user_id} userId={selectedUser.user_id} role={myRole} onNavigate={(area,id) => { if(!setSelectedUser(null))return; if(area==='diagnostics') { setDiagnosticUserId(id); setActiveTab('insights'); } else { setActiveTab('users'); requestAnimationFrame(()=>document.querySelector('[aria-label="Feedback triage"]')?.scrollIntoView({behavior:'smooth'})); } }} />}
+            {hasAdminCapability(myRole,'support.read') && <AdminStudentSupport key={selectedUser.user_id} userId={selectedUser.user_id} role={myRole} onNavigate={(area,id) => { setSelectedUser(null); if(area==='diagnostics') { openNotificationDiagnostics(id); } else { setActiveTab('users'); requestAnimationFrame(()=>document.querySelector('[aria-label="Feedback triage"]')?.scrollIntoView({behavior:'smooth'})); } }} />}
             {hasAdminCapability(myRole, 'notes.read') && <AdminStudentNotes key={selectedUser.user_id} userId={selectedUser.user_id} readOnly={!hasAdminCapability(myRole, 'notes.write')} onDirtyChange={dirty=>{noteDirtyRef.current=dirty;}} />}
 
             <fieldset className="admin-readonly-group" disabled={!hasAdminCapability(myRole, 'system.publish')}>

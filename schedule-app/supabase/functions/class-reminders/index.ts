@@ -287,14 +287,14 @@ async function runReminders(supabase: ReturnType<typeof createClient>) {
   // time so the row hits the inbox at fire time; dedup makes re-runs no-ops.
   type MeetupRow = {
     id: string; title: string; place: string | null; starts_at: string;
-    created_by: string; member_ids: string[] | null;
+    created_by: string; member_ids: string[] | null; version: number;
   };
   const meetupRows: Record<string, unknown>[] = [];
   {
     const nowMs = Date.now();
     const { data: dueMeetups } = await supabase
       .from("meetups")
-      .select("id, title, place, starts_at, created_by, member_ids")
+      .select("id, title, place, starts_at, created_by, member_ids, version")
       .eq("cancelled", false)
       .gt("starts_at", new Date(nowMs).toISOString())
       .lte("starts_at", new Date(nowMs + 15 * 60_000).toISOString());
@@ -323,7 +323,7 @@ async function runReminders(supabase: ReturnType<typeof createClient>) {
               urgency: "high", ttl: 900,
               expires_at: m.starts_at,
             },
-            dedup_key: `meetup_reminder:${m.id}`,
+            dedup_key: `meetup_reminder:${m.id}:${m.starts_at}:${m.version}`,
           });
         }
       }

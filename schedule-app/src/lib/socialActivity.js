@@ -108,7 +108,7 @@ export async function fetchGroupActivity(userId, groups) {
   const cutoff = new Date(Date.now() - 30 * 86400000).toISOString();
   const [polls, messages, reads] = await Promise.all([
     supabase.from("polls").select("*").eq("scope", "group").in("group_id", ids).eq("closed", false),
-    supabase.from("group_messages").select("id,group_id,from_id,text,created_at").in("group_id", ids).gte("created_at", cutoff).order("created_at", { ascending: false }).limit(1000),
+    supabase.from("group_messages").select("id,group_id,from_id,text,created_at").in("group_id", ids).eq("moderation_hidden", false).gte("created_at", cutoff).order("created_at", { ascending: false }).limit(1000),
     supabase.from("social_group_reads").select("group_id,seen_at").eq("user_id", userId).in("group_id", ids),
   ]);
   if (polls.error || messages.error || reads.error) throw new Error("Could not load group activity.");
@@ -134,8 +134,8 @@ export async function removeGroupPin(id) {
   const { data, error } = await supabase.from("social_group_pins").delete().eq("id", id).select("id");
   if (error || data?.length !== 1) throw new Error("Could not remove the pin.");
 }
-export function subscribeGroupActivity(userId, onChange) {
-  const channel = supabase.channel(`social-activity:${userId}`)
+export function subscribeGroupActivity(userId, onChange, channelKey = userId) {
+  const channel = supabase.channel(`social-activity:${channelKey}`)
     .on("postgres_changes", { event: "*", schema: "public", table: "group_messages" }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "polls" }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "poll_votes", filter: `user_id=eq.${userId}` }, onChange)

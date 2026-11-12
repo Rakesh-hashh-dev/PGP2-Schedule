@@ -1,16 +1,18 @@
-import { useState, useEffect, useRef } from "react";
-import ReportContentButton from './ReportContentDialog.jsx';
+import { useState, useEffect, useCallback, useRef } from "react";
+import GroupChat from "./GroupChat.jsx";
 import "../styles/friends.css";
-import { Copy, Link2, Sparkles, UserPlus, Users, Trash2, ArrowRight, Plus, X, Check, ChevronDown, ChevronUp, ChevronRight, RefreshCw, Globe, Lock, CheckCircle, AlertCircle, Info, AlertTriangle, Star, CalendarOff, Smile, BarChart3, CalendarPlus, BellRing, Coffee, BookOpen, Utensils, Dumbbell, Moon, MessageSquare, Pencil, Search, LayoutDashboard, GripVertical, Pin } from "lucide-react";
+import { Copy, Link2, Sparkles, UserPlus, Users, Trash2, ArrowRight, Plus, X, Check, ChevronDown, ChevronUp, ChevronRight, RefreshCw, Globe, Lock, CheckCircle, AlertCircle, Info, AlertTriangle, Star, CalendarOff, Smile, CalendarPlus, BellRing, Coffee, BookOpen, Utensils, Dumbbell, Moon, MessageSquare, Search, LayoutDashboard, GripVertical } from "lucide-react";
 import { SkeletonText, EmptyState } from "./ui.jsx";
 import MeetupsStrip from "./Meetups.jsx";
 import SocialOverviewExtras from "./SocialOverviewExtras.jsx";
 import SocialActivity from "./SocialActivity.jsx";
-import GroupPins from "./GroupPins.jsx";
+import GroupWorkspace from "./GroupWorkspace.jsx";
 import BuddyPreferences from "./BuddyPreferences.jsx";
-import { matchBuddy, loadBuddyPreferences, fetchBuddyPreferences } from "../lib/buddyPreferences.js";
-import { scheduleAvailability } from "../lib/socialPlanning.js";
-import { markGroupRead, saveGroupPin } from "../lib/socialActivity.js";
+import { matchBuddy, loadBuddyPreferences, hydrateBuddyPreferenceSession, saveDiscoveryOptOut, STUDY_PURPOSES } from "../lib/buddyPreferences.js";
+import { buddySharedSlot, filterBuddyMatches, loadStudyIntents, updateStudyIntent, readyStudyIntents, loadDiscoveryOptOut, requestBuddyConnection } from "../lib/buddyDiscovery.js";
+import { useSocialAvailability } from "../hooks/useSocialAvailability.js";
+import { scheduleAvailability, scheduleStatusLabel, friendScheduleFreshness, courseCodes } from "../lib/socialPlanning.js";
+import { fetchGroupActivity, subscribeGroupActivity } from "../lib/socialActivity.js";
 import "../styles/social-extras.css";
 import { fetchMyNudges, scheduleNudge, cancelNudge } from "../lib/nudges.js";
 
@@ -21,16 +23,12 @@ import {
   getOrCreateShareCode, pushFriendsToCloud, pushGroupsToCloud,
   refreshFriendCoursesFromCloud, sendFriendPing, hasPendingFriendRequest, deletePingsBetween,
   shareGroupWithMembers, unshareGroupFromMembers,
-  sendGroupChatMessage, fetchGroupChatMessages, deleteGroupChatMessage, editGroupChatMessage,
-  sendSocialNotification,
   avatarGradient,
 } from "../lib/friends.js";
-import { createPoll, POLL_MARKER } from "../lib/polls.js";
-import { filterSocialFriends, SOCIAL_VIEW_ITEMS } from "../lib/socialWorkspace.js";
+import { filterSocialFriends, SOCIAL_VIEW_ITEMS, readSocialNavigation, groupActivitySummary, orderGroupsByActivity, groupWorkspaceRequest } from "../lib/socialWorkspace.js";
 import { fmtTime12 } from "../lib/datetime.js";
 
 const SHARE_HINT_KEY = "pgp2.share-hint-seen";
-import PollCard, { PollComposer } from "./PollCard.jsx";
 import { groupInvite, groupInviteUrl } from "../lib/groupInvites.js";
 import { useBackClose } from "../lib/backClose.js";
 import { useDialog, dialogProps } from "../hooks/useDialog.js";
@@ -206,8 +204,8 @@ function StatusModal({ current, onSave, onClose }) {
   );
 }
 
-import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
-import { SortableContext, verticalListSortingStrategy, arrayMove, useSortable } from '@dnd-kit/sortable';
+import { DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, arrayMove, useSortable, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
 function SortableFriendItem({ f, renderFriendCard, isCompact }) {
@@ -235,225 +233,6 @@ function FriendSkeleton() {
   );
 }
 
-function GroupChat({ group, userId, userName, focusPollId }) {
-  const chatRef = useRef(null);
-  const [pinError, setPinError] = useState("");
-  const [messages, setMessages] = useState([]);
-  const [text, setText] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [showPollComposer, setShowPollComposer] = useState(false);
-  const [pollBusy, setPollBusy] = useState(false);
-  const [editingMsg, setEditingMsg] = useState(null);
-  const [deletingId, setDeletingId] = useState(null);
-  const [sending, setSending] = useState(false);
-  const [chatError, setChatError] = useState("");
-  const [saveError, setSaveError] = useState("");
-  const [pollError, setPollError] = useState("");
-  const [chatReload, setChatReload] = useState(0);
-
-  useEffect(() => {
-    let channel;
-    let alive = true;
-    async function load() {
-      setLoading(true);
-      setChatError("");
-      try {
-        const msgs = await fetchGroupChatMessages(group.id);
-        if (!alive) return;
-        setMessages(msgs);
-      } catch (error) {
-        if (alive) setChatError(error.message);
-      } finally {
-        if (alive) setLoading(false);
-      }
-      if (!alive) return;
-      const { supabase } = await import("../lib/supabase.js");
-      if (!alive) return;
-      channel = supabase.channel(`group-chat-${group.id}`)
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'group_messages', filter: `group_id=eq.${group.id}` }, payload => {
-          const p = payload.new;
-          setMessages(prev => {
-            if (prev.some(m => m.id === p.id)) return prev;
-            return [...prev, {
-              id: p.id,
-              from_id: p.from_id,
-              name: p.from_name || "Someone",
-              text: p.text || "",
-              created_at: p.created_at
-            }];
-          });
-        })
-        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'group_messages', filter: `group_id=eq.${group.id}` }, payload => {
-          setMessages(prev => prev.filter(m => m.id !== payload.old.id));
-        })
-        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'group_messages', filter: `group_id=eq.${group.id}` }, payload => {
-          setMessages(prev => prev.map(m => m.id === payload.new.id ? { ...m, text: payload.new.text } : m));
-        })
-        .subscribe();
-    }
-    load();
-    return () => { alive = false; if (channel) channel.unsubscribe(); };
-  }, [group.id, chatReload]);
-
-  useEffect(() => {
-    let active = true;
-    const refresh = () => { if (document.visibilityState !== 'hidden') fetchGroupChatMessages(group.id).then(rows => { if (active) setMessages(rows); }).catch(() => {}); };
-    const timer = setInterval(refresh, 30000);
-    window.addEventListener('focus', refresh);
-    return () => { active = false; clearInterval(timer); window.removeEventListener('focus', refresh); };
-  }, [group.id]);
-
-  useEffect(() => {
-    const seenAt = messages.reduce((latest, message) => new Date(message.created_at) > new Date(latest || 0) ? message.created_at : latest, null);
-    const read = () => { if (document.visibilityState === "visible" && seenAt) markGroupRead(userId, group.id, seenAt); };
-    read(); document.addEventListener("visibilitychange", read);
-    return () => document.removeEventListener("visibilitychange", read);
-  }, [messages, userId, group.id]);
-  useEffect(() => {
-    if (!focusPollId || loading) return;
-    const target = chatRef.current?.querySelector(`[data-poll-id="${globalThis.CSS.escape(focusPollId)}"]`);
-    target?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-    target?.focus({ preventScroll: true });
-  }, [focusPollId, loading, messages]);
-  async function pinMessage(message) {
-    setPinError("");
-    try {
-      await saveGroupPin({ groupId: group.id, userId, userName, title: `Message from ${message.name}`, body: message.text, url: null, messageId: message.id });
-      window.dispatchEvent(new CustomEvent("pgp2:social-pins"));
-    } catch (error) { setPinError(error.message); }
-  }
-
-  async function handleSend(e) {
-    e?.preventDefault();
-    if (!text.trim() || sending) return;
-    const txt = text.trim();
-    setSending(true);
-    setSaveError("");
-    try {
-      if (editingMsg) {
-        if (txt !== editingMsg.text) {
-          const saved = await editGroupChatMessage(editingMsg.id, userId, txt);
-          if (!saved) throw new Error("Could not save your edit. Please try again.");
-          setMessages(prev => prev.map(message => message.id === editingMsg.id ? { ...message, text: txt } : message));
-        }
-        setEditingMsg(null);
-      } else {
-        const message = await sendGroupChatMessage(group.id, userId, userName, txt);
-        setMessages(prev => prev.some(item => item.id === message.id) ? prev : [...prev, message]);
-      }
-      setText("");
-    } catch (error) {
-      setSaveError(error.message || "Could not save your message. Please try again.");
-    } finally {
-      setSending(false);
-    }
-  }
-
-  async function handleDeleteMsg(msgId) {
-    setDeletingId(msgId);
-    const ok = await deleteGroupChatMessage(msgId, userId);
-    if (ok) setMessages(prev => prev.filter(m => m.id !== msgId));
-    setDeletingId(null);
-  }
-
-  async function handleCreatePoll({ question, options, multi, closesAt }) {
-    setPollBusy(true);
-    setPollError("");
-    try {
-      const poll = await createPoll({ scope: "group", groupId: group.id, userId, userName, question, options, multi, closesAt });
-      if (!poll) throw new Error("Could not create the poll. Please try again.");
-      setShowPollComposer(false);
-      try {
-        const message = await sendGroupChatMessage(group.id, userId, userName, `${POLL_MARKER}${poll.id}`);
-        setMessages(prev => prev.some(item => item.id === message.id) ? prev : [...prev, message]);
-      } catch {
-        setPollError("The poll was created, but its chat message could not be sent.");
-      }
-      for (const memberId of new Set([...(group.cloudMemberIds || []), ...(group.inviteMembers || []).map(m => m.userId)])) {
-        if (memberId === userId) continue;
-        sendSocialNotification(memberId, "group_poll", { fromId: userId, fromName: userName, group: group.name, pollId: poll.id });
-      }
-    } catch (error) {
-      setPollError(error.message || "Could not create the poll. Please try again.");
-    } finally { setPollBusy(false); }
-  }
-
-  return (
-    <div className="fr-chat-box" ref={chatRef}>
-      <p className="fr-group-body-label">Group Chat</p>
-      {!loading && focusPollId && !messages.some(m => m.text === `${POLL_MARKER}${focusPollId}`) && <div data-poll-id={focusPollId} tabIndex={-1}><PollCard pollId={focusPollId} userId={userId} userName={userName} /></div>}
-      <div className="fr-chat-msgs">
-         {loading ? <SkeletonText lines={3} /> : messages.length === 0 && !chatError ? <div className="fr-empty">No messages yet. Say hi!</div> : messages.map(m => {
-           const isMine = m.from_id === userId;
-           const canDelete = isMine;
-           return m.text.startsWith(POLL_MARKER) ? (
-             <div key={m.id} data-poll-id={m.text.slice(POLL_MARKER.length)} tabIndex={-1} style={{ display: "flex", gap: 8, marginBottom: 12, flexDirection: isMine ? "row-reverse" : "row" }}>
-               <div className="fr-group-avatar-dot" style={{ background: avatarGradient(m.name)[0], flexShrink: 0 }}>{m.name[0]?.toUpperCase()}</div>
-               <PollCard pollId={m.text.slice(POLL_MARKER.length)} userId={userId} userName={userName} />
-             </div>
-           ) : (
-             <div
-               key={m.id}
-               className="fr-chat-msg-row"
-               style={{ flexDirection: isMine ? "row-reverse" : "row" }}
-             >
-               <div className="fr-group-avatar-dot" style={{ background: avatarGradient(m.name)[0], flexShrink: 0 }}>{m.name[0]?.toUpperCase()}</div>
-               <div className={`fr-chat-msg-bubble ${isMine ? "fr-chat-msg-mine" : "fr-chat-msg-theirs"}`}>
-                 {!isMine && <div className="fr-chat-msg-name">{m.name}</div>}
-                 {m.text}
-                 {m.id === editingMsg?.id && <span style={{ fontSize: 10, opacity: 0.6, marginLeft: 8, fontStyle: "italic" }}>(Editing)</span>}
-               </div>
-               <button type="button" className="fr-chat-del-btn" aria-label={`Pin message from ${m.name}`} title="Pin message" onClick={() => pinMessage(m)}><Pin size={12} /></button>
-               {!isMine && <ReportContentButton type="group_message" contentId={m.id} />}
-               {canDelete && (
-                 <div style={{ display: "flex", gap: 4 }}>
-                   <button
-                     className="fr-chat-del-btn"
-                     style={{ color: "var(--violet)", background: "rgba(124, 58, 237, 0.12)" }}
-                      disabled={sending}
-                      onClick={() => { setEditingMsg({ id: m.id, text: m.text }); setText(m.text); setSaveError(""); }}
-                     title="Edit message"
-                     aria-label="Edit message"
-                   >
-                     <Pencil size={12} />
-                   </button>
-                   <button
-                     className="fr-chat-del-btn"
-                     onClick={() => handleDeleteMsg(m.id)}
-                     disabled={deletingId === m.id}
-                     title="Delete message"
-                     aria-label="Delete message"
-                   >
-                     <Trash2 size={12} />
-                   </button>
-                 </div>
-               )}
-             </div>
-           );
-         })}
-      </div>
-      {pinError && <p className="fr-meetup-error" role="alert">{pinError}</p>}
-      {chatError && <p className="fr-meetup-error" role="alert">{chatError} <button type="button" className="fr-text-button" onClick={() => setChatReload(value => value + 1)}>Retry</button></p>}
-      {saveError && <p className="fr-meetup-error" role="alert">{saveError} Your message stays here until it is saved.</p>}
-      {pollError && <p className="fr-meetup-error" role="alert">{pollError}</p>}
-      {showPollComposer && (
-        <div style={{ marginBottom: 8 }}>
-          <PollComposer onSubmit={handleCreatePoll} onCancel={() => setShowPollComposer(false)} busy={pollBusy} />
-        </div>
-      )}
-      <form onSubmit={handleSend} className="fr-chat-form">
-         <button type="button" className="fr-btn fr-btn-secondary" title="Start a poll" aria-label="Start a poll" onClick={() => setShowPollComposer(o => !o)} style={{ borderRadius: 20, padding: "0 12px" }}>
-            <BarChart3 size={15} />
-         </button>
-          <input type="text" className="fr-chat-input" placeholder={editingMsg ? "Edit message..." : "Message group..."} value={text} disabled={sending} onChange={e => { setText(e.target.value); setSaveError(""); }} />
-         {editingMsg ? (
-            <button type="button" className="fr-btn fr-btn-secondary" disabled={sending} onClick={() => { setEditingMsg(null); setText(""); setSaveError(""); }} style={{ borderRadius: 20, padding: "0 12px" }}>Cancel</button>
-         ) : null}
-          <button type="submit" className="fr-btn fr-btn-primary" style={{ borderRadius: 20, padding: "0 16px" }} disabled={sending || !text.trim()} aria-busy={sending}>{sending ? "Saving…" : saveError ? "Retry" : editingMsg ? "Save" : "Send"}</button>
-      </form>
-    </div>
-  );
-}
 
 import { getPetByKey } from "./greetingPets.jsx";
 import PetHat from "./PetHat.jsx";
@@ -470,6 +249,9 @@ export default function FriendsPanel({
   friendNotifItems = [], onAcceptFriend, onDeclineFriend,
   groupInviteToken = null, onGroupInviteConsumed,
 }) {
+  const currentAccount = useRef(userId);
+  useEffect(() => { currentAccount.current = userId; }, [userId]);
+  const discoveryAvailability = useSocialAvailability(userId);
   const [addCode, setAddCode] = useState("");
   const [addError, setAddError] = useState("");
   const [toast, setToast] = useState(null); // { message, type, action? }
@@ -477,18 +259,60 @@ export default function FriendsPanel({
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [newGroupName, setNewGroupName] = useState("");
   const [showNewGroup, setShowNewGroup] = useState(false);
-  const [expandedGroup, setExpandedGroup] = useState(null);
-  const [socialView, setSocialView] = useState("overview");
+  const [navigation, setNavigation] = useState(() => readSocialNavigation(userId));
+  const restoredNavigation = navigation.userId === userId ? navigation : readSocialNavigation(userId);
+  const expandedGroup = restoredNavigation.groupId;
+  const socialView = restoredNavigation.view;
+  const navigate = useCallback(patch => setNavigation(previous => {
+    const value = { ...(previous.userId === userId ? previous : readSocialNavigation(userId)), ...patch };
+    try { localStorage.setItem(`pgp2.social-navigation:${userId}`, JSON.stringify(value)); } catch { /* optional device preference */ }
+    return value;
+  }), [userId]);
+  const setExpandedGroup = useCallback(groupId => navigate({ groupId }), [navigate]);
+  const setSocialView = useCallback(view => navigate({ view }), [navigate]);
+  const [workspaceRequest, setWorkspaceRequest] = useState(null);
+  const [groupActivity, setGroupActivity] = useState({});
+  const [activityError, setActivityError] = useState("");
+  const groupActivityKey = groups.map(group => `${group.id}:${group.visibility}:${group.inviteMembers?.length || 0}`).sort().join("|");
+  useEffect(() => {
+    if (!userId) return;
+    let alive = true; let timer;
+    const load = async () => {
+      try { const snapshot = await fetchGroupActivity(userId, groups); if (alive) { setGroupActivity({ userId, summary: groupActivitySummary(groups, snapshot, userId) }); setActivityError(""); } }
+      catch { if (alive) setActivityError("Recent group activity could not be loaded. Open a group to retry its chat."); }
+    };
+    const refresh = () => { clearTimeout(timer); timer = setTimeout(load, 150); };
+    refresh();
+    const stop = subscribeGroupActivity(userId, refresh, `${userId}:workspace`);
+    window.addEventListener("pgp2:social-read", refresh); window.addEventListener("focus", refresh);
+    const interval = setInterval(refresh, 60000);
+    return () => { alive = false; clearTimeout(timer); clearInterval(interval); stop(); window.removeEventListener("pgp2:social-read", refresh); window.removeEventListener("focus", refresh); };
+    // Membership key isolates activity from unrelated group editor state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, groupActivityKey]);
+  const activitySummary = groupActivity.userId === userId ? groupActivity.summary : {};
+  const orderedGroups = orderGroupsByActivity(groups, activitySummary);
   const [focusPollId, setFocusPollId] = useState(null);
-  const [buddyPreferences, setBuddyPreferences] = useState(() => loadBuddyPreferences(userId));
+  const [preferenceSnapshot, setPreferenceSnapshot] = useState(() => ({ userId, value: loadBuddyPreferences(userId) }));
+  const buddyPreferences = preferenceSnapshot.userId === userId ? preferenceSnapshot.value : loadBuddyPreferences(userId);
+  const preferenceHydration = useRef({ userId, revision: 0 });
+  const setBuddyPreferences = useCallback(value => {
+    if (currentAccount.current !== userId) return false;
+    if (preferenceHydration.current.userId === userId) ++preferenceHydration.current.revision;
+    setPreferenceSnapshot({ userId, value });
+    return true;
+  }, [userId]);
   const [buddyPreferencesError, setBuddyPreferencesError] = useState("");
   useEffect(() => {
     let alive = true;
-    fetchBuddyPreferences(userId).then(value => { if (alive) { setBuddyPreferences(value); setBuddyPreferencesError(""); } })
+    const session = { userId, revision: 0 };
+    preferenceHydration.current = session;
+    hydrateBuddyPreferenceSession(session, { isCurrent: () => alive && currentAccount.current === userId, onHydrated: value => { setPreferenceSnapshot({ userId, value }); setBuddyPreferencesError(""); } })
       .catch(error => { if (alive) setBuddyPreferencesError(error.message); });
     return () => { alive = false; };
   }, [userId]);
   const openActivityGroup = (groupId, pollId) => {
+    setWorkspaceRequest(previous => groupWorkspaceRequest(previous, groupId, "chat"));
     setSocialView("groups"); setExpandedGroup(groupId); setFocusPollId(pollId || null);
     requestAnimationFrame(() => requestAnimationFrame(() => {
       const element = document.getElementById(`fr-group-${groupId}`);
@@ -539,9 +363,11 @@ export default function FriendsPanel({
       .then(preview => { if (live) { setInviteError(""); setJoinPreview(preview); setSocialView("groups"); } })
       .catch(error => { if (live) { setInviteError(error.message || "Could not open invite"); setJoinPreview({ invalid: true }); } });
     return () => { live = false; };
-  }, [userId, groupInviteToken]);
+  }, [userId, groupInviteToken, setSocialView]);
 
-  async function openGroupMembers(group) {
+  async function openGroupMembers(group, tab = "members") {
+    setWorkspaceRequest(previous => groupWorkspaceRequest(previous, group.id, tab));
+    setFocusPollId(null);
     setSocialView("groups");
     setExpandedGroup(group.id);
     if (group.isReceived) return;
@@ -596,77 +422,83 @@ export default function FriendsPanel({
     return () => clearTimeout(t);
   }, [friends.length]);
 
-  const [suggestedBuddiesRaw, setSuggestedBuddies] = useState(null);
-  const [optOutMatchmaker, setOptOutMatchmaker] = useState(() => {
-    try { return localStorage.getItem("pgp2.opt-out-matchmaker") === "true"; } catch { return false; }
-  });
+  const [buddySnapshot, setBuddySnapshot] = useState(null);
+  const [optOutSnapshot, setOptOutSnapshot] = useState(() => ({ userId, value: loadDiscoveryOptOut(userId), loaded: false }));
+  const preferenceChanges = useRef(0);
+  const optOutRequests = useRef(new Set());
+  const [optOutBusyOwner, setOptOutBusyOwner] = useState(null);
+  const optOutMatchmaker = optOutSnapshot.userId === userId ? optOutSnapshot.value : loadDiscoveryOptOut(userId);
+  const discoveryReady = optOutSnapshot.userId === userId && optOutSnapshot.loaded;
+  const [discoveryError, setDiscoveryError] = useState("");
+  const [buddyFilters, setBuddyFilters] = useState({ userId, course: "all", purpose: "all" });
+  const activeBuddyFilters = { ...(buddyFilters.userId === userId ? buddyFilters : { course: "all", purpose: "all" }), ...(!buddyPreferences.discoverable ? { purpose: "all" } : {}) };
+  const [studySnapshot, setStudySnapshot] = useState(() => ({ userId, rows: loadStudyIntents(userId, now) }));
+  const studyIntents = (studySnapshot.userId === userId ? studySnapshot.rows : loadStudyIntents(userId, now)).filter(intent => intent.expiresAt > now.getTime());
+  const readyStudies = readyStudyIntents(studyIntents, friends, userId, now);
+  const changeStudyIntent = (candidate, remove = false) => setStudySnapshot({ userId, rows: updateStudyIntent(userId, candidate, new Date(), remove) });
+  const [buddyRequest, setBuddyRequest] = useState(null);
+  const connectionRequests = useRef(new Set());
+  useEffect(() => {
+    if (!userId) return;
+    let alive = true;
+    const version = preferenceChanges.current;
+    import("../lib/supabase.js").then(async ({ supabase }) => {
+      const result = await supabase.from("profiles").select("courses").eq("user_id", userId).maybeSingle();
+      if (!alive || version !== preferenceChanges.current) return;
+      if (result.error) throw result.error;
+      const value = result.data?.courses?._hide_from_matchmaker === true;
+      setOptOutSnapshot({ userId, value, loaded: true }); setDiscoveryError("");
+      try { localStorage.setItem(`pgp2.opt-out-matchmaker:${encodeURIComponent(userId)}`, String(value)); } catch { /* optional account cache */ }
+    }).catch(() => { if (alive) setDiscoveryError("Could not confirm discovery settings. Refresh to try again."); });
+    return () => { alive = false; };
+  }, [userId]);
 
-  const toggleOptOut = () => {
-    setOptOutMatchmaker(prev => {
-      const next = !prev;
-      try { localStorage.setItem("pgp2.opt-out-matchmaker", next ? "true" : "false"); } catch {}
-      if (userId) {
-        import("../lib/supabase.js").then(({ supabase }) => {
-          supabase.from("profiles").select("courses").eq("user_id", userId).single().then(({data}) => {
-             if (data?.courses) {
-                const updatedCourses = { ...data.courses, _hide_from_matchmaker: next };
-                supabase.from("profiles").update({ courses: updatedCourses }).eq("user_id", userId).then();
-             }
-          });
-        });
+  const toggleOptOut = async () => {
+    if (!userId || optOutRequests.current.has(userId)) return;
+    const next = !optOutMatchmaker; const owner = userId;
+    optOutRequests.current.add(owner); setOptOutBusyOwner(owner);
+    ++preferenceChanges.current;
+    setOptOutSnapshot({ userId, value: next, loaded: true }); setDiscoveryError("");
+    try {
+      const saved = await saveDiscoveryOptOut(next, { isCurrent: () => currentAccount.current === owner });
+      if (saved !== next) return;
+      if (currentAccount.current !== owner) return;
+      try { localStorage.setItem(`pgp2.opt-out-matchmaker:${encodeURIComponent(owner)}`, String(next)); } catch { /* cloud succeeded */ }
+    } catch {
+      if (currentAccount.current === owner) {
+        setOptOutSnapshot({ userId: owner, value: optOutMatchmaker, loaded: true });
+        setDiscoveryError("Could not save discovery visibility. Your previous setting was restored.");
       }
-      return next;
-    });
+    } finally { optOutRequests.current.delete(owner); if (currentAccount.current === owner) setOptOutBusyOwner(null); }
   };
-
-  // Matchmaker results only apply while eligible — derived, not reset via effect
-  const suggestedBuddies = (!userId || !enrolled || optOutMatchmaker) ? [] : suggestedBuddiesRaw;
+  const suggestedBuddiesRaw = buddySnapshot?.userId === userId ? buddySnapshot.matches : null;
+  const consentedBuddies = (suggestedBuddiesRaw || []).map(match => ({ ...match, ...matchBuddy(enrolled, match.courses, buddyPreferences, match.courses?._buddy_preferences) })).filter(match => match.eligible);
+  const suggestedBuddies = !discoveryReady || !userId || !enrolled || optOutMatchmaker ? [] : filterBuddyMatches(consentedBuddies, activeBuddyFilters).filter(match => !friends.some(friend => friend.cloudId === match.user_id));
 
   useEffect(() => {
-    if (!userId || !enrolled || optOutMatchmaker) return;
-    
+    if (!userId || !enrolled || optOutMatchmaker || !discoveryReady) return;
+    let alive = true;
     async function fetchMatches() {
-      const myCourseKeys = Object.keys(enrolled).filter(k => !k.startsWith("_"));
-      if (myCourseKeys.length === 0) {
-        setSuggestedBuddies([]);
-        return;
-      }
-      
+      if (!Object.keys(enrolled).some(key => !key.startsWith("_"))) { if (alive) setBuddySnapshot({ userId, matches: [] }); return; }
       const { supabase } = await import("../lib/supabase.js");
-      // No `name` column exists on profiles — display names live in courses._name
       const [{ data, error }, devGhostIds] = await Promise.all([
         supabase.from("profiles").select("user_id, courses").neq("user_id", userId),
         fetchDevGhostIds(supabase),
       ]);
-
-      if (error || !data) {
-        if (error) console.error("[matchmaker] fetch failed:", error.message);
-        return;
-      }
-
-      const friendCloudIds = new Set(friends.map(f => f.cloudId).filter(Boolean));
-
+      if (!alive) return;
+      if (error || !data) { setDiscoveryError("Could not load buddy suggestions. Refresh to try again."); return; }
+      const friendCloudIds = new Set(friends.map(friend => friend.cloudId).filter(Boolean));
       const matches = data.map(profile => {
-        if (devGhostIds.has(profile.user_id)) return null; // Pre-cutover dev ghost row
-        if (friendCloudIds.has(profile.user_id)) return null; // Already friends
-        if (profile.courses?._hide_from_matchmaker) return null; // Opted out
-        if (isAwayNow(profile.courses?._away)) return null; // Off campus right now
-
-        const theirCourses = Object.keys(profile.courses || {}).filter(k => !k.startsWith("_"));
-        if (theirCourses.length === 0) return null;
-
+        if (devGhostIds.has(profile.user_id) || friendCloudIds.has(profile.user_id) || profile.courses?._hide_from_matchmaker || isAwayNow(profile.courses?._away)) return null;
+        if (!Object.keys(profile.courses || {}).some(key => !key.startsWith("_"))) return null;
         const match = matchBuddy(enrolled, profile.courses, buddyPreferences, profile.courses?._buddy_preferences);
-        if (match.eligible) {
-          return { user_id: profile.user_id, name: profile.courses?._name || "Student", ...match };
-        }
-        return null;
-      }).filter(Boolean).sort((a, b) => b.rank - a.rank).slice(0, 12);
-      
-      setSuggestedBuddies(matches);
+        return match.eligible ? { user_id: profile.user_id, name: profile.courses?._name || "Student", courses: profile.courses, ...match } : null;
+      }).filter(Boolean).sort((a, b) => b.rank - a.rank);
+      setBuddySnapshot({ userId, matches }); setDiscoveryError("");
     }
-    
-    fetchMatches();
-  }, [userId, enrolled, friends, optOutMatchmaker, buddyPreferences]);
+    fetchMatches().catch(() => { if (alive) setDiscoveryError("Could not load buddy suggestions. Refresh to try again."); });
+    return () => { alive = false; };
+  }, [userId, enrolled, friends, optOutMatchmaker, discoveryReady, buddyPreferences]);
 
   const showToast = (message, type = "success", action = null) => setToast({ message, type, action });
 
@@ -1061,9 +893,13 @@ export default function FriendsPanel({
   const allGroupsDialogRef = useDialog(showAllGroupsModal, () => setShowAllGroupsModal(false));
   const allBuddiesDialogRef = useDialog(showAllBuddiesModal, () => setShowAllBuddiesModal(false));
   const directoryDialogRef = useDialog(showDirectory, () => setShowDirectory(false));
-  const [directory, setDirectory] = useState(null); // null = not fetched yet
+  const [directorySnapshot, setDirectorySnapshot] = useState(null);
+  const directory = directorySnapshot?.userId === userId ? directorySnapshot.rows : null;
+  const setDirectory = rows => setDirectorySnapshot({ userId, rows });
   const [dirSearch, setDirSearch] = useState("");
-  const [requestedIds, setRequestedIds] = useState(() => new Set());
+  const [requestSnapshot, setRequestSnapshot] = useState({ userId, ids: new Set() });
+  const requestedIds = requestSnapshot.userId === userId ? requestSnapshot.ids : new Set();
+  const setRequestedIds = update => setRequestSnapshot(previous => ({ userId, ids: update(previous.userId === userId ? previous.ids : new Set()) }));
 
   useEffect(() => {
     const isModalOpen = showAllFriendsModal || showAllGroupsModal || showAllBuddiesModal || showDirectory || showConnectModal;
@@ -1085,6 +921,7 @@ export default function FriendsPanel({
       supabase.from("profiles").select("user_id, courses").neq("user_id", userId),
       fetchDevGhostIds(supabase),
     ]);
+    if (currentAccount.current !== userId) return;
     if (error || !data) {
       setDirectory([]);
       showToast("Couldn't load students", "error");
@@ -1108,17 +945,9 @@ export default function FriendsPanel({
     setDirectory(list);
   }
 
-  async function handleDirectoryAdd(person) {
-    if (!myCode) { showToast("Wait for code generation", "info"); return; }
-    const alreadySent = await hasPendingFriendRequest(userId, person.user_id);
-    if (alreadySent) {
-      setRequestedIds(prev => new Set([...prev, person.user_id]));
-      showToast("Request already sent", "info");
-      return;
-    }
-    await sendFriendPing(person.user_id, userId, userName, { type: "friend_request", fromCode: myCode });
-    setRequestedIds(prev => new Set([...prev, person.user_id]));
-    showToast(`Request sent to ${person.name}!`, "success");
+  async function handleDirectoryAdd(event) {
+    const person = directory?.find(row => row.user_id === event.currentTarget.dataset.userId);
+    if (person) await requestBuddy(person);
   }
 
   // Manual "add friends to a group" builder inside the Study Buddies section
@@ -1143,7 +972,8 @@ export default function FriendsPanel({
   }
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
   const handleDragEnd = (event) => {
@@ -1173,9 +1003,10 @@ export default function FriendsPanel({
   };
 
   const renderFriendCard = (f, isCompact = false, dragHandle = null) => {
-    const fCourseCount = Object.keys(f.courses || {}).length;
+    const fCourseCount = courseCodes(f.courses).length;
     const [c1, c2] = avatarGradient(f.name);
     const status = getFriendStatusNow(f);
+    const freshness = friendScheduleFreshness(f, now);
     const presence = f.cloudId ? friendStatuses[f.cloudId] : null;
     const selfStatus = statusEnabled ? activeStatus(presence?.status) : null;
     const away = awayEnabled && isAwayNow(presence?.away) ? presence.away : null;
@@ -1188,7 +1019,7 @@ export default function FriendsPanel({
         <div className="fr-friend-info">
           <span className="fr-friend-name">{f.name}</span>
           <div className="fr-friend-meta-row">
-            <span className="fr-friend-meta">{fCourseCount} course{fCourseCount !== 1 ? "s" : ""}</span>
+            <span className="fr-friend-meta">{fCourseCount} course{fCourseCount !== 1 ? "s" : ""}</span><small className="fr-availability-source">{freshness === "stale" ? "Stale timetable estimate · sync to refresh" : freshness === "unverified" ? "Unverified timetable estimate" : "Timetable estimate"}{f.lastCheckedAt && Number.isFinite(new Date(f.lastCheckedAt).getTime()) ? ` · checked ${new Date(f.lastCheckedAt).toLocaleString()}` : " · source not checked"}{f.profileUpdatedAt ? ` · profile updated ${new Date(f.profileUpdatedAt).toLocaleString()}` : " · source update unknown"} · Other commitments private</small>
             {theirPet && (
               <span className="fr-friend-pet" title={`${theirPet.name || getPetByKey(theirPet.key).label} · Level ${theirPet.level}${theirPet.title ? ` · ${titleLabel(theirPet.title) || ""}` : ""}`}>
                 {/* data-motion="off": a friends list can hold dozens of these,
@@ -1215,9 +1046,9 @@ export default function FriendsPanel({
             </span>
           )}
           {!away && status && (
-            <span className={`fr-friend-status fr-friend-status-${status.state}`}>
+            <span className={`fr-friend-status fr-friend-status-${status.state}`} title={status.state === "free" ? "Timetable estimate: no scheduled class right now. Personal availability is unverified." : status.state === "unknown" ? "A complete matching timetable is unavailable. This friend is not counted as free." : undefined}>
               <span className="fr-friend-status-dot" />
-              {status.state === "free" ? "No scheduled class" : status.state === "available" ? "Available to meet" : status.state === "unavailable" ? "Busy outside class" : `In class till ${status.end ? fmtTime12(status.end) : "?"}`}
+              {scheduleStatusLabel(status)}
               {nudgeEnabled && status.state === "busy" && status.end && (
                 <button
                   className={`fr-nudge-btn ${myNudges[f.cloudId || f.id] ? "is-active" : ""}`}
@@ -1258,7 +1089,7 @@ export default function FriendsPanel({
               className="fr-btn fr-btn-icon fr-drag-handle"
               type="button"
               aria-label={`Reorder ${f.name}`}
-              title="Drag to reorder favourite"
+              title="Reorder favourite: Space to pick up, arrow keys to move, Space to drop"
               {...dragHandle.attributes}
               {...dragHandle.listeners}
             >
@@ -1312,13 +1143,14 @@ export default function FriendsPanel({
       <div id={`fr-group-${group.id}`} key={group.id} className={`fr-group-card ${group.isReceived ? "fr-group-received" : ""} ${isCompact ? "compact" : ""}`}>
         <div className="fr-group-head">
           <button type="button" className="fr-group-summary" aria-expanded={!isCompact ? isExpanded : undefined}
-            onClick={() => { if (isCompact) openGroupMembers(group); else if (isExpanded) setExpandedGroup(null); else openGroupMembers(group); }}>
+            onClick={() => { if (isExpanded) setExpandedGroup(null); else openGroupMembers(group, null); }}>
             <span className="fr-group-emblem"><Users size={19} strokeWidth={2} /></span>
             <span className="fr-group-info">
               <span className="fr-group-name">{group.name}</span>
               <span className="fr-group-meta">
                 {group.isReceived ? `Shared by ${group.ownerName || "a classmate"}` : `${memberCount} member${memberCount !== 1 ? "s" : ""}`}
               </span>
+              <span className="fr-group-last-message">{activitySummary[group.id]?.preview || "Open group workspace"}</span>
             </span>
             <span className="fr-group-summary-end">
               {displayCount > 0 && <span className="fr-group-member-preview" aria-label={`${displayCount} visible group members`}>
@@ -1342,6 +1174,7 @@ export default function FriendsPanel({
               </span>}
               {group.isReceived && <span className="fr-group-shared-badge"><Globe size={11} /> Joined</span>}
               {pendingCount > 0 && <span className="fr-group-pending-badge">{pendingCount} pending</span>}
+              {activitySummary[group.id]?.unread > 0 && <span className="fr-group-pending-badge" aria-label={`${activitySummary[group.id].unread} unread messages`}>{activitySummary[group.id].unread} unread</span>}
             </div>
             <div className="fr-group-actions">
               {!group.isReceived && <button type="button" className="fr-btn fr-btn-small fr-group-add-members" onClick={() => openGroupMembers(group)}>
@@ -1358,7 +1191,7 @@ export default function FriendsPanel({
         </div>
         {isExpanded && !isCompact && (
           <div className="fr-group-body">
-            <GroupPins key={group.id} group={group} userId={userId} userName={userName} />
+            <GroupWorkspace key={`${userId}:${group.id}:${workspaceRequest?.groupId === group.id ? workspaceRequest.nonce : "restored"}`} group={group} userId={userId} userName={userName} meetupsEnabled={meetupsEnabled} friends={friends} allClasses={allClasses} enrolled={enrolled} now={now} showToast={showToast} focusPollId={focusPollId} initialTab={workspaceRequest?.groupId === group.id ? workspaceRequest.tab : null} chat={<GroupChat key={`${userId}:${group.id}`} group={group} userId={userId} userName={userName} focusPollId={focusPollId} />}>
             {group.isReceived ? (
               <>
                 <p className="fr-group-body-label">Members in this group:</p>
@@ -1389,7 +1222,6 @@ export default function FriendsPanel({
                   )}
                 </div>
                 
-                <GroupChat group={group} userId={userId} userName={userName} focusPollId={focusPollId} />
               </>
             ) : (
               <>
@@ -1506,21 +1338,39 @@ export default function FriendsPanel({
                   )}
                 </div>
                 
-                {(group.visibility === "shared" || group.visibility === "global" || (group.inviteMembers || []).length > 0) && (
-                  <GroupChat group={group} userId={userId} userName={userName} focusPollId={focusPollId} />
-                )}
               </>
             )}
+            </GroupWorkspace>
           </div>
         )}
       </div>
     );
   };
 
+  const buddyFilterControls = <div className="fr-buddy-filters">
+    <label>Shared course<select className="fr-add-input" value={activeBuddyFilters.course} onChange={event => setBuddyFilters({ userId, ...activeBuddyFilters, course: event.target.value })}><option value="all">All shared courses</option>{Object.keys(enrolled || {}).filter(code => !code.startsWith("_")).map(code => <option key={code} value={code}>{code}</option>)}</select></label>
+    <div role="group" aria-label="Shared study purpose"><button type="button" className="fr-btn fr-btn-small" aria-pressed={activeBuddyFilters.purpose === "all"} onClick={() => setBuddyFilters({ userId, ...activeBuddyFilters, purpose: "all" })}>All purposes</button>{STUDY_PURPOSES.map(purpose => <button type="button" key={purpose} className="fr-btn fr-btn-small" disabled={!buddyPreferences.discoverable} aria-pressed={activeBuddyFilters.purpose === purpose} onClick={() => setBuddyFilters({ userId, ...activeBuddyFilters, purpose })}>{purpose}</button>)}</div>
+    {!buddyPreferences.discoverable && <small>Enable matching in Study-buddy preferences to use consent-based purpose matches.</small>}
+  </div>;
+  const requestBuddy = async (match, study = false) => {
+    if (!userId || connectionRequests.current.has(userId)) return;
+    const owner = userId;
+    connectionRequests.current.add(owner);
+    setBuddyRequest({ userId: owner, candidateId: match.user_id });
+    try {
+      const result = await requestBuddyConnection({ userId: owner, userName, candidate: match, isCurrent: () => currentAccount.current === owner });
+      if (!result) return;
+      setRequestedIds(previous => new Set([...previous, match.user_id]));
+      if (study) changeStudyIntent(match);
+      showToast(study ? "Connection requested. After acceptance, you can choose and send a study invitation." : result.alreadySent ? "Request already sent" : `Request sent to ${match.name}!`, "info");
+    } catch (error) { if (currentAccount.current === owner) showToast(error.message || "Could not send friend request", "error"); }
+    finally { connectionRequests.current.delete(owner); if (currentAccount.current === owner) setBuddyRequest(null); }
+  };
   const renderBuddyCard = (match, isCompact = false) => {
     const [c1, c2] = avatarGradient(match.name);
     const score = match.score || 0;
     const compatLabel = match.reasons?.join(" · ") || "Shared courses";
+    const slot = meetupsEnabled && discoveryAvailability.loaded ? buddySharedSlot({ candidate: match, userId, enrolled, allClasses, now, commitments: discoveryAvailability.commitments }) : null;
     return (
       <div key={match.user_id} className={`fr-friend-card fr-buddy ${isCompact ? "compact" : ""}`}
         style={{ '--buddy-c1': c1, '--buddy-c2': c2 }}>
@@ -1542,20 +1392,15 @@ export default function FriendsPanel({
             </span>
           </div>
           <span className="fr-buddy-compat">{compatLabel}</span>
+          {match.sharedCourses?.length > 0 && <span className="fr-buddy-compat">Courses: {match.sharedCourses.join(", ")}</span>}
+          {meetupsEnabled && <span className="fr-buddy-window">{!discoveryAvailability.loaded ? "Shared time unavailable until your plans finish loading." : slot ? `Shared timetable window: ${new Date(`${slot.date}T12:00:00`).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })} · ${fmtTime12(slot.start)}–${fmtTime12(slot.end)}` : "No known shared hour in the next seven days."} {slot && "Your known plans are checked; confirm their availability."}</span>}
         </div>
         <div className="fr-buddy-divider" />
         <div className="fr-friend-actions">
-          <button className="fr-btn fr-buddy-add-btn" style={{ background: `linear-gradient(135deg, ${c1} 0%, ${c2} 100%)` }}
-            onClick={async () => {
-              if (!myCode) { showToast("Wait for code generation", "info"); return; }
-              const alreadySent = await hasPendingFriendRequest(userId, match.user_id);
-              if (alreadySent) { showToast("Request already sent", "info"); return; }
-              await sendFriendPing(match.user_id, userId, userName, { type: "friend_request", fromCode: myCode });
-              showToast(`Request sent to ${match.name}!`, "success");
-              setSuggestedBuddies(prev => prev.filter(p => p.user_id !== match.user_id));
-            }}>
-            <UserPlus size={14} /> Add
+          <button type="button" className="fr-btn fr-buddy-add-btn" disabled={buddyRequest?.userId === userId || requestedIds.has(match.user_id)} style={{ background: `linear-gradient(135deg, ${c1} 0%, ${c2} 100%)` }} onClick={() => requestBuddy(match)}>
+            <UserPlus size={14} /> {requestedIds.has(match.user_id) ? "Requested" : "Add"}
           </button>
+          {meetupsEnabled && <button type="button" className="fr-btn fr-btn-secondary fr-btn-small" disabled={buddyRequest?.userId === userId || studyIntents.some(intent => intent.candidateId === match.user_id)} onClick={() => requestBuddy(match, true)}>Connect to study</button>}
         </div>
       </div>
     );
@@ -1767,7 +1612,7 @@ export default function FriendsPanel({
                             ) : isSent ? (
                               <span className="fr-dir-state fr-dir-sent">Sent</span>
                             ) : (
-                              <button className="fr-btn fr-btn-primary" onClick={() => handleDirectoryAdd(p)}>
+                              <button type="button" className="fr-btn fr-btn-primary" data-user-id={p.user_id} disabled={buddyRequest?.userId === userId} onClick={handleDirectoryAdd}>
                                 <UserPlus size={13} /> Add
                               </button>
                             )}
@@ -1802,7 +1647,9 @@ export default function FriendsPanel({
             </div>
             <div className="fr-friends-modal-body" style={{ paddingRight: 24 }}>
               <div className="fr-friend-list">
+                {buddyFilterControls}
                 {suggestedBuddies.map(match => renderBuddyCard(match, true))}
+                {!suggestedBuddies.length && <p className="fr-extra-help">No buddies match these filters. Try another course or purpose.</p>}
               </div>
             </div>
           </div>
@@ -1949,9 +1796,33 @@ export default function FriendsPanel({
         })}
       </nav>
 
-      {/* ── Plans (meetups) ── */}
+      {meetupsEnabled && (socialView === "overview" || socialView === "friends") && studyIntents.length > 0 && <section className="fr-extra-section" aria-label="Study connection follow-ups">
+        <div className="fr-extra-head"><div><span className="fr-card-kicker">Your study connections</span><h2>Plan after connecting</h2></div></div>
+        {readyStudies.map(intent => <div key={intent.candidateId} className="fr-study-followup"><span><strong>You’re connected with {intent.friend.name}.</strong><small>Choose a time and review the invitation before sending.</small></span><button type="button" className="fr-btn fr-btn-primary fr-btn-small" disabled={!discoveryAvailability.loaded} onClick={() => {
+          const fresh = buddySharedSlot({ candidate: { user_id: intent.candidateId, name: intent.friend.name, courses: intent.friend.courses }, userId, enrolled, allClasses, now: new Date(), commitments: discoveryAvailability.commitments });
+          setGroupPlanDraft({ ...(fresh || {}), title: "Study session", duration: 60, memberCloudIds: [intent.candidateId] }); setSocialView("overview");
+        }}>Plan study session</button><button type="button" className="fr-text-button" onClick={() => changeStudyIntent({ user_id: intent.candidateId, name: intent.name }, true)}>Dismiss</button></div>)}
+        {studyIntents.filter(intent => !readyStudies.some(ready => ready.candidateId === intent.candidateId)).map(intent => <div key={intent.candidateId} className="fr-study-followup"><span>Waiting for {intent.name} to accept your connection. A study invitation has not been sent.</span><button type="button" className="fr-text-button" onClick={() => changeStudyIntent({ user_id: intent.candidateId, name: intent.name }, true)}>Dismiss</button></div>)}
+        {!discoveryAvailability.loaded && <p className="fr-extra-help">{discoveryAvailability.error || "Loading your known plans before choosing a study time…"}<button type="button" className="fr-text-button" onClick={discoveryAvailability.refresh}>Retry availability</button></p>}
+      </section>}
+
+      {socialView === "overview" && <>
+        {incomingRequests.length > 0 && (
+          <section className="fr-overview-card fr-requests-card">
+            <div className="fr-overview-card-head">
+              <div><span className="fr-card-kicker">Your next actions</span><h2>People waiting to connect</h2></div>
+              <span className="fr-count-badge">{incomingRequests.length}</span>
+            </div>
+            <div className="fr-request-list">{incomingRequests.map(item => <IncomingRequestItem key={item.id} item={item} onAccept={onAcceptFriend} onDecline={onDeclineFriend} variant="card" />)}</div>
+          </section>
+        )}
+        <SocialActivity key={`${userId}:activity`} userId={userId} userName={userName} groups={groups} now={now} onOpenGroup={openActivityGroup} meetupsEnabled={meetupsEnabled} />
+      </>}
+
+      {/* ── Confirmed plans follow pending actions ── */}
       {socialView === "overview" && meetupsEnabled && (
         <MeetupsStrip
+          confirmedOnly
           userId={userId}
           userName={userName}
           friends={friends}
@@ -1965,34 +1836,13 @@ export default function FriendsPanel({
       )}
 
       {socialView === "overview" && <>
-        <SocialActivity key={`${userId}:activity`} userId={userId} userName={userName} groups={groups} now={now} onOpenGroup={openActivityGroup} meetupsEnabled={meetupsEnabled} />
         {meetupsEnabled && <SocialOverviewExtras key={`${userId}:suggestions`} userId={userId} enrolled={enrolled} friends={friends} groups={groups} allClasses={allClasses} now={now} presence={awayEnabled ? friendStatuses : {}} onPlan={setGroupPlanDraft} />}
       </>}
-      {(socialView === "overview" || socialView === "friends") && <BuddyPreferences key={`${userId}:preferences`} userId={userId} preferences={buddyPreferences} enrolled={enrolled} onSaved={value => { setBuddyPreferences(value); showToast("Study preferences saved"); }} />}
+      {(socialView === "overview" || socialView === "friends") && <BuddyPreferences key={`${userId}:preferences`} userId={userId} preferences={buddyPreferences} enrolled={enrolled} onSaved={value => { if (setBuddyPreferences(value)) showToast("Study preferences saved"); }} />}
       {buddyPreferencesError && socialView === "friends" && <p className="fr-meetup-error" role="alert">{buddyPreferencesError}</p>}
 
       {socialView === "overview" && (
         <div className="fr-overview-grid fr-tab-pane">
-          {incomingRequests.length > 0 && (
-            <section className="fr-overview-card fr-requests-card">
-              <div className="fr-overview-card-head">
-                <div><span className="fr-card-kicker">Requests</span><h2>People waiting to connect</h2></div>
-                <span className="fr-count-badge">{incomingRequests.length}</span>
-              </div>
-              <div className="fr-request-list">
-                {incomingRequests.map(item => (
-                  <IncomingRequestItem
-                    key={item.id}
-                    item={item}
-                    onAccept={onAcceptFriend}
-                    onDecline={onDeclineFriend}
-                    variant="card"
-                  />
-                ))}
-              </div>
-            </section>
-          )}
-
           <section className="fr-overview-card fr-free-card">
             <div className="fr-overview-card-head">
               <div><span className="fr-card-kicker fr-live-kicker"><i /> Timetable gaps</span><h2>Friends without scheduled classes</h2></div>
@@ -2014,7 +1864,7 @@ export default function FriendsPanel({
             </div>
             {groups.length > 0 ? (
               <div className="fr-overview-groups">
-                {groups.slice(0, 3).map(group => renderGroupCard(group, true))}
+                {orderedGroups.slice(0, 3).map(group => renderGroupCard(group, true))}
               </div>
             ) : (
               <div className="fr-quiet-empty"><Users size={20} /><span>Create a group to compare several schedules together.</span></div>
@@ -2088,7 +1938,8 @@ export default function FriendsPanel({
           />
         ) : (
           <div className="fr-group-list">
-            {groups.map(group => renderGroupCard(group, false))}
+            {activityError && <p className="fr-meetup-error" role="status">{activityError}</p>}
+            {orderedGroups.map(group => renderGroupCard(group, false))}
           </div>
         )}
 
@@ -2138,7 +1989,7 @@ export default function FriendsPanel({
               {[
                 ["all", "All"], ["free", "No classes"], ["available", "Available to meet"], ["busy", "In class"], ["favourites", "Favourites"],
               ].map(([id, label]) => (
-                <button key={id} type="button" className={friendFilter === id ? "is-active" : ""} onClick={() => setFriendFilter(id)}>{label}</button>
+                <button key={id} type="button" aria-pressed={friendFilter === id} className={friendFilter === id ? "is-active" : ""} onClick={() => setFriendFilter(id)}>{label}</button>
               ))}
             </div>
           </div>
@@ -2189,10 +2040,13 @@ export default function FriendsPanel({
         <div className="fr-section-header">
            <h3 className="fr-section-title">Suggested Study Buddies</h3>
            <label className="fr-optout-label">
-             <input type="checkbox" checked={optOutMatchmaker} onChange={toggleOptOut} />
+             <input type="checkbox" checked={optOutMatchmaker} disabled={optOutBusyOwner === userId} onChange={toggleOptOut} />
              Opt Out
            </label>
         </div>
+        {!optOutMatchmaker && buddyFilterControls}
+        {discoveryError && <p className="fr-meetup-error" role="alert">{discoveryError}</p>}
+        {!discoveryReady && !discoveryError && <p className="fr-extra-help">Loading your discovery settings…</p>}
         {!optOutMatchmaker && suggestedBuddies && suggestedBuddies.length > 0 && (
           <div className="fr-friend-list" style={{ marginTop: 12 }}>
             {suggestedBuddies.slice(0, 3).map(match => renderBuddyCard(match, false))}

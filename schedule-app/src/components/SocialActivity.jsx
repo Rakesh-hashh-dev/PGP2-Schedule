@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, MessageSquare, BarChart3, CalendarPlus, ArrowRight } from "lucide-react";
 import { buildResponseItems, fetchSocialResponses, subscribeGroupActivity } from "../lib/socialActivity.js";
+import MeetupTimePoll from "./MeetupTimePoll.jsx";
 import { rsvpMeetup, subscribeMeetups, fmtMeetupTime } from "../lib/meetups.js";
 
 export default function SocialActivity({ userId, userName, groups, now, onOpenGroup, meetupsEnabled = true }) {
   const [snapshot, setSnapshot] = useState(null);
+  const [timePlanId, setTimePlanId] = useState(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(null);
   const [showAll, setShowAll] = useState(false);
@@ -32,6 +34,7 @@ export default function SocialActivity({ userId, userName, groups, now, onOpenGr
     return () => { alive = false; requests.request++; clearTimeout(timer); clearInterval(interval); stopGroups(); stopMeetups(); window.removeEventListener("pgp2:social-meetup", refresh); window.removeEventListener("pgp2:social-read", refresh); window.removeEventListener("focus", onFocus); window.removeEventListener("online", refresh); document.removeEventListener("visibilitychange", onFocus); };
   }, [userId, load, meetupsEnabled]);
   const currentSnapshot = snapshot?.userId === userId ? snapshot : null;
+  const timePlan = currentSnapshot?.meetups?.find(plan => plan.id === timePlanId);
   const loadErrors = Object.values(currentSnapshot?.errors || {}).filter(Boolean);
   const items = useMemo(() => currentSnapshot ? buildResponseItems({ ...currentSnapshot, groups, userId, now }) : [], [currentSnapshot, groups, userId, now]);
   const respond = async (item, response) => {
@@ -50,9 +53,10 @@ export default function SocialActivity({ userId, userName, groups, now, onOpenGr
     <div className="fr-extra-head"><div><span className="fr-card-kicker">Your next actions</span><h2 id="fr-response-title">Needs your response</h2></div>{items.length > 0 && <span className="fr-count-badge">{items.length}</span>}</div>
     {!currentSnapshot && !error && <p className="fr-extra-help">Checking invitations and group activity…</p>}
     {currentSnapshot && !items.length && !error && !loadErrors.length && <p className="fr-extra-help"><Check size={13} /> You’re all caught up.</p>}
-    <div className="fr-response-list">{(showAll ? items : items.slice(0, 3)).map(item => { const Icon = Icons[item.kind]; return <article key={item.id} className="fr-response-row"><Icon size={16} /><div><strong>{item.title}</strong><span>{item.kind === "meetup" ? `${item.detail} · ${fmtMeetupTime(item.date, now)}` : item.detail}</span></div><div className="fr-response-actions">{item.kind === "meetup" ? <><button type="button" className="fr-btn fr-btn-secondary fr-btn-small" disabled={busy === item.id} onClick={() => respond(item, "going")}><Check size={13} />Going</button><button type="button" className="fr-text-button" disabled={busy === item.id} onClick={() => respond(item, "declined")}>Can’t</button></> : <button type="button" className="fr-btn fr-btn-secondary fr-btn-small" onClick={() => onOpenGroup(item.groupId, item.pollId)}>{item.kind === "poll" ? "Vote" : "Read"}<ArrowRight size={13} /></button>}</div></article>; })}</div>
+    <div className="fr-response-list">{(showAll ? items : items.slice(0, 3)).map(item => { const Icon = Icons[item.kind]; return <article key={item.id} className="fr-response-row"><Icon size={16} /><div><strong>{item.title}</strong><span>{item.kind === "meetup" ? `${item.detail} · ${fmtMeetupTime(item.date, now)}` : item.detail}</span></div><div className="fr-response-actions">{item.kind === "meetup" ? <><button type="button" className="fr-btn fr-btn-secondary fr-btn-small" disabled={busy === item.id} onClick={() => respond(item, "going")}><Check size={13} />Going</button><button type="button" className="fr-text-button" disabled={busy === item.id} onClick={() => respond(item, "declined")}>Can’t</button><button type="button" className="fr-text-button" onClick={() => setTimePlanId(item.meetup.id)}>Suggest / vote time</button></> : <button type="button" className="fr-btn fr-btn-secondary fr-btn-small" onClick={() => onOpenGroup(item.groupId, item.pollId)}>{item.kind === "poll" ? "Vote" : "Read"}<ArrowRight size={13} /></button>}</div></article>; })}</div>
     {items.length > 3 && <button type="button" className="fr-text-button fr-extra-more" onClick={() => setShowAll(value => !value)} aria-expanded={showAll}>{showAll ? "Show fewer" : `View all ${items.length} actions`}</button>}
     {loadErrors.map(message => <p key={message} className="fr-meetup-error" role="alert">{message} <button type="button" className="fr-text-button" onClick={load}>Retry</button></p>)}
     {error && <p className="fr-meetup-error" role="alert">{error}</p>}
+    {timePlanId && meetupsEnabled && <MeetupTimePoll key={`${userId}:${timePlanId}`} meetup={timePlan || { id: timePlanId }} userId={userId} userName={userName} onClose={() => setTimePlanId(null)} onChanged={load} />}
   </section>;
 }

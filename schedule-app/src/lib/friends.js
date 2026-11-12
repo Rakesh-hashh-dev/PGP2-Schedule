@@ -14,6 +14,7 @@ const MY_CODE_KEY = "pgp2.my_share_code";
 
 import { LEGEND } from "../data/schedule.js";
 import { supabase } from "./supabase.js";
+import { CHAT_PAGE_SIZE, messageBeforeCursor, normalizeChatMessage } from "./groupChat.js";
 import { socialNotificationCopy } from '../../supabase/functions/_shared/notificationCopy.js';
 
 // Deterministic name → gradient pair, shared by FriendsPanel and CompareView
@@ -555,12 +556,15 @@ export async function hasPendingFriendRequest(fromUserId, toUserId) {
   return (data?.length ?? 0) > 0;
 }
 
-export async function sendFriendPing(targetUserId, fromUserId, fromName, fromMeta = null) {
-  if (!targetUserId || !fromUserId || targetUserId === fromUserId) return;
+export async function sendFriendPing(targetUserId, fromUserId, fromName, fromMeta = null, { strict = false, legacyAlreadySaved = false } = {}) {
+  if (!targetUserId || !fromUserId || targetUserId === fromUserId) {
+    if (strict) throw new Error("Choose another student to connect with.");
+    return;
+  }
   try {
     // Legacy plane — still written so clients on the old (friend_pings) read path
     // keep receiving during the Phase 3 transition. New clients read notifications.
-    const { error } = await supabase.from("friend_pings").insert({
+    const { error } = legacyAlreadySaved ? { error: null } : await supabase.from("friend_pings").insert({
       target_id: targetUserId,
       from_id: fromUserId,
       from_name: fromMeta ? JSON.stringify({ name: fromName || "Someone", ...fromMeta }) : (fromName || "Someone"),
@@ -579,7 +583,8 @@ export async function sendFriendPing(targetUserId, fromUserId, fromName, fromMet
       : "friend_request";
   await sendSocialNotification(targetUserId, type, {
     fromId: fromUserId, fromName, fromCode: fromMeta?.fromCode, group: fromMeta?.group,
-  });
+  }, { strict });
+  return true;
 }
 
 export async function fetchFriendPings(userId) {
@@ -631,7 +636,7 @@ export async function deleteAllFriendPings(userId) {
  * friend_removed is inserted silent:true — the realtime handler processes the
  * removal but the bell filters it out.
  */
-export async function sendSocialNotification(targetUserId, type, meta = {}) {
+export async function sendSocialNotification(targetUserId, type, meta = {}, { strict = false } = {}) {
   if (!targetUserId || !type || !meta.fromId || targetUserId === meta.fromId) return;
   const name = meta.fromName || "Someone";
   const copy = socialNotificationCopy(type, { ...meta, fromName: name });
@@ -667,8 +672,12 @@ export async function sendSocialNotification(targetUserId, type, meta = {}) {
       dedup_key: dedupKey,
     });
     // 23505 = dedup_key already used (same person, same post, same hour) — expected.
-    if (error && !(isBoard && error.code === "23505")) console.error("[sendSocialNotification] error:", error.message, error.details, error.hint);
+    if (error && error.code !== "23505") {
+      if (strict) throw new Error("Could not confirm your request was saved. Please try again.", { cause: error });
+      console.error("[sendSocialNotification] error:", error.message, error.details, error.hint);
+    }
   } catch (e) {
+    if (strict) throw new Error("Could not confirm your request was saved. Please try again.", { cause: e });
     console.error("[sendSocialNotification] catch:", e);
   }
 }
@@ -677,35 +686,47 @@ export async function sendSocialNotification(targetUserId, type, meta = {}) {
 
 // Phase 3: chat lives in its own `group_messages` table (out of the notification
 // path). from_id is pinned to the caller by the group_msg_insert RLS policy.
-export async function sendGroupChatMessage(groupId, fromUserId, fromName, text) {
+export async function sendGroupChatMessage(groupId, fromUserId, fromName, text, replyTo = null) {
   if (!groupId || !fromUserId || !text?.trim()) throw new Error("Choose a group and enter a message.");
   const { data, error } = await supabase.from("group_messages").insert({
     group_id: groupId,
     from_id: fromUserId,
     from_name: fromName || "Someone",
     text: text.trim(),
+    ...(replyTo ? { reply_to: replyTo } : {}),
   }).select().single();
   if (error || !data) throw new Error("Could not send your message. Please try again.");
-  return { id: data.id, from_id: data.from_id, name: data.from_name || "Someone", text: data.text || "", created_at: data.created_at };
+  return normalizeChatMessage(data);
 }
 
-export async function fetchGroupChatMessages(groupId) {
+export async function fetchGroupChatMessages(groupId, { before = null } = {}) {
   if (!groupId) return [];
   try {
-    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    const { data, error } = await supabase
+    let query = supabase
       .from("group_messages")
       .select("*")
       .eq("group_id", groupId)
       .eq('moderation_hidden', false)
-      .gte("created_at", cutoff)
-      .order("created_at", { ascending: true });
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(CHAT_PAGE_SIZE);
+    if (before) query = query.or(messageBeforeCursor(before));
+    const { data, error } = await query;
     if (error) throw error;
-    return (data || []).map((m) => ({
-      id: m.id, from_id: m.from_id, name: m.from_name || "Someone",
-      text: m.text || "", created_at: m.created_at,
-    }));
+    return (data || []).map(normalizeChatMessage).reverse();
   } catch { throw new Error("Could not load group chat. Please try again."); }
+}
+
+export async function fetchReadableGroupChatMessages(groupId, ids) {
+  const access = await supabase.rpc("social_group_member", { p_group_id: groupId });
+  if (access.error || access.data !== true) throw new Error("Could not verify group chat access. Reopen the group or retry.");
+  const rows = [];
+  for (let offset = 0; offset < ids.length; offset += 100) {
+    const result = await supabase.from("group_messages").select("*").eq("group_id", groupId).eq("moderation_hidden", false).in("id", ids.slice(offset, offset + 100));
+    if (result.error) throw new Error("Could not refresh loaded chat history. Retry when connected.");
+    rows.push(...(result.data || []).map(normalizeChatMessage));
+  }
+  return rows;
 }
 
 export async function deleteGroupChatMessage(messageId, fromUserId) {
@@ -876,28 +897,30 @@ export async function refreshFriendCoursesFromCloud(friends, onlyCloudIds = null
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("user_id, courses")
+    .select("user_id, courses, updated_at")
     .in("user_id", cloudFriends.map(f => f.cloudId));
 
   if (error || !data) return null;
 
   const profileMap = {};
-  data.forEach(p => { profileMap[p.user_id] = p.courses; });
+  data.forEach(p => { profileMap[p.user_id] = p; });
 
   let changed = false;
   const updated = friends.map(f => {
     if (!f.cloudId || !profileMap[f.cloudId]) return f;
-    const rawProfile = profileMap[f.cloudId];
+    const profile = profileMap[f.cloudId];
+    const rawProfile = profile.courses;
+    if (!rawProfile) return f;
     const freshName = rawProfile._name || f.name;
     const freshImageUrl = rawProfile._imageUrl || f.imageUrl;
     const raw = Object.fromEntries(Object.entries(rawProfile).filter(([k]) => !k.startsWith('_')));
 
     const coursesChanged =
       JSON.stringify(raw) !== JSON.stringify(f.courses) || freshName !== f.name || freshImageUrl !== f.imageUrl;
-    if (!coursesChanged) return f;
+    if (!coursesChanged) { changed = true; return { ...f, profileUpdatedAt: profile.updated_at || null, lastCheckedAt: new Date().toISOString() }; }
 
     changed = true;
-    return { ...f, name: freshName, imageUrl: freshImageUrl, courses: raw, updatedAt: new Date().toISOString() };
+    return { ...f, name: freshName, imageUrl: freshImageUrl, courses: raw, profileUpdatedAt: profile.updated_at || null, lastCheckedAt: new Date().toISOString() };
   });
 
   if (!changed) return null;

@@ -16,7 +16,7 @@ export function matchBuddy(myCourses, theirCourses, mine, theirs) {
   const subjects = them.discoverable && me.discoverable ? overlap(me.subjects, them.subjects) : [];
   const reasons = [shared.length ? `${shared.length} shared course${shared.length === 1 ? "" : "s"}` : null, subjects.length ? `Study focus: ${subjects.join(", ")}` : null, purposes.length ? purposes.join(" · ") : null, interests.length ? `Interests: ${interests.join(", ")}` : null].filter(Boolean);
   return { score: courseScore, rank: courseScore + subjects.length * 8 + purposes.length * 12 + interests.length * 5,
-    eligible: courseScore >= 40 || purposes.length > 0 || subjects.length > 0 || interests.length > 0, reasons };
+    eligible: courseScore >= 40 || purposes.length > 0 || subjects.length > 0 || interests.length > 0, reasons, sharedCourses: shared, sharedPurposes: purposes };
 }
 export function loadBuddyPreferences(userId) {
   if (!userId) return normalizeBuddyPreferences(null);
@@ -28,6 +28,26 @@ export async function fetchBuddyPreferences(userId) {
   const { data, error } = await supabase.from("profiles").select("courses").eq("user_id", userId).maybeSingle();
   if (error) throw new Error("Could not load study preferences.");
   return normalizeBuddyPreferences(data?.courses?._buddy_preferences);
+}
+export async function hydrateBuddyPreferenceSession(session, { load = fetchBuddyPreferences, isCurrent, onHydrated }) {
+  const revision = session.revision;
+  try {
+    const value = await load(session.userId);
+    if (session.revision !== revision || !isCurrent()) return false;
+    onHydrated(normalizeBuddyPreferences(value));
+    return true;
+  } catch (error) {
+    if (session.revision !== revision || !isCurrent()) return false;
+    throw error;
+  }
+}
+export async function saveDiscoveryOptOut(hidden, { isCurrent = () => true } = {}) {
+  if (typeof hidden !== "boolean") throw new Error("Choose a valid discovery setting.");
+  const { supabase } = await import("./supabase.js");
+  if (!isCurrent()) return null;
+  const { data, error } = await supabase.rpc("social_set_discovery_opt_out", { p_hidden: hidden });
+  if (error || data?.saved !== true || data.hidden !== hidden) throw new Error("Could not confirm discovery visibility. Please try again.");
+  return data.hidden;
 }
 export async function saveBuddyPreferences(userId, value) {
   if (!userId) throw new Error("Sign in to save preferences.");
