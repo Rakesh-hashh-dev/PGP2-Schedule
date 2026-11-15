@@ -1,6 +1,6 @@
 import { Activity as PlannerActivity, Suspense, useEffect, useMemo, useState } from "react";
 import {
-  Activity, ArrowRight, BarChart3, BellRing,
+  Activity, ArrowRight, BarChart3, BellRing, Bus,
   CalendarClock, CalendarDays, CalendarOff, CalendarSync, CheckCircle2,
   ChevronRight, CircleGauge, Cloud, CloudOff, Sparkles, Target,
   Workflow,
@@ -12,6 +12,7 @@ import {
   buildAttendanceScenario, buildWeeklyPlanner, findFreeWindows, flattenAssignments, minutesLabel,
 } from "../lib/studentPlanner.js";
 import { OfflineSyncCenter, SmartCalendar } from "./StudentPlannerTools.jsx";
+import CampusTravelBoard from "./CampusTravelBoard.jsx";
 import "../styles/planner.css";
 
 const MISSES_KEY = "pgp2.planner-misses";
@@ -309,6 +310,7 @@ export default function StudentPlanner({
   changes = [], readChangeKeys, changeKeyOf, isOffline, syncing, syncedAgo,
   onSync, onNavigate, onOpenChange,
   section = "schedule", onSectionChange, leavePlanner,
+  userId, userName,
 }) {
   const [tab, setTab] = useState("brief");
   const [assignments, setAssignments] = useState(() => loadAssignments());
@@ -335,9 +337,16 @@ export default function StudentPlanner({
   const navigate = (view, plannerTab) => { if (plannerTab) setTab(plannerTab); else onNavigate(view); };
   const openChange = (change) => change?.date ? onOpenChange(change) : onNavigate("notifications");
   const handleSectionKey = (event) => {
+    const keys = ["schedule", "leave", "travel"];
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
     event.preventDefault();
-    const next = event.key === "Home" ? "schedule" : event.key === "End" ? "leave" : section === "schedule" ? "leave" : "schedule";
+    const currIdx = keys.indexOf(section);
+    let nextIdx = currIdx;
+    if (event.key === "Home") nextIdx = 0;
+    else if (event.key === "End") nextIdx = keys.length - 1;
+    else if (event.key === "ArrowRight") nextIdx = (currIdx + 1) % keys.length;
+    else if (event.key === "ArrowLeft") nextIdx = (currIdx - 1 + keys.length) % keys.length;
+    const next = keys[nextIdx];
     onSectionChange(next);
     document.getElementById(`planner-tab-${next}`)?.focus();
   };
@@ -345,11 +354,11 @@ export default function StudentPlanner({
   return (
     <div className="planner-page">
       <header className="planner-head">
-        <div><span className="planner-kicker"><Sparkles size={14} /> PERSONAL PLANNER</span><h1>Your academic command centre</h1><p>Today’s priorities, attendance scenarios, workload and leave plans—built from your existing TermFlow data.</p></div>
+        <div><span className="planner-kicker"><Sparkles size={14} /> PERSONAL PLANNER</span><h1>Your academic command centre</h1><p>Today’s priorities, attendance scenarios, workload, leave plans and campus cab pooling—built from your existing TermFlow data.</p></div>
         <div className={`planner-live-pill${isOffline ? " is-offline" : ""}`}>{isOffline ? <CloudOff size={14} /> : <Cloud size={14} />}{isOffline ? "Offline" : `Synced ${syncedAgo === 0 ? "now" : `${syncedAgo}m ago`}`}</div>
       </header>
       <nav className="planner-tabs planner-primary-tabs" aria-label="Planner" role="tablist">
-        {[["schedule", "Schedule", CalendarDays], ["leave", "Leave Planner", CalendarOff]].map(([id, label, Icon]) => (
+        {[["schedule", "Schedule", CalendarDays], ["leave", "Leave Planner", CalendarOff], ["travel", "Travel & Pool", Bus]].map(([id, label, Icon]) => (
           <button key={id} id={`planner-tab-${id}`} type="button" role="tab" tabIndex={section === id ? 0 : -1} aria-selected={section === id} aria-controls={`planner-panel-${id}`} className={section === id ? "is-active" : ""} onClick={() => onSectionChange(id)} onKeyDown={handleSectionKey}><Icon size={16} />{label}</button>
         ))}
       </nav>
@@ -372,6 +381,11 @@ export default function StudentPlanner({
       <PlannerActivity mode={section === "leave" ? "visible" : "hidden"}>
       <div id="planner-panel-leave" role="tabpanel" aria-labelledby="planner-tab-leave">
         <Suspense fallback={<div className="planner-empty" role="status">Loading Leave Planner…</div>}>{leavePlanner}</Suspense>
+      </div>
+      </PlannerActivity>
+      <PlannerActivity mode={section === "travel" ? "visible" : "hidden"}>
+      <div id="planner-panel-travel" role="tabpanel" aria-labelledby="planner-tab-travel">
+        <CampusTravelBoard userId={userId} userName={userName} />
       </div>
       </PlannerActivity>
     </div>

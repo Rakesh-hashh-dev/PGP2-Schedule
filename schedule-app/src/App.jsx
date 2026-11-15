@@ -462,8 +462,11 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   });
   const [plannerSection, setPlannerSection] = useState(() => {
     try {
-      if (new URLSearchParams(window.location.search).get("view") === "leave") return "leave";
-      return localStorage.getItem(VIEW_KEY) === "leave" || localStorage.getItem("pgp2.planner-section") === "leave" ? "leave" : "schedule";
+      const qv = new URLSearchParams(window.location.search).get("view");
+      if (qv === "leave" || qv === "travel") return qv;
+      const saved = localStorage.getItem("pgp2.planner-section");
+      if (saved === "leave" || saved === "travel") return saved;
+      return localStorage.getItem(VIEW_KEY) === "leave" ? "leave" : "schedule";
     } catch { return "schedule"; }
   });
   useEffect(() => {
@@ -498,9 +501,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     const requested = typeof nextView === "function"
       ? nextView(currentViewRef.current)
       : nextView;
-    const candidate = requested === "leave" ? "planner" : requested;
+    const candidate = requested === "leave" || requested === "travel" ? "planner" : requested;
     const target = navVisible(candidate, getControls().payload.navigation) ? candidate : "today";
     if (requested === "leave") setPlannerSection("leave");
+    if (requested === "travel") setPlannerSection("travel");
     const previous = currentViewRef.current;
     if (!target || target === previous) return;
     if(previous==='admin'&&!mayLeaveAdmin()) {
@@ -3747,6 +3751,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       ? <StudentPlanner
                           section={plannerSection}
                           onSectionChange={setPlannerSection}
+                          userId={userId}
+                          userName={user?.firstName || user?.username || "Student"}
                           leavePlanner={<LeavePlanner
                             allClasses={CLASSES}
                             enrolled={enrolled}

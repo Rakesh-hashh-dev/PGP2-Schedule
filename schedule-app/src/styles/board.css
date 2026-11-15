@@ -582,8 +582,19 @@ html[data-theme="dark"] .board-kind-badge-float { background: rgba(20, 22, 28, .
 
 .board-act-primary:hover { color: #fff; border-color: var(--violet); filter: brightness(1.06); }
 
-.board-act-wa { color: var(--live-text); border-color: color-mix(in srgb, var(--live) 45%, var(--border)); }
-.board-act-wa:hover { color: var(--live-text); border-color: var(--live); }
+.board-act-wa {
+  color: #128C7E;
+  border-color: #25D366;
+  background: rgba(37, 211, 102, .08);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.board-act-wa:hover {
+  color: #fff;
+  border-color: #25D366;
+  background: #25D366;
+}
 .board-act-danger { color: var(--danger); border-color: var(--danger); }
 .board-act-danger:hover { color: var(--danger); border-color: var(--danger); }
 .board-act-quiet { border-color: transparent; background: transparent; }

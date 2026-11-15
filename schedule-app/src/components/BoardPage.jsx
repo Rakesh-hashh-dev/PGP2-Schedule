@@ -142,7 +142,14 @@ function BoardComposer({ userId, userName, post, onSaved, onClose, initialKind }
   const [price, setPrice] = useState(post?.price ?? "");
   const [negotiable, setNegotiable] = useState(!!post?.negotiable);
   const [location, setLocation] = useState(post?.location || "");
-  const [contact, setContact] = useState(post?.contact || "");
+  const [contact, setContact] = useState(() => {
+    if (post?.contact) return post.contact;
+    try {
+      return localStorage.getItem("pgp2.board-contact") || localStorage.getItem("pgp2.travel-wa") || "";
+    } catch {
+      return "";
+    }
+  });
   // { key, path } for photos already on the post, { key, file, url } for new ones
   const [photos, setPhotos] = useState(() => postImagePaths(post).map(path => ({ key: ++photoKey, path, url: boardImageUrl(path) })));
   const [busy, setBusy] = useState(false);
@@ -196,6 +203,15 @@ function BoardComposer({ userId, userName, post, onSaved, onClose, initialKind }
       : await createBoardPost({ ...fields, userId, userName, imageFiles });
     setBusy(false);
     if (!row) { setError(`Couldn’t ${editing ? "save" : "post"} — check your connection and try again.`); return; }
+    if (contact.trim()) {
+      const p = contactPhone(contact);
+      if (p) {
+        try {
+          localStorage.setItem("pgp2.travel-wa", p.slice(2));
+          localStorage.setItem("pgp2.board-contact", contact.trim());
+        } catch { /* ok */ }
+      }
+    }
     onSaved(row);
   }
 
@@ -600,6 +616,8 @@ function PostCard({ post, userId, isAdmin, pinged, onOpen, onContact }) {
   // "New" is derived from age, not a stored field — honest freshness, not manufactured urgency
   const isNew = post.status === "open" && isRecent(post.created_at);
   const left = own && post.status === "open" ? daysLeft(post.expires_at) : null;
+  const phone = contactPhone(post.contact);
+  const waText = phone ? encodeURIComponent(`Hi! About your Campus Board post "${post.title}"`) : "";
   return (
     <article className={`board-card board-k-${post.kind}${post.status !== "open" ? " is-done" : ""}${img ? " has-img" : ""}`}>
       <button type="button" className="board-card-hit" onClick={() => onOpen(post.id)} aria-label={`Open “${post.title}”`} />
@@ -635,12 +653,28 @@ function PostCard({ post, userId, isAdmin, pinged, onOpen, onContact }) {
               </>
             ) : post.kind === 'celebrate' ? (
               <span className="board-act"><MessageSquare size={13} /> Read wishes &amp; comments</span>
-            ) : pinged ? (
-              <span className="board-act board-act-done"><Check size={13} /> Pinged</span>
             ) : (
-              <button type="button" className="board-act board-act-primary" onClick={() => onContact(post)}>
-                <MessageSquare size={13} /> I&rsquo;m interested
-              </button>
+              <>
+                {phone && (
+                  <a
+                    className="board-act board-act-wa"
+                    href={`https://wa.me/${phone}?text=${waText}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    title={`WhatsApp ${post.user_name || "poster"}`}
+                  >
+                    <MessageCircle size={13} /> WhatsApp
+                  </a>
+                )}
+                {pinged ? (
+                  <span className="board-act board-act-done"><Check size={13} /> Pinged</span>
+                ) : (
+                  <button type="button" className="board-act board-act-primary" onClick={(e) => { e.stopPropagation(); onContact(post); }}>
+                    <MessageSquare size={13} /> I&rsquo;m interested
+                  </button>
+                )}
+              </>
             )}
           </div>
         )}
