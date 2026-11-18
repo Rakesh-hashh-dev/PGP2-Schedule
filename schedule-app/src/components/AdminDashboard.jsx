@@ -5997,12 +5997,22 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       )}
 
       {/* Pre-deploy review modal */}
-      {reviewOpen && <>
-        <div className="notif-backdrop" onClick={() => setReviewOpen(false)} style={{ zIndex: 10000 }} />
-        <div ref={reviewDialogRef} {...dialogProps('Review and publish one area')} className="admin-mobile-dialog" style={{ position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)', background:'var(--card)', padding:20, borderRadius:16, width:'92%', maxWidth:850, maxHeight:'85vh', overflowY:'auto', zIndex:10001 }}>
-          <button type="button" className="admin-btn outline" onClick={() => setReviewOpen(false)}>Close review</button>
-          <h2>Review and publish</h2>
-          <AdminPublishWorkspace role={myRole} flags={preparedFlags} originalFlags={originalFlags} announcement={activeAnnouncement} originalAnnouncement={originalAnnouncement} scheduleAt={scheduleDeployAt} baseOverrides={draftBases}
+      {reviewOpen && (
+        <AdminModal
+          title="Review & publish"
+          subtitle="Inspect staged domain changes, resolve concurrent conflicts, and deploy or schedule releases."
+          onClose={() => setReviewOpen(false)}
+          width={980}
+          className="admin-publish-modal-wrapper"
+        >
+          <AdminPublishWorkspace
+            role={myRole}
+            flags={preparedFlags}
+            originalFlags={originalFlags}
+            announcement={activeAnnouncement}
+            originalAnnouncement={originalAnnouncement}
+            scheduleAt={scheduleDeployAt}
+            baseOverrides={draftBases}
             onClose={() => setReviewOpen(false)}
             onPublished={async (domain,payload,revision) => {
               setFlags(current => ({...structuredClone(ADMIN_DEFAULT_FLAGS),...mergePublishedDomain(current,domain,payload)}));
@@ -6026,9 +6036,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
                 if (!error) { onConfigSaved(data.flags); setLoadedUpdatedAt(data.updated_at); }
                 else setSaveMsg('Published '+domain+'. Live refresh is pending; your edits are preserved.');
               }
-            }} />
-        </div>
-      </>}
+            }}
+          />
+        </AdminModal>
+      )}
 
       {/* User X-Ray Modal */}
       {selectedUser && (
