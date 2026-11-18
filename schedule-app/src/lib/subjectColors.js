@@ -46,3 +46,31 @@ export function cleanSessionLabel(session) {
   return cleaned || String(session);
 }
 
+const HONORIFIC = /\b(prof|dr|mr|mrs|ms|shri|smt)\b\.?/gi;
+
+/**
+ * Extracts actionable novel instructions from a class session or note
+ * by filtering out professor names, course codes, and redundant honorifics.
+ * Examples: "GUEST SESSION (12.00 TO 2 PM)", "Bring laptop", "Case Discussion"
+ */
+export function extraClassInfo(cls) {
+  if (!cls) return "";
+  const raw = [cls.note, cls.session].filter(Boolean).join(" ");
+  if (!raw) return "";
+
+  const facWords = new Set(
+    String(cls.faculty || "")
+      .replace(HONORIFIC, " ")
+      .toLowerCase()
+      .match(/[a-z0-9]+/g) || []
+  );
+
+  const clean = raw.replace(/\b(?:session\s*)?\d+\b/gi, " ");
+
+  const words = (clean.replace(HONORIFIC, " ").match(/[A-Za-z0-9][A-Za-z0-9.'&-]*/g) || [])
+    .filter(w => !facWords.has(w.toLowerCase()) && w.toLowerCase() !== (cls.code || "").toLowerCase());
+
+  const result = words.join(" ").replace(/\s+/g, " ").replace(/^[.,;&\s-]+|[.,;&\s-]+$/g, "").trim();
+  return result.length >= 3 && !/^\d+$/.test(result) ? result : "";
+}
+

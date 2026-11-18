@@ -422,3 +422,49 @@ export function detectPlatform() {
   }
   return "other";
 }
+
+/**
+ * Generates an RFC 5545 iCalendar string for a planned out-of-office / leave window.
+ *
+ * @param {Object} params
+ * @param {string} params.from - 'YYYY-MM-DD'
+ * @param {string} params.to - 'YYYY-MM-DD'
+ * @param {Array} [params.missed=[]] - Missed classes
+ * @param {string} [params.label="On Leave / Away"]
+ * @returns {string} Complete .ics calendar string
+ */
+export function buildLeaveICS({ from, to, missed = [], label = "On Leave / Away" }) {
+  if (!from || !to) return "";
+  const dStart = from.replace(/-/g, "");
+  const endObj = new Date(`${to}T00:00:00`);
+  endObj.setDate(endObj.getDate() + 1);
+  const dEnd = ymd(endObj).replace(/-/g, "");
+  const stamp = formatUTCDateTime();
+  const uid = `leave-${from}-${to}-${Date.now()}@termflow.tech`;
+
+  const missedLines = missed.length > 0
+    ? `Missed classes (${missed.length}):\n` + missed.map(c => `• ${c.code || c.name} on ${c.date} (${c.start}–${c.end})`).join("\n")
+    : "No scheduled classes missed during this leave window.";
+
+  const desc = `TermFlow Leave Planner\nWindow: ${from} to ${to}\n\n${missedLines}\n\nManaged via TermFlow`;
+
+  return [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//TermFlow//Leave Planner//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "BEGIN:VEVENT",
+    `UID:${uid}`,
+    `DTSTAMP:${stamp}`,
+    `DTSTART;VALUE=DATE:${dStart}`,
+    `DTEND;VALUE=DATE:${dEnd}`,
+    `SUMMARY:${escapeICSText(label)}`,
+    `DESCRIPTION:${escapeICSText(desc)}`,
+    "TRANSP:OPAQUE",
+    "STATUS:CONFIRMED",
+    "END:VEVENT",
+    "END:VCALENDAR",
+    "",
+  ].join("\r\n");
+}

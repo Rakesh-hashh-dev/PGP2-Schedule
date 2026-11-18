@@ -335,9 +335,32 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
               <div className="atx-foot-meta">
                 <span>{course.state.coverage}% records</span>
                 <span className="atx-foot-dot" aria-hidden="true">·</span>
-                <span className={`atx-skip-tracker${course.penaltyHit ? " penalty" : course.skipsRemaining <= 1 ? " low" : ""}`}>
-                  {course.penaltyHit ? "Penalty crossed" : `Skips: ${course.skipsRemaining}/${course.totalAllowedSkips} left`}
-                </span>
+                <div className="atx-skip-wrap">
+                  <span className={`atx-skip-tracker${course.penaltyHit ? " penalty" : course.skipsRemaining <= 1 ? " low" : ""}`}>
+                    {course.penaltyHit ? "Penalty crossed" : `Skips: ${course.skipsRemaining}/${course.totalAllowedSkips} left`}
+                  </span>
+                  {course.totalAllowedSkips > 0 && (
+                    <div
+                      className="atx-skip-pips"
+                      title={`${course.skipsRemaining} of ${course.totalAllowedSkips} allowed skips remaining before 80% breach`}
+                      aria-label={`${course.skipsRemaining} of ${course.totalAllowedSkips} allowed skips remaining`}
+                    >
+                      {Array.from({ length: Math.min(course.totalAllowedSkips, 7) }, (_, idx) => {
+                        const usedCount = Math.max(0, course.totalAllowedSkips - course.skipsRemaining);
+                        const isUsed = idx < usedCount;
+                        return (
+                          <span
+                            key={idx}
+                            className={`atx-skip-pip${isUsed ? " used" : ""}${course.penaltyHit ? " penalty" : ""}`}
+                          />
+                        );
+                      })}
+                      {course.totalAllowedSkips > 7 && (
+                        <span className="atx-skip-more">+{course.totalAllowedSkips - 7}</span>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
               {onOpenCourse && (
                 <button

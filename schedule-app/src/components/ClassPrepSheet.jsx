@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import { ArrowRight, BookOpen, CalendarDays, CheckCircle2, Clock3, MapPin, X } from "lucide-react";
+import { ClassRepBadgeSVG, WhatsAppBrandSVG } from "./PremiumSVGs.jsx";
 import { loadAssignments } from "../lib/assignments.js";
 import { sessionKey } from "../lib/attendance.js";
 import { loadCourseHubItems } from "../lib/courseHubStore.js";
@@ -25,6 +26,18 @@ export default function ClassPrepSheet({ session, termNumber, attendance = {}, o
   const related = useMemo(() => reminderNotes(session, loadCourseHubItems(), termNumber), [session, termNumber]);
   const notes = session.notesFocus ? related.notes : exactNotes;
   const mark = session.type === "class" ? attendance[sessionKey(session)] : null;
+  const sectionLabel = session.section && session.section !== "Single" && session.section !== "All"
+    ? `Section ${session.section}`
+    : "Section";
+
+  const handleAskCR = () => {
+    const cleanWa = (() => {
+      try { return (localStorage.getItem("pgp2.cr-wa") || "").replace(/\D/g, ""); } catch { return ""; }
+    })();
+    const query = `Hi CR! Quick query regarding ${session.code || session.name} on ${dateLabel(session.date)} (${fmtTime12(session.start)}–${fmtTime12(session.end)}${session.room ? `, Room ${session.room}` : ""}): `;
+    const base = cleanWa ? `https://wa.me/${cleanWa}` : `https://wa.me/`;
+    window.open(`${base}?text=${encodeURIComponent(query)}`, "_blank", "noopener,noreferrer");
+  };
 
   useEffect(() => {
     const previous = document.activeElement;
@@ -54,6 +67,19 @@ export default function ClassPrepSheet({ session, termNumber, attendance = {}, o
         {mark && <span><CheckCircle2 size={16} /> Marked {mark}</span>}
       </div>
       {session.session && <p className="prep-session">Session {session.session}</p>}
+      <div className="prep-cr-banner">
+        <div className="prep-cr-info">
+          <ClassRepBadgeSVG size={32} />
+          <div>
+            <strong>{sectionLabel} Representative</strong>
+            <small>Class representative · Syllabus, room swaps & queries</small>
+          </div>
+        </div>
+        <button type="button" className="prep-cr-btn" onClick={handleAskCR} aria-label={`Ask ${sectionLabel} CR via WhatsApp`}>
+          <WhatsAppBrandSVG size={14} />
+          <span>Ask CR</span>
+        </button>
+      </div>
       <div className="prep-section"><h3>Before class</h3>
         {prep.length ? <ul>{prep.map((item) => <li key={item.id}>{item.done ? "✓ " : "○ "}{item.title}</li>)}</ul> : <p>No preparation items saved for this class.</p>}
       </div>

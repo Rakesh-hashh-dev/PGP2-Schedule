@@ -11,12 +11,23 @@ export function sessionKey(c) {
  * label like "MID Term" — they don't count toward attendance.
  */
 export function isExamSession(c) {
+  if (!c) return false;
+  if (c.type === "exam") return true;
   const s = (c.session || "").toLowerCase();
+  const n = (c.name || "").toLowerCase();
   // Tolerate the separator the sheet actually uses — "mid term", "mid-term",
   // "midterm", "mid  term" all mean the same thing (likewise end term). A plain
   // `includes("mid term")` missed the hyphen/no-space variants, letting those
   // exam rows leak into attendance and out of the Exams tab.
-  return /mid[\s-]*term/.test(s) || /end[\s-]*term/.test(s) || s.includes("quiz");
+  if (/mid[\s-]*term/.test(s) || /end[\s-]*term/.test(s) || s.includes("quiz")) return true;
+  if (/mid[\s-]*term/.test(n) || /end[\s-]*term/.test(n) || n.includes("quiz")) return true;
+  // End Term exam window: from 2026-12-11 through 2026-12-20.
+  // In the source sheet, End Term exams are scheduled in 5.5h blocks (08:00–13:30 / 14:30–20:00)
+  // with empty session strings and course codes. They are exams, not attendance classes.
+  if (c.date >= "2026-12-11" && c.date <= "2026-12-20" && c.code && (c.slot === 0 || c.slot === 4 || !c.session || /end[\s-]*term/i.test(c.session))) {
+    return true;
+  }
+  return false;
 }
 
 /**

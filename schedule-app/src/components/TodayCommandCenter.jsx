@@ -17,9 +17,9 @@ const goalId = () => `goal-${Date.now()}-${Math.random().toString(36).slice(2, 6
 
 function ActionCard({ id, icon: Icon, eyebrow, title, children, onDismiss }) {
   return <article className={`today-action-card today-action-${id}`}>
-    <div className="today-action-icon"><Icon size={18} /></div>
+    <div className="today-action-icon"><Icon size={15} /></div>
     <div className="today-action-copy"><span>{eyebrow}</span><h3>{title}</h3>{children}</div>
-    <button type="button" className="today-action-dismiss" aria-label={`Dismiss ${title}`} onClick={() => onDismiss(id)}><X size={15} /></button>
+    <button type="button" className="today-action-dismiss" aria-label={`Dismiss ${title}`} onClick={() => onDismiss(id)}><X size={13} /></button>
   </article>;
 }
 
@@ -108,15 +108,58 @@ export default function TodayCommandCenter({
   };
 
   return <section className={`today-command${focusMode ? " is-focus" : ""}`} aria-labelledby="today-command-title">
-    <header className="today-command-head"><div><span><Sparkles size={14} /> TODAY COMMAND</span><h2 id="today-command-title">Keep the day moving</h2></div><div className="today-command-controls"><button type="button" className={`today-focus-toggle${focusMode ? " is-active" : ""}`} aria-pressed={focusMode} onClick={toggleFocus}><Focus size={15} /> {focusMode ? "Exit focus" : "Focus mode"}</button><button type="button" className="today-command-remove" onClick={onRemove} aria-label="Remove Today Command from the Today page" title="Remove from Today"><X size={16} /></button></div></header>
-    <div className="today-progress" aria-label={`${state.progress}% of today's scheduled sessions complete`}><div><span>Day progress</span><strong>{state.teaching.filter(item => new Date(`${item.date}T${item.end}`) <= now).length}/{state.teaching.length || 0} sessions</strong></div><div className="today-progress-track"><span style={{ width: `${state.progress}%` }} /></div><div><span>Attendance</span><strong>{state.marked.length}/{state.completed.length || 0} marked</strong></div><div><span>Goals</span><strong>{completedGoals}/{goals.length || 0} done</strong></div></div>
-    <div className="today-brief" aria-label="Today's priority brief">
-      <button onClick={() => state.next ? onOpenSession?.(state.next) : onNavigate?.("fullSchedule")}><Clock3 size={16} /><span><small>Next</small><strong>{state.current ? `${state.current.code || state.current.name} now` : state.next ? `${state.next.code || state.next.name} · ${fmtTime12(state.next.start)}` : "No more classes"}</strong></span></button>
-      <button onClick={() => onNavigate?.("assignments")}><ClipboardCheck size={16} /><span><small>Deadline</small><strong>{state.nextTask ? `${state.nextTask.title}${state.nextTask.dueDate ? ` · ${labelDate(state.nextTask.dueDate)}` : ""}` : "Nothing pending"}</strong></span></button>
-      <button onClick={() => changeCount ? onNavigate?.("notifications") : state.unmarked[0] && onMarkAttendance?.(state.unmarked[0], "present")}><CircleDot size={16} /><span><small>Action</small><strong>{changeCount ? `${changeCount} schedule update${changeCount > 1 ? "s" : ""}` : state.unmarked.length ? `${state.unmarked.length} attendance mark${state.unmarked.length > 1 ? "s" : ""}` : "You’re caught up"}</strong></span></button>
+    <header className="today-command-head">
+      <div className="today-command-title-wrap">
+        <span className="today-command-badge"><Sparkles size={11} /> TODAY COMMAND</span>
+        <h2 id="today-command-title">Keep the day moving</h2>
+      </div>
+      <div className="today-command-controls">
+        <button type="button" className={`today-focus-toggle${focusMode ? " is-active" : ""}`} aria-pressed={focusMode} onClick={toggleFocus}>
+          <Focus size={13} /> <span>{focusMode ? "Exit focus" : "Focus"}</span>
+        </button>
+        <button type="button" className="today-command-remove" onClick={onRemove} aria-label="Remove Today Command from the Today page" title="Remove from Today">
+          <X size={14} />
+        </button>
+      </div>
+    </header>
+    <div className="today-progress" aria-label={`${state.progress}% of today's scheduled sessions complete`}>
+      <div className="today-stat-pill"><span>Day:</span> <strong>{state.teaching.filter(item => new Date(`${item.date}T${item.end}`) <= now).length}/{state.teaching.length || 0}</strong></div>
+      <div className="today-progress-track" title={`${state.progress}% complete`}><span style={{ width: `${state.progress}%` }} /></div>
+      <div className="today-stat-pill"><span>Att:</span> <strong>{state.marked.length}/{state.completed.length || 0}</strong></div>
+      <div className="today-stat-pill"><span>Goals:</span> <strong>{completedGoals}/{goals.length || 0}</strong></div>
     </div>
-    {savedNote && <div className="today-saved" role="status"><CheckCircle2 size={15} /> Saved to Course Learning.</div>}
+    <div className="today-brief" aria-label="Today's priority brief">
+      <button type="button" onClick={() => state.next ? onOpenSession?.(state.next) : onNavigate?.("fullSchedule")}>
+        <Clock3 size={14} />
+        <span><small>Next</small><strong>{state.current ? `${state.current.code || state.current.name} now` : state.next ? `${state.next.code || state.next.name} · ${fmtTime12(state.next.start)}` : "No more classes"}</strong></span>
+      </button>
+      <button type="button" onClick={() => onNavigate?.("assignments")}>
+        <ClipboardCheck size={14} />
+        <span><small>Deadline</small><strong>{state.nextTask ? `${state.nextTask.title}${state.nextTask.dueDate ? ` · ${labelDate(state.nextTask.dueDate)}` : ""}` : "Nothing pending"}</strong></span>
+      </button>
+      <button type="button" onClick={() => changeCount ? onNavigate?.("notifications") : state.unmarked[0] && onMarkAttendance?.(state.unmarked[0], "present")}>
+        <CircleDot size={14} />
+        <span><small>Action</small><strong>{changeCount ? `${changeCount} schedule update${changeCount > 1 ? "s" : ""}` : state.unmarked.length ? `${state.unmarked.length} attendance mark${state.unmarked.length > 1 ? "s" : ""}` : "You’re caught up"}</strong></span>
+      </button>
+    </div>
+    {savedNote && <div className="today-saved" role="status"><CheckCircle2 size={13} /> Saved to Course Learning.</div>}
     {visibleCards.length > 0 && <div className="today-action-grid">{visibleCards.map(renderCard)}</div>}
-    <div className={`today-goals${goalsOpen ? " is-open" : ""}`}><button type="button" className="today-goals-toggle" onClick={() => setGoalsOpen(value => !value)} aria-expanded={goalsOpen}><span><ListChecks size={16} /><strong>Daily goals</strong><small>{goals.length ? `${completedGoals}/${goals.length} complete` : "Choose up to three priorities"}</small></span><ChevronDown size={16} /></button>{goalsOpen && <div className="today-goals-body">{goals.map(goal => <label key={goal.id}><input type="checkbox" checked={goal.done} onChange={() => updateGoals(goals.map(item => item.id === goal.id ? { ...item, done: !item.done } : item))} /><span>{goal.text}</span><button type="button" aria-label={`Remove ${goal.text}`} onClick={() => updateGoals(goals.filter(item => item.id !== goal.id))}><X size={14} /></button></label>)}{goals.length < 3 && <form onSubmit={addGoal}><input maxLength="100" value={goalDraft} onChange={event => setGoalDraft(event.target.value)} placeholder="Add today’s priority" aria-label="New daily goal" /><button type="submit"><Plus size={15} /> Add</button></form>}</div>}</div>
+    <div className={`today-goals${goalsOpen ? " is-open" : ""}`}>
+      <button type="button" className="today-goals-toggle" onClick={() => setGoalsOpen(value => !value)} aria-expanded={goalsOpen}>
+        <span><ListChecks size={14} /><strong>Daily goals</strong><small>{goals.length ? `${completedGoals}/${goals.length} complete` : "Set up to 3 priorities"}</small></span>
+        <ChevronDown size={14} />
+      </button>
+      {goalsOpen && <div className="today-goals-body">
+        {goals.map(goal => <label key={goal.id}>
+          <input type="checkbox" checked={goal.done} onChange={() => updateGoals(goals.map(item => item.id === goal.id ? { ...item, done: !item.done } : item))} />
+          <span>{goal.text}</span>
+          <button type="button" aria-label={`Remove ${goal.text}`} onClick={() => updateGoals(goals.filter(item => item.id !== goal.id))}><X size={13} /></button>
+        </label>)}
+        {goals.length < 3 && <form onSubmit={addGoal}>
+          <input maxLength="100" value={goalDraft} onChange={event => setGoalDraft(event.target.value)} placeholder="Add today’s priority" aria-label="New daily goal" />
+          <button type="submit"><Plus size={13} /> Add</button>
+        </form>}
+      </div>}
+    </div>
   </section>;
 }

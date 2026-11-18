@@ -76,6 +76,31 @@ function reclassifyUnknown(c, legend) {
   return null; // stray noise → drop
 }
 
+// End Term exam window: from 2026-12-11 through term end (2026-12-20).
+// In the institute timetable sheet, End Term exams are scheduled in 5.5-hour blocks
+// (08:00–13:30 slot 0 and 14:30–20:00 slot 4) with empty session strings and course codes,
+// which causes the feed classifier to emit them as type: "class".
+// We normalize these to type: "exam" with session: "End Term Exam" so they don't count
+// toward attendance tracking and appear in the Exams tab, Today Timeline, and Leave Planner Exam Shields.
+export function normalizeEndTermExam(c) {
+  if (!c || c.type === "break" || c.type === "holiday") return c;
+  const isEndTermPeriod = c.date >= "2026-12-11" && c.date <= "2026-12-20";
+  const hasExamIndicators = /end[\s-]*term/i.test(c.session || "") || /end[\s-]*term/i.test(c.name || "");
+  const isBroadExamSlot = c.slot === 0 || c.slot === 4 || (c.start === "08:00" && c.end === "13:30") || (c.start === "14:30" && c.end === "20:00");
+
+  if (isEndTermPeriod && c.code && (hasExamIndicators || isBroadExamSlot || !c.session)) {
+    const sessionLabel = c.session && /end[\s-]*term/i.test(c.session)
+      ? c.session
+      : (c.session ? `${c.session} (End Term)` : "End Term Exam");
+    return {
+      ...c,
+      type: "exam",
+      session: sessionLabel,
+    };
+  }
+  return c;
+}
+
 function withAreas(data) {
   const legend = {};
   for (const code in data.LEGEND) {
@@ -98,9 +123,10 @@ function withAreas(data) {
     if (!c) continue;
     c = reclassifyUnknown(c, legendMap);
     if (!c) continue;
+    c = normalizeEndTermExam(c);
     // The feed can repeat a combined event once as A/B and once as Single.
     // Compare every field after normalization so distinct sessions stay intact.
-    if (c.type === "class" && combinedCodes.has(c.code)) {
+    if ((c.type === "class" || c.type === "exam") && combinedCodes.has(c.code)) {
       const key = JSON.stringify(Object.keys(c).sort().map(field => [field, c[field]]));
       if (seenCombined.has(key)) continue;
       seenCombined.add(key);

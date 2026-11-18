@@ -702,6 +702,44 @@ html[data-theme="dark"] .fr-btn-primary:hover {
   margin: 0;
 }
 
+.fr-section-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.fr-compare-all-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  border-color: rgba(109, 91, 208, 0.25);
+  color: var(--violet);
+  background: rgba(109, 91, 208, 0.06);
+  transition: all 0.15s ease;
+}
+
+.fr-compare-all-btn:hover {
+  background: rgba(109, 91, 208, 0.12);
+  border-color: var(--violet);
+  transform: translateY(-1px);
+}
+
+.fr-compare-all-subtle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--violet);
+}
+
+.fr-compare-all-subtle:hover {
+  color: var(--violet-hover, #5a49c2);
+  text-decoration: underline;
+}
+
 .fr-add-row {
   display: flex;
   gap: 10px;

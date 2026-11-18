@@ -1,5 +1,5 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
-import { getSnapshot, cleanRoom, fetchSchedule } from "./sheet.js";
+import { getSnapshot, cleanRoom, fetchSchedule, normalizeEndTermExam } from "./sheet.js";
 
 // No localStorage in the node env, so getSnapshot() falls through to the
 // bundled snapshot — which is exactly the payload these tests are about.
@@ -161,5 +161,70 @@ describe("roster-confirmed section repair", () => {
     expect(result._meta.status).toBe("success");
     expect(result.CLASSES.map(c => c.section)).toEqual(["Single", "Single"]);
     expect(data.CLASSES.map(c => c.section)).toEqual(["A", "Single", "B"]);
+  });
+});
+
+describe("normalizeEndTermExam", () => {
+  it("normalizes a 5.5-hour class slot on or after Dec 11 to an exam", () => {
+    const rawSOM = {
+      date: "2026-12-11",
+      day: "Fri",
+      section: "Single",
+      slot: 4,
+      start: "14:30",
+      end: "20:00",
+      type: "class",
+      code: "SOM",
+      session: "",
+      name: "Service Operations Management",
+      faculty: "Prof. Ramakrushna Padhy",
+      room: "A02",
+    };
+    const normalized = normalizeEndTermExam(rawSOM);
+    expect(normalized.type).toBe("exam");
+    expect(normalized.session).toBe("End Term Exam");
+    expect(normalized.code).toBe("SOM");
+  });
+
+  it("leaves lunch breaks intact", () => {
+    const lunch = {
+      date: "2026-12-11",
+      day: "Fri",
+      section: "Single",
+      slot: 3,
+      start: "13:30",
+      end: "14:30",
+      type: "break",
+      code: "",
+      session: "",
+      name: "Lunch\nBreak",
+    };
+    const normalized = normalizeEndTermExam(lunch);
+    expect(normalized.type).toBe("break");
+  });
+
+  it("leaves regular teaching sessions before Dec 11 alone", () => {
+    const regularClass = {
+      date: "2026-12-10",
+      day: "Thu",
+      section: "Single",
+      slot: 0,
+      start: "08:00",
+      end: "09:30",
+      type: "class",
+      code: "SP",
+      session: "9",
+      name: "Strategic Procurement",
+    };
+    const normalized = normalizeEndTermExam(regularClass);
+    expect(normalized.type).toBe("class");
+    expect(normalized.session).toBe("9");
+  });
+
+  it("normalizes all Dec 11-20 exam courses in snapshot", () => {
+    const decExams = snap.CLASSES.filter(c => c.date >= "2026-12-11" && c.code);
+    expect(decExams.length).toBeGreaterThan(0);
+    expect(decExams.every(c => c.type === "exam")).toBe(true);
+    expect(decExams.every(c => c.session.includes("End Term"))).toBe(true);
   });
 });

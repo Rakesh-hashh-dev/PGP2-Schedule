@@ -1,8 +1,8 @@
 import { CancellationStripe, CancelledClassActions } from "./CancelledClassNotice.jsx";
 import React, { useMemo, useState, useEffect } from "react";
 import "../styles/fullschedule.css";
-import { ArrowLeft, Clock, MapPin, User, SlidersHorizontal, X, ArrowUp, Calendar, ChevronLeft, ChevronRight, List, CalendarDays, GraduationCap, CalendarClock, BookOpen, ArrowRight } from "lucide-react";
-import { subjectClass, cleanSessionLabel } from "../lib/subjectColors.js";
+import { ArrowLeft, Clock, MapPin, User, SlidersHorizontal, X, ArrowUp, Calendar, ChevronLeft, ChevronRight, List, CalendarDays, GraduationCap, CalendarClock, BookOpen, ArrowRight, Sparkles } from "lucide-react";
+import { subjectClass, cleanSessionLabel, extraClassInfo } from "../lib/subjectColors.js";
 import { isExamSession } from "../lib/attendance.js";
 import { fmtTime12 } from "../lib/datetime.js";
 import { CalendarEventBadgeSVG } from "./CalendarSVGs.jsx";
@@ -10,10 +10,10 @@ import { PlacementIcon, CelebrationIcon } from "./PremiumIcons.jsx";
 import { useBackClose } from "../lib/backClose.js";
 import { useDialog, dialogProps } from "../hooks/useDialog.js";
 
-function examCategory(name, session) {
+function examCategory(name, session, c) {
   const n = (name || "").toLowerCase();
   const s = (session || "").toLowerCase();
-  if ((n.includes("end") && n.includes("term")) || (s.includes("end") && s.includes("term"))) return "End Term";
+  if ((n.includes("end") && n.includes("term")) || (s.includes("end") && s.includes("term")) || (c?.date >= "2026-12-11" && c?.date <= "2026-12-20")) return "End Term";
   if ((n.includes("mid") && n.includes("term")) || (s.includes("mid") && s.includes("term"))) return "Mid Term";
   if (n.includes("quiz") || s.includes("quiz")) return "Quiz";
   return "Exam";
@@ -61,7 +61,16 @@ const HOUR_W = 96;  // px per hour (horizontal week view)
 const LANE_H = 64;  // px per lane row
 const TODAY = isoOf(new Date());
 
-export default React.memo(function FullSchedulePage({ allClasses, enrolled, legend, termLabel, onBack, jumpToDate, setJumpToDate, jumpToSession, setJumpToSession, onOpenCalendarExport, onOpenCourse }) {
+function isWithin7Days(dateStr) {
+  if (!dateStr) return false;
+  const [Y, M, D] = TODAY.split("-").map(Number);
+  const max = new Date(Y, M - 1, D + 7, 23, 59, 59, 999);
+  const [cY, cM, cD] = dateStr.split("-").map(Number);
+  const cd = new Date(cY, cM - 1, cD);
+  return cd <= max;
+}
+
+export default React.memo(function FullSchedulePage({ allClasses, enrolled, legend, termLabel, onBack, jumpToDate, setJumpToDate, jumpToSession, setJumpToSession, onOpenCalendarExport, onOpenCourse, onOpenSession }) {
   const [filterCodes, setFilterCodes] = useState([]);
   const [showAllClasses, setShowAllClasses] = useState(false);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
@@ -73,6 +82,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
   const [dateToJump, setDateToJump] = useState(TODAY);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [viewMode, setViewMode] = useState("list");
+  const [listScope, setListScope] = useState("all"); // "all" | "week"
   const [calWeek, setCalWeek] = useState(() => getWeekStart(TODAY));
   const [calMonth, setCalMonth] = useState(() => { const n = new Date(); return { year: n.getFullYear(), month: n.getMonth() }; });
   const [selectedDate, setSelectedDate] = useState(null);
@@ -134,6 +144,24 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  const lastPublishedDate = useMemo(() => {
+    const dates = allClasses
+      .filter(c => c.type === "class" && c.date && !isExamSession(c))
+      .map(c => c.date)
+      .sort();
+    return dates[dates.length - 1] || null;
+  }, [allClasses]);
+
+  const horizonDateFormatted = useMemo(() => {
+    if (!lastPublishedDate) return "";
+    const [Y, M, D] = lastPublishedDate.split("-").map(Number);
+    return new Date(Y, M - 1, D).toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  }, [lastPublishedDate]);
+
   const baseClasses = useMemo(() => {
     // Separate regular classes and exam entries
     const examRows = allClasses
@@ -160,10 +188,10 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
     const filteredExams = showAllClasses
       ? examRows
       : examRows.filter(c => {
-          // Generic exams (no code) show to everyone; subject-specific only if enrolled
-          if (!c.code) return true;
-          return enrolledCodes.includes(c.code);
-        });
+        // Generic exams (no code) show to everyone; subject-specific only if enrolled
+        if (!c.code) return true;
+        return enrolledCodes.includes(c.code);
+      });
 
     const cancelledRows = allClasses.filter(c => {
       if (c.type !== "cancelled") return false;
@@ -216,6 +244,19 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
     }
     return result;
   }, [filtered]);
+
+  const displayGrouped = useMemo(() => {
+    if (listScope === "all") return grouped;
+    const [Y, M, D] = TODAY.split("-").map(Number);
+    const maxDate = new Date(Y, M - 1, D + 7, 23, 59, 59, 999);
+    return grouped.filter(entry => {
+      const targetDate = entry.type === "day" ? entry.date : entry.type === "free" ? entry.date : entry.from;
+      if (!targetDate) return true;
+      const [cY, cM, cD] = targetDate.split("-").map(Number);
+      const cd = new Date(cY, cM - 1, cD);
+      return cd <= maxDate;
+    });
+  }, [grouped, listScope]);
 
   useEffect(() => {
     if (viewMode === "list" && !jumpToDate && !jumpToSession && !hasScrolledToToday && grouped.length > 0) {
@@ -316,7 +357,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
 
   const monthLabel = useMemo(() =>
     new Date(calMonth.year, calMonth.month, 1).toLocaleDateString([], { month: "long", year: "numeric" })
-  , [calMonth]);
+    , [calMonth]);
 
   function shiftMonth(delta) {
     setCalMonth(prev => {
@@ -395,6 +436,25 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
             <CalendarDays size={13} /> Month
           </button>
         </div>
+
+        {viewMode === "list" && (
+          <div className="cal-scope-seg" role="group" aria-label="Schedule scope">
+            <button
+              type="button"
+              className={`cal-scope-btn${listScope === "all" ? " is-active" : ""}`}
+              onClick={() => setListScope("all")}
+            >
+              All upcoming
+            </button>
+            <button
+              type="button"
+              className={`cal-scope-btn${listScope === "week" ? " is-active" : ""}`}
+              onClick={() => setListScope("week")}
+            >
+              Next 7 days
+            </button>
+          </div>
+        )}
 
         <div className="cal-controls-right">
           {viewMode === "list" && (
@@ -545,7 +605,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                   const section = enrolled ? enrolled[code] : null;
                   const showSection = section && section !== "Single";
                   const isOn = filterCodes.includes(code);
-                      const sessionCount = baseClasses.filter(c => c.code === code && c.type !== "cancelled").length;
+                  const sessionCount = baseClasses.filter(c => c.code === code && c.type !== "cancelled").length;
                   return (
                     <button
                       key={code}
@@ -597,22 +657,27 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
       {/* ── LIST VIEW ── */}
       {viewMode === "list" && (
         <div className="fs-list">
-          {grouped.length === 0 ? (
+          {displayGrouped.length === 0 ? (
             <div className="fs-empty">
               <CalendarClock size={40} className="fs-empty-icon" />
-              <span className="fs-empty-text">No sessions found</span>
+              <span className="fs-empty-text">{listScope === "week" ? "No sessions in next 7 days" : "No sessions found"}</span>
+              {listScope === "week" && (
+                <button type="button" className="cal-ctrl-btn" style={{ marginTop: 12 }} onClick={() => setListScope("all")}>
+                  View all upcoming
+                </button>
+              )}
             </div>
           ) : (
-            grouped.map((entry, idx) => {
+            displayGrouped.map((entry, idx) => {
               if (entry.type === "free") {
                 return (
                   <div key={entry.date} id={`day-${entry.date}`} className="fs-free-day">
-                    <span className="fs-free-date">{fmtDate(entry.date)} · No classes</span>
+                    <span className="fs-free-date">{fmtDate(entry.date)} · No classes · Enjoy your day off 🌴</span>
                   </div>
                 );
               }
               if (entry.type === "gap") {
-                const nextEntry = grouped[idx + 1];
+                const nextEntry = displayGrouped[idx + 1];
                 let nextLabel = null;
                 if (nextEntry && nextEntry.type === "day" && nextEntry.items.length > 0) {
                   const nextCls = nextEntry.items[0];
@@ -633,7 +698,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                 return (
                   <details key={`gap-${idx}`} className="fs-gap-row">
                     <summary className="fs-gap-pill">
-                      📅 {fmtShort(entry.from)} – {fmtShort(entry.to)} · {entry.count} free days
+                      📅 {fmtShort(entry.from)} – {fmtShort(entry.to)} · {entry.count} free days · Enjoy your break 🎉
                       {nextLabel && <span className="fs-gap-next">{nextLabel}</span>}
                     </summary>
                     <div className="fs-gap-bubbles">
@@ -666,26 +731,26 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                         const nowTime = new Date();
                         const diffMin = Math.floor((nextTime - nowTime) / 60000);
                         if (diffMin > 0 && diffMin < 24 * 60) {
-                           const h = Math.floor(diffMin / 60);
-                           const m = diffMin % 60;
-                           countdownStr = h > 0 ? `in ${h}h ${m}m` : `in ${m}m`;
+                          const h = Math.floor(diffMin / 60);
+                          const m = diffMin % 60;
+                          countdownStr = h > 0 ? `in ${h}h ${m}m` : `in ${m}m`;
                         } else if (diffMin > 0) {
-                           countdownStr = `in ${Math.floor(diffMin/1440)}d`;
+                          countdownStr = `in ${Math.floor(diffMin / 1440)}d`;
                         }
                       }
-                      
+
                       if (c.type === "cancelled") {
                         return <div key={i} data-class-key={`${c.date}-${c.code}-${c.start}`} className="fs-card fs-card-cancelled">
                           <div className="fs-card-body">
                             <CancellationStripe />
                             <div className="fs-card-top"><span className="fs-card-name" style={{ textDecoration: "line-through" }}>{c.name}</span></div>
-                            <div className="fs-card-meta"><span>{fmtTime12(c.start)} – {fmtTime12(c.end)}{c.code ? ` · ${c.code}` : ""}{showSection ? ` · Sec ${c.section}` : ""}{c.room ? ` · ${c.room}` : ""}</span></div>
+                            <div className="fs-card-meta"><span>{fmtTime12(c.start)} – {fmtTime12(c.end)}{c.code ? ` · ${c.code}` : ""}{showSection ? ` · Sec ${c.section}` : ""}{c.room ? (isWithin7Days(c.date) ? ` · ${c.room}` : " · Assigned <7d") : ""}</span></div>
                             {onOpenCourse && c.code && <CancelledClassActions actions={["Course hub"]} />}
                           </div>
                         </div>;
                       }
                       if (c.isExam) {
-                        const cat = examCategory(c.name, c.session);
+                        const cat = examCategory(c.name, c.session, c);
                         return (
                           <div
                             key={i}
@@ -711,15 +776,21 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                                   {c.room && (
                                     <span className="fs-meta-item">
                                       <MapPin size={12} />
-                                      <a
-                                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.room + " exam hall")}`}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="fs-room-link"
-                                        title={`Find ${c.room} on map`}
-                                      >
-                                        {c.room}
-                                      </a>
+                                      {isWithin7Days(c.date) ? (
+                                        <a
+                                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.room + " exam hall")}`}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="fs-room-link"
+                                          title={`Find ${c.room} on map`}
+                                        >
+                                          {c.room}
+                                        </a>
+                                      ) : (
+                                        <span className="fs-room-tentative" title={`Exam hall confirmed within 7 days of exam (tentative: ${c.room})`}>
+                                          Assigned &lt;7d
+                                        </span>
+                                      )}
                                     </span>
                                   )}
                                   {c.faculty && (
@@ -774,7 +845,16 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                               </div>
                               <div className="fs-card-meta">
                                 <span className="fs-meta-item fs-meta-time"><Clock size={12} /> {fmtTime12(c.start)} – {fmtTime12(c.end)}</span>
-                                {c.room && <span className="fs-meta-item"><MapPin size={12} /> {c.room}</span>}
+                                {c.room && (
+                                  <span className="fs-meta-item">
+                                    <MapPin size={12} />
+                                    {isWithin7Days(c.date) ? c.room : (
+                                      <span className="fs-room-tentative" title={`Venue confirmed within 7 days of placement (tentative: ${c.room})`}>
+                                        Assigned &lt;7d
+                                      </span>
+                                    )}
+                                  </span>
+                                )}
                                 {showSection && (
                                   <span style={{
                                     fontSize: "10px", fontWeight: "700", padding: "2px 6px",
@@ -812,7 +892,16 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                               </div>
                               <div className="fs-card-meta">
                                 <span className="fs-meta-item fs-meta-time"><Clock size={12} /> {fmtTime12(c.start)} – {fmtTime12(c.end)}</span>
-                                {c.room && <span className="fs-meta-item"><MapPin size={12} /> {c.room}</span>}
+                                {c.room && (
+                                  <span className="fs-meta-item">
+                                    <MapPin size={12} />
+                                    {isWithin7Days(c.date) ? c.room : (
+                                      <span className="fs-room-tentative" title={`Venue confirmed within 7 days of event (tentative: ${c.room})`}>
+                                        Assigned &lt;7d
+                                      </span>
+                                    )}
+                                  </span>
+                                )}
                                 {showSection && (
                                   <span style={{
                                     fontSize: "10px", fontWeight: "700", padding: "2px 6px",
@@ -849,6 +938,11 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                                   </span>
                                 )}
                                 <span className={`ses ${subjCls}`}>{c.code} {cleanSessionLabel(c.session)}</span>
+                                {extraClassInfo(c) && (
+                                  <span className="fs-action-pill" title={extraClassInfo(c)}>
+                                    {extraClassInfo(c)}
+                                  </span>
+                                )}
                               </div>
                               {countdownStr && <span className="fs-upcoming-badge">{countdownStr}</span>}
                             </div>
@@ -858,15 +952,24 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                                 <span className="fs-meta-item">
                                   <MapPin size={12} />
                                   {c.room ? (
-                                    <a
-                                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.room + " classroom")}`}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="fs-room-link"
-                                      title={`Find ${c.room} on map`}
-                                    >
-                                      {c.room}
-                                    </a>
+                                    isWithin7Days(c.date) ? (
+                                      <a
+                                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.room + " classroom")}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="fs-room-link"
+                                        title={`Find ${c.room} on map`}
+                                      >
+                                        {c.room}
+                                      </a>
+                                    ) : (
+                                      <span
+                                        className="fs-room-tentative"
+                                        title={`Classroom assignments are finalized by the academic office within 7 days of the session (tentative: ${c.room})`}
+                                      >
+                                        Assigned &lt;7d
+                                      </span>
+                                    )
                                   ) : "TBA"}
                                 </span>
                                 {c.faculty && (
@@ -875,8 +978,23 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                                   </span>
                                 )}
                               </div>
-                              {onOpenCourse && c.code && (
-                                <div className="fs-meta-actions">
+                              <div className="fs-meta-actions">
+                                {onOpenSession && (
+                                  <button
+                                    type="button"
+                                    className="fs-course-btn"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onOpenSession(c);
+                                    }}
+                                    title={`Open class prep and details for ${c.code || c.name}`}
+                                    aria-label={`Open class prep and details for ${c.code || c.name}`}
+                                  >
+                                    <span>Class prep</span>
+                                    <ArrowRight size={11} className="fs-course-btn-arrow" />
+                                  </button>
+                                )}
+                                {onOpenCourse && c.code && (
                                   <button
                                     type="button"
                                     className="fs-course-btn"
@@ -891,8 +1009,8 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                                     <span>Course hub</span>
                                     <ArrowRight size={11} className="fs-course-btn-arrow" />
                                   </button>
-                                </div>
-                              )}
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -902,6 +1020,20 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                 </div>
               );
             })
+          )}
+          {listScope === "week" ? (
+            <div className="fs-scope-footer">
+              <button type="button" onClick={() => setListScope("all")}>
+                Showing next 7 days · Tap to see full term ({grouped.filter(g => g.type === "day").length} days) <ArrowRight size={13} />
+              </button>
+            </div>
+          ) : horizonDateFormatted && (
+            <div className="fs-horizon-banner">
+              <Sparkles size={14} className="fs-horizon-icon" />
+              <span>
+                Schedule published up to <strong>{horizonDateFormatted}</strong>. Exams and subsequent sessions will appear once released by the academic office.
+              </span>
+            </div>
           )}
         </div>
       )}
@@ -1022,7 +1154,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                               <span className="cal-ev-code">{cls.code || "EXAM"}</span>
                               {width > 128 && <span className="cal-ev-time">{fmtTime12(cls.start)}–{fmtTime12(cls.end)}</span>}
                             </span>
-                            {width > 88 && <span className="cal-ev-name">{examCategory(cls.name, cls.session)}</span>}
+                            {width > 88 && <span className="cal-ev-name">{examCategory(cls.name, cls.session, cls)}</span>}
                             {width <= 128 && width > 54 && <span className="cal-ev-time">{fmtTime12(cls.start)}–{fmtTime12(cls.end)}</span>}
                           </div>
                         );
@@ -1055,10 +1187,10 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                       const gaps = [];
                       for (let gi = 0; gi < lane0.length - 1; gi++) {
                         const gapStart = toMin(lane0[gi].end);
-                        const gapEnd   = toMin(lane0[gi + 1].start);
-                        const gapMin   = gapEnd - gapStart;
+                        const gapEnd = toMin(lane0[gi + 1].start);
+                        const gapMin = gapEnd - gapStart;
                         if (gapMin < 15) continue; // ignore tiny overlaps/buffers
-                        const left  = (gapStart - timeRange.startH * 60) / 60 * HOUR_W + 3;
+                        const left = (gapStart - timeRange.startH * 60) / 60 * HOUR_W + 3;
                         const width = (gapMin / 60) * HOUR_W - 6;
                         const label = gapMin >= 60
                           ? `${Math.floor(gapMin / 60)}h${gapMin % 60 ? ` ${gapMin % 60}m` : ""} free`
@@ -1101,7 +1233,7 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
 
           {/* Day-of-week headers */}
           <div className="cal-month-headers">
-            {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d => (
+            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(d => (
               <div key={d} className="cal-month-dow">{d}</div>
             ))}
           </div>
@@ -1182,7 +1314,21 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
                         <div className="fs-card-meta">
                           <div className="fs-meta-left">
                             <span className="fs-meta-item fs-meta-time"><Clock size={12} /> {fmtTime12(c.start)} – {fmtTime12(c.end)}</span>
-                            <span className="fs-meta-item"><MapPin size={12} /> {c.room || "TBA"}</span>
+                            <span className="fs-meta-item">
+                              <MapPin size={12} />
+                              {c.room ? (
+                                isWithin7Days(c.date) ? (
+                                  c.room
+                                ) : (
+                                  <span
+                                    className="fs-room-tentative"
+                                    title={`Classroom assignments are finalized by the academic office within 7 days of the session (tentative: ${c.room})`}
+                                  >
+                                    Assigned &lt;7d
+                                  </span>
+                                )
+                              ) : "TBA"}
+                            </span>
                             {c.faculty && <span className="fs-meta-item fs-meta-faculty"><User size={12} /> {c.faculty}</span>}
                           </div>
                           {onOpenCourse && c.code && (
@@ -1229,7 +1375,12 @@ export default React.memo(function FullSchedulePage({ allClasses, enrolled, lege
           {tooltip.cls.type === "cancelled" && <div style={{ color: "var(--danger)", fontWeight: 700 }}>Cancelled</div>}
           <div className="ev-tip-divider" />
           <div className="ev-tip-row"><Clock size={12} />{fmtTime12(tooltip.cls.start)} – {fmtTime12(tooltip.cls.end)}</div>
-          {tooltip.cls.room && <div className="ev-tip-row"><MapPin size={12} />{tooltip.cls.room}</div>}
+          {tooltip.cls.room && (
+            <div className="ev-tip-row">
+              <MapPin size={12} />
+              {isWithin7Days(tooltip.cls.date) ? tooltip.cls.room : `Assigned <7d (${tooltip.cls.room})`}
+            </div>
+          )}
           {tooltip.cls.faculty && <div className="ev-tip-row"><User size={12} />{tooltip.cls.faculty}</div>}
         </div>
       )}

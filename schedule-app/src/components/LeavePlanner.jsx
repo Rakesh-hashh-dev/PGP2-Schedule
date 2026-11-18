@@ -3,11 +3,13 @@ import {
   CalendarOff, ArrowLeft, AlertTriangle, TrendingDown, Clock,
   MapPin, CalendarCheck2, PartyPopper, ChevronRight, ArrowRight, Check,
   ChevronDown, ChevronUp, CalendarRange, CalendarCheck, Flame,
-  Copy, ShieldCheck, AlertCircle, Users, X, Calendar,
+  Copy, ShieldCheck, AlertCircle, Users, X, Calendar, Sparkles,
 } from "lucide-react";
 import { sessionKey, courseSkipStats, isExamSession } from "../lib/attendance.js";
 import { loadMyAway, setMyAway, fmtAwayEnd } from "../lib/status.js";
 import { subjectClass } from "../lib/subjectColors.js";
+import { buildLeaveICS, shareOrDownloadICS } from "../lib/calendarExport.js";
+import { WhatsAppBrandSVG, CalendarExportSVG, TropicalBreakSVG } from "./PremiumSVGs.jsx";
 import { EmptyState } from "./ui.jsx";
 import "../styles/leave.css";
 
@@ -71,6 +73,11 @@ function fmtTime(t) {
 function dayDiff(fromISO, toISO) {
   return Math.round((parseISO(toISO) - parseISO(fromISO)) / 86400000) + 1;
 }
+function addDays(iso, n) {
+  const d = parseISO(iso);
+  d.setDate(d.getDate() + n);
+  return ymd(d);
+}
 function durHours(c) {
   const [sh, sm] = c.start.split(":").map(Number);
   const [eh, em] = c.end.split(":").map(Number);
@@ -105,6 +112,144 @@ export default function LeavePlanner({ allClasses, enrolled, legend, attendance,
     const end = maxDate && ymd(d) > maxDate ? maxDate : ymd(d);
     setDraftTo(end);
   };
+
+  const setThisWeekend = () => {
+    const base = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const day = base.getDay();
+    const satOffset = day === 0 ? 6 : (6 - day);
+    const sat = new Date(base);
+    sat.setDate(base.getDate() + satOffset);
+    const sun = new Date(sat);
+    sun.setDate(sat.getDate() + 1);
+
+    const f = ymd(sat);
+    const t = ymd(sun);
+    const validFrom = minDate && f < minDate ? minDate : f;
+    const validTo = maxDate && t > maxDate ? maxDate : t;
+    setDraftFrom(validFrom);
+    setDraftTo(validTo < validFrom ? validFrom : validTo);
+  };
+
+  const isThisWeekend = useMemo(() => {
+    const base = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const day = base.getDay();
+    const satOffset = day === 0 ? 6 : (6 - day);
+    const sat = new Date(base);
+    sat.setDate(base.getDate() + satOffset);
+    const sun = new Date(sat);
+    sun.setDate(sat.getDate() + 1);
+    return draftFrom === ymd(sat) && draftTo === ymd(sun);
+  }, [now, draftFrom, draftTo]);
+
+  const setLongWeekend = () => {
+    const base = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const day = base.getDay();
+    let friOffset = (5 - day + 7) % 7;
+    if (day === 6) friOffset = 6;
+    const fri = new Date(base);
+    fri.setDate(base.getDate() + friOffset);
+    const sun = new Date(fri);
+    sun.setDate(fri.getDate() + 2);
+
+    const f = ymd(fri);
+    const t = ymd(sun);
+    const validFrom = minDate && f < minDate ? minDate : f;
+    const validTo = maxDate && t > maxDate ? maxDate : t;
+    setDraftFrom(validFrom);
+    setDraftTo(validTo < validFrom ? validFrom : validTo);
+  };
+
+  const isLongWeekend = useMemo(() => {
+    const base = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const day = base.getDay();
+    let friOffset = (5 - day + 7) % 7;
+    if (day === 6) friOffset = 6;
+    const fri = new Date(base);
+    fri.setDate(base.getDate() + friOffset);
+    const sun = new Date(fri);
+    sun.setDate(fri.getDate() + 2);
+    return draftFrom === ymd(fri) && draftTo === ymd(sun);
+  }, [now, draftFrom, draftTo]);
+
+  const setNextWeek = () => {
+    const base = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const day = base.getDay();
+    const daysUntilNextMon = ((1 - day + 7) % 7) || 7;
+    const nextMon = new Date(base);
+    nextMon.setDate(base.getDate() + daysUntilNextMon);
+    const nextFri = new Date(nextMon);
+    nextFri.setDate(nextMon.getDate() + 4);
+
+    const f = ymd(nextMon);
+    const t = ymd(nextFri);
+    const validFrom = minDate && f < minDate ? minDate : f;
+    const validTo = maxDate && t > maxDate ? maxDate : t;
+    setDraftFrom(validFrom);
+    setDraftTo(validTo < validFrom ? validFrom : validTo);
+  };
+
+  const isNextWeek = useMemo(() => {
+    const base = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const day = base.getDay();
+    const daysUntilNextMon = ((1 - day + 7) % 7) || 7;
+    const nextMon = new Date(base);
+    nextMon.setDate(base.getDate() + daysUntilNextMon);
+    const nextFri = new Date(nextMon);
+    nextFri.setDate(nextMon.getDate() + 4);
+    return draftFrom === ymd(nextMon) && draftTo === ymd(nextFri);
+  }, [now, draftFrom, draftTo]);
+
+  // Auto-detect the next natural gap or break (>= 2 consecutive days with no classes/exams)
+  const nextBreak = useMemo(() => {
+    if (!allClasses || !enrolled) return null;
+    const isMatch = (c) =>
+      enrolled[c.code] !== undefined &&
+      (c.section === "Single" || c.section === "All" || c.section === enrolled[c.code]);
+
+    const busyDays = new Set(
+      allClasses.filter(c => (c.type === "class" || c.type === "exam" || isExamSession(c)) && isMatch(c)).map(c => c.date)
+    );
+
+    const startD = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const limitD = maxDate ? parseISO(maxDate) : new Date(startD.getTime() + 60 * 86_400_000);
+
+    let gapStart = null;
+    let gapLen = 0;
+
+    for (let d = new Date(startD); d <= limitD; d.setDate(d.getDate() + 1)) {
+      const iso = ymd(d);
+      const isBusy = busyDays.has(iso);
+      if (!isBusy) {
+        if (!gapStart) gapStart = iso;
+        gapLen++;
+      } else {
+        if (gapStart && gapLen >= 2) {
+          const endD = new Date(d);
+          endD.setDate(endD.getDate() - 1);
+          return { from: gapStart, to: ymd(endD), length: gapLen };
+        }
+        gapStart = null;
+        gapLen = 0;
+      }
+    }
+    if (gapStart && gapLen >= 2) {
+      return { from: gapStart, to: ymd(limitD), length: gapLen };
+    }
+    return null;
+  }, [allClasses, enrolled, now, maxDate]);
+
+  const setNextBreak = () => {
+    if (!nextBreak) return;
+    const validFrom = minDate && nextBreak.from < minDate ? minDate : nextBreak.from;
+    const validTo = maxDate && nextBreak.to > maxDate ? maxDate : nextBreak.to;
+    setDraftFrom(validFrom);
+    setDraftTo(validTo < validFrom ? validFrom : validTo);
+  };
+
+  const isNextBreak = useMemo(() => {
+    return Boolean(nextBreak && draftFrom === nextBreak.from && draftTo === nextBreak.to);
+  }, [nextBreak, draftFrom, draftTo]);
+
   const apply = () => { setFrom(draftFrom); setTo(draftTo); };
   const draftDays = dayDiff(draftFrom, draftTo);
 
@@ -177,6 +322,7 @@ export default function LeavePlanner({ allClasses, enrolled, legend, attendance,
         code, name: legend[code]?.name || code, missCount,
         pct: b.pct, projPct,
         skipsRemaining: b.skipsRemaining, projSkipsRemaining,
+        overLimit: Math.max(0, projAbsent - b.totalAllowedSkips),
         totalAllowedSkips: b.totalAllowedSkips, breach, verdict,
       };
     }).sort((a, b) => (b.breach - a.breach) || (a.projSkipsRemaining - b.projSkipsRemaining));
@@ -194,6 +340,85 @@ export default function LeavePlanner({ allClasses, enrolled, legend, attendance,
       .sort((a, b) => clsStart(a) - clsStart(b))
       .slice(0, 6);
   }, [allClasses, enrolled, to]);
+
+  // ── Exam Proximity & Conflict Detection ──
+  const examConflicts = useMemo(() => {
+    if (!enrolled || !from) return [];
+    return allClasses
+      .filter(c =>
+        (c.type === "exam" || isExamSession(c)) &&
+        enrolled[c.code] !== undefined &&
+        (c.section === "Single" || c.section === "All" || c.section === enrolled[c.code]) &&
+        c.date >= from && c.date <= to
+      )
+      .sort((a, b) => clsStart(a) - clsStart(b));
+  }, [allClasses, enrolled, from, to]);
+
+  const examNear = useMemo(() => {
+    if (!enrolled || !to) return [];
+    const d = parseISO(to);
+    d.setDate(d.getDate() + 2);
+    const nearLimit = ymd(d);
+    return allClasses
+      .filter(c =>
+        (c.type === "exam" || isExamSession(c)) &&
+        enrolled[c.code] !== undefined &&
+        (c.section === "Single" || c.section === "All" || c.section === enrolled[c.code]) &&
+        c.date > to && c.date <= nearLimit
+      )
+      .sort((a, b) => clsStart(a) - clsStart(b));
+  }, [allClasses, enrolled, to]);
+
+  // ── Trip Optimizer: Alternative Windows ──
+  const betterAlternatives = useMemo(() => {
+    if (!applied || !from || !to || !enrolled) return [];
+    if (missed.length === 0 && examConflicts.length === 0) return [];
+
+    const shifts = [-2, -1, 1, 2];
+    const results = [];
+
+    const isMatch = (c) =>
+      enrolled[c.code] !== undefined &&
+      (c.section === "Single" || c.section === "All" || c.section === enrolled[c.code]);
+
+    for (const shift of shifts) {
+      const candFrom = addDays(from, shift);
+      const candTo = addDays(to, shift);
+      if (candFrom < minDate) continue;
+      if (maxDate && candTo > maxDate) continue;
+
+      const candMissed = allClasses.filter(
+        c => c.type === "class" && !isExamSession(c) && isMatch(c) && c.date >= candFrom && c.date <= candTo
+      );
+      const candExams = allClasses.filter(
+        c => (c.type === "exam" || isExamSession(c)) && isMatch(c) && c.date >= candFrom && c.date <= candTo
+      );
+
+      const savedClasses = missed.length - candMissed.length;
+      const avoidedExams = examConflicts.length - candExams.length;
+
+      // Only recommend if it genuinely saves classes or avoids exams without introducing new exam conflicts
+      if ((savedClasses > 0 && candExams.length <= examConflicts.length) || (avoidedExams > 0 && candExams.length === 0)) {
+        results.push({
+          candFrom,
+          candTo,
+          shift,
+          missedCount: candMissed.length,
+          examCount: candExams.length,
+          savedClasses,
+          avoidedExams,
+        });
+      }
+    }
+
+    results.sort((a, b) => {
+      if (a.examCount !== b.examCount) return a.examCount - b.examCount;
+      if (b.savedClasses !== a.savedClasses) return b.savedClasses - a.savedClasses;
+      return Math.abs(a.shift) - Math.abs(b.shift);
+    });
+
+    return results.slice(0, 2);
+  }, [applied, from, to, missed.length, examConflicts.length, enrolled, minDate, maxDate, allClasses]);
 
   // Group the missed sessions by date for the timeline.
   const missedByDay = useMemo(() => {
@@ -267,6 +492,8 @@ export default function LeavePlanner({ allClasses, enrolled, legend, attendance,
     } else {
       L.push(`Missing ${missed.length} class${missed.length !== 1 ? "es" : ""} across ${impact.length} course${impact.length !== 1 ? "s" : ""}.`);
       if (anyBreach) L.push(`⚠ Over skip limit in: ${impact.filter(i => i.breach).map(i => i.code).join(", ")}`);
+      if (examConflicts.length) L.push(`⚠ EXAM CONFLICT: ${examConflicts.map(e => `${e.code} (${e.session || "Exam"}) on ${fmtShort(e.date)}`).join(", ")}`);
+      if (examNear.length) L.push(`⚠ EXAM RIGHT AFTER RETURN: ${examNear.map(e => `${e.code} (${e.session || "Exam"}) on ${fmtShort(e.date)}`).join(", ")}`);
       L.push("");
       missedByDay.forEach(([date, list]) => {
         L.push(fmtFull(date));
@@ -280,6 +507,52 @@ export default function LeavePlanner({ allClasses, enrolled, legend, attendance,
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     } catch { /* clipboard blocked */ }
+  };
+
+  const shareWhatsApp = () => {
+    const L = [`🌴 *Leave plan:* ${rangeStr}${from !== to ? ` (${days} days)` : ""}`];
+    if (missed.length === 0) {
+      L.push("No classes fall in this window 🎉");
+    } else {
+      L.push(`• Missing *${missed.length}* class${missed.length !== 1 ? "es" : ""} across ${impact.length} course${impact.length !== 1 ? "s" : ""}.`);
+      if (anyBreach) L.push(`⚠️ *Over skip limit in:* ${impact.filter(i => i.breach).map(i => i.code).join(", ")}`);
+      else L.push(`✅ *Attendance:* Safe (all courses ≥80%)`);
+      if (examConflicts.length) L.push(`🚨 *EXAM CONFLICT:* ${examConflicts.map(e => `${e.code} (${e.session || "Exam"}) on ${fmtShort(e.date)}`).join(", ")}`);
+      else if (examNear.length) L.push(`⚠️ *EXAM RIGHT AFTER RETURN:* ${examNear.map(e => `${e.code} (${e.session || "Exam"}) on ${fmtShort(e.date)}`).join(", ")}`);
+      else L.push(`🛡️ *Exam Shield:* No conflicts`);
+      L.push("");
+      missedByDay.forEach(([date, list]) => {
+        L.push(`*${fmtFull(date)}*`);
+        list.forEach(c => L.push(`  • ${c.code} ${fmtTime(c.start)}–${fmtTime(c.end)}${c.room ? ` (${c.room})` : ""}`));
+      });
+      L.push("");
+      L.push(`Back on ${fmtFull(to)}.`);
+    }
+    const url = `https://wa.me/?text=${encodeURIComponent(L.join("\n"))}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const [icsBusy, setIcsBusy] = useState(false);
+  const [icsDone, setIcsDone] = useState(false);
+
+  const exportLeaveCalendar = async () => {
+    if (!applied || !from || !to) return;
+    setIcsBusy(true);
+    try {
+      const ics = buildLeaveICS({
+        from,
+        to,
+        missed,
+        label: `On Leave (${rangeLabel || rangeStr})`,
+      });
+      await shareOrDownloadICS(ics, `termflow_leave_${from}_${to}.ics`, "TermFlow Out-of-Office Leave");
+      setIcsDone(true);
+      setTimeout(() => setIcsDone(false), 2500);
+    } catch (err) {
+      console.warn("Failed to export leave calendar:", err);
+    } finally {
+      setIcsBusy(false);
+    }
   };
 
   // ── Sticky mini-summary once the real summary card scrolls off (mobile) ──
@@ -334,6 +607,16 @@ export default function LeavePlanner({ allClasses, enrolled, legend, attendance,
               aria-label="Copy leave summary to clipboard">
               {copied ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy plan</>}
             </button>
+            <button type="button" className="lp-copy lp-wa-share" onClick={shareWhatsApp}
+              aria-label="Share leave plan to WhatsApp" title="Share plan to WhatsApp">
+              <WhatsAppBrandSVG size={14} /> WhatsApp
+            </button>
+            <button type="button" className={`lp-copy lp-cal-export${icsDone ? " is-done" : ""}`} onClick={exportLeaveCalendar}
+              disabled={icsBusy}
+              aria-label="Export out-of-office event to Google Calendar or Apple Calendar (.ics)"
+              title="Export out-of-office event to Google Calendar / Apple Calendar (.ics)">
+              {icsDone ? <><Check size={14} /> Exported</> : <><CalendarExportSVG size={14} /> Export .ics</>}
+            </button>
           </div>
         )}
       </header>
@@ -379,9 +662,17 @@ export default function LeavePlanner({ allClasses, enrolled, legend, attendance,
         </div>
         <div className="lp-picker-row">
           <div className="lp-quick" role="group" aria-label="Quick durations">
-            <button type="button" className={draftDays === 1 ? "on" : ""} onClick={() => setSpan(1)}>1 day</button>
-            <button type="button" className={draftDays === 3 ? "on" : ""} onClick={() => setSpan(3)}>3 days</button>
-            <button type="button" className={draftDays === 7 ? "on" : ""} onClick={() => setSpan(7)}>1 week</button>
+            <button type="button" className={draftDays === 1 && !isThisWeekend && !isLongWeekend && !isNextWeek && !isNextBreak ? "on" : ""} onClick={() => setSpan(1)}>1 day</button>
+            <button type="button" className={draftDays === 3 && !isThisWeekend && !isLongWeekend && !isNextWeek && !isNextBreak ? "on" : ""} onClick={() => setSpan(3)}>3 days</button>
+            <button type="button" className={draftDays === 7 && !isThisWeekend && !isLongWeekend && !isNextWeek && !isNextBreak ? "on" : ""} onClick={() => setSpan(7)}>1 week</button>
+            <button type="button" className={isThisWeekend ? "on" : ""} onClick={setThisWeekend} title="Plan leave for upcoming Saturday & Sunday">This weekend</button>
+            <button type="button" className={isLongWeekend ? "on" : ""} onClick={setLongWeekend} title="Plan leave for upcoming Friday through Sunday (3 days)">Long weekend</button>
+            <button type="button" className={isNextWeek ? "on" : ""} onClick={setNextWeek} title="Plan leave for next week (Monday through Friday)">Next week</button>
+            {nextBreak && (
+              <button type="button" className={isNextBreak ? "on" : ""} onClick={setNextBreak} title={`Jump to next schedule break (${nextBreak.from} – ${nextBreak.to}, ${nextBreak.length} days)`}>
+                <TropicalBreakSVG size={13} /> Next break
+              </button>
+            )}
           </div>
           <div className="lp-picker-actions">
             <button type="button" className="lp-apply" onClick={apply}>
@@ -531,10 +822,80 @@ export default function LeavePlanner({ allClasses, enrolled, legend, attendance,
         <ChevronUp size={15} className="lp-sticky-chev" />
       </div>
 
+      {/* ── Exam Conflict & Proximity Shields ── */}
+      {examConflicts.length > 0 && (
+        <div className="lp-alert lp-alert-exam" role="alert">
+          <AlertTriangle size={18} className="lp-alert-ico" />
+          <div className="lp-alert-content">
+            <span><strong>Exam inside leave window!</strong> You have {examConflicts.length} scheduled exam{examConflicts.length !== 1 ? "s" : ""}:</span>
+            <div className="lp-exam-list">
+              {examConflicts.map(e => (
+                <span key={`${e.code}-${e.date}-${e.start}`} className="lp-exam-pill">
+                  {e.code} ({e.session || "Exam"}) · {fmtShort(e.date)} {fmtTime(e.start)}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {examNear.length > 0 && examConflicts.length === 0 && (
+        <div className="lp-alert lp-alert-exam-near" role="alert">
+          <AlertCircle size={18} className="lp-alert-ico" />
+          <div className="lp-alert-content">
+            <span><strong>Exam immediately after return:</strong> You have an exam within 48h of returning:</span>
+            <div className="lp-exam-list">
+              {examNear.map(e => (
+                <span key={`${e.code}-${e.date}-${e.start}`} className="lp-exam-pill">
+                  {e.code} ({e.session || "Exam"}) · {fmtShort(e.date)} {fmtTime(e.start)}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {anyBreach && (
         <div className="lp-alert" role="alert">
           <AlertTriangle size={16} className="lp-alert-ico" />
           <span>This leave pushes you <strong>over the skip limit</strong> in {breachCount} course{breachCount !== 1 ? "s" : ""}.</span>
+        </div>
+      )}
+
+      {/* ── Trip Optimizer: Alternative Window Suggestions ── */}
+      {betterAlternatives.length > 0 && (
+        <div className="lp-alternatives-card">
+          <div className="lp-alt-head">
+            <Sparkles size={16} className="lp-alt-icon" />
+            <div>
+              <strong>Trip Optimizer</strong>
+              <p>Lighter windows found for this {days}-day trip that save attendance:</p>
+            </div>
+          </div>
+          <div className="lp-alt-chips">
+            {betterAlternatives.map((alt) => (
+              <button
+                key={`${alt.candFrom}-${alt.candTo}`}
+                type="button"
+                className="lp-alt-chip"
+                onClick={() => {
+                  setDraftFrom(alt.candFrom);
+                  setDraftTo(alt.candTo);
+                  setFrom(alt.candFrom);
+                  setTo(alt.candTo);
+                }}
+                title={`Switch leave to ${fmtShort(alt.candFrom)} – ${fmtShort(alt.candTo)}`}
+              >
+                <span className="lp-alt-dates">
+                  {fmtShort(alt.candFrom)} – {fmtShort(alt.candTo)}
+                </span>
+                <span className="lp-alt-saving">
+                  {alt.avoidedExams > 0 ? "Avoids exam" : `−${alt.savedClasses} fewer class${alt.savedClasses !== 1 ? "es" : ""}`}
+                </span>
+                <span className="lp-alt-apply">Switch →</span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -595,9 +956,38 @@ export default function LeavePlanner({ allClasses, enrolled, legend, attendance,
                       </div>
                     )}
                     <div className="lp-impact-skips">
-                      {i.breach
-                        ? <span className="lp-skip-bad"><AlertTriangle size={11} /> Over limit · {i.projSkipsRemaining} skips left</span>
-                        : <span><b>{i.projSkipsRemaining}</b> of {i.totalAllowedSkips} skips left after</span>}
+                      <div className="lp-skips-row">
+                        <span className={`lp-skips-txt${i.breach ? " lp-skip-bad" : i.projSkipsRemaining <= 1 ? " lp-skip-low" : ""}`}>
+                          {i.breach ? (
+                            <><AlertTriangle size={12} /> Breaches 80% ({i.overLimit || 1} over limit)</>
+                          ) : (
+                            <>Skips: <b>{i.skipsRemaining}</b> → <b>{i.projSkipsRemaining}</b> left</>
+                          )}
+                        </span>
+                        {i.totalAllowedSkips > 0 && (
+                          <div
+                            className="lp-skip-pips"
+                            title={`${i.projSkipsRemaining} of ${i.totalAllowedSkips} allowed skips remaining after this leave`}
+                            aria-label={`${i.projSkipsRemaining} of ${i.totalAllowedSkips} allowed skips remaining`}
+                          >
+                            {Array.from({ length: Math.min(i.totalAllowedSkips, 7) }, (_, idx) => {
+                              const previouslyUsed = Math.max(0, i.totalAllowedSkips - i.skipsRemaining);
+                              const nowUsed = Math.max(0, i.totalAllowedSkips - i.projSkipsRemaining);
+                              const isPrev = idx < previouslyUsed;
+                              const isTripLost = idx >= previouslyUsed && idx < nowUsed;
+                              return (
+                                <span
+                                  key={idx}
+                                  className={`lp-skip-pip${isPrev ? " used" : ""}${isTripLost ? " trip-lost" : ""}${i.breach ? " breach" : ""}`}
+                                />
+                              );
+                            })}
+                            {i.totalAllowedSkips > 7 && (
+                              <span className="lp-skip-more">+{i.totalAllowedSkips - 7}</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );

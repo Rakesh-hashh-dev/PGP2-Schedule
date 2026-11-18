@@ -27,10 +27,10 @@ function cdTone(days) {
   return "good";
 }
 
-function examCategory(name, session) {
+function examCategory(name, session, c) {
   const n = (name || "").toLowerCase();
   const s = (session || "").toLowerCase();
-  if ((n.includes("end") && n.includes("term")) || (s.includes("end") && s.includes("term"))) return "End Term";
+  if ((n.includes("end") && n.includes("term")) || (s.includes("end") && s.includes("term")) || (c?.date >= "2026-12-11" && c?.date <= "2026-12-20")) return "End Term";
   if ((n.includes("mid") && n.includes("term")) || (s.includes("mid") && s.includes("term"))) return "Mid Term";
   if (n.includes("quiz") || s.includes("quiz")) return "Quiz";
   return "Exam / Admin";
@@ -438,7 +438,7 @@ export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, al
         if (code && !targetCodes.includes(code)) return false;
         // Dedup: mid-terms are single-section today, but guard against any
         // per-section duplication so each subject's exam shows once.
-        const key = `${c.date}|${code || c.name}|${examCategory(c.name, c.session)}|${c.start || ""}`;
+        const key = `${c.date}|${code || c.name}|${examCategory(c.name, c.session, c)}|${c.start || ""}`;
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
@@ -451,7 +451,7 @@ export default React.memo(function ExamsPanel({ allClasses, enrolled, legend, al
           ...c,
           subjectCode: code,
           subjectName: info?.name || c.name,
-          category: examCategory(c.name, c.session),
+          category: examCategory(c.name, c.session, c),
           days,
           tone: cdTone(days),
           rawCredits: info?.credits,

@@ -1002,6 +1002,17 @@ export default function FriendsPanel({
     }
   };
 
+  const handleCompareAll = useCallback(() => {
+    if (!friends.length || !onGroupCompare) return;
+    const targetFriends = [...friends]
+      .sort((a, b) => (b.isFavourite ? 1 : 0) - (a.isFavourite ? 1 : 0))
+      .slice(0, 6);
+    onGroupCompare({
+      name: `All Friends (${targetFriends.length})`,
+      memberIds: targetFriends.map(f => f.id),
+    });
+  }, [friends, onGroupCompare]);
+
   const renderFriendCard = (f, isCompact = false, dragHandle = null) => {
     const fCourseCount = courseCodes(f.courses).length;
     const [c1, c2] = avatarGradient(f.name);
@@ -1846,7 +1857,19 @@ export default function FriendsPanel({
           <section className="fr-overview-card fr-free-card">
             <div className="fr-overview-card-head">
               <div><span className="fr-card-kicker fr-live-kicker"><i /> Timetable gaps</span><h2>Friends without scheduled classes</h2></div>
-              <button className="fr-text-button" onClick={() => { setFriendFilter("free"); setSocialView("friends"); }}>View all <ArrowRight size={13} /></button>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                {friends.length >= 2 && onGroupCompare && (
+                  <button
+                    type="button"
+                    className="fr-text-button fr-compare-all-subtle"
+                    onClick={handleCompareAll}
+                    title={`Compare availability across ${Math.min(friends.length, 6)} friends`}
+                  >
+                    <Users size={13} /> Compare All
+                  </button>
+                )}
+                <button className="fr-text-button" onClick={() => { setFriendFilter("free"); setSocialView("friends"); }}>View all <ArrowRight size={13} /></button>
+              </div>
             </div>
             {freeNowFriends.length > 0 ? (
               <div className="fr-people-preview">
@@ -1975,9 +1998,21 @@ export default function FriendsPanel({
             Your friends
             {friends.length > 0 && <span style={{ fontSize: 11, background: "rgba(0,0,0,0.05)", padding: "2px 8px", borderRadius: 10, color: "var(--muted)", fontWeight: 600 }}>{friends.length}</span>}
           </h3>
-          <button className="fr-btn fr-btn-secondary fr-btn-small" onClick={openConnect}>
-            <UserPlus size={14} /> Add people
-          </button>
+          <div className="fr-section-actions">
+            {friends.length >= 2 && onGroupCompare && (
+              <button
+                type="button"
+                className="fr-btn fr-btn-secondary fr-btn-small fr-compare-all-btn"
+                onClick={handleCompareAll}
+                title={`Compare schedule availability across ${Math.min(friends.length, 6)} friends`}
+              >
+                <Users size={13} /> Compare All ({Math.min(friends.length, 6)})
+              </button>
+            )}
+            <button className="fr-btn fr-btn-secondary fr-btn-small" onClick={openConnect}>
+              <UserPlus size={14} /> Add people
+            </button>
+          </div>
         </div>
         {friends.length > 0 && (
           <div className="fr-friend-tools">

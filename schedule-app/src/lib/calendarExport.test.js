@@ -7,6 +7,7 @@ import {
   buildAlarmComponent,
   buildVEvent,
   buildICS,
+  buildLeaveICS,
   filterEventsForExport,
   createGoogleCalendarUrl,
 } from "./calendarExport.js";
@@ -229,6 +230,30 @@ describe("calendarExport", () => {
       expect(url).toContain("dates=20260615T143000%2F20260615T160000");
       expect(url).toContain("ctz=Asia%2FKolkata");
       expect(url).toContain("SAPM");
+    });
+  });
+
+  describe("buildLeaveICS", () => {
+    it("generates valid all-day VEVENT covering the leave dates", () => {
+      const ics = buildLeaveICS({
+        from: "2026-11-20",
+        to: "2026-11-23",
+        missed: [
+          { code: "CRM", name: "Customer Relationship Management", date: "2026-11-20", start: "10:00", end: "11:30" },
+        ],
+        label: "On Leave: Trip home",
+      });
+
+      expect(ics).toContain("BEGIN:VCALENDAR");
+      expect(ics).toContain("DTSTART;VALUE=DATE:20261120");
+      expect(ics).toContain("DTEND;VALUE=DATE:20261124");
+      expect(ics).toContain("SUMMARY:On Leave: Trip home");
+      expect(ics).toContain("CRM");
+      expect(ics).toContain("END:VCALENDAR");
+    });
+
+    it("returns empty string if from or to is missing", () => {
+      expect(buildLeaveICS({ from: "", to: "2026-11-23" })).toBe("");
     });
   });
 });

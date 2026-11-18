@@ -171,6 +171,7 @@ export default function CompareView({
 }) {
   const [viewMode, setViewMode] = useState("side"); // "merged" | "side"
   const [dayFilter, setDayFilter] = useState("today"); // "today", "tomorrow", "week"
+  const [focusFilter, setFocusFilter] = useState("all"); // "all" | "free" | "shared"
   const [customRange, setCustomRange] = useState({ start: ymd(now), end: ymd(now) });
   const [pendingRange, setPendingRange] = useState({ start: ymd(now), end: ymd(now) });
   // "idle" | "loading" | "applied"
@@ -504,6 +505,33 @@ export default function CompareView({
               onChange={setDayFilter}
             />
           </div>
+
+          <div className="cv-focus-bar">
+            <span className="cv-control-label">Focus</span>
+            <div className="cv-focus-toggle">
+              <button
+                type="button"
+                className={`cv-focus-btn ${focusFilter === "all" ? "on" : ""}`}
+                onClick={() => setFocusFilter("all")}
+              >
+                All views
+              </button>
+              <button
+                type="button"
+                className={`cv-focus-btn ${focusFilter === "free" ? "on" : ""}`}
+                onClick={() => setFocusFilter("free")}
+              >
+                Free for all ({freeSlots.length})
+              </button>
+              <button
+                type="button"
+                className={`cv-focus-btn ${focusFilter === "shared" ? "on" : ""}`}
+                onClick={() => setFocusFilter("shared")}
+              >
+                Shared classes ({insights.sameClass.length})
+              </button>
+            </div>
+          </div>
         </div>
 
         {dayFilter === "custom" && (
@@ -624,76 +652,80 @@ export default function CompareView({
         {/* Right / side column: free slots detail + insights */}
         <div className="cv-body-side">
           {/* Free time blocks detail */}
-          <section className="cv-free-section">
-            <div className="cv-free-section-head">
-              <div>
-                <span className="cv-panel-kicker">Availability</span>
-                <h3 className="cv-section-title"><Clock size={15} /> Best times to meet</h3>
-              </div>
-              {freeSlots.length > 0 && (
-                <button className="cv-copy-btn" onClick={copyFreeSlots}>
-                  {slotsCopied ? <><Check size={13} /> Copied!</> : <><Copy size={13} /> Copy</>}
-                </button>
-              )}
-            </div>
-            {freeSlots.length === 0 ? (
-              <EmptyState compact icon={CalendarX2} title="No common free time" sub="Try a different day or range." />
-            ) : (
-              <div className="cv-free-list">
-                <FreeSlotGroups
-                  groups={canTruncate ? groupedFreeSlots.slice(0, PREVIEW_DAYS) : groupedFreeSlots}
-                  isMultiDay={isMultiDay}
-                  longestFreeIdx={longestFreeIdx}
-                  maxFreeDuration={maxFreeDuration}
-                  totalSlots={freeSlots.length}
-                  onPlanSlot={onPlanSlot}
-                />
-                {canTruncate && groupedFreeSlots.length > PREVIEW_DAYS && (
-                  <button className="cv-show-more" onClick={() => setMoreModal("free")}>
-                    <ChevronDown size={14} /> Show {groupedFreeSlots.length - PREVIEW_DAYS} more day{groupedFreeSlots.length - PREVIEW_DAYS !== 1 ? "s" : ""}
+          {focusFilter !== "shared" && (
+            <section className="cv-free-section">
+              <div className="cv-free-section-head">
+                <div>
+                  <span className="cv-panel-kicker">Availability</span>
+                  <h3 className="cv-section-title"><Clock size={15} /> Best times to meet</h3>
+                </div>
+                {freeSlots.length > 0 && (
+                  <button className="cv-copy-btn" onClick={copyFreeSlots}>
+                    {slotsCopied ? <><Check size={13} /> Copied!</> : <><Copy size={13} /> Copy</>}
                   </button>
                 )}
               </div>
-            )}
-          </section>
+              {freeSlots.length === 0 ? (
+                <EmptyState compact icon={CalendarX2} title="No common free time" sub="Try a different day or range." />
+              ) : (
+                <div className="cv-free-list">
+                  <FreeSlotGroups
+                    groups={canTruncate ? groupedFreeSlots.slice(0, PREVIEW_DAYS) : groupedFreeSlots}
+                    isMultiDay={isMultiDay}
+                    longestFreeIdx={longestFreeIdx}
+                    maxFreeDuration={maxFreeDuration}
+                    totalSlots={freeSlots.length}
+                    onPlanSlot={onPlanSlot}
+                  />
+                  {canTruncate && groupedFreeSlots.length > PREVIEW_DAYS && (
+                    <button className="cv-show-more" onClick={() => setMoreModal("free")}>
+                      <ChevronDown size={14} /> Show {groupedFreeSlots.length - PREVIEW_DAYS} more day{groupedFreeSlots.length - PREVIEW_DAYS !== 1 ? "s" : ""}
+                    </button>
+                  )}
+                </div>
+              )}
+            </section>
+          )}
 
           {/* Insights */}
-          <section className="cv-insights">
-            <h3 className="cv-section-title"><BookOpen size={15} /> Schedule Insights</h3>
-            <div className="cv-insight-grid">
-              {insights.sameClass.length > 0 && (
-                <div className="cv-insight-card cv-insight-same">
-                  <UserCheck size={18} />
-                  <div>
-                    <span className="cv-insight-num">{insights.sameClass.length}</span>
-                    <span className="cv-insight-label">Same class{insights.sameClass.length !== 1 ? "es" : ""}</span>
+          {focusFilter !== "free" && (
+            <section className="cv-insights">
+              <h3 className="cv-section-title"><BookOpen size={15} /> Schedule Insights</h3>
+              <div className="cv-insight-grid">
+                {insights.sameClass.length > 0 && (
+                  <div className="cv-insight-card cv-insight-same">
+                    <UserCheck size={18} />
+                    <div>
+                      <span className="cv-insight-num">{insights.sameClass.length}</span>
+                      <span className="cv-insight-label">Same class{insights.sameClass.length !== 1 ? "es" : ""}</span>
+                    </div>
+                    <div className="cv-insight-detail">
+                      {insights.sameClass.map(sc => (
+                        <span key={sc.code} className="cv-insight-tag">{legend[sc.code]?.name || sc.code} ({sc.section})</span>
+                      ))}
+                    </div>
                   </div>
-                  <div className="cv-insight-detail">
-                    {insights.sameClass.map(sc => (
-                      <span key={sc.code} className="cv-insight-tag">{legend[sc.code]?.name || sc.code} ({sc.section})</span>
-                    ))}
+                )}
+                {insights.matching.length > 0 && (
+                  <div className="cv-insight-card cv-insight-match">
+                    <BookOpen size={18} />
+                    <div>
+                      <span className="cv-insight-num">{insights.matching.length}</span>
+                      <span className="cv-insight-label">Matching subject{insights.matching.length !== 1 ? "s" : ""}</span>
+                    </div>
+                    <div className="cv-insight-detail">
+                      {insights.matching.map(code => (
+                        <span key={code} className="cv-insight-tag">{legend[code]?.name || code}</span>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
-              {insights.matching.length > 0 && (
-                <div className="cv-insight-card cv-insight-match">
-                  <BookOpen size={18} />
-                  <div>
-                    <span className="cv-insight-num">{insights.matching.length}</span>
-                    <span className="cv-insight-label">Matching subject{insights.matching.length !== 1 ? "s" : ""}</span>
-                  </div>
-                  <div className="cv-insight-detail">
-                    {insights.matching.map(code => (
-                      <span key={code} className="cv-insight-tag">{legend[code]?.name || code}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {insights.matching.length === 0 && insights.sameClass.length === 0 && (
-                <p className="cv-empty">No matching courses found.</p>
-              )}
-            </div>
-          </section>
+                )}
+                {insights.matching.length === 0 && insights.sameClass.length === 0 && (
+                  <p className="cv-empty">No matching courses found.</p>
+                )}
+              </div>
+            </section>
+          )}
         </div>{/* /cv-body-side */}
       </div>{/* /cv-body-grid */}
 

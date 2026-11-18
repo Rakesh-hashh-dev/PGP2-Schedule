@@ -136,6 +136,47 @@
   gap: 6px;
 }
 
+.cv-focus-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.cv-focus-toggle {
+  display: inline-flex;
+  gap: 3px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 3px;
+}
+
+.cv-focus-btn {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--body);
+  font-size: 12px;
+  font-weight: 650;
+  padding: 5px 11px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.cv-focus-btn:hover {
+  color: var(--text);
+}
+
+.cv-focus-btn.on {
+  background: var(--card);
+  color: var(--violet, #7c3aed);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
 @media (max-width: 480px) {
   /* No overflow-x here: a scroll container would clip the Select Range dropdown */
   .cv-day-btn {

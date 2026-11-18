@@ -1,4 +1,4 @@
-﻿/* Attendance control centre — scoped to the atx namespace. */
+/* Attendance control centre — scoped to the atx namespace. */
 .atx-page {
   --atx-green: #1fa971;
   --atx-green-rgb: 31, 169, 113;
@@ -769,9 +769,52 @@ html[data-theme="dark"] .atx-mark-button.absent.active svg { color: #2d0a0a; }
   font-weight: 400;
 }
 
+.atx-skip-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  vertical-align: middle;
+}
+
 .atx-skip-tracker { color: var(--atx-green); font-weight: 700; }
 .atx-skip-tracker.low { color: var(--atx-amber); }
 .atx-skip-tracker.penalty { color: var(--atx-red); }
+
+.atx-skip-pips {
+  display: inline-flex;
+  align-items: center;
+  gap: 3.5px;
+}
+
+.atx-skip-pip {
+  width: 7.5px;
+  height: 7.5px;
+  border-radius: 50%;
+  border: 1.5px solid var(--atx-green, #10b981);
+  background: transparent;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.atx-skip-pip.used {
+  background: var(--atx-red, #ef4444);
+  border-color: var(--atx-red, #ef4444);
+}
+
+.atx-skip-pip.penalty {
+  background: var(--atx-red, #ef4444);
+  border-color: var(--atx-red, #ef4444);
+  box-shadow: 0 0 3px rgba(239, 68, 68, 0.4);
+}
+
+.atx-skip-more {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-left: 1px;
+  line-height: 1;
+}
 
 /* Sleek Course Hub action button */
 .atx-course-hub-btn {
