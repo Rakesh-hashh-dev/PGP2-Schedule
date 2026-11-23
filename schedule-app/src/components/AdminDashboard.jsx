@@ -1,6 +1,7 @@
 import AdminDiwaliControls from './AdminDiwaliControls.jsx';
 import { diwaliDecorEnabled } from '../../supabase/functions/_shared/diwali.js';
 import AdminMessControls from './AdminMessControls.jsx';
+import AdminBidFlowControls from './AdminBidFlowControls.jsx';
 import AdminNavigationControls from './AdminNavigationControls.jsx';
 import AdminDashboardDefaults from './AdminDashboardDefaults.jsx';
 import AdminStudentNotes from './AdminStudentNotes.jsx';
@@ -371,7 +372,7 @@ function _summarizeConfigChanges(orig, cur) {
   return out.sort((a, b) => a.label.localeCompare(b.label));
 }
 
-export default function AdminDashboard({ user, startImpersonation, syncLogs = [], timeOverride, setTimeOverride, allChanges = [], onConfigSaved }) {
+export default function AdminDashboard({ user, initialRole, startImpersonation, syncLogs = [], timeOverride, setTimeOverride, allChanges = [], onConfigSaved }) {
   const [totalUsers, setTotalUsers] = useState(null);
   const [activeUsers, setActiveUsers] = useState(0);
   const [statsLoading, setStatsLoading] = useState(true);
@@ -710,7 +711,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   const [liveEditorDate, setLiveEditorDate] = useState(ymd(new Date()));
   const [liveEditorModal, setLiveEditorModal] = useState(null);
   const allNotifsDialogRef = useDialog(showAllAdminNotifs, () => setShowAllAdminNotifs(false));
-  const reviewDialogRef = useDialog(reviewOpen, () => setReviewOpen(false));
+  const _reviewDialogRef = useDialog(reviewOpen, () => setReviewOpen(false));
   const viewAsDialogRef = useDialog(!!viewAsUser, () => setViewAsUser(null));
   const liveEditorDialogRef = useDialog(!!liveEditorModal, () => setLiveEditorModal(null));
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
@@ -796,7 +797,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   // what is allowed. can_write_config() is the real gate, so a stale value here
   // costs an admin a confusing error, not unauthorised access.
   const [adminRoster, setAdminRoster] = useState([]);
-  const [myRole, setMyRole] = useState(null);
+  const [myRole, setMyRole] = useState(initialRole);
   const [recordSearchKey, setRecordSearchKey] = useState(0);
   const [recordSearchDataset, setRecordSearchDataset] = useState(null);
   function openNotificationDiagnostics(userId = null) {
@@ -812,7 +813,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     setRecordSearchDataset(dataset);
     setRecordSearchKey(current => current + 1);
   }
-  const areaCapability = activeTab === 'schedule' && scheduleSection === 'class' ? 'schedule.publish'
+  const isBidflowWorkspace = activeTab === 'schedule' && scheduleSection === 'bidflow';
+  const areaCapability = activeTab === 'schedule' && (scheduleSection === 'class' || isBidflowWorkspace) ? 'schedule.publish'
     : activeTab === 'broadcast' ? 'communications.publish'
     : activeTab === 'moderation' ? 'moderation.write' : 'system.publish';
   const isReadOnlyAdmin = !originalFlags || !hasAdminCapability(myRole, areaCapability);
@@ -839,13 +841,15 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       || (roleQuery.startsWith("user_") ? { user_id: roleUserId.trim() } : null);
 
   async function fetchAdminRoles() {
-    const [roster, mine] = await Promise.all([listAdminRoles(), myAdminRole()]);
-    return { roster, mine };
+    const [roster, mine] = await Promise.allSettled([listAdminRoles(), myAdminRole()]);
+    if (mine.status === 'rejected') throw mine.reason;
+    if (roster.status === 'rejected') console.warn("Could not load the admin roster:", roster.reason?.message);
+    return { roster: roster.status === 'fulfilled' ? roster.value : null, mine: mine.value };
   }
   async function refreshAdminRoles() {
     try {
       const { roster, mine } = await fetchAdminRoles();
-      setAdminRoster(roster);
+      if (roster) setAdminRoster(roster);
       setMyRole(mine);
     } catch (e) {
       console.warn("Could not load admin roles:", e.message);
@@ -854,7 +858,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   useEffect(() => {
     let alive = true;
     fetchAdminRoles()
-      .then(({ roster, mine }) => { if (!alive) return; setAdminRoster(roster); setMyRole(mine); })
+      .then(({ roster, mine }) => { if (!alive) return; if (roster) setAdminRoster(roster); setMyRole(mine); })
       .catch((e) => console.warn("Could not load admin roles:", e.message));
     return () => { alive = false; };
   }, []);
@@ -1106,8 +1110,15 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
           setPushSubCount(stats.push_subscriptions ?? 0);
           setFriendPingsCount(stats.friend_pings ?? 0);
           setSkipStats(stats.skips_by_course || []);
-          if (stats.push_user_ids) {
+          if (stats.push_user_ids && stats.push_user_ids.length > 0) {
             setPushSubscribersList(stats.push_user_ids);
+          } else {
+            // Fallback: try fetching user IDs directly if admin has access
+            supabase.from("push_subscriptions").select("user_id").then(({ data: directSubs }) => {
+              if (directSubs && directSubs.length > 0) {
+                setPushSubscribersList([...new Set(directSubs.map(s => s.user_id).filter(Boolean))]);
+              }
+            }).catch(() => {});
           }
           return;
         }
@@ -2550,7 +2561,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
         ))}
       </nav>
 
-      {isReadOnlyAdmin && (
+      {isReadOnlyAdmin && !isBidflowWorkspace && (
         <div className="admin-readonly-banner" role="status">
           <Eye size={16} aria-hidden="true" />
           <div><strong>Read-only in this workspace</strong><span>Your current role cannot change this area. Authorized actions remain available in your other workspaces.</span></div>
@@ -2558,7 +2569,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       )}
 
       {/* ── Card flow: 2-col masonry ≥1200px, single column below ── */}
-      {activeTab === 'schedule' && <nav className="admin-schedule-subnav" aria-label="Schedule sections">{[['class', 'Class'], ['menu', 'Menu']].map(([id, label]) => <button type="button" className={`admin-btn ${scheduleSection === id ? '' : 'outline'}`} aria-pressed={scheduleSection === id} key={id} onClick={() => setScheduleSection(id)}>{label}</button>)}</nav>}
+      {activeTab === 'schedule' && <nav className="admin-schedule-subnav" aria-label="Schedule sections">{[['class', 'Class'], ['menu', 'Menu'], ['bidflow', 'BidFlow']].map(([id, label]) => <button type="button" className={`admin-btn ${scheduleSection === id ? '' : 'outline'}`} aria-pressed={scheduleSection === id} key={id} onClick={() => setScheduleSection(id)}>{label}</button>)}</nav>}
       <div className="admin-workspace-tools">
       <AdminWorkspaceShortcuts key={admin_id} userId={admin_id} role={myRole} onCommand={runAdminCommand} />
       {originalFlags && <AdminDraftRecovery key={admin_id} role={myRole} flags={preparedFlags} originalFlags={originalFlags} announcement={activeAnnouncement} originalAnnouncement={originalAnnouncement} baseOverrides={draftBases} resetKeys={draftResetKeys}
@@ -2577,6 +2588,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       </div>
       <div className="admin-masonry" data-active-tab={activeTab} data-schedule-section={scheduleSection}>
         {activeTab === "schedule" && scheduleSection === 'menu' && <AdminMessControls initialDate={menuTargetDate} readOnly={!hasAdminCapability(myRole, 'system.publish')} />}
+        {activeTab === "schedule" && scheduleSection === 'bidflow' && <AdminBidFlowControls role={myRole} onReloadAccess={refreshAdminRoles} />}
         {activeTab === "system" && <><AdminNavigationControls readOnly={!hasAdminCapability(myRole, 'system.publish')} /><AdminDashboardDefaults readOnly={!hasAdminCapability(myRole, 'system.publish')} /></>}
         {activeTab === 'broadcast' && hasAdminCapability(myRole,'diagnostics.read') && <section className="admin-card admin-span-all admin-g-broadcast admin-diagnostics-link" aria-label="Notification diagnostics shortcut"><Activity size={19} aria-hidden="true" /><div><h2>Check notification delivery</h2><p>Investigate provider handoffs and recorded checks in Insights.</p></div><button type="button" className="admin-btn outline" onClick={() => openNotificationDiagnostics()}>Open diagnostics<ChevronRight size={14} aria-hidden="true" /></button></section>}
         {activeTab === 'database' && myRole && <AdminHistoryExplorer workspace="database" key={recordSearchKey} requestedDataset={recordSearchDataset} userId={admin_id} role={myRole} initialDataset={hasAdminCapability(myRole,'support.read') ? 'students' : 'versions'} onInspect={id => { const student=allUsers.find(row=>row.user_id===id); if(student) setSelectedUser(student); }} />}
@@ -4966,8 +4978,10 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
 
           {/* Active-user tiers (DAU/WAU/MAU) */}
           <AdoptionTrends history={presenceHistory} users={allUsers} historyAvailable={presenceHistoryAvailable} features={featureUsageTrend} featuresUnavailable={featureUsageUnavailable} />
-          <AttendanceRisk rows={attendanceRisk} unavailable={attendanceRiskUnavailable} coverageRows={attendanceCoverage} coverageUnavailable={attendanceCoverageUnavailable} onNavigate={row => { setSearchQuery(""); setUserStatusFilter("all"); setUserCourseFilter(row.code); setUserSectionFilter(["A", "B"].includes(row.section) ? row.section : "All"); goToAdminTab("users"); }} />
-          <ChangeTimeline logs={auditLogs} onNavigate={item => { if (item.area === "schedule" && /^\d{4}-\d{2}-\d{2}$/.test(item.object)) setLiveEditorDate(item.object); goToAdminTab(item.area); }} />
+          <div className="admin-grid-2 admin-span-all admin-g-insights aw-insights-pair" style={{ gridColumn: "1 / -1" }}>
+            <AttendanceRisk compact rows={attendanceRisk} unavailable={attendanceRiskUnavailable} coverageRows={attendanceCoverage} coverageUnavailable={attendanceCoverageUnavailable} onNavigate={row => { setSearchQuery(""); setUserStatusFilter("all"); setUserCourseFilter(row.code); setUserSectionFilter(["A", "B"].includes(row.section) ? row.section : "All"); goToAdminTab("users"); }} />
+            <ChangeTimeline compact logs={auditLogs} onNavigate={item => { if (item.area === "schedule" && /^\d{4}-\d{2}-\d{2}$/.test(item.object)) setLiveEditorDate(item.object); goToAdminTab(item.area); }} />
+          </div>
           <section className="admin-card admin-g-insights insights-metric-card insights-engagement-card">
             <div className="insights-card-head"><span><BarChart2 size={17} /></span><div><h2>Active users</h2><p>Unique students by rolling window</p></div></div>
             <div className="insights-tier-grid">
@@ -7086,6 +7100,19 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
               <BellRing size={32} style={{ opacity: 0.3, marginBottom: 8, margin: "0 auto", display: "block" }} />
               <p style={{ margin: 0, fontWeight: 600 }}>The push subscriber list requires a database update.</p>
               <p style={{ fontSize: 13, marginTop: 8 }}>Run the updated <code>get_admin_stats</code> SQL migration in Supabase to fetch user IDs securely.</p>
+              <button
+                type="button"
+                className="admin-btn outline"
+                style={{ marginTop: 14, fontSize: 12, display: "inline-flex", alignItems: "center", gap: 6 }}
+                onClick={() => {
+                  const sql = `-- Update get_admin_stats to return push_user_ids\ncreate or replace function public.get_admin_stats()\nreturns jsonb language sql stable security definer set search_path = public as $$\n  with dev_ids as (select dev_user_id as id from _migration_map where dev_user_id is not null)\n  select jsonb_build_object(\n    'push_subscriptions', (select count(*) from push_subscriptions ps where ps.user_id not in (select id from dev_ids)),\n    'push_users', (select count(distinct ps.user_id) from push_subscriptions ps where ps.user_id not in (select id from dev_ids)),\n    'push_user_ids', (select coalesce(jsonb_agg(distinct ps.user_id), '[]'::jsonb) from push_subscriptions ps where ps.user_id not in (select id from dev_ids)),\n    'friend_pings', (select count(*) from friend_pings),\n    'skips_by_course', (select coalesce(jsonb_agg(jsonb_build_array(s.code, s.cnt) order by s.cnt desc), '[]'::jsonb) from (select split_part(a.session_key, '_', 3) as code, count(*) as cnt from attendance a where a.status = 'absent' and a.user_id not in (select id from dev_ids) and split_part(a.session_key, '_', 3) <> '' group by 1 order by cnt desc limit 5) s)\n  );\n$$;\ngrant execute on function public.get_admin_stats() to authenticated;`;
+                  navigator.clipboard?.writeText(sql);
+                  alert("SQL migration copied to clipboard! Paste and run it in the Supabase SQL Editor.");
+                }}
+              >
+                <Copy size={13} />
+                <span>Copy SQL Migration</span>
+              </button>
             </div>
           )}
         </AdminModal>

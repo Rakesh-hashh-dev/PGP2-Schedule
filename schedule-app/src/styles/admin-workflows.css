@@ -98,6 +98,145 @@
 .aw-feature-usage strong { color: var(--text); font-size: 11px; }
 .aw-feature-usage span { color: var(--violet); font-size: 12px; font-weight: 700; }
 .aw-feature-usage small { color: var(--muted); font-size: 10px; }
+
+/* ── Compact mode for insights pair ── */
+.aw-insights-pair {
+  grid-column: 1 / -1;
+  margin-bottom: 24px;
+}
+.aw-panel--compact {
+  padding: 16px;
+  min-height: 0;
+}
+.aw-head--compact {
+  margin-bottom: 10px;
+}
+.aw-head--compact h2 {
+  font-size: 15px;
+  margin: 2px 0 3px;
+}
+.aw-head--compact p {
+  font-size: 11px;
+  line-height: 1.4;
+}
+.aw-list--compact {
+  max-height: 280px;
+  gap: 6px;
+}
+.aw-issue--compact {
+  padding: 8px 10px;
+  gap: 8px;
+  border-radius: 9px;
+}
+.aw-issue--compact strong {
+  font-size: 11.5px;
+}
+.aw-issue--compact span {
+  font-size: 10px;
+  line-height: 1.35;
+}
+.aw-btn-compact {
+  padding: 4px 8px !important;
+  min-height: 26px !important;
+  font-size: 10.5px !important;
+  border-radius: 6px !important;
+  gap: 3px !important;
+}
+.aw-icon-badge {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: 6px;
+  background: var(--violet-dim);
+  color: var(--violet);
+}
+.aw-object-pill {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--violet) 12%, var(--card));
+  color: var(--violet);
+  font-weight: 600;
+  margin-right: 5px;
+  font-size: 9.5px;
+}
+.aw-coverage-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.aw-rate-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: 99px;
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 1;
+}
+.aw-rate-badge.is-good {
+  background: color-mix(in srgb, var(--live) 15%, var(--card));
+  color: var(--live-text);
+  border: 1px solid color-mix(in srgb, var(--live) 30%, transparent);
+}
+.aw-rate-badge.is-mid {
+  background: color-mix(in srgb, var(--amber) 15%, var(--card));
+  color: var(--amber-text);
+  border: 1px solid color-mix(in srgb, var(--amber) 30%, transparent);
+}
+.aw-rate-badge.is-low {
+  background: color-mix(in srgb, var(--danger) 15%, var(--card));
+  color: var(--danger);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+}
+.aw-mini-track {
+  width: 100%;
+  height: 4px;
+  border-radius: 99px;
+  background: var(--border);
+  overflow: hidden;
+  margin: 5px 0;
+}
+.aw-mini-track i {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  transition: width .3s ease;
+}
+.aw-mini-track i.is-good { background: var(--live); }
+.aw-mini-track i.is-mid { background: var(--amber-text); }
+.aw-mini-track i.is-low { background: var(--danger); }
+.aw-compact-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 9px;
+  font-size: 9.5px;
+  color: var(--muted);
+}
+.aw-compact-stats b {
+  color: var(--text);
+  font-weight: 700;
+}
+.aw-stat-risk {
+  color: var(--danger);
+  font-weight: 700;
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.aw-stat-ok {
+  color: var(--muted);
+  opacity: .8;
+}
+.aw-stat-date {
+  margin-left: auto;
+  font-size: 9px;
+  opacity: .75;
+}
 @media (max-width: 900px) { .aw-week { grid-template-columns: repeat(4, minmax(0, 1fr)); } .aw-coverage-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 650px) {
   .aw-week { grid-template-columns: repeat(2, minmax(0, 1fr)); }

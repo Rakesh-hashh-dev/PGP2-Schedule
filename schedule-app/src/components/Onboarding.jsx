@@ -1,6 +1,8 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { ArrowRight, Info, X, Settings2, Download, ChevronDown } from "lucide-react";
 import { subjectClass } from "../lib/subjectColors.js";
+import BidFlowEntry from "./BidFlowEntry.jsx";
+import BidFlowPage from "./BidFlowPage.jsx";
 
 const AREA_LABEL = { "F&A": "Finance & Accounting", MKTG: "Marketing", ISM: "Information Systems", STM: "Strategy", OPS: "Operations", "OB&HR": "OB & HR", Other: "Other" };
 const AREA_ORDER = ["F&A", "MKTG", "ISM", "STM", "OPS", "OB&HR", "Other"];
@@ -18,7 +20,7 @@ function fmtCr(n) {
   return Number.isInteger(n) ? String(n) : n.toFixed(1);
 }
 
-export default function Onboarding({ legend, sectionsByCode, onDone, initialPicked, onCancel, termLabel, onPullFromSheet, prefill, cloudChecked, waitingForAllocation, needsName, reonboardFromTerm, newTermLabel, liveTerm, priorTerm, priorLegend, priorPicked }) {
+export default function Onboarding({ legend, sectionsByCode, onDone, initialPicked, onCancel, termLabel, onPullFromSheet, prefill, cloudChecked, waitingForAllocation, needsName, reonboardFromTerm, newTermLabel, liveTerm, priorTerm, priorLegend, priorPicked, userId, studentName, bidflowActive, onOpenBidFlow, onBackFromBidFlow }) {
   const isEditing = !!initialPicked;
   const [picked, setPicked] = useState(() => initialPicked || {});
   const [name, setName] = useState("");
@@ -26,6 +28,12 @@ export default function Onboarding({ legend, sectionsByCode, onDone, initialPick
   const [pullMsg, setPullMsg] = useState(null);
   const [priorOpen, setPriorOpen] = useState(false);
   const prefillApplied = useRef(false);
+  const bidflowLaunch = useRef(null);
+  const wasInBidFlow = useRef(false);
+  useEffect(() => {
+    if (!bidflowActive && wasInBidFlow.current) bidflowLaunch.current?.focus({ preventScroll: true });
+    wasInBidFlow.current = bidflowActive;
+  }, [bidflowActive]);
   useEffect(() => {
     if (prefillApplied.current || !prefill || Object.keys(prefill).length === 0) return;
     setPicked(prefill);
@@ -92,6 +100,14 @@ export default function Onboarding({ legend, sectionsByCode, onDone, initialPick
   const setSec = (code, s) => setPicked((p) => ({ ...p, [code]: s }));
   const selectAll = () => setPicked(allOn ? {} : Object.fromEntries(allCodes.map((c) => [c, offered(c)[0]])));
 
+  const handleBidflowApply = (allocatedPicks) => {
+    setPicked((prev) => ({ ...prev, ...allocatedPicks }));
+  };
+
+  if (bidflowActive) return <BidFlowPage userId={userId} studentName={name || studentName}
+    timetable={{ term: liveTerm, cohort: "PGP2", legend, sectionsByCode, picked }}
+    onApply={handleBidflowApply} onBack={onBackFromBidFlow} backLabel="Back to timetable setup" />;
+
   return (
     <div className="ob">
       <header className="bar">
@@ -125,6 +141,9 @@ export default function Onboarding({ legend, sectionsByCode, onDone, initialPick
             )}
           </div>
         )}
+
+        <BidFlowEntry showBeforePublish buttonRef={bidflowLaunch} onOpen={onOpenBidFlow} />
+
         <h1 className="ob-title">{isEditing ? "Edit your courses." : reonboardFromTerm ? `Term ${newTermLabel || ""} has started.` : "Set up your timetable."}</h1>
         <p className="ob-sub">
           {reonboardFromTerm
@@ -172,10 +191,12 @@ export default function Onboarding({ legend, sectionsByCode, onDone, initialPick
 
         {onPullFromSheet && (
           <div className="ob-pull-row">
-            <button className="ob-pull-btn" onClick={handlePullFromSheet} disabled={pulling}>
-              <Download size={14} />
-              {pulling ? "Pulling…" : "Pull from timetable"}
-            </button>
+            {onPullFromSheet && (
+              <button className="ob-pull-btn" onClick={handlePullFromSheet} disabled={pulling}>
+                <Download size={14} />
+                {pulling ? "Pulling…" : "Pull from timetable"}
+              </button>
+            )}
             {pullMsg && <span className={`ob-pull-msg${pullMsg.ok ? "" : " ob-pull-msg-err"}`}>{pullMsg.text}</span>}
           </div>
         )}
@@ -297,9 +318,11 @@ export default function Onboarding({ legend, sectionsByCode, onDone, initialPick
               </div>
             )}
           </div>
-          <button className="ob-cta" disabled={count === 0 || (needsName && !name.trim())} onClick={() => onDone(Object.fromEntries(validCodes.map((c) => [c, picked[c]])), name)}>
-            {isEditing ? "Save changes" : "Show my schedule"} <ArrowRight size={18} />
-          </button>
+          <div className="ob-foot-actions">
+            <button className="ob-cta" disabled={count === 0 || (needsName && !name.trim())} onClick={() => onDone(Object.fromEntries(validCodes.map((c) => [c, picked[c]])), name)}>
+              {isEditing ? "Save changes" : "Show my schedule"} <ArrowRight size={18} />
+            </button>
+          </div>
         </div>
       </div>
     </div>

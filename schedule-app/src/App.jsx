@@ -39,6 +39,7 @@ import WeekGlance from "./components/WeekGlance.jsx";
 import SubjectFilter from "./components/SubjectFilter.jsx";
 import Login from "./components/Login.jsx";
 import Onboarding from "./components/Onboarding.jsx";
+import BidFlowPage from "./components/BidFlowPage.jsx";
 import WeatherWidget from "./components/WeatherWidget.jsx";
 import TomorrowSummary from "./components/TomorrowSummary.jsx";
 import FreeDayIllustration from "./components/FreeDayIllustration.jsx";
@@ -497,7 +498,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // Set by setView: once the new page commits, focus moves to it so screen
   // readers announce the page and keyboard users continue from its top.
   const focusPageRef = useRef(false);
-  const setView = useCallback((nextView, { fromHistory = false, scrollY = 0 } = {}) => {
+  const setView = useCallback((nextView, { fromHistory = false, scrollY = 0, bidflowSetup = false } = {}) => {
     const requested = typeof nextView === "function"
       ? nextView(currentViewRef.current)
       : nextView;
@@ -523,11 +524,14 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     // press land on it and do nothing.
     if (!fromHistory) {
       try {
+        const entry = target === "bidflow"
+          ? { tfView: target, tfBidflowFrom: previous, tfBidflowSetup: bidflowSetup }
+          : { tfView: target };
         if (window.history.state?.tfPopup) {
-          window.history.replaceState({ tfView: target }, "", urlWithView(target));
+          window.history.replaceState(entry, "", urlWithView(target));
         } else {
           window.history.replaceState({ ...window.history.state, tfScroll: window.scrollY }, "");
-          window.history.pushState({ tfView: target }, "", urlWithView(target));
+          window.history.pushState(entry, "", urlWithView(target));
         }
       } catch { }
     }
@@ -588,7 +592,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   }, []);
   // Glance is a shortcut peek, not a destination — don't make it the view the
   // app re-opens on next launch.
-  useEffect(() => { if (view !== "glance") { try { localStorage.setItem(VIEW_KEY, view); } catch { } } }, [view]);
+  useEffect(() => { if (view !== "glance" && view !== "bidflow") { try { localStorage.setItem(VIEW_KEY, view); } catch { } } }, [view]);
   useEffect(() => { if (view === "notifications") recordFeatureUse(userId, "announcements_view"); }, [view, userId]);
   // Which term's schedule is being browsed — defaults to the live term; can be
   // switched to an archived term for read-only browsing (see `activeTerm` etc.
@@ -656,7 +660,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const [cloudEnrolledTerm, setCloudEnrolledTerm] = useState(null);
   const [allocationApplied, setAllocationApplied] = useState(false);
   const [prefillPicked, setPrefillPicked] = useState(null);
-  const [showSetupEdit, setShowSetupEdit] = useState(false);
+  const [showSetupEdit, setShowSetupEdit] = useState(() => view === "bidflow" && Boolean(window.history.state?.tfBidflowSetup));
   // Edit-enrollment is a live-only action — guarded below (after isArchivedView
   // is known) via openEditSetup(), used at every "Edit setup" entry point instead
   // of calling setShowSetupEdit(true) directly.
@@ -769,6 +773,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
         return;
       }
       if (v === "courseHub") setCourseHubCode(course);
+      if (v === "bidflow" && e.state?.tfBidflowSetup) setShowSetupEdit(true);
       setView(v, { fromHistory: true, scrollY: e.state?.tfScroll || 0 });
       setCompareTarget(null);
     };
@@ -2484,8 +2489,21 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     </main>
   );
   const needsName = !(user?.firstName || user?.username);
-  if (!setup) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} termLabel={termLabel} onPullFromSheet={buildAllocationFromSheet} prefill={prefillPicked} cloudChecked={cloudChecked} waitingForAllocation={waitingForAllocation} needsName={needsName} reonboardFromTerm={reonboardFromTerm} newTermLabel={TERM?.number} liveTerm={TERM?.number} priorTerm={mostRecentArchivedTerm?.number} priorLegend={mostRecentArchivedTerm?.LEGEND} priorPicked={mostRecentArchivedTerm ? archivedCourses[mostRecentArchivedTerm.number] : null} />;
-  if (showSetupEdit) return <Onboarding legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} initialPicked={enrolled} onCancel={() => setShowSetupEdit(false)} termLabel={termLabel} onPullFromSheet={buildAllocationFromSheet} needsName={needsName} liveTerm={TERM?.number} priorTerm={mostRecentArchivedTerm?.number} priorLegend={mostRecentArchivedTerm?.LEGEND} priorPicked={mostRecentArchivedTerm ? archivedCourses[mostRecentArchivedTerm.number] : null} />;
+  const openBidFlow = (fromSetup = false) => {
+    setView("bidflow", { bidflowSetup: fromSetup });
+    setCompareTarget(null);
+  };
+  const exitBidFlow = () => {
+    if (window.history.state?.tfBidflowFrom) window.history.back();
+    else setView("planner");
+  };
+  const setupBidFlow = {
+    bidflowActive: view === "bidflow",
+    onOpenBidFlow: () => openBidFlow(true),
+    onBackFromBidFlow: exitBidFlow,
+  };
+  if (!setup) return <Onboarding {...setupBidFlow} userId={userId} studentName={user?.fullName || user?.firstName} legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} termLabel={termLabel} onPullFromSheet={buildAllocationFromSheet} prefill={prefillPicked} cloudChecked={cloudChecked} waitingForAllocation={waitingForAllocation} needsName={needsName} reonboardFromTerm={reonboardFromTerm} newTermLabel={TERM?.number} liveTerm={TERM?.number} priorTerm={mostRecentArchivedTerm?.number} priorLegend={mostRecentArchivedTerm?.LEGEND} priorPicked={mostRecentArchivedTerm ? archivedCourses[mostRecentArchivedTerm.number] : null} />;
+  if (showSetupEdit) return <Onboarding {...setupBidFlow} userId={userId} studentName={user?.fullName || user?.firstName} legend={LEGEND} sectionsByCode={sectionsByCode} onDone={handleOnboardingDone} initialPicked={enrolled} onCancel={() => setShowSetupEdit(false)} termLabel={termLabel} onPullFromSheet={buildAllocationFromSheet} needsName={needsName} liveTerm={TERM?.number} priorTerm={mostRecentArchivedTerm?.number} priorLegend={mostRecentArchivedTerm?.LEGEND} priorPicked={mostRecentArchivedTerm ? archivedCourses[mostRecentArchivedTerm.number] : null} />;
 
   // Banned User Lockout
   if (sysConfig?.flags?.bannedUsers?.includes(userId) && !isAdmin) {
@@ -2517,6 +2535,10 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       </main>
     );
   }
+
+  if (view === "bidflow") return <BidFlowPage userId={userId} studentName={user?.fullName || user?.firstName}
+    onBack={exitBidFlow} backLabel={window.history.state?.tfBidflowFrom === "courseHub" ? "Back to Courses" : "Back to Planner"} />;
+
 
   const enableExams = sysConfig?.flags?.enableExams !== false;
   const enableFriends = sysConfig?.flags?.enableFriends !== false;
@@ -3730,6 +3752,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                     />
                     : view === "courseHub"
                       ? <CourseHub
+                          onOpenBidFlow={() => openBidFlow()}
                           v2Navigation={v2Navigation}
                           key={userId || "guest"}
                           allClasses={activeClasses}
@@ -3749,6 +3772,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                         />
                     : view === "planner"
                       ? <StudentPlanner
+                          onOpenBidFlow={() => openBidFlow()}
                           section={plannerSection}
                           onSectionChange={setPlannerSection}
                           userId={userId}
@@ -3826,7 +3850,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                               onOpenCalendarExport={isArchivedView ? undefined : openCalendarExport}
                             />
                           : view === "admin" && isAdmin
-                            ? <AdminDashboard user={user} startImpersonation={startImpersonation} syncLogs={syncLogs} timeOverride={timeOverride} setTimeOverride={setTimeOverride} allChanges={CHANGES} onConfigSaved={flags => setSysConfig(current => ({ ...(current || {}), flags }))} />
+                            ? <AdminDashboard user={user} initialRole={adminRoleState.userId === userId ? adminRoleState.role : undefined} startImpersonation={startImpersonation} syncLogs={syncLogs} timeOverride={timeOverride} setTimeOverride={setTimeOverride} allChanges={CHANGES} onConfigSaved={flags => setSysConfig(current => ({ ...(current || {}), flags }))} />
                             : view === "fullSchedule"
                               ? <FullSchedulePage allClasses={activeClasses} enrolled={activeEnrolled} legend={activeEnrolledLegend} termLabel={termLabel} onBack={() => setView("today")} jumpToDate={jumpToDate} setJumpToDate={setJumpToDate} jumpToSession={jumpToSession} setJumpToSession={setJumpToSession} onOpenCalendarExport={isArchivedView ? undefined : openCalendarExport} onOpenCourse={(code) => { setCourseHubCode(code); setView("courseHub"); }} onOpenSession={setClassPrepSession} />
                               : view === "assignments"

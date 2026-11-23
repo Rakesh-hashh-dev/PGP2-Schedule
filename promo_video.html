@@ -1,0 +1,1262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TermFlow — Promo Video</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
+
+  :root {
+    --blue: #2563eb;
+    --blue-dark: #1d4ed8;
+    --blue-light: #3b82f6;
+    --emerald: #10b981;
+    --amber: #f59e0b;
+    --rose: #f43f5e;
+    --navy: #0f172a;
+    --slate-800: #1e293b;
+    --slate-600: #475569;
+    --slate-400: #94a3b8;
+    --slate-200: #e2e8f0;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: #000;
+    overflow: hidden;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+  }
+
+  #stage {
+    width: 1280px;
+    height: 720px;
+    position: relative;
+    overflow: hidden;
+    background: var(--navy);
+    transform-origin: top left;
+  }
+
+  /* ======= SCENE LAYER SYSTEM ======= */
+  .scene {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.6s ease;
+  }
+  .scene.active { opacity: 1; pointer-events: all; }
+
+  /* ======= REUSABLE BACKGROUND GRADIENTS ======= */
+  .bg-dark-blue {
+    background: linear-gradient(135deg, #0a0f1e 0%, #0f1b35 50%, #071428 100%);
+  }
+  .bg-deep-navy {
+    background: linear-gradient(160deg, #060d1f 0%, #0b1535 60%, #050e28 100%);
+  }
+
+  /* ======= AMBIENT PARTICLES ======= */
+  .particles { position: absolute; inset: 0; overflow: hidden; }
+  .particle {
+    position: absolute;
+    border-radius: 50%;
+    animation: floatPart linear infinite;
+    opacity: 0;
+  }
+
+  @keyframes floatPart {
+    0%   { transform: translateY(100%) translateX(0); opacity: 0; }
+    10%  { opacity: 1; }
+    90%  { opacity: 0.5; }
+    100% { transform: translateY(-120%) translateX(var(--drift)); opacity: 0; }
+  }
+
+  /* ======= GRID BACKGROUND DECORATION ======= */
+  .grid-bg {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(37,99,235,0.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(37,99,235,0.07) 1px, transparent 1px);
+    background-size: 64px 64px;
+  }
+
+  /* ======= SCENE 1: BRAND INTRO ======= */
+  #s1 {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+  }
+
+  .s1-logo-ring {
+    width: 120px; height: 120px;
+    border-radius: 28px;
+    background: linear-gradient(135deg, var(--blue), var(--blue-dark));
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 60px rgba(37,99,235,0.5), 0 0 120px rgba(37,99,235,0.2);
+    position: relative;
+    animation: pulseGlow 3s ease-in-out infinite;
+  }
+
+  @keyframes pulseGlow {
+    0%, 100% { box-shadow: 0 0 60px rgba(37,99,235,0.5), 0 0 120px rgba(37,99,235,0.2); }
+    50%       { box-shadow: 0 0 90px rgba(37,99,235,0.8), 0 0 180px rgba(37,99,235,0.35); }
+  }
+
+  .s1-logo-icon {
+    font-size: 52px;
+    filter: drop-shadow(0 0 12px rgba(255,255,255,0.4));
+  }
+
+  .s1-brand {
+    font-size: 56px;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: -0.04em;
+    margin-top: 28px;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  .s1-brand span { color: var(--blue-light); }
+
+  .s1-tagline {
+    font-size: 18px;
+    font-weight: 400;
+    color: var(--slate-400);
+    margin-top: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  /* ======= SCENE 2: PROBLEM ======= */
+  #s2 { display: flex; align-items: center; justify-content: space-between; padding: 64px 80px; }
+
+  .s2-left { flex: 0 0 500px; }
+
+  .scene-eyebrow {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--rose);
+    background: rgba(244,63,94,0.12);
+    border: 1px solid rgba(244,63,94,0.3);
+    padding: 6px 14px;
+    border-radius: 6px;
+    display: inline-block;
+    margin-bottom: 24px;
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+
+  .scene-headline {
+    font-size: 44px;
+    font-weight: 800;
+    color: #fff;
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+    margin-bottom: 20px;
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+
+  .scene-body {
+    font-size: 17px;
+    font-weight: 400;
+    color: var(--slate-400);
+    line-height: 1.65;
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+
+  .s2-right {
+    flex: 0 0 500px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .pain-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    padding: 20px 22px;
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    opacity: 0;
+    transform: translateX(40px);
+    transition: transform 0.5s, opacity 0.5s;
+  }
+
+  .pain-icon {
+    width: 44px; height: 44px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+
+  .pain-card:nth-child(1) .pain-icon { background: rgba(244,63,94,0.15); }
+  .pain-card:nth-child(2) .pain-icon { background: rgba(245,158,11,0.15); }
+  .pain-card:nth-child(3) .pain-icon { background: rgba(37,99,235,0.15); }
+
+  .pain-title { font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+  .pain-desc  { font-size: 13px; color: var(--slate-400); line-height: 1.4; }
+
+  /* ======= SCENE 3: SOLUTION REVEAL ======= */
+  #s3 {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+  }
+
+  .s3-device {
+    width: 320px; height: 580px;
+    background: linear-gradient(145deg, #1a2544, #0f172a);
+    border-radius: 44px;
+    border: 2px solid rgba(255,255,255,0.12);
+    box-shadow: 0 40px 100px rgba(0,0,0,0.6), 0 0 60px rgba(37,99,235,0.2);
+    overflow: hidden;
+    position: relative;
+    opacity: 0;
+    transform: translateY(60px) scale(0.9);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .phone-notch {
+    width: 120px; height: 28px;
+    background: #0a0f1e;
+    border-radius: 0 0 20px 20px;
+    margin: 0 auto;
+    flex-shrink: 0;
+  }
+
+  .phone-screen {
+    flex: 1;
+    padding: 12px 14px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .phone-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2px;
+  }
+
+  .phone-title { font-size: 15px; font-weight: 800; color: #fff; }
+  .phone-date  { font-size: 11px; color: var(--slate-400); }
+
+  .phone-pill {
+    background: linear-gradient(135deg, var(--blue), var(--blue-dark));
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 20px;
+  }
+
+  .class-row {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    opacity: 0;
+    transform: translateX(20px);
+  }
+
+  .class-row.has-alert { border-color: rgba(37,99,235,0.4); background: rgba(37,99,235,0.08); }
+
+  .class-time { font-size: 11px; color: var(--blue-light); font-weight: 700; min-width: 36px; }
+  .class-name { font-size: 12px; color: #fff; font-weight: 600; flex: 1; }
+  .class-room { font-size: 10px; color: var(--slate-400); }
+
+  .att-row {
+    background: rgba(16,185,129,0.08);
+    border: 1px solid rgba(16,185,129,0.25);
+    border-radius: 10px;
+    padding: 10px 12px;
+    opacity: 0;
+    transform: translateX(20px);
+  }
+
+  .att-label { font-size: 11px; color: var(--emerald); font-weight: 700; margin-bottom: 5px; }
+  .att-bar-bg { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.08); overflow: hidden; }
+  .att-bar-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--emerald), #34d399); width: 0%; transition: width 1.5s ease; }
+  .att-pct { font-size: 13px; color: #fff; font-weight: 800; margin-top: 5px; }
+
+  .alert-banner {
+    background: rgba(245,158,11,0.12);
+    border: 1px solid rgba(245,158,11,0.3);
+    border-radius: 10px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    opacity: 0;
+    transform: translateX(20px);
+  }
+
+  .alert-icon { font-size: 14px; }
+  .alert-text { font-size: 11px; color: var(--amber); font-weight: 600; }
+
+  .s3-labels {
+    position: absolute;
+    right: -380px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    width: 320px;
+  }
+
+  .feat-label {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    opacity: 0;
+    transform: translateX(30px);
+  }
+
+  .feat-line {
+    width: 60px; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3));
+  }
+
+  .feat-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .feat-info { }
+  .feat-info strong { font-size: 13px; color: #fff; font-weight: 700; display: block; }
+  .feat-info span   { font-size: 11px; color: var(--slate-400); }
+
+  /* ======= SCENE 4: FEATURES GRID ======= */
+  #s4 { display: flex; flex-direction: column; align-items: center; padding: 50px 80px; }
+
+  .s4-title {
+    font-size: 38px;
+    font-weight: 800;
+    color: #fff;
+    text-align: center;
+    letter-spacing: -0.03em;
+    margin-bottom: 10px;
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+
+  .s4-sub {
+    font-size: 15px;
+    color: var(--slate-400);
+    margin-bottom: 44px;
+    opacity: 0;
+  }
+
+  .feat-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+    width: 100%;
+    max-width: 980px;
+  }
+
+  .feat-block {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    padding: 24px 26px;
+    opacity: 0;
+    transform: translateY(30px) scale(0.96);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .feat-block::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+
+  .feat-block.f1::before { background: linear-gradient(90deg, var(--blue), transparent); }
+  .feat-block.f2::before { background: linear-gradient(90deg, var(--emerald), transparent); }
+  .feat-block.f3::before { background: linear-gradient(90deg, var(--amber), transparent); }
+  .feat-block.f4::before { background: linear-gradient(90deg, #8b5cf6, transparent); }
+
+  .feat-block-icon { font-size: 32px; margin-bottom: 14px; }
+  .feat-block-title { font-size: 19px; font-weight: 800; color: #fff; margin-bottom: 6px; letter-spacing: -0.02em; }
+  .feat-block-desc  { font-size: 13px; color: var(--slate-400); line-height: 1.55; }
+
+  .feat-block-tag {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 6px;
+    margin-bottom: 12px;
+  }
+
+  .f1 .feat-block-tag { background: rgba(37,99,235,0.15); color: var(--blue-light); }
+  .f2 .feat-block-tag { background: rgba(16,185,129,0.15); color: var(--emerald); }
+  .f3 .feat-block-tag { background: rgba(245,158,11,0.15); color: var(--amber); }
+  .f4 .feat-block-tag { background: rgba(139,92,246,0.15); color: #a78bfa; }
+
+  /* ======= SCENE 5: SOCIAL TIMETABLE ======= */
+  #s5 { display: flex; align-items: center; padding: 60px 80px; gap: 80px; }
+
+  .s5-left { flex: 0 0 420px; }
+
+  .s5-right {
+    flex: 1;
+    display: flex;
+    gap: 16px;
+  }
+
+  .peer-card {
+    flex: 1;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    padding: 20px;
+    opacity: 0;
+    transform: translateY(30px);
+  }
+
+  .peer-name {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .peer-avatar {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px;
+    font-weight: 800;
+    color: #fff;
+  }
+
+  .peer-label { font-size: 14px; font-weight: 700; color: #fff; }
+  .peer-section { font-size: 11px; color: var(--slate-400); }
+
+  .timeline-slot {
+    height: 36px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    font-size: 11px;
+    font-weight: 600;
+    opacity: 0;
+  }
+
+  .slot-busy { background: rgba(37,99,235,0.2); border: 1px solid rgba(37,99,235,0.35); color: var(--blue-light); }
+  .slot-free { background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.25); color: var(--emerald); }
+  .slot-match { background: linear-gradient(90deg, rgba(16,185,129,0.25), rgba(37,99,235,0.15)); border: 1px solid rgba(16,185,129,0.4); color: #fff; }
+
+  .match-badge {
+    background: linear-gradient(135deg, var(--emerald), #34d399);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 800;
+    padding: 8px 20px;
+    border-radius: 24px;
+    display: inline-block;
+    margin-top: 16px;
+    box-shadow: 0 4px 20px rgba(16,185,129,0.4);
+    opacity: 0;
+    transform: scale(0.8);
+  }
+
+  /* ======= SCENE 6: TRACTION / STATS ======= */
+  #s6 { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px; }
+
+  .s6-eyebrow {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--emerald);
+    background: rgba(16,185,129,0.12);
+    border: 1px solid rgba(16,185,129,0.3);
+    padding: 6px 14px;
+    border-radius: 6px;
+    margin-bottom: 24px;
+    opacity: 0;
+  }
+
+  .s6-headline {
+    font-size: 46px;
+    font-weight: 800;
+    color: #fff;
+    text-align: center;
+    letter-spacing: -0.03em;
+    margin-bottom: 50px;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  .stats-row {
+    display: flex;
+    gap: 32px;
+  }
+
+  .stat-box {
+    text-align: center;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 20px;
+    padding: 32px 40px;
+    min-width: 240px;
+    opacity: 0;
+    transform: translateY(30px) scale(0.95);
+  }
+
+  .stat-num {
+    font-size: 56px;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    line-height: 1;
+    margin-bottom: 10px;
+    background: linear-gradient(135deg, #fff 0%, var(--blue-light) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .stat-box:nth-child(2) .stat-num {
+    background: linear-gradient(135deg, #fff 0%, var(--emerald) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .stat-box:nth-child(3) .stat-num {
+    background: linear-gradient(135deg, #fff 0%, var(--amber) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .stat-label { font-size: 12px; font-weight: 700; color: var(--slate-400); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+  .stat-sub   { font-size: 13px; color: var(--slate-600); line-height: 1.4; }
+
+  /* ======= SCENE 7: CTA / OUTRO ======= */
+  #s7 { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+
+  .cta-ring {
+    width: 180px; height: 180px;
+    border-radius: 40px;
+    background: linear-gradient(135deg, var(--blue), var(--blue-dark));
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 80px rgba(37,99,235,0.6), 0 0 160px rgba(37,99,235,0.3);
+    font-size: 72px;
+    margin-bottom: 36px;
+    opacity: 0;
+    transform: scale(0.5) rotate(-10deg);
+    animation: pulseGlow 3s ease-in-out infinite;
+  }
+
+  .cta-title {
+    font-size: 60px;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: -0.04em;
+    text-align: center;
+    margin-bottom: 10px;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  .cta-title span { color: var(--blue-light); }
+
+  .cta-sub {
+    font-size: 20px;
+    color: var(--slate-400);
+    text-align: center;
+    margin-bottom: 36px;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  .cta-url {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--blue-light);
+    background: rgba(37,99,235,0.12);
+    border: 1px solid rgba(37,99,235,0.35);
+    padding: 14px 36px;
+    border-radius: 50px;
+    letter-spacing: 0.02em;
+    opacity: 0;
+    transform: translateY(20px);
+    box-shadow: 0 0 30px rgba(37,99,235,0.2);
+  }
+
+  /* ======= PROGRESS BAR ======= */
+  #progress-bar {
+    position: fixed;
+    bottom: 0; left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--blue), var(--blue-light));
+    width: 0%;
+    z-index: 999;
+    transition: width 0.3s ease;
+    box-shadow: 0 0 10px rgba(37,99,235,0.6);
+  }
+
+  /* ======= CAPTIONS ======= */
+  #caption-box {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.75);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 500;
+    padding: 10px 28px;
+    border-radius: 30px;
+    max-width: 760px;
+    text-align: center;
+    line-height: 1.4;
+    z-index: 998;
+    opacity: 0;
+    transition: opacity 0.4s;
+    pointer-events: none;
+  }
+
+  #caption-box.visible { opacity: 1; }
+
+  /* ======= SCENE COUNTER ======= */
+  #scene-counter {
+    position: fixed;
+    top: 24px; right: 24px;
+    display: flex; gap: 6px;
+    z-index: 997;
+  }
+
+  .scene-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.2);
+    transition: all 0.3s;
+  }
+
+  .scene-dot.active {
+    background: var(--blue-light);
+    width: 20px;
+    border-radius: 4px;
+  }
+
+  /* ======= PLAY OVERLAY ======= */
+  #play-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    cursor: pointer;
+  }
+
+  .play-btn {
+    width: 90px; height: 90px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--blue), var(--blue-dark));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 36px;
+    box-shadow: 0 0 60px rgba(37,99,235,0.6);
+    animation: pulseGlow 2s ease-in-out infinite;
+    margin-bottom: 20px;
+  }
+
+  .play-label {
+    font-size: 14px;
+    color: var(--slate-400);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .play-title {
+    font-size: 48px;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: -0.04em;
+    margin-bottom: 10px;
+    text-align: center;
+  }
+
+  .play-title span { color: var(--blue-light); }
+
+  .play-subtitle {
+    font-size: 16px;
+    color: var(--slate-400);
+    margin-bottom: 40px;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<div id="play-overlay" onclick="startPromo()">
+  <h1 class="play-title">Term<span>Flow</span></h1>
+  <p class="play-subtitle">The Academic Operating System for IIM Sambalpur</p>
+  <div class="play-btn">▶</div>
+  <div class="play-label">Click to Play Promo</div>
+</div>
+
+<div id="stage">
+  <!-- Ambient particles will be injected by JS -->
+
+  <!-- SCENE 1: Brand Intro -->
+  <div id="s1" class="scene bg-dark-blue">
+    <div class="grid-bg"></div>
+    <div class="particles" id="p1"></div>
+    <div class="s1-logo-ring"><span class="s1-logo-icon">📅</span></div>
+    <div class="s1-brand">Term<span>Flow</span></div>
+    <div class="s1-tagline">Your Academic Operating System</div>
+  </div>
+
+  <!-- SCENE 2: Problem -->
+  <div id="s2" class="scene bg-deep-navy">
+    <div class="grid-bg"></div>
+    <div class="s2-left">
+      <div class="scene-eyebrow" id="s2-ey">THE PROBLEM</div>
+      <div class="scene-headline" id="s2-h">MBA life is chaotic.<br>Your tools aren't.</div>
+      <div class="scene-body" id="s2-b">Schedules buried in spreadsheets. Attendance risks invisible. Finding a free slot with your team takes 15 messages. There's a better way.</div>
+    </div>
+    <div class="s2-right">
+      <div class="pain-card" id="pc1">
+        <div class="pain-icon">📋</div>
+        <div>
+          <div class="pain-title">30–90s to find your next class</div>
+          <div class="pain-desc">Multi-tab Google Sheets shared across 10+ WhatsApp groups</div>
+        </div>
+      </div>
+      <div class="pain-card" id="pc2">
+        <div class="pain-icon">⚠️</div>
+        <div>
+          <div class="pain-title">One missed class too many</div>
+          <div class="pain-desc">75–80% attendance rules — miscalculated buffers risk de-registration</div>
+        </div>
+      </div>
+      <div class="pain-card" id="pc3">
+        <div class="pain-icon">👥</div>
+        <div>
+          <div class="pain-title">15+ messages to pick a meeting time</div>
+          <div class="pain-desc">Dispersed electives make finding shared free windows a WhatsApp ordeal</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCENE 3: Solution / Device -->
+  <div id="s3" class="scene bg-dark-blue" style="flex-direction: row; justify-content: center; align-items: center; gap: 0;">
+    <div class="grid-bg"></div>
+    <div style="position:relative;">
+      <div class="s3-device" id="device">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <div class="phone-header">
+            <div>
+              <div class="phone-title">Today</div>
+              <div class="phone-date">Saturday, 21 Nov</div>
+            </div>
+            <div class="phone-pill">📅 TermFlow</div>
+          </div>
+          <div class="class-row" id="cr1">
+            <div class="class-time">9:00</div>
+            <div class="class-name">Strategic Management</div>
+            <div class="class-room">LH-3</div>
+          </div>
+          <div class="class-row" id="cr2">
+            <div class="class-time">11:00</div>
+            <div class="class-name">Financial Accounting</div>
+            <div class="class-room">LH-1</div>
+          </div>
+          <div class="class-row has-alert" id="cr3">
+            <div class="class-time">14:00</div>
+            <div class="class-name">Operations Research</div>
+            <div class="class-room">🔄 LH-5 ← New!</div>
+          </div>
+          <div class="att-row" id="att1">
+            <div class="att-label">📊 Attendance — Fin. Accounting</div>
+            <div class="att-bar-bg"><div class="att-bar-fill" id="att-fill"></div></div>
+            <div class="att-pct">82% · Safe: 2 more skips</div>
+          </div>
+          <div class="alert-banner" id="alt1">
+            <div class="alert-icon">⚡</div>
+            <div class="alert-text">Room change detected: Ops Research → LH-5</div>
+          </div>
+        </div>
+      </div>
+      <div class="s3-labels" id="s3-labels">
+        <div class="feat-label" id="fl1">
+          <div class="feat-dot" style="background:var(--blue);"></div>
+          <div class="feat-line"></div>
+          <div class="feat-info">
+            <strong>Live Timetable</strong>
+            <span>Auto-synced from Google Sheets</span>
+          </div>
+        </div>
+        <div class="feat-label" id="fl2" style="margin-top: 60px;">
+          <div class="feat-dot" style="background:var(--emerald);"></div>
+          <div class="feat-line"></div>
+          <div class="feat-info">
+            <strong>Attendance Guardian</strong>
+            <span>Real-time skip-buffer calculation</span>
+          </div>
+        </div>
+        <div class="feat-label" id="fl3" style="margin-top: 60px;">
+          <div class="feat-dot" style="background:var(--amber);"></div>
+          <div class="feat-line"></div>
+          <div class="feat-info">
+            <strong>Instant Alerts</strong>
+            <span>Push notifications on change detection</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCENE 4: Feature Grid -->
+  <div id="s4" class="scene bg-deep-navy">
+    <div class="grid-bg"></div>
+    <div class="s4-title" id="s4-t">Everything you need. One tap.</div>
+    <div class="s4-sub" id="s4-s">Built exclusively for the PGP2 cohort at IIM Sambalpur.</div>
+    <div class="feat-grid">
+      <div class="feat-block f1" id="fb1">
+        <div class="feat-block-tag">Core Timetable</div>
+        <div class="feat-block-icon">📅</div>
+        <div class="feat-block-title">Dynamic Schedule Engine</div>
+        <div class="feat-block-desc">Auto-detects timetable changes via SHA-256 diffing. Push notifications delivered before you even check WhatsApp.</div>
+      </div>
+      <div class="feat-block f2" id="fb2">
+        <div class="feat-block-tag">Risk Mitigation</div>
+        <div class="feat-block-icon">🛡️</div>
+        <div class="feat-block-title">Attendance Guardian</div>
+        <div class="feat-block-desc">Safe-skip buffers, recovery calculators, and 1-tap marking. Never miscalculate your 75% threshold again.</div>
+      </div>
+      <div class="feat-block f3" id="fb3">
+        <div class="feat-block-tag">Peer Workflows</div>
+        <div class="feat-block-icon">👥</div>
+        <div class="feat-block-title">Social Timetable Overlay</div>
+        <div class="feat-block-desc">Share codes let you see classmates' schedules. Find mutual free slots for syndicate meetings in seconds, not 20 messages.</div>
+      </div>
+      <div class="feat-block f4" id="fb4">
+        <div class="feat-block-tag">Always Available</div>
+        <div class="feat-block-icon">⚡</div>
+        <div class="feat-block-title">100% Offline-First PWA</div>
+        <div class="feat-block-desc">Instant boot even in basement lecture halls. No app store needed — install directly from your browser in one tap.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCENE 5: Social Timetable -->
+  <div id="s5" class="scene bg-dark-blue">
+    <div class="grid-bg"></div>
+    <div class="s5-left">
+      <div class="scene-eyebrow" id="s5-ey">SOCIAL FEATURES</div>
+      <div class="scene-headline" id="s5-h">Find free time.<br>Instantly.</div>
+      <div class="scene-body" id="s5-b">Share your 6-character code. See overlapping schedules. Discover mutual free windows for case prep, group projects, and committee meetings — without a single WhatsApp message.</div>
+      <div class="match-badge" id="match-b">✅ Free Slot Found: 3:00–4:30 PM</div>
+    </div>
+    <div class="s5-right">
+      <div class="peer-card" id="pcard1">
+        <div class="peer-name">
+          <div class="peer-avatar" style="background:var(--blue);">R</div>
+          <div>
+            <div class="peer-label">Riya S.</div>
+            <div class="peer-section">Section B</div>
+          </div>
+        </div>
+        <div class="timeline-slot slot-busy" id="ts1">9–11 AM · Strategic Mgmt</div>
+        <div class="timeline-slot slot-busy" id="ts2">11–1 PM · Fin. Accounting</div>
+        <div class="timeline-slot slot-free" id="ts3">3–5 PM · FREE</div>
+      </div>
+      <div class="peer-card" id="pcard2">
+        <div class="peer-name">
+          <div class="peer-avatar" style="background:var(--emerald);">A</div>
+          <div>
+            <div class="peer-label">Arjun M.</div>
+            <div class="peer-section">Section A</div>
+          </div>
+        </div>
+        <div class="timeline-slot slot-busy" id="ts4">10–12 PM · Ops Research</div>
+        <div class="timeline-slot slot-busy" id="ts5">1–3 PM · Marketing</div>
+        <div class="timeline-slot slot-free" id="ts6">3–5 PM · FREE</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCENE 6: Stats / Traction -->
+  <div id="s6" class="scene bg-deep-navy">
+    <div class="grid-bg"></div>
+    <div class="particles" id="p6"></div>
+    <div class="s6-eyebrow" id="s6-ey">REAL ADOPTION. REAL RESULTS.</div>
+    <div class="s6-headline" id="s6-h">The numbers speak for themselves.</div>
+    <div class="stats-row">
+      <div class="stat-box" id="sb1">
+        <div class="stat-num" id="sn1">0%</div>
+        <div class="stat-label">Cohort Adoption</div>
+        <div class="stat-sub">206 of 304 PGP2 students organically registered</div>
+      </div>
+      <div class="stat-box" id="sb2">
+        <div class="stat-num" id="sn2">0</div>
+        <div class="stat-label">Days / Week</div>
+        <div class="stat-sub">Average active days per weekly user (449 user-days peak)</div>
+      </div>
+      <div class="stat-box" id="sb3">
+        <div class="stat-num" id="sn3">₹0</div>
+        <div class="stat-label">Monthly Cost</div>
+        <div class="stat-sub">Near-zero serverless infrastructure with zero admin burden</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCENE 7: CTA Outro -->
+  <div id="s7" class="scene bg-dark-blue">
+    <div class="grid-bg"></div>
+    <div class="particles" id="p7"></div>
+    <div class="cta-ring" id="cta-ring">📅</div>
+    <div class="cta-title" id="cta-t">Term<span>Flow</span></div>
+    <div class="cta-sub" id="cta-s">Your schedule. Your attendance. Your cohort.<br>All in one place. Always with you.</div>
+    <div class="cta-url" id="cta-url">pgp2.termflow.tech</div>
+  </div>
+
+</div>
+
+<div id="progress-bar"></div>
+<div id="caption-box"></div>
+<div id="scene-counter"></div>
+
+<script>
+// ===================== CONFIGURATION =====================
+const SCENES = 7;
+const TOTAL_DURATION = 68000; // 68 seconds
+
+// Script / captions per scene
+const CAPTIONS = [
+  { text: "Welcome to TermFlow — the Academic Operating System built for IIM Sambalpur's PGP2 batch.", duration: 5000 },
+  { text: "MBA life is demanding. But your tools? They're still WhatsApp threads and scattered spreadsheets.", duration: 7000 },
+  { text: "TermFlow puts your live timetable, attendance tracking, and instant alerts — all in your pocket.", duration: 9000 },
+  { text: "Four powerful features, one seamless app. Dynamic schedules, attendance protection, peer coordination, and offline-first access.", duration: 9000 },
+  { text: "Share your 6-character code and instantly discover mutual free slots with your classmates — no messages needed.", duration: 8000 },
+  { text: "68% of the entire PGP2 cohort adopted TermFlow organically. 5.2 active days per week. Near-zero infrastructure cost.", duration: 9000 },
+  { text: "TermFlow. Your schedule, your attendance, your cohort — always with you at pgp2.termflow.tech.", duration: 7000 },
+];
+
+// Scene durations in ms
+const SCENE_DURATIONS = [5000, 7000, 9000, 9000, 8000, 9000, 7000];
+
+let currentScene = 0;
+let started = false;
+let sceneTimeout = null;
+
+// ===================== STAGE SCALING =====================
+function scaleStage() {
+  const stage = document.getElementById('stage');
+  const scaleX = window.innerWidth / 1280;
+  const scaleY = window.innerHeight / 720;
+  const scale = Math.min(scaleX, scaleY);
+  stage.style.transform = `scale(${scale})`;
+  stage.style.marginLeft = `${(window.innerWidth - 1280 * scale) / 2}px`;
+  stage.style.marginTop = `${(window.innerHeight - 720 * scale) / 2}px`;
+}
+
+window.addEventListener('resize', scaleStage);
+scaleStage();
+
+// ===================== PARTICLES =====================
+function spawnParticles(containerId, count, colors) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    const size = Math.random() * 4 + 2;
+    p.style.cssText = `
+      width:${size}px; height:${size}px;
+      left:${Math.random() * 100}%;
+      bottom: -10px;
+      background:${colors[Math.floor(Math.random() * colors.length)]};
+      --drift:${(Math.random() - 0.5) * 100}px;
+      animation-duration:${5 + Math.random() * 8}s;
+      animation-delay:${Math.random() * 6}s;
+      opacity:0;
+    `;
+    container.appendChild(p);
+  }
+}
+
+spawnParticles('p1', 30, ['rgba(37,99,235,0.6)', 'rgba(59,130,246,0.4)', 'rgba(255,255,255,0.3)']);
+spawnParticles('p6', 40, ['rgba(16,185,129,0.6)', 'rgba(37,99,235,0.4)', 'rgba(255,255,255,0.3)']);
+spawnParticles('p7', 40, ['rgba(37,99,235,0.6)', 'rgba(59,130,246,0.5)', 'rgba(16,185,129,0.4)']);
+
+// ===================== SCENE COUNTER DOTS =====================
+function buildDots() {
+  const sc = document.getElementById('scene-counter');
+  sc.innerHTML = '';
+  for (let i = 0; i < SCENES; i++) {
+    const d = document.createElement('div');
+    d.className = 'scene-dot' + (i === 0 ? ' active' : '');
+    sc.appendChild(d);
+  }
+}
+
+function updateDots(idx) {
+  document.querySelectorAll('.scene-dot').forEach((d, i) => {
+    d.classList.toggle('active', i === idx);
+  });
+}
+
+// ===================== PROGRESS BAR =====================
+function updateProgress(elapsed) {
+  const pct = Math.min((elapsed / TOTAL_DURATION) * 100, 100);
+  document.getElementById('progress-bar').style.width = pct + '%';
+}
+
+// ===================== CAPTIONS =====================
+function showCaption(text) {
+  const box = document.getElementById('caption-box');
+  box.textContent = text;
+  box.classList.add('visible');
+}
+
+function hideCaption() {
+  document.getElementById('caption-box').classList.remove('visible');
+}
+
+// ===================== ANIMATION HELPERS =====================
+function animate(el, props, duration, delay = 0, easing = 'cubic-bezier(0.16, 1, 0.3, 1)') {
+  if (!el) return;
+  setTimeout(() => {
+    el.style.transition = `all ${duration}ms ${easing} ${0}ms`;
+    Object.assign(el.style, props);
+  }, delay);
+}
+
+// ===================== SCENE ANIMATIONS =====================
+function animateScene(idx) {
+  updateDots(idx);
+  showCaption(CAPTIONS[idx].text);
+
+  if (idx === 0) {
+    // S1: Brand Intro
+    animate(document.querySelector('.s1-brand'), { opacity: 1, transform: 'translateY(0)' }, 800, 500);
+    animate(document.querySelector('.s1-tagline'), { opacity: 1, transform: 'translateY(0)' }, 800, 1100);
+  }
+  else if (idx === 1) {
+    // S2: Problem
+    animate(document.getElementById('s2-ey'), { opacity: 1, transform: 'translateX(0)' }, 700, 200);
+    animate(document.getElementById('s2-h'),  { opacity: 1, transform: 'translateX(0)' }, 700, 500);
+    animate(document.getElementById('s2-b'),  { opacity: 1, transform: 'translateX(0)' }, 700, 800);
+    animate(document.getElementById('pc1'), { opacity: 1, transform: 'translateX(0)' }, 600, 400);
+    animate(document.getElementById('pc2'), { opacity: 1, transform: 'translateX(0)' }, 600, 650);
+    animate(document.getElementById('pc3'), { opacity: 1, transform: 'translateX(0)' }, 600, 900);
+  }
+  else if (idx === 2) {
+    // S3: Device mockup
+    animate(document.getElementById('device'), { opacity: 1, transform: 'translateY(0) scale(1)' }, 900, 200);
+    setTimeout(() => {
+      animate(document.getElementById('cr1'), { opacity: 1, transform: 'translateX(0)' }, 500, 100);
+      animate(document.getElementById('cr2'), { opacity: 1, transform: 'translateX(0)' }, 500, 300);
+      animate(document.getElementById('cr3'), { opacity: 1, transform: 'translateX(0)' }, 500, 500);
+      animate(document.getElementById('att1'), { opacity: 1, transform: 'translateX(0)' }, 500, 700);
+      animate(document.getElementById('alt1'), { opacity: 1, transform: 'translateX(0)' }, 500, 900);
+      setTimeout(() => { document.getElementById('att-fill').style.width = '82%'; }, 1800);
+      animate(document.getElementById('fl1'), { opacity: 1, transform: 'translateX(0)' }, 600, 1200);
+      animate(document.getElementById('fl2'), { opacity: 1, transform: 'translateX(0)' }, 600, 1600);
+      animate(document.getElementById('fl3'), { opacity: 1, transform: 'translateX(0)' }, 600, 2000);
+    }, 500);
+  }
+  else if (idx === 3) {
+    // S4: Features grid
+    animate(document.getElementById('s4-t'), { opacity: 1, transform: 'translateY(0)' }, 700, 200);
+    animate(document.getElementById('s4-s'), { opacity: 1 }, 700, 500);
+    animate(document.getElementById('fb1'), { opacity: 1, transform: 'translateY(0) scale(1)' }, 600, 400);
+    animate(document.getElementById('fb2'), { opacity: 1, transform: 'translateY(0) scale(1)' }, 600, 600);
+    animate(document.getElementById('fb3'), { opacity: 1, transform: 'translateY(0) scale(1)' }, 600, 800);
+    animate(document.getElementById('fb4'), { opacity: 1, transform: 'translateY(0) scale(1)' }, 600, 1000);
+  }
+  else if (idx === 4) {
+    // S5: Social
+    animate(document.getElementById('s5-ey'), { opacity: 1, transform: 'translateX(0)' }, 700, 200);
+    animate(document.getElementById('s5-h'),  { opacity: 1, transform: 'translateX(0)' }, 700, 450);
+    animate(document.getElementById('s5-b'),  { opacity: 1, transform: 'translateX(0)' }, 700, 700);
+    animate(document.getElementById('pcard1'), { opacity: 1, transform: 'translateY(0)' }, 600, 500);
+    animate(document.getElementById('pcard2'), { opacity: 1, transform: 'translateY(0)' }, 600, 750);
+    [1,2,3,4,5,6].forEach((n, i) => {
+      animate(document.getElementById('ts'+n), { opacity: 1 }, 400, 900 + i*200);
+    });
+    animate(document.getElementById('match-b'), { opacity: 1, transform: 'scale(1)' }, 500, 2800, 'cubic-bezier(0.34, 1.56, 0.64, 1)');
+  }
+  else if (idx === 5) {
+    // S6: Stats
+    animate(document.getElementById('s6-ey'), { opacity: 1 }, 600, 200);
+    animate(document.getElementById('s6-h'),  { opacity: 1, transform: 'translateY(0)' }, 700, 500);
+    animate(document.getElementById('sb1'), { opacity: 1, transform: 'translateY(0) scale(1)' }, 700, 700);
+    animate(document.getElementById('sb2'), { opacity: 1, transform: 'translateY(0) scale(1)' }, 700, 950);
+    animate(document.getElementById('sb3'), { opacity: 1, transform: 'translateY(0) scale(1)' }, 700, 1200);
+    // Count-up animations
+    setTimeout(() => countUp('sn1', 0, 67.8, 1500, '%', 1), 900);
+    setTimeout(() => countUp('sn2', 0, 5.2, 1500, '', 1), 1150);
+  }
+  else if (idx === 6) {
+    // S7: CTA
+    animate(document.getElementById('cta-ring'), { opacity: 1, transform: 'scale(1) rotate(0deg)' }, 800, 200, 'cubic-bezier(0.34, 1.56, 0.64, 1)');
+    animate(document.getElementById('cta-t'), { opacity: 1, transform: 'translateY(0)' }, 700, 700);
+    animate(document.getElementById('cta-s'), { opacity: 1, transform: 'translateY(0)' }, 700, 1000);
+    animate(document.getElementById('cta-url'), { opacity: 1, transform: 'translateY(0)' }, 700, 1400);
+  }
+}
+
+// ===================== COUNT-UP =====================
+function countUp(id, from, to, duration, suffix, decimals) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const start = performance.now();
+  function step(now) {
+    const p = Math.min((now - start) / duration, 1);
+    const ease = 1 - Math.pow(1 - p, 3);
+    const val = from + (to - from) * ease;
+    el.textContent = val.toFixed(decimals) + suffix;
+    if (p < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+// ===================== SCENE MANAGER =====================
+function goToScene(idx) {
+  if (idx >= SCENES) return;
+  
+  // Hide all scenes
+  document.querySelectorAll('.scene').forEach(s => s.classList.remove('active'));
+  // Show current
+  const scene = document.getElementById('s' + (idx + 1));
+  if (scene) scene.classList.add('active');
+
+  // Play real MP3 narration for this scene
+  playSceneAudio(idx);
+
+  // Run animations for this scene
+  animateScene(idx);
+
+  // Schedule next
+  currentScene = idx;
+  if (sceneTimeout) clearTimeout(sceneTimeout);
+  sceneTimeout = setTimeout(() => {
+    goToScene(idx + 1);
+  }, SCENE_DURATIONS[idx]);
+}
+
+// ===================== PROGRESS UPDATER =====================
+let promoStart;
+function tickProgress() {
+  if (!started) return;
+  updateProgress(performance.now() - promoStart);
+  if (performance.now() - promoStart < TOTAL_DURATION) {
+    requestAnimationFrame(tickProgress);
+  }
+}
+
+// ===================== START =====================
+function startPromo() {
+  document.getElementById('play-overlay').style.display = 'none';
+  buildDots();
+  started = true;
+  promoStart = performance.now();
+  requestAnimationFrame(tickProgress);
+  goToScene(0);
+
+  // Try Web Speech API for audio narration
+  startNarration();
+}
+
+// ===================== REAL MP3 AUDIO SYSTEM =====================
+// Scene MP3 files — co-located in promo_audio/ folder
+const AUDIO_FILES = [
+  'promo_audio/scene_01.mp3',
+  'promo_audio/scene_02.mp3',
+  'promo_audio/scene_03.mp3',
+  'promo_audio/scene_04.mp3',
+  'promo_audio/scene_05.mp3',
+  'promo_audio/scene_06.mp3',
+  'promo_audio/scene_07.mp3',
+];
+
+// Pre-load all audio objects at start
+const audioObjects = AUDIO_FILES.map(src => {
+  const a = new Audio(src);
+  a.preload = 'auto';
+  return a;
+});
+
+let currentAudio = null;
+
+function playSceneAudio(sceneIdx) {
+  // Stop any currently playing audio
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio.currentTime = 0;
+  }
+  if (sceneIdx < 0 || sceneIdx >= audioObjects.length) return;
+  currentAudio = audioObjects[sceneIdx];
+  currentAudio.volume = 1.0;
+  currentAudio.currentTime = 0;
+  const playPromise = currentAudio.play();
+  if (playPromise !== undefined) {
+    playPromise.catch(() => {
+      // Autoplay blocked — silently ignore; user triggered via click so shouldn't happen
+    });
+  }
+}
+
+function startNarration() {
+  // MP3 audio is now triggered per scene via playSceneAudio(idx)
+  // This function intentionally left as no-op since audio fires on goToScene()
+}
+
+// ===================== KEYBOARD NAV =====================
+document.addEventListener('keydown', e => {
+  if (!started) return;
+  if (e.key === 'ArrowRight' || e.key === ' ') {
+    clearTimeout(sceneTimeout);
+    if (currentAudio) { currentAudio.pause(); currentAudio.currentTime = 0; }
+    goToScene(Math.min(currentScene + 1, SCENES - 1));
+  }
+  if (e.key === 'ArrowLeft') {
+    clearTimeout(sceneTimeout);
+    if (currentAudio) { currentAudio.pause(); currentAudio.currentTime = 0; }
+    goToScene(Math.max(currentScene - 1, 0));
+  }
+});
+</script>
+</body>
+</html>

@@ -1,9 +1,10 @@
-import { UtensilsCrossed, PanelLeft, LayoutDashboard, Coffee, Sun, Cookie, Moon, CalendarDays, Clock3, Sparkles, ShieldCheck } from 'lucide-react';
+import { UtensilsCrossed, PanelLeft, LayoutDashboard, Coffee, Sun, Cookie, Moon, CalendarDays, Clock3, Sparkles, ShieldCheck, Layers } from 'lucide-react';
 
 const HEROES = {
   mess: { Icon: UtensilsCrossed, kicker: 'CAMPUS DINING', description: 'Shape the week. Fine-tune a day. Keep every meal in sync.' },
   navigation: { Icon: PanelLeft, kicker: 'APP EXPERIENCE', description: 'Give students a clear path to the things that matter.' },
   dashboard: { Icon: LayoutDashboard, kicker: 'FIRST IMPRESSIONS', description: 'Create a considered starting point for every new student.' },
+  bidflow: { Icon: Layers, kicker: 'ELECTIVES BIDDING', description: 'Curate available electives, import course sheets, and configure credit limits.' },
 };
 export function ControlHero({ section, title, changed, revision }) {
   const { Icon, kicker, description } = HEROES[section];

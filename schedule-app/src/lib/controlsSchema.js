@@ -1,3 +1,5 @@
+import { termKey } from './bidflowPlan.js';
+
 export const MEALS = ['breakfast', 'lunch', 'snacks', 'dinner'];
 export const MENU_KEYS = ['breakfast', 'lunch', 'snacksW13', 'snacksW24', 'dinner'];
 export const NAV_IDS = ['today', 'tomorrow', 'fullSchedule', 'courseHub', 'planner', 'attendance', 'exams', 'assignments', 'notifications', 'friends', 'board', 'messMenu', 'split', 'pet', 'wrapped'];
@@ -8,7 +10,25 @@ export const DEFAULT_TIMES = [
   { id: 'snacks', label: 'Snacks', start: '17:30', end: '18:30' },
   { id: 'dinner', label: 'Dinner', start: '20:00', end: '22:30' },
 ];
-export const DEFAULT_CONTROLS = { mess: { weekly: {}, dates: {}, timings: {}, datedTimings: {}, notices: [], anchor: '2026-10-19', feedUrl: '' }, navigation: { items: {}, order: [] }, dashboard: {} };
+export const DEFAULT_CONTROLS = {
+  mess: { weekly: {}, dates: {}, timings: {}, datedTimings: {}, notices: [], anchor: '2026-10-19', feedUrl: '' },
+  navigation: { items: {}, order: [] },
+  dashboard: {},
+  bidflow: {
+    enabled: false,
+    cohort: 'PGP1',
+    term: 'Term IV',
+    sheetUrl: '',
+    minCredits: 15,
+    maxCredits: 21,
+    totalMinCredits: null,
+    totalMaxCredits: null,
+    termCreditRanges: {},
+    rulesText: 'Select your primary and backup courses. Ensure your total credits fall within the required range shown above.',
+    courses: [],
+    updatedAt: '',
+  },
+};
 const object = v => v !== null && typeof v === 'object' && !Array.isArray(v);
 const fail = message => { throw new Error(message); };
 function keys(value, allowed, label) {
@@ -38,6 +58,10 @@ function timingMap(map) {
   });
   times.forEach((t, i) => { if (t.start >= t.end || (i && times[i - 1].end > t.start)) fail('Meal times must increase without overlap.'); });
 }
+function validText(value, limit, required = false) {
+  return typeof value === 'string' && value.length <= limit && (!required || Boolean(value.trim()));
+}
+
 export function validateControls(section, value) {
   if (section === 'mess') {
     keys(value, Object.keys(DEFAULT_CONTROLS.mess), 'mess');
@@ -65,6 +89,37 @@ export function validateControls(section, value) {
     if (value.density !== undefined && !['compact', 'comfortable'].includes(value.density)) fail('Invalid density.');
     if (value.weekPanel !== undefined && typeof value.weekPanel !== 'boolean') fail('Invalid week panel setting.');
     return value;
+  }
+  if (section === 'bidflow') {
+    keys(value, Object.keys(DEFAULT_CONTROLS.bidflow), 'bidflow');
+    const v = { ...DEFAULT_CONTROLS.bidflow, ...value };
+    if (typeof v.enabled !== 'boolean') fail('BidFlow enabled must be boolean.');
+    if (![v.cohort, v.term].every(text => validText(text, 40, true)) || !termKey(v.term)) fail('Enter a cohort and term (up to 40 characters).');
+    if (!validText(v.sheetUrl, 2048) || !validText(v.updatedAt, 40)) fail('Invalid catalog metadata.');
+    if (!Number.isFinite(v.minCredits) || v.minCredits < 0) fail('Minimum credits must be zero or more.');
+    if (!Number.isFinite(v.maxCredits) || v.maxCredits <= 0 || v.maxCredits < v.minCredits) fail('Maximum credits must be positive and at least the minimum.');
+    if ((v.totalMinCredits !== null || v.totalMaxCredits !== null) &&
+        (!Number.isFinite(v.totalMinCredits) || !Number.isFinite(v.totalMaxCredits) || v.totalMinCredits < 0 || v.totalMaxCredits <= 0 || v.totalMaxCredits < v.totalMinCredits)) fail('Enter a valid overall credit range or leave both values blank.');
+    if (!object(v.termCreditRanges) || Object.keys(v.termCreditRanges).length > 20) fail('Use up to 20 term credit ranges.');
+    for (const [term, range] of Object.entries(v.termCreditRanges)) {
+      keys(range, ['min', 'max'], 'term credit range');
+      if (!validText(term, 40, true) || term !== termKey(term) || !Number.isFinite(range.min) || !Number.isFinite(range.max) ||
+          range.min < 0 || range.max <= 0 || range.max < range.min) fail('Enter a valid credit range for ' + term + '.');
+    }
+    if (!validText(v.rulesText, 2000)) fail('Use up to 2,000 characters for the rules.');
+    if (!Array.isArray(v.courses) || v.courses.length > 500 || (v.enabled && !v.courses.length)) fail('A visible catalog requires 1–500 electives.');
+    const codes = new Set();
+    for (const c of v.courses) {
+      keys(c, ['code', 'name', 'area', 'credits', 'faculty', 'facultyType', 'term', 'slots', 'description'], 'course');
+      const identity = JSON.stringify([termKey(c.term || v.term), c.code]);
+      if (!validText(c.code, 40, true) || c.code !== c.code.trim().toUpperCase() || codes.has(identity)) fail('Course codes must be unique within each term, uppercase and up to 40 characters.');
+      codes.add(identity);
+      if (!validText(c.name, 250, true) || !Number.isFinite(c.credits) || c.credits <= 0) fail(c.code + ' requires a name and positive credits.');
+      if (!validText(c.area ?? 'Other', 80, true) || !validText(c.faculty ?? '', 200) || !validText(c.term ?? '', 40) || !validText(c.description ?? '', 2000)) fail('Invalid course details for ' + c.code + '.');
+      if (c.facultyType !== undefined && !validText(c.facultyType, 80)) fail('Invalid faculty type for ' + c.code + '.');
+      if (c.slots != null && (!Number.isSafeInteger(c.slots) || c.slots < 0)) fail('Invalid seat count for ' + c.code + '.');
+    }
+    return { ...v, courses: v.courses.map(c => ({ ...c, area: c.area ?? 'Other', faculty: c.faculty ?? '', term: c.term?.trim() || '', slots: c.slots ?? null, description: c.description ?? '' })) };
   }
   fail('Unknown settings section.');
 }

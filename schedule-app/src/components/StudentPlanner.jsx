@@ -13,6 +13,7 @@ import {
 } from "../lib/studentPlanner.js";
 import { OfflineSyncCenter, SmartCalendar } from "./StudentPlannerTools.jsx";
 import CampusTravelBoard from "./CampusTravelBoard.jsx";
+import BidFlowEntry from "./BidFlowEntry.jsx";
 import "../styles/planner.css";
 
 const MISSES_KEY = "pgp2.planner-misses";
@@ -310,7 +311,7 @@ export default function StudentPlanner({
   changes = [], readChangeKeys, changeKeyOf, isOffline, syncing, syncedAgo,
   onSync, onNavigate, onOpenChange,
   section = "schedule", onSectionChange, leavePlanner,
-  userId, userName,
+  userId, userName, onOpenBidFlow,
 }) {
   const [tab, setTab] = useState("brief");
   const [assignments, setAssignments] = useState(() => loadAssignments());
@@ -357,6 +358,7 @@ export default function StudentPlanner({
         <div><span className="planner-kicker"><Sparkles size={14} /> PERSONAL PLANNER</span><h1>Your academic command centre</h1><p>Today’s priorities, attendance scenarios, workload, leave plans and campus cab pooling—built from your existing TermFlow data.</p></div>
         <div className={`planner-live-pill${isOffline ? " is-offline" : ""}`}>{isOffline ? <CloudOff size={14} /> : <Cloud size={14} />}{isOffline ? "Offline" : `Synced ${syncedAgo === 0 ? "now" : `${syncedAgo}m ago`}`}</div>
       </header>
+      <BidFlowEntry showBeforePublish onOpen={onOpenBidFlow} />
       <nav className="planner-tabs planner-primary-tabs" aria-label="Planner" role="tablist">
         {[["schedule", "Schedule", CalendarDays], ["leave", "Leave Planner", CalendarOff], ["travel", "Travel & Pool", Bus]].map(([id, label, Icon]) => (
           <button key={id} id={`planner-tab-${id}`} type="button" role="tab" tabIndex={section === id ? 0 : -1} aria-selected={section === id} aria-controls={`planner-panel-${id}`} className={section === id ? "is-active" : ""} onClick={() => onSectionChange(id)} onKeyDown={handleSectionKey}><Icon size={16} />{label}</button>

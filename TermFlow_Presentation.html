@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TermFlow | Case Competition Pitch Deck</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --slide-bg: #f8fafc;
+      --card-bg: #ffffff;
+      --card-inner-bg: #f8fafc;
+      --navy-900: #0f172a;
+      --navy-800: #1e293b;
+      --navy-700: #334155;
+      --text-muted: #64748b;
+      --blue-600: #2563eb;
+      --blue-700: #1d4ed8;
+      --blue-50: #eff6ff;
+      --blue-100: #dbeafe;
+      --blue-200: #bfdbfe;
+      --emerald-600: #059669;
+      --emerald-500: #10b981;
+      --emerald-50: #ecfdf5;
+      --emerald-100: #d1fae5;
+      --emerald-200: #a7f3d0;
+      --amber-600: #d97706;
+      --amber-50: #fef3c7;
+      --amber-200: #fde68a;
+      --rose-600: #e11d48;
+      --rose-50: #fff1f2;
+      --rose-200: #fecdd3;
+      --border: #e2e8f0;
+      --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.05);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.06);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: var(--navy-800);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 20px;
+    }
+
+    .top-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      max-width: 1200px;
+      margin-bottom: 18px;
+      color: #94a3b8;
+      font-size: 0.9rem;
+    }
+
+    .brand-badge {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      color: #f8fafc;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-badge span {
+      background: linear-gradient(135deg, #38bdf8, #2563eb);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      font-size: 1.25rem;
+    }
+
+    .deck-controls {
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn {
+      background: #1e293b;
+      color: #f8fafc;
+      border: 1px solid #334155;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      text-decoration: none;
+    }
+
+    .btn:hover {
+      background: #334155;
+      border-color: #475569;
+    }
+
+    .btn-primary {
+      background: #2563eb;
+      border-color: #3b82f6;
+    }
+
+    .btn-primary:hover {
+      background: #1d4ed8;
+    }
+
+    /* Presentation Container (16:9 Widescreen) */
+    .slide-viewport {
+      width: 100%;
+      max-width: 1200px;
+      aspect-ratio: 16 / 9;
+      background: var(--slide-bg);
+      border-radius: 14px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .slide {
+      width: 100%;
+      height: 100%;
+      padding: 32px 42px 28px 42px;
+      display: none;
+      flex-direction: column;
+      animation: fadeIn 0.25s ease;
+    }
+
+    .slide.active {
+      display: flex;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.996); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    /* Universal Slide Header */
+    .slide-header {
+      margin-bottom: 14px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 10px;
+    }
+
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .slide-pill {
+      display: inline-flex;
+      align-items: center;
+      background: var(--blue-50);
+      border: 1px solid var(--blue-200);
+      color: var(--blue-600);
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 3px 10px;
+      border-radius: 6px;
+    }
+
+    .slide-number {
+      font-size: 0.75rem;
+      font-weight: 800;
+      color: var(--text-muted);
+      letter-spacing: 0.04em;
+    }
+
+    .slide-title {
+      font-size: 1.38rem;
+      font-weight: 800;
+      color: var(--navy-900);
+      letter-spacing: -0.02em;
+      line-height: 1.25;
+      margin-bottom: 3px;
+    }
+
+    .slide-subtitle {
+      font-size: 0.80rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    /* Slide 1 Grid */
+    .grid-2col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .outer-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 18px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .card-top-title {
+      font-size: 0.82rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+
+    .card-top-subtitle {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    .heading-red { color: var(--rose-600); }
+    .heading-blue { color: var(--blue-600); }
+    .heading-emerald { color: var(--emerald-600); }
+
+    .stack-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+      flex: 1;
+    }
+
+    .inner-item {
+      background: var(--card-inner-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px 10px 14px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .inner-item::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+    }
+
+    .inner-item.accent-rose::before { background: var(--rose-600); }
+    .inner-item.accent-amber::before { background: var(--amber-600); }
+    .inner-item.accent-blue::before { background: var(--blue-600); }
+    .inner-item.accent-emerald::before { background: var(--emerald-500); }
+
+    .item-pill {
+      display: inline-block;
+      font-size: 0.65rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 2px 7px;
+      border-radius: 4px;
+      margin-bottom: 4px;
+    }
+
+    .pill-rose { background: var(--rose-50); border: 1px solid var(--rose-200); color: var(--rose-600); }
+    .pill-amber { background: var(--amber-50); border: 1px solid var(--amber-200); color: var(--amber-600); }
+    .pill-blue { background: var(--blue-50); border: 1px solid var(--blue-200); color: var(--blue-600); }
+    .pill-emerald { background: var(--emerald-50); border: 1px solid var(--emerald-200); color: var(--emerald-600); }
+
+    .item-title {
+      font-size: 0.84rem;
+      font-weight: 700;
+      color: var(--navy-900);
+      margin-bottom: 3px;
+    }
+
+    .item-body {
+      font-size: 0.73rem;
+      color: var(--navy-700);
+      line-height: 1.35;
+    }
+
+    .item-body strong {
+      color: var(--navy-900);
+    }
+
+    .banner-concept {
+      background: var(--blue-50);
+      border: 1px solid var(--blue-200);
+      border-radius: 8px;
+      padding: 10px 12px 10px 14px;
+      margin-bottom: 9px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .banner-concept::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      background: var(--blue-600);
+    }
+
+    .banner-title {
+      font-size: 0.76rem;
+      font-weight: 800;
+      color: var(--blue-700);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 3px;
+    }
+
+    .banner-desc {
+      font-size: 0.73rem;
+      color: var(--navy-800);
+      line-height: 1.35;
+    }
+
+    /* Slide 2 4-Column Feature Grid */
+    .grid-4col {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+
+    .feat-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 12px 10px 12px;
+      box-shadow: var(--shadow-sm);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .feat-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+    }
+
+    .feat-card.f-blue::before { background: var(--blue-600); }
+    .feat-card.f-emerald::before { background: var(--emerald-500); }
+    .feat-card.f-amber::before { background: var(--amber-600); }
+    .feat-card.f-navy::before { background: var(--navy-900); }
+
+    .feat-title {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--navy-900);
+      line-height: 1.25;
+      margin-top: 5px;
+      margin-bottom: 8px;
+    }
+
+    .feat-items {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 0.70rem;
+      line-height: 1.35;
+      color: var(--navy-700);
+    }
+
+    .feat-items li {
+      position: relative;
+      padding-left: 10px;
+    }
+
+    .feat-items li::before {
+      content: "•";
+      position: absolute;
+      left: 0;
+      font-weight: 800;
+    }
+
+    .f-blue .feat-items li::before { color: var(--blue-600); }
+    .f-emerald .feat-items li::before { color: var(--emerald-600); }
+    .f-amber .feat-items li::before { color: var(--amber-600); }
+    .f-navy .feat-items li::before { color: var(--navy-900); }
+
+    .feat-items li strong {
+      color: var(--navy-900);
+    }
+
+    /* Slide 2 Bottom Grid */
+    .grid-bottom {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .sub-section-box {
+      background: var(--card-inner-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 9px 12px;
+      margin-bottom: 8px;
+    }
+
+    .sub-section-title {
+      font-size: 0.72rem;
+      font-weight: 800;
+      color: var(--navy-900);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 5px;
+    }
+
+    .point-line {
+      font-size: 0.70rem;
+      color: var(--navy-700);
+      line-height: 1.35;
+      margin-bottom: 3px;
+      display: flex;
+      gap: 5px;
+    }
+
+    .point-line strong {
+      color: var(--navy-900);
+    }
+
+    .point-line .check-green { color: var(--emerald-600); font-weight: bold; flex-shrink: 0; }
+    .point-line .check-blue { color: var(--blue-600); font-weight: bold; flex-shrink: 0; }
+
+    /* 3 KPI Blocks */
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .kpi-card {
+      background: var(--card-inner-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 6px;
+      text-align: center;
+    }
+
+    .kpi-num {
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: var(--blue-600);
+      line-height: 1;
+      margin-bottom: 3px;
+    }
+
+    .kpi-label {
+      font-size: 0.60rem;
+      font-weight: 800;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 2px;
+    }
+
+    .kpi-desc {
+      font-size: 0.63rem;
+      color: var(--navy-700);
+      line-height: 1.25;
+    }
+
+    .callout-scalable {
+      background: var(--emerald-50);
+      border: 1px solid var(--emerald-200);
+      border-radius: 8px;
+      padding: 9px 12px 9px 14px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .callout-scalable::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      background: var(--emerald-500);
+    }
+
+    .callout-title {
+      font-size: 0.72rem;
+      font-weight: 800;
+      color: var(--emerald-600);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 3px;
+    }
+
+    .callout-bullets {
+      font-size: 0.70rem;
+      color: var(--navy-800);
+      line-height: 1.35;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .callout-bullets strong {
+      color: var(--navy-900);
+    }
+
+    /* Universal Slide Footer */
+    .slide-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 14px;
+      width: 100%;
+      max-width: 1200px;
+      color: #94a3b8;
+      font-size: 0.82rem;
+    }
+
+    .slide-dots {
+      display: flex;
+      gap: 8px;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #334155;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .dot.active {
+      background: #38bdf8;
+      width: 24px;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="top-toolbar">
+    <div class="brand-badge">
+      <span>TermFlow</span> Case Competition Pitch Deck
+    </div>
+    <div class="deck-controls">
+      <button class="btn" onclick="prevSlide()">← Previous</button>
+      <button class="btn" onclick="nextSlide()">Next →</button>
+      <a class="btn btn-primary" href="TermFlow_Case_Competition_Presentation.pptx" download>⬇ Download Refined .PPTX</a>
+    </div>
+  </div>
+
+  <div class="slide-viewport">
+    
+    <!-- SLIDE 1 -->
+    <div class="slide active" id="slide-1">
+      <div class="slide-header">
+        <div class="header-top">
+          <div class="slide-pill">CASE COMPETITION | STRATEGIC DIAGNOSIS & SOLUTION ARCHITECTURE</div>
+          <div class="slide-number">SLIDE 1 OF 2</div>
+        </div>
+        <h1 class="slide-title">Bridging the Campus Coordination Deficit: Transforming MBA Schedules into an Offline-First OS</h1>
+        <p class="slide-subtitle">Macro Context: Elite 2-year MBA cohort with 30+ electives, dynamic rescheduling, and strict 75-80% attendance compliance.</p>
+      </div>
+
+      <div class="grid-2col">
+        <!-- Left: Problem Statement -->
+        <div class="outer-card">
+          <div class="card-top-title heading-red">THE "AS-IS" CAMPUS TRILEMMA: HIGH FRICTION & RISK</div>
+          <div class="card-top-subtitle">Fragmented channels create cognitive overload and irreversible academic compliance risks.</div>
+          
+          <div class="stack-cards">
+            
+            <div class="inner-item accent-rose">
+              <span class="item-pill pill-rose">1. Information Fragmentation</span>
+              <div class="item-title">Raw Google Sheets & Cluttered WhatsApp Blasts</div>
+              <div class="item-body">
+                <strong>Discovery Latency:</strong> Schedules live in multi-tab spreadsheets. Sudden room or slot updates announced across 10+ WhatsApp groups cause students to spend 30–90s per lookup, frequently missing urgent changes.
+              </div>
+            </div>
+
+            <div class="inner-item accent-amber">
+              <span class="item-pill pill-amber">2. Academic Penalty Risk</span>
+              <div class="item-title">Strict 75–80% Mandatory Attendance Thresholds</div>
+              <div class="item-body">
+                <strong>De-Registration Threat:</strong> Missing just 2–3 classes risks course de-registration or grade drops. Students rely on error-prone mental math, leading to miscalculated absence buffers and severe academic penalties.
+              </div>
+            </div>
+
+            <div class="inner-item accent-blue">
+              <span class="item-pill pill-blue">3. Coordination Paralysis</span>
+              <div class="item-title">Cross-Elective Peer Scheduling Deadlocks</div>
+              <div class="item-body">
+                <strong>Collaboration Drag:</strong> Dispersed elective enrollment makes finding shared free windows for syndicate projects, case competitions, and committee work an iterative 15+ message WhatsApp ordeal.
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Right: Proposed Solution -->
+        <div class="outer-card">
+          <div class="card-top-title heading-blue">THE "TO-BE" TRANSFORMATION: TERMFLOW ACADEMIC OS</div>
+          <div class="card-top-subtitle">A purpose-built Progressive Web App unifying scheduling, attendance, and peer networks.</div>
+          
+          <div class="banner-concept">
+            <div class="banner-title">CORE PRODUCT CONCEPT: Turnkey Academic Operating System</div>
+            <div class="banner-desc">Integrates automated Google Sheets timetable diffing, predictive attendance margin calculation, and privacy-preserving peer schedule overlays into an installable mobile PWA.</div>
+          </div>
+
+          <div class="stack-cards">
+            
+            <div class="inner-item accent-blue">
+              <span class="item-pill pill-blue">Moat 1: Zero Admin Disruption</span>
+              <div class="item-title">Transparent Google Sheets Synchronization</div>
+              <div class="item-body">
+                <strong>Zero Change Resistance:</strong> Academic offices continue publishing via existing Google Sheets. Apps Script & Supabase Edge functions poll, compute SHA-256 diffs, and push updates without requiring administrative re-training.
+              </div>
+            </div>
+
+            <div class="inner-item accent-emerald">
+              <span class="item-pill pill-emerald">Moat 2: Offline-First Resilience</span>
+              <div class="item-title">Sub-500ms Instant Boot Snapshot Engine</div>
+              <div class="item-body">
+                <strong>Basement-Ready Access:</strong> Pre-bundled build snapshots and Workbox service workers ensure 100% schedule availability in low-connectivity lecture hall basements. Live sync updates silently when reconnected.
+              </div>
+            </div>
+
+            <div class="inner-item accent-amber">
+              <span class="item-pill pill-amber">Moat 3: Enterprise Trust & Zero Friction</span>
+              <div class="item-title">Frictionless PWA + Domain-Gated Google Auth</div>
+              <div class="item-body">
+                <strong>Closed Campus Security:</strong> Authentication strictly gated to @iimsambalpur.ac.in via Clerk SSO. One-tap home screen install avoids app store friction; Row-Level Security (RLS) guarantees complete peer data privacy.
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 2 -->
+    <div class="slide" id="slide-2">
+      <div class="slide-header">
+        <div class="header-top">
+          <div class="slide-pill">CASE COMPETITION | KEY FEATURES, VALUE PROPOSITION & MARKET TRACTION</div>
+          <div class="slide-number">SLIDE 2 OF 2</div>
+        </div>
+        <h1 class="slide-title">Delivering Fail-Safe Academic Governance: Validated by 68% Organic Cohort Adoption</h1>
+        <p class="slide-subtitle">Demonstrated Impact: Replacing ad-hoc tools with high-frequency engagement (5.2 days/week) and near-zero marginal operational cost.</p>
+      </div>
+
+      <!-- 4 Features Row -->
+      <div class="grid-4col">
+        <div class="feat-card f-blue">
+          <span class="item-pill pill-blue">Core Timetable</span>
+          <div class="feat-title">Dynamic Schedule & Live Diff Engine</div>
+          <ul class="feat-items">
+            <li><strong>Live Timeline & Agenda:</strong> Daily course views with elective filtering & day-mapping.</li>
+            <li><strong>SHA-256 Hash Diffing:</strong> Instant alerts on unexpected venue or timing swaps.</li>
+            <li><strong>Sub-2ms ICS Export:</strong> Native calendar sync with Apple, Google & Outlook.</li>
+          </ul>
+        </div>
+
+        <div class="feat-card f-emerald">
+          <span class="item-pill pill-emerald">Risk Mitigation</span>
+          <div class="feat-title">Predictive Attendance Guardian</div>
+          <ul class="feat-items">
+            <li><strong>1-Tap Quick Mark:</strong> End-of-class prompt logging to eliminate memory bias.</li>
+            <li><strong>Safe-Skip Buffer:</strong> Dynamic calculator prevents falling below 75-80% rules.</li>
+            <li><strong>Recovery Modeling:</strong> Simulates mandatory attendance streaks to restore compliance.</li>
+          </ul>
+        </div>
+
+        <div class="feat-card f-amber">
+          <span class="item-pill pill-amber">Peer Workflows</span>
+          <div class="feat-title">Social Timetable Sync & Overlays</div>
+          <ul class="feat-items">
+            <li><strong>6-Char Share Codes:</strong> Privacy-preserving token to overlay peer schedules.</li>
+            <li><strong>Mutual Slot Finder:</strong> Instantly identifies shared free time for group projects.</li>
+            <li><strong>Realtime Classmate Pings:</strong> Live study group coordination powered by Supabase.</li>
+          </ul>
+        </div>
+
+        <div class="feat-card f-navy">
+          <span class="item-pill pill-blue">Institutional Ops</span>
+          <div class="feat-title">Admin & Telemetry Hub</div>
+          <ul class="feat-items">
+            <li><strong>Cohort Presence:</strong> Tracks daily & weekly active profiles across 90-day windows.</li>
+            <li><strong>Emergency Broadcasts:</strong> Targeted Web Push alerts reaching students in seconds.</li>
+            <li><strong>Operations Diagnostics:</strong> Audit history, feedback triage, and 7 health self-checks.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Bottom Half: Value Prop & Traction -->
+      <div class="grid-bottom">
+        
+        <div class="outer-card">
+          <div class="card-top-title heading-blue" style="margin-bottom: 8px;">STAKEHOLDER VALUE PROPOSITION & ROI</div>
+          
+          <div class="sub-section-box">
+            <div class="sub-section-title">FOR STUDENTS (END USERS)</div>
+            <div class="point-line">
+              <span class="check-green">✓</span>
+              <div><strong>Risk Elimination:</strong> Automated attendance buffers remove the risk of inadvertent course de-registration.</div>
+            </div>
+            <div class="point-line">
+              <span class="check-green">✓</span>
+              <div><strong>Time Reclaimed:</strong> Centralized lookup and peer sync saves 2.7 to 8.1 hours weekly across active student groups.</div>
+            </div>
+            <div class="point-line">
+              <span class="check-green">✓</span>
+              <div><strong>Zero Friction:</strong> Instant PWA install without app store gating; reliable offline access during transit.</div>
+            </div>
+          </div>
+
+          <div class="sub-section-box" style="margin-bottom: 0;">
+            <div class="sub-section-title">FOR PROGRAM OFFICES & BATCH REPRESENTATIVES</div>
+            <div class="point-line">
+              <span class="check-blue">✓</span>
+              <div><strong>Zero Workflow Disruption:</strong> Maintains existing Google Sheets; zero manual data re-entry required.</div>
+            </div>
+            <div class="point-line">
+              <span class="check-blue">✓</span>
+              <div><strong>Direct Broadcast Pipeline:</strong> Emergency push notifications bypass noisy WhatsApp group chats.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="outer-card">
+          <div class="card-top-title heading-emerald" style="margin-bottom: 8px;">EMPIRICAL TRACTION & OPERATIONAL RIGOR</div>
+          
+          <div class="kpi-row">
+            <div class="kpi-card">
+              <div class="kpi-num">67.8%</div>
+              <div class="kpi-label">Cohort Adoption</div>
+              <div class="kpi-desc">206 of 304 students registered organically; 100% course setup completion.</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-num">5.2 Days</div>
+              <div class="kpi-label">Weekly Stickiness</div>
+              <div class="kpi-desc">Average active days per weekly active profile (449 user-days/week peak).</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-num">437 Tests</div>
+              <div class="kpi-label">Engineering Rigor</div>
+              <div class="kpi-desc">100% pass rate across 42 suites; 10 Supabase serverless Edge Functions.</div>
+            </div>
+          </div>
+
+          <div class="callout-scalable">
+            <div class="callout-title">UNIT ECONOMICS & HORIZONTAL SCALABILITY</div>
+            <div class="callout-bullets">
+              <div>• <strong>Near-₹0 Marginal Cost:</strong> Built on serverless Edge workers (Vercel & Supabase); near-zero cloud expenses.</div>
+              <div>• <strong>Turnkey Portability:</strong> Plug-and-play architecture readily deployable to PGP1, executive cohorts, and sister IIMs/IITs.</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <div class="slide-footer">
+    <div>Presentation: <strong>TermFlow (PGP2 Schedule)</strong> | Slide <span id="current-slide-num">1</span> of 2</div>
+    <div class="slide-dots">
+      <div class="dot active" onclick="goToSlide(1)"></div>
+      <div class="dot" onclick="goToSlide(2)"></div>
+    </div>
+    <div>Use Arrow Keys (← / →) to navigate</div>
+  </div>
+
+  <script>
+    let currentSlide = 1;
+    const totalSlides = 2;
+
+    function updateSlide() {
+      document.querySelectorAll('.slide').forEach((s, idx) => {
+        s.classList.toggle('active', idx + 1 === currentSlide);
+      });
+      document.querySelectorAll('.dot').forEach((d, idx) => {
+        d.classList.toggle('active', idx + 1 === currentSlide);
+      });
+      document.getElementById('current-slide-num').textContent = currentSlide;
+    }
+
+    function nextSlide() {
+      if (currentSlide < totalSlides) {
+        currentSlide++;
+        updateSlide();
+      }
+    }
+
+    function prevSlide() {
+      if (currentSlide > 1) {
+        currentSlide--;
+        updateSlide();
+      }
+    }
+
+    function goToSlide(n) {
+      currentSlide = n;
+      updateSlide();
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === 'Space') nextSlide();
+      if (e.key === 'ArrowLeft') prevSlide();
+    });
+  </script>
+</body>
+</html>

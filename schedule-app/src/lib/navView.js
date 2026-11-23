@@ -31,7 +31,7 @@ export function useNavView() {
 // a refresh, a shared link or a new tab lands on the same page.
 export const URL_VIEWS = new Set([
   "today", "tomorrow", "week", "attendance", "exams", "assignments", "pet",
-  "notifications", "friends", "leave", "glance", "board", "split", "planner", "courseHub", "fullSchedule",
+  "notifications", "friends", "leave", "glance", "board", "split", "planner", "courseHub", "fullSchedule", "bidflow",
 ]);
 
 // Params that belong to one view's page (Course Hub's open course), dropped

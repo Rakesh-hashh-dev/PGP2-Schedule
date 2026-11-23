@@ -50,11 +50,37 @@ export function IncidentCenter({ snapshot, cronIssues, feedbackCount, feedback =
   </section>;
 }
 
-export function ChangeTimeline({ logs, onNavigate }) {
-  const entries = buildChangeTimeline(logs).slice(0, 30);
-  return <section className="admin-card admin-span-all admin-g-insights aw-panel" aria-label="Change timeline">
-    <div className="aw-head"><div><span className="aw-eyebrow"><ClipboardList size={13} /> Accountability</span><h2>Change timeline</h2><p>Recent audited actions, linked to their Admin Tools workspace.</p></div></div>
-    <div className="aw-list">{entries.length ? entries.map(item => <div className="aw-issue" key={item.id}><Activity size={16} /><div><strong>{item.action}</strong><span>{item.object && `${item.object} · `}{item.actor} · {item.at ? new Date(item.at).toLocaleString("en-IN") : "Time unavailable"}</span></div><button type="button" className="admin-btn outline" onClick={() => onNavigate(item)}>Open <ArrowRight size={13} /></button></div>) : <div className="admin-empty">No audited actions loaded.</div>}</div>
+export function ChangeTimeline({ logs, onNavigate, compact = true }) {
+  const entries = buildChangeTimeline(logs).slice(0, compact ? 20 : 30);
+  return <section className={`admin-card ${compact ? "" : "admin-span-all"} admin-g-insights aw-panel ${compact ? "aw-panel--compact" : ""}`} aria-label="Change timeline">
+    <div className={`aw-head ${compact ? "aw-head--compact" : ""}`}>
+      <div>
+        <span className="aw-eyebrow"><ClipboardList size={12} /> Accountability</span>
+        <h2>Change timeline {compact && entries.length > 0 && <small>{entries.length}</small>}</h2>
+        <p>{compact ? "Recent audited actions with direct links." : "Recent audited actions, linked to their Admin Tools workspace."}</p>
+      </div>
+    </div>
+    <div className={`aw-list ${compact ? "aw-list--compact" : ""}`}>
+      {entries.length ? entries.map(item => (
+        <div className={`aw-issue ${compact ? "aw-issue--compact" : ""}`} key={item.id}>
+          <span className="aw-icon-badge"><Activity size={compact ? 13 : 16} /></span>
+          <div className="aw-issue-content">
+            <strong>{item.action}</strong>
+            <span>
+              {item.object && <span className="aw-object-pill">{item.object}</span>}
+              {item.actor} · {item.at ? (
+                compact ? (
+                  new Date(item.at).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) + ", " + new Date(item.at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
+                ) : new Date(item.at).toLocaleString("en-IN")
+              ) : "Time unavailable"}
+            </span>
+          </div>
+          <button type="button" className={`admin-btn outline ${compact ? "aw-btn-compact" : ""}`} onClick={() => onNavigate(item)}>
+            Open <ArrowRight size={compact ? 11 : 13} />
+          </button>
+        </div>
+      )) : <div className="admin-empty">No audited actions loaded.</div>}
+    </div>
   </section>;
 }
 
@@ -84,25 +110,87 @@ export function AdoptionTrends({ history, users, historyAvailable, features = []
   </section>;
 }
 
-export function AttendanceRisk({ rows, unavailable, coverageRows, coverageUnavailable, onNavigate }) {
+export function AttendanceRisk({ rows, unavailable, coverageRows, coverageUnavailable, onNavigate, compact = true }) {
   const coverageReady = !coverageUnavailable && Array.isArray(coverageRows);
-  return <section className="admin-card admin-span-all admin-g-insights aw-panel" aria-label="Attendance risk by course">
-    <div className="aw-head"><div><span className="aw-eyebrow"><BellRing size={13} /> Attendance</span><h2>Self-mark coverage and watch</h2><p>Student-saved attendance marks by enrolled course and section. Below 80% is an early watch signal among students with at least three marks, not the course penalty rule or official attendance.</p></div></div>
+  return <section className={`admin-card ${compact ? "" : "admin-span-all"} admin-g-insights aw-panel ${compact ? "aw-panel--compact" : ""}`} aria-label="Attendance risk by course">
+    <div className={`aw-head ${compact ? "aw-head--compact" : ""}`}>
+      <div>
+        <span className="aw-eyebrow"><BellRing size={12} /> Attendance</span>
+        <h2>Self-mark coverage and watch {compact && coverageReady && coverageRows.length > 0 && <small>{coverageRows.length}</small>}</h2>
+        <p>{compact ? "Course marks & watch signals (<80% with ≥3 marks)." : "Student-saved attendance marks by enrolled course and section. Below 80% is an early watch signal among students with at least three marks, not the course penalty rule or official attendance."}</p>
+      </div>
+    </div>
     {coverageUnavailable && <p className="aw-error" role="status">Self-mark coverage is unavailable. Deploy the admin attendance coverage migration to enable enrolled-student counts.</p>}
-    {coverageReady ? <div className="aw-list">{coverageRows.length ? coverageRows.map(row => {
-      const enrolled = Number(row.enrolled_students) || 0;
-      const marked = Number(row.students_with_marks) || 0;
-      const missing = Number(row.students_without_marks) || 0;
-      const eligible = Number(row.risk_eligible_students) || 0;
-      const atRisk = Number(row.at_risk_students) || 0;
-      const coverage = enrolled ? Math.round(marked / enrolled * 100) : 0;
-      return <div className="aw-issue aw-coverage-row" key={`${row.code}:${row.section}`}>
-        <div className="aw-coverage-body"><strong>{row.code} · Section {row.section || "Single"}</strong><span>{marked === 0 ? "No saved marks" : missing === 0 ? "All enrolled students have a saved mark" : "Some students have no saved marks"}</span>
-          <div className="aw-coverage-metrics"><span><b>{marked}/{enrolled}</b> with marks ({coverage}%)</span><span><b>{missing}</b> with no marks</span><span><b>{eligible}/{enrolled}</b> with three or more marks</span><span><b>{atRisk}/{eligible}</b> below 80% among eligible</span><span><b>{row.latest_marked_session || "—"}</b> latest marked class date</span></div>
-        </div><button type="button" className="admin-btn outline" aria-label={`View users in ${row.code}, section ${row.section || "Single"}`} onClick={() => onNavigate(row)}>View users <ArrowRight size={13} /></button>
-      </div>;
-    }) : <div className="admin-empty">No enrolled course groups are available.</div>}</div> : coverageRows === null && !coverageUnavailable ? <div className="admin-empty">Loading self-mark coverage…</div> : unavailable ? <div className="admin-empty">Attendance watch is unavailable.</div> : <div className="aw-list">{rows.length ? rows.map(row => <div className="aw-issue" key={`${row.code}:${row.section}`}><AlertTriangle size={16} /><div><strong>{row.code} · Section {row.section || "All"}</strong><span>{row.at_risk} of {row.recorded_users} students with at least three marks are below 80%.</span></div><button type="button" className="admin-btn outline" onClick={() => onNavigate(row)}>View users <ArrowRight size={13} /></button></div>) : <div className="admin-empty">No course groups are on the attendance watch. Coverage remains unavailable.</div>}</div>}
-    <small className="aw-footnote">Coverage means at least one student-saved present or absent mark for that enrolled course. The latest date is the class date in a saved mark, not the time it was entered.</small>
+    {coverageReady ? (
+      <div className={`aw-list ${compact ? "aw-list--compact" : ""}`}>
+        {coverageRows.length ? coverageRows.map(row => {
+          const enrolled = Number(row.enrolled_students) || 0;
+          const marked = Number(row.students_with_marks) || 0;
+          const missing = Number(row.students_without_marks) || 0;
+          const eligible = Number(row.risk_eligible_students) || 0;
+          const atRisk = Number(row.at_risk_students) || 0;
+          const coverage = enrolled ? Math.round(marked / enrolled * 100) : 0;
+          
+          if (compact) {
+            return (
+              <div className="aw-issue aw-coverage-row aw-issue--compact" key={`${row.code}:${row.section}`}>
+                <div className="aw-coverage-body">
+                  <div className="aw-coverage-top">
+                    <strong>{row.code} · Sec {row.section || "Single"}</strong>
+                    <span className={`aw-rate-badge ${coverage >= 80 ? 'is-good' : coverage >= 50 ? 'is-mid' : 'is-low'}`}>{coverage}% coverage</span>
+                  </div>
+                  <div className="aw-mini-track">
+                    <i style={{ width: `${Math.min(100, coverage)}%` }} className={coverage >= 80 ? 'is-good' : coverage >= 50 ? 'is-mid' : 'is-low'} />
+                  </div>
+                  <div className="aw-compact-stats">
+                    <span><b>{marked}/{enrolled}</b> marked</span>
+                    <span><b>{missing}</b> missing</span>
+                    <span><b>{eligible}</b> eligible</span>
+                    {atRisk > 0 ? (
+                      <span className="aw-stat-risk"><b>{atRisk}</b> watch</span>
+                    ) : (
+                      <span className="aw-stat-ok">0 watch</span>
+                    )}
+                    {row.latest_marked_session && <span className="aw-stat-date">{row.latest_marked_session}</span>}
+                  </div>
+                </div>
+                <button type="button" className="admin-btn outline aw-btn-compact" aria-label={`View users in ${row.code}, section ${row.section || "Single"}`} onClick={() => onNavigate(row)}>
+                  View <ArrowRight size={11} />
+                </button>
+              </div>
+            );
+          }
+
+          return (
+            <div className="aw-issue aw-coverage-row" key={`${row.code}:${row.section}`}>
+              <div className="aw-coverage-body"><strong>{row.code} · Section {row.section || "Single"}</strong><span>{marked === 0 ? "No saved marks" : missing === 0 ? "All enrolled students have a saved mark" : "Some students have no saved marks"}</span>
+                <div className="aw-coverage-metrics"><span><b>{marked}/{enrolled}</b> with marks ({coverage}%)</span><span><b>{missing}</b> with no marks</span><span><b>{eligible}/{enrolled}</b> with three or more marks</span><span><b>{atRisk}/{eligible}</b> below 80% among eligible</span><span><b>{row.latest_marked_session || "—"}</b> latest marked class date</span></div>
+              </div><button type="button" className="admin-btn outline" aria-label={`View users in ${row.code}, section ${row.section || "Single"}`} onClick={() => onNavigate(row)}>View users <ArrowRight size={13} /></button>
+            </div>
+          );
+        }) : <div className="admin-empty">No enrolled course groups are available.</div>}
+      </div>
+    ) : coverageRows === null && !coverageUnavailable ? (
+      <div className="admin-empty">Loading self-mark coverage…</div>
+    ) : unavailable ? (
+      <div className="admin-empty">Attendance watch is unavailable.</div>
+    ) : (
+      <div className={`aw-list ${compact ? "aw-list--compact" : ""}`}>
+        {rows.length ? rows.map(row => (
+          <div className={`aw-issue ${compact ? "aw-issue--compact" : ""}`} key={`${row.code}:${row.section}`}>
+            <AlertTriangle size={compact ? 13 : 16} />
+            <div>
+              <strong>{row.code} · Section {row.section || "All"}</strong>
+              <span>{row.at_risk} of {row.recorded_users} students with at least three marks are below 80%.</span>
+            </div>
+            <button type="button" className={`admin-btn outline ${compact ? "aw-btn-compact" : ""}`} onClick={() => onNavigate(row)}>
+              View users <ArrowRight size={compact ? 11 : 13} />
+            </button>
+          </div>
+        )) : <div className="admin-empty">No course groups are on the attendance watch. Coverage remains unavailable.</div>}
+      </div>
+    )}
+    <small className="aw-footnote">{compact ? "Coverage means ≥1 student-saved mark. Date is latest class date." : "Coverage means at least one student-saved present or absent mark for that enrolled course. The latest date is the class date in a saved mark, not the time it was entered."}</small>
   </section>;
 }
 

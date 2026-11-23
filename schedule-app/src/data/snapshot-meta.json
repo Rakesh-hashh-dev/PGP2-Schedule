@@ -1,11 +1,11 @@
 {
   "status": "success",
-  "ts": "2026-11-18T19:39:42.350Z",
+  "ts": "2026-11-23T08:36:45.895Z",
   "classes": 745,
   "courses": 25,
   "students": 306,
   "termStart": "2026-09-05",
   "termEnd": "2026-12-20",
-  "feedBuildTs": 1795030700594,
+  "feedBuildTs": 1795422899320,
   "error": null
 }
