@@ -7,6 +7,7 @@ import {
 import { fmtTime12 } from "../lib/datetime.js";
 import { subjectClass } from "../lib/subjectColors.js";
 import { buildCourseHub, courseAttention, courseJourney, courseWeeklyLoad } from "../lib/courseHub.js";
+import BidFlowEntry from "./BidFlowEntry.jsx";
 import CourseLearning from "./CourseLearning.jsx";
 import MobileV2Breadcrumbs from "./mobile/MobileV2Breadcrumbs.jsx";
 import { loadAssignments } from "../lib/assignments.js";
@@ -98,7 +99,7 @@ function WorkloadRhythm({ course, now, estimates, onOpenTask }) {
   </section>;
 }
 
-export default function CourseHub({ allClasses = [], enrolled = {}, legend = {}, attendance = {}, now = new Date(), termNumber = "current", userId, isOffline, isArchived = false, selectedCode, onSelectCode, onOpenSchedule, onNavigate, onOpenTask, v2Navigation }) {
+export default function CourseHub({ allClasses = [], enrolled = {}, legend = {}, attendance = {}, now = new Date(), termNumber = "current", userId, onOpenBidFlow, isOffline, isArchived = false, selectedCode, onSelectCode, onOpenSchedule, onNavigate, onOpenTask, v2Navigation }) {
   const [assignments, setAssignments] = useState(loadAssignments);
   const [items, setItems] = useState(loadCourseHubItems);
   const [synced, setSynced] = useState(false);
@@ -171,6 +172,7 @@ export default function CourseHub({ allClasses = [], enrolled = {}, legend = {},
   if (!course) return <div className="course-hub">
     {v2Navigation && <MobileV2Breadcrumbs view="courseHub" {...v2Navigation} />}
     <header className="ch-overview-head"><span className="ch-eyebrow">YOUR TERM, BY COURSE</span><h1>Courses</h1><p>Classes, work and progress brought together for each subject.</p></header>
+    <BidFlowEntry onOpen={onOpenBidFlow} />
     <label className="ch-search"><Search size={17} /><input aria-label="Search courses" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Find a course" /></label>
     {courses.length ? visibleCourses.length ? <div className="ch-course-grid">{visibleCourses.map((item) => {
       const attention = isArchived ? null : courseAttention(item, now);

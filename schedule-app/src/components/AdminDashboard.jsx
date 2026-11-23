@@ -1,6 +1,7 @@
 import AdminDiwaliControls from './AdminDiwaliControls.jsx';
 import { diwaliDecorEnabled } from '../../supabase/functions/_shared/diwali.js';
 import AdminMessControls from './AdminMessControls.jsx';
+import AdminBidFlowControls from './AdminBidFlowControls.jsx';
 import AdminNavigationControls from './AdminNavigationControls.jsx';
 import AdminDashboardDefaults from './AdminDashboardDefaults.jsx';
 import AdminStudentNotes from './AdminStudentNotes.jsx';
@@ -371,7 +372,7 @@ function _summarizeConfigChanges(orig, cur) {
   return out.sort((a, b) => a.label.localeCompare(b.label));
 }
 
-export default function AdminDashboard({ user, startImpersonation, syncLogs = [], timeOverride, setTimeOverride, allChanges = [], onConfigSaved }) {
+export default function AdminDashboard({ user, initialRole, startImpersonation, syncLogs = [], timeOverride, setTimeOverride, allChanges = [], onConfigSaved }) {
   const [totalUsers, setTotalUsers] = useState(null);
   const [activeUsers, setActiveUsers] = useState(0);
   const [statsLoading, setStatsLoading] = useState(true);
@@ -796,7 +797,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   // what is allowed. can_write_config() is the real gate, so a stale value here
   // costs an admin a confusing error, not unauthorised access.
   const [adminRoster, setAdminRoster] = useState([]);
-  const [myRole, setMyRole] = useState(null);
+  const [myRole, setMyRole] = useState(initialRole);
   const [recordSearchKey, setRecordSearchKey] = useState(0);
   const [recordSearchDataset, setRecordSearchDataset] = useState(null);
   function openNotificationDiagnostics(userId = null) {
@@ -812,7 +813,8 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
     setRecordSearchDataset(dataset);
     setRecordSearchKey(current => current + 1);
   }
-  const areaCapability = activeTab === 'schedule' && scheduleSection === 'class' ? 'schedule.publish'
+  const isBidflowWorkspace = activeTab === 'schedule' && scheduleSection === 'bidflow';
+  const areaCapability = activeTab === 'schedule' && (scheduleSection === 'class' || isBidflowWorkspace) ? 'schedule.publish'
     : activeTab === 'broadcast' ? 'communications.publish'
     : activeTab === 'moderation' ? 'moderation.write' : 'system.publish';
   const isReadOnlyAdmin = !originalFlags || !hasAdminCapability(myRole, areaCapability);
@@ -839,13 +841,15 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       || (roleQuery.startsWith("user_") ? { user_id: roleUserId.trim() } : null);
 
   async function fetchAdminRoles() {
-    const [roster, mine] = await Promise.all([listAdminRoles(), myAdminRole()]);
-    return { roster, mine };
+    const [roster, mine] = await Promise.allSettled([listAdminRoles(), myAdminRole()]);
+    if (mine.status === 'rejected') throw mine.reason;
+    if (roster.status === 'rejected') console.warn("Could not load the admin roster:", roster.reason?.message);
+    return { roster: roster.status === 'fulfilled' ? roster.value : null, mine: mine.value };
   }
   async function refreshAdminRoles() {
     try {
       const { roster, mine } = await fetchAdminRoles();
-      setAdminRoster(roster);
+      if (roster) setAdminRoster(roster);
       setMyRole(mine);
     } catch (e) {
       console.warn("Could not load admin roles:", e.message);
@@ -854,7 +858,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
   useEffect(() => {
     let alive = true;
     fetchAdminRoles()
-      .then(({ roster, mine }) => { if (!alive) return; setAdminRoster(roster); setMyRole(mine); })
+      .then(({ roster, mine }) => { if (!alive) return; if (roster) setAdminRoster(roster); setMyRole(mine); })
       .catch((e) => console.warn("Could not load admin roles:", e.message));
     return () => { alive = false; };
   }, []);
@@ -2550,7 +2554,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
         ))}
       </nav>
 
-      {isReadOnlyAdmin && (
+      {isReadOnlyAdmin && !isBidflowWorkspace && (
         <div className="admin-readonly-banner" role="status">
           <Eye size={16} aria-hidden="true" />
           <div><strong>Read-only in this workspace</strong><span>Your current role cannot change this area. Authorized actions remain available in your other workspaces.</span></div>
@@ -2558,7 +2562,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
       )}
 
       {/* ── Card flow: 2-col masonry ≥1200px, single column below ── */}
-      {activeTab === 'schedule' && <nav className="admin-schedule-subnav" aria-label="Schedule sections">{[['class', 'Class'], ['menu', 'Menu']].map(([id, label]) => <button type="button" className={`admin-btn ${scheduleSection === id ? '' : 'outline'}`} aria-pressed={scheduleSection === id} key={id} onClick={() => setScheduleSection(id)}>{label}</button>)}</nav>}
+      {activeTab === 'schedule' && <nav className="admin-schedule-subnav" aria-label="Schedule sections">{[['class', 'Class'], ['menu', 'Menu'], ['bidflow', 'BidFlow']].map(([id, label]) => <button type="button" className={`admin-btn ${scheduleSection === id ? '' : 'outline'}`} aria-pressed={scheduleSection === id} key={id} onClick={() => setScheduleSection(id)}>{label}</button>)}</nav>}
       <div className="admin-workspace-tools">
       <AdminWorkspaceShortcuts key={admin_id} userId={admin_id} role={myRole} onCommand={runAdminCommand} />
       {originalFlags && <AdminDraftRecovery key={admin_id} role={myRole} flags={preparedFlags} originalFlags={originalFlags} announcement={activeAnnouncement} originalAnnouncement={originalAnnouncement} baseOverrides={draftBases} resetKeys={draftResetKeys}
@@ -2584,6 +2588,7 @@ export default function AdminDashboard({ user, startImpersonation, syncLogs = []
         {activeTab === 'database' && myRole && <AdminMediaManager role={myRole} />}
         {workflowMessage && <div className="aw-error admin-span-all" role="alert">{workflowMessage}</div>}
 
+        {activeTab === "schedule" && scheduleSection === 'bidflow' && <AdminBidFlowControls role={myRole} onReloadAccess={refreshAdminRoles} />}
         <section className="admin-overview-command admin-span-all admin-g-overview">
           <div className="admin-overview-head">
             <div>
