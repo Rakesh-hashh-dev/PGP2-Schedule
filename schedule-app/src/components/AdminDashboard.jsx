@@ -2596,6 +2596,7 @@ export default function AdminDashboard({ user, initialRole, startImpersonation, 
         {activeTab === 'database' && myRole && <AdminMediaManager role={myRole} />}
         {workflowMessage && <div className="aw-error admin-span-all" role="alert">{workflowMessage}</div>}
 
+        {activeTab === "schedule" && scheduleSection === 'bidflow' && <AdminBidFlowControls role={myRole} onReloadAccess={refreshAdminRoles} />}
         <section className="admin-overview-command admin-span-all admin-g-overview">
           <div className="admin-overview-head">
             <div>
