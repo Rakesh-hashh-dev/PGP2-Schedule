@@ -230,11 +230,20 @@ body.premium-mode .bidflow-overlay { backdrop-filter: blur(5px); }
 .bf-faculty-type {
   padding: 2px 5px;
   border-radius: 5px;
-  background: var(--bf-surface);
+  background: var(--bf-faculty-fill, var(--bf-area-fill, var(--bf-surface)));
   border: 1px solid var(--bf-line);
-  color: var(--bf-ink);
+  color: var(--bf-area-ink, var(--bf-ink));
   font-size: .72rem;
   font-weight: 600;
+}
+/* Internal uses the area fill. The workbook gives the other two values their own fills. */
+.bf-faculty-type[data-faculty-type="Visiting"] {
+  --bf-faculty-fill: #f6b26b;
+  --bf-area-ink: #1b2027;
+}
+.bf-faculty-type[data-faculty-type="Internal & Visiting"] {
+  --bf-faculty-fill: #409b7a;
+  --bf-area-ink: #1b2027;
 }
 .bf-course-area {
   display: inline-block;
@@ -250,14 +259,14 @@ body.premium-mode .bidflow-overlay { backdrop-filter: blur(5px); }
 .bf-course-area strong { margin-inline-start: 3px; font-weight: 600; color: var(--bf-area-ink, var(--bf-ink)); }
 
 /* Area column fills from the MBA 25–27 elective workbook's Course Details sheet. */
-:is(.bf-course-area, .bf-area-filter select)[data-area="F&A"] { --bf-area-ink: #1b2027; --bf-area-fill: #d9ead3; }
-:is(.bf-course-area, .bf-area-filter select)[data-area="GMPPE"] { --bf-area-ink: #1b2027; --bf-area-fill: #00ffff; }
-:is(.bf-course-area, .bf-area-filter select)[data-area="ISM"] { --bf-area-ink: #1b2027; --bf-area-fill: #c9daf8; }
-:is(.bf-course-area, .bf-area-filter select)[data-area="MKTG"] { --bf-area-ink: #1b2027; --bf-area-fill: #e6b8af; }
-:is(.bf-course-area, .bf-area-filter select)[data-area="OB&HR"] { --bf-area-ink: #1b2027; --bf-area-fill: #ead1dc; }
-:is(.bf-course-area, .bf-area-filter select)[data-area="OPS"] { --bf-area-ink: #1b2027; --bf-area-fill: #f1c232; }
-:is(.bf-course-area, .bf-area-filter select)[data-area="STM"] { --bf-area-ink: #1b2027; --bf-area-fill: #ffff00; }
-:is(.bf-course-area, .bf-area-filter select):is([data-area="STM+GMPPE"], [data-area="STM+F&A"], [data-area="STM+OB&HR"]) {
+:is(.bf-course-area, .bf-faculty-type, .bf-area-filter select)[data-area="F&A"] { --bf-area-ink: #1b2027; --bf-area-fill: #d9ead3; }
+:is(.bf-course-area, .bf-faculty-type, .bf-area-filter select)[data-area="GMPPE"] { --bf-area-ink: #1b2027; --bf-area-fill: #00ffff; }
+:is(.bf-course-area, .bf-faculty-type, .bf-area-filter select)[data-area="ISM"] { --bf-area-ink: #1b2027; --bf-area-fill: #c9daf8; }
+:is(.bf-course-area, .bf-faculty-type, .bf-area-filter select)[data-area="MKTG"] { --bf-area-ink: #1b2027; --bf-area-fill: #e6b8af; }
+:is(.bf-course-area, .bf-faculty-type, .bf-area-filter select)[data-area="OB&HR"] { --bf-area-ink: #1b2027; --bf-area-fill: #ead1dc; }
+:is(.bf-course-area, .bf-faculty-type, .bf-area-filter select)[data-area="OPS"] { --bf-area-ink: #1b2027; --bf-area-fill: #f1c232; }
+:is(.bf-course-area, .bf-faculty-type, .bf-area-filter select)[data-area="STM"] { --bf-area-ink: #1b2027; --bf-area-fill: #ffff00; }
+:is(.bf-course-area, .bf-faculty-type, .bf-area-filter select):is([data-area="STM+GMPPE"], [data-area="STM+F&A"], [data-area="STM+OB&HR"]) {
   --bf-area-ink: #1b2027; --bf-area-fill: #7ad694;
 }
 .bf-course-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 5px; }

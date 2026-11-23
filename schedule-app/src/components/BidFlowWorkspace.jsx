@@ -6,11 +6,11 @@ import BidFlowSavedPlans from './BidFlowSavedPlans.jsx';
 import { exportBidFlowPdf } from '../lib/bidflowPdf.js';
 import '../styles/bidflow.css';
 
-function CourseFaculty({ faculty, facultyType }) {
+function CourseFaculty({ faculty, facultyType, area }) {
   if (!faculty && !facultyType) return null;
   return <p className="bf-course-faculty">
     {faculty}
-    {facultyType && <span className="bf-faculty-type">{facultyType}</span>}
+    {facultyType && <span className="bf-faculty-type" data-faculty-type={facultyType} data-area={facultyType === "Internal" ? area : undefined}>{facultyType}</span>}
   </p>;
 }
 
@@ -268,7 +268,7 @@ export default function BidFlowWorkspace({ onClose, config, storageKey, timetabl
                       <h4>{course.name}</h4>
                       <div className="bf-course-context">
                         <span className="bf-course-area" data-area={course.area}>Area <strong>{course.area}</strong></span>
-                        <CourseFaculty faculty={course.faculty} facultyType={course.facultyType} />
+                        <CourseFaculty faculty={course.faculty} facultyType={course.facultyType} area={course.area} />
                       </div>
                       {(course.description || course.slots != null) && <details className="bf-details">
                         <summary>Course details</summary>
@@ -317,7 +317,7 @@ export default function BidFlowWorkspace({ onClose, config, storageKey, timetabl
                         <span className="bf-course-area" data-area={course.area}>Area <strong>{course.area}</strong></span>
                         <span className="bf-course-credit">{course.credits} cr</span>
                       </div>
-                      <CourseFaculty faculty={course.faculty} facultyType={course.facultyType} />
+                      <CourseFaculty faculty={course.faculty} facultyType={course.facultyType} area={course.area} />
                     </div>
                     <div className="bf-rank-actions">
                       <button type="button" className="bf-icon" disabled={index === 0} aria-label={'Move ' + label + ' up'} onClick={() => move(ids, list, index, -1)}><ArrowUp size={16} aria-hidden="true" /></button>
