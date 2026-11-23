@@ -102,15 +102,22 @@ export function timetableHandoff(ids, courseMap, { term, cohort, legend, section
   return { eligible: Object.fromEntries(eligible), blocked, otherTerm, unavailable: false };
 }
 
+export const BIDFLOW_EXPORT_HEADERS = [
+  'Choice', 'Rank', 'Term', 'Course Title', 'Area', 'Credits', 'Faculty', 'Faculty Type', 'Course Code',
+];
+
+export function bidflowExportRows(plan, courseMap) {
+  const selected = availablePlan(plan, courseMap);
+  return [['Primary', selected.primary], ['Backup', selected.backup]].flatMap(([choice, ids]) =>
+    ids.map((id, index) => {
+      const { code, name, term, area, credits, faculty, facultyType } = courseMap[id];
+      return [choice, index + 1, termDisplayLabel(term), name, area, credits, faculty, facultyType, officialCourseCode(code)];
+    })
+  );
+}
+
 export function generateBidFlowCsv(plan, courseMap) {
-  const rows = [['Preference', 'Type', 'Course Code', 'Course Title', 'Term', 'Area', 'Credits', 'Faculty']];
-  for (const [type, ids] of [['Primary', plan.primary], ['Backup', plan.backup]]) {
-    ids.forEach((id, index) => {
-      const { code, name, term, area, credits, faculty } = courseMap[id];
-      rows.push([index + 1, type, officialCourseCode(code), name, term, area, credits, faculty]);
-    });
-  }
-  return rows.map(row => row.map(value => {
+  return [BIDFLOW_EXPORT_HEADERS, ...bidflowExportRows(plan, courseMap)].map(row => row.map(value => {
     let cell = String(value ?? '');
     if (/^[\s]*[=+\-@]|^[\t\r\n]/.test(cell)) cell = "'" + cell;
     return '"' + cell.replaceAll('"', '""') + '"';

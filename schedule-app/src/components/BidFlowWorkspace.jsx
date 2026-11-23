@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { X, Search, Layers, Check, Plus, ArrowUp, ArrowDown, Download, FileText, ArrowRight, BookOpen, ListChecks, Bookmark, SlidersHorizontal, List, LayoutGrid, RotateCcw, ChevronDown } from 'lucide-react';
+import { X, Search, Layers, Check, Plus, ArrowUp, ArrowDown, Download, FileText, ArrowRight, BookOpen, ListChecks, Bookmark, SlidersHorizontal, List, LayoutGrid, RotateCcw, ChevronDown, FileSpreadsheet } from 'lucide-react';
 import { availablePlan, bidflowCourseKey, generateBidFlowCsv, loadBidflowWorkspace, officialCourseCode, summarizeBidflowPlan, termDisplayLabel, termKey, timetableHandoff } from '../lib/bidflowPlan.js';
 import BidFlowPlanSummary from './BidFlowPlanSummary.jsx';
 import BidFlowSavedPlans from './BidFlowSavedPlans.jsx';
@@ -29,6 +29,8 @@ export default function BidFlowWorkspace({ onClose, config, storageKey, timetabl
   const [faculty, setFaculty] = useState('');
   const [creditFilter, setCreditFilter] = useState('');
   const [storageError, setStorageError] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState(false);
   const { courses, cohort, term, minCredits, maxCredits, totalMinCredits, totalMaxCredits, termCreditRanges = {}, rulesText } = config;
   const catalog = courses.map(course => {
     const key = termKey(course.term || term);
@@ -94,15 +96,33 @@ export default function BidFlowWorkspace({ onClose, config, storageKey, timetabl
     setDraft(previous => ({ ...previous, [list]: [...reordered, ...previous[list].filter(code => !Object.hasOwn(courseMap, code))] }));
   }
 
-  function downloadCsv() {
-    const url = URL.createObjectURL(new Blob(['\uFEFF', generateBidFlowCsv(plan, courseMap)], { type: 'text/csv;charset=utf-8' }));
+  function downloadFile(file, extension) {
+    const url = URL.createObjectURL(file);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'BidFlow_Preferences.csv';
+    link.download = 'TermFlow_BidFlow_Elective_Plan.' + extension;
     document.body.appendChild(link);
     link.click();
     link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function downloadCsv() {
+    downloadFile(new Blob(['\uFEFF', generateBidFlowCsv(plan, courseMap)], { type: 'text/csv;charset=utf-8' }), 'csv');
+  }
+
+  async function downloadExcel() {
+    setExportError(false);
+    setExporting(true);
+    try {
+      const { generateBidFlowWorkbook, BIDFLOW_XLSX_TYPE } = await import('../lib/bidflowSpreadsheet.js');
+      const workbook = await generateBidFlowWorkbook({ plan, courseMap, cohort, studentName });
+      downloadFile(new Blob([workbook], { type: BIDFLOW_XLSX_TYPE }), 'xlsx');
+    } catch {
+      setExportError(true);
+    } finally {
+      setExporting(false);
+    }
   }
 
   function selectView(next, focus = false) {
@@ -147,10 +167,12 @@ export default function BidFlowWorkspace({ onClose, config, storageKey, timetabl
       {handoffCount ? 'Add ' + handoffCount + ' to setup' : 'Add to setup'} <ArrowRight size={16} aria-hidden="true" />
     </button>}
     <div className="bf-export-actions">
+      <button type="button" className="bf-quiet" disabled={!hasPicks || exporting} onClick={downloadExcel}><FileSpreadsheet size={15} aria-hidden="true" /> {exporting ? 'Preparing…' : 'Excel'}</button>
       <button type="button" className="bf-quiet" disabled={!hasPicks} onClick={downloadCsv}><Download size={15} aria-hidden="true" /> CSV</button>
       <button type="button" className="bf-quiet" disabled={!hasPicks} onClick={() => exportBidFlowPdf({ plan, courseMap, cohortName: cohort,
         termName: terms.join(' · ') || term, minCredits: minTotal, maxCredits: maxTotal, studentName, rulesText, termSummary })}><FileText size={15} aria-hidden="true" /> Print / PDF</button>
     </div>
+    {exportError && <p role="alert">Excel export failed. Try again or download the CSV.</p>}
   </>;
 
   return <>

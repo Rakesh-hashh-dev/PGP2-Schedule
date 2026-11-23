@@ -827,8 +827,8 @@ body.premium-mode .bidflow-overlay { backdrop-filter: blur(5px); }
 .bf-term-target { padding: 8px 10px; border: 1px solid var(--bf-line); border-radius: 8px; background: var(--bf-surface); }
 .bf-summary-actions { display: grid; gap: 6px; }
 .bf-summary-actions p { margin: 4px 0 0; color: var(--bf-muted); font-size: .75rem; line-height: 1.35; }
-.bf-export-actions { display: flex; gap: 6px; }
-.bf-export-actions button { flex: 1 1 0; }
+.bf-export-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.bf-export-actions button { flex: 1 1 auto; padding-inline: 8px; white-space: nowrap; }
 .bf-rail-toggle { display: none; }
 
 @media (max-width: 840px) {

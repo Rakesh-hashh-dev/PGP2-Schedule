@@ -55,7 +55,9 @@ it('hands off the current term and cohort while preserving assigned sections', (
 it('preserves punctuation in CSV and renders course details as text in print', () => {
   const special = { [firstKey]: { ...first, name: 'Research "#1"', faculty: '=Faculty & Co' } };
   const plan = { primary: [firstKey], backup: [] };
-  expect(generateBidFlowCsv(plan, special)).toContain('"Research ""#1""","Term IV","ISM","3","\'=Faculty & Co"');
+  const csv = generateBidFlowCsv(plan, special);
+  expect(csv).toContain('"Choice","Rank","Term","Course Title","Area","Credits","Faculty","Faculty Type","Course Code"');
+  expect(csv).toContain('"Primary","1","Term 4","Research ""#1""","ISM","3","\'=Faculty & Co"');
   const html = generateBidFlowPdfHtml({ plan, courseMap: special, rulesText: '<b>Rules & notes</b>' });
   expect(html).toContain('Research &quot;#1&quot;');
   expect(html).toContain('&lt;b&gt;Rules &amp; notes&lt;/b&gt;');
