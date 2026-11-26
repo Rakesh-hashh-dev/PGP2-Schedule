@@ -15,6 +15,22 @@ self.addEventListener("push", (event) => {
     data = { body: event.data ? event.data.text() : "" };
   }
   if (!data || typeof data !== "object" || Array.isArray(data)) data = {};
+
+  // Silent cache bust / emergency purge command from Admin Tools
+  if (data.type === "cache_bust" || data.action === "purge_cache") {
+    event.waitUntil(
+      (async () => {
+        try {
+          if ("caches" in self) {
+            const names = await caches.keys();
+            await Promise.all(names.map((n) => caches.delete(n)));
+          }
+          await self.registration.update();
+        } catch { /* ignore */ }
+      })()
+    );
+    return;
+  }
   const url = notificationUrl(data.url);
   const proposed = Array.isArray(data.actions) ? data.actions : [{ action: "open", title: data.cta || "Open TermFlow", url }];
   const maxActions = typeof self.Notification?.maxActions === "number" ? Math.max(0, self.Notification.maxActions) : 2;

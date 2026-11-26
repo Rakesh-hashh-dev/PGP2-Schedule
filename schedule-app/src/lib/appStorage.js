@@ -37,11 +37,12 @@ export const VIEW_KEY = "pgp2.last-view";
 // Deliberately not in USER_SCOPED_KEYS: an invite clicked before first sign-in
 // must survive the user-switch wipe.
 export const PENDING_INVITE_KEY = "pgp2.pending-invite";
+export const PENDING_REGISTRO_SYNC_KEY = "pgp2.pending-registro-sync";
 export const USER_SCOPED_KEYS = [
   "pgp2.friends", "pgp2.groups", "pgp2.my_share_code",
   "pgp2.setup", "pgp2-notif-seen", "pgp2.read-ping-ids", "pgp2.read-change-keys",
   "pgp2.seen-recv-groups", "pgp2.recv-groups-count", "pgp2.sidebar", "pgp2.v2-tablet-sidebar", "pgp2.sidebar-pins", "pgp2.sidebar-compact", VIEW_KEY,
-  "pgp2.attendance", "pgp2.assignments", "pgp2.planner-misses", "pgp2.planner-effort", "pgp2.course-hub-items",
+  "pgp2.attendance", "pgp2.registro-sync", "pgp2.dismissed-feedback-alerts", "pgp2.assignments", "pgp2.planner-misses", "pgp2.planner-effort", "pgp2.course-hub-items",
   "pgp2.today-goals",
   "pgp2.dashboard-layout",
   "pgp2.today-focus-mode",

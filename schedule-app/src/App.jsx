@@ -61,7 +61,7 @@ import { toMin, fmtTime12, ymd, clsDate, prettyDate, timeAgo, getSpecialDay } fr
 import { fetchConsensusWeather } from "./lib/weather.js";
 import {
   swUpdateIsStale, clearSwSeen,
-  LAST_USER_KEY, VIEW_KEY, PENDING_INVITE_KEY, USER_SCOPED_KEYS,
+  LAST_USER_KEY, VIEW_KEY, PENDING_INVITE_KEY, PENDING_REGISTRO_SYNC_KEY, USER_SCOPED_KEYS,
   readSetup, saveSetup, SETUP_KEY,
   NOTIF_KEY, loadLastSeen, READ_PINGS_KEY,
   READ_CHANGES_KEY, loadClearedGroups,
@@ -115,9 +115,16 @@ const viewPreloaders = {
 const preloadView = (view) => { viewPreloaders[view]?.().catch(() => {}); };
 import DeadlineStrip from "./components/DeadlineStrip.jsx";
 import CancellationAlert from "./components/CancellationAlert.jsx";
+import FeedbackAlert from "./components/FeedbackAlert.jsx";
 import ProvisionalSectionNotice from "./components/ProvisionalSectionNotice.jsx";
 import { loadMyAway, isAwayNow, fmtAwayEnd } from "./lib/status.js";
-import { loadAttendance, saveAttendance, sessionKey, syncAttendanceFromCloud, pushMark, courseSkipStats } from "./lib/attendance.js";
+import { loadAttendance, saveAttendance, sessionKey, syncAttendanceFromCloud, pushMark, pushMarksBatch, courseSkipStats } from "./lib/attendance.js";
+import {
+  loadRegistroSync, pushRegistroSync, mergeRegistroSyncData, getPendingFeedbackCourses,
+  capturePendingRegistroSyncFromUrl, parseRegistroBookmarkletPayload,
+  loadDismissedFeedbackAlerts, saveDismissedFeedbackAlerts, notifyFeedbackPending,
+  REGISTRO_ATTENDANCE_URL, REGISTRO_FEEDBACK_URL,
+} from "./lib/registroSync.js";
 import { recordFeatureUse } from "./lib/featureUsage.js";
 import { usePet } from "./hooks/usePet.js";
 import { EXAM_HORIZON_DAYS, isAdopted } from "./lib/pet.js";
@@ -313,6 +320,8 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       setReadPingIds(new Set());
       setReadChangeKeys(new Set());
       setAttendance({});
+      setRegistroSync(null);
+      setDismissedFeedbackKeys(new Set());
       setCloudChecked(false);
       setClearedGroupIds(new Set());
       setDashboardPrefs(DEFAULT_DASHBOARD);
@@ -687,6 +696,13 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   }, [notifOpen, notifSurface, setNotifOpen]);
   const [swUpdateFn, setSwUpdateFn] = useState(null);
   const [socialFlashToast, setSocialFlashToast] = useState(null);
+  const [registroSync, setRegistroSync] = useState(() => loadRegistroSync());
+  const [pendingRegistroEncoded, setPendingRegistroEncoded] = useState(() => {
+    try { return localStorage.getItem(PENDING_REGISTRO_SYNC_KEY) || null; } catch { return null; }
+  });
+  const [dismissedFeedbackKeys, setDismissedFeedbackKeys] = useState(() => loadDismissedFeedbackAlerts());
+  const [registroToast, setRegistroToast] = useState(null);
+  const [openRegistroSyncSignal, setOpenRegistroSyncSignal] = useState(0);
   const [installPromptEvent, setInstallPromptEvent] = useState(null);
   const [showIOSInstallHint, setShowIOSInstallHint] = useState(false);
   const [installBannerClosing, setInstallBannerClosing] = useState(false);
@@ -984,6 +1000,11 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // mount effect never re-runs) still gets picked up.
   useEffect(() => {
     const captureFromUrl = (event) => {
+      const regSyncEncoded = capturePendingRegistroSyncFromUrl();
+      if (regSyncEncoded) {
+        setPendingRegistroEncoded(regSyncEncoded);
+        setView("attendance");
+      }
       const params = new URLSearchParams(window.location.search);
       const code = params.get("f");
       const groupToken = params.get("group_invite");
@@ -1043,10 +1064,12 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
     captureFromUrl();
     const onVisible = () => { if (!document.hidden) captureFromUrl(); };
     window.addEventListener("popstate", captureFromUrl);
+    window.addEventListener("hashchange", captureFromUrl);
     window.addEventListener("focus", captureFromUrl);
     document.addEventListener("visibilitychange", onVisible);
     return () => {
       window.removeEventListener("popstate", captureFromUrl);
+      window.removeEventListener("hashchange", captureFromUrl);
       window.removeEventListener("focus", captureFromUrl);
       document.removeEventListener("visibilitychange", onVisible);
     };
@@ -1110,8 +1133,28 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
           // Mess menu now comes from its own live sheet feed (see lib/messFeed.js),
           // not system_config — so we no longer apply messMenuOverrides here.
           setSysConfig(sysConfigRes.data);
+
+          // Emergency cache-bust enforcement from Admin Tools
+          const remoteBustEpoch = sysConfigRes.data?.flags?.cacheBustEpoch;
+          if (remoteBustEpoch) {
+            const BUST_KEY = "pgp2.cache-bust-seen-epoch";
+            const seenEpoch = parseInt(localStorage.getItem(BUST_KEY) || "0", 10);
+            if (remoteBustEpoch > seenEpoch) {
+              localStorage.setItem(BUST_KEY, String(remoteBustEpoch));
+              try { localStorage.removeItem("pgp2-feed-cache"); } catch { }
+              if (window.caches) {
+                caches.keys().then(names => Promise.all(names.map(n => caches.delete(n)))).finally(() => {
+                  window.location.reload();
+                });
+              } else {
+                window.location.reload();
+              }
+              return;
+            }
+          }
         }
         if (p?.archivedCourses) setArchivedCourses(p.archivedCourses);
+        if (p?.registroSync) setRegistroSync(p.registroSync);
         // Which term these courses were picked in (stamped on every
         // pushProfile). Whether that makes them stale is decided by the effect
         // next to `TERM` below, NOT here: this sync is keyed on sign-in, so
@@ -1443,6 +1486,29 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       })
       .subscribe();
 
+    // Listen for admin emergency cache bust signal in realtime
+    const sysChannel = supabase.channel("system-broadcast");
+    sysChannel
+      .on("broadcast", { event: "cache-bust" }, (payload) => {
+        const epoch = payload?.payload?.epoch;
+        if (epoch) {
+          const BUST_KEY = "pgp2.cache-bust-seen-epoch";
+          const seenEpoch = parseInt(localStorage.getItem(BUST_KEY) || "0", 10);
+          if (epoch > seenEpoch) {
+            localStorage.setItem(BUST_KEY, String(epoch));
+            try { localStorage.removeItem("pgp2-feed-cache"); } catch { }
+            if (window.caches) {
+              caches.keys().then(names => Promise.all(names.map(n => caches.delete(n)))).finally(() => {
+                window.location.reload();
+              });
+            } else {
+              window.location.reload();
+            }
+          }
+        }
+      })
+      .subscribe();
+
     const handleLocalTrigger = (e) => {
       if (e.detail) setSocialFlashToast(e.detail);
     };
@@ -1450,6 +1516,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
 
     return () => {
       supabase.removeChannel(channel);
+      supabase.removeChannel(sysChannel);
       window.removeEventListener("social-flash-trigger", handleLocalTrigger);
     };
   }, []);
@@ -2212,8 +2279,20 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   // CHANGES, same source the Announcements page uses), so keep them OUT of the
   // Alerts section to avoid showing the same event twice in the bell. The rows
   // still exist in `notifications` for opt-in push.
+  const enableRegistroSync = sysConfig?.flags?.enableAttendance !== false && sysConfig?.flags?.enableRegistroSync !== false;
+  const enableRegistroFeedbackAlerts = enableRegistroSync && sysConfig?.flags?.enableRegistroFeedbackAlerts !== false;
+  const registroAttendanceUrl = safeUrl(sysConfig?.flags?.registroAttendanceUrl) || REGISTRO_ATTENDANCE_URL;
+  const registroFeedbackUrl = safeUrl(sysConfig?.flags?.registroFeedbackUrl) || REGISTRO_FEEDBACK_URL;
+
+  const pendingFeedbackCourses = useMemo(() => {
+    if (!enableRegistroFeedbackAlerts) return [];
+    const raw = getPendingFeedbackCourses(registroSync);
+    const stamp = registroSync?.syncedAt || 0;
+    return raw.filter((c) => !dismissedFeedbackKeys.has(`${c.code}:${stamp}`));
+  }, [enableRegistroFeedbackAlerts, registroSync, dismissedFeedbackKeys]);
+
   const alertItems = alerts.filter(a => a.type !== "schedule_change");
-  const unreadAlertCount = alertItems.filter(a => !a.read_at).length;
+  const unreadAlertCount = alertItems.filter(a => !a.read_at).length + (pendingFeedbackCourses.length > 0 ? 1 : 0);
   const unreadTotal = unreadChangeCount + unreadFriendCount + unreadAlertCount;
   const hasUnread = unreadTotal > 0;
 
@@ -2360,6 +2439,79 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       }
     }
   }
+
+  const pendingRegistroPreview = useMemo(() => {
+    if (!pendingRegistroEncoded) return null;
+    return parseRegistroBookmarkletPayload(pendingRegistroEncoded, {
+      allClasses: activeClasses,
+      enrolled: activeEnrolled,
+      legend: LEGEND,
+    });
+  }, [pendingRegistroEncoded, activeClasses, activeEnrolled, LEGEND]);
+
+  const clearPendingRegistroPreview = useCallback(() => {
+    setPendingRegistroEncoded(null);
+    try { localStorage.removeItem(PENDING_REGISTRO_SYNC_KEY); } catch {}
+  }, []);
+
+  const dismissFeedbackCourse = useCallback((code) => {
+    const stamp = registroSync?.syncedAt || 0;
+    setDismissedFeedbackKeys((prev) => {
+      const next = new Set(prev);
+      next.add(`${code}:${stamp}`);
+      saveDismissedFeedbackAlerts(next);
+      return next;
+    });
+  }, [registroSync?.syncedAt]);
+
+  const dismissAllFeedback = useCallback(() => {
+    const stamp = registroSync?.syncedAt || 0;
+    setDismissedFeedbackKeys((prev) => {
+      const next = new Set(prev);
+      for (const c of getPendingFeedbackCourses(registroSync)) {
+        next.add(`${c.code}:${stamp}`);
+      }
+      saveDismissedFeedbackAlerts(next);
+      return next;
+    });
+  }, [registroSync]);
+
+  const applyRegistroSync = useCallback(({ preview, applySessions }) => {
+    if (!preview) return;
+    const merged = mergeRegistroSyncData(registroSync, preview);
+    setRegistroSync(merged);
+    pushRegistroSync(userId, merged);
+
+    let updatedSessions = 0;
+    if (applySessions && preview.sessionUpdates && Object.keys(preview.sessionUpdates).length) {
+      updatedSessions = Object.keys(preview.sessionUpdates).length;
+      setAttendance((prev) => {
+        const next = { ...prev, ...preview.sessionUpdates };
+        saveAttendance(next);
+        return next;
+      });
+      pushMarksBatch(userId, preview.sessionUpdates);
+    }
+
+    clearPendingRegistroPreview();
+    recordFeatureUse(userId, "registro_sync");
+
+    const fbPending = enableRegistroFeedbackAlerts ? getPendingFeedbackCourses(merged) : [];
+    if (fbPending.length > 0) {
+      notifyFeedbackPending(fbPending);
+    }
+
+    const courseCount = Object.keys(preview.courses || {}).length;
+    const parts = [];
+    if (courseCount > 0) parts.push(`${courseCount} course${courseCount === 1 ? "" : "s"}`);
+    if (updatedSessions > 0) parts.push(`${updatedSessions} session${updatedSessions === 1 ? "" : "s"}`);
+    const summary = parts.length ? `Synced ${parts.join(" & ")} from Registro` : "Synced from Registro";
+    const fbSuffix = fbPending.length > 0
+      ? ` · ${fbPending.length} feedback pending (Grade Drop risk!)`
+      : "";
+    setRegistroToast(`${summary}${fbSuffix}`);
+    setTimeout(() => setRegistroToast(null), 5500);
+  }, [registroSync, userId, clearPendingRegistroPreview, enableRegistroFeedbackAlerts]);
 
   const handleSync = async (eventOrTrigger) => {
     const trigger = typeof eventOrTrigger === "string" ? eventOrTrigger : "Manual refresh";
@@ -2683,7 +2835,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
               const showSocial = notifFilter !== "classes";
               const showClasses = notifFilter !== "social";
               const socialEmpty = friendNotifItems.length === 0;
-              const classesEmpty = alertItems.length === 0 && filteredChanges.length === 0;
+              const classesEmpty = alertItems.length === 0 && pendingFeedbackCourses.length === 0 && filteredChanges.length === 0;
               if ((!showSocial || socialEmpty) && (!showClasses || classesEmpty)) {
                 return <div className="notif-empty"><Bell size={23} strokeWidth={1.7} /><strong>{notifFilter === "social" ? "No social updates" : notifFilter === "classes" ? "No class updates" : "Nothing here yet"}</strong><span>{notifFilter === "social" ? "Friend activity will appear here." : notifFilter === "classes" ? "Class alerts and timetable changes will appear here." : "New activity will appear here when it arrives."}</span></div>;
               }
@@ -2732,12 +2884,44 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                       </div>
                     </section>
                   )}
-                  {showClasses && alertItems.length > 0 && (
+                  {showClasses && (alertItems.length > 0 || pendingFeedbackCourses.length > 0) && (
                     <section className="rc">
                       <div className="rc-head">
                         <span className="rc-title"><BellRing size={14} /> Alerts</span>
                       </div>
                       <ul className="rc-list">
+                        {pendingFeedbackCourses.length > 0 && (
+                          <li
+                            key="registro-feedback-alert"
+                            className="rc-item rc-item-clickable"
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => {
+                              window.open(registroFeedbackUrl, "_blank", "noopener");
+                              setNotifOpen(false);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                window.open(registroFeedbackUrl, "_blank", "noopener");
+                                setNotifOpen(false);
+                              }
+                            }}
+                          >
+                            <span className="rc-dot rc-alert" />
+                            <span className="rc-text">
+                              <span className="rc-alert-title">
+                                {pendingFeedbackCourses.length === 1
+                                  ? `Feedback pending: ${pendingFeedbackCourses[0].code}`
+                                  : `${pendingFeedbackCourses.length} course feedbacks pending`}
+                              </span>
+                              <span className="rc-alert-sub">
+                                Submit on Registro to avoid 1 Grade Drop · {pendingFeedbackCourses.map((c) => c.code).join(", ")}
+                              </span>
+                            </span>
+                            <ExternalLink size={13} aria-hidden="true" style={{ flexShrink: 0, opacity: 0.7 }} />
+                          </li>
+                        )}
                         {alertItems.slice(0, 6).map(a => {
                           const code = a.data?.code;
                           const titleText = code ? a.title.replace(code, "").replace(/\s{2,}/g, " ").trim() : a.title;
@@ -3005,6 +3189,13 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
       {friendToast && (
         <div className="app-toast">
           <Users size={15} aria-hidden="true" /> {friendToast}
+        </div>
+      )}
+
+      {/* ── Registro sync toast ── */}
+      {registroToast && (
+        <div className="app-toast" role="status" aria-live="polite">
+          <RefreshCw size={15} aria-hidden="true" /> {registroToast}
         </div>
       )}
 
@@ -3581,6 +3772,15 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                 onOpen={(d) => { setJumpToSession({ date: d.date, code: d.code, start: d.time }); setView("fullSchedule"); }}
               />
             )}
+            {(view === "today" || view === "tomorrow") && !compareTarget && pendingFeedbackCourses.length > 0 && (
+              <FeedbackAlert
+                pendingCourses={pendingFeedbackCourses}
+                feedbackUrl={registroFeedbackUrl}
+                onOpenRegistroSync={enableRegistroSync ? () => { setView("attendance"); setOpenRegistroSyncSignal((n) => n + 1); } : undefined}
+                onDismissCourse={dismissFeedbackCourse}
+                onDismissAll={dismissAllFeedback}
+              />
+            )}
             {(view === "today" || view === "tomorrow") && !compareTarget && isAwayNow(myAway, now) && (
               <button type="button" className="away-banner" onClick={() => { setView("leave"); setCompareTarget(null); }}>
                 <CalendarOff size={16} />
@@ -3832,6 +4032,17 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                           weather={weather}
                           termNumber={activeTerm?.number}
                           onOpenCourse={(code) => { setCourseHubCode(code); setView("courseHub"); }}
+                          enableRegistroSync={enableRegistroSync && !isArchivedView}
+                          registroAttendanceUrl={registroAttendanceUrl}
+                          registroFeedbackUrl={registroFeedbackUrl}
+                          registroSync={isArchivedView ? null : registroSync}
+                          pendingRegistroPreview={isArchivedView ? null : pendingRegistroPreview}
+                          onClearPendingRegistroPreview={clearPendingRegistroPreview}
+                          onApplyRegistroSync={isArchivedView ? undefined : applyRegistroSync}
+                          openRegistroSyncSignal={openRegistroSyncSignal}
+                          pendingFeedbackCourses={isArchivedView ? [] : pendingFeedbackCourses}
+                          onDismissFeedbackCourse={dismissFeedbackCourse}
+                          onDismissAllFeedback={dismissAllFeedback}
                         />
                         : view === "notifications"
                           ? <NotificationsPage

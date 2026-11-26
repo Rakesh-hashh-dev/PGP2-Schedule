@@ -33,6 +33,7 @@ import { supabase } from "../lib/supabase";
 import { logAdminAction } from "../lib/adminAudit.js";
 import { listAdminRoles, setAdminRole, removeAdminRole, myAdminRole, READ_ONLY_MESSAGE,ROLE_DESCRIPTIONS } from "../lib/adminRoles.js";
 import { safeUrl } from "../lib/safeUrl.js";
+import { REGISTRO_ATTENDANCE_URL, REGISTRO_FEEDBACK_URL } from "../lib/registroSync.js";
 import { useDialog, dialogProps } from "../hooks/useDialog.js";
 import { isPushCronStale, pushCronIssueDetails, pushCronIssues } from "../lib/pushCronHealth.js";
 import { CLASSES, LEGEND } from "../data/schedule.js";
@@ -134,7 +135,11 @@ const FEATURE_FLAGS = [
   { key: "enableFreeNudge", label: "Free-time nudges" },
   { key: "enableAwayShare", label: "Away sharing" },
 ];
-const FEATURE_FLAG_KEYS = new Set(FEATURE_FLAGS.map(f => f.key));
+const REGISTRO_FLAGS = [
+  { key: "enableRegistroSync", label: "Registro attendance sync", hint: "Show Copy-Paste & 1-Click Bookmarklet sync in Attendance." },
+  { key: "enableRegistroFeedbackAlerts", label: "Registro feedback alerts", hint: "Show grade-drop warnings & bell alerts for pending course feedback." },
+];
+const FEATURE_FLAG_KEYS = new Set([...FEATURE_FLAGS.map(f => f.key), ...REGISTRO_FLAGS.map(f => f.key)]);
 // flags.features.* kill switches (default ON when unset).
 const CORE_MODULES = [
   { key: "social", label: "Social feed & statuses", hint: "User statuses and the social feed." },
@@ -285,6 +290,10 @@ const FLAG_LABELS = {
   enableFriends: "Social / Friends",
   enableExams: "Exams view",
   enableAttendance: "Attendance view",
+  enableRegistroSync: "Registro attendance sync",
+  enableRegistroFeedbackAlerts: "Registro feedback alerts",
+  registroAttendanceUrl: "Registro attendance URL",
+  registroFeedbackUrl: "Registro feedback URL",
   enableStatus: "Friend statuses",
   enableMeetups: "Meetup plans",
   maintenanceMode: "Maintenance mode",
@@ -2037,6 +2046,67 @@ export default function AdminDashboard({ user, initialRole, startImpersonation, 
       requireText: "REFRESH",
       tone: "danger",
       onConfirm: forceRefresh,
+    });
+  }
+
+  const [cacheBusting, setCacheBusting] = useState(false);
+
+  async function triggerEmergencyCacheBust() {
+    if (isReadOnlyAdmin) return alert(READ_ONLY_MESSAGE);
+    setCacheBusting(true);
+    const now = Date.now();
+    const nowIso = new Date(now).toISOString();
+
+    try {
+      const updatedFlags = {
+        ...flags,
+        cacheBustEpoch: now,
+        cacheBustAt: nowIso,
+      };
+
+      const { error } = await supabase
+        .from("system_config")
+        .update({
+          updated_at: nowIso,
+          flags: updatedFlags,
+        })
+        .eq("id", "global")
+        .select("id")
+        .single();
+
+      if (error) throw error;
+
+      setFlags(updatedFlags);
+      setOriginalFlags(updatedFlags);
+
+      try {
+        const chan = supabase.channel("system-broadcast");
+        await chan.send({
+          type: "broadcast",
+          event: "cache-bust",
+          payload: { epoch: now, timestamp: nowIso },
+        });
+        supabase.removeChannel(chan);
+      } catch { }
+
+      await logAdminAction(admin_id, "emergency_cache_bust", { epoch: now, timestamp: nowIso });
+      setSaveMsg("Emergency cache-bust published! All student clients will wipe stale caches and pull the latest release.");
+    } catch (e) {
+      setSaveMsg("Cache-bust failed: " + e.message);
+    } finally {
+      setCacheBusting(false);
+    }
+  }
+
+  function requestEmergencyCacheBust() {
+    requestAdminConfirmation({
+      title: "Purge all student caches & fix blank screens?",
+      description: "This broadcasts an emergency cache-bust epoch. All active and returning devices will automatically delete cached Service Worker assets, purge stale bundles, and pull the newest production build from scratch.",
+      impact: "Forces a clean bundle re-download on every student device.",
+      confirmLabel: "Bust Caches & Fix Devices",
+      requireText: "PURGE",
+      tone: "danger",
+      onConfirm: triggerEmergencyCacheBust,
     });
   }
 
@@ -5280,6 +5350,10 @@ export default function AdminDashboard({ user, initialRole, startImpersonation, 
                   items: FEATURE_FLAGS.map(f => ({ ...f, id: f.key, on: flags[f.key] !== false, was: live[f.key] !== false, set: on => setTop(f.key, on, live[f.key] !== false) })),
                 },
                 {
+                  id: "registro", title: "Registro sync", note: "Controls for EDTEX Registro copy-paste, 1-click bookmarklet & feedback warnings.",
+                  items: REGISTRO_FLAGS.map(f => ({ ...f, id: f.key, on: flags[f.key] !== false, was: live[f.key] !== false, set: on => setTop(f.key, on, live[f.key] !== false) })),
+                },
+                {
                   id: "other", title: "Other flags", note: "Remaining on/off values found in the config.",
                   items: Object.keys(flags)
                     .filter(k => typeof flags[k] === "boolean" && !FEATURE_FLAG_KEYS.has(k) && k !== "maintenanceMode" && k !== "dispatchEnabled")
@@ -5420,6 +5494,67 @@ export default function AdminDashboard({ user, initialRole, startImpersonation, 
                 <option value="v2">Static (V2 image)</option>
                 <option value="v3">Static (V3 image)</option>
               </select>
+            </div>
+            <div className="system-subsection">
+              <div className="system-subhead">
+                <span className="system-kicker">Registro portal URLs</span>
+                {(flags.registroAttendanceUrl || flags.registroFeedbackUrl) && (
+                  <button
+                    type="button"
+                    className="admin-btn outline"
+                    style={{ padding: "3px 9px", fontSize: 11 }}
+                    onClick={() => {
+                      const next = { ...flags };
+                      delete next.registroAttendanceUrl;
+                      delete next.registroFeedbackUrl;
+                      setFlags(next);
+                    }}
+                  >
+                    Reset defaults
+                  </button>
+                )}
+              </div>
+              <div style={{ display: "grid", gap: 8 }}>
+                <div>
+                  <label htmlFor="system-reg-att-url" style={{ display: "block", fontSize: 11.5, marginBottom: 4, color: "var(--muted)" }}>
+                    Attendance URL
+                  </label>
+                  <input
+                    id="system-reg-att-url"
+                    type="url"
+                    className="admin-input"
+                    value={flags.registroAttendanceUrl || ""}
+                    placeholder={REGISTRO_ATTENDANCE_URL}
+                    onChange={e => {
+                      const val = e.target.value;
+                      const next = { ...flags };
+                      if (val) next.registroAttendanceUrl = val;
+                      else delete next.registroAttendanceUrl;
+                      setFlags(next);
+                    }}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="system-reg-fb-url" style={{ display: "block", fontSize: 11.5, marginBottom: 4, color: "var(--muted)" }}>
+                    Course feedback URL
+                  </label>
+                  <input
+                    id="system-reg-fb-url"
+                    type="url"
+                    className="admin-input"
+                    value={flags.registroFeedbackUrl || ""}
+                    placeholder={REGISTRO_FEEDBACK_URL}
+                    onChange={e => {
+                      const val = e.target.value;
+                      const next = { ...flags };
+                      if (val) next.registroFeedbackUrl = val;
+                      else delete next.registroFeedbackUrl;
+                      setFlags(next);
+                    }}
+                  />
+                </div>
+              </div>
+              <small className="system-help">Leave blank to use the default IIM Sambalpur Registro URLs. Deploy to push changes to students.</small>
             </div>
             </fieldset>
           </section>
@@ -5590,6 +5725,30 @@ export default function AdminDashboard({ user, initialRole, startImpersonation, 
               </div>
               <button type="button" className="admin-btn outline" onClick={requestForceRefresh} disabled={isReadOnlyAdmin}>
                 <RefreshCw size={14} /> Force sync
+              </button>
+            </div>
+            <div className="admin-danger-row" style={{ borderColor: "color-mix(in srgb, var(--amber, #f59e0b) 45%, var(--border, #ddd))" }}>
+              <div>
+                <strong className="system-row-title" style={{ color: "var(--amber-text, #b45309)" }}>
+                  Emergency Client Cache Bust &amp; Purge <AdminActionBadge mode="live" />
+                </strong>
+                <span className="admin-subtext">
+                  Fixes white screens and stale bundle mismatches across the cohort. Commands every active and returning device to purge Service Worker caches and pull the latest release.
+                </span>
+                {flags?.cacheBustAt && (
+                  <small style={{ display: "block", marginTop: 4, color: "var(--muted, #888)", fontSize: 11 }}>
+                    Last global cache purge: {new Date(flags.cacheBustAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}
+                  </small>
+                )}
+              </div>
+              <button
+                type="button"
+                className="admin-btn"
+                style={{ background: "var(--amber, #f59e0b)", color: "#111", fontWeight: 700, border: "none" }}
+                onClick={requestEmergencyCacheBust}
+                disabled={isReadOnlyAdmin || cacheBusting}
+              >
+                <Zap size={14} /> {cacheBusting ? "Purging…" : "Purge & Fix Clients"}
               </button>
             </div>
           </section>

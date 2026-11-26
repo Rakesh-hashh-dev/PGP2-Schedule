@@ -14,12 +14,30 @@ import "./styles/modal-layout.css";
 import { registerSW } from "virtual:pwa-register";
 import StartupGreeting from "./components/StartupGreeting.jsx";
 import PetFinishDefs from "./components/PetFinishDefs.jsx";
+import RootErrorBoundary from "./components/RootErrorBoundary.jsx";
 import { initSentry } from "./lib/sentry.js";
 
 initSentry();
 
+// Retry helper for dynamic imports to survive momentary network glitches or chunk transitions
+function loadWithRetry(importFn, retries = 2, delay = 800) {
+  return new Promise((resolve, reject) => {
+    importFn()
+      .then(resolve)
+      .catch((error) => {
+        if (retries > 0) {
+          setTimeout(() => {
+            loadWithRetry(importFn, retries - 1, delay * 1.5).then(resolve, reject);
+          }, delay);
+        } else {
+          reject(error);
+        }
+      });
+  });
+}
+
 // Start fetching ClerkApp immediately so LCP isn't delayed by the lazy boundary
-const clerkAppPromise = import("./ClerkApp.jsx");
+const clerkAppPromise = loadWithRetry(() => import("./ClerkApp.jsx"));
 const ClerkApp = lazy(() => clerkAppPromise);
 
 // registerSW returns the update fn — onNeedRefresh receives no arguments
@@ -28,6 +46,15 @@ const updateSW = registerSW({
   onNeedRefresh() {
     window.__swPendingUpdate = updateSW;
     window.dispatchEvent(new CustomEvent("sw-update-available", { detail: { updateSW } }));
+
+    // Fallback: If React hasn't mounted within 4 seconds (e.g. bundle crash or stuck import),
+    // automatically apply the waiting Service Worker to recover rather than staying blank.
+    setTimeout(() => {
+      if (!window.__reactDidMount) {
+        console.warn("[SW] App unmounted during update detection; applying waiting SW.");
+        updateSW(true);
+      }
+    }, 4000);
   },
   onRegisteredSW(_url, registration) {
     if (!registration) return;
@@ -72,10 +99,14 @@ root.render(
     ? <Suspense fallback={null}><PetFinishDefs /><PetMoodSheet /></Suspense>
     : (
       <React.StrictMode>
-        <PetFinishDefs />
-        <Suspense fallback={<StartupGreeting />}>
-          <ClerkApp />
-        </Suspense>
+        <RootErrorBoundary>
+          <PetFinishDefs />
+          <Suspense fallback={<StartupGreeting />}>
+            <ClerkApp />
+          </Suspense>
+        </RootErrorBoundary>
       </React.StrictMode>
     )
 );
+
+window.__reactDidMount = true;

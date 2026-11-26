@@ -243,6 +243,28 @@
         </script>
       </main>
     </div>
+    <!-- Global Chunk Loading Guard: auto-reloads if a Vite dynamic import or script preload 404s after a new deploy. -->
+    <script>
+      window.addEventListener("vite:preloadError", function (event) {
+        event.preventDefault();
+        var KEY = "pgp2.chunk-reload-ts";
+        var now = Date.now();
+        var last = parseInt(sessionStorage.getItem(KEY) || "0", 10);
+        // Throttle auto-reload loop to avoid spinning on server downtime
+        if (now - last > 12000) {
+          sessionStorage.setItem(KEY, String(now));
+          if (window.caches) {
+            caches.keys().then(function (names) {
+              return Promise.all(names.map(function (n) { return caches.delete(n); }));
+            }).finally(function () {
+              window.location.reload();
+            });
+          } else {
+            window.location.reload();
+          }
+        }
+      });
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

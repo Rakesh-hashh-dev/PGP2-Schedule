@@ -13,6 +13,8 @@ export function configForHistory(flags) {
 const LABELS = {
   abTests: "A/B tests", bannedUsers: "Banned users", classOverrides: "Class overrides",
   dispatchEnabled: "Push dispatch", enableAttendance: "Attendance view",
+  enableRegistroSync: "Registro attendance sync", enableRegistroFeedbackAlerts: "Registro feedback alerts",
+  registroAttendanceUrl: "Registro attendance URL", registroFeedbackUrl: "Registro feedback URL",
   enableExams: "Exams view", enableFriends: "Social / Friends",
   enableMeetups: "Meetup plans", enableStatus: "Friend statuses",
   feedbackFlashes: "Feedback flashes", greetingPets: "Greeting companions",

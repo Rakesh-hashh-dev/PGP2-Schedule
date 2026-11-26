@@ -1,12 +1,15 @@
 import { useCallback, useMemo, useState } from "react";
-import { ArrowRight, BarChart3, BookOpen, CalendarCheck2, Check, ChevronDown, CircleGauge, Clock, History, ListFilter, ShieldAlert, X } from "lucide-react";
+import { ArrowRight, BarChart3, BookOpen, CalendarCheck2, Check, ChevronDown, CircleGauge, Clock, History, ListFilter, RefreshCw, ShieldAlert, X } from "lucide-react";
 import { sessionKey, courseSkipStats, isExamSession } from "../lib/attendance.js";
 import { attendanceCourseState, attendanceCoverage, attendanceRequirement, groupPendingSessions, sortAttendanceCourses } from "../lib/attendanceWorkspace.js";
 import { subjectClass, cleanSessionLabel } from "../lib/subjectColors.js";
-import { fmtTime12 } from "../lib/datetime.js";
+import { fmtTime12, timeAgo } from "../lib/datetime.js";
 import { EmptyState } from "./ui.jsx";
 import WeatherWidget from "./WeatherWidget.jsx";
+import FeedbackAlert from "./FeedbackAlert.jsx";
+import RegistroSyncModal from "./RegistroSyncModal.jsx";
 import "../styles/attendance.css";
+import "../styles/registro-sync.css";
 
 const PENDING_PREVIEW_SIZE = 4;
 const RISK_WATCH_DISMISSED_KEY = "pgp2.attendance-risk-watch-dismissed";
@@ -166,18 +169,44 @@ function SubjectChart({ courses, isVisible = true }) {
   );
 }
 
-export default function AttendancePanel({ allClasses, now, attendance, enrolled, legend, markAttendance, weather, termNumber, onOpenCourse }) {
+export default function AttendancePanel({
+  allClasses,
+  now,
+  attendance,
+  enrolled,
+  legend,
+  markAttendance,
+  weather,
+  termNumber,
+  onOpenCourse,
+  enableRegistroSync = true,
+  registroAttendanceUrl,
+  registroFeedbackUrl,
+  registroSync = null,
+  pendingRegistroPreview = null,
+  onClearPendingRegistroPreview,
+  onApplyRegistroSync,
+  openRegistroSyncSignal = 0,
+  pendingFeedbackCourses = [],
+  onDismissFeedbackCourse,
+  onDismissAllFeedback,
+}) {
   const [expandedCode, setExpandedCode] = useState(null);
   const [pendingFilter, setPendingFilter] = useState("all");
   const [courseFilter, setCourseFilter] = useState("all");
   const [historyFilter, setHistoryFilter] = useState("all");
   const [showChart, setShowChart] = useState(false);
   const [showAllPending, setShowAllPending] = useState(false);
+  const [registroModalOpen, setRegistroModalOpen] = useState(false);
+  const [seenSyncSignal, setSeenSyncSignal] = useState(0);
   const [riskWatchDismissed, setRiskWatchDismissed] = useState(() => {
     try { return localStorage.getItem(RISK_WATCH_DISMISSED_KEY) === "true"; } catch { return false; }
   });
   const [liveMessage, setLiveMessage] = useState("");
   const codes = Object.keys(enrolled || {});
+
+  const effectiveRegistroModalOpen =
+    enableRegistroSync && (registroModalOpen || Boolean(pendingRegistroPreview) || openRegistroSyncSignal > seenSyncSignal);
 
   const allPast = useMemo(() => {
     if (!enrolled) return [];
@@ -248,9 +277,36 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
     <div className="atx-page">
       <div className="atx-heading">
         <div><span className="atx-eyebrow">Attendance centre</span><h1>Attendance</h1><p>{termNumber ? `Term ${["", "I", "II", "III", "IV", "V", "VI"][termNumber] || termNumber}` : "Term so far"} · Know what needs action</p></div>
-        <WeatherWidget now={now} weather={weather} />
+        <div className="atx-head-actions">
+          {enableRegistroSync && onApplyRegistroSync && (
+            <button
+              type="button"
+              className={`atx-sync-btn${pendingFeedbackCourses.length > 0 ? " has-warn" : ""}`}
+              onClick={() => setRegistroModalOpen(true)}
+              title="Import official attendance and feedback status from Registro"
+            >
+              <RefreshCw size={13} strokeWidth={2.2} className="atx-sync-svg" aria-hidden="true" />
+              <span>Sync from Registro</span>
+              {pendingFeedbackCourses.length > 0 ? (
+                <span className="atx-sync-warn-pill">{pendingFeedbackCourses.length} feedback</span>
+              ) : registroSync?.syncedAt ? (
+                <span className="atx-sync-time">{timeAgo(registroSync.syncedAt)}</span>
+              ) : null}
+            </button>
+          )}
+          <WeatherWidget now={now} weather={weather} />
+        </div>
       </div>
       <div className="sr-only" role="status" aria-live="polite">{liveMessage}</div>
+
+      <FeedbackAlert
+        compact
+        pendingCourses={pendingFeedbackCourses}
+        feedbackUrl={registroFeedbackUrl}
+        onOpenRegistroSync={enableRegistroSync && onApplyRegistroSync ? () => setRegistroModalOpen(true) : undefined}
+        onDismissCourse={onDismissFeedbackCourse}
+        onDismissAll={onDismissAllFeedback}
+      />
 
       <section className={`atx-summary${overallCoverage < 70 && overall.total ? " incomplete" : ""}`} aria-labelledby="attendance-summary-title">
         <div className="atx-summary-main">
@@ -325,11 +381,34 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
         {allPast.length === 0 ? <EmptyState compact icon={CalendarCheck2} title="No past classes yet" sub="Check back once sessions end." /> : filteredCourses.length ? <div className="atx-course-grid">{filteredCourses.map((course) => {
           const open = expandedCode === course.code;
           const canExpand = course.sessions.length > 0 && !!markAttendance;
+          const reg = registroSync?.courses?.[course.code];
+          const regPctBad = reg?.pct != null && reg.attGiven > 0 && reg.pct < course.requiredPct;
+          const regFbPending = reg && (reg.isFeedbackGiven === false || String(reg.feedbackGradeDrop || "").trim() === "1");
+          const regAttDrop = reg && String(reg.attGradeDrop || "").trim() === "1";
           return <article className={`atx-course-card ${subjectClass(course.code)} state-${course.state.id}${open ? " open" : ""}`} key={course.code}>
             <button className="atx-course-toggle" onClick={() => canExpand && toggleCourse(course.code)} disabled={!canExpand} aria-expanded={open}>
               <div className="atx-course-topline"><span className="atx-course-code">{course.code}</span><span className={`atx-state-pill state-${course.state.id}`}>{course.state.label}</span>{canExpand && <ChevronDown size={16} className="atx-course-chevron" />}</div>
               <h3>{course.name}</h3><div className="atx-course-measure"><strong>{percentageLabel(course.pct)}</strong><span>{course.present}/{course.marked} attended</span><span>{course.requiredPct}% required</span></div>
               <Progress value={course.pct} target={course.requiredPct} label={`${course.name} attendance`} />
+              {enableRegistroSync && reg && (
+                <div className="atx-registro-strip">
+                  <div className="atx-reg-official-main">
+                    <span className="atx-reg-kicker">Registro</span>
+                    <strong className={regPctBad ? "bad" : reg.attGiven > 0 ? "good" : ""}>
+                      {reg.pct != null ? `${reg.pct}%` : "—"}
+                    </strong>
+                    <span>{reg.present}/{reg.attGiven}</span>
+                  </div>
+                  <div className="atx-registro-badges">
+                    {reg.leaves > 0 && (
+                      <span className="atx-reg-chip">{reg.leaves} leave{reg.leaves === 1 ? "" : "s"}</span>
+                    )}
+                    {regAttDrop && <span className="reg-tag bad">Att Grade Drop</span>}
+                    {regFbPending && <span className="reg-tag warn">Feedback Pending</span>}
+                    {reg.isFeedbackGiven === true && <span className="reg-tag good">Feedback OK</span>}
+                  </div>
+                </div>
+              )}
             </button>
             <div className="atx-course-foot">
               <div className="atx-foot-meta">
@@ -395,6 +474,31 @@ export default function AttendancePanel({ allClasses, now, attendance, enrolled,
           </article>;
         })}</div> : <p className="atx-filter-empty">No courses match this filter.</p>}
       </section>
+
+      {enableRegistroSync && onApplyRegistroSync && (
+        <RegistroSyncModal
+          isOpen={effectiveRegistroModalOpen}
+          onClose={() => {
+            setRegistroModalOpen(false);
+            setSeenSyncSignal(openRegistroSyncSignal);
+            onClearPendingRegistroPreview?.();
+          }}
+          initialPreview={pendingRegistroPreview}
+          onClearInitialPreview={onClearPendingRegistroPreview}
+          registroSync={registroSync}
+          attendanceUrl={registroAttendanceUrl}
+          feedbackUrl={registroFeedbackUrl}
+          allClasses={allClasses}
+          enrolled={enrolled}
+          legend={legend}
+          onApplySync={(payload) => {
+            onApplyRegistroSync(payload);
+            setRegistroModalOpen(false);
+            setSeenSyncSignal(openRegistroSyncSignal);
+            setLiveMessage("Registro attendance sync applied.");
+          }}
+        />
+      )}
     </div>
   );
 }

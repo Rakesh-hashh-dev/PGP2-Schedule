@@ -108,3 +108,14 @@ export async function pushMark(userId, key, status) {
     );
   } catch (e) { /* stays cached; re-syncs on next sync */ }
 }
+
+export async function pushMarksBatch(userId, updates) {
+  if (!userId || !updates) return;
+  const rows = Object.entries(updates)
+    .filter(([, status]) => status === "present" || status === "absent")
+    .map(([session_key, status]) => ({ user_id: userId, session_key, status }));
+  if (!rows.length) return;
+  try {
+    await supabase.from("attendance").upsert(rows, { onConflict: "user_id,session_key" });
+  } catch (e) { /* stays cached in localStorage; re-syncs cleanly */ }
+}

@@ -17,7 +17,6 @@ function loadSentry() {
         ignoreErrors: [
           // Benign browser/PWA noise
           "ResizeObserver loop",
-          "Failed to fetch dynamically imported module",
         ],
       });
       for (const err of preInitQueue) Sentry.captureException(err);

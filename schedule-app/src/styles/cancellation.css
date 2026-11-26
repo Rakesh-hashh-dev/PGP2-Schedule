@@ -30,3 +30,46 @@
   background: none; border: none; color: var(--muted); cursor: pointer;
 }
 .cx-alert-dismiss:hover { background: var(--surface); color: var(--text); }
+
+/* Warm amber variant for Registro Feedback Grade-Drop Alert */
+.cx-alert-warn {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, #d97706 11%, var(--card)),
+    color-mix(in srgb, #f59e0b 4%, var(--card))
+  );
+  border-color: color-mix(in srgb, #d97706 38%, var(--border));
+  box-shadow: 0 12px 30px -22px rgba(180, 83, 9, 0.45);
+}
+.cx-alert-warn.compact { margin-top: 12px; margin-bottom: 4px; }
+.cx-alert-ico-warn {
+  background: color-mix(in srgb, #d97706 18%, transparent);
+  color: #b45309;
+}
+html[data-theme="dark"] .cx-alert-ico-warn {
+  background: rgba(245, 158, 11, 0.16);
+  color: #fbbf24;
+}
+.cx-alert-head-row {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px;
+}
+.cx-alert-head-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.cx-alert-cta {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 11px; border-radius: 999px;
+  background: linear-gradient(135deg, #d97706, #b45309);
+  color: #fff; font-size: 11px; font-weight: 700; text-decoration: none;
+  box-shadow: 0 6px 16px -6px rgba(180, 83, 9, 0.65);
+  transition: transform 0.14s ease, filter 0.14s ease;
+}
+.cx-alert-cta:hover { transform: translateY(-1px); filter: brightness(1.08); }
+.cx-alert-secondary {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 10px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--card); color: var(--ink);
+  font-size: 11px; font-weight: 600; cursor: pointer;
+}
+.cx-alert-secondary:hover { background: var(--surface); }
+.cx-alert-item-copy { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
+.cx-alert-item-copy strong { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.cx-alert-item-copy span { font-size: 11px; color: var(--muted); }

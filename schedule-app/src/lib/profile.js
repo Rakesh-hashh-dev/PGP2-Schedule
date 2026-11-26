@@ -55,8 +55,12 @@ export async function syncProfileFromCloud(userId) {
     const manualSections = raw._manualSections || [];
     const archivedCourses = raw._archivedCourses || {};
     const enrolledTerm = raw._enrolledTerm;
+    const registroSync = raw._registro || null;
     try { localStorage.setItem("pgp2.assignments", JSON.stringify(assignments)); } catch {}
-    const s = { courses: cleanCourses, lastSeenNotif: remoteSeen, readPingIds, seenGroupIds, readChangeKeys, assignments, droppedCodes, manualSections, archivedCourses, enrolledTerm, imageUrl: raw._imageUrl };
+    if (registroSync) {
+      try { localStorage.setItem("pgp2.registro-sync", JSON.stringify(registroSync)); } catch {}
+    }
+    const s = { courses: cleanCourses, lastSeenNotif: remoteSeen, readPingIds, seenGroupIds, readChangeKeys, assignments, droppedCodes, manualSections, archivedCourses, enrolledTerm, registroSync, imageUrl: raw._imageUrl };
     writeLocal({ courses: cleanCourses });
     return s;
   }
