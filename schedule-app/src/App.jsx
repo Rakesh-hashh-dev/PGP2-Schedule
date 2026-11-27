@@ -1882,10 +1882,13 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
   const activeEnrolled = useMemo(() => {
     const base = isArchivedView ? (archivedCourses[activeTerm?.number] || {}) : (enrolled || {});
     const leg = activeLegend || {};
+    const classCodes = new Set(activeClasses.map((c) => c.code).filter(Boolean));
     const out = {};
-    for (const code of Object.keys(base)) if (leg[code]) out[code] = base[code];
+    for (const code of Object.keys(base)) {
+      if (leg[code] || (!isArchivedView && classCodes.has(code))) out[code] = base[code];
+    }
     return out;
-  }, [isArchivedView, archivedCourses, activeTerm, enrolled, activeLegend]);
+  }, [isArchivedView, archivedCourses, activeTerm, enrolled, activeLegend, activeClasses]);
   const activeMine = useMemo(() => new Set(Object.keys(activeEnrolled)), [activeEnrolled]);
   // Editing enrollment only makes sense for the live term — a no-op while
   // browsing an archived term (every "Edit setup" entry point routes through this).
@@ -4063,7 +4066,7 @@ function AppCore({ isSignedIn, isLoaded, signOut, userId, user }) {
                           : view === "admin" && isAdmin
                             ? <AdminDashboard user={user} initialRole={adminRoleState.userId === userId ? adminRoleState.role : undefined} startImpersonation={startImpersonation} syncLogs={syncLogs} timeOverride={timeOverride} setTimeOverride={setTimeOverride} allChanges={CHANGES} onConfigSaved={flags => setSysConfig(current => ({ ...(current || {}), flags }))} />
                             : view === "fullSchedule"
-                              ? <FullSchedulePage allClasses={activeClasses} enrolled={activeEnrolled} legend={activeEnrolledLegend} termLabel={termLabel} onBack={() => setView("today")} jumpToDate={jumpToDate} setJumpToDate={setJumpToDate} jumpToSession={jumpToSession} setJumpToSession={setJumpToSession} onOpenCalendarExport={isArchivedView ? undefined : openCalendarExport} onOpenCourse={(code) => { setCourseHubCode(code); setView("courseHub"); }} onOpenSession={setClassPrepSession} />
+                              ? <FullSchedulePage allClasses={activeClasses} enrolled={activeEnrolled} legend={activeEnrolledLegend} termLabel={termLabel} onBack={() => setView("today")} jumpToDate={jumpToDate} setJumpToDate={setJumpToDate} jumpToSession={jumpToSession} setJumpToSession={setJumpToSession} onOpenCalendarExport={isArchivedView ? undefined : openCalendarExport} onOpenCourse={(code) => { setCourseHubCode(code); setView("courseHub"); }} onOpenSession={setClassPrepSession} provisionalSections={isArchivedView ? undefined : provisionalSections} todayISO={todayISO} />
                               : view === "assignments"
                                 ? <AssignmentsPanel
                                     enrolled={enrolled}
